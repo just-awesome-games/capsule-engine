@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Runtime</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PrivateAssets is the default set plus "compile", and the "compile" entry is
+         load-bearing: it stops MonoGame's reference assemblies flowing to consumers,
+         so a game cannot write a Microsoft.Xna.Framework using. Runtime and native
+         assets still flow, so MonoGame's managed and native libraries reach the
+         game's output. Dropping "compile" silently reopens the boundary. -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1">
+      <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure engine contracts. Carries no package references at all, so a
+       MonoGame type cannot reach game logic: the absence is the enforcement. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule</RootNamespace>
+  </PropertyGroup>
+
+</Project>

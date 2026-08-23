@@ -1,0 +1,22 @@
+#!/bin/sh
+# Local mirror of the CI gates. Activate once with: git config core.hooksPath hooks
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Locked restore first, and every later step with --no-restore: an implicit
+# unlocked restore would regenerate a drifted lock file locally instead of
+# failing the way CI does.
+echo "pre-commit: locked restore"
+dotnet restore --locked-mode
+
+echo "pre-commit: build"
+dotnet build --no-restore
+
+echo "pre-commit: format check"
+dotnet format --verify-no-changes --no-restore
+
+echo "pre-commit: tests"
+dotnet test --no-build
+
+echo "pre-commit: all gates passed"

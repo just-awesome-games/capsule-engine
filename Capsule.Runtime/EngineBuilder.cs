@@ -1,0 +1,195 @@
+using System.Buffers;
+using Capsule.Input;
+using Capsule.Rendering;
+
+namespace Capsule.Runtime;
+
+/// <summary>
+/// Fluent configuration for one engine host. Every <c>With</c> validates eagerly, so
+/// a misconfiguration throws at the call site that caused it rather than inside the
+/// loop. <see cref="Run"/> blocks until the game exits.
+/// </summary>
+public sealed class EngineBuilder
+{
+    private const int DefaultWindowWidth = 1280;
+    private const int DefaultWindowHeight = 720;
+    private const int DefaultStepHertz = 60;
+
+    // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
+    // and '/', so a name accepted on a Linux build machine would fail on a player's
+    // Windows box. The safe-name contract must not depend on where the game was built.
+    private static readonly SearchValues<char> UnsafeNameChars = SearchValues.Create(UnsafeNameCharSet());
+
+    // Windows resolves these as devices from any directory, matching on the stem before
+    // the first dot, so "CON" and "CON.log" both fail rather than creating a directory.
+    private static readonly string[] ReservedDeviceNames =
+    [
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+
+    private readonly ActionBindings _bindings = new();
+
+    private string _windowTitle = "Capsule";
+    private int _windowWidth = DefaultWindowWidth;
+    private int _windowHeight = DefaultWindowHeight;
+    private bool _resizable;
+    private double _stepSeconds = 1.0 / DefaultStepHertz;
+    private ColorRgba _clearColor = ColorRgba.Black;
+    private string? _crashLogAppName;
+
+    internal EngineBuilder()
+    {
+    }
+
+    /// <param name="width">Back-buffer width in pixels.</param>
+    /// <param name="height">Back-buffer height in pixels.</param>
+    public EngineBuilder WithWindow(string title, int width, int height, bool resizable = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        _windowTitle = title;
+        _windowWidth = width;
+        _windowHeight = height;
+        _resizable = resizable;
+
+        return this;
+    }
+
+    /// <param name="hertz">Simulation steps per second of simulated time.</param>
+    public EngineBuilder WithFixedStep(int hertz)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hertz);
+
+        _stepSeconds = 1.0 / hertz;
+
+        return this;
+    }
+
+    public EngineBuilder WithClearColor(ColorRgba color)
+    {
+        _clearColor = color;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Writes an escaping exception to <c>crash.log</c> under the OS-local application
+    /// data folder for <paramref name="appName"/>, then rethrows it.
+    /// </summary>
+    /// <param name="appName">Used verbatim as one directory name, so it must be exactly that.</param>
+    public EngineBuilder WithCrashLog(string appName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
+
+        if (!IsOneSafeDirectoryName(appName))
+        {
+            throw new ArgumentException(
+                "A crash-log application name must be a single directory name: no separators, no relative segment, no reserved device name, and no trailing dot or space.",
+                nameof(appName));
+        }
+
+        _crashLogAppName = appName;
+
+        return this;
+    }
+
+    /// <summary>Registers action bindings; call it more than once and the registrations accumulate.</summary>
+    public EngineBuilder WithBindings(Action<ActionBindings> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        configure(_bindings);
+
+        return this;
+    }
+
+    /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>
+    public void Run(ISimulation simulation)
+    {
+        ArgumentNullException.ThrowIfNull(simulation);
+
+        EngineOptions options = new(
+            _windowTitle,
+            _windowWidth,
+            _windowHeight,
+            _resizable,
+            _stepSeconds,
+            _clearColor,
+            _bindings);
+
+        if (_crashLogAppName is null)
+        {
+            Host(options, simulation);
+            return;
+        }
+
+        try
+        {
+            Host(options, simulation);
+        }
+        catch (Exception exception)
+        {
+            // A windowed build has no console, so an escaping exception would otherwise
+            // vanish. Rethrow to preserve the exit code and the debugger break.
+            CrashLog.TryWrite(_crashLogAppName, exception);
+            throw;
+        }
+    }
+
+    private static char[] UnsafeNameCharSet()
+    {
+        const string Reserved = "<>:\"/\\|?*";
+        const int ControlCharCount = 0x20;
+
+        char[] unsafeChars = new char[Reserved.Length + ControlCharCount];
+        Reserved.CopyTo(unsafeChars);
+        for (int control = 0; control < ControlCharCount; control++)
+        {
+            unsafeChars[Reserved.Length + control] = (char)control;
+        }
+
+        return unsafeChars;
+    }
+
+    private static bool IsOneSafeDirectoryName(string name)
+    {
+        if (name.AsSpan().IndexOfAny(UnsafeNameChars) >= 0)
+        {
+            return false;
+        }
+
+        // Catches "." and ".." with it: Windows trims trailing dots and spaces, so such a
+        // name silently resolves to a different directory than the one it reads as.
+        if (name[^1] is '.' or ' ')
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> stem = name.AsSpan();
+        int dot = stem.IndexOf('.');
+        if (dot >= 0)
+        {
+            stem = stem[..dot];
+        }
+
+        foreach (string reserved in ReservedDeviceNames)
+        {
+            if (stem.Equals(reserved, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void Host(EngineOptions options, ISimulation simulation)
+    {
+        using CapsuleGame game = new(options, simulation);
+        game.Run();
+    }
+}
