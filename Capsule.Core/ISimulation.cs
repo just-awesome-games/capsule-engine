@@ -3,9 +3,8 @@ using Capsule.Rendering;
 namespace Capsule;
 
 /// <summary>
-/// A game, as the engine sees it. The runtime owns the clock, the window and the
-/// device; a simulation owns all game state, advances it one fixed step at a time,
-/// and never draws — it exposes render intent through <see cref="View"/>.
+/// A game, as the engine sees it: it owns all game state, advances it one fixed step at
+/// a time, and never draws — what it wants on screen is exposed through <see cref="View"/>.
 /// </summary>
 public interface ISimulation
 {
@@ -16,8 +15,8 @@ public interface ISimulation
     bool ExitRequested { get; }
 
     /// <summary>
-    /// What to draw for the current state. Read every frame, so an implementation
-    /// returns a held instance rather than building one per call.
+    /// What to draw for the current state. Read on every draw frame, so an implementation
+    /// returns a held instance it rewrites once per step, never one built per call.
     /// </summary>
     FrameView View { get; }
 }

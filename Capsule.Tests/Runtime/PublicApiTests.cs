@@ -7,10 +7,9 @@ namespace Capsule.Tests.Runtime;
 /// Guards the MonoGame-hiding contract from the inside. The csproj's PrivateAssets
 /// stops a game compiling against MonoGame; this stops the engine handing a MonoGame
 /// type out through its own API, which no project setting can catch.
-/// The walk is deliberately exhaustive — base types, interfaces, generic constraints,
-/// every externally visible nested type, and each member's parameters, return, field,
-/// property and event types, following generic arguments at every one of those
-/// positions — because a leak only has to find one position the guard skipped.
+/// The walk must stay exhaustive: base types, interfaces, generic constraints, every
+/// externally visible nested type, and each member's parameter, return, field, property
+/// and event types, following generic arguments at every one of those positions.
 /// </summary>
 public sealed class PublicApiTests
 {

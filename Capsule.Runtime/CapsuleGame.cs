@@ -85,4 +85,15 @@ internal sealed class CapsuleGame : Game
 
         base.Draw(gameTime);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Null when construction failed before LoadContent ran.
+            _renderer?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
 }

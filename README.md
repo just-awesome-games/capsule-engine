@@ -21,6 +21,19 @@ game call site that needs it. It is a library, not an application: a game brings
   `Microsoft.Xna.Framework` using in a consuming game does not compile, while MonoGame's managed and
   native libraries still reach that game's output. Swapping the backend is engine-side only.
 
+## The shape
+
+`Capsule.Core` holds the pure contracts a game codes against — `ISimulation`, input, render
+intent — and carries no package references at all, so it cannot reach a device even by accident.
+`Capsule.Runtime` is the host: window, graphics device, clock, keyboard, renderer, crash log, and
+the only project that references MonoGame. `Capsule.Tests` runs xUnit specs over Core, plus
+builder validation and a reflection guard over Runtime's public surface.
+
+Dependencies point one way and each direction is held mechanically, not by review: Core
+references nothing, Runtime references Core, and a game's logic references `Capsule.Core` while
+only its one-file shell references `Capsule.Runtime`. That split is the compiler-enforced
+guarantee that gameplay stays pure and headless-testable.
+
 ## Quickstart
 
 A complete Capsule game's entry point:
@@ -38,42 +51,32 @@ CapsuleEngine.Configure()
     .Run(new MyGameSimulation());
 ```
 
-`MyGameSimulation` implements [`ISimulation`](Capsule.Core/README.md#isimulation): it advances
-one fixed step at a time, reads input as named actions, sets `ExitRequested` when it wants to
-stop, and exposes what to draw as a `FrameView`. It never touches a graphics device.
+`MyGameSimulation` implements `ISimulation`: it advances one fixed step at a time, reads input as
+named actions, sets `ExitRequested` when it wants to stop, and exposes what to draw as a
+`FrameView`. It never touches a graphics device.
 
-Games reference the engine as a **sibling clone, by project reference** — no packaging, no feed,
-no version dance:
+Games consume the engine as a **sibling clone, by project reference** — no packaging, no feed, no
+version dance:
+
+```
+Development/
+  capsule-engine/
+  my-game/
+```
 
 ```
 git clone https://github.com/just-awesome-games/capsule-engine.git   # beside the game repo
 ```
 
-Game logic references `Capsule.Core` only; the one-file shell references `Capsule.Runtime`.
-That split is the compiler-enforced guarantee that gameplay stays pure and headless-testable.
+```xml
+<!-- MyGame.Systems.csproj — game logic -->
+<ProjectReference Include="..\..\capsule-engine\Capsule.Core\Capsule.Core.csproj" />
 
-## Repository layout
+<!-- MyGame.csproj — the one-file shell -->
+<ProjectReference Include="..\..\capsule-engine\Capsule.Runtime\Capsule.Runtime.csproj" />
+```
 
-| Path                       | Contents                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| `Capsule.sln`              | Solution                                                                                        |
-| `Capsule.Core/`            | Pure engine contracts — simulation, input, render intent. **No package references at all**      |
-| `Capsule.Runtime/`         | The host: window, fixed-step loop, keyboard sampling, renderer, crash log. Owns MonoGame        |
-| `Capsule.Tests/`           | xUnit specs over `Capsule.Core`, plus builder validation and the public-surface guard           |
-| `docs/`                    | Cross-cutting architecture                                                                      |
-| `Directory.Build.props`    | Solution-wide compiler settings: nullable, warnings-as-errors, analyzers, code style, lock files |
-| `global.json`              | Pinned .NET SDK (10.0.301)                                                                      |
-| `hooks/`                   | Committed git hooks                                                                             |
-| `.github/workflows/ci.yml` | CI                                                                                              |
-
-## Documentation
-
-| Document | Read it for |
-| --- | --- |
-| [`AGENTS.md`](AGENTS.md) | The rules any contributor — human or agent — works under here, and the studio's binding MonoGame standard behind them (design repo: `studio/technical/engines/monogame/best-practices.md`) |
-| [`Capsule.Core/README.md`](Capsule.Core/README.md) | The contracts a game codes against: simulation, input, render intent |
-| [`Capsule.Runtime/README.md`](Capsule.Runtime/README.md) | The builder, the loop contract, the MonoGame-hiding contract, crash logging |
-| [`docs/architecture.md`](docs/architecture.md) | Project map, dependency directions, the input and render pipelines end to end, and the capabilities designed but awaiting their game |
+A game's CI reproduces the layout by checking the engine out beside it at a pinned ref.
 
 ## Building
 
@@ -101,8 +104,12 @@ The pre-commit hook mirrors the CI gates. Activate it once per clone:
 git config core.hooksPath hooks
 ```
 
-## Testing boundary
+Above the device line, `Capsule.Core`'s contracts are asserted directly and `Capsule.Tests`
+covers `Capsule.Runtime`'s builder validation and public surface. Below it, the window-and-device
+paths need a real graphics device, so a consuming game's verify run covers them.
 
-The device line. Above it, `Capsule.Core`'s contracts are asserted directly and `Capsule.Tests`
-covers `Capsule.Runtime`'s builder validation and public surface. Below it, `Capsule.Runtime`'s
-window-and-device paths need a real graphics device, so a consuming game's verify run covers them.
+## Further reading
+
+[`AGENTS.md`](AGENTS.md) is the rules any contributor — human or agent — works under here.
+[`docs/architecture.md`](docs/architecture.md) carries the determinism contract and the
+capabilities designed but awaiting their game. Everything else is in the code.

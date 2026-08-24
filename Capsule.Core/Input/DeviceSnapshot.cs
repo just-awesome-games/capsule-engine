@@ -1,10 +1,10 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// The set of keys held down at one instant. This is the determinism seam: the
-/// runtime derives one per frame from hardware and a test harness fabricates them,
-/// and nothing downstream can tell the difference. A value type over a fixed bitset,
-/// so producing, copying and comparing snapshots never touches the heap.
+/// The set of keys held down at one instant, and the determinism seam: the runtime
+/// derives one per frame from hardware, a harness fabricates them, and nothing downstream
+/// distinguishes the two. A value type over a fixed bitset, so producing, copying and
+/// comparing snapshots never touches the heap.
 /// </summary>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {

@@ -1,10 +1,9 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// Action-level input for the current fixed step, derived entirely from two
-/// consecutive <see cref="DeviceSnapshot"/>s. Edges are diffs, never OS callbacks,
-/// which is what makes a replayed input script produce an identical run.
-/// The runtime owns <see cref="Advance"/>; a simulation only reads.
+/// Action-level input for the current fixed step. Every edge is a diff of two consecutive
+/// <see cref="DeviceSnapshot"/>s, never an OS callback, so a replayed snapshot sequence
+/// reproduces a run exactly. The runtime owns <see cref="Advance"/>; a simulation only reads.
 /// </summary>
 public sealed class InputState(ActionBindings bindings)
 {

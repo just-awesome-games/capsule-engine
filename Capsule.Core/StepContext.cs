@@ -2,11 +2,7 @@ using Capsule.Input;
 
 namespace Capsule;
 
-/// <summary>
-/// Everything the runtime hands a simulation for one fixed step. Extensible by
-/// addition: a new per-step channel becomes a member here rather than a new
-/// parameter on <see cref="ISimulation.Step"/>.
-/// </summary>
+/// <summary>Everything the runtime hands a simulation for one fixed step.</summary>
 public readonly struct StepContext(double deltaSeconds, InputState input, long tick)
 {
     /// <summary>Simulated seconds this step represents; constant for a given engine configuration.</summary>

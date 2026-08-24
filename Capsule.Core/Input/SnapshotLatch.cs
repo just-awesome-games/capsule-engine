@@ -2,13 +2,11 @@ namespace Capsule.Input;
 
 /// <summary>
 /// Folds every sampled <see cref="DeviceSnapshot"/> into the one snapshot the next fixed
-/// step will consume. A frame that drains no step would otherwise throw its sample away,
-/// so above the step rate a key pressed and released between two steps would produce no
-/// edge at all; latching makes it one held tick and then a release.
-/// The runtime observes once per frame and consumes once per step. A harness that already
-/// owns per-tick snapshots may hand them straight to <see cref="InputState.Advance"/> and
-/// bypass this, or drive it exactly as the runtime does — either way the determinism seam
-/// stays at <see cref="DeviceSnapshot"/>.
+/// step consumes: observed once per frame, consumed once per step. Without it a frame that
+/// drains no step discards its sample, losing a key pressed and released between two steps
+/// entirely. A harness that already owns per-tick snapshots may bypass this and drive
+/// <see cref="InputState.Advance"/> directly — the determinism seam is
+/// <see cref="DeviceSnapshot"/>, not the latch.
 /// </summary>
 public sealed class SnapshotLatch
 {

@@ -3,15 +3,30 @@
 Operating rules for anyone changing this repository. They are short because every one of them
 is a rule the compiler, a test or CI cannot already enforce for you.
 
-Read [`README.md`](README.md) first for what Capsule is, and
-[`docs/architecture.md`](docs/architecture.md) for how the pieces fit.
+## Code is the documentation plane
 
-## Before you edit a module
+Agents reason through code, not prose. **The whole doc surface is
+[`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md) and the doc-comments.**
+Nothing else. There are no module READMEs, and a new prose document needs a ratified reason in
+the design repo's technical decision ledger before it exists.
 
-Read that module's `README.md` — [`Capsule.Core`](Capsule.Core/README.md),
-[`Capsule.Runtime`](Capsule.Runtime/README.md) — and **update it in the same change** when the
-change alters a contract it describes. A module README that lags its module is worse than none:
-it is confidently wrong.
+**Doc-comments on the public API are the API reference.** They are API-specific — contract,
+invariant, unit, hazard — and nothing else. No history (what a thing replaced, regained or used
+to be), no forward reference to a feature that has not landed, no design-rationale essay:
+rationale belongs in the ledger. Any extra colour is one tight clause, or it is cut. Every other
+comment earns its place the same way, at the density of the file it is in; delete anything that
+narrates the next line or addresses a reviewer.
+
+**Prose that restates code is deleted on sight**, wherever it is found. The two survivors earn
+their place by carrying what the code cannot: `README.md` is human-first orientation — what
+Capsule is, its shape, a quickstart, how to build and test — and `docs/architecture.md` is the
+determinism contract plus the capabilities designed but not yet built.
+
+A technical fact lives in the strongest home available: compiler-enforced structure first, then
+a test or assert, then a one-line comment at the site. Prose is the last resort.
+
+Whatever survives, **update it in the same change** as the code it describes. Documentation that
+lags is worse than none: it is confidently wrong.
 
 ## The boundaries
 
@@ -35,10 +50,10 @@ subsystem with no caller is a guess about a future need, and it calcifies before
 corrects it. If a game does not need it yet, the direction may be recorded in
 [`docs/architecture.md`](docs/architecture.md) — the code may not exist.
 
-The corollary: what a game *can* express should be as small as the game needs. `FrameView` has
-no members at all because nothing in a game draws yet; render intent lands one member at a
-time, each with the call site that needs it. Filling it in now would be a pile of decisions
-made without evidence.
+The corollary: what a game *can* express should be as small as the game needs. `FrameView`
+carries a camera and quads because that is what a game draws; render intent lands one member at
+a time, each with the call site that needs it. Filling it in ahead of that would be a pile of
+decisions made without evidence.
 
 ## Publishable as-is
 
@@ -50,16 +65,6 @@ This is a quality bar, never a scope bar. It disciplines how a capability lands;
 argues for building one. A generalisation, hook or option for a hypothetical external user is
 still speculative engine and still fails the placement rule above. Open-sourcing this
 repository is not a commitment.
-
-## Comments and doc-comments
-
-Match the density of the file you are in. A comment earns its place only by stating something
-the code cannot: an invariant, a unit, a hazard, a non-obvious why. Delete anything that
-narrates the next line, re-explains a design decision at essay length, or addresses a reviewer.
-Doc-comments go on public API, at the length the neighbouring members use.
-
-A technical fact lives in the strongest home available: compiler-enforced structure first, then
-a test or assert, then a one-line comment at the site. Prose is the last resort.
 
 ## Tests
 

@@ -1,8 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// A physical key, named by the engine rather than by the backend. Values must stay
-/// inside <see cref="DeviceSnapshot"/>'s bitset width; the backend maps each one.
+/// A physical key. Values must stay below <see cref="DeviceSnapshot.Capacity"/>;
+/// the backend maps each one.
 /// </summary>
 public enum Key
 {

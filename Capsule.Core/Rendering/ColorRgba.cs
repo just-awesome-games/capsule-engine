@@ -1,12 +1,9 @@
 namespace Capsule.Rendering;
 
-/// <summary>
-/// A straight (non-premultiplied) 8-bit-per-channel colour. Engine-owned so that
-/// render intent never names a backend type.
-/// </summary>
+/// <summary>A straight (non-premultiplied) 8-bit-per-channel colour.</summary>
 public readonly record struct ColorRgba(byte R, byte G, byte B, byte A)
 {
-    /// <summary>Opaque; <paramref name="a"/> defaults to fully opaque.</summary>
+    /// <summary>Fully opaque.</summary>
     public ColorRgba(byte r, byte g, byte b)
         : this(r, g, b, byte.MaxValue)
     {
