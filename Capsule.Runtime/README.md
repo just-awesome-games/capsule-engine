@@ -19,8 +19,7 @@ than somewhere inside the loop. `Run` blocks until the game exits.
 | `WithBindings(configure)` | Registers action bindings; call it repeatedly and they accumulate | No bindings | A null configurator |
 | `Run(simulation)` | Opens the window and runs until exit | — | A null simulation |
 
-Everything has a working default except the simulation, which is the one thing the engine
-cannot invent.
+Everything has a working default except the simulation.
 
 ## The loop contract
 
@@ -50,18 +49,17 @@ one frame, so an edge still fires exactly once either way. The semantics are the
 
 `Draw` computes the interpolation alpha — the fraction of a step not yet simulated, in [0, 1)
 because `Update` drains the accumulator below one step — and passes it to the renderer.
-Nothing moves yet, so nothing reads it beyond the signature; the shape is there so that adding
-interpolated motion is not a loop rewrite.
+Nothing reads it beyond the signature yet; the channel is open so interpolated motion lands as a
+change to the view rather than a rewrite of the loop.
 
 The simulation is single-threaded. There are no worker threads and no `async` anywhere in the
 step path.
 
 ## Rendering
 
-`FrameRenderer` clears to `ColorRgba.Black` and draws nothing: `FrameView` carries no render
-intent yet, so there is nothing to draw. The clear colour is deliberately not configurable —
-it is render intent, and it re-enters as a `FrameView` property if a game ever needs it, not as
-host configuration.
+`FrameRenderer` clears the frame to `ColorRgba.Black`; `FrameView` carries no render intent yet,
+and the renderer grows with it. The clear colour is deliberately not configurable — it is render
+intent, and re-enters as a `FrameView` property when a game needs it, not as host configuration.
 
 `ColorRgba` is straight alpha and the studio blend convention is premultiplied, so colours
 convert through `Color.FromNonPremultiplied` on the way to the device.
@@ -90,7 +88,7 @@ That is NuGet's default private set plus `compile`, and `compile` is the load-be
   runs.
 
 Remove `compile` and the engine still builds, the game still runs, and the guarantee is gone
-silently. That is precisely why it is written down here.
+silently.
 
 The second half of the contract is a rule no project setting can hold: **no MonoGame type in
 any public or protected signature of this project.** Everything MonoGame-shaped —

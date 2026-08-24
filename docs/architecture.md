@@ -1,7 +1,7 @@
 # Capsule — Architecture
 
-Cross-cutting view: the project map, the two seams that define the engine, and what is
-deliberately absent. Per-module contracts live in
+Cross-cutting view: the project map, the two seams that define the engine, and the capabilities
+awaiting their game. Per-module contracts live in
 [`Capsule.Core/README.md`](../Capsule.Core/README.md) and
 [`Capsule.Runtime/README.md`](../Capsule.Runtime/README.md).
 
@@ -57,9 +57,8 @@ Three things fall out of that:
   nothing per frame. A view rebuilt every frame would allocate every frame — the one thing the
   fixed step must not do.
 
-The seam is in place; its vocabulary is not. `FrameView` has no members today, so the renderer
-clears the frame and draws nothing. Render intent lands one member at a time, each with the
-game call site that needs it.
+`FrameView` has no members today and the renderer clears the frame; render intent lands one
+member at a time, each carried in by the game call site that needs it.
 
 ## The input pipeline, end to end
 
@@ -116,14 +115,14 @@ a simulation produces the same run. Concretely:
 
 Rendering sits outside the contract: it reads the same state at whatever rate the display runs.
 
-## Deliberately not built yet
+## Designed, awaiting their game
 
-Each of these is decided in direction and absent in code, because engine code lands only with a
-consuming game call site in the same change-set (see [`AGENTS.md`](../AGENTS.md)). The
-direction is recorded so the eventual implementation is not re-litigated; the absence is
-recorded so nobody assumes a gap is an oversight.
+Engine code lands only with a consuming game call site in the same change-set (see
+[`AGENTS.md`](../AGENTS.md)), so each entry below is settled in direction and waits for the game
+that calls it. The direction is recorded so the eventual implementation is not re-litigated; the
+absence is recorded so nobody reads a gap as an oversight.
 
-| Absent | Decided direction |
+| Not yet built | Decided direction |
 | --- | --- |
 | Scenes | Data, not a type hierarchy: a scene is loaded content plus the simulation state a game constructs from it. No scene graph. |
 | Entities | Bespoke per game first. No third-party ECS and no engine-imposed entity base class; if a shared shape emerges across two games, it is promoted then. |
@@ -133,5 +132,5 @@ recorded so nobody assumes a gap is an oversight.
 | Debug text | A zero-asset pixel font, returning with the debug overlay and the verify harness that need it. An implementation existed for the bootstrap screen and was deleted with it; it is recoverable from git history rather than re-derived. |
 | Game-facing text | Games bring their own font files, rendered through a future text facility. The engine never ships a game-facing font: a built-in glyph set is a visual decision, and that belongs to the game. |
 | Verify harness | A headless-ish entry point that seeds deterministically, plays a scripted `DeviceSnapshot` sequence for N fixed steps, captures a screenshot plus a state dump, runs the allocation probe, and exits non-zero on any failure. `DeviceSnapshot` already exists for it. |
-| Interpolated rendering | The alpha is already computed and passed to the renderer; the missing half is previous-state retention in the view, which arrives with the first thing that moves. |
+| Interpolated rendering | The alpha is already computed and passed to the renderer; the remaining half is previous-state retention in the view, which arrives with the first thing that moves. |
 | Gamepad, mouse | New members on `DeviceSnapshot` and new bindable inputs alongside `Key`. The action layer above them does not change. |

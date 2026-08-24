@@ -40,6 +40,17 @@ no members at all because nothing in a game draws yet; render intent lands one m
 time, each with the call site that needs it. Filling it in now would be a pile of decisions
 made without evidence.
 
+## Publishable as-is
+
+**Every commit should be able to go public unchanged.** No game vocabulary anywhere on the
+public surface, in-repo docs that stand without studio context, CI a stranger could run, every
+public member defensible in public.
+
+This is a quality bar, never a scope bar. It disciplines how a capability lands; it never
+argues for building one. A generalisation, hook or option for a hypothetical external user is
+still speculative engine and still fails the placement rule above. Open-sourcing this
+repository is not a commitment.
+
 ## Comments and doc-comments
 
 Match the density of the file you are in. A comment earns its place only by stating something

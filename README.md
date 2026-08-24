@@ -1,17 +1,25 @@
-# Capsule
+<p align="center">
+  <img src="docs/assets/capsule-hero.png" alt="Capsule — a game world inside a capsule" width="720">
+</p>
 
-JAG Studios' in-house, code-first C# game engine.
+<h1 align="center">Capsule</h1>
 
-Capsule is a library, not an application: a game brings its own `Program.cs`, configures an
-engine host, and hands it a simulation. There is no editor, no scene format and no project
-wizard — everything is C# and text on disk, which is what makes the whole surface reachable by
-both a person and an agent.
+<p align="center">A code-first C# game engine — the whole game in one capsule, the machinery sealed inside.</p>
 
-**MonoGame is an implementation detail.** Capsule runs on MonoGame today, and no game built on
-Capsule can tell. `Capsule.Runtime` marks MonoGame's compile assets private, so a
-`Microsoft.Xna.Framework` using in a consuming game does not compile, while MonoGame's managed
-and native libraries still reach that game's output. Swapping the backend is an engine-side
-change; the games do not participate.
+---
+
+Capsule is JAG Studios' in-house engine: 2D, pixel-art, deterministic, code-first. It is an
+**opinionated application runtime** — it owns the frame (loop, clock, window, input, the
+sim/render seam, the determinism contract) and everything above that line lands only with the
+game call site that needs it. It is a library, not an application: a game brings its own
+`Program.cs` and hands the host a simulation. No editor, no scene format, no project wizard.
+
+- **Everything is C# and text on disk** — the whole surface reachable by a person and an agent alike.
+- **Gameplay is pure by construction.** A simulation advances one fixed step at a time, reads input
+  as named actions, never touches a graphics device, and so is assertable headlessly.
+- **MonoGame is an implementation detail.** `Capsule.Runtime` marks its compile assets private, so a
+  `Microsoft.Xna.Framework` using in a consuming game does not compile, while MonoGame's managed and
+  native libraries still reach that game's output. Swapping the backend is engine-side only.
 
 ## Quickstart
 
@@ -62,13 +70,10 @@ That split is the compiler-enforced guarantee that gameplay stays pure and headl
 
 | Document | Read it for |
 | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | The rules any contributor — human or agent — works under here |
+| [`AGENTS.md`](AGENTS.md) | The rules any contributor — human or agent — works under here, and the studio's binding MonoGame standard behind them (design repo: `studio/technical/engines/monogame/best-practices.md`) |
 | [`Capsule.Core/README.md`](Capsule.Core/README.md) | The contracts a game codes against: simulation, input, render intent |
 | [`Capsule.Runtime/README.md`](Capsule.Runtime/README.md) | The builder, the loop contract, the MonoGame-hiding contract, crash logging |
-| [`docs/architecture.md`](docs/architecture.md) | Project map, dependency directions, the input and render pipelines end to end, what is deliberately not built yet |
-
-The studio's binding MonoGame standard lives in the design repo at
-`studio/technical/engines/monogame/best-practices.md`.
+| [`docs/architecture.md`](docs/architecture.md) | Project map, dependency directions, the input and render pipelines end to end, and the capabilities designed but awaiting their game |
 
 ## Building
 
@@ -96,5 +101,8 @@ The pre-commit hook mirrors the CI gates. Activate it once per clone:
 git config core.hooksPath hooks
 ```
 
-`Capsule.Runtime`'s window-and-device paths are not unit-tested: they need a real graphics
-device, so a consuming game's verify run is what covers them. Everything above that line is.
+## Testing boundary
+
+The device line. Above it, `Capsule.Core`'s contracts are asserted directly and `Capsule.Tests`
+covers `Capsule.Runtime`'s builder validation and public surface. Below it, `Capsule.Runtime`'s
+window-and-device paths need a real graphics device, so a consuming game's verify run covers them.

@@ -97,7 +97,7 @@ comes from an OS callback, a queue, or a timestamp. Two consequences:
 
 - **A run is reproducible.** Feed the same sequence of snapshots and the same edges fire in the
   same order. Hardware produces snapshots in the shipping game; a harness fabricates them in a
-  test. Nothing downstream can tell the difference — that is the whole point of the type.
+  test. Nothing downstream can tell the difference.
 - **Sampling rate and step rate are decoupled.** The runtime samples the keyboard once per
   frame and `SnapshotLatch` reconciles that rate with the step rate, so an edge fires on exactly
   one step no matter how many frames or steps sit between the samples.
@@ -138,14 +138,14 @@ is what keeps game logic free of a device and testable headlessly.
 | `ColorRgba` | Straight (non-premultiplied) 8-bit RGBA. `Black`, `White` |
 | `FrameView` | Everything to draw this frame |
 
-`FrameView` carries no members yet — the runtime clears the frame and draws nothing, so a
-simulation returns the shared empty view:
+`FrameView` is the seam where render vocabulary grows, one member at a time. It is empty today
+and the runtime clears the frame, so a simulation returns the shared empty view:
 
 ```csharp
 public FrameView View => FrameView.Empty;
 ```
 
-The vocabulary arrives with the first renderable feature, per the placement rule in
+Each member arrives with the first feature that draws it, per the placement rule in
 [`AGENTS.md`](../AGENTS.md): no engine type without a game call site for it.
 
 `FrameView` is immutable, and that is a performance contract, not a style: **build one per
