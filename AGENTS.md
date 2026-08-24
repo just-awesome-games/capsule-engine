@@ -70,10 +70,16 @@ repository is not a commitment.
 
 Everything in `Capsule.Core` is pure and therefore testable; specs ship in the same change as
 the code, and CI gates line coverage over `Capsule.Core` at 80%. `Capsule.Runtime` is tested
-where it is headless — builder validation, the public-surface guard — and its window-and-device
-paths are covered by a consuming game's verify run, not by a mock.
+where it is headless — builder validation, deadzone filtering, the public-surface guard — and its
+window-and-device paths are covered by a consuming game's verify run, not by a mock.
 
 Never assert on a game's tuning values or authored content. Tests assert engine behaviour.
+
+**A test is held to the comment bar: it must guard what the code cannot state for itself** — a
+contract, an invariant, a boundary or a hazard. A test that restates what the code visibly does —
+a property echo, a proof that the BCL works, one more permutation of an equality already covered —
+is deleted like any other restatement. The coverage gate is a floor, never a target: no test
+exists to move that number, and reaching it is not a reason to write one.
 
 ## The studio standard
 

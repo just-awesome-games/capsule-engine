@@ -2,7 +2,7 @@
   <img src="docs/assets/capsule-hero.png" alt="Capsule — a game world inside a capsule" width="720">
 </p>
 
-<h1 align="center">Capsule</h1>
+<h1 align="center">Capsule Engine</h1>
 
 <p align="center">A code-first C# game engine — the whole game in one capsule, the machinery sealed inside.</p>
 
@@ -10,8 +10,7 @@
 
 Capsule is JAG Studios' in-house engine: 2D, pixel-art, deterministic, code-first. It is an
 **opinionated application runtime** — it owns the frame (loop, clock, window, input, the
-sim/render seam, the determinism contract) and everything above that line lands only with the
-game call site that needs it. It is a library, not an application: a game brings its own
+sim/render seam, the determinism contract). It is a library, not an application: a game brings its own
 `Program.cs` and hands the host a simulation. No editor, no scene format, no project wizard.
 
 - **Everything is C# and text on disk** — the whole surface reachable by a person and an agent alike.
@@ -25,7 +24,7 @@ game call site that needs it. It is a library, not an application: a game brings
 
 `Capsule.Core` holds the pure contracts a game codes against — `ISimulation`, input, render
 intent — and carries no package references at all, so it cannot reach a device even by accident.
-`Capsule.Runtime` is the host: window, graphics device, clock, keyboard, renderer, crash log, and
+`Capsule.Runtime` is the host: window, graphics device, clock, keyboard and gamepad, renderer, crash log, and
 the only project that references MonoGame. `Capsule.Tests` runs xUnit specs over Core, plus
 builder validation and a reflection guard over Runtime's public surface.
 
@@ -105,7 +104,7 @@ git config core.hooksPath hooks
 ```
 
 Above the device line, `Capsule.Core`'s contracts are asserted directly and `Capsule.Tests`
-covers `Capsule.Runtime`'s builder validation and public surface. Below it, the window-and-device
+covers `Capsule.Runtime`'s builder validation, deadzone filtering and public surface. Below it, the window-and-device
 paths need a real graphics device, so a consuming game's verify run covers them.
 
 ## Further reading

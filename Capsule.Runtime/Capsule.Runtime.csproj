@@ -20,4 +20,11 @@
     <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
   </ItemGroup>
 
+  <!-- The specs assert the headless internals — deadzone filtering — without widening the
+       public surface to do it. Only BCL-typed internals are reachable this way: MonoGame's
+       compile assets do not flow to Capsule.Tests either. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -7,24 +7,6 @@ public sealed class SnapshotLatchTests
     private static readonly InputAction Jump = new("Jump");
 
     [Fact]
-    public void AFreshLatch_ConsumesNothingHeld()
-    {
-        SnapshotLatch latch = new();
-
-        Assert.True(latch.ConsumeStepSnapshot().IsEmpty);
-    }
-
-    [Fact]
-    public void AnObservedFrame_IsWhatTheNextStepConsumes()
-    {
-        SnapshotLatch latch = new();
-
-        latch.Observe(DeviceSnapshot.Of(Key.Space));
-
-        Assert.Equal(DeviceSnapshot.Of(Key.Space), latch.ConsumeStepSnapshot());
-    }
-
-    [Fact]
     public void FramesThatDrainNoStep_AccumulateIntoTheNextStep()
     {
         SnapshotLatch latch = new();
@@ -46,20 +28,6 @@ public sealed class SnapshotLatchTests
 
         Assert.True(latch.ConsumeStepSnapshot().IsDown(Key.Space));
         Assert.True(latch.ConsumeStepSnapshot().IsEmpty);
-    }
-
-    [Fact]
-    public void AHeldKey_StaysDownAcrossEveryStep()
-    {
-        SnapshotLatch latch = new();
-        DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
-
-        for (int step = 0; step < 4; step++)
-        {
-            latch.Observe(down);
-
-            Assert.Equal(down, latch.ConsumeStepSnapshot());
-        }
     }
 
     [Fact]
@@ -87,6 +55,20 @@ public sealed class SnapshotLatchTests
         latch.Observe(DeviceSnapshot.Empty);
 
         Assert.True(latch.ConsumeStepSnapshot().IsEmpty);
+    }
+
+    [Fact]
+    public void AnAxis_TakesTheLatestObservedPositionRatherThanTheExtreme()
+    {
+        // A stick is a level, not an edge: the step wants where it is now, not where
+        // it passed through since the last one.
+        SnapshotLatch latch = new();
+
+        latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 1f));
+        latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 0.25f));
+        latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.5f));
+
+        Assert.Equal(-0.5f, latch.ConsumeStepSnapshot().Axis(PadAxis.LeftStickX), 1e-6f);
     }
 
     [Fact]

@@ -12,17 +12,11 @@ namespace Capsule.Runtime;
 /// </summary>
 internal sealed class CapsuleGame : Game
 {
-    /// <summary>
-    /// Ceiling on simulated time consumed per frame. Without it a long stall
-    /// (breakpoint, window drag) queues more steps than the next frame can run,
-    /// and the accumulator never drains.
-    /// </summary>
-    private const double MaxFrameSeconds = 0.25;
-
     private readonly GraphicsDeviceManager _graphics;
     private readonly EngineOptions _options;
     private readonly ISimulation _simulation;
     private readonly InputState _input;
+    private readonly PadFilter _padFilter;
     private readonly SnapshotLatch _latch = new();
 
     private FrameRenderer _renderer = null!;
@@ -34,6 +28,7 @@ internal sealed class CapsuleGame : Game
         _options = options;
         _simulation = simulation;
         _input = new InputState(options.Bindings);
+        _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -57,10 +52,11 @@ internal sealed class CapsuleGame : Game
     protected override void Update(GameTime gameTime)
     {
         // Sampled every frame including one that drains no step: the latch is what
-        // carries that frame's keys to the step that eventually runs.
-        _latch.Observe(KeyboardSampler.Sample());
+        // carries that frame's input to the step that eventually runs. Both devices
+        // land in one snapshot; they occupy disjoint parts of it.
+        _latch.Observe(GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter));
 
-        _accumulator += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, MaxFrameSeconds);
+        _accumulator += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, _options.MaxFrameSeconds);
         while (_accumulator >= _options.StepSeconds)
         {
             _input.Advance(_latch.ConsumeStepSnapshot());

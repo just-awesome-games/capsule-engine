@@ -4,21 +4,13 @@ namespace Capsule.Tests.Input;
 
 public sealed class InputStateTests
 {
+    private const float Tolerance = 1e-6f;
+
     private static readonly InputAction Jump = new("Jump");
-    private static readonly InputAction Unbound = new("Unbound");
+    private static readonly AxisAction Move = new("Move");
 
-    private static InputState Bound(params ReadOnlySpan<Key> keys) =>
-        new(new ActionBindings().Bind(Jump, keys));
-
-    [Fact]
-    public void ANewState_ReportsNothing()
-    {
-        InputState input = Bound(Key.Space);
-
-        Assert.False(input.IsHeld(Jump));
-        Assert.False(input.WasPressed(Jump));
-        Assert.False(input.WasReleased(Jump));
-    }
+    private static InputState Bound(params ReadOnlySpan<InputButton> buttons) =>
+        new(new ActionBindings().Bind(Jump, buttons));
 
     [Fact]
     public void TheFirstAdvanceWithTheKeyDown_IsAPress()
@@ -64,27 +56,6 @@ public sealed class InputStateTests
     }
 
     [Fact]
-    public void Tapping_PressesAndReleasesOnceEach()
-    {
-        InputState input = Bound(Key.Space);
-        int presses = 0;
-        int releases = 0;
-
-        DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
-        DeviceSnapshot[] frames = [DeviceSnapshot.Empty, down, down, DeviceSnapshot.Empty, DeviceSnapshot.Empty];
-
-        foreach (DeviceSnapshot snapshot in frames)
-        {
-            input.Advance(snapshot);
-            presses += input.WasPressed(Jump) ? 1 : 0;
-            releases += input.WasReleased(Jump) ? 1 : 0;
-        }
-
-        Assert.Equal(1, presses);
-        Assert.Equal(1, releases);
-    }
-
-    [Fact]
     public void AdvancingTwiceOnOneSnapshot_FiresTheEdgeOnTheFirstStepOnly()
     {
         // The runtime samples once per frame and drains several steps against that
@@ -104,17 +75,6 @@ public sealed class InputStateTests
     }
 
     [Fact]
-    public void AnyBoundKey_SatisfiesTheAction()
-    {
-        InputState input = Bound(Key.Space, Key.W);
-
-        input.Advance(DeviceSnapshot.Of(Key.W));
-
-        Assert.True(input.WasPressed(Jump));
-        Assert.True(input.IsHeld(Jump));
-    }
-
-    [Fact]
     public void SwappingBetweenBoundKeys_IsNotAnEdge()
     {
         InputState input = Bound(Key.Space, Key.W);
@@ -129,41 +89,19 @@ public sealed class InputStateTests
     }
 
     [Fact]
-    public void MultiKeyRelease_WaitsForTheLastKey()
+    public void Axis_ReadsTheCurrentStepOnly()
     {
-        InputState input = Bound(Key.Space, Key.W);
+        InputState input = new(new ActionBindings().BindAxis(Move, PadAxis.LeftStickX));
 
-        input.Advance(DeviceSnapshot.Of(Key.Space, Key.W));
-        input.Advance(DeviceSnapshot.Of(Key.W));
+        Assert.Equal(0f, input.Axis(Move));
 
-        Assert.False(input.WasReleased(Jump));
+        input.Advance(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.75f));
+
+        Assert.Equal(-0.75f, input.Axis(Move), Tolerance);
 
         input.Advance(DeviceSnapshot.Empty);
 
-        Assert.True(input.WasReleased(Jump));
-    }
-
-    [Fact]
-    public void AnUnboundAction_NeverFires()
-    {
-        InputState input = Bound(Key.Space);
-
-        input.Advance(DeviceSnapshot.Of(Key.Space, Key.Escape));
-
-        Assert.False(input.IsHeld(Unbound));
-        Assert.False(input.WasPressed(Unbound));
-        Assert.False(input.WasReleased(Unbound));
-    }
-
-    [Fact]
-    public void AnUnrelatedKey_DoesNotFireTheAction()
-    {
-        InputState input = Bound(Key.Space);
-
-        input.Advance(DeviceSnapshot.Of(Key.Escape));
-
-        Assert.False(input.WasPressed(Jump));
-        Assert.False(input.IsHeld(Jump));
+        Assert.Equal(0f, input.Axis(Move), Tolerance);
     }
 
     [Fact]

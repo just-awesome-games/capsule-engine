@@ -18,7 +18,8 @@ a simulation produces the same run. Concretely:
    directions — many frames per step and many steps per frame — so a frame-rate change cannot
    change how many times an edge fires, nor whether it fires at all.
 4. **The simulation is single-threaded.** No worker threads, no `async` in the step path.
-5. **Frame time is clamped at 0.25 s**, so a stall bounds the number of steps it can queue.
+5. **Frame time is clamped** at the configured spike clamp, 0.25 s by default, so a stall
+   bounds the number of steps it can queue.
 
 Rendering sits outside the contract: it reads the same state at whatever rate the display runs.
 
@@ -40,4 +41,6 @@ absence is recorded so nobody reads a gap as an oversight.
 | Game-facing text | Games bring their own font files, rendered through a future text facility. The engine never ships a game-facing font: a built-in glyph set is a visual decision, and that belongs to the game. |
 | Verify harness | A headless-ish entry point that seeds deterministically, plays a scripted `DeviceSnapshot` sequence for N fixed steps, captures a screenshot plus a state dump, runs the allocation probe, and exits non-zero on any failure. `DeviceSnapshot` already exists for it. |
 | Screen-space (HUD) intents | A coordinate-space attribute on render intent — world, or camera-relative — rather than a second view or a second renderer. It arrives with the first HUD element that needs it. |
-| Gamepad, mouse | New members on `DeviceSnapshot` and new bindable inputs alongside `Key`. The action layer above them does not change. |
+| Mouse | New members on `DeviceSnapshot` and a new bindable input alongside `Key` and `PadButton`. The action layer above them does not change. |
+| Several gamepads at once | The first connected pad only. Merging several into one snapshot, or routing each to its own player, is a policy choice with no single right answer; it waits for the game that has more than one player. |
+| Axis thresholds, SOCD priority | Neither: no threshold turns an axis into a digital action, and an opposing digital pair bound to one axis cancels to 0 rather than obeying the last input. |

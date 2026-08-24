@@ -9,4 +9,7 @@ internal sealed record EngineOptions(
     int WindowHeight,
     bool Resizable,
     double StepSeconds,
+    double MaxFrameSeconds,
+    float StickDeadzone,
+    float TriggerDeadzone,
     ActionBindings Bindings);

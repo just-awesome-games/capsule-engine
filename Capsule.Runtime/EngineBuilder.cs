@@ -1,5 +1,6 @@
 using System.Buffers;
 using Capsule.Input;
+using Capsule.Runtime.Input;
 
 namespace Capsule.Runtime;
 
@@ -13,6 +14,7 @@ public sealed class EngineBuilder
     private const int DefaultWindowWidth = 1280;
     private const int DefaultWindowHeight = 720;
     private const int DefaultStepHertz = 60;
+    private const double DefaultSpikeClampSeconds = 0.25;
 
     // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
     // and '/', so a name accepted on a Linux build machine would fail on a player's
@@ -35,6 +37,9 @@ public sealed class EngineBuilder
     private int _windowHeight = DefaultWindowHeight;
     private bool _resizable;
     private double _stepSeconds = 1.0 / DefaultStepHertz;
+    private double _maxFrameSeconds = DefaultSpikeClampSeconds;
+    private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
+    private float _triggerDeadzone = PadFilter.DefaultTriggerDeadzone;
     private string? _crashLogAppName;
 
     internal EngineBuilder()
@@ -65,6 +70,62 @@ public sealed class EngineBuilder
         _stepSeconds = 1.0 / hertz;
 
         return this;
+    }
+
+    /// <summary>
+    /// Ceiling on the simulated time one frame may contribute. Without it a long stall
+    /// (breakpoint, window drag) queues more steps than the following frames can run, and
+    /// the accumulator never drains.
+    /// </summary>
+    /// <param name="seconds">
+    /// Real seconds, positive and finite, never below one fixed step; a shorter ceiling
+    /// could not carry a whole step, and <see cref="Run"/> — where both values are known —
+    /// rejects it.
+    /// </param>
+    public EngineBuilder WithSpikeClamp(double seconds)
+    {
+        // NaN passes every comparison-based guard and an infinite ceiling never binds:
+        // either would silently disable the clamp the method exists to set.
+        if (!double.IsFinite(seconds))
+        {
+            throw new ArgumentOutOfRangeException(nameof(seconds), seconds, "A spike clamp must be a finite number of seconds.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds);
+
+        _maxFrameSeconds = seconds;
+
+        return this;
+    }
+
+    /// <summary>
+    /// A stick reading inside <paramref name="stick"/> radially reads centred and a trigger
+    /// pull below <paramref name="trigger"/> reads released; past either, what remains is
+    /// remapped onto [0, 1], so full deflection stays reachable.
+    /// </summary>
+    /// <param name="stick">Stick radius, in [0, 1); 0 applies no stick deadzone.</param>
+    /// <param name="trigger">Trigger pull, in [0, 1); 0 applies no trigger deadzone.</param>
+    public EngineBuilder WithGamepadDeadzones(float stick, float trigger)
+    {
+        RequireDeadzone(stick, nameof(stick));
+        RequireDeadzone(trigger, nameof(trigger));
+
+        _stickDeadzone = stick;
+        _triggerDeadzone = trigger;
+
+        return this;
+    }
+
+    private static void RequireDeadzone(float value, string parameterName)
+    {
+        // NaN compares false to everything, so the range guards below cannot reject it.
+        if (float.IsNaN(value))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, value, "A deadzone radius cannot be NaN.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
     /// <summary>
@@ -103,12 +164,22 @@ public sealed class EngineBuilder
     {
         ArgumentNullException.ThrowIfNull(simulation);
 
+        // Neither call can see the other's value, so the pair settles here.
+        if (_maxFrameSeconds < _stepSeconds)
+        {
+            throw new InvalidOperationException(
+                $"A spike clamp of {_maxFrameSeconds} s is below the fixed step of {_stepSeconds} s: no frame could contribute a whole step, so the simulation would fall behind real time at any frame rate.");
+        }
+
         EngineOptions options = new(
             _windowTitle,
             _windowWidth,
             _windowHeight,
             _resizable,
             _stepSeconds,
+            _maxFrameSeconds,
+            _stickDeadzone,
+            _triggerDeadzone,
             _bindings);
 
         if (_crashLogAppName is null)

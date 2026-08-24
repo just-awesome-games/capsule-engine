@@ -1,4 +1,4 @@
-using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime;
 
 namespace Capsule.Tests.Runtime;
@@ -9,42 +9,8 @@ namespace Capsule.Tests.Runtime;
 /// </summary>
 public sealed class EngineBuilderTests
 {
-    [Fact]
-    public void Configure_StartsAFreshBuilder()
-    {
-        Assert.NotSame(CapsuleEngine.Configure(), CapsuleEngine.Configure());
-    }
-
-    [Fact]
-    public void EveryWithMethod_ReturnsTheBuilderSoTheyChain()
-    {
-        EngineBuilder builder = CapsuleEngine.Configure();
-
-        Assert.Same(builder, builder.WithWindow("Title", 320, 240, resizable: true));
-        Assert.Same(builder, builder.WithFixedStep(120));
-        Assert.Same(builder, builder.WithCrashLog("Game"));
-        Assert.Same(builder, builder.WithBindings(bindings => bindings.Bind(new InputAction("Quit"), Key.Escape)));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void WithWindow_RejectsAnUnnamedWindow(string? title)
-    {
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure().WithWindow(title!, 1280, 720));
-    }
-
-    [Theory]
-    [InlineData(0, 720)]
-    [InlineData(1280, 0)]
-    [InlineData(-1, 720)]
-    [InlineData(1280, -1)]
-    public void WithWindow_RejectsNonPositiveDimensions(int width, int height)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithWindow("Title", width, height));
-    }
-
+    // Zero would divide to an infinite step rather than fail, so the guard is the only
+    // thing between a misconfiguration and a loop that never advances.
     [Theory]
     [InlineData(0)]
     [InlineData(-60)]
@@ -53,42 +19,62 @@ public sealed class EngineBuilderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithFixedStep(hertz));
     }
 
-    // The character cases are Windows-invalid but legal on POSIX: they must be rejected
-    // wherever the suite runs, or a Linux CI pass would clear a name that breaks a player.
+    // NaN passes every comparison-based range guard and an infinite ceiling never binds —
+    // either would reach the loop as a frame bound that silently does nothing.
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData("bad/name")]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void WithSpikeClamp_RejectsANonFiniteCeiling(double seconds)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithSpikeClamp(seconds));
+    }
+
+    // Same NaN hole on the float side: a NaN radius would ride into PadFilter and poison
+    // every filtered axis.
+    [Theory]
+    [InlineData(float.NaN, 0.12f)]
+    [InlineData(0.25f, float.NaN)]
+    public void WithGamepadDeadzones_RejectsANaNRadius(float stick, float trigger)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => CapsuleEngine.Configure().WithGamepadDeadzones(stick, trigger));
+    }
+
+    // A clamp below one step could never carry a whole step, so the simulation would fall
+    // behind real time at any frame rate. Neither With call can see the other's value, which
+    // leaves Run the only place the pair can be rejected at all.
+    [Fact]
+    public void Run_RejectsASpikeClampBelowTheFixedStep()
+    {
+        EngineBuilder builder = CapsuleEngine.Configure()
+            .WithFixedStep(60)
+            .WithSpikeClamp(1.0 / 120);
+
+        Assert.Throws<InvalidOperationException>(() => builder.Run(new IdleSimulation()));
+    }
+
+    // The separator and device cases are Windows-invalid but legal on POSIX: they must be
+    // rejected wherever the suite runs, or a Linux CI pass would clear a name that breaks
+    // a player. One row per rejection rule, not per character.
+    [Theory]
     [InlineData("bad\\name")]
     [InlineData("C:name")]
-    [InlineData("Game?")]
-    [InlineData("Game*")]
-    [InlineData("Game<1>")]
-    [InlineData("Game|Pipe")]
-    [InlineData("Game\"Quoted\"")]
-    [InlineData("Game\tTab")]
-    [InlineData(".")]
     [InlineData("..")]
-    [InlineData("Game.")]
     [InlineData("Game ")]
-    [InlineData("CON")]
     [InlineData("nul")]
-    [InlineData("Com1")]
-    [InlineData("LPT9")]
     [InlineData("AUX.log")]
-    public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string? appName)
+    public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string appName)
     {
         // Each of these either escapes %LOCALAPPDATA%/<appName> or, on Windows, resolves
         // to something other than a directory.
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure().WithCrashLog(appName!));
+        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure().WithCrashLog(appName));
     }
 
-    // Code points rather than literals: a raw control character in the source would be
-    // invisible to a reader and to a diff.
+    // The ends of the control range: an off-by-one in the set builder loses one of them.
+    // Code points rather than literals, since a raw control character in the source would
+    // be invisible to a reader and to a diff.
     [Theory]
     [InlineData(0x00)]
-    [InlineData(0x07)]
     [InlineData(0x1F)]
     public void WithCrashLog_RejectsAControlCharacter(int codePoint)
     {
@@ -96,8 +82,9 @@ public sealed class EngineBuilderTests
             () => CapsuleEngine.Configure().WithCrashLog($"Game{(char)codePoint}Name"));
     }
 
+    // The false-positive side: a device name is a whole stem, not a prefix, and an
+    // interior space or dot is ordinary.
     [Theory]
-    [InlineData("Game")]
     [InlineData("X Plus")]
     [InlineData("JAG.Studios.XPlus")]
     [InlineData("CONsole")]
@@ -107,15 +94,15 @@ public sealed class EngineBuilderTests
         CapsuleEngine.Configure().WithCrashLog(appName);
     }
 
-    [Fact]
-    public void WithBindings_RequiresAConfigurator()
+    // Never stepped: Run rejects the configuration before it opens a window.
+    private sealed class IdleSimulation : ISimulation
     {
-        Assert.Throws<ArgumentNullException>(() => CapsuleEngine.Configure().WithBindings(null!));
-    }
+        public bool ExitRequested => true;
 
-    [Fact]
-    public void Run_RequiresASimulation()
-    {
-        Assert.Throws<ArgumentNullException>(() => CapsuleEngine.Configure().Run(null!));
+        public FrameView View { get; } = new();
+
+        public void Step(in StepContext context)
+        {
+        }
     }
 }

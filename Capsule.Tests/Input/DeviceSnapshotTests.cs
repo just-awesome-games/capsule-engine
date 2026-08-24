@@ -4,6 +4,8 @@ namespace Capsule.Tests.Input;
 
 public sealed class DeviceSnapshotTests
 {
+    private const float Tolerance = 1e-6f;
+
     [Fact]
     public void EveryKey_FitsTheBitset()
     {
@@ -11,12 +13,9 @@ public sealed class DeviceSnapshotTests
     }
 
     [Fact]
-    public void ADefaultSnapshot_IsEmpty()
+    public void EveryPadButton_FitsTheBitset()
     {
-        DeviceSnapshot snapshot = default;
-
-        Assert.True(snapshot.IsEmpty);
-        Assert.Equal(DeviceSnapshot.Empty, snapshot);
+        Assert.All(Enum.GetValues<PadButton>(), button => Assert.InRange((int)button, 0, DeviceSnapshot.PadCapacity - 1));
     }
 
     [Fact]
@@ -32,27 +31,6 @@ public sealed class DeviceSnapshotTests
     }
 
     [Fact]
-    public void Of_NoKeys_IsEmpty()
-    {
-        Assert.True(DeviceSnapshot.Of().IsEmpty);
-    }
-
-    [Fact]
-    public void With_AddsAKeyWithoutDisturbingTheRest()
-    {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A).With(Key.B);
-
-        Assert.True(snapshot.IsDown(Key.A));
-        Assert.True(snapshot.IsDown(Key.B));
-    }
-
-    [Fact]
-    public void With_IsIdempotent()
-    {
-        Assert.Equal(DeviceSnapshot.Of(Key.A), DeviceSnapshot.Of(Key.A).With(Key.A));
-    }
-
-    [Fact]
     public void Without_ReleasesOnlyThatKey()
     {
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A, Key.B).Without(Key.A);
@@ -62,59 +40,163 @@ public sealed class DeviceSnapshotTests
     }
 
     [Fact]
-    public void Without_AKeyThatIsUp_ChangesNothing()
+    public void EveryPadButton_IsItsOwnBit()
     {
-        Assert.Equal(DeviceSnapshot.Of(Key.B), DeviceSnapshot.Of(Key.B).Without(Key.A));
+        foreach (PadButton button in Enum.GetValues<PadButton>())
+        {
+            if (button == PadButton.None)
+            {
+                continue;
+            }
+
+            DeviceSnapshot snapshot = DeviceSnapshot.Empty.With(button);
+
+            Assert.All(
+                Enum.GetValues<PadButton>(),
+                other => Assert.Equal(other == button, snapshot.IsDown(other)));
+        }
     }
 
     [Fact]
-    public void Union_HoldsTheKeysOfBothSnapshots()
+    public void KeysAndPadButtons_DoNotShareBits()
     {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A, Key.B).Union(DeviceSnapshot.Of(Key.B, Key.C));
+        DeviceSnapshot keysOnly = DeviceSnapshot.Of(Key.A, Key.Space);
+        DeviceSnapshot padOnly = DeviceSnapshot.Empty.With(PadButton.South);
 
-        Assert.Equal(DeviceSnapshot.Of(Key.A, Key.B, Key.C), snapshot);
-    }
-
-    [Fact]
-    public void Union_WithAnEmptySnapshot_ChangesNothing()
-    {
-        Assert.Equal(DeviceSnapshot.Of(Key.A), DeviceSnapshot.Of(Key.A).Union(DeviceSnapshot.Empty));
-        Assert.Equal(DeviceSnapshot.Of(Key.A), DeviceSnapshot.Empty.Union(DeviceSnapshot.Of(Key.A)));
+        Assert.All(Enum.GetValues<PadButton>(), button => Assert.False(keysOnly.IsDown(button)));
+        Assert.All(Enum.GetValues<Key>(), key => Assert.False(padOnly.IsDown(key)));
+        Assert.NotEqual(keysOnly, padOnly);
     }
 
     [Fact]
     public void None_IsNeverAMember()
     {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.None);
+        DeviceSnapshot keys = DeviceSnapshot.Of(Key.None);
+        DeviceSnapshot pad = DeviceSnapshot.Empty.With(PadButton.None);
 
-        Assert.True(snapshot.IsEmpty);
-        Assert.False(snapshot.IsDown(Key.None));
+        Assert.True(keys.IsEmpty);
+        Assert.False(keys.IsDown(Key.None));
+        Assert.True(pad.IsEmpty);
+        Assert.False(pad.IsDown(PadButton.None));
     }
 
     [Fact]
-    public void KeyOrder_DoesNotAffectTheValue()
+    public void WithAxis_SetsThatAxisAndLeavesTheOthers()
     {
-        Assert.Equal(DeviceSnapshot.Of(Key.A, Key.Z), DeviceSnapshot.Of(Key.Z, Key.A));
+        DeviceSnapshot snapshot = DeviceSnapshot.Empty
+            .WithAxis(PadAxis.LeftStickX, -0.5f)
+            .WithAxis(PadAxis.RightTrigger, 0.25f);
+
+        Assert.Equal(-0.5f, snapshot.Axis(PadAxis.LeftStickX), Tolerance);
+        Assert.Equal(0.25f, snapshot.Axis(PadAxis.RightTrigger), Tolerance);
+        Assert.Equal(0f, snapshot.Axis(PadAxis.LeftStickY));
+        Assert.Equal(0f, snapshot.Axis(PadAxis.RightStickX));
+        Assert.Equal(0f, snapshot.Axis(PadAxis.RightStickY));
+        Assert.Equal(0f, snapshot.Axis(PadAxis.LeftTrigger));
     }
 
     [Fact]
-    public void Snapshots_CompareByTheKeysHeld()
+    public void AnAxisAwayFromRest_IsNotEmpty()
     {
-        DeviceSnapshot held = DeviceSnapshot.Of(Key.A);
-        DeviceSnapshot other = DeviceSnapshot.Of(Key.B);
-
-        Assert.True(held == DeviceSnapshot.Of(Key.A));
-        Assert.True(held != other);
-        Assert.True(held.Equals((object)DeviceSnapshot.Of(Key.A)));
-        Assert.False(held.Equals("not a snapshot"));
-        Assert.Equal(DeviceSnapshot.Of(Key.A).GetHashCode(), held.GetHashCode());
+        Assert.False(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 0.5f).IsEmpty);
     }
 
+    [Theory]
+    [InlineData(PadAxis.LeftStickX, -1f)]
+    [InlineData(PadAxis.LeftStickY, 1f)]
+    [InlineData(PadAxis.RightStickX, 0f)]
+    [InlineData(PadAxis.LeftTrigger, 0f)]
+    [InlineData(PadAxis.RightTrigger, 1f)]
+    public void WithAxis_AcceptsTheEndsOfTheRange(PadAxis axis, float value)
+    {
+        Assert.Equal(value, DeviceSnapshot.Empty.WithAxis(axis, value).Axis(axis), Tolerance);
+    }
+
+    [Theory]
+    [InlineData(PadAxis.LeftStickX, -1.0001f)]
+    [InlineData(PadAxis.LeftStickY, 1.0001f)]
+    [InlineData(PadAxis.LeftTrigger, -0.0001f)]
+    [InlineData(PadAxis.RightTrigger, 1.0001f)]
+    [InlineData(PadAxis.RightStickX, float.NaN)]
+    [InlineData(PadAxis.RightStickY, float.PositiveInfinity)]
+    public void WithAxis_RejectsAValueOutsideTheAxisRange(PadAxis axis, float value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(axis, value));
+    }
+
+    [Fact]
+    public void TheNoneAxis_NamesNothingToReadOrWrite()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.Axis(PadAxis.None));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(PadAxis.None, 0f));
+    }
+
+    [Fact]
+    public void LatchedWith_UnionsTheButtonsOfBothSnapshots()
+    {
+        DeviceSnapshot older = DeviceSnapshot.Of(Key.A, Key.B).With(PadButton.South);
+        DeviceSnapshot newer = DeviceSnapshot.Of(Key.B, Key.C).With(PadButton.North);
+
+        DeviceSnapshot folded = older.LatchedWith(newer);
+
+        Assert.Equal(
+            DeviceSnapshot.Of(Key.A, Key.B, Key.C).With(PadButton.South).With(PadButton.North),
+            folded);
+    }
+
+    [Fact]
+    public void LatchedWith_TakesEveryAxisFromTheNewerSnapshot()
+    {
+        DeviceSnapshot older = DeviceSnapshot.Empty
+            .WithAxis(PadAxis.LeftStickX, 1f)
+            .WithAxis(PadAxis.LeftTrigger, 1f);
+        DeviceSnapshot newer = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.25f);
+
+        DeviceSnapshot folded = older.LatchedWith(newer);
+
+        Assert.Equal(-0.25f, folded.Axis(PadAxis.LeftStickX), Tolerance);
+        Assert.Equal(0f, folded.Axis(PadAxis.LeftTrigger));
+    }
+
+    [Fact]
+    public void LatchedWith_AnEmptySnapshot_KeepsTheButtonsAndRestsTheAxes()
+    {
+        DeviceSnapshot held = DeviceSnapshot.Of(Key.A).WithAxis(PadAxis.LeftStickX, 1f);
+
+        DeviceSnapshot folded = held.LatchedWith(DeviceSnapshot.Empty);
+
+        Assert.True(folded.IsDown(Key.A));
+        Assert.Equal(0f, folded.Axis(PadAxis.LeftStickX));
+        Assert.Equal(DeviceSnapshot.Of(Key.A), DeviceSnapshot.Empty.LatchedWith(DeviceSnapshot.Of(Key.A)));
+    }
+
+    [Fact]
+    public void AnAxisAlone_DistinguishesTwoSnapshots()
+    {
+        DeviceSnapshot held = DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f);
+
+        Assert.NotEqual(DeviceSnapshot.Empty, held);
+        Assert.NotEqual(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickY, 0.5f), held);
+        Assert.Equal(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f), held);
+        Assert.Equal(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f).GetHashCode(), held.GetHashCode());
+    }
+
+    // An out-of-range shift wraps in C# rather than throwing, so without the guard an
+    // unrepresentable key would silently alias a real one.
     [Theory]
     [InlineData(-1)]
     [InlineData(DeviceSnapshot.Capacity)]
     public void AnUnrepresentableKey_Throws(int value)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((Key)value));
+    }
+
+    // The axis set is an InlineArray: out of bounds is a memory hazard, not a wrong answer.
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(99)]
+    public void AnUnrepresentableAxis_Throws(int value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.Axis((PadAxis)value));
     }
 }
