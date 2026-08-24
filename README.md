@@ -46,7 +46,7 @@ Games reference the engine as a **sibling clone, by project reference** — no p
 no version dance:
 
 ```
-git clone https://github.com/jagstudiosdev/capsule-engine.git   # beside the game repo
+git clone https://github.com/just-awesome-games/capsule-engine.git   # beside the game repo
 ```
 
 Game logic references `Capsule.Core` only; the one-file shell references `Capsule.Runtime`.
