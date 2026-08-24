@@ -1,5 +1,4 @@
 using Capsule.Input;
-using Capsule.Rendering;
 
 namespace Capsule.Runtime;
 
@@ -10,5 +9,4 @@ internal sealed record EngineOptions(
     int WindowHeight,
     bool Resizable,
     double StepSeconds,
-    ColorRgba ClearColor,
     ActionBindings Bindings);

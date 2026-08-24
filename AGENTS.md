@@ -35,8 +35,9 @@ subsystem with no caller is a guess about a future need, and it calcifies before
 corrects it. If a game does not need it yet, the direction may be recorded in
 [`docs/architecture.md`](docs/architecture.md) — the code may not exist.
 
-The corollary: what a game *can* express should be as small as the game needs. `Anchor` has one
-value because one game centres one string. Adding the other eight now would be eight decisions
+The corollary: what a game *can* express should be as small as the game needs. `FrameView` has
+no members at all because nothing in a game draws yet; render intent lands one member at a
+time, each with the call site that needs it. Filling it in now would be a pile of decisions
 made without evidence.
 
 ## Comments and doc-comments

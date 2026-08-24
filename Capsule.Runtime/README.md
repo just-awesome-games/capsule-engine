@@ -15,7 +15,6 @@ than somewhere inside the loop. `Run` blocks until the game exits.
 | --- | --- | --- | --- |
 | `WithWindow(title, width, height, resizable)` | Window title, back-buffer size, user resizing | `"Capsule"`, 1280×720, not resizable | An empty title; a non-positive dimension |
 | `WithFixedStep(hertz)` | Simulation steps per second of simulated time | 60 | A non-positive rate |
-| `WithClearColor(color)` | Colour the frame is cleared to | `ColorRgba.Black` | — |
 | `WithCrashLog(appName)` | Enables crash logging under that application name | Off | An empty name, or one that is not a single safe directory name: separators, invalid filename characters, `.` and `..`, a Windows reserved device name (`CON`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, with or without an extension), or a trailing dot or space |
 | `WithBindings(configure)` | Registers action bindings; call it repeatedly and they accumulate | No bindings | A null configurator |
 | `Run(simulation)` | Opens the window and runs until exit | — | A null simulation |
@@ -35,8 +34,12 @@ Per frame:
    long stall — a breakpoint, a window drag — queues more steps than the next frame can run and
    the accumulator never drains.
 3. While the accumulator holds a whole step: advance `InputState` against the latch's
-   `ConsumeStepSnapshot()`, `Step` the simulation, subtract the step, and stop if the simulation
-   raised `ExitRequested`.
+   `ConsumeStepSnapshot()`, `Step` the simulation, subtract the step, increment the tick
+   counter, and stop if the simulation raised `ExitRequested`.
+
+The tick counter is the host's, never the simulation's: it starts at 0, so the first step ever
+delivered sees `StepContext.Tick == 0` and `TotalSeconds == 0`, and it counts steps rather than
+frames, which is what makes `TotalSeconds` simulated time and not wall clock.
 
 Sampling happens on every frame, **including one that drains no step** — that is the whole reason
 the latch exists. At render rates above the step rate most frames drain nothing, and a sample
@@ -55,13 +58,16 @@ step path.
 
 ## Rendering
 
-The renderer clears to the configured colour and draws each `TextBlock` in the simulation's
-`FrameView` with a 1×1 white texture under `SamplerState.PointClamp`, so cells stay crisp at
-any scale. `ColorRgba` is straight alpha and the studio blend convention is premultiplied, so
-colours convert through `Color.FromNonPremultiplied` on the way to the device.
+`FrameRenderer` clears to `ColorRgba.Black` and draws nothing: `FrameView` carries no render
+intent yet, so there is nothing to draw. The clear colour is deliberately not configurable —
+it is render intent, and it re-enters as a `FrameView` property if a game ever needs it, not as
+host configuration.
 
-`Anchor` dispatch is an exhaustive switch with no discard arm: adding an `Anchor` value without
-a placement fails the build. The same technique maps `Key` to its backend key.
+`ColorRgba` is straight alpha and the studio blend convention is premultiplied, so colours
+convert through `Color.FromNonPremultiplied` on the way to the device.
+
+`Key` maps to its backend key through an exhaustive switch with no discard arm: adding a `Key`
+without a mapping fails the build.
 
 ## The MonoGame-hiding contract
 

@@ -15,6 +15,4 @@ public readonly record struct ColorRgba(byte R, byte G, byte B, byte A)
     public static ColorRgba Black => new(0, 0, 0);
 
     public static ColorRgba White => new(255, 255, 255);
-
-    public static ColorRgba CornflowerBlue => new(100, 149, 237);
 }

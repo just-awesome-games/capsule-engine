@@ -28,12 +28,23 @@ shuts down. The runtime never clears it.
 ### StepContext
 
 ```csharp
-public readonly struct StepContext(double deltaSeconds, InputState input)
+public readonly struct StepContext(double deltaSeconds, InputState input, long tick)
 ```
 
 Everything the runtime hands the simulation for one step, in one value. It exists so a new
 per-step channel is a new member here rather than a new parameter on `Step` — extensible by
 addition, without a signature break in every game.
+
+| Member | Meaning |
+| --- | --- |
+| `DeltaSeconds` | Simulated seconds this step represents; constant for a given configuration |
+| `Input` | Action-level input for this step |
+| `Tick` | Index of this step; `0` on the first step ever delivered |
+| `TotalSeconds` | Simulated seconds at the **start** of this step — `Tick * DeltaSeconds` |
+
+Time here is simulated, never wall clock: `TotalSeconds` is derived from the tick count rather
+than accumulated, so a long run cannot drift, and a harness replaying the same tick sequence
+sees the same times.
 
 ## Input
 
@@ -117,21 +128,6 @@ observed, so the last observed frame stands and the edge still fires only once.
 A harness that owns per-tick snapshots outright can skip the latch and call `InputState.Advance`
 directly — the seam is `DeviceSnapshot`, not the latch.
 
-## Text
-
-A blocky built-in glyph set and a grid layout for it, in cells rather than pixels — the
-renderer chooses the scale.
-
-```csharp
-PixelTextLayout layout = PixelText.Layout("HELLO WORLD");
-```
-
-`Layout` resolves a string to the set of filled `GridCell`s, throwing if any character has no
-glyph. `PixelText.CenterOrigin` turns a layout plus a cell size and viewport into the top-left
-`PixelOrigin` at which to draw it. `PixelFont.Supports` tests a character first.
-
-The glyph set is deliberately small: glyphs land when a game needs them.
-
 ## Render intent
 
 Simulations do not draw. They expose what they want on screen and the runtime draws it, which
@@ -139,15 +135,18 @@ is what keeps game logic free of a device and testable headlessly.
 
 | Type | Role |
 | --- | --- |
-| `ColorRgba` | Straight (non-premultiplied) 8-bit RGBA. `Black`, `White`, `CornflowerBlue` |
-| `Anchor` | Where a drawable sits in the viewport. `Center` only, for now |
-| `TextBlock` | A `PixelTextLayout` placed at a cell size, anchor and colour |
+| `ColorRgba` | Straight (non-premultiplied) 8-bit RGBA. `Black`, `White` |
 | `FrameView` | Everything to draw this frame |
 
+`FrameView` carries no members yet — the runtime clears the frame and draws nothing, so a
+simulation returns the shared empty view:
+
 ```csharp
-public FrameView View { get; } = new(
-    new TextBlock(PixelText.Layout("HELLO WORLD"), cellPixels: 8, Anchor.Center, ColorRgba.White));
+public FrameView View => FrameView.Empty;
 ```
+
+The vocabulary arrives with the first renderable feature, per the placement rule in
+[`AGENTS.md`](../AGENTS.md): no engine type without a game call site for it.
 
 `FrameView` is immutable, and that is a performance contract, not a style: **build one per
 distinct visual state and hold it.** Rebuilding a view every frame allocates every frame, which

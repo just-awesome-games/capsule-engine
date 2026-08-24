@@ -1,5 +1,4 @@
 using Capsule.Input;
-using Capsule.Rendering;
 using Capsule.Runtime;
 
 namespace Capsule.Tests.Runtime;
@@ -23,7 +22,6 @@ public sealed class EngineBuilderTests
 
         Assert.Same(builder, builder.WithWindow("Title", 320, 240, resizable: true));
         Assert.Same(builder, builder.WithFixedStep(120));
-        Assert.Same(builder, builder.WithClearColor(ColorRgba.CornflowerBlue));
         Assert.Same(builder, builder.WithCrashLog("Game"));
         Assert.Same(builder, builder.WithBindings(bindings => bindings.Bind(new InputAction("Quit"), Key.Escape)));
     }

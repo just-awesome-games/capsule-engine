@@ -27,6 +27,7 @@ internal sealed class CapsuleGame : Game
 
     private FrameRenderer _renderer = null!;
     private double _accumulator;
+    private long _tick;
 
     internal CapsuleGame(EngineOptions options, ISimulation simulation)
     {
@@ -63,8 +64,9 @@ internal sealed class CapsuleGame : Game
         while (_accumulator >= _options.StepSeconds)
         {
             _input.Advance(_latch.ConsumeStepSnapshot());
-            _simulation.Step(new StepContext(_options.StepSeconds, _input));
+            _simulation.Step(new StepContext(_options.StepSeconds, _input, _tick));
             _accumulator -= _options.StepSeconds;
+            _tick++;
 
             if (_simulation.ExitRequested)
             {
@@ -79,18 +81,8 @@ internal sealed class CapsuleGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // alpha is in [0, 1) because Update drains the accumulator below one step.
-        _renderer.Draw(
-            _simulation.View,
-            _options.ClearColor,
-            (float)(_accumulator / _options.StepSeconds));
+        _renderer.Draw(_simulation.View, (float)(_accumulator / _options.StepSeconds));
 
         base.Draw(gameTime);
-    }
-
-    protected override void UnloadContent()
-    {
-        _renderer.Dispose();
-
-        base.UnloadContent();
     }
 }

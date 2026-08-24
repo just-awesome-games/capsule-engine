@@ -18,7 +18,7 @@ deliberately absent. Per-module contracts live in
 
 | Project | References | Purpose |
 | --- | --- | --- |
-| `Capsule.Core` | **nothing** | Contracts and pure logic: `ISimulation`, input, text, render intent |
+| `Capsule.Core` | **nothing** | Contracts and pure logic: `ISimulation`, input, render intent |
 | `Capsule.Runtime` | `Capsule.Core`, MonoGame | The host: window, device, clock, keyboard, renderer, crash log |
 | `Capsule.Tests` | both | Specs over Core; builder validation and the public-surface guard over Runtime |
 
@@ -45,7 +45,7 @@ Entities and simulations never draw themselves. A simulation exposes a `FrameVie
 describing what it wants on screen — and the runtime turns that into draw calls.
 
 ```
-ISimulation.View  ──►  FrameView  ──►  FrameRenderer  ──►  SpriteBatch
+ISimulation.View  ──►  FrameView  ──►  FrameRenderer  ──►  device
    (pure)              (pure)          (internal)          (backend)
 ```
 
@@ -56,6 +56,10 @@ Three things fall out of that:
 - The view is immutable and built once per distinct visual state, so the render path allocates
   nothing per frame. A view rebuilt every frame would allocate every frame — the one thing the
   fixed step must not do.
+
+The seam is in place; its vocabulary is not. `FrameView` has no members today, so the renderer
+clears the frame and draws nothing. Render intent lands one member at a time, each with the
+game call site that needs it.
 
 ## The input pipeline, end to end
 
@@ -98,8 +102,10 @@ how many times it fires.
 Given the same starting state, the same sequence of `DeviceSnapshot`s and the same fixed step,
 a simulation produces the same run. Concretely:
 
-1. **The step is fixed.** Gameplay reads `StepContext.DeltaSeconds`, never wall-clock time. The
-   runtime owns the accumulator; MonoGame's own fixed step is off.
+1. **The step is fixed, and time is the engine's.** Gameplay reads `StepContext.DeltaSeconds`,
+   `Tick` and `TotalSeconds`, never wall-clock time. The runtime owns the accumulator and the
+   tick counter; MonoGame's own fixed step is off. `TotalSeconds` is `Tick * DeltaSeconds`
+   rather than an accumulation, so two runs over the same tick sequence agree exactly.
 2. **Input edges are diffs, never events.** No callback, queue or timestamp reaches a
    simulation — only the difference between two snapshots.
 3. **Sampling is decoupled from stepping.** `SnapshotLatch` reconciles the two rates in both
@@ -124,6 +130,8 @@ recorded so nobody assumes a gap is an oversight.
 | Collision | Broad-phase plus swept AABB against a tile grid, inside the fixed step, allocation-free. Physics stays the game's; the engine supplies queries. |
 | Tiled | `.tmj` loaded directly through source-generated `System.Text.Json` — no export step, no generated map artifact, per the studio standard. |
 | Audio | Raw runtime load behind a Capsule-typed facade, same hiding contract as rendering: no backend type in a public signature. |
+| Debug text | A zero-asset pixel font, returning with the debug overlay and the verify harness that need it. An implementation existed for the bootstrap screen and was deleted with it; it is recoverable from git history rather than re-derived. |
+| Game-facing text | Games bring their own font files, rendered through a future text facility. The engine never ships a game-facing font: a built-in glyph set is a visual decision, and that belongs to the game. |
 | Verify harness | A headless-ish entry point that seeds deterministically, plays a scripted `DeviceSnapshot` sequence for N fixed steps, captures a screenshot plus a state dump, runs the allocation probe, and exits non-zero on any failure. `DeviceSnapshot` already exists for it. |
 | Interpolated rendering | The alpha is already computed and passed to the renderer; the missing half is previous-state retention in the view, which arrives with the first thing that moves. |
 | Gamepad, mouse | New members on `DeviceSnapshot` and new bindable inputs alongside `Key`. The action layer above them does not change. |

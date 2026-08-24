@@ -19,14 +19,12 @@ A complete Capsule game's entry point:
 
 ```csharp
 using Capsule.Input;
-using Capsule.Rendering;
 using Capsule.Runtime;
 using MyGame.Systems;
 
 CapsuleEngine.Configure()
     .WithWindow("My Game", 1280, 720, resizable: true)
     .WithFixedStep(60)
-    .WithClearColor(ColorRgba.CornflowerBlue)
     .WithCrashLog("MyGame")
     .WithBindings(bindings => bindings.Bind(MyGameActions.Quit, Key.Escape))
     .Run(new MyGameSimulation());
@@ -51,7 +49,7 @@ That split is the compiler-enforced guarantee that gameplay stays pure and headl
 | Path                       | Contents                                                                                        |
 | -------------------------- | ------------------------------------------------------------------------------------------------- |
 | `Capsule.sln`              | Solution                                                                                        |
-| `Capsule.Core/`            | Pure engine contracts — simulation, input, text, render intent. **No package references at all** |
+| `Capsule.Core/`            | Pure engine contracts — simulation, input, render intent. **No package references at all**      |
 | `Capsule.Runtime/`         | The host: window, fixed-step loop, keyboard sampling, renderer, crash log. Owns MonoGame        |
 | `Capsule.Tests/`           | xUnit specs over `Capsule.Core`, plus builder validation and the public-surface guard           |
 | `docs/`                    | Cross-cutting architecture                                                                      |
@@ -65,7 +63,7 @@ That split is the compiler-enforced guarantee that gameplay stays pure and headl
 | Document | Read it for |
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | The rules any contributor — human or agent — works under here |
-| [`Capsule.Core/README.md`](Capsule.Core/README.md) | The contracts a game codes against: simulation, input, text, render intent |
+| [`Capsule.Core/README.md`](Capsule.Core/README.md) | The contracts a game codes against: simulation, input, render intent |
 | [`Capsule.Runtime/README.md`](Capsule.Runtime/README.md) | The builder, the loop contract, the MonoGame-hiding contract, crash logging |
 | [`docs/architecture.md`](docs/architecture.md) | Project map, dependency directions, the input and render pipelines end to end, what is deliberately not built yet |
 

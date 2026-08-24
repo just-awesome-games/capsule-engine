@@ -1,6 +1,5 @@
 using System.Buffers;
 using Capsule.Input;
-using Capsule.Rendering;
 
 namespace Capsule.Runtime;
 
@@ -36,7 +35,6 @@ public sealed class EngineBuilder
     private int _windowHeight = DefaultWindowHeight;
     private bool _resizable;
     private double _stepSeconds = 1.0 / DefaultStepHertz;
-    private ColorRgba _clearColor = ColorRgba.Black;
     private string? _crashLogAppName;
 
     internal EngineBuilder()
@@ -65,13 +63,6 @@ public sealed class EngineBuilder
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hertz);
 
         _stepSeconds = 1.0 / hertz;
-
-        return this;
-    }
-
-    public EngineBuilder WithClearColor(ColorRgba color)
-    {
-        _clearColor = color;
 
         return this;
     }
@@ -118,7 +109,6 @@ public sealed class EngineBuilder
             _windowHeight,
             _resizable,
             _stepSeconds,
-            _clearColor,
             _bindings);
 
         if (_crashLogAppName is null)
