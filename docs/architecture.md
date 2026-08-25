@@ -35,7 +35,8 @@ absence is recorded so nobody reads a gap as an oversight.
 | Scenes | Data, not a type hierarchy: a scene is loaded content plus the simulation state a game constructs from it. No scene graph. |
 | Entities | Bespoke per game first. No third-party ECS and no engine-imposed entity base class; if a shared shape emerges across two games, it is promoted then. |
 | Collision | Broad-phase plus swept AABB against a tile grid, inside the fixed step, allocation-free. Physics stays the game's; the engine supplies queries. |
-| Tiled | `.tmj` loaded directly through source-generated `System.Text.Json` — no export step, no generated map artifact, per the studio standard. |
+| Entity properties | The level format grows optional fields non-breakingly; a per-entity property bag lands with the first game that needs one, not before. |
+| Several tile layers | One tile layer per level. Background, foreground and collision as separate layers is a game's composition question, and answering it early would fix a layering vocabulary in the format. |
 | Audio | Raw runtime load behind a Capsule-typed facade, same hiding contract as rendering: no backend type in a public signature. |
 | Debug text | A zero-asset pixel font, returning with the debug overlay and the verify harness that need it. An implementation existed for the bootstrap screen and was deleted with it; it is recoverable from git history rather than re-derived. |
 | Game-facing text | Games bring their own font files, rendered through a future text facility. The engine never ships a game-facing font: a built-in glyph set is a visual decision, and that belongs to the game. |

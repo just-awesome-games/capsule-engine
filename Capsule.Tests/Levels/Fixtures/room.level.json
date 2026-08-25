@@ -1,0 +1,46 @@
+{
+  "tileSize": 16,
+  "width": 4,
+  "height": 3,
+  "tileTypes": [
+    "empty",
+    "ground",
+    "wall",
+    "ledge",
+    "hazard"
+  ],
+  "tiles": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    2,
+    0,
+    1,
+    1,
+    1,
+    4
+  ],
+  "entities": [
+    {
+      "id": 3,
+      "type": "player",
+      "x": 16,
+      "y": 32
+    },
+    {
+      "id": 5,
+      "type": "coin",
+      "x": 40.5,
+      "y": 24
+    }
+  ],
+  "nextEntityId": 6,
+  "source": {
+    "tool": "tiled",
+    "path": "room.tmj",
+    "hash": "c304030d3d53c9c440cd5d251080080a16b34be3832ad1218b2b63cae622cf6d"
+  }
+}

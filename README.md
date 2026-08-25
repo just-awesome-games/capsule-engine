@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/capsule-hero.png" alt="Capsule — a game world inside a capsule" width="720">
+  <img src="docs/assets/capsule-hero.png" alt="Capsule — a hero stepping out of a glowing capsule as a game world materializes around it" width="720">
 </p>
 
 <h1 align="center">Capsule Engine</h1>
@@ -25,13 +25,18 @@ sim/render seam, the determinism contract). It is a library, not an application:
 `Capsule.Core` holds the pure contracts a game codes against — `ISimulation`, input, render
 intent — and carries no package references at all, so it cannot reach a device even by accident.
 `Capsule.Runtime` is the host: window, graphics device, clock, keyboard and gamepad, renderer, crash log, and
-the only project that references MonoGame. `Capsule.Tests` runs xUnit specs over Core, plus
-builder validation and a reflection guard over Runtime's public surface.
+the only project that references MonoGame. `Capsule.Levels` is the level format and its
+loader — BCL only, no authoring tool at runtime — with `Capsule.Levels.Cli` the dev-time tool
+that generates levels from Tiled and gates them before a commit
+([`Capsule.Levels/README.md`](Capsule.Levels/README.md)). `Capsule.Tests` runs xUnit specs
+over Core and Levels, plus builder validation and a reflection guard over Runtime's public
+surface.
 
-Dependencies point one way and each direction is held mechanically, not by review: Core
-references nothing, Runtime references Core, and a game's logic references `Capsule.Core` while
-only its one-file shell references `Capsule.Runtime`. That split is the compiler-enforced
-guarantee that gameplay stays pure and headless-testable.
+Dependencies point one way and each direction is held mechanically, not by review: Core and
+Levels reference nothing, Runtime references Core, and a game's logic references
+`Capsule.Core` and `Capsule.Levels` while only its one-file shell references
+`Capsule.Runtime`. That split is the compiler-enforced guarantee that gameplay stays pure and
+headless-testable, and it is why no game ever links a line of Tiled-parsing code.
 
 ## Quickstart
 
@@ -70,6 +75,7 @@ git clone https://github.com/just-awesome-games/capsule-engine.git   # beside th
 ```xml
 <!-- MyGame.Systems.csproj — game logic -->
 <ProjectReference Include="..\..\capsule-engine\Capsule.Core\Capsule.Core.csproj" />
+<ProjectReference Include="..\..\capsule-engine\Capsule.Levels\Capsule.Levels.csproj" />
 
 <!-- MyGame.csproj — the one-file shell -->
 <ProjectReference Include="..\..\capsule-engine\Capsule.Runtime\Capsule.Runtime.csproj" />
@@ -85,10 +91,11 @@ dotnet test
 dotnet format --verify-no-changes
 ```
 
-With coverage, gated at the studio floor of 80% line coverage over `Capsule.Core`:
+With coverage, gated at the studio floor of 80% line coverage over `Capsule.Core` and
+`Capsule.Levels`:
 
 ```
-dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
+dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*%2c[Capsule.Levels]*" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
 ```
 
 To restore exactly the committed dependency set — as CI does:
@@ -111,4 +118,7 @@ paths need a real graphics device, so a consuming game's verify run covers them.
 
 [`AGENTS.md`](AGENTS.md) is the rules any contributor — human or agent — works under here.
 [`docs/architecture.md`](docs/architecture.md) carries the determinism contract and the
-capabilities designed but awaiting their game. Everything else is in the code.
+capabilities designed but awaiting their game.
+[`Capsule.Levels/README.md`](Capsule.Levels/README.md) covers the one thing outside this
+repository — installing and driving Tiled — plus the CLI verbs and the level conventions.
+Everything else is in the code.

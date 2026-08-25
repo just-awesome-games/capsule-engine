@@ -24,7 +24,15 @@
        reference being available. -->
   <ItemGroup>
     <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+    <ProjectReference Include="..\Capsule.Levels\Capsule.Levels.csproj" />
+    <ProjectReference Include="..\Capsule.Levels.Cli\Capsule.Levels.Cli.csproj" />
     <ProjectReference Include="..\Capsule.Runtime\Capsule.Runtime.csproj" />
+  </ItemGroup>
+
+  <!-- The importer and the CLI resolve paths relative to their inputs, so the Tiled fixtures
+       and the golden level must sit beside each other in the test output. -->
+  <ItemGroup>
+    <None Include="Levels\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

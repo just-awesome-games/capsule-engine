@@ -6,9 +6,12 @@ is a rule the compiler, a test or CI cannot already enforce for you.
 ## Code is the documentation plane
 
 Agents reason through code, not prose. **The whole doc surface is
-[`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md) and the doc-comments.**
-Nothing else. There are no module READMEs, and a new prose document needs a ratified reason in
-the design repo's technical decision ledger before it exists.
+[`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md),
+[`Capsule.Levels/README.md`](Capsule.Levels/README.md) and the doc-comments.** Nothing else.
+A new prose document needs a ratified reason in the design repo's technical decision ledger
+before it exists, and module READMEs are not a general permission: `Capsule.Levels` has one
+solely because installing and driving a third-party editor is knowledge no code in this
+repository can carry. A module whose story is told by its API gets no README.
 
 **Doc-comments on the public API are the API reference.** They are API-specific — contract,
 invariant, unit, hazard — and nothing else. No history (what a thing replaced, regained or used

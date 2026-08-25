@@ -127,6 +127,15 @@
       "capsule.core": {
         "type": "Project"
       },
+      "capsule.levels": {
+        "type": "Project"
+      },
+      "capsule.levels.cli": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Levels": "[1.0.0, )"
+        }
+      },
       "capsule.runtime": {
         "type": "Project",
         "dependencies": {

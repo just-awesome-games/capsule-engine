@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The level format and its loader. BCL only: a level is data, so nothing here may
+       reach a device, and a tool that authors levels is never a runtime dependency. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Levels</RootNamespace>
+  </PropertyGroup>
+
+</Project>

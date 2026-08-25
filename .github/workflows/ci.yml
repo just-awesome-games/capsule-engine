@@ -40,15 +40,16 @@ jobs:
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
 
-      # A second Include filter is appended with the MSBuild comma escape, not a
-      # literal comma: '-p:Include=[Capsule.Core]*%2c[Capsule.Other]*'.
+      # Include filters are joined with the MSBuild comma escape, not a literal comma.
+      # Capsule.Levels.Cli is a dev-time tool and is not gated; its importer is covered
+      # through the golden fixtures either way.
       - name: Test with coverage
         run: >
           dotnet test
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Levels]*'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml
           -p:Threshold=80
