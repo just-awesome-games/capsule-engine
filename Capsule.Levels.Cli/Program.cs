@@ -3,18 +3,26 @@ namespace Capsule.Levels.Cli;
 internal static class Program
 {
     private const string Usage = """
-        Capsule.Levels.Cli <verb>
+        Capsule.Levels.Cli import-tiled --out <dir> <map.tmj> [<map.tmj>...]
+        Capsule.Levels.Cli import-tiled --out <dir> --maps-from <list.txt>
 
-          import-tiled <map.tmj> <out.level.json>   generate a level from a Tiled map
-          assign-ids <level.json>                   number unnumbered entities, rewrite canonically
-          validate <level.json> [<level.json>...]   check levels, and that generated ones match their source
+          Writes <dir>/<map>.level.json for every map, creating <dir> if absent. Every map is
+          attempted. Exit 0 when all succeeded, 1 when any failed, 2 on a usage error.
+
+          Name the maps by a relative path: each one is recorded verbatim in its level's
+          source block, and the format rejects an absolute one.
+
+          --maps-from reads the maps one per line, which is how Capsule's build hook
+          (build/Capsule.Levels.targets) passes a whole project's worth of them. Running this
+          by hand is for debugging.
         """;
 
     private static int Main(string[] args) => args switch
     {
-        ["import-tiled", string map, string level] => LevelTool.ImportTiled(map, level, Console.Out, Console.Error),
-        ["assign-ids", string level] => LevelTool.AssignIds(level, Console.Out, Console.Error),
-        ["validate", .. string[] levels] when levels.Length > 0 => LevelTool.Validate(levels, Console.Out, Console.Error),
+        ["import-tiled", "--out", string outputDirectory, "--maps-from", string list] =>
+            LevelTool.ImportTiledFromList(outputDirectory, list, Console.Out, Console.Error),
+        ["import-tiled", "--out", string outputDirectory, .. string[] maps] when maps.Length > 0 =>
+            LevelTool.ImportTiled(outputDirectory, maps, Console.Out, Console.Error),
         _ => UsageError(),
     };
 

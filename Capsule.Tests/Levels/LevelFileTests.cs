@@ -4,7 +4,7 @@ namespace Capsule.Tests.Levels;
 
 /// <summary>
 /// The format's contract: what a level file may say, and the exact bytes one is written back
-/// as. The canonical form is load-bearing — the CLI's validate gate byte-compares against it.
+/// as. The canonical form is load-bearing — the golden fixture byte-compares against it.
 /// </summary>
 public sealed class LevelFileTests
 {
@@ -63,7 +63,7 @@ public sealed class LevelFileTests
     }
 
     // nextEntityId is the promise that ids are never reused; an id at or above it means the
-    // counter was rewound, and the next assign-ids run would hand out a collision.
+    // counter was rewound, and the next id minted would collide with one already placed.
     [Fact]
     public void Parse_RejectsAnEntityIdThatNextEntityIdWouldHandOutAgain()
     {
@@ -73,8 +73,8 @@ public sealed class LevelFileTests
         Assert.Contains("is not below nextEntityId 4", error.Message, StringComparison.Ordinal);
     }
 
-    // The message is the whole point of this error: nothing in the file tells a hand-author
-    // that a tool exists to fix it, so the message must.
+    // The message is the whole point of this error: an entity written without an id is a level
+    // author's mistake, and nothing in the file says where ids come from.
     [Fact]
     public void Parse_NamesTheFixWhenAnEntityHasNoId()
     {
@@ -82,12 +82,12 @@ public sealed class LevelFileTests
             () => LevelFile.Parse(LevelText(entities: """[{"type": "coin", "x": 128, "y": 64}]""")));
 
         Assert.Equal(
-            "entity 'coin' at (128, 64) has no id — run: Capsule.Levels.Cli assign-ids <file>",
+            "entity 'coin' at (128, 64) has no id — every entity takes one from nextEntityId when it is created.",
             error.Message);
     }
 
-    // Strict by choice: a typo'd field in a hand-authored level would otherwise be silently
-    // dropped and only surface as wrong behaviour in play.
+    // Strict by choice: a typo'd field in a level written from code or a test would otherwise
+    // be silently dropped and only surface as wrong behaviour in play.
     [Fact]
     public void Parse_RejectsAFieldTheFormatDoesNotDefine()
     {
@@ -173,7 +173,7 @@ public sealed class LevelFileTests
     }
 
     // The source block only means anything if it resolves on someone else's machine: an
-    // absolute or backslashed path is a level that can never pass the validate gate elsewhere.
+    // absolute or backslashed path records provenance nobody else can follow.
     [Theory]
     [InlineData("..\\maps\\room.tmj")]
     [InlineData("maps\\room.tmj")]

@@ -92,50 +92,6 @@ public static class LevelFile
     /// <summary>Writes <paramref name="level"/> to <paramref name="path"/> in canonical form.</summary>
     public static void Save(Level level, string path) => File.WriteAllText(path, ToJson(level), Utf8NoBom);
 
-    /// <summary>
-    /// Reads the level at <paramref name="path"/>, giving every entity that lacks an id the next
-    /// value from <c>nextEntityId</c> in file order and advancing it. A file with no
-    /// <c>nextEntityId</c> starts at 1. For hand-authored levels; an imported one never needs it.
-    /// </summary>
-    /// <exception cref="LevelFormatException">The file is malformed for a reason ids cannot fix.</exception>
-    public static Level ReadAssigningIds(string path, out int assignedCount)
-    {
-        LevelJson document = Deserialize(File.ReadAllText(path));
-
-        int next = Math.Max(document.NextEntityId, 1);
-        assignedCount = 0;
-        LevelEntity[] entities = new LevelEntity[document.Entities.Length];
-        for (int i = 0; i < entities.Length; i++)
-        {
-            LevelEntityJson entity = document.Entities[i];
-            int id = entity.Id ?? 0;
-            if (id < 1)
-            {
-                id = next++;
-                assignedCount++;
-            }
-
-            entities[i] = new LevelEntity(id, entity.Type ?? string.Empty, entity.X, entity.Y);
-        }
-
-        try
-        {
-            return new Level(
-                document.TileSize,
-                document.Width,
-                document.Height,
-                document.TileTypes,
-                document.Tiles,
-                entities,
-                next,
-                ToSource(document.Source));
-        }
-        catch (LevelFormatException ex)
-        {
-            throw new LevelFormatException($"{path}: {ex.Message}", ex);
-        }
-    }
-
     private static LevelJson Deserialize(string json)
     {
         LevelJson? document;

@@ -168,14 +168,13 @@ public sealed class Level
         {
             LevelEntity entity = _entities[i];
 
-            // The one error whose message must carry its own fix: a hand-authored level is
-            // expected to arrive without ids, and the tool that fills them is not discoverable
-            // from the file.
+            // Identity is minted where the level is authored — by the authoring tool, or from
+            // nextEntityId in the code that builds one — never by the reader.
             if (entity.Id < 1)
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity '{entity.Type}' at ({entity.X}, {entity.Y}) has no id — run: Capsule.Levels.Cli assign-ids <file>"));
+                    $"entity '{entity.Type}' at ({entity.X}, {entity.Y}) has no id — every entity takes one from nextEntityId when it is created."));
             }
 
             if (string.IsNullOrWhiteSpace(entity.Type))
@@ -207,7 +206,7 @@ public sealed class Level
     // A half-filled block writes a source object that Parse then rejects, so the level would
     // not survive its own round trip. The path and hash shapes are enforced here too: a level
     // whose source block is unresolvable on another machine, or carries a hash no importer
-    // could have produced, is one the validate gate can only ever fail.
+    // could have produced, records provenance that says nothing.
     private void ValidateSource()
     {
         if (Source is not { } source)
@@ -224,7 +223,7 @@ public sealed class Level
         if (!IsPortableRelativePath(source.Path))
         {
             throw Malformed(
-                $"source.path '{source.Path}' must be relative to the level file and use forward slashes.");
+                $"source.path '{source.Path}' must be relative and use forward slashes.");
         }
 
         if (!IsSha256Hex(source.Hash))

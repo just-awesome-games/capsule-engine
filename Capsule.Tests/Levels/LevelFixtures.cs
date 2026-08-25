@@ -12,30 +12,58 @@ internal static class LevelFixtures
 
     internal static string Read(string name) => File.ReadAllText(Path(name));
 
-    internal static Workspace CopyRoom()
+    /// <summary>
+    /// A scratch tree holding the room fixture once per name — <c>"room"</c>, <c>"a/room"</c> —
+    /// each as <c>&lt;name&gt;.tmj</c> beside the tileset it references.
+    /// </summary>
+    internal static Workspace CopyMaps(params string[] mapNames)
     {
         Workspace workspace = new();
-        foreach (string name in new[] { "room.tmj", "tiles.tsj", "room.level.json" })
+        foreach (string mapName in mapNames)
         {
-            File.Copy(Path(name), workspace.Path(name));
+            string map = mapName + ".tmj";
+            string directory = System.IO.Path.GetDirectoryName(map)!;
+            if (directory.Length > 0)
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.Copy(Path("room.tmj"), map);
+
+            string tileset = System.IO.Path.Combine(directory, "tiles.tsj");
+            if (!File.Exists(tileset))
+            {
+                File.Copy(Path("tiles.tsj"), tileset);
+            }
         }
 
         return workspace;
     }
 
+    /// <summary>
+    /// A scratch tree that is also the working directory for as long as it lives. The importer
+    /// stamps a map path as it received it, so a spec only means anything if it drives the tool
+    /// the way the build does — from the directory the map paths are written against. Every
+    /// name a workspace takes or hands back is therefore relative.
+    /// </summary>
     internal sealed class Workspace : IDisposable
     {
         private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("capsule-levels-");
+        private readonly string _entryDirectory = Directory.GetCurrentDirectory();
 
-        internal string Path(string name) => System.IO.Path.Combine(_directory.FullName, name);
+        internal Workspace() => Directory.SetCurrentDirectory(_directory.FullName);
 
         internal string Write(string name, string text)
         {
-            string path = Path(name);
-            File.WriteAllText(path, text);
-            return path;
+            File.WriteAllText(System.IO.Path.Combine(_directory.FullName, name), text);
+            return name;
         }
 
-        public void Dispose() => _directory.Delete(recursive: true);
+        // Out of the tree before deleting it: a working directory cannot be removed on Windows.
+        public void Dispose()
+        {
+            Directory.SetCurrentDirectory(_entryDirectory);
+            _directory.Delete(recursive: true);
+        }
     }
 }

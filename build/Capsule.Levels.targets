@@ -1,0 +1,153 @@
+<Project>
+
+  <!-- Derives a level from every Tiled map in the game's asset sources and ships it as content
+       at Assets/Levels. The derived files live in obj/ and are never committed.
+
+       A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
+       inert until a project declares itself the shell:
+
+         <CapsuleGameShell>true</CapsuleGameShell>
+
+       Sources are found by convention at $(CapsuleAssetSourcesDir)/levels/**/*.tmj, and
+       dispatch is by extension: a second authoring tool becomes another item group here, never
+       new wiring in the game.
+
+       Every path here is composed with forward slashes and canonicalised through the MSBuild
+       path intrinsics. A literal backslash survives into property functions, Exec command lines
+       and Link metadata untouched, and on Linux it is an ordinary filename character rather
+       than a separator — so one would name a directory instead of pointing at it. -->
+
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
+    <!-- Rooted against the project, not the working directory, so an override may be relative
+         and every message names a path a person can open. NormalizePath rather than
+         Path.GetFullPath: it repairs the separators of an override too, and this value is read
+         back by Exists(), which is evaluated raw. -->
+    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
+    <CapsuleLevelsCliProject>$(MSBuildThisFileDirectory)../Capsule.Levels.Cli/Capsule.Levels.Cli.csproj</CapsuleLevelsCliProject>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <CapsuleTiledLevel Include="$(CapsuleAssetSourcesDir)/levels/**/*.tmj" />
+
+    <!-- Not an import target of its own: a map's tilesets are read during its import, so they
+         are the other half of what a derived level is up to date with respect to. -->
+    <CapsuleTiledTileset Include="$(CapsuleAssetSourcesDir)/levels/**/*.tsj" />
+
+    <!-- The tool rides the game's own restore and build graph, so it restores under the game's
+         locked mode and contributes nothing to the game's output or publish set. -->
+    <ProjectReference Include="$(CapsuleLevelsCliProject)"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      ExcludeAssets="all"
+                      PrivateAssets="all"
+                      Private="false" />
+  </ItemGroup>
+
+  <!-- Hooked into the build in its own right, not only through the import: a missing source
+       tree yields no maps, and that is exactly the case the error below has to catch. -->
+  <Target Name="CapsuleLevelsInit"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          BeforeTargets="AssignTargetPaths">
+    <Error Condition="!Exists('$(CapsuleAssetSourcesDir)')"
+           Text="Capsule: CapsuleGameShell is set but the asset source directory '$(CapsuleAssetSourcesDir)' does not exist. A Capsule game keeps authoring sources at &lt;repo&gt;/asset-sources (levels in asset-sources/levels/*.tmj) with the shell project one level below the repo root, or points CapsuleAssetSourcesDir at where they live." />
+
+    <ItemGroup>
+      <_CapsuleLevelName Include="@(CapsuleTiledLevel->'%(Filename)')" />
+      <_CapsuleLevelNameDistinct Include="@(_CapsuleLevelName->Distinct())" />
+    </ItemGroup>
+
+    <!-- A level is named after its map and the output tree is flat, so a repeated map name
+         would leave one level silently overwriting the other. -->
+    <Error Condition="'@(_CapsuleLevelName->Count())' != '@(_CapsuleLevelNameDistinct->Count())'"
+           Text="Capsule: two Tiled maps under '$(CapsuleAssetSourcesDir)/levels' share a file name, and a level is named after its map. Rename one of: @(CapsuleTiledLevel, ' ')" />
+
+    <!-- The importer runs from the shell project directory, so the derived paths are made
+         absolute rather than left relative to wherever MSBuild was launched. The out directory
+         carries no trailing separator: it is spliced into a command line, where a trailing one
+         would escape the closing quote on Windows. -->
+    <PropertyGroup>
+      <CapsuleShellProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleShellProjectDir>
+      <CapsuleLevelsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleLevelsObjDir>
+      <CapsuleLevelsOutDir>$(CapsuleLevelsObjDir)/levels</CapsuleLevelsOutDir>
+      <CapsuleLevelsDerivedDir>$(CapsuleLevelsOutDir)/</CapsuleLevelsDerivedDir>
+      <CapsuleLevelsBatchFile>$(CapsuleLevelsObjDir)/tiled-maps.txt</CapsuleLevelsBatchFile>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Inputs/Outputs make this partially incremental: the maps correlate one-to-one with the
+       levels, so MSBuild re-runs the target with only the stale ones in @(CapsuleTiledLevel),
+       and the whole batch goes to one process. Never one process per map — a few hundred rooms
+       would spend most of a cold build in host startup.
+
+       The tilesets are a discrete input, correlating with nothing: touching one puts every
+       level out of date and re-derives the lot. That is the honest dependency — a tile's Class
+       is what a level's palette is made of — and a full re-derive is one process either way. -->
+  <Target Name="CapsuleImportTiledLevels"
+          Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleTiledLevel)' != ''"
+          DependsOnTargets="CapsuleLevelsInit;ResolveProjectReferences"
+          Inputs="@(CapsuleTiledLevel);@(CapsuleTiledTileset)"
+          Outputs="@(CapsuleTiledLevel->'$(CapsuleLevelsDerivedDir)%(Filename).level.json')">
+
+    <MSBuild Projects="$(CapsuleLevelsCliProject)"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleLevelsTool" />
+    </MSBuild>
+
+    <Error Condition="!Exists('@(_CapsuleLevelsTool)')"
+           Text="Capsule: the level importer was not built (expected '@(_CapsuleLevelsTool)')." />
+
+    <!-- The batch goes through a file, not the command line: Exec runs through cmd, whose
+         8191-character line limit a couple of hundred map paths blow past — and the error when
+         they do names neither the limit nor a map.
+
+         The maps are named relative to the shell project, and the tool runs from there. It
+         stamps each path into its level's source block verbatim, so this is what decides that
+         provenance reads '../asset-sources/levels/room.tmj' rather than a walk out of obj/. -->
+    <MakeDir Directories="$(CapsuleLevelsObjDir)" />
+
+    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text. -->
+    <ItemGroup>
+      <_CapsuleTiledLevelArg Include="@(CapsuleTiledLevel)">
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleShellProjectDir), %(FullPath)))</ProjectRelativePath>
+      </_CapsuleTiledLevelArg>
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(CapsuleLevelsBatchFile)"
+                      Lines="@(_CapsuleTiledLevelArg->'%(ProjectRelativePath)')"
+                      Overwrite="true" />
+
+    <!-- LogStandardErrorAsError surfaces the tool's own per-map messages verbatim as build
+         errors, each already anchored to the map that failed. -->
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleLevelsTool)&quot; import-tiled --out &quot;$(CapsuleLevelsOutDir)&quot; --maps-from &quot;$(CapsuleLevelsBatchFile)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- Separate from the import so the content is wired on an up-to-date build too, where the
+       import target is skipped entirely. -->
+  <Target Name="CapsuleAddLevelsToOutput"
+          Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleTiledLevel)' != ''"
+          DependsOnTargets="CapsuleImportTiledLevels"
+          BeforeTargets="AssignTargetPaths">
+
+    <!-- Named in two steps on purpose: %() in the Content metadata below batches over the item
+         the Include names, so a transform there would resolve %(Filename) against the map. -->
+    <ItemGroup>
+      <_CapsuleDerivedLevel Include="@(CapsuleTiledLevel->'$(CapsuleLevelsDerivedDir)%(Filename).level.json')" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="@(_CapsuleDerivedLevel)">
+        <Link>Assets/Levels/%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+</Project>

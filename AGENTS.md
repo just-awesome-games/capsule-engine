@@ -7,11 +7,14 @@ is a rule the compiler, a test or CI cannot already enforce for you.
 
 Agents reason through code, not prose. **The whole doc surface is
 [`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md),
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md),
 [`Capsule.Levels/README.md`](Capsule.Levels/README.md) and the doc-comments.** Nothing else.
 A new prose document needs a ratified reason in the design repo's technical decision ledger
-before it exists, and module READMEs are not a general permission: `Capsule.Levels` has one
-solely because installing and driving a third-party editor is knowledge no code in this
-repository can carry. A module whose story is told by its API gets no README.
+before it exists, and the two beyond the root pair each earn theirs the same way — by carrying
+knowledge that lives outside this repository. `consuming-capsule.md` describes a client repo's
+own files, which no code here compiles; `Capsule.Levels/README.md` covers installing and driving
+a third-party editor. Module READMEs are not a general permission: a module whose story is told
+by its API gets none.
 
 **Doc-comments on the public API are the API reference.** They are API-specific — contract,
 invariant, unit, hazard — and nothing else. No history (what a thing replaced, regained or used
@@ -20,10 +23,10 @@ rationale belongs in the ledger. Any extra colour is one tight clause, or it is 
 comment earns its place the same way, at the density of the file it is in; delete anything that
 narrates the next line or addresses a reviewer.
 
-**Prose that restates code is deleted on sight**, wherever it is found. The two survivors earn
-their place by carrying what the code cannot: `README.md` is human-first orientation — what
-Capsule is, its shape, a quickstart, how to build and test — and `docs/architecture.md` is the
-determinism contract plus the capabilities designed but not yet built.
+**Prose that restates code is deleted on sight**, wherever it is found. The root pair earns its
+place the same way: `README.md` is human-first orientation — what Capsule is, its shape, a
+quickstart, how to build and test — and `docs/architecture.md` is the determinism contract plus
+the capabilities designed but not yet built.
 
 A technical fact lives in the strongest home available: compiler-enforced structure first, then
 a test or assert, then a one-line comment at the site. Prose is the last resort.
@@ -84,11 +87,19 @@ a property echo, a proof that the BCL works, one more permutation of an equality
 is deleted like any other restatement. The coverage gate is a floor, never a target: no test
 exists to move that number, and reaching it is not a reason to write one.
 
-## The studio standard
+## Where the conventions live
 
-The binding MonoGame standard lives in the design repo at
-`studio/technical/engines/monogame/best-practices.md` and governs this repository: the
-logic/shell split, warnings-as-errors, the studio C# dialect, hot-path allocation discipline,
-the fixed-timestep mandate, locked restores, and the CI gate set. Read it before changing
-project files, CI, or anything in the fixed step. A deviation from it is recorded, never
-silent.
+**This repository is the authority on how Capsule is built and used.** MonoGame is a substrate
+Capsule hides, so substrate conventions are Capsule's own and are held here, not deferred to
+anything upstream:
+
+- `Directory.Build.props` — nullable, warnings-as-errors, the analyzer level, lock files. A
+  warning is fixed, or suppressed with a justification at the suppression site.
+- [`docs/architecture.md`](docs/architecture.md) — the determinism contract, and the fixed step
+  every gameplay path runs inside.
+- [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — the logic/shell split as it binds a
+  consuming game, and the locked restore.
+- [`README.md`](README.md) — the gates every change clears.
+
+Read the relevant one before changing project files, CI, or anything in the fixed step. A
+deviation is recorded in the same change, never silent.

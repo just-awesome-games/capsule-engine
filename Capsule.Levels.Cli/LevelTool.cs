@@ -4,150 +4,99 @@ using Capsule.Levels.Cli.Tiled;
 namespace Capsule.Levels.Cli;
 
 /// <summary>
-/// The verbs, separated from argument parsing so they are driveable from a test. Each returns
-/// a process exit code: 0 on success, 1 on any failure, with every failure written to
-/// <c>error</c>.
+/// The verb, separated from argument parsing so it is driveable from a test. Returns a process
+/// exit code: 0 on success, 1 on any failure, with every failure written to <c>error</c>.
 /// </summary>
 public static class LevelTool
 {
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-
-    /// <summary>Generates the level at <paramref name="levelPath"/> from the Tiled map at <paramref name="mapPath"/>.</summary>
-    public static int ImportTiled(string mapPath, string levelPath, TextWriter output, TextWriter error)
+    /// <summary>
+    /// As <see cref="ImportTiled"/>, reading the maps one per line from
+    /// <paramref name="listPath"/>. This is the form a build drives: a few hundred map paths
+    /// overflow a command line, and the failure when they do names nothing useful.
+    /// </summary>
+    public static int ImportTiledFromList(
+        string outputDirectory,
+        string listPath,
+        TextWriter output,
+        TextWriter error)
     {
+        ArgumentNullException.ThrowIfNull(error);
+
+        string[] mapPaths;
+        try
+        {
+            mapPaths = [.. File.ReadAllLines(listPath).Where(line => !string.IsNullOrWhiteSpace(line))];
+        }
+        catch (Exception ex) when (IsReportable(ex))
+        {
+            error.WriteLine($"import-tiled: cannot read the map list '{listPath}' — {ex.Message}");
+            return 1;
+        }
+
+        return ImportTiled(outputDirectory, mapPaths, output, error);
+    }
+
+    /// <summary>
+    /// Generates one level per map into <paramref name="outputDirectory"/>, creating it if
+    /// absent. A level is named after its map, so two maps sharing a file name is an error
+    /// rather than a silent overwrite. Every map is attempted: one broken map reports and does
+    /// not hide the rest.
+    /// </summary>
+    public static int ImportTiled(
+        string outputDirectory,
+        IReadOnlyList<string> mapPaths,
+        TextWriter output,
+        TextWriter error)
+    {
+        ArgumentNullException.ThrowIfNull(mapPaths);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
         try
         {
-            LevelFile.Save(TiledImporter.Import(mapPath, levelPath), levelPath);
-            output.WriteLine($"import-tiled: wrote {levelPath}");
-            return 0;
+            Directory.CreateDirectory(outputDirectory);
         }
         catch (Exception ex) when (IsReportable(ex))
         {
-            error.WriteLine($"import-tiled: {ex.Message}");
+            error.WriteLine($"import-tiled: cannot create '{outputDirectory}' — {ex.Message}");
             return 1;
         }
-    }
 
-    /// <summary>
-    /// Numbers every entity in <paramref name="levelPath"/> that lacks an id and rewrites the
-    /// file canonically. A generated level never needs this; a hand-authored one does.
-    /// </summary>
-    public static int AssignIds(string levelPath, TextWriter output, TextWriter error)
-    {
-        ArgumentNullException.ThrowIfNull(output);
-        ArgumentNullException.ThrowIfNull(error);
-
-        try
-        {
-            Level level = LevelFile.ReadAssigningIds(levelPath, out int assigned);
-            LevelFile.Save(level, levelPath);
-            output.WriteLine($"assign-ids: {assigned} id(s) assigned in {levelPath}");
-            return 0;
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"assign-ids: {ex.Message}");
-            return 1;
-        }
-    }
-
-    /// <summary>
-    /// The commit gate. Validates each level, and where one carries a source block re-runs the
-    /// import in memory and byte-compares it, so a hand-edit to a generated file fails here
-    /// rather than surviving into the repository.
-    /// </summary>
-    public static int Validate(IReadOnlyList<string> levelPaths, TextWriter output, TextWriter error)
-    {
-        ArgumentNullException.ThrowIfNull(levelPaths);
-        ArgumentNullException.ThrowIfNull(output);
-        ArgumentNullException.ThrowIfNull(error);
-
+        Dictionary<string, string> claimedBy = new(StringComparer.OrdinalIgnoreCase);
         int failures = 0;
-        foreach (string levelPath in levelPaths)
+        foreach (string mapPath in mapPaths)
         {
-            if (!ValidateOne(levelPath, error))
+            string levelPath = Path.Combine(
+                outputDirectory,
+                Path.GetFileNameWithoutExtension(mapPath) + ".level.json");
+
+            if (!claimedBy.TryAdd(levelPath, mapPath))
             {
+                error.WriteLine(
+                    $"{mapPath}: would overwrite the level of '{claimedBy[levelPath]}'; a level is named after its map, so map names must be unique.");
+                failures++;
+                continue;
+            }
+
+            try
+            {
+                LevelFile.Save(TiledImporter.Import(mapPath), levelPath);
+                output.WriteLine($"import-tiled: {mapPath} -> {levelPath}");
+            }
+            catch (Exception ex) when (IsReportable(ex))
+            {
+                error.WriteLine($"{mapPath}: {ex.Message}");
                 failures++;
             }
         }
 
         if (failures > 0)
         {
-            error.WriteLine($"validate: {failures} of {levelPaths.Count} level(s) failed");
+            error.WriteLine($"import-tiled: {failures} of {mapPaths.Count} map(s) failed");
             return 1;
         }
 
-        output.WriteLine($"validate: {levelPaths.Count} level(s) ok");
         return 0;
-    }
-
-    private static bool ValidateOne(string levelPath, TextWriter error)
-    {
-        Level level;
-        string text;
-        try
-        {
-            ReadOnlySpan<byte> bom = [0xEF, 0xBB, 0xBF];
-            byte[] bytes = File.ReadAllBytes(levelPath);
-            if (bytes.AsSpan().StartsWith(bom))
-            {
-                error.WriteLine($"{levelPath}: starts with a UTF-8 BOM; the canonical form has none.");
-                return false;
-            }
-
-            // The same text is both parsed and compared, so the gate can never pass a file
-            // whose bytes differ from what was validated.
-            text = StrictUtf8.GetString(bytes);
-            level = LevelFile.Parse(text);
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{levelPath}: {ex.Message}");
-            return false;
-        }
-
-        if (level.Source is not { } source)
-        {
-            return true;
-        }
-
-        if (!string.Equals(source.Tool, TiledImporter.ToolName, StringComparison.Ordinal))
-        {
-            error.WriteLine($"{levelPath}: source.tool is '{source.Tool}', which no importer handles.");
-            return false;
-        }
-
-        string directory = Path.GetDirectoryName(Path.GetFullPath(levelPath)) ?? Directory.GetCurrentDirectory();
-        string sourcePath = Path.GetFullPath(Path.Combine(directory, source.Path));
-        if (!File.Exists(sourcePath))
-        {
-            error.WriteLine($"{levelPath}: its source '{source.Path}' is missing (expected at '{sourcePath}').");
-            return false;
-        }
-
-        string regenerated;
-        try
-        {
-            regenerated = LevelFile.ToJson(TiledImporter.Import(sourcePath, levelPath));
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{levelPath}: re-importing its source failed — {ex.Message}");
-            return false;
-        }
-
-        if (!string.Equals(regenerated, text, StringComparison.Ordinal))
-        {
-            error.WriteLine(
-                $"{levelPath}: does not match its source. It is generated — edit '{sourcePath}', then re-run: "
-                + $"Capsule.Levels.Cli import-tiled \"{sourcePath}\" \"{levelPath}\"");
-            return false;
-        }
-
-        return true;
     }
 
     private static bool IsReportable(Exception exception) =>

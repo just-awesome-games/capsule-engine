@@ -7,8 +7,8 @@ namespace Capsule.Levels.Cli.Tiled;
 
 /// <summary>
 /// Turns a Tiled map into a Capsule level. A pure function of the map and its tilesets: the
-/// same inputs always produce the same level, which is what lets <c>validate</c> re-run the
-/// import and byte-compare the result against the committed file.
+/// same inputs always produce the same level, which is what lets a build skip an unchanged map
+/// and a golden fixture pin the output byte for byte.
 /// </summary>
 public static class TiledImporter
 {
@@ -19,12 +19,12 @@ public static class TiledImporter
     private const uint OrientationFlags = 0xF000_0000u;
 
     /// <summary>
-    /// Imports <paramref name="mapPath"/>. <paramref name="levelPath"/> is where the level will
-    /// live: the stamped source path is relative to its directory, so it decides the source
-    /// block, not where anything is read from.
+    /// Imports the map at <paramref name="mapPath"/>. The path is stamped into the level's source
+    /// block exactly as given, separators normalised — so it must be relative, and it means what
+    /// it means from the working directory this ran in.
     /// </summary>
     /// <exception cref="TiledImportException">The map uses something Capsule does not import.</exception>
-    public static Level Import(string mapPath, string levelPath)
+    public static Level Import(string mapPath)
     {
         byte[] mapBytes = File.ReadAllBytes(mapPath);
         TiledMap map = Deserialize(mapBytes, mapPath, TiledJsonContext.Default.TiledMap);
@@ -43,7 +43,7 @@ public static class TiledImporter
 
         LevelSource source = new(
             ToolName,
-            Path.GetRelativePath(DirectoryOf(levelPath), Path.GetFullPath(mapPath)).Replace('\\', '/'),
+            mapPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(mapBytes)));
 
         try

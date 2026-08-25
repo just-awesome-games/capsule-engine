@@ -26,8 +26,8 @@ sim/render seam, the determinism contract). It is a library, not an application:
 intent — and carries no package references at all, so it cannot reach a device even by accident.
 `Capsule.Runtime` is the host: window, graphics device, clock, keyboard and gamepad, renderer, crash log, and
 the only project that references MonoGame. `Capsule.Levels` is the level format and its
-loader — BCL only, no authoring tool at runtime — with `Capsule.Levels.Cli` the dev-time tool
-that generates levels from Tiled and gates them before a commit
+loader — BCL only, no authoring tool at runtime — with `Capsule.Levels.Cli` the dev-time tool a
+build hook runs to derive levels from Tiled maps
 ([`Capsule.Levels/README.md`](Capsule.Levels/README.md)). `Capsule.Tests` runs xUnit specs
 over Core and Levels, plus builder validation and a reflection guard over Runtime's public
 surface.
@@ -45,7 +45,7 @@ A complete Capsule game's entry point:
 ```csharp
 using Capsule.Input;
 using Capsule.Runtime;
-using MyGame.Systems;
+using MyGame.Game;
 
 CapsuleEngine.Configure()
     .WithWindow("My Game", 1280, 720, resizable: true)
@@ -60,28 +60,13 @@ named actions, sets `ExitRequested` when it wants to stop, and exposes what to d
 `FrameView`. It never touches a graphics device.
 
 Games consume the engine as a **sibling clone, by project reference** — no packaging, no feed, no
-version dance:
+version dance — and reach its build hooks through one import at the game repo root. Capsule's
+hooks derive a level from every Tiled map under `asset-sources/levels/` and ship it as content:
+create a `.tmj`, build, and it is in the game. Nothing generated is committed.
 
-```
-Development/
-  capsule-engine/
-  my-game/
-```
-
-```
-git clone https://github.com/just-awesome-games/capsule-engine.git   # beside the game repo
-```
-
-```xml
-<!-- MyGame.Systems.csproj — game logic -->
-<ProjectReference Include="..\..\capsule-engine\Capsule.Core\Capsule.Core.csproj" />
-<ProjectReference Include="..\..\capsule-engine\Capsule.Levels\Capsule.Levels.csproj" />
-
-<!-- MyGame.csproj — the one-file shell -->
-<ProjectReference Include="..\..\capsule-engine\Capsule.Runtime\Capsule.Runtime.csproj" />
-```
-
-A game's CI reproduces the layout by checking the engine out beside it at a pinned ref.
+**Setting a game up is one door: [`docs/consuming-capsule.md`](docs/consuming-capsule.md).** It
+carries the bootstrap sequence end to end — layout, project skeleton, the build import, the shell
+declaration, locked restores — and the purity rule game logic is held to.
 
 ## Building
 
@@ -117,8 +102,10 @@ paths need a real graphics device, so a consuming game's verify run covers them.
 ## Further reading
 
 [`AGENTS.md`](AGENTS.md) is the rules any contributor — human or agent — works under here.
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md) is the other side of the fence: what a
+game repository sets up to build against this one.
 [`docs/architecture.md`](docs/architecture.md) carries the determinism contract and the
 capabilities designed but awaiting their game.
 [`Capsule.Levels/README.md`](Capsule.Levels/README.md) covers the one thing outside this
-repository — installing and driving Tiled — plus the CLI verbs and the level conventions.
+repository — installing and driving Tiled — plus the level build hook and the level conventions.
 Everything else is in the code.

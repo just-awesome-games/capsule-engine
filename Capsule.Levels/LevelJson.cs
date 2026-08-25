@@ -44,8 +44,7 @@ internal sealed class LevelJson
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class LevelEntityJson
 {
-    // Nullable so a hand-authored entity may omit it; the loader turns that absence into the
-    // error that names assign-ids.
+    // Nullable so an omitted id fails as the format's missing-id error rather than reading as 0.
     [JsonPropertyName("id")]
     [JsonPropertyOrder(0)]
     public int? Id { get; set; }

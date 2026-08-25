@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- The one file a Capsule game imports from its Directory.Build.targets. Every build hook
+       Capsule ships is imported from here, so a new hook never changes a game's wiring. -->
+
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Levels.targets" />
+
+</Project>

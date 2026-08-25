@@ -4,101 +4,84 @@ using Capsule.Levels.Cli;
 namespace Capsule.Tests.Levels;
 
 /// <summary>
-/// The CLI verbs. <c>validate</c> is the commit gate — it is what makes a generated level
-/// file safe to keep in a repository beside its source.
+/// The tool as the build hook drives it: one invocation, the whole stale batch, each level
+/// named after its map.
 /// </summary>
+[Collection(LevelWorkspaceCollection.Name)]
 public sealed class LevelToolTests
 {
-    private const string HandAuthored = """
-        {"tileSize":16,"width":2,"height":1,"tileTypes":["empty","ground"],"tiles":[0,1],
-         "entities":[{"type":"coin","x":8,"y":0},{"id":1,"type":"player","x":0,"y":0},{"type":"gem","x":16,"y":0}],
-         "nextEntityId":2}
-        """;
-
+    // The build hook's geometry: an output directory that does not exist yet, several levels
+    // per run, and a stamp that names the map the build passed rather than anything about where
+    // the level landed — obj/ is a build detail and no provenance should mention it.
     [Fact]
-    public void AssignIds_NumbersUnnumberedEntitiesInFileOrderAndAdvancesTheCounter()
+    public void ImportTiled_WritesOneLevelPerMapIntoAnOutputDirectoryItCreates()
     {
-        using LevelFixtures.Workspace workspace = new();
-        string path = workspace.Write("hand.level.json", HandAuthored);
+        using LevelFixtures.Workspace workspace = LevelFixtures.CopyMaps("room", "hall");
+        const string Output = "obj/capsule/levels";
 
-        Assert.Equal(0, LevelTool.AssignIds(path, TextWriter.Null, TextWriter.Null));
+        int exitCode = LevelTool.ImportTiled(
+            Output,
+            ["room.tmj", "hall.tmj"],
+            TextWriter.Null,
+            TextWriter.Null);
 
-        Level level = LevelFile.Load(path);
-        int[] ids = [.. level.Entities.ToArray().Select(entity => entity.Id)];
-        Assert.Equal(new[] { 2, 1, 3 }, ids);
-        Assert.Equal(4, level.NextEntityId);
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists(Path.Combine(Output, "hall.level.json")));
+        Assert.Equal(
+            "room.tmj",
+            LevelFile.Load(Path.Combine(Output, "room.level.json")).Source?.Path);
     }
 
+    // The form every build actually takes, because a project's worth of map paths does not fit
+    // on a command line.
     [Fact]
-    public void AssignIds_RewritesTheFileCanonically()
+    public void ImportTiledFromList_ImportsTheMapsNamedOnePerLine()
     {
-        using LevelFixtures.Workspace workspace = new();
-        string path = workspace.Write("hand.level.json", HandAuthored);
+        using LevelFixtures.Workspace workspace = LevelFixtures.CopyMaps("room", "hall");
+        string list = workspace.Write("maps.txt", "room.tmj\n\nhall.tmj\n");
 
-        LevelTool.AssignIds(path, TextWriter.Null, TextWriter.Null);
+        int exitCode = LevelTool.ImportTiledFromList("levels", list, TextWriter.Null, TextWriter.Null);
 
-        Assert.StartsWith("{\n  \"tileSize\": 16,\n", File.ReadAllText(path), StringComparison.Ordinal);
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists("levels/room.level.json"));
+        Assert.True(File.Exists("levels/hall.level.json"));
     }
 
+    // A batch is one process for the whole build, so a single unimportable map must not cost
+    // the rest of the levels.
     [Fact]
-    public void Validate_AcceptsAGeneratedLevelBesideItsSource()
+    public void ImportTiled_ReportsAFailedMapByNameAndStillImportsTheOthers()
     {
-        using LevelFixtures.Workspace workspace = LevelFixtures.CopyRoom();
-
-        Assert.Equal(0, LevelTool.Validate([workspace.Path("room.level.json")], TextWriter.Null, TextWriter.Null));
-    }
-
-    [Fact]
-    public void Validate_AcceptsAHandAuthoredLevelWithNoSource()
-    {
-        using LevelFixtures.Workspace workspace = new();
-        string path = workspace.Write("hand.level.json", HandAuthored);
-        LevelTool.AssignIds(path, TextWriter.Null, TextWriter.Null);
-
-        Assert.Equal(0, LevelTool.Validate([path], TextWriter.Null, TextWriter.Null));
-    }
-
-    // The anti-footgun gate. A hand-edit to a generated file is invisible in review and
-    // silently reverted by the next import, so it has to fail before the commit.
-    [Fact]
-    public void Validate_RejectsAHandEditOfAGeneratedLevelAndNamesTheSource()
-    {
-        using LevelFixtures.Workspace workspace = LevelFixtures.CopyRoom();
-        string path = workspace.Path("room.level.json");
-        File.WriteAllText(path, File.ReadAllText(path).Replace("\"coin\"", "\"gem\"", StringComparison.Ordinal));
-
-        StringWriter error = new();
-        Assert.Equal(1, LevelTool.Validate([path], TextWriter.Null, error));
-
-        Assert.Contains("does not match its source", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("room.tmj", error.ToString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Validate_RejectsAGeneratedLevelWhoseSourceIsGone()
-    {
-        using LevelFixtures.Workspace workspace = LevelFixtures.CopyRoom();
-        File.Delete(workspace.Path("room.tmj"));
-
-        StringWriter error = new();
-        Assert.Equal(1, LevelTool.Validate([workspace.Path("room.level.json")], TextWriter.Null, error));
-
-        Assert.Contains("is missing", error.ToString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ImportTiled_ReportsAFailureRatherThanThrowing()
-    {
-        using LevelFixtures.Workspace workspace = new();
+        using LevelFixtures.Workspace workspace = LevelFixtures.CopyMaps("room");
+        workspace.Write("broken.tmj", "{ not tiled json");
 
         StringWriter error = new();
         int exitCode = LevelTool.ImportTiled(
-            workspace.Path("absent.tmj"),
-            workspace.Path("out.level.json"),
+            "levels",
+            ["broken.tmj", "room.tmj"],
             TextWriter.Null,
             error);
 
         Assert.Equal(1, exitCode);
-        Assert.NotEmpty(error.ToString());
+        Assert.Contains("broken.tmj", error.ToString(), StringComparison.Ordinal);
+        Assert.True(File.Exists("levels/room.level.json"));
+    }
+
+    // Levels are named after their maps and the output tree is flat, so two maps of the same
+    // name would otherwise leave one silently overwritten by the other.
+    [Fact]
+    public void ImportTiled_RefusesTwoMapsThatWouldClaimTheSameLevel()
+    {
+        using LevelFixtures.Workspace workspace = LevelFixtures.CopyMaps("a/room", "b/room");
+
+        StringWriter error = new();
+        int exitCode = LevelTool.ImportTiled(
+            "levels",
+            ["a/room.tmj", "b/room.tmj"],
+            TextWriter.Null,
+            error);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("would overwrite", error.ToString(), StringComparison.Ordinal);
     }
 }
