@@ -5,10 +5,10 @@ is a rule the compiler, a test or CI cannot already enforce for you.
 
 ## Code is the documentation plane
 
-Agents reason through code, not prose. **The whole prose surface is
+Agents reason through code, not prose. **The whole prose surface is this file,
 [`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md),
 [`docs/consuming-capsule.md`](docs/consuming-capsule.md) and
-[`Capsule.Levels/README.md`](Capsule.Levels/README.md).** Nothing else. A new prose document, or
+[`Capsule.Maps/README.md`](Capsule.Maps/README.md).** Nothing else. A new prose document, or
 a second module README, needs a maintainer-ratified reason — a module whose story is told by its
 API gets none.
 
@@ -29,6 +29,10 @@ that lags is worse than none: it is confidently wrong.
 **`Capsule.Core` never references MonoGame, or anything else.** It has no package references at
 all and nothing gates their absence, so this is the one boundary held by review rather than by a
 build. Do not add one. Logic that needs a device belongs in `Capsule.Runtime`.
+
+**`Capsule.Maps` takes no package reference either.** It is the format a game links at runtime, so
+an authoring tool's dependency reaching it would ship in every game. Parsing an authoring format
+belongs in `Capsule.Maps.Cli`, which a game never references.
 
 ## Placement — no engine code without a call site
 

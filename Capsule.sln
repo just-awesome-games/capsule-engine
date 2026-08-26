@@ -9,9 +9,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Runtime", "Capsule.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Tests", "Capsule.Tests\Capsule.Tests.csproj", "{11FB0D50-F8CE-4FAE-B126-867AADAAB3C3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Levels", "Capsule.Levels\Capsule.Levels.csproj", "{46E59A1F-0788-4235-B12F-BD632A6EB06B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Maps", "Capsule.Maps\Capsule.Maps.csproj", "{46E59A1F-0788-4235-B12F-BD632A6EB06B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Levels.Cli", "Capsule.Levels.Cli\Capsule.Levels.Cli.csproj", "{581DC538-2CF7-4FF6-ADCD-07E34449DC70}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Maps.Cli", "Capsule.Maps.Cli\Capsule.Maps.Cli.csproj", "{581DC538-2CF7-4FF6-ADCD-07E34449DC70}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule.Scenes", "Capsule.Scenes\Capsule.Scenes.csproj", "{2A00CC2E-1900-413C-BAB4-AD7937535151}"
 EndProject

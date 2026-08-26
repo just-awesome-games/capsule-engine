@@ -1,6 +1,6 @@
 using System.Buffers;
 using Capsule.Input;
-using Capsule.Levels;
+using Capsule.Maps;
 using Capsule.Runtime.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -19,10 +19,10 @@ public sealed class EngineBuilder
     private const int DefaultStepHertz = 60;
     private const double DefaultSpikeClampSeconds = 0.25;
 
-    // Where the level build hook lands its output in a shell's content, and the extension it
-    // writes; RunScene resolves a level name against exactly that.
-    private const string LevelDirectory = "Assets/Levels";
-    private const string LevelExtension = ".level.json";
+    // Where the map build hook lands its output in a shell's content, and the extension it
+    // writes; RunScene resolves a map name against exactly that.
+    private const string MapDirectory = "Assets/Maps";
+    private const string MapExtension = ".map.json";
 
     // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
     // and '/', so a name accepted on a Linux build machine would fail on a player's
@@ -51,6 +51,7 @@ public sealed class EngineBuilder
     private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
     private float _triggerDeadzone = PadFilter.DefaultTriggerDeadzone;
     private string? _crashLogAppName;
+    private SceneRegistry? _scenes;
 
     internal EngineBuilder()
     {
@@ -206,6 +207,20 @@ public sealed class EngineBuilder
         return this;
     }
 
+    /// <summary>
+    /// The scenes the game declares, as the registry generated into its logic assembly; the
+    /// generated entry point passes it, and a hand-built <see cref="SceneRegistry"/> is the other
+    /// way in. Every <see cref="RunScene{TScene}"/> resolves through it.
+    /// </summary>
+    public EngineBuilder WithScenes(SceneRegistry scenes)
+    {
+        ArgumentNullException.ThrowIfNull(scenes);
+
+        _scenes = scenes;
+
+        return this;
+    }
+
     /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>
     public void Run(ISimulation simulation)
     {
@@ -251,43 +266,86 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Opens the window and runs a level as a scene until game code requests exit. The level is
-    /// read from <c>Assets/Levels/{levelName}.level.json</c> beside the executable, where the
-    /// level build hook ships it.
+    /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit. A
+    /// scene composed from a map loads it first; one that is not runs as it is.
     /// </summary>
-    /// <param name="levelName">A level's bare name, as its authoring source is named.</param>
-    /// <param name="createScene">Builds the scene from the loaded level; the game's whole boot contract.</param>
-    /// <exception cref="LevelFormatException">The level file is malformed.</exception>
-    /// <exception cref="SpawnException">A level entity's type matches no <c>[LevelType]</c> class.</exception>
-    public void RunScene(string levelName, Func<Level, Scene> createScene)
+    /// <typeparam name="TScene">A scene the registry passed to <see cref="WithScenes"/> holds.</typeparam>
+    /// <exception cref="InvalidOperationException">No scenes are configured, or none is that class.</exception>
+    /// <exception cref="MapFormatException">The map file is malformed.</exception>
+    /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
+    public void RunScene<TScene>()
+        where TScene : Scene
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(levelName);
-        ArgumentNullException.ThrowIfNull(createScene);
+        SceneRegistry scenes = ConfiguredScenes();
 
-        // Levels ship into one flat directory, so a name that is a path would either escape it
-        // or point at a file the hook never wrote.
-        if (!string.Equals(Path.GetFileName(levelName), levelName, StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                $"A level name is the bare name of its authoring source, not a path: '{levelName}'.",
-                nameof(levelName));
-        }
+        Scene scene = scenes.MapNameOf(typeof(TScene)) is { } mapName
+            ? ComposeMap(scenes, mapName)
+            : scenes.Create(typeof(TScene));
 
-        string path = Path.Combine(AppContext.BaseDirectory, LevelDirectory, levelName + LevelExtension);
-        Level level = LevelFile.Load(path);
+        Run(new SceneSimulation(scene));
+    }
 
-        Scene scene;
+    /// <summary>
+    /// Opens the window and runs a map until game code requests exit: as the class claiming that
+    /// map name, or as a plain <see cref="Capsule.Scenes.MapScene"/> when no class claims it. The
+    /// map is read from <c>Assets/Maps/{mapName}.map.json</c> beside the executable, where the map
+    /// build hook ships it.
+    /// </summary>
+    /// <param name="mapName">A map's bare name, as its authoring source is named.</param>
+    /// <exception cref="InvalidOperationException">No scenes are configured.</exception>
+    /// <exception cref="MapFormatException">The map file is malformed.</exception>
+    /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
+    public void RunScene(string mapName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+
+        Run(new SceneSimulation(ComposeMap(ConfiguredScenes(), mapName)));
+    }
+
+    private SceneRegistry ConfiguredScenes() =>
+        _scenes ?? throw new InvalidOperationException(
+            "Running a scene needs the game's scene registry. Boot through "
+            + "Capsule.Runtime.Generated.GameBoot.Configure(), generated into the shell already carrying it. "
+            + "CapsuleEngine.Configure() is the unwired entry point and takes the registry through "
+            + "WithScenes(GameScenes.Registry); reaching this from GameBoot instead means the shell "
+            + "references no assembly declaring scenes.");
+
+    private static Scene ComposeMap(SceneRegistry scenes, string mapName)
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, MapDirectory, MapFileName(mapName));
+        Map map = MapFile.Load(path);
+
         try
         {
-            scene = createScene(level);
+            return scenes.CreateForMap(mapName, map);
         }
         catch (SpawnException exception)
         {
-            // The scene layer is pure and knows no paths; naming the level is this layer's job.
+            // The scene layer is pure and knows no paths; naming the map is this layer's job.
             throw new SpawnException($"{path}: {exception.Message}", exception);
         }
+    }
 
-        Run(new SceneSimulation(scene));
+    // Maps ship into one flat directory, so a name that is a path would either escape it or point
+    // at a file the hook never wrote, and one Windows resolves as a device would not be a file at
+    // all. A map-backed scene's name comes from its class, so this guards both boot verbs.
+    private static string MapFileName(string mapName)
+    {
+        if (!string.Equals(Path.GetFileName(mapName), mapName, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"A map name is the bare name of its authoring source, not a path: '{mapName}'.",
+                nameof(mapName));
+        }
+
+        if (!IsOneSafeDirectoryName(mapName))
+        {
+            throw new ArgumentException(
+                $"A map name must be a single safe file name: no separators, no reserved device name, and no trailing dot or space: '{mapName}'.",
+                nameof(mapName));
+        }
+
+        return mapName + MapExtension;
     }
 
     private static char[] UnsafeNameCharSet()

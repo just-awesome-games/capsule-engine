@@ -1,8 +1,8 @@
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>
-/// A level entity could not be spawned. The message names the entity's type and what the
-/// registry does hold; the host adds the level's path.
+/// An entity could not be spawned. The message names the spawn type and what the registry does
+/// hold; a host that loaded the spawn from a file adds that file's path.
 /// </summary>
 public sealed class SpawnException : Exception
 {

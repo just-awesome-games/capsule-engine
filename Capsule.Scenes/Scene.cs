@@ -1,14 +1,13 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Capsule.Levels;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 
 /// <summary>
 /// One screen of game: every entity in play, and the camera looking at them. Subclass it and
-/// compose the entities the screen is made of — a room builds a <see cref="Entities.TileMap"/> and spawns
-/// its level's entities, a menu builds neither.
+/// compose the entities the screen is made of; a screen composed from a map subclasses
+/// <see cref="MapScene"/>, which has already composed them.
 /// Entities keep the order they were added in — never a hash order — and adding or removing one
 /// during a step takes effect at the end of that step, so a step never iterates a list that
 /// changes under it.
@@ -29,7 +28,7 @@ public class Scene
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
-    /// A scene built from a level takes it from its <see cref="Entities.TileMap"/>.
+    /// A scene built from a map takes it from its <see cref="Entities.TileMap"/>.
     /// </summary>
     public Vector2 Size { get; protected set; }
 
@@ -110,16 +109,15 @@ public class Scene
     {
     }
 
-    /// <summary>Adds one entity per level entity, in the level's own order.</summary>
-    /// <exception cref="SpawnException">A level entity's type matches no <c>[LevelType]</c> class.</exception>
-    protected void Spawn(Level level, LevelTypeRegistry levelTypes)
+    /// <summary>Adds one entity per spawn, in the order given.</summary>
+    /// <exception cref="SpawnException">A spawn's type is claimed by no entity.</exception>
+    protected void Spawn(ReadOnlySpan<EntitySpawn> spawns, EntityRegistry entities)
     {
-        ArgumentNullException.ThrowIfNull(level);
-        ArgumentNullException.ThrowIfNull(levelTypes);
+        ArgumentNullException.ThrowIfNull(entities);
 
-        foreach (LevelEntity placed in level.Entities)
+        foreach (EntitySpawn spawn in spawns)
         {
-            Add(levelTypes.Create(new EntitySpawn(placed.Id, placed.Type, new Vector2(placed.X, placed.Y))));
+            Add(entities.Create(spawn));
         }
     }
 

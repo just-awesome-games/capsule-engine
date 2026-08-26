@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The [LevelType] source generator. netstandard2.0 because the compiler loads an analyzer
+  <!-- The map-object and scene registry source generator. netstandard2.0 because the compiler loads an analyzer
        into its own process, and pinned to the oldest Roslyn whose API this needs: a generator
        runs on any newer compiler, never an older one. It ships to no game output. -->
   <PropertyGroup>

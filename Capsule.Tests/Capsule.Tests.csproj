@@ -11,7 +11,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- The level-type generator's specs host it the way the compiler does: over a compilation
+    <!-- The map-object generator's specs host it the way the compiler does: over a compilation
          they build in memory, so a diagnostic can be asserted without failing this build. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -27,8 +27,8 @@
        reference being available. -->
   <ItemGroup>
     <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
-    <ProjectReference Include="..\Capsule.Levels\Capsule.Levels.csproj" />
-    <ProjectReference Include="..\Capsule.Levels.Cli\Capsule.Levels.Cli.csproj" />
+    <ProjectReference Include="..\Capsule.Maps\Capsule.Maps.csproj" />
+    <ProjectReference Include="..\Capsule.Maps.Cli\Capsule.Maps.Cli.csproj" />
     <ProjectReference Include="..\Capsule.Runtime\Capsule.Runtime.csproj" />
     <ProjectReference Include="..\Capsule.Scenes\Capsule.Scenes.csproj" />
     <!-- Referenced as an ordinary library, not as an analyzer: these specs drive the generator
@@ -37,9 +37,9 @@
   </ItemGroup>
 
   <!-- The importer and the CLI resolve paths relative to their inputs, so the Tiled fixtures
-       and the golden level must sit beside each other in the test output. -->
+       and the golden map must sit beside each other in the test output. -->
   <ItemGroup>
-    <None Include="Levels\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Maps\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

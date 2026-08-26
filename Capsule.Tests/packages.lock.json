@@ -150,20 +150,23 @@
       "capsule.core": {
         "type": "Project"
       },
-      "capsule.levels": {
-        "type": "Project"
-      },
-      "capsule.levels.cli": {
+      "capsule.maps": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Levels": "[1.0.0, )"
+          "Capsule.Core": "[1.0.0, )"
+        }
+      },
+      "capsule.maps.cli": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Maps": "[1.0.0, )"
         }
       },
       "capsule.runtime": {
         "type": "Project",
         "dependencies": {
           "Capsule.Core": "[1.0.0, )",
-          "Capsule.Levels": "[1.0.0, )",
+          "Capsule.Maps": "[1.0.0, )",
           "Capsule.Scenes": "[1.0.0, )",
           "MonoGame.Framework.DesktopGL": "[3.8.5.1, )"
         }
@@ -172,7 +175,7 @@
         "type": "Project",
         "dependencies": {
           "Capsule.Core": "[1.0.0, )",
-          "Capsule.Levels": "[1.0.0, )"
+          "Capsule.Maps": "[1.0.0, )"
         }
       },
       "capsule.scenes.generator": {

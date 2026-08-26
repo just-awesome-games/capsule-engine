@@ -1,6 +1,6 @@
 using System.Numerics;
 using Capsule.Input;
-using Capsule.Levels;
+using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Components;
@@ -11,7 +11,7 @@ namespace Capsule.Tests.Scenes;
 
 /// <summary>
 /// Scenes built entirely in memory. <c>Capsule.Scenes</c> reads no files, so nothing here needs
-/// one, and a spec is a pure function of the level it names.
+/// one, and a spec is a pure function of the map it names.
 /// </summary>
 internal static class SceneFixtures
 {
@@ -22,36 +22,46 @@ internal static class SceneFixtures
     /// <summary>A scene's per-step hook, as a spec supplies one.</summary>
     internal delegate void StepHook(Scene scene, in StepContext context);
 
-    /// <summary>A 3x2 room, solid at tile (1, 0) only, holding the entities given.</summary>
-    internal static Level Room(params LevelEntity[] entities) => Room(["empty", "solid"], entities);
-
-    /// <summary>The same room over a palette of the caller's choosing; only "solid" is painted.</summary>
-    internal static Level Room(string[] tileTypes, params LevelEntity[] entities)
+    /// <summary>A 3x2 room, solid at tile (1, 0) only, holding the objects given.</summary>
+    internal static Map Room(params MapObject[] objects)
     {
         int nextId = 1;
-        foreach (LevelEntity entity in entities)
+        foreach (MapObject placed in objects)
         {
-            nextId = Math.Max(nextId, entity.Id + 1);
+            nextId = Math.Max(nextId, placed.Id + 1);
         }
 
-        return new Level(TileSize, 3, 2, tileTypes, [0, 1, 0, 0, 0, 0], entities, nextId);
+        return new Map(RoomGrid(), objects, nextId);
     }
 
-    internal static LevelTypeRegistry Registry(params (string Id, EntitySpawner Spawner)[] levelTypes)
+    /// <summary>The room's grid alone, for a tilemap built with no map in sight.</summary>
+    internal static TileGrid RoomGrid() =>
+        new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", Solid)], [0, 1, 0, 0, 0, 0]);
+
+    internal static EntityRegistry Registry(params (string Type, EntitySpawner Spawner)[] entities)
     {
-        List<KeyValuePair<string, EntitySpawner>> entries = new(levelTypes.Length);
-        foreach ((string id, EntitySpawner spawner) in levelTypes)
+        List<KeyValuePair<string, EntitySpawner>> entries = new(entities.Length);
+        foreach ((string type, EntitySpawner spawner) in entities)
         {
-            entries.Add(new KeyValuePair<string, EntitySpawner>(id, spawner));
+            entries.Add(new KeyValuePair<string, EntitySpawner>(type, spawner));
         }
 
-        return new LevelTypeRegistry(entries);
+        return new EntityRegistry(entries);
     }
+
+    /// <summary>A map scene's context.</summary>
+    internal static MapSceneContext Context(Map map, EntityRegistry entities) => new(map, entities);
+
+    /// <summary>The engine's own map scene, composed from a room.</summary>
+    internal static MapScene RoomScene(Map map, EntityRegistry entities) => new(Context(map, entities));
+
+    /// <summary>A composed map scene's terrain: its first entity, always.</summary>
+    internal static TileMap TerrainOf(Scene scene) => Assert.IsType<TileMap>(scene.Entities[0]);
 
     internal static StepContext Step(long tick = 0) =>
         new(1.0 / 60.0, new InputState(new ActionBindings()), tick);
 
-    /// <summary>A scene with no level: the spec composes whatever entities it needs.</summary>
+    /// <summary>A scene with no map: the spec composes whatever entities it needs.</summary>
     internal sealed class HookScene(Action<Scene>? start = null, StepHook? step = null) : Scene
     {
         internal int Starts { get; private set; }
@@ -65,27 +75,18 @@ internal static class SceneFixtures
         protected override void OnStep(in StepContext context) => step?.Invoke(this, in context);
     }
 
-    /// <summary>The shape a level scene takes: the tilemap first, then the level's own entities.</summary>
-    internal sealed class LevelScene : Scene
+    /// <summary>A scene with no map in sight, composed from spawn data alone.</summary>
+    internal sealed class SpawnScene : Scene
     {
-        private readonly Action<Scene>? _start;
+        internal SpawnScene(EntityRegistry entities, params EntitySpawn[] spawns) => Spawn(spawns, entities);
+    }
 
-        internal LevelScene(
-            Level level,
-            LevelTypeRegistry levelTypes,
-            TileColorResolver? tileColor = null,
-            Action<Scene>? start = null)
-        {
-            Tiles = new TileMap(level, tileColor ?? (static _ => Solid));
-            Add(Tiles);
-            Size = Tiles.Size;
-            Spawn(level, levelTypes);
-            _start = start;
-        }
+    /// <summary>A map scene subclass, taking its context in one argument and passing it straight on.</summary>
+    internal sealed class Room01(MapSceneContext context) : MapScene(context)
+    {
+        internal Map Composed => Map;
 
-        internal TileMap Tiles { get; }
-
-        protected override void OnStart() => _start?.Invoke(this);
+        internal TileMap Terrain => Tiles;
     }
 
     /// <summary>An entity that drifts one world unit right per step.</summary>
@@ -111,7 +112,7 @@ internal static class SceneFixtures
         public override void Update(in StepContext context) => observe(Scene!);
     }
 
-    /// <summary>An entity spawned from a level, keeping what it was handed.</summary>
+    /// <summary>An entity spawned from a map, keeping what it was handed.</summary>
     internal sealed class Placed(EntitySpawn spawn) : Entity(spawn.Position)
     {
         internal EntitySpawn Spawn { get; } = spawn;

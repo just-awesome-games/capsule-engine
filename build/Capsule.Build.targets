@@ -13,7 +13,7 @@
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
-  <Import Project="$(MSBuildThisFileDirectory)Capsule.Levels.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Maps.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Scenes.targets" />
 
 </Project>

@@ -1,10 +1,9 @@
 using System.Numerics;
-using Capsule.Levels;
+using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Components;
 using Capsule.Scenes.Entities;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
@@ -20,7 +19,7 @@ public sealed class TileMapTests
         SceneFixtures.Drifter drifter = new(new Vector2(7, 9));
         drifter.Add(new QuadRenderer(new Vector2(4, 8), ColorRgba.White));
 
-        SceneFixtures.LevelScene scene = new(SceneFixtures.Room(), SceneFixtures.Registry());
+        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         scene.Add(drifter);
         SceneSimulation simulation = new(scene);
 
@@ -41,47 +40,48 @@ public sealed class TileMapTests
     [Fact]
     public void ATilemapsPositionIsNotConsulted_ItsQuadsAreWorldCoordinates()
     {
-        SceneFixtures.LevelScene scene = new(SceneFixtures.Room(), SceneFixtures.Registry());
+        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         SceneSimulation simulation = new(scene);
 
-        scene.Tiles.Position = new Vector2(1000, 1000);
+        SceneFixtures.TerrainOf(scene).Position = new Vector2(1000, 1000);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), simulation.View.Quads[0].Position);
     }
 
+    // A tilemap takes a grid, not a document: nothing here loads a file or builds a map, and a
+    // procedurally generated grid reaches the renderer the same way an imported one does. The
+    // colours come from the grid's own palette, so nothing outside it says what a tile looks like.
+    [Fact]
+    public void ATilemapIsBuiltFromAGridAlone_WithNoMapAnywhere()
+    {
+        ColorRgba amber = new(0xD6, 0x9E, 0x2E, 0x80);
+        TileGrid grid = new(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("solid", amber)], [0, 1]);
+
+        TileMap tiles = new(grid);
+        Scene scene = new();
+        scene.Add(tiles);
+        SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(8, tiles.TileSize);
+        Assert.Equal(new Vector2(16, 8), tiles.Size);
+        Assert.Equal("solid", tiles.TileTypeAt(1, 0));
+        Assert.Equal(amber, Assert.Single(simulation.View.Quads.ToArray()).Color);
+    }
+
     [Fact]
     public void TheGridIsQueryable_AndItsExtentIsTheScenesSize()
     {
-        SceneFixtures.LevelScene scene = new(SceneFixtures.Room(), SceneFixtures.Registry());
+        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
+        TileMap terrain = SceneFixtures.TerrainOf(scene);
 
-        Assert.Equal(SceneFixtures.TileSize, scene.Tiles.TileSize);
-        Assert.Equal(3, scene.Tiles.Width);
-        Assert.Equal(2, scene.Tiles.Height);
-        Assert.Equal("solid", scene.Tiles.TileTypeAt(1, 0));
-        Assert.Equal(0, scene.Tiles.TileAt(0, 0));
+        Assert.Equal(SceneFixtures.TileSize, terrain.TileSize);
+        Assert.Equal(3, terrain.Width);
+        Assert.Equal(2, terrain.Height);
+        Assert.Equal("solid", terrain.TileTypeAt(1, 0));
+        Assert.Equal(0, terrain.TileAt(0, 0));
         Assert.Equal(new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize), scene.Size);
     }
 
-    [Fact]
-    public void TheWholePaletteIsResolvedAtConstruction_NotOnTheFirstPaintedTile()
-    {
-        List<string> asked = [];
-        ColorRgba Resolve(string tileType)
-        {
-            asked.Add(tileType);
-
-            return tileType == "spike"
-                ? throw new ArgumentException($"tile type '{tileType}' has no colour.", nameof(tileType))
-                : SceneFixtures.Solid;
-        }
-
-        // "spike" is in the palette and painted nowhere, so only an eager resolve reaches it.
-        Level room = SceneFixtures.Room(["empty", "solid", "spike"]);
-
-        Assert.Throws<ArgumentException>(() => new TileMap(room, Resolve));
-
-        string[] expected = ["solid", "spike"];
-        Assert.Equal(expected, asked);
-    }
 }

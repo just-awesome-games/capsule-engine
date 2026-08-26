@@ -1,5 +1,7 @@
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -104,6 +106,59 @@ public sealed class EngineBuilderTests
     {
         CapsuleEngine.Configure().WithCrashLog(appName);
     }
+
+    // Boot resolves through the generated registry, and reaching this means the game booted from
+    // the unwired entry point instead — which is the whole mitigation for there being two, so the
+    // failure has to name the generated one as well as the call that fills it in.
+    [Fact]
+    public void RunScene_WithoutARegistry_NamesWhatToConfigure()
+    {
+        InvalidOperationException byClass = Assert.Throws<InvalidOperationException>(
+            () => CapsuleEngine.Configure().RunScene<Menu>());
+        InvalidOperationException byMap = Assert.Throws<InvalidOperationException>(
+            () => CapsuleEngine.Configure().RunScene("room-01"));
+
+        foreach (string message in new[] { byClass.Message, byMap.Message })
+        {
+            Assert.Contains("GameBoot", message, StringComparison.Ordinal);
+            Assert.Contains("WithScenes", message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void RunScene_ForAClassTheRegistryDoesNotHold_NamesWhatItDoesHold()
+    {
+        EngineBuilder builder = CapsuleEngine.Configure().WithScenes(Scenes(MenuRegistration));
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => builder.RunScene<Room01>());
+
+        Assert.Contains("Room01", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Menu", failure.Message, StringComparison.Ordinal);
+    }
+
+    // Maps ship into one flat directory beside the executable, so a name that is a path or that
+    // Windows resolves as a device would not name a file the build hook wrote.
+    [Theory]
+    [InlineData("maps/room-01")]
+    [InlineData("../room-01")]
+    [InlineData("nul")]
+    [InlineData("room-01 ")]
+    public void RunScene_RejectsAMapNameThatIsNotOneSafeFileName(string mapName)
+    {
+        EngineBuilder builder = CapsuleEngine.Configure().WithScenes(Scenes(MenuRegistration));
+
+        Assert.Throws<ArgumentException>(() => builder.RunScene(mapName));
+    }
+
+    private static SceneRegistration MenuRegistration =>
+        SceneRegistration.Plain(typeof(Menu), static () => new Menu());
+
+    private static SceneRegistry Scenes(params SceneRegistration[] scenes) =>
+        new(new EntityRegistry([]), scenes);
+
+    private sealed class Menu : Scene;
+
+    private sealed class Room01(MapSceneContext context) : MapScene(context);
 
     // Never stepped: Run rejects the configuration before it opens a window.
     private sealed class IdleSimulation : ISimulation

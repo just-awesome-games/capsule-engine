@@ -1,26 +1,35 @@
 <Project>
 
-  <!-- Wires Capsule's source generators into the game's logic assembly. A project declares that
-       role once, the way the shell declares its own:
+  <!-- Wires Capsule's source generators into the game. A project declares its role once:
 
-         <CapsuleGameLogic>true</CapsuleGameLogic>
+         <CapsuleGameLogic>true</CapsuleGameLogic>   the assembly holding the game's own classes
+         <CapsuleGameShell>true</CapsuleGameShell>   the executable that boots them
 
        Every generator Capsule ships, present and future, arrives through this file, so a new one
-       is never new wiring in the game. The role is not a formality: the generated registry holds
-       the level types of the assembly it is generated into, and declaring two assemblies would
-       leave a game with two of them.
+       is never new wiring in the game.
+
+       The roles are not a formality, and they are what each half of the generator is gated on
+       rather than what a compilation can see. The registries hold the entities and scenes of the
+       assembly they are generated into, so declaring two logic assemblies would leave a game with
+       two of each; and the shell reaches Capsule.Scenes through the logic assembly it references,
+       so a registry emitted there would shadow the game's own, empty.
 
        Paths are composed with forward slashes and left for MSBuild to canonicalise, matching
-       Capsule.Levels.targets: a literal backslash is an ordinary filename character on Linux. -->
+       Capsule.Maps.targets: a literal backslash is an ordinary filename character on Linux. -->
 
-  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
-    <!-- The generator rides the game's own restore and build graph, the way the level importer
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
+    <!-- The generator rides the game's own restore and build graph, the way the map importer
          does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
          the game's output or its publish set. -->
     <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
+
+    <!-- The generator reads the declared role for itself; these conditions only decide whether it
+         is loaded at all. -->
+    <CompilerVisibleProperty Include="CapsuleGameLogic" />
+    <CompilerVisibleProperty Include="CapsuleGameShell" />
   </ItemGroup>
 
 </Project>
