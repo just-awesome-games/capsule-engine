@@ -47,7 +47,7 @@ jobs:
       - name: Restore package consumer
         run: >
           dotnet restore tests/PackageConsumer/PackageConsumer.slnx
-          --configfile tests/PackageConsumer/NuGet.config
+          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
 
       - name: Build package consumer
         run: >
@@ -58,7 +58,7 @@ jobs:
       - name: Restore source consumer
         run: >
           dotnet restore tests/PackageConsumer/PackageConsumer.slnx
-          --configfile tests/PackageConsumer/NuGet.config
+          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
           -p:CapsuleSourcePath=../..
 
       - name: Build source consumer
