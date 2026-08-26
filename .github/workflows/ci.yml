@@ -41,15 +41,16 @@ jobs:
         run: dotnet format --verify-no-changes --no-restore
 
       # Include filters are joined with the MSBuild comma escape, not a literal comma.
-      # Capsule.Levels.Cli is a dev-time tool and is not gated; its importer is covered
-      # through the golden fixtures either way.
+      # Capsule.Levels.Cli and Capsule.Scenes.Generator are dev-time tools and are not
+      # gated; the importer is covered through the golden fixtures and the generator
+      # through its own specs either way.
       - name: Test with coverage
         run: >
           dotnet test
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Levels]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Levels]*%2c[Capsule.Scenes]*'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml
           -p:Threshold=80

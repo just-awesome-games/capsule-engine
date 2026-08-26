@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "capsule.core": {
+        "type": "Project"
+      },
+      "capsule.levels": {
+        "type": "Project"
+      }
+    }
+  }
+}

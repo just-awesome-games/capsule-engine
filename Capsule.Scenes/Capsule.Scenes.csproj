@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The world container: a scene, the entities on it and their components. Substrate-free —
+       Core and Levels only — so it passes the purity admission test and a game's logic and its
+       headless tests reference it directly. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Scenes</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+    <ProjectReference Include="..\Capsule.Levels\Capsule.Levels.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -30,6 +30,16 @@
       },
       "capsule.core": {
         "type": "Project"
+      },
+      "capsule.levels": {
+        "type": "Project"
+      },
+      "capsule.scenes": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Core": "[1.0.0, )",
+          "Capsule.Levels": "[1.0.0, )"
+        }
       }
     }
   }

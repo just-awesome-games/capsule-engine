@@ -1,0 +1,27 @@
+<Project>
+
+  <!-- Wires Capsule's source generators into the game's logic assembly. A project declares that
+       role once, the way the shell declares its own:
+
+         <CapsuleGameLogic>true</CapsuleGameLogic>
+
+       Every generator Capsule ships, present and future, arrives through this file, so a new one
+       is never new wiring in the game. The role is not a formality: the generated registry holds
+       the level types of the assembly it is generated into, and declaring two assemblies would
+       leave a game with two of them.
+
+       Paths are composed with forward slashes and left for MSBuild to canonicalise, matching
+       Capsule.Levels.targets: a literal backslash is an ordinary filename character on Linux. -->
+
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
+    <!-- The generator rides the game's own restore and build graph, the way the level importer
+         does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
+         the game's output or its publish set. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      SetTargetFramework="TargetFramework=netstandard2.0"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

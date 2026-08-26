@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+    <ProjectReference Include="..\Capsule.Levels\Capsule.Levels.csproj" />
+    <ProjectReference Include="..\Capsule.Scenes\Capsule.Scenes.csproj" />
   </ItemGroup>
 
   <!-- The specs assert the headless internals — deadzone filtering — without widening the

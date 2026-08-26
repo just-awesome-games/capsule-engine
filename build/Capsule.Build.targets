@@ -4,5 +4,6 @@
        Capsule ships is imported from here, so a new hook never changes a game's wiring. -->
 
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Levels.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Scenes.targets" />
 
 </Project>

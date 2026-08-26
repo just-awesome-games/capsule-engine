@@ -1,6 +1,9 @@
 using System.Buffers;
 using Capsule.Input;
+using Capsule.Levels;
 using Capsule.Runtime.Input;
+using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
 
@@ -15,6 +18,11 @@ public sealed class EngineBuilder
     private const int DefaultWindowHeight = 720;
     private const int DefaultStepHertz = 60;
     private const double DefaultSpikeClampSeconds = 0.25;
+
+    // Where the level build hook lands its output in a shell's content, and the extension it
+    // writes; RunScene resolves a level name against exactly that.
+    private const string LevelDirectory = "Assets/Levels";
+    private const string LevelExtension = ".level.json";
 
     // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
     // and '/', so a name accepted on a Linux build machine would fail on a player's
@@ -199,6 +207,46 @@ public sealed class EngineBuilder
             CrashLog.TryWrite(_crashLogAppName, exception);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Opens the window and runs a level as a scene until game code requests exit. The level is
+    /// read from <c>Assets/Levels/{levelName}.level.json</c> beside the executable, where the
+    /// level build hook ships it.
+    /// </summary>
+    /// <param name="levelName">A level's bare name, as its authoring source is named.</param>
+    /// <param name="createScene">Builds the scene from the loaded level; the game's whole boot contract.</param>
+    /// <exception cref="LevelFormatException">The level file is malformed.</exception>
+    /// <exception cref="SpawnException">A level entity's type matches no <c>[LevelType]</c> class.</exception>
+    public void RunScene(string levelName, Func<Level, Scene> createScene)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(levelName);
+        ArgumentNullException.ThrowIfNull(createScene);
+
+        // Levels ship into one flat directory, so a name that is a path would either escape it
+        // or point at a file the hook never wrote.
+        if (!string.Equals(Path.GetFileName(levelName), levelName, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"A level name is the bare name of its authoring source, not a path: '{levelName}'.",
+                nameof(levelName));
+        }
+
+        string path = Path.Combine(AppContext.BaseDirectory, LevelDirectory, levelName + LevelExtension);
+        Level level = LevelFile.Load(path);
+
+        Scene scene;
+        try
+        {
+            scene = createScene(level);
+        }
+        catch (SpawnException exception)
+        {
+            // The scene layer is pure and knows no paths; naming the level is this layer's job.
+            throw new SpawnException($"{path}: {exception.Message}", exception);
+        }
+
+        Run(new SceneSimulation(scene));
     }
 
     private static char[] UnsafeNameCharSet()
