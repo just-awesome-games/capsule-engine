@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="Capsule.Verify" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Verify" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <PackageId>Capsule.Build</PackageId>
+    <PackageId>JAG.Capsule.Build</PackageId>
     <Description>Build integration, source generators, analyzers, and map tooling for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
@@ -25,7 +25,7 @@
   <ItemGroup>
     <None Include="../build/Capsule.Build.targets"
           Pack="true"
-          PackagePath="buildTransitive/" />
+          PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
     <None Include="../build/Capsule.Maps.targets"
           Pack="true"
           PackagePath="buildTransitive/" />

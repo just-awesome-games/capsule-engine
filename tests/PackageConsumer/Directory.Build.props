@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="Capsule.Build"
+    <PackageReference Include="JAG.Capsule.Build"
                       Version="[$(CapsuleVersion)]"
                       PrivateAssets="all" />
   </ItemGroup>

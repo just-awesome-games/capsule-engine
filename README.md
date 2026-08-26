@@ -8,7 +8,7 @@
 
 ---
 
-Capsule is JAG Studios' in-house engine: 2D, deterministic, code-first. It owns the
+Capsule is JAG Studios' open-source engine: 2D, deterministic, code-first. It owns the
 frame — loop, clock, window, input, the sim/render seam, the determinism contract — and the world
 inside it: a scene, the entities on it, and the order they update and draw in. A game brings its
 own `Program.cs`, its scenes, and its entities. **No editor, no serialized scene format, no
@@ -62,8 +62,9 @@ they coincide only where a game wants one unit to be one pixel. `WithFullscreen(
 borderless at the desktop's resolution, Alt+Enter toggles either way, and `WithWindow`'s size is
 the windowed one, returned to on the way back.
 
-Games consume exact SemVer releases from a private NuGet feed. `Capsule.Build` carries every
-build hook, generator, analyzer and authoring tool transitively, while the runtime modules stay
+Games consume exact SemVer releases from NuGet.org. Public package IDs use `JAG.Capsule.*` while
+assemblies and namespaces remain `Capsule.*`. `JAG.Capsule.Build` carries every build hook,
+generator, analyzer and authoring tool transitively, while the runtime modules stay
 separate so game logic never references `Capsule.Runtime`. For engine work, one
 `CapsuleSourcePath` build property swaps all package references for project references to a local
 clone without editing a project file. Capsule's hooks import every `.tmj` under
@@ -150,3 +151,5 @@ boundaries that enforce it.
 [`Capsule.Maps/README.md`](Capsule.Maps/README.md) covers the map format's invariants, the build
 hook that imports Tiled maps, and the one thing outside this repository — installing and driving
 Tiled itself. Everything else is in the code.
+
+Capsule is licensed under the [MIT License](LICENSE).

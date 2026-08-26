@@ -2,13 +2,13 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "capsule.core": {
+      "JAG.Capsule.Core": {
         "type": "Project"
       },
-      "capsule.maps": {
+      "JAG.Capsule.Maps": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.1.0, )"
+          "JAG.Capsule.Core": "[0.1.0, )"
         }
       }
     }

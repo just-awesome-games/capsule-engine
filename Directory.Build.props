@@ -14,6 +14,8 @@
     <Authors>JAG Studios</Authors>
     <Description>Capsule is a deterministic, code-first C# game engine.</Description>
     <PackageTags>game-engine;2d;monogame;deterministic</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/just-awesome-games/capsule-engine</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

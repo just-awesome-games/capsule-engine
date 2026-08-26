@@ -5,9 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="Capsule.Core" Version="[$(CapsuleVersion)]" />
-    <PackageReference Include="Capsule.Maps" Version="[$(CapsuleVersion)]" />
-    <PackageReference Include="Capsule.Scenes" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Core" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Maps" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Scenes" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">

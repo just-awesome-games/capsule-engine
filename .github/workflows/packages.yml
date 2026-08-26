@@ -1,4 +1,4 @@
-name: Publish private packages
+name: Publish public packages
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  id-token: write
 
 env:
   DOTNET_NOLOGO: true
@@ -23,9 +23,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -74,19 +74,35 @@ jobs:
         run: du -ch artifacts/packages/*.nupkg
 
       - name: Retain release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: capsule-${{ env.CAPSULE_PACKAGE_VERSION }}
           path: artifacts/packages/*.*nupkg
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish to GitHub Packages
+      - name: Require NuGet.org account
+        shell: bash
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          if [[ -z "$NUGET_USER" ]]; then
+            echo "Set the repository Actions variable NUGET_USER to the NuGet.org account name." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to NuGet.org
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Publish to NuGet.org
         shell: bash
         run: |
           for package in artifacts/packages/*.nupkg; do
             dotnet nuget push "$package" \
-              --source https://nuget.pkg.github.com/just-awesome-games/index.json \
-              --api-key "${{ secrets.GITHUB_TOKEN }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" \
               --skip-duplicate
           done

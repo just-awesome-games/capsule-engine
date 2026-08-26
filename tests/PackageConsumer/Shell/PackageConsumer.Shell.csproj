@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">

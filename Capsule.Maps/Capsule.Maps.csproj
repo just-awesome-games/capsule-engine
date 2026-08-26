@@ -5,7 +5,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Maps</RootNamespace>
-    <PackageId>Capsule.Maps</PackageId>
+    <PackageId>JAG.Capsule.Maps</PackageId>
   </PropertyGroup>
 
   <ItemGroup>

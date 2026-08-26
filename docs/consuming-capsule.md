@@ -1,20 +1,19 @@
 # Consuming Capsule
 
 Everything a game repository does to build against this one, in the order it does it. Released
-games restore exact SemVer versions from Capsule's private NuGet feed. Engine development can
+games restore exact SemVer versions from NuGet.org. Engine development can
 replace those packages with a local source clone for one build, without editing project files.
 
 ## Bootstrap a new game
 
-### 1. Configure the private package source
+### 1. Use NuGet.org
 
-Add the authenticated Capsule feed to the developer's user-level NuGet configuration and to CI.
-Never commit a feed token or password to a game repository. A CI credential needs read-only
-package access; the package publisher is the only principal that needs write access.
+Capsule packages use NuGet.org's standard public source and require no Capsule-specific credentials.
 
-All six packages in a release carry one version: `Capsule.Core`, `Capsule.Maps`,
-`Capsule.Scenes`, `Capsule.Runtime`, `Capsule.Verify`, and the tooling-only `Capsule.Build`. A game
-pins one exact `CapsuleVersion`, commits the resulting lock files, and upgrades it deliberately.
+All six packages in a release carry one version: `JAG.Capsule.Core`, `JAG.Capsule.Maps`,
+`JAG.Capsule.Scenes`, `JAG.Capsule.Runtime`, `JAG.Capsule.Verify`, and the tooling-only
+`JAG.Capsule.Build`. Assemblies and namespaces remain `Capsule.*`. A game pins one exact
+`CapsuleVersion`, commits the resulting lock files, and upgrades it deliberately.
 
 ### 2. Lay out the repo
 
@@ -64,13 +63,13 @@ The game root's `Directory.Build.props` owns the one version and the optional so
 </PropertyGroup>
 
 <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-  <PackageReference Include="Capsule.Build"
+  <PackageReference Include="JAG.Capsule.Build"
                     Version="[$(CapsuleVersion)]"
                     PrivateAssets="all" />
 </ItemGroup>
 ```
 
-`Capsule.Build` reaches every project, but its hooks remain inert until a project declares a
+`JAG.Capsule.Build` reaches every project, but its hooks remain inert until a project declares a
 Capsule role. It supplies map import, source generation, and compile-time architectural checks;
 the tooling package contributes nothing to a game's output or publish set.
 
@@ -92,7 +91,7 @@ This file changes only when the consumption contract changes; ordinary engine re
 
 ### 4. Declare the roles
 
-`Capsule.Build` reaches every project, so each project with a Capsule role says which one it is. The
+`JAG.Capsule.Build` reaches every project, so each project with a Capsule role says which one it is. The
 project that ships content and boots the game:
 
 ```xml
@@ -126,9 +125,9 @@ the shell role; tests and ordinary libraries take neither role.
 ```xml
 <!-- MyGame.Game.csproj -->
 <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-  <PackageReference Include="Capsule.Core" Version="[$(CapsuleVersion)]" />
-  <PackageReference Include="Capsule.Maps" Version="[$(CapsuleVersion)]" />
-  <PackageReference Include="Capsule.Scenes" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="JAG.Capsule.Core" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="JAG.Capsule.Maps" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="JAG.Capsule.Scenes" Version="[$(CapsuleVersion)]" />
 </ItemGroup>
 
 <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
@@ -139,7 +138,7 @@ the shell role; tests and ordinary libraries take neither role.
 
 <!-- MyGame.Shell.csproj -->
 <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-  <PackageReference Include="Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
 </ItemGroup>
 
 <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
@@ -151,7 +150,7 @@ the shell role; tests and ordinary libraries take neither role.
 
 The package and source branches expose the same assembly graph. The explicit logic references
 make the purity boundary visible at the call site; the shell alone takes Runtime. A verify project
-uses the same conditional pair for `Capsule.Verify`.
+uses the same conditional pair for `JAG.Capsule.Verify`.
 
 For local engine development, clone Capsule beside the game and set the switch on any restore,
 build, test, run, or IDE launch:
