@@ -146,6 +146,37 @@ public sealed class EntityGeneratorTests
         Assert.Equal("CAP004", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
+    [Fact]
+    public void ARegisteredEntityNestedBehindPrivateAccess_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public static class Entities
+            {
+                private sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+            }
+            """).Diagnostics;
+
+        Assert.Equal("CAP008", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void MoreThanOneSpawnConstructor_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Player : Entity
+            {
+                public Player(EntitySpawn spawn) : base(spawn.Position) { }
+                public Player(in EntitySpawn spawn) : base(spawn.Position) { }
+            }
+            """).Diagnostics;
+
+        Assert.Equal("CAP010", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
     private static string Generated(string source) => GeneratorHarness.Generated(source, GeneratorHarness.GameEntitiesFile);
 
     private static string Emitted(Compilation compiled) => GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);

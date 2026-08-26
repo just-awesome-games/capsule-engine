@@ -27,25 +27,61 @@ internal static class SceneRegistrySource
         }
 
         Compilation compilation = context.SemanticModel.Compilation;
-        if (!Symbols.IsConcreteClass(type) || !Symbols.DerivesFrom(type, compilation, Symbols.Scene))
+        Location location = declaration.Identifier.GetLocation();
+        string qualifiedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string displayName = type.ToDisplayString();
+        bool concreteScene = Symbols.IsConcreteClass(type) && Symbols.DerivesFrom(type, compilation, Symbols.Scene);
+        int mapConstructors = concreteScene
+            ? Symbols.PublicConstructorsTaking(type, compilation, Symbols.MapSceneContext)
+            : 0;
+        bool parameterless = concreteScene && Symbols.HasPublicParameterlessConstructor(type);
+        AttributeData? annotation = Symbols.Attribute(type, compilation, Symbols.MapNameAttribute);
+
+        if (annotation is not null)
+        {
+            if (!concreteScene || mapConstructors == 0)
+            {
+                return new SceneModel(qualifiedName, displayName, null, SceneFault.MapNameRequiresMapScene, location);
+            }
+
+            if (mapConstructors > 1 || parameterless)
+            {
+                return new SceneModel(qualifiedName, displayName, null, SceneFault.AmbiguousConstructors, location);
+            }
+
+            if (annotation.ConstructorArguments.Length != 1)
+            {
+                return null;
+            }
+
+            string mapName = annotation.ConstructorArguments[0].Value as string ?? string.Empty;
+            SceneFault fault = !TypeNaming.IsSafeMapName(mapName)
+                ? SceneFault.UnsafeMapName
+                : Symbols.IsAccessibleFromGeneratedCode(type)
+                    ? SceneFault.None
+                    : SceneFault.InaccessibleType;
+
+            return new SceneModel(qualifiedName, displayName, mapName, fault, location);
+        }
+
+        if (!concreteScene || (mapConstructors == 0 && !parameterless))
         {
             return null;
         }
 
-        Location location = declaration.Identifier.GetLocation();
-        string qualifiedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        string displayName = type.ToDisplayString();
-
-        if (Symbols.HasPublicConstructorTaking(type, compilation, Symbols.MapSceneContext))
+        if (mapConstructors > 1 || (mapConstructors == 1 && parameterless))
         {
-            return new SceneModel(qualifiedName, displayName, TypeNaming.FromTypeName(type.Name), location);
+            return new SceneModel(qualifiedName, displayName, null, SceneFault.AmbiguousConstructors, location);
         }
 
-        // A scene of neither shape cannot be constructed by anything but the game's own code, and
-        // has claimed nothing by existing.
-        return Symbols.HasPublicParameterlessConstructor(type)
-            ? new SceneModel(qualifiedName, displayName, null, location)
-            : null;
+        string? conventionalMapName = mapConstructors == 1 ? TypeNaming.FromTypeName(type.Name) : null;
+        SceneFault discoveredFault = conventionalMapName is not null && !TypeNaming.IsSafeMapName(conventionalMapName)
+            ? SceneFault.UnsafeMapName
+            : Symbols.IsAccessibleFromGeneratedCode(type)
+                ? SceneFault.None
+                : SceneFault.InaccessibleType;
+
+        return new SceneModel(qualifiedName, displayName, conventionalMapName, discoveredFault, location);
     }
 
     internal static void Emit(SourceProductionContext context, ImmutableArray<SceneModel> models, bool enginePresent)
@@ -62,7 +98,28 @@ internal static class SceneRegistrySource
             // The parts of a partial class are separate declarations of one type.
             if (described.Add(model.QualifiedName))
             {
-                sound.Add(model);
+                switch (model.Fault)
+                {
+                    case SceneFault.MapNameRequiresMapScene:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            RegistryDiagnostics.MapNameRequiresMapScene, model.Location, model.DisplayName));
+                        break;
+                    case SceneFault.UnsafeMapName:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            RegistryDiagnostics.UnsafeMapName, model.Location, model.DisplayName, model.MapName ?? string.Empty));
+                        break;
+                    case SceneFault.InaccessibleType:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
+                        break;
+                    case SceneFault.AmbiguousConstructors:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            RegistryDiagnostics.AmbiguousSceneConstructors, model.Location, model.DisplayName));
+                        break;
+                    default:
+                        sound.Add(model);
+                        break;
+                }
             }
         }
 
@@ -105,23 +162,60 @@ internal static class SceneRegistrySource
         source.AppendLine("// <auto-generated/>");
         source.AppendLine("#nullable enable");
         source.AppendLine();
-        source.AppendLine("namespace Capsule.Scenes.Generated");
-        source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every scene this assembly declares, as one registry. Generated; do not edit.</summary>");
-        source.AppendLine("    public static class GameScenes");
-        source.AppendLine("    {");
-        source.AppendLine("        /// <summary>The registry the engine boots a scene through.</summary>");
-        source.AppendLine("        public static global::Capsule.Scenes.SceneRegistry Registry { get; } =");
-        source.AppendLine("            new global::Capsule.Scenes.SceneRegistry(");
-        source.AppendLine("                global::Capsule.Scenes.Generated.GameEntities.Registry,");
-        source.AppendLine("                new global::Capsule.Scenes.SceneRegistration[]");
-        source.AppendLine("                {");
 
         foreach (SceneModel model in registered)
         {
             if (model.MapName is null)
             {
-                source.Append("                    global::Capsule.Scenes.SceneRegistration.Plain(typeof(");
+                continue;
+            }
+
+            source.Append("[assembly: global::Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute(1, ");
+            source.Append(SymbolDisplay.FormatLiteral(model.MapName, quote: true));
+            source.Append(", typeof(");
+            source.Append(model.QualifiedName);
+            source.AppendLine("))]");
+        }
+
+        if (registered.Exists(static model => model.MapName is not null))
+        {
+            source.AppendLine();
+        }
+
+        source.AppendLine("namespace Capsule.Scenes.Generated");
+        source.AppendLine("{");
+        source.AppendLine("    /// <summary>Every scene this assembly declares, as one registry. Generated; do not edit.</summary>");
+        source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
+        source.AppendLine("    public static class GameScenes");
+        source.AppendLine("    {");
+        source.AppendLine("        internal static global::Capsule.Scenes.SceneRegistration[] Registrations { get; } =");
+        source.AppendLine("            new global::Capsule.Scenes.SceneRegistration[]");
+        source.AppendLine("            {");
+
+        AppendRegistrations(source, registered, "                ");
+
+        source.AppendLine("            };");
+        source.AppendLine();
+        source.AppendLine("        /// <summary>The registry the engine boots a scene through.</summary>");
+        source.AppendLine("        public static global::Capsule.Scenes.SceneRegistry Registry { get; } =");
+        source.AppendLine("            new global::Capsule.Scenes.SceneRegistry(");
+        source.AppendLine("                global::Capsule.Scenes.Generated.GameEntities.Registry,");
+        source.AppendLine("                Registrations);");
+        source.AppendLine("    }");
+        source.AppendLine("}");
+
+        return source.ToString();
+    }
+
+    private static void AppendRegistrations(StringBuilder source, List<SceneModel> registered, string indent)
+    {
+
+        foreach (SceneModel model in registered)
+        {
+            if (model.MapName is null)
+            {
+                source.Append(indent);
+                source.Append("global::Capsule.Scenes.SceneRegistration.Plain(typeof(");
                 source.Append(model.QualifiedName);
                 source.Append("), static () => new ");
                 source.Append(model.QualifiedName);
@@ -129,7 +223,8 @@ internal static class SceneRegistrySource
                 continue;
             }
 
-            source.Append("                    global::Capsule.Scenes.SceneRegistration.MapBacked(typeof(");
+            source.Append(indent);
+            source.Append("global::Capsule.Scenes.SceneRegistration.MapBacked(typeof(");
             source.Append(model.QualifiedName);
             source.Append("), ");
             source.Append(SymbolDisplay.FormatLiteral(model.MapName, quote: true));
@@ -137,11 +232,5 @@ internal static class SceneRegistrySource
             source.Append(model.QualifiedName);
             source.AppendLine("(context)),");
         }
-
-        source.AppendLine("                });");
-        source.AppendLine("    }");
-        source.AppendLine("}");
-
-        return source.ToString();
     }
 }

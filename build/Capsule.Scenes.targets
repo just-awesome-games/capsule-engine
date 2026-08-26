@@ -9,10 +9,10 @@
        is never new wiring in the game.
 
        The roles are not a formality, and they are what each half of the generator is gated on
-       rather than what a compilation can see. The registries hold the entities and scenes of the
-       assembly they are generated into, so declaring two logic assemblies would leave a game with
-       two of each; and the shell reaches Capsule.Scenes through the logic assembly it references,
-       so a registry emitted there would shadow the game's own, empty.
+       rather than what a compilation can see. Each logic assembly publishes a generated provider;
+       the shell aggregates every referenced provider into one registry and diagnoses duplicate
+       claims across assembly boundaries. The shell therefore reaches all game modules without
+       hand registration, runtime reflection, or a second empty registry of its own.
 
        Paths are composed with forward slashes and left for MSBuild to canonicalise, matching
        Capsule.Maps.targets: a literal backslash is an ordinary filename character on Linux. -->
@@ -22,8 +22,11 @@
          does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
          the game's output or its publish set. -->
     <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
+                      Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
+                      AdditionalProperties="PublishAot=false;SelfContained=false"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all" />
 
     <!-- The generator reads the declared role for itself; these conditions only decide whether it

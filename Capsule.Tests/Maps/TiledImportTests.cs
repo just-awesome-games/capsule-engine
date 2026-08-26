@@ -59,16 +59,19 @@ public sealed class TiledImportTests
         Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), map.Grid.TileTypes[3].Color);
     }
 
-    // No default and no fallback: a mis-authored tileset must fail rather than render as
-    // something plausible, and the message has to say which tile to go and fix.
+    // Class is semantic identity; colour is only the current presentation lane and may be
+    // absent when another renderer will present the tile.
     [Fact]
-    public void Import_RejectsATileClassWithNoColourProperty()
+    public void Import_AcceptsATileClassWithNoColourProperty()
     {
-        TiledImportException error = ImportMutated("\"name\":\"color\"", "\"name\":\"colour\"", mutateTileset: true);
+        string tileset = Mutate(MapFixtures.Read("tiles.tsj"), "\"name\":\"color\"", "\"name\":\"colour\"");
+        using MapFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", tileset);
 
-        Assert.Contains("tileset 'terrain' tile 0", error.Message, StringComparison.Ordinal);
-        Assert.Contains("Class 'ground'", error.Message, StringComparison.Ordinal);
-        Assert.Contains("'color' property", error.Message, StringComparison.Ordinal);
+        Map map = TiledImporter.Import(workspace.Write("room.tmj", MapFixtures.Read("room.tmj")));
+
+        Assert.Null(map.Grid.TileTypes[1].Color);
+        Assert.Equal("ground", map.Grid.TileTypes[1].Type);
     }
 
     [Fact]
@@ -152,6 +155,50 @@ public sealed class TiledImportTests
         Map map = TiledImporter.Import(Path.Combine("maps", "room.tmj"));
 
         Assert.Equal("maps/room.tmj", map.Source?.Path);
+    }
+
+    [Fact]
+    public void Import_SourceHashChangesWhenAnExternalTilesetChanges()
+    {
+        using MapFixtures.Workspace workspace = new();
+        workspace.Write("room.tmj", MapFixtures.Read("room.tmj"));
+        workspace.Write("tiles.tsj", MapFixtures.Read("tiles.tsj"));
+        string first = TiledImporter.Import("room.tmj").Source!.Value.Hash;
+
+        string changed = Mutate(MapFixtures.Read("tiles.tsj"), "#ff4a5568", "#ff4a5569");
+        workspace.Write("tiles.tsj", changed);
+        string second = TiledImporter.Import("room.tmj").Source!.Value.Hash;
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void Import_AcceptsAnExternalTilesetWithinTheTrackedRoot()
+    {
+        using MapFixtures.Workspace workspace = new();
+        Directory.CreateDirectory("assets/maps");
+        workspace.Write("assets/tiles.tsj", MapFixtures.Read("tiles.tsj"));
+        string map = Mutate(MapFixtures.Read("room.tmj"), "\"source\":\"tiles.tsj\"", "\"source\":\"../tiles.tsj\"");
+        workspace.Write("assets/maps/room.tmj", map);
+
+        Map imported = TiledImporter.Import("assets/maps/room.tmj", dependencyRoot: "assets");
+
+        Assert.Equal("ground", imported.Grid.TileTypes[1].Type);
+    }
+
+    [Fact]
+    public void Import_RejectsAnExternalTilesetOutsideTheTrackedRoot()
+    {
+        using MapFixtures.Workspace workspace = new();
+        Directory.CreateDirectory("assets/maps");
+        workspace.Write("tiles.tsj", MapFixtures.Read("tiles.tsj"));
+        string map = Mutate(MapFixtures.Read("room.tmj"), "\"source\":\"tiles.tsj\"", "\"source\":\"../../tiles.tsj\"");
+        workspace.Write("assets/maps/room.tmj", map);
+
+        TiledImportException error = Assert.Throws<TiledImportException>(
+            () => TiledImporter.Import("assets/maps/room.tmj", dependencyRoot: "assets"));
+
+        Assert.Contains("outside the tracked asset source root", error.Message, StringComparison.Ordinal);
     }
 
     // The stamp is provenance somebody else has to be able to follow, so an absolute path is

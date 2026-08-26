@@ -31,7 +31,8 @@
          Path.GetFullPath: it repairs the separators of an override too, and this value is read
          back by Exists(), which is evaluated raw. -->
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
-    <CapsuleMapsCliProject>$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj</CapsuleMapsCliProject>
+    <CapsuleMapsCliProject Condition="'$(CapsuleMapsCliProject)' == '' and Exists('$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj')">$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj</CapsuleMapsCliProject>
+    <CapsuleMapsCliAssembly Condition="'$(CapsuleMapsCliAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll</CapsuleMapsCliAssembly>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
@@ -40,14 +41,17 @@
     <CapsuleTiledMap Include="$(CapsuleAssetSourcesDir)/maps/**/*.tmj" />
 
     <!-- Not an import target of its own: a Tiled map's tilesets are read during its import, so
-         they are the other half of what a derived map is up to date with respect to. -->
-    <CapsuleTiledTileset Include="$(CapsuleAssetSourcesDir)/maps/**/*.tsj" />
+         they are the other half of what a derived map is up to date with respect to. The tool
+         confines references to this recursively tracked tree. -->
+    <CapsuleTiledTileset Include="$(CapsuleAssetSourcesDir)/**/*.tsj" />
 
     <!-- The tool rides the game's own restore and build graph, so it restores under the game's
          locked mode and contributes nothing to the game's output or publish set. -->
     <ProjectReference Include="$(CapsuleMapsCliProject)"
+                      Condition="'$(CapsuleMapsCliProject)' != ''"
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
                       ExcludeAssets="all"
                       PrivateAssets="all"
                       Private="false" />
@@ -60,6 +64,8 @@
           BeforeTargets="AssignTargetPaths">
     <Error Condition="!Exists('$(CapsuleAssetSourcesDir)')"
            Text="Capsule: CapsuleGameShell is set but the asset source directory '$(CapsuleAssetSourcesDir)' does not exist. A Capsule game keeps authoring sources at &lt;repo&gt;/asset-sources (Tiled maps in asset-sources/maps/*.tmj) with the shell project one level below the repo root, or points CapsuleAssetSourcesDir at where they live." />
+    <Error Condition="'$(CapsuleMapsCliProject)' == '' and '$(CapsuleMapsCliAssembly)' == ''"
+           Text="Capsule: the map importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
     <ItemGroup>
       <_CapsuleMapName Include="@(CapsuleTiledMap->'%(Filename)')" />
@@ -82,6 +88,8 @@
       <CapsuleMapsDerivedDir>$(CapsuleMapsOutDir)/</CapsuleMapsDerivedDir>
       <CapsuleMapsBatchFile>$(CapsuleMapsObjDir)/tiled-maps.txt</CapsuleMapsBatchFile>
       <CapsuleMapsTileSizeStamp>$(CapsuleMapsObjDir)/tile-size.txt</CapsuleMapsTileSizeStamp>
+      <CapsuleMapsDependencyStamp>$(CapsuleMapsObjDir)/tiled-dependencies.txt</CapsuleMapsDependencyStamp>
+      <CapsuleMapsDependencyRootArg>--dependency-root &quot;$(CapsuleAssetSourcesDir)&quot; </CapsuleMapsDependencyRootArg>
       <CapsuleTileSizeArg Condition="'$(CapsuleTileSize)' != ''">--tile-size &quot;$(CapsuleTileSize)&quot; </CapsuleTileSizeArg>
     </PropertyGroup>
 
@@ -95,15 +103,27 @@
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
 
+    <!-- A file list is itself an input. Without it, deleting or renaming a tileset removes
+         that path from Inputs and can make a stale derived map appear current. -->
+    <WriteLinesToFile File="$(CapsuleMapsDependencyStamp)"
+                      Lines="@(CapsuleTiledTileset->'%(FullPath)')"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
     <!-- Resolved here rather than where it is used: the importer is an input to every derived
          map, and a target's Inputs are evaluated after its DependsOnTargets have run but before
          its own tasks. Asked from inside the import target, the path would arrive after the
          up-to-date check that needs it, and a rebuilt importer would leave every map untouched. -->
     <MSBuild Projects="$(CapsuleMapsCliProject)"
+             Condition="'$(CapsuleMapsCliProject)' != ''"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CapsuleMapsTool" />
     </MSBuild>
+
+    <ItemGroup Condition="'$(CapsuleMapsCliAssembly)' != ''">
+      <_CapsuleMapsTool Include="$(CapsuleMapsCliAssembly)" />
+    </ItemGroup>
 
     <!-- The importer is the assembly graph it loads, not its entry point. Reference assemblies
          are on, so an implementation-only change in Capsule.Maps rebuilds Capsule.Maps.dll and
@@ -135,7 +155,7 @@
   <Target Name="CapsuleImportTiledMaps"
           Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleTiledMap)' != ''"
           DependsOnTargets="CapsuleMapsInit;ResolveProjectReferences"
-          Inputs="@(CapsuleTiledMap);@(CapsuleTiledTileset);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
+          Inputs="@(CapsuleTiledMap);@(CapsuleTiledTileset);$(CapsuleMapsDependencyStamp);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
           Outputs="@(CapsuleTiledMap->'$(CapsuleMapsDerivedDir)%(Filename).map.json')">
 
     <Error Condition="!Exists('@(_CapsuleMapsTool)')"
@@ -162,7 +182,7 @@
 
     <!-- LogStandardErrorAsError surfaces the tool's own per-map messages verbatim as build
          errors, each already anchored to the map that failed. -->
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleMapsTool)&quot; import-tiled --out &quot;$(CapsuleMapsOutDir)&quot; $(CapsuleTileSizeArg)--maps-from &quot;$(CapsuleMapsBatchFile)&quot;"
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleMapsTool)&quot; import-tiled --out &quot;$(CapsuleMapsOutDir)&quot; $(CapsuleMapsDependencyRootArg)$(CapsuleTileSizeArg)--maps-from &quot;$(CapsuleMapsBatchFile)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />

@@ -48,4 +48,48 @@ internal static class TypeNaming
 
         return id.ToString();
     }
+
+    internal static bool IsSafeMapName(string mapName)
+    {
+        if (mapName.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (char character in mapName)
+        {
+            bool safe = character is >= 'a' and <= 'z'
+                or >= 'A' and <= 'Z'
+                or >= '0' and <= '9'
+                or '-'
+                or '_';
+            if (!safe)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static string RegistryProviderName(string assemblyName)
+    {
+        StringBuilder identifier = new("CapsuleRegistryProvider_");
+        foreach (char character in assemblyName)
+        {
+            identifier.Append(char.IsLetterOrDigit(character) ? character : '_');
+        }
+
+        uint hash = 2166136261;
+        foreach (char character in assemblyName)
+        {
+            hash ^= character;
+            hash *= 16777619;
+        }
+
+        identifier.Append('_');
+        identifier.Append(hash.ToString("X8", System.Globalization.CultureInfo.InvariantCulture));
+
+        return identifier.ToString();
+    }
 }

@@ -1,0 +1,92 @@
+name: Publish private packages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer package version (for example, 0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Resolve package version
+        shell: bash
+        env:
+          CAPSULE_DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="$CAPSULE_DISPATCH_VERSION"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+
+          semver='^0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?$'
+          if [[ ! "$version" =~ $semver ]]; then
+            echo "Capsule releases require strict pre-1.0 SemVer without build metadata." >&2
+            exit 1
+          fi
+
+          echo "CAPSULE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore --locked-mode
+
+      - name: Build
+        run: >
+          dotnet build Capsule.sln
+          --configuration Release
+          --no-restore
+          -p:Version=$CAPSULE_PACKAGE_VERSION
+
+      - name: Test
+        run: dotnet test Capsule.sln --configuration Release --no-build
+
+      - name: Pack
+        run: >
+          dotnet pack Capsule.sln
+          --configuration Release
+          --no-build
+          --output artifacts/packages
+          -p:PackageVersion=$CAPSULE_PACKAGE_VERSION
+
+      - name: Report package storage
+        shell: bash
+        run: du -ch artifacts/packages/*.nupkg
+
+      - name: Retain release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: capsule-${{ env.CAPSULE_PACKAGE_VERSION }}
+          path: artifacts/packages/*.*nupkg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish to GitHub Packages
+        shell: bash
+        run: |
+          for package in artifacts/packages/*.nupkg; do
+            dotnet nuget push "$package" \
+              --source https://nuget.pkg.github.com/just-awesome-games/index.json \
+              --api-key "${{ secrets.GITHUB_TOKEN }}" \
+              --skip-duplicate
+          done

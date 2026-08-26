@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+    <PackageReference Include="Capsule.Verify" Version="[$(CapsuleVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Verify/Capsule.Verify.csproj" />
+  </ItemGroup>
+
+</Project>

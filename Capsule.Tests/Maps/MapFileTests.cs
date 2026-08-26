@@ -16,10 +16,33 @@ public sealed class MapFileTests
     private static readonly ColorRgba Slate = new(0x4A, 0x55, 0x68);
 
     [Fact]
+    public void Parse_RejectsAMapWithNoFormatVersion()
+    {
+        MapFormatException error = Assert.Throws<MapFormatException>(
+            () => MapFile.Parse("""{"grid": {}, "objects": [], "nextObjectId": 1}"""));
+
+        Assert.Contains("no formatVersion", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 1", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Parse_RejectsAnUnsupportedFormatVersion(int formatVersion)
+    {
+        string json = MapText().Replace("\"formatVersion\": 1", $"\"formatVersion\": {formatVersion}", StringComparison.Ordinal);
+
+        MapFormatException error = Assert.Throws<MapFormatException>(() => MapFile.Parse(json));
+
+        Assert.Contains($"formatVersion {formatVersion} is unsupported", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 1", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Parse_RejectsAMapWithNoGrid()
     {
         MapFormatException error = Assert.Throws<MapFormatException>(
-            () => MapFile.Parse("""{"objects": [], "nextObjectId": 1}"""));
+            () => MapFile.Parse("""{"formatVersion": 1, "objects": [], "nextObjectId": 1}"""));
 
         Assert.Contains("no grid", error.Message, StringComparison.Ordinal);
     }
@@ -54,6 +77,22 @@ public sealed class MapFileTests
 
         Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), map.Grid.TileTypes[1].Color);
         Assert.Contains($"\"color\": \"{color}\"", MapFile.ToJson(map), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PaletteEntryWithoutAColourRoundTripsCanonically()
+    {
+        Map map = new(
+            new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [1]),
+            [],
+            1);
+
+        string json = MapFile.ToJson(map);
+        Map round = MapFile.Parse(json);
+
+        Assert.DoesNotContain("\"color\"", json, StringComparison.Ordinal);
+        Assert.Equal(map.Grid.TileTypes.ToArray(), round.Grid.TileTypes.ToArray());
+        Assert.Equal(json, MapFile.ToJson(round));
     }
 
     // The written form is lowercase #rrggbbaa and only that: anything else read back would be
@@ -136,6 +175,7 @@ public sealed class MapFileTests
         string expected = string.Join(
             '\n',
             "{",
+            "  \"formatVersion\": 1,",
             "  \"grid\": {",
             "    \"tileSize\": 16,",
             "    \"width\": 2,",
@@ -257,6 +297,7 @@ public sealed class MapFileTests
         string extra = "") =>
         $$"""
         {
+          "formatVersion": 1,
           "grid": {
             "tileSize": 16,
             "width": 2,

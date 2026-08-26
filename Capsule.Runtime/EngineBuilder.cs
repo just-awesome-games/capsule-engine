@@ -275,15 +275,7 @@ public sealed class EngineBuilder
     /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
     public void RunScene<TScene>()
         where TScene : Scene
-    {
-        SceneRegistry scenes = ConfiguredScenes();
-
-        Scene scene = scenes.MapNameOf(typeof(TScene)) is { } mapName
-            ? ComposeMap(scenes, mapName)
-            : scenes.Create(typeof(TScene));
-
-        Run(new SceneSimulation(scene));
-    }
+        => RunScene(SceneTarget.ForScene(typeof(TScene)));
 
     /// <summary>
     /// Opens the window and runs a map until game code requests exit: as the class claiming that
@@ -299,7 +291,22 @@ public sealed class EngineBuilder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
 
-        Run(new SceneSimulation(ComposeMap(ConfiguredScenes(), mapName)));
+        RunScene(SceneTarget.ForMap(mapName));
+    }
+
+    private void RunScene(in SceneTarget initialTarget)
+    {
+        SceneRegistry scenes = ConfiguredScenes();
+
+        Scene Resolve(in SceneTarget target) => target.Kind switch
+        {
+            SceneTargetKind.Scene => ComposeScene(scenes, target.SceneType!),
+            SceneTargetKind.Map => ComposeMap(scenes, target.MapName!),
+            _ => throw new InvalidOperationException($"Unknown scene target kind '{target.Kind}'."),
+        };
+
+        using SceneHost host = new(initialTarget, Resolve);
+        Run(host);
     }
 
     private SceneRegistry ConfiguredScenes() =>
@@ -325,6 +332,11 @@ public sealed class EngineBuilder
             throw new SpawnException($"{path}: {exception.Message}", exception);
         }
     }
+
+    private static Scene ComposeScene(SceneRegistry scenes, Type sceneType) =>
+        scenes.MapNameOf(sceneType) is { } mapName
+            ? ComposeMap(scenes, mapName)
+            : scenes.Create(sceneType);
 
     // Maps ship into one flat directory, so a name that is a path would either escape it or point
     // at a file the hook never wrote, and one Windows resolves as a device would not be a file at

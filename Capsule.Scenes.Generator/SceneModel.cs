@@ -2,17 +2,27 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Scenes.Generator;
 
+internal enum SceneFault
+{
+    None,
+    MapNameRequiresMapScene,
+    UnsafeMapName,
+    InaccessibleType,
+    AmbiguousConstructors,
+}
+
 /// <summary>
 /// One scene class as the pipeline carries it. Symbols are flattened to strings here: a model that
 /// outlives its compilation would pin the whole one in the generator cache.
 /// </summary>
 internal readonly struct SceneModel : IEquatable<SceneModel>
 {
-    internal SceneModel(string qualifiedName, string displayName, string? mapName, Location location)
+    internal SceneModel(string qualifiedName, string displayName, string? mapName, SceneFault fault, Location location)
     {
         QualifiedName = qualifiedName;
         DisplayName = displayName;
         MapName = mapName;
+        Fault = fault;
         Location = location;
     }
 
@@ -25,6 +35,8 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
     /// <summary>The map composed into it, or null when no map backs it.</summary>
     internal string? MapName { get; }
 
+    internal SceneFault Fault { get; }
+
     internal Location Location { get; }
 
     public static bool operator ==(SceneModel left, SceneModel right) => left.Equals(right);
@@ -32,7 +44,8 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
     public static bool operator !=(SceneModel left, SceneModel right) => !left.Equals(right);
 
     public bool Equals(SceneModel other) =>
-        string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
+        Fault == other.Fault
+        && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
         && string.Equals(MapName, other.MapName, StringComparison.Ordinal)
         && Location.Equals(other.Location);
 
@@ -43,6 +56,7 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
         int hash = 17;
         hash = (hash * 31) + QualifiedName.GetHashCode();
         hash = (hash * 31) + (MapName is null ? 0 : MapName.GetHashCode());
+        hash = (hash * 31) + (int)Fault;
 
         return hash;
     }

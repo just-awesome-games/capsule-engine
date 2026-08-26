@@ -34,14 +34,14 @@
       "capsule.maps": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[1.0.0, )"
+          "Capsule.Core": "[0.1.0, )"
         }
       },
       "capsule.scenes": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[1.0.0, )",
-          "Capsule.Maps": "[1.0.0, )"
+          "Capsule.Core": "[0.1.0, )",
+          "Capsule.Maps": "[0.1.0, )"
         }
       }
     }

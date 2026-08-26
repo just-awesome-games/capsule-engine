@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <CapsuleGameLogic>true</CapsuleGameLogic>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+    <PackageReference Include="Capsule.Core" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="Capsule.Maps" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="Capsule.Scenes" Version="[$(CapsuleVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Core/Capsule.Core.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Maps/Capsule.Maps.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Scenes/Capsule.Scenes.csproj" />
+  </ItemGroup>
+
+</Project>

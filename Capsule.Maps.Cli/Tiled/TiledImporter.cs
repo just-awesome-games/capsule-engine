@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -16,7 +17,7 @@ public static class TiledImporter
     /// <summary>The value stamped into an imported map's <c>source.tool</c>.</summary>
     public const string ToolName = "tiled";
 
-    /// <summary>The tileset tile property a tile's appearance is authored as.</summary>
+    /// <summary>The tileset tile property carrying optional colour presentation.</summary>
     public const string ColorProperty = "color";
 
     // Tiled's name for the Color property type; it equals ColorProperty only by coincidence.
@@ -34,8 +35,11 @@ public static class TiledImporter
     /// The tile size the game declares, which every map it imports must match. Null declares
     /// nothing, and each map keeps its own.
     /// </param>
+    /// <param name="dependencyRoot">
+    /// When supplied, external tilesets must resolve beneath this tracked source directory.
+    /// </param>
     /// <exception cref="TiledImportException">The source uses something Capsule does not import.</exception>
-    public static Map Import(string mapPath, int? tileSize = null)
+    public static Map Import(string mapPath, int? tileSize = null, string? dependencyRoot = null)
     {
         byte[] mapBytes = File.ReadAllBytes(mapPath);
         TiledMap map = Deserialize(mapBytes, mapPath, TiledJsonContext.Default.TiledMap);
@@ -43,7 +47,10 @@ public static class TiledImporter
         RequireSupportedMap(map, mapPath, tileSize);
 
         string mapDirectory = DirectoryOf(mapPath);
-        TiledTileset[] tilesets = LoadTilesets(map, mapDirectory);
+        string? resolvedDependencyRoot = dependencyRoot is null ? null : Path.GetFullPath(dependencyRoot);
+        using IncrementalHash sourceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        sourceHash.AppendData(mapBytes);
+        TiledTileset[] tilesets = LoadTilesets(map, mapDirectory, resolvedDependencyRoot, sourceHash);
 
         List<TileDefinition> palette = [TileGrid.EmptyTile];
         Dictionary<int, int> paletteIndexByGid = BuildPalette(tilesets, palette);
@@ -55,7 +62,7 @@ public static class TiledImporter
         MapSource source = new(
             ToolName,
             mapPath.Replace('\\', '/'),
-            Convert.ToHexStringLower(SHA256.HashData(mapBytes)));
+            Convert.ToHexStringLower(sourceHash.GetHashAndReset()));
 
         try
         {
@@ -107,7 +114,11 @@ public static class TiledImporter
         }
     }
 
-    private static TiledTileset[] LoadTilesets(TiledMap map, string mapDirectory)
+    private static TiledTileset[] LoadTilesets(
+        TiledMap map,
+        string mapDirectory,
+        string? dependencyRoot,
+        IncrementalHash sourceHash)
     {
         List<TiledTileset> resolved = [];
         foreach (TiledTileset entry in map.Tilesets)
@@ -127,18 +138,42 @@ public static class TiledImporter
             }
 
             string path = Path.GetFullPath(Path.Combine(mapDirectory, entry.Source));
+            if (dependencyRoot is not null && !IsWithin(path, dependencyRoot))
+            {
+                throw new TiledImportException(
+                    $"tileset '{entry.Source}' resolves outside the tracked asset source root '{dependencyRoot}'; move it under that root so the build can track it.");
+            }
+
             if (!File.Exists(path))
             {
                 throw new TiledImportException($"tileset '{entry.Source}' is missing (expected at '{path}').");
             }
 
-            TiledTileset tileset = Deserialize(File.ReadAllBytes(path), path, TiledJsonContext.Default.TiledTileset);
+            byte[] tilesetBytes = File.ReadAllBytes(path);
+            AppendLengthPrefixed(sourceHash, tilesetBytes);
+            TiledTileset tileset = Deserialize(tilesetBytes, path, TiledJsonContext.Default.TiledTileset);
             tileset.FirstGid = entry.FirstGid;
             tileset.Name ??= Path.GetFileNameWithoutExtension(entry.Source);
             resolved.Add(tileset);
         }
 
         return [.. resolved.OrderBy(tileset => tileset.FirstGid)];
+    }
+
+    private static bool IsWithin(string path, string root)
+    {
+        string relative = Path.GetRelativePath(root, path);
+        return !Path.IsPathRooted(relative)
+            && !string.Equals(relative, "..", StringComparison.Ordinal)
+            && !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+    }
+
+    private static void AppendLengthPrefixed(IncrementalHash hash, byte[] bytes)
+    {
+        Span<byte> length = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
+        hash.AppendData(length);
+        hash.AppendData(bytes);
     }
 
     // Every Class in the tilesets enters the palette, painted or not, in tileset then tile-id
@@ -179,15 +214,14 @@ public static class TiledImporter
         return paletteIndexByGid;
     }
 
-    // No default and no fallback: a tile authored without an appearance would otherwise render as
-    // something plausible, and a mis-authored tileset must fail instead of looking right.
-    private static ColorRgba ColorOf(TiledTile tile, string tileClass, string tilesetName)
+    // Colour is one presentation lane, not tile identity. When supplied it stays strict so a
+    // malformed property cannot silently become an absent one.
+    private static ColorRgba? ColorOf(TiledTile tile, string tileClass, string tilesetName)
     {
         TiledProperty? property = tile.Property(ColorProperty);
         if (property is null)
         {
-            throw new TiledImportException(
-                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has no '{ColorProperty}' property; give every tile a Color custom property named '{ColorProperty}' in Tiled.");
+            return null;
         }
 
         // A string property holding '#AARRGGBB' reads identically here, so only the declared type

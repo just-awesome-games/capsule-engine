@@ -46,8 +46,7 @@ public sealed class TileGrid
     public int Height { get; }
 
     /// <summary>
-    /// The tile palette. Index 0 is <see cref="EmptyTile"/>; names are unique and every other
-    /// entry carries a colour.
+    /// The tile palette. Index 0 is <see cref="EmptyTile"/> and names are unique.
     /// </summary>
     public ReadOnlySpan<TileDefinition> TileTypes => _tileTypes;
 
@@ -113,12 +112,6 @@ public sealed class TileGrid
             if (!seen.Add(definition.Type))
             {
                 throw Malformed($"tileTypes[{i}] repeats \"{definition.Type}\"; tile type names must be unique.");
-            }
-
-            if (i > 0 && definition.Color is null)
-            {
-                throw Malformed(
-                    $"tileTypes[{i}] \"{definition.Type}\" has no colour; a tile type is authored with its appearance.");
             }
         }
     }

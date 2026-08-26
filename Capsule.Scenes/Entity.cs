@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -35,6 +36,13 @@ public class Entity
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
+    /// <summary>Moves immediately, with no interpolation from the old position.</summary>
+    public void Teleport(Vector2 position)
+    {
+        Position = position;
+        PreviousPosition = position;
+    }
+
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
     /// <exception cref="InvalidOperationException">The component is already attached to an entity.</exception>
     public void Add(Component component)
@@ -44,7 +52,7 @@ public class Entity
         if (component.Entity is not null)
         {
             throw new InvalidOperationException(
-                $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity for its lifetime.");
+                $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity at a time.");
         }
 
         component.Entity = this;
@@ -53,6 +61,50 @@ public class Entity
         // Attaching to an entity a scene already holds changes that scene's renderer set.
         Scene?.InvalidateRenderers();
     }
+
+    /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
+    /// <exception cref="InvalidOperationException">The component is not attached to this entity.</exception>
+    public void Remove(Component component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (!ReferenceEquals(component.Entity, this))
+        {
+            throw new InvalidOperationException(
+                $"A {component.GetType().Name} that this entity does not hold cannot be removed from it.");
+        }
+
+        int held = IndexOf(component);
+        _components.RemoveAt(held);
+        component.Entity = null;
+        Scene?.InvalidateRenderers();
+    }
+
+    /// <summary>Finds the first attached component assignable to <typeparamref name="T"/>.</summary>
+    public bool TryGet<T>([NotNullWhen(true)] out T? component)
+        where T : Component
+    {
+        foreach (Component candidate in Components)
+        {
+            if (candidate is T found)
+            {
+                component = found;
+                return true;
+            }
+        }
+
+        component = null;
+        return false;
+    }
+
+    /// <summary>Gets the first attached component assignable to <typeparamref name="T"/>.</summary>
+    /// <exception cref="InvalidOperationException">No attached component is assignable to that type.</exception>
+    public T Get<T>()
+        where T : Component =>
+        TryGet<T>(out T? component)
+            ? component
+            : throw new InvalidOperationException(
+                $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
 
     /// <summary>Advances this entity by one fixed step, before its components update.</summary>
     public virtual void Update(in StepContext context)
@@ -69,13 +121,32 @@ public class Entity
     {
     }
 
-    // Count is read each iteration: a component attached by an earlier one updates this step
-    // rather than waiting for the next.
     internal void UpdateComponents(in StepContext context)
     {
-        for (int i = 0; i < _components.Count; i++)
+        for (int index = 0; index < _components.Count;)
         {
-            _components[i].Update(context);
+            Component component = _components[index];
+            component.Update(context);
+
+            // A component may remove itself or one before it. Stay at this index when the
+            // occupant changed so the component shifted into it still receives this step.
+            if (index < _components.Count && ReferenceEquals(_components[index], component))
+            {
+                index++;
+            }
         }
+    }
+
+    private int IndexOf(Component component)
+    {
+        for (int index = 0; index < _components.Count; index++)
+        {
+            if (ReferenceEquals(_components[index], component))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 }

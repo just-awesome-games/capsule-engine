@@ -28,6 +28,81 @@ public sealed class SceneGeneratorTests
     }
 
     [Fact]
+    public void MapName_FixesTheAuthoredIdentityAcrossAClassRename()
+    {
+        string generated = Generated($$"""
+            {{GeneratorHarness.Preamble}}
+
+            [MapName("room-01")]
+            public sealed class OpeningRoom(MapSceneContext context) : MapScene(context);
+            """);
+
+        Assert.Contains("MapBacked(typeof(global::Game.OpeningRoom), \"room-01\"", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("../room")]
+    [InlineData("rooms/opening")]
+    [InlineData("opening room")]
+    public void AnUnsafeExplicitMapName_FailsTheBuild(string mapName)
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            [MapName("{{mapName}}")]
+            public sealed class OpeningRoom(MapSceneContext context) : MapScene(context);
+            """).Diagnostics;
+
+        Assert.Equal("CAP006", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void MapName_OnASceneWithoutAMapConstructor_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            [MapName("menu")]
+            public sealed class MainMenu : Scene;
+            """).Diagnostics;
+
+        Assert.Equal("CAP007", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void ASceneWithBothRegistryConstructorShapes_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Room : MapScene
+            {
+                public Room() : base(null!) { }
+                public Room(MapSceneContext context) : base(context) { }
+            }
+            """).Diagnostics;
+
+        Assert.Equal("CAP009", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void ARegisteredSceneNestedBehindPrivateAccess_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public static class Scenes
+            {
+                private sealed class Room(MapSceneContext context) : MapScene(context);
+            }
+            """).Diagnostics;
+
+        Assert.Equal("CAP008", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
     public void AParameterlessConstructor_RegistersASceneNoMapBacks()
     {
         string generated = Generated($$"""

@@ -12,6 +12,7 @@ namespace Capsule.Maps;
 /// </summary>
 public static class MapFile
 {
+    private const int FormatVersion = 1;
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>Reads and validates the map at <paramref name="path"/>.</summary>
@@ -35,6 +36,18 @@ public static class MapFile
     public static Map Parse(string json)
     {
         MapJson document = Deserialize(json);
+        if (document.FormatVersion is not { } formatVersion)
+        {
+            throw new MapFormatException(
+                $"the map has no formatVersion; this build supports formatVersion {FormatVersion}.");
+        }
+
+        if (formatVersion != FormatVersion)
+        {
+            throw new MapFormatException(
+                $"formatVersion {formatVersion} is unsupported; this build supports formatVersion {FormatVersion}.");
+        }
+
         TileGridJson grid = document.Grid ?? throw new MapFormatException("the map has no grid.");
 
         MapObject[] objects = new MapObject[document.Objects.Length];
@@ -91,6 +104,7 @@ public static class MapFile
 
         MapJson document = new()
         {
+            FormatVersion = FormatVersion,
             Grid = new TileGridJson
             {
                 TileSize = map.Grid.TileSize,

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <CapsuleGameShell>true</CapsuleGameShell>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+    <PackageReference Include="Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Runtime/Capsule.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Game/PackageConsumer.Game.csproj" />
+  </ItemGroup>
+
+  <Target Name="CapsuleRejectBackendCompileAsset" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <_CapsuleBackendCompileReference Include="@(ReferencePath)"
+                                       Condition="'%(Filename)' == 'MonoGame.Framework'" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleBackendCompileReference)' != ''"
+           Text="Capsule package leaked MonoGame as a compile reference." />
+  </Target>
+
+</Project>

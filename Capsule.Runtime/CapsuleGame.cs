@@ -15,13 +15,10 @@ internal sealed class CapsuleGame : Game
     private readonly GraphicsDeviceManager _graphics;
     private readonly EngineOptions _options;
     private readonly ISimulation _simulation;
-    private readonly InputState _input;
     private readonly PadFilter _padFilter;
-    private readonly SnapshotLatch _latch = new();
+    private readonly FixedStepScheduler _scheduler;
 
     private FrameRenderer _renderer = null!;
-    private double _accumulator;
-    private long _tick;
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
@@ -29,8 +26,8 @@ internal sealed class CapsuleGame : Game
     {
         _options = options;
         _simulation = simulation;
-        _input = new InputState(options.Bindings);
         _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
+        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxFrameSeconds, options.Bindings);
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -69,21 +66,9 @@ internal sealed class CapsuleGame : Game
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
         }
 
-        _latch.Observe(sampled);
-
-        _accumulator += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, _options.MaxFrameSeconds);
-        while (_accumulator >= _options.StepSeconds)
+        if (_scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation))
         {
-            _input.Advance(_latch.ConsumeStepSnapshot());
-            _simulation.Step(new StepContext(_options.StepSeconds, _input, _tick));
-            _accumulator -= _options.StepSeconds;
-            _tick++;
-
-            if (_simulation.ExitRequested)
-            {
-                Exit();
-                break;
-            }
+            Exit();
         }
 
         base.Update(gameTime);
@@ -92,7 +77,7 @@ internal sealed class CapsuleGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // alpha is in [0, 1) because Update drains the accumulator below one step.
-        _renderer.Draw(_simulation.View, (float)(_accumulator / _options.StepSeconds));
+        _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
         base.Draw(gameTime);
     }

@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- A game's declared role is the complete configuration surface. The analyzer makes that
+       role enforceable without requiring consumers to copy rule lists or editor settings. -->
+  <Target Name="CapsuleValidateProjectRole" BeforeTargets="CoreCompile"
+          Condition="'$(CapsuleGameLogic)' == 'true' and '$(CapsuleGameShell)' == 'true'">
+    <Error Text="Capsule: a project cannot declare both CapsuleGameLogic and CapsuleGameShell." />
+  </Target>
+
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
+    <CompilerVisibleProperty Include="CapsuleGameLogic" />
+    <CompilerVisibleProperty Include="CapsuleGameShell" />
+
+    <!-- Source-clone development. The private package replaces this with an Analyzer item that
+         points at its bundled DLL while preserving the same zero-configuration behavior. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      AdditionalProperties="PublishAot=false;SelfContained=false"
+                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
+                      PrivateAssets="all"
+                      Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj')" />
+  </ItemGroup>
+
+</Project>

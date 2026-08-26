@@ -1,0 +1,27 @@
+<Project>
+
+  <!-- These two foundations intentionally stay portable. Enforce their dependency direction at
+       build time so a convenient package reference cannot silently turn into engine policy. -->
+  <Target Name="CapsuleValidateModuleDependencies" BeforeTargets="ResolveReferences">
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Maps'">
+      <!-- PublishAot injects its compiler pack as an SDK-owned PackageReference. The boundary is
+           against dependencies authored by the module, not toolchain implementation items. -->
+      <_CapsuleExplicitPackageReference Include="@(PackageReference)"
+          Condition="'%(PackageReference.IsImplicitlyDefined)' != 'true'" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Maps'">
+      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
+          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj'" />
+    </ItemGroup>
+
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(ProjectReference)' != ''"
+           Text="Capsule.Core must not reference another project." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(_CapsuleExplicitPackageReference)' != ''"
+           Text="Capsule.Core must not reference a package." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Maps' and '@(_CapsuleExplicitPackageReference)' != ''"
+           Text="Capsule.Maps must not reference a package." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Maps' and '@(_CapsuleForbiddenProjectReference)' != ''"
+           Text="Capsule.Maps may reference Capsule.Core only; found @(_CapsuleForbiddenProjectReference)." />
+  </Target>
+
+</Project>

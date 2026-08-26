@@ -20,6 +20,7 @@ internal static class GeneratorHarness
     internal const string GameEntitiesFile = "CapsuleGameEntities.g.cs";
     internal const string GameScenesFile = "CapsuleGameScenes.g.cs";
     internal const string GameBootFile = "CapsuleGameBoot.g.cs";
+    internal const string RegistryProviderFile = "CapsuleRegistryProvider.g.cs";
 
     internal const string Preamble = """
         using System.Numerics;
@@ -72,6 +73,25 @@ internal static class GeneratorHarness
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Compile(string source) =>
         Run(Compiled("RegistrySpecs", source, References), Role.Logic);
 
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithRoles(
+        string source,
+        bool logic,
+        bool shell,
+        params string[] excludedAssemblies)
+    {
+        ImmutableArray<MetadataReference>.Builder references = ImmutableArray.CreateBuilder<MetadataReference>();
+        foreach (MetadataReference reference in References)
+        {
+            string assemblyName = Path.GetFileNameWithoutExtension(reference.Display ?? string.Empty);
+            if (!excludedAssemblies.Contains(assemblyName, StringComparer.OrdinalIgnoreCase))
+            {
+                references.Add(reference);
+            }
+        }
+
+        return Run(Compiled("RoleSpecs", source, references.ToImmutable()), logic, shell);
+    }
+
     /// <summary>
     /// A game's two projects as they actually meet: the logic half is generated, emitted to
     /// metadata and referenced by the shell, so the shell's compilation reaches Capsule.Scenes and
@@ -82,9 +102,22 @@ internal static class GeneratorHarness
     {
         ImmutableArray<MetadataReference> references = logicSource is null
             ? References
-            : References.Add(LogicAssembly(logicSource));
+            : References.Add(LogicAssembly("GameSpecs", logicSource));
 
         return Run(Compiled("ShellSpecs", shellSource, references), Role.Shell);
+    }
+
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileShellWithLogicAssemblies(
+        string shellSource,
+        params (string AssemblyName, string Source)[] logicSources)
+    {
+        ImmutableArray<MetadataReference>.Builder references = References.ToBuilder();
+        foreach ((string assemblyName, string source) in logicSources)
+        {
+            references.Add(LogicAssembly(assemblyName, source));
+        }
+
+        return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
     private enum Role
@@ -93,9 +126,9 @@ internal static class GeneratorHarness
         Shell,
     }
 
-    private static MetadataReference LogicAssembly(string source)
+    private static MetadataReference LogicAssembly(string assemblyName, string source)
     {
-        Compilation logic = Run(Compiled("GameSpecs", source, References), Role.Logic).Updated;
+        Compilation logic = Run(Compiled(assemblyName, source, References), Role.Logic).Updated;
 
         using MemoryStream image = new();
         EmitResult emitted = logic.Emit(image);
@@ -113,12 +146,18 @@ internal static class GeneratorHarness
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
     private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(CSharpCompilation compilation, Role role)
+        => Run(compilation, role == Role.Logic, role == Role.Shell);
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(
+        CSharpCompilation compilation,
+        bool logic,
+        bool shell)
     {
         CSharpGeneratorDriver.Create(
                 [new RegistryGenerator().AsSourceGenerator()],
                 additionalTexts: null,
                 parseOptions: null,
-                optionsProvider: new DeclaredRole(role))
+                optionsProvider: new DeclaredRole(logic, shell))
             .RunGeneratorsAndUpdateCompilation(compilation, out Compilation updated, out ImmutableArray<Diagnostic> diagnostics);
 
         return (diagnostics, updated);
@@ -154,10 +193,9 @@ internal static class GeneratorHarness
     /// <summary>One declared MSBuild role, as the compiler hands it to a generator.</summary>
     private sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
-        private static readonly AnalyzerConfigOptions None = new Properties(null);
+        private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false);
 
-        internal DeclaredRole(Role role) =>
-            GlobalOptions = new Properties(role == Role.Shell ? "build_property.CapsuleGameShell" : "build_property.CapsuleGameLogic");
+        internal DeclaredRole(bool logic, bool shell) => GlobalOptions = new Properties(logic, shell);
 
         public override AnalyzerConfigOptions GlobalOptions { get; }
 
@@ -165,11 +203,13 @@ internal static class GeneratorHarness
 
         public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => None;
 
-        private sealed class Properties(string? declared) : AnalyzerConfigOptions
+        private sealed class Properties(bool logic, bool shell) : AnalyzerConfigOptions
         {
             public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
             {
-                if (declared is not null && string.Equals(key, declared, StringComparison.Ordinal))
+                bool declared = logic && string.Equals(key, "build_property.CapsuleGameLogic", StringComparison.Ordinal)
+                    || shell && string.Equals(key, "build_property.CapsuleGameShell", StringComparison.Ordinal);
+                if (declared)
                 {
                     value = "true";
 

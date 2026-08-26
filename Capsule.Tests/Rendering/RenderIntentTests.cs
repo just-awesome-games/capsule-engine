@@ -30,11 +30,20 @@ public sealed class RenderIntentTests
     public void ClearingAView_LeavesTheCameraAlone()
     {
         CameraView camera = new(Vector2.One, new Vector2(10, 10));
-        FrameView view = new() { Camera = camera };
+        ColorRgba clearColor = new(12, 34, 56);
+        FrameView view = new()
+        {
+            Camera = camera,
+            ClearColor = clearColor,
+            Sampling = TextureSampling.Point,
+        };
 
         view.Clear();
 
         Assert.Equal(camera, view.Camera);
+        Assert.Equal(clearColor, view.ClearColor);
+        Assert.Equal(TextureSampling.Point, view.Sampling);
+        Assert.Equal(default, view.Metrics);
     }
 
     [Fact]
@@ -50,5 +59,53 @@ public sealed class RenderIntentTests
 
         Assert.Equal(1, view.Quads.Length);
         Assert.Equal(rewritten, view.Quads[0]);
+    }
+
+    [Fact]
+    public void AView_DefaultsToGenericWorldPresentation()
+    {
+        FrameView view = new();
+
+        Assert.Equal(ColorRgba.Black, view.ClearColor);
+        Assert.Equal(TextureSampling.Linear, view.Sampling);
+    }
+
+    [Fact]
+    public void AView_RejectsQuadsThatStayOutsideTheCamera()
+    {
+        FrameView view = new()
+        {
+            Camera = new CameraView(new Vector2(5, 5), new Vector2(10, 10)),
+        };
+
+        view.AddQuad(new QuadIntent(new Vector2(-2, 2), new Vector2(-1, 2), Vector2.One, ColorRgba.White));
+        view.AddQuad(new QuadIntent(new Vector2(10, 2), new Vector2(10, 2), Vector2.One, ColorRgba.White));
+        view.AddQuad(new QuadIntent(new Vector2(2, 2), new Vector2(3, 2), Vector2.One, ColorRgba.White));
+
+        Assert.Single(view.Quads.ToArray());
+        Assert.Equal(new RenderMetrics(TotalQuads: 3, VisibleQuads: 1), view.Metrics);
+        Assert.Equal(2, view.Metrics.CulledQuads);
+    }
+
+    [Fact]
+    public void AView_KeepsAQuadWhoseMovementCrossesTheCamera()
+    {
+        FrameView view = new()
+        {
+            Camera = new CameraView(new Vector2(5, 5), new Vector2(10, 10)),
+        };
+        QuadIntent crossing = new(new Vector2(-4, 2), new Vector2(11, 2), Vector2.One, ColorRgba.White);
+
+        view.AddQuad(crossing);
+
+        Assert.Equal(crossing, Assert.Single(view.Quads.ToArray()));
+    }
+
+    [Fact]
+    public void AView_RejectsAnUnknownSamplingMode()
+    {
+        FrameView view = new();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => view.Sampling = (TextureSampling)99);
     }
 }

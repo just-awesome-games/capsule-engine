@@ -39,7 +39,7 @@ public sealed class GameBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
-            ".WithScenes(global::Capsule.Scenes.Generated.GameScenes.Registry)",
+            ".WithScenes(Scenes)",
             GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile),
             StringComparison.Ordinal);
     }
@@ -79,5 +79,87 @@ public sealed class GameBootGeneratorTests
             "WithScenes",
             GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheShell_AggregatesEveryReferencedLogicAssembly()
+    {
+        const string actors = """
+            using Capsule.Scenes;
+            using Capsule.Scenes.Spawning;
+
+            namespace Actors;
+
+            internal sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+            """;
+        const string rooms = """
+            using Capsule.Scenes;
+
+            namespace Rooms;
+
+            internal sealed class Opening(MapSceneContext context) : MapScene(context);
+            """;
+
+        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) =
+            GeneratorHarness.CompileShellWithLogicAssemblies(
+                ShellSource,
+                ("Game.Actors", actors),
+                ("Game.Rooms", rooms));
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
+
+        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile);
+        Assert.Equal(2, generated.Split(".AddEntities(entities);", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, generated.Split(".AddScenes(scenes);", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void DuplicateSpawnClaimsAcrossLogicAssemblies_FailTheShellBuild()
+    {
+        const string first = """
+            using Capsule.Scenes;
+            using Capsule.Scenes.Spawning;
+            namespace First;
+            public sealed class Chest(EntitySpawn spawn) : Entity(spawn.Position);
+            """;
+        const string second = """
+            using Capsule.Scenes;
+            using Capsule.Scenes.Spawning;
+            namespace Second;
+            [SpawnType("chest")]
+            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn.Position);
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
+            ShellSource,
+            ("Game.First", first),
+            ("Game.Second", second)).Diagnostics;
+
+        Assert.Equal("CAP003", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void DuplicateMapClaimsAcrossLogicAssemblies_FailTheShellBuild()
+    {
+        const string first = """
+            using Capsule.Scenes;
+            namespace First;
+            [MapName("opening")]
+            public sealed class FirstOpening(MapSceneContext context) : MapScene(context);
+            """;
+        const string second = """
+            using Capsule.Scenes;
+            namespace Second;
+            [MapName("opening")]
+            public sealed class SecondOpening(MapSceneContext context) : MapScene(context);
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
+            ShellSource,
+            ("Game.First", first),
+            ("Game.Second", second)).Diagnostics;
+
+        Assert.Equal("CAP005", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 }

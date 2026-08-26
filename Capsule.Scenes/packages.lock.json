@@ -8,7 +8,7 @@
       "capsule.maps": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[1.0.0, )"
+          "Capsule.Core": "[0.1.0, )"
         }
       }
     }

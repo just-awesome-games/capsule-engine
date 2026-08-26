@@ -21,6 +21,7 @@ public sealed class TileMapTests
 
         MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         scene.Add(drifter);
+        OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
         SceneSimulation simulation = new(scene);
 
         simulation.Step(SceneFixtures.Step());
@@ -41,6 +42,7 @@ public sealed class TileMapTests
     public void ATilemapsPositionIsNotConsulted_ItsQuadsAreWorldCoordinates()
     {
         MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
+        OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
         SceneSimulation simulation = new(scene);
 
         SceneFixtures.TerrainOf(scene).Position = new Vector2(1000, 1000);
@@ -61,6 +63,7 @@ public sealed class TileMapTests
         TileMap tiles = new(grid);
         Scene scene = new();
         scene.Add(tiles);
+        OpenOver(scene, tiles.Size);
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
@@ -84,4 +87,59 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize), scene.Size);
     }
 
+    [Fact]
+    public void TerrainEmitsOnlyTilesCrossingTheCamera()
+    {
+        TileGrid grid = new(
+            tileSize: 8,
+            width: 4,
+            height: 1,
+            [TileGrid.EmptyTile, new TileDefinition("solid", SceneFixtures.Solid)],
+            [1, 1, 1, 1]);
+        Scene scene = new();
+        scene.Camera.Center = new Vector2(12, 4);
+        scene.Camera.ViewportSize = new Vector2(8, 8);
+        scene.Add(new TileMap(grid));
+
+        SceneSimulation simulation = new(scene);
+
+        QuadIntent tile = Assert.Single(simulation.View.Quads.ToArray());
+        Assert.Equal(new Vector2(8, 0), tile.Position);
+    }
+
+    [Fact]
+    public void TerrainEmitsNothingBeforeTheCameraOpens()
+    {
+        Scene scene = new();
+        scene.Add(new TileMap(SceneFixtures.RoomGrid()));
+
+        SceneSimulation simulation = new(scene);
+
+        Assert.Empty(simulation.View.Quads.ToArray());
+    }
+
+    [Fact]
+    public void AColorlessSemanticTile_RemainsQueryableWithoutEmittingAQuad()
+    {
+        TileGrid grid = new(
+            tileSize: 8,
+            width: 1,
+            height: 1,
+            [TileGrid.EmptyTile, new TileDefinition("hazard", null)],
+            [1]);
+        TileMap tiles = new(grid);
+        Scene scene = new();
+        scene.Add(tiles);
+
+        SceneSimulation simulation = new(scene);
+
+        Assert.Equal("hazard", tiles.TileTypeAt(0, 0));
+        Assert.Empty(simulation.View.Quads.ToArray());
+    }
+
+    private static void OpenOver(Scene scene, Vector2 size)
+    {
+        scene.Camera.Center = size / 2f;
+        scene.Camera.ViewportSize = size;
+    }
 }

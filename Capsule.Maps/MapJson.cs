@@ -8,22 +8,27 @@ namespace Capsule.Maps;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class MapJson
 {
+    // Nullable so an omitted version is distinct from an unsupported numeric version.
+    [JsonPropertyName("formatVersion")]
+    [JsonPropertyOrder(0)]
+    public int? FormatVersion { get; set; }
+
     // Nullable so an omitted grid fails as the format's missing-grid error rather than reading
     // as a zero-sized one.
     [JsonPropertyName("grid")]
-    [JsonPropertyOrder(0)]
+    [JsonPropertyOrder(1)]
     public TileGridJson? Grid { get; set; }
 
     [JsonPropertyName("objects")]
-    [JsonPropertyOrder(1)]
+    [JsonPropertyOrder(2)]
     public MapObjectJson[] Objects { get; set; } = [];
 
     [JsonPropertyName("nextObjectId")]
-    [JsonPropertyOrder(2)]
+    [JsonPropertyOrder(3)]
     public int NextObjectId { get; set; }
 
     [JsonPropertyName("source")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(4)]
     public MapSourceJson? Source { get; set; }
 }
 

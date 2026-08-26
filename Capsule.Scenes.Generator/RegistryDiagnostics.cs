@@ -50,4 +50,76 @@ internal static class RegistryDiagnostics
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor UnsafeMapName = new(
+        "CAP006",
+        "A map name must be a portable file stem",
+        "'{0}' claims unsafe map name '{1}'; use only ASCII letters, digits, hyphens, and underscores",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor MapNameRequiresMapScene = new(
+        "CAP007",
+        "[MapName] requires a map-backed scene",
+        "'{0}' is marked [MapName] but is not a concrete Capsule.Scenes.Scene with one public constructor taking Capsule.Scenes.MapSceneContext",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor InaccessibleRegisteredType = new(
+        "CAP008",
+        "A registered type must be accessible to generated code",
+        "'{0}' has a registry constructor but is private, protected, private protected, or file-local; make it internal or public",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor AmbiguousSceneConstructors = new(
+        "CAP009",
+        "A scene must have one registry constructor shape",
+        "'{0}' has both a public parameterless constructor and a public MapSceneContext constructor, or more than one MapSceneContext constructor",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor AmbiguousEntityConstructors = new(
+        "CAP010",
+        "An entity must have one spawn constructor",
+        "'{0}' has more than one public constructor taking Capsule.Scenes.Spawning.EntitySpawn",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor ConflictingProjectRoles = new(
+        "CAP011",
+        "A project cannot be both game logic and shell",
+        "This project declares both CapsuleGameLogic and CapsuleGameShell; keep substrate-free game logic and the runtime shell in separate projects",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor LogicRoleMissingScenes = new(
+        "CAP012",
+        "A game-logic project must reference Capsule.Scenes",
+        "This project declares CapsuleGameLogic but Capsule.Scenes.Scene is unavailable; reference Capsule.Scenes or remove the role",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor ShellRoleMissingRuntime = new(
+        "CAP013",
+        "A game-shell project must reference Capsule.Runtime",
+        "This project declares CapsuleGameShell but Capsule.Runtime.CapsuleEngine is unavailable; reference Capsule.Runtime or remove the role",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor InvalidRegistryProvider = new(
+        "CAP014",
+        "A generated registry provider is invalid",
+        "Referenced assembly '{0}' carries invalid Capsule registry metadata; rebuild it against the same Capsule version as the shell",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

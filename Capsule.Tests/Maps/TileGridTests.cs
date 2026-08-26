@@ -32,15 +32,15 @@ public sealed class TileGridTests
         Assert.Contains("must be unique", error.Message, StringComparison.Ordinal);
     }
 
-    // A tile is authored with its appearance, so one arriving without a colour is a malformed
-    // grid rather than a tile the renderer has to guess at.
+    // Tile identity is semantic. Presentation can arrive through a renderer other than the
+    // current colour lane without forcing a dummy colour into the map format.
     [Fact]
-    public void Constructor_RejectsATileTypeWithNoColour()
+    public void Constructor_AcceptsATileTypeWithNoColour()
     {
-        MapFormatException error = Assert.Throws<MapFormatException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [0, 1]));
+        TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [0, 1]);
 
-        Assert.Contains("\"ground\" has no colour", error.Message, StringComparison.Ordinal);
+        Assert.Equal("ground", grid.TileTypeAt(1, 0));
+        Assert.Null(grid.TileTypes[1].Color);
     }
 
     // The reserved entry is the one exception: it is never drawn, so it has nothing to look like.

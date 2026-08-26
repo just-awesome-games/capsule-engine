@@ -8,6 +8,8 @@ internal enum EntityFault
     NotAConcreteEntity,
     MissingSpawnConstructor,
     BlankSpawnType,
+    InaccessibleType,
+    AmbiguousSpawnConstructors,
 }
 
 /// <summary>

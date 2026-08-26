@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
   <!-- A dev-time tool. No game references it, which is why every line of Tiled parsing lives
        here rather than in Capsule.Maps: a game runtime never links an authoring format. -->
@@ -8,6 +8,9 @@
     <RootNamespace>Capsule.Maps.Cli</RootNamespace>
     <AssemblyName>Capsule.Maps.Cli</AssemblyName>
     <IsPackable>false</IsPackable>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier></RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>

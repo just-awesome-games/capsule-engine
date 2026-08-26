@@ -1,5 +1,7 @@
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Capsule.Rendering;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
@@ -10,7 +12,8 @@ namespace Capsule.Scenes;
 /// <see cref="MapScene"/>, which has already composed them.
 /// Entities keep the order they were added in — never a hash order — and adding or removing one
 /// during a step takes effect at the end of that step, so a step never iterates a list that
-/// changes under it.
+/// changes under it. The first transition requested before the host consumes one is the one it
+/// performs.
 /// </summary>
 public class Scene
 {
@@ -21,7 +24,10 @@ public class Scene
 
     private bool _stepping;
     private bool _started;
+    private bool _stopped;
     private bool _renderersStale = true;
+    private bool _exitRequested;
+    private SceneTransition? _transition;
 
     /// <summary>The camera, always present. Game code moves it; it starts spanning nothing.</summary>
     public Camera Camera { get; } = new();
@@ -32,8 +38,17 @@ public class Scene
     /// </summary>
     public Vector2 Size { get; protected set; }
 
+    /// <summary>The colour behind everything the scene draws.</summary>
+    public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
+
+    /// <summary>The sampling policy for world-space textures.</summary>
+    public TextureSampling Sampling { get; protected set; } = TextureSampling.Linear;
+
+    /// <summary>State supplied by the transition that opened this scene.</summary>
+    protected object? EntryPayload { get; private set; }
+
     /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>
-    public bool ExitRequested { get; private set; }
+    public bool ExitRequested => _exitRequested;
 
     /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
@@ -46,6 +61,7 @@ public class Scene
     public void Add(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
+        ThrowIfStopped();
 
         if (entity.Scene is not null || IndexOf(_pendingAdds, entity) >= 0)
         {
@@ -71,6 +87,7 @@ public class Scene
     public void Remove(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
+        ThrowIfStopped();
 
         if (!ReferenceEquals(entity.Scene, this))
         {
@@ -90,14 +107,90 @@ public class Scene
         Detach(entity);
     }
 
-    /// <summary>Asks the host to shut down; it does so once the current step finishes.</summary>
-    public void RequestExit() => ExitRequested = true;
+    /// <summary>Finds the first active entity assignable to <typeparamref name="T"/>.</summary>
+    public T? FindFirst<T>()
+        where T : Entity
+    {
+        foreach (Entity entity in Entities)
+        {
+            if (entity is T found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Finds the only active entity assignable to <typeparamref name="T"/>.</summary>
+    /// <exception cref="InvalidOperationException">There is not exactly one matching entity.</exception>
+    public T FindSingle<T>()
+        where T : Entity
+    {
+        T? found = null;
+
+        foreach (Entity entity in Entities)
+        {
+            if (entity is not T candidate)
+            {
+                continue;
+            }
+
+            if (found is not null)
+            {
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} holds more than one entity assignable to {typeof(T).Name}.");
+            }
+
+            found = candidate;
+        }
+
+        return found ?? throw new InvalidOperationException(
+            $"A {GetType().Name} holds no entity assignable to {typeof(T).Name}.");
+    }
+
+    /// <summary>Asks the host to shut down once the current step finishes.</summary>
+    public void RequestExit()
+    {
+        if (TryRequest(SceneTransition.Exit()))
+        {
+            _exitRequested = true;
+        }
+    }
+
+    /// <summary>Asks the host to reconstruct this scene once the current step finishes.</summary>
+    public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));
+
+    /// <summary>
+    /// Asks the host to reconstruct this scene with <paramref name="payload"/> once the current
+    /// step finishes.
+    /// </summary>
+    public void RequestRestart(object? payload) => TryRequest(SceneTransition.Restart(payload, true));
+
+    /// <summary>Asks the host to replace this scene with <typeparamref name="TScene"/>.</summary>
+    public void RequestScene<TScene>(object? payload = null)
+        where TScene : Scene =>
+        TryRequest(SceneTransition.ToScene(typeof(TScene), payload));
+
+    /// <summary>Asks the host to replace this scene with the scene composed from a map.</summary>
+    public void RequestScene(string mapName, object? payload = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        TryRequest(SceneTransition.ToMap(mapName, payload));
+    }
 
     /// <summary>
     /// Runs once, before the scene's first frame is built — where the camera opens. Exactly
     /// once: a scene belongs to one <see cref="SceneSimulation"/> for its lifetime.
     /// </summary>
     protected virtual void OnStart()
+    {
+    }
+
+    /// <summary>
+    /// Runs once before the scene releases its entities, when it is replaced or its host ends.
+    /// </summary>
+    protected virtual void OnStop()
     {
     }
 
@@ -121,7 +214,7 @@ public class Scene
         }
     }
 
-    internal void Start()
+    internal void Start(object? entryPayload)
     {
         if (_started)
         {
@@ -130,7 +223,68 @@ public class Scene
         }
 
         _started = true;
+        EntryPayload = entryPayload;
         OnStart();
+    }
+
+    internal void Stop()
+    {
+        if (!_started || _stopped)
+        {
+            return;
+        }
+
+        _stopped = true;
+        List<Exception>? failures = null;
+
+        try
+        {
+            OnStop();
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
+        for (int index = _entities.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                DetachAt(index);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        _pendingAdds.Clear();
+        _pendingRemoves.Clear();
+        _renderers.Clear();
+        _renderersStale = false;
+
+        if (failures is [Exception failure])
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("One or more scene cleanup hooks failed.", failures);
+        }
+    }
+
+    internal bool TryTakeTransition(out SceneTransition transition)
+    {
+        if (_transition is not { } requested)
+        {
+            transition = default;
+            return false;
+        }
+
+        _transition = null;
+        transition = requested;
+        return true;
     }
 
     /// <summary>
@@ -217,12 +371,39 @@ public class Scene
         int held = IndexOf(_entities, entity);
         if (held >= 0)
         {
-            _entities.RemoveAt(held);
+            DetachAt(held);
         }
+    }
+
+    private void DetachAt(int index)
+    {
+        Entity entity = _entities[index];
+        _entities.RemoveAt(index);
 
         _renderersStale = true;
         entity.Scene = null;
         entity.OnRemovedFromScene();
+    }
+
+    private bool TryRequest(in SceneTransition transition)
+    {
+        ThrowIfStopped();
+
+        if (_transition is not null)
+        {
+            return false;
+        }
+
+        _transition = transition;
+        return true;
+    }
+
+    private void ThrowIfStopped()
+    {
+        if (_stopped)
+        {
+            throw new InvalidOperationException($"A stopped {GetType().Name} cannot be changed or request another transition.");
+        }
     }
 
     private void RebuildRenderers()

@@ -15,8 +15,8 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  # Build, format, unit and coverage. The engine is a library: it is never launched
-  # here, and the window-and-device paths are covered by a consuming game's verify run.
+  # Build, format, unit and coverage. The engine is a library: window-and-device
+  # verification remains a separate Runtime integration concern.
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -37,6 +37,37 @@ jobs:
       - name: Build (Release)
         run: dotnet build --configuration Release --no-restore
 
+      - name: Pack
+        run: >
+          dotnet pack Capsule.sln
+          --configuration Release
+          --no-build
+          --output artifacts/packages
+
+      - name: Restore package consumer
+        run: >
+          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
+          --configfile tests/PackageConsumer/NuGet.config
+
+      - name: Build package consumer
+        run: >
+          dotnet build tests/PackageConsumer/PackageConsumer.slnx
+          --configuration Release
+          --no-restore
+
+      - name: Restore source consumer
+        run: >
+          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
+          --configfile tests/PackageConsumer/NuGet.config
+          -p:CapsuleSourcePath=../..
+
+      - name: Build source consumer
+        run: >
+          dotnet build tests/PackageConsumer/PackageConsumer.slnx
+          --configuration Release
+          --no-restore
+          -p:CapsuleSourcePath=../..
+
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
 
@@ -50,7 +81,7 @@ jobs:
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Scenes]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml
           -p:Threshold=80
@@ -64,3 +95,35 @@ jobs:
           name: coverage
           path: Capsule.Tests/TestResults/coverage.cobertura.xml
           if-no-files-found: warn
+
+  platform-and-aot:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore engine
+        run: dotnet restore --locked-mode
+
+      - name: Build engine (Release)
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish source consumer with NativeAOT
+        run: >
+          dotnet publish tests/PackageConsumer/Shell/PackageConsumer.Shell.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --self-contained true
+          -p:PublishAot=true
+          -p:CapsuleSourcePath=../..

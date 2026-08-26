@@ -1,0 +1,12 @@
+<Project>
+
+  <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets"
+          Condition="'$(CapsuleSourceRoot)' != '' and Exists('$(CapsuleSourceRoot)/build/Capsule.Build.targets')" />
+
+  <Target Name="CapsuleRequireSourceRoot" BeforeTargets="Restore;Build"
+          Condition="'$(CapsuleSourceRoot)' != ''">
+    <Error Condition="!Exists('$(CapsuleSourceRoot)/build/Capsule.Build.targets')"
+           Text="Capsule source was not found at '$(CapsuleSourceRoot)'." />
+  </Target>
+
+</Project>

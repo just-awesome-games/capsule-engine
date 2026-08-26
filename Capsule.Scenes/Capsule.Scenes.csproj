@@ -6,6 +6,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Scenes</RootNamespace>
+    <PackageId>Capsule.Scenes</PackageId>
   </PropertyGroup>
 
   <ItemGroup>

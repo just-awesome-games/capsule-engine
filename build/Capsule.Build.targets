@@ -1,19 +1,18 @@
 <Project>
 
-  <!-- The one file a Capsule game imports from its Directory.Build.targets. Every build hook
-       Capsule ships is imported from here, so a new hook never changes a game's wiring. -->
+  <!-- The one entry point for Capsule's build hooks. Capsule.Build brings it to package
+       consumers through buildTransitive; a source consumer imports it from the engine clone. -->
 
   <!-- MSBuild unsets Configuration/Platform on a ProjectReference pointing outside the solution
-       being built, leaving it to fall back to Debug: an engine project absent from a game's .sln
-       would build Debug inside the game's Release build, and the Release shell would then query
-       a path its dependency never wrote. Inheriting the referencing project's values instead is
-       safe here because engine and games are uniformly SDK-style AnyCPU — there is no Platform
-       name for the unset to be protecting against. -->
+       being built, leaving it to fall back to Debug. Preserve the parent configuration for direct
+       project builds; an external-project solution traversal may still evaluate both variants. -->
   <PropertyGroup>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Maps.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Scenes.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Analyzers.targets"
+          Condition="Exists('$(MSBuildThisFileDirectory)Capsule.Analyzers.targets')" />
 
 </Project>

@@ -15,9 +15,8 @@ namespace Capsule.Runtime.Rendering;
 /// </summary>
 internal sealed class FrameRenderer : IDisposable
 {
-    // ColorRgba is straight alpha and the studio blend convention is premultiplied.
-    // Not host-configurable: a clear colour is render intent, never host boot config.
-    private static readonly Color Clear = Color.FromNonPremultiplied(
+    // Bars are presentation rather than world intent and remain black.
+    private static readonly Color BarColor = Color.FromNonPremultiplied(
         ColorRgba.Black.R,
         ColorRgba.Black.G,
         ColorRgba.Black.B,
@@ -83,10 +82,9 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
-        // Cleared at full extent, before the viewport narrows: the bars are then black
-        // whether or not the backend scissors a clear.
+        // Cleared at full extent before the viewport narrows, keeping presentation bars black.
         _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
-        _device.Clear(Clear);
+        _device.Clear(BarColor);
 
         CameraView camera = view.Camera;
         if (camera.Size.X <= 0f || camera.Size.Y <= 0f)
@@ -107,7 +105,20 @@ internal sealed class FrameRenderer : IDisposable
             Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
             Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
 
-        _batch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldToScreen);
+        _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: worldToScreen);
+
+        // Clear colour is world intent rather than host configuration. Drawing it through the
+        // narrowed world viewport leaves presentation bars black on every backend.
+        _batch.Draw(
+            _white,
+            new XnaVector2(topLeft.X, topLeft.Y),
+            sourceRectangle: null,
+            ToBackendColor(view.ClearColor),
+            rotation: 0f,
+            origin: XnaVector2.Zero,
+            scale: new XnaVector2(camera.Size.X, camera.Size.Y),
+            effects: SpriteEffects.None,
+            layerDepth: 0f);
 
         foreach (QuadIntent quad in view.Quads)
         {
@@ -117,7 +128,7 @@ internal sealed class FrameRenderer : IDisposable
                 _white,
                 new XnaVector2(position.X, position.Y),
                 sourceRectangle: null,
-                Color.FromNonPremultiplied(quad.Color.R, quad.Color.G, quad.Color.B, quad.Color.A),
+                ToBackendColor(quad.Color),
                 rotation: 0f,
                 origin: XnaVector2.Zero,
                 scale: new XnaVector2(quad.Size.X, quad.Size.Y),
@@ -138,7 +149,7 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
-        _device.Clear(Clear);
+        _device.Clear(BarColor);
 
         Letterbox fit = Letterbox.Fit(target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
         if (fit.IsEmpty)
@@ -166,6 +177,17 @@ internal sealed class FrameRenderer : IDisposable
             layerDepth: 0f);
         _batch.End();
     }
+
+    private static SamplerState Sampler(TextureSampling sampling) => sampling switch
+    {
+        TextureSampling.Linear => SamplerState.LinearClamp,
+        TextureSampling.Point => SamplerState.PointClamp,
+        _ => throw new ArgumentOutOfRangeException(nameof(sampling), sampling, "Unknown texture sampling mode."),
+    };
+
+    // ColorRgba is straight alpha and the backend blend convention is premultiplied.
+    private static Color ToBackendColor(ColorRgba color) =>
+        Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
 
     public void Dispose()
     {

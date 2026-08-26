@@ -19,7 +19,8 @@ public static class MapTool
         string listPath,
         int? tileSize,
         TextWriter output,
-        TextWriter error)
+        TextWriter error,
+        string? dependencyRoot = null)
     {
         ArgumentNullException.ThrowIfNull(error);
 
@@ -34,7 +35,7 @@ public static class MapTool
             return 1;
         }
 
-        return ImportTiled(outputDirectory, sourcePaths, tileSize, output, error);
+        return ImportTiled(outputDirectory, sourcePaths, tileSize, output, error, dependencyRoot);
     }
 
     /// <summary>
@@ -51,7 +52,8 @@ public static class MapTool
         IReadOnlyList<string> sourcePaths,
         int? tileSize,
         TextWriter output,
-        TextWriter error)
+        TextWriter error,
+        string? dependencyRoot = null)
     {
         ArgumentNullException.ThrowIfNull(sourcePaths);
         ArgumentNullException.ThrowIfNull(output);
@@ -85,7 +87,7 @@ public static class MapTool
 
             try
             {
-                MapFile.Save(TiledImporter.Import(sourcePath, tileSize), mapPath);
+                MapFile.Save(TiledImporter.Import(sourcePath, tileSize, dependencyRoot), mapPath);
                 output.WriteLine($"import-tiled: {sourcePath} -> {mapPath}");
             }
             catch (Exception ex) when (IsReportable(ex))

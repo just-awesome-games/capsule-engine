@@ -1,27 +1,20 @@
 # Consuming Capsule
 
-Everything a game repository does to build against this one, in the order it does it. Capsule
-ships as source at a sibling path, so all of this lives in the client repo and none of it is a
-packaging step.
+Everything a game repository does to build against this one, in the order it does it. Released
+games restore exact SemVer versions from Capsule's private NuGet feed. Engine development can
+replace those packages with a local source clone for one build, without editing project files.
 
 ## Bootstrap a new game
 
-### 1. Clone the engine beside the game
+### 1. Configure the private package source
 
-```
-Development/
-  capsule-engine/
-  my-game/
-```
+Add the authenticated Capsule feed to the developer's user-level NuGet configuration and to CI.
+Never commit a feed token or password to a game repository. A CI credential needs read-only
+package access; the package publisher is the only principal that needs write access.
 
-```
-git clone https://github.com/just-awesome-games/capsule-engine.git
-```
-
-There is no feed, no package and no version number, so local development edits both repos inside
-one build graph. Commit a `capsule-engine.pin` at the game repo root holding the git ref CI
-clones the engine at: a branch name tracks the tip, a full commit SHA pins a build. It is bumped
-in the same commit as the game change that needs the newer engine.
+All six packages in a release carry one version: `Capsule.Core`, `Capsule.Maps`,
+`Capsule.Scenes`, `Capsule.Runtime`, `Capsule.Verify`, and the tooling-only `Capsule.Build`. A game
+pins one exact `CapsuleVersion`, commits the resulting lock files, and upgrades it deliberately.
 
 ### 2. Lay out the repo
 
@@ -37,7 +30,6 @@ my-game/
   MyGame.Tests/               # xUnit over MyGame.Game, run headless
   asset-sources/
     maps/                     # Tiled maps and their .tsj tilesets
-  capsule-engine.pin
   Directory.Build.props
   Directory.Build.targets
   global.json
@@ -60,20 +52,47 @@ convention.
 **The skeleton is the ceremony bar.** A new Capsule game is a `Program.cs` shell plus its own
 logic project, and an engine capability that would grow that list is misdesigned.
 
-### 3. Take the build import
+### 3. Declare package and local-source resolution
 
-Build logic cannot travel through a `ProjectReference`, so the game imports it once. Copy
-[`build/client/Directory.Build.targets`](../build/client/Directory.Build.targets) from the engine
-clone to the game repo root, verbatim — it resolves the engine at the sibling path and fails with
-a legible error when the clone is missing.
+The game root's `Directory.Build.props` owns the one version and the optional source override:
 
-That import reaches every project in the repo, so every Capsule build hook, present and future,
-arrives through it and a new hook is never new client wiring. Today it imports Tiled maps
-([`Capsule.Maps/README.md`](../Capsule.Maps/README.md)).
+```xml
+<PropertyGroup>
+  <CapsuleVersion>0.1.0</CapsuleVersion>
+  <CapsuleSourceRoot Condition="'$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
+  <RestorePackagesWithLockFile Condition="'$(CapsuleSourceRoot)' == ''">true</RestorePackagesWithLockFile>
+</PropertyGroup>
+
+<ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+  <PackageReference Include="Capsule.Build"
+                    Version="[$(CapsuleVersion)]"
+                    PrivateAssets="all" />
+</ItemGroup>
+```
+
+`Capsule.Build` reaches every project, but its hooks remain inert until a project declares a
+Capsule role. It supplies map import, source generation, and compile-time architectural checks;
+the tooling package contributes nothing to a game's output or publish set.
+
+The root `Directory.Build.targets` supplies the source-development lane:
+
+```xml
+<Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets"
+        Condition="'$(CapsuleSourceRoot)' != '' and Exists('$(CapsuleSourceRoot)/build/Capsule.Build.targets')" />
+
+<Target Name="CapsuleRequireSourceRoot" BeforeTargets="Restore;Build"
+        Condition="'$(CapsuleSourceRoot)' != ''">
+  <Error Condition="!Exists('$(CapsuleSourceRoot)/build/Capsule.Build.targets')"
+         Text="Capsule source was not found at '$(CapsuleSourceRoot)'." />
+</Target>
+```
+
+This file changes only when the consumption contract changes; ordinary engine releases change
+`CapsuleVersion` alone.
 
 ### 4. Declare the roles
 
-The import reaches every project, so each project with a Capsule role says which one it is. The
+`Capsule.Build` reaches every project, so each project with a Capsule role says which one it is. The
 project that ships content and boots the game:
 
 ```xml
@@ -95,32 +114,65 @@ and the project holding the game's own classes:
 ```
 
 Every hook and every generator arrives through those two words, so gaining one is never new
-wiring here. The roles decide what is generated where — the registries into the logic assembly,
-the `GameBoot` entry point into the shell — rather than what a compilation happens to see, which
-is why a shell reaching `Capsule.Scenes` through the logic assembly never grows a second, empty
-pair of registries. Each role is taken by exactly one project — a second logic project would
-generate a second pair, each holding only its own assembly's classes — and the test project takes
-neither.
+wiring here. The roles decide what is generated where rather than what a compilation happens to
+see. Each logic project publishes a generated registry provider for the classes in that assembly;
+the one shell project aggregates every referenced provider, diagnoses duplicate claims across
+assemblies, and emits `GameBoot` already holding the combined registry. A game may therefore split
+logic into several modules without client registration or reflection. Exactly one project takes
+the shell role; tests and ordinary libraries take neither role.
 
 ### 5. Wire the references
 
 ```xml
 <!-- MyGame.Game.csproj -->
-<ProjectReference Include="../../capsule-engine/Capsule.Core/Capsule.Core.csproj" />
-<ProjectReference Include="../../capsule-engine/Capsule.Maps/Capsule.Maps.csproj" />
-<ProjectReference Include="../../capsule-engine/Capsule.Scenes/Capsule.Scenes.csproj" />
+<ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+  <PackageReference Include="Capsule.Core" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="Capsule.Maps" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="Capsule.Scenes" Version="[$(CapsuleVersion)]" />
+</ItemGroup>
+
+<ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+  <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Core/Capsule.Core.csproj" />
+  <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Maps/Capsule.Maps.csproj" />
+  <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Scenes/Capsule.Scenes.csproj" />
+</ItemGroup>
 
 <!-- MyGame.Shell.csproj -->
-<ProjectReference Include="../../capsule-engine/Capsule.Runtime/Capsule.Runtime.csproj" />
+<ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+  <PackageReference Include="Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+</ItemGroup>
+
+<ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+  <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Runtime/Capsule.Runtime.csproj" />
+</ItemGroup>
+
 <ProjectReference Include="../MyGame.Game/MyGame.Game.csproj" />
 ```
 
+The package and source branches expose the same assembly graph. The explicit logic references
+make the purity boundary visible at the call site; the shell alone takes Runtime. A verify project
+uses the same conditional pair for `Capsule.Verify`.
+
+For local engine development, clone Capsule beside the game and set the switch on any restore,
+build, test, run, or IDE launch:
+
+```
+git clone https://github.com/just-awesome-games/capsule-engine.git ../capsule-engine
+dotnet build -p:CapsuleSourcePath=../capsule-engine
+```
+
+The resulting build graph contains project references into that clone, so breakpoints and source
+navigation work normally. Omit the property to return to the pinned packages; no generated file
+or local path is committed.
+
 ### 6. Lock the restore
 
-`Directory.Build.props` sets `<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>`,
-every package-consuming project commits its own `packages.lock.json`, and CI restores with
-`--locked-mode` so a restore can never silently move a version. Capsule is never a package and
-never appears in a lock file.
+`Directory.Build.props` enables package lock files in package mode, every package-consuming
+project commits its own `packages.lock.json`, and CI restores with
+`--locked-mode` so a restore can never silently move a version. Package mode records the exact
+Capsule modules and their runtime dependencies in those files. Source mode is for development;
+it bypasses the game lock files so replacing packages with project references does not dirty the
+committed graph. The release build omits `CapsuleSourcePath` and proves the locked package graph.
 
 ### 7. Configure the engine
 
@@ -192,6 +244,8 @@ public sealed class MainMenu : Scene
 ```
 
 - `OnStart` runs once, before the first frame is built, which is where the camera opens.
+- `OnStop` runs once before deterministic reverse-order entity detachment when a scene is replaced,
+  restarted, or its host ends.
 - `OnStep` runs once per fixed step, after every position is retained and ahead of every entity
   update.
 - `Size` is the scene's world extent, and a `MapScene` takes it from its tilemap.
@@ -199,14 +253,16 @@ public sealed class MainMenu : Scene
 - `MapScene` keeps the `Map` it was composed from and its `Tiles` as protected members, so a
   subclass can query the terrain it is standing on.
 
+Scene restart, replacement and exit requests are deferred until the current step completes; the
+host remains alive across them.
+
 A scene composing entities from something other than a map calls
 `Spawn(ReadOnlySpan<EntitySpawn>, EntityRegistry)` itself, handing it
 `Capsule.Scenes.Generated.GameEntities.Registry`. That is the same seam `MapScene` spawns
 through; only where the spawns came from differs.
 
-`TileMap` takes the grid alone: a tile's appearance is authored with the map and rides in its
-palette, so nothing about terrain is registered at boot. One quad per non-empty tile is baked at
-construction, after which drawing terrain allocates nothing.
+`TileMap` takes the grid alone. A tile's colour is optional presentation; a colourless tile remains
+semantic grid data and draws nothing. Rendering visits only camera-intersecting coordinates.
 
 Entities subclass `Entity`, override `Update(in StepContext)`, and carry a `Renderer` for what is
 drawn — `QuadRenderer` today, a subclass of your own where a game needs one. The engine owns
@@ -217,18 +273,19 @@ removing one twice in a step removes it once.
 
 ### Registration is by constructor shape
 
-Capsule generates two registries from the logic assembly — the scenes, and the entities they
-spawn, which the scene registry already holds — and the shell's `GameBoot` hands the scene
-registry over on the game's behalf, so a game names neither. A class enters one by the shape of
-its public constructor rather than by declaring anything: a concrete `Scene` taking one
+Capsule generates entity and scene registrations in every logic assembly, and the shell's
+`GameBoot` aggregates their providers and hands the combined scene registry over on the game's
+behalf, so a game names none of them. A class enters one by the shape of its public constructor
+rather than by declaring anything: a concrete `Scene` taking one
 `MapSceneContext` is registered as composed from the map its name derives, and one taking nothing
 as a scene no map backs. Two scenes deriving one map name is
 `CAP005`.
 
-A map's name is the kebab-cased class name — `Room01` composes from `room-01`, `CaveEntrance` from
-`cave-entrance` — with a letter-to-digit boundary counting as a word boundary, so `Enemy2` gives
-`enemy-2`. A backing class is optional: a map no class claims runs as a plain `MapScene`. Nothing
-overrides the name a scene class derives, so a class is renamed together with its `.tmj`.
+A map's default name is the kebab-cased class name — `Room01` composes from `room-01`,
+`CaveEntrance` from `cave-entrance` — with a letter-to-digit boundary counting as a word boundary,
+so `Enemy2` gives `enemy-2`. `[MapName("room-01")]` fixes an existing authored identity across a
+class rename; its value must be a portable ASCII file stem. A backing class is optional: a map no
+class claims runs as a plain `MapScene`.
 
 **A class of neither shape is passed over in silence, and that silence is deliberate.** A scene
 your own code constructs — from a save file, from another scene's state, with a difficulty
@@ -263,8 +320,7 @@ public sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
 - Nothing is reflected for: both registries are generated code, so the NativeAOT floor holds, and
   both are emitted whatever the assembly declares, so a call site naming either always compiles.
   A map object whose type no class claims fails at load with a `SpawnException` naming the type,
-  the map's path and everything that is claimed. Validating a `.tmj`'s object Classes against the
-  registry at build time is decided-not-built (`architecture.md`).
+  the map's path and everything that is claimed.
 
 ## The purity rule
 
@@ -278,7 +334,16 @@ without the rule weakening.
 therefore takes its content already in hand and never touches a path, which is what keeps a
 logic test a pure function of its inputs.
 
-The project references hold that boundary mechanically, and `Capsule.Runtime` privatises its
-backend's compile assets so no backend type reaches the shell either. The one gap is deliberate:
-**a game repo never adds a backend `PackageReference` of its own.** Privatisation closes the
-transitive path, not a direct one, and taking it is a defect rather than a compile error.
+The module references hold that boundary mechanically, and Capsule's analyzer rejects a logic
+project that reaches Runtime, MonoGame, nondeterministic host services, or asynchronous execution.
+`Capsule.Runtime` privatises its backend's compile assets so no backend type reaches the shell
+either. A game repository never adds a backend `PackageReference` of its own.
+
+## Verification
+
+A game-owned verify executable references `Capsule.Verify` and its logic assembly, but not
+`Capsule.Runtime`. It gives `VerifyRunner` the real simulation, bindings, one `DeviceSnapshot` per
+tick, warm-up count and allocation budgets. Game-owned artifact writers run after measurement.
+
+The runner is device-free. A render-intent image is deterministic but is not a MonoGame framebuffer
+test; games needing that claim add a separately labelled real-device integration.

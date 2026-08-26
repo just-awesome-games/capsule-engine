@@ -5,8 +5,8 @@ using Capsule.Rendering;
 namespace Capsule.Scenes.Entities;
 
 /// <summary>
-/// A tile grid as one entity: the grid to query, and one quad per non-empty tile baked at
-/// construction. The quads are in world coordinates from the origin and
+/// A tile grid as one entity: the grid to query, and visible coloured tiles drawn as quads.
+/// The quads are in world coordinates from the origin and
 /// <see cref="Entity.Position"/> is never consulted, so a tilemap does not move. It draws in the
 /// scene's insertion order like any entity, so a scene that adds its tilemap first draws terrain
 /// behind everything.
@@ -23,7 +23,7 @@ public sealed class TileMap : Entity
         _grid = grid;
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 
-        Add(new BakedQuads(BuildQuads(grid)));
+        Add(new VisibleTiles(grid));
     }
 
     /// <summary>World units a tile spans on each axis.</summary>
@@ -46,43 +46,90 @@ public sealed class TileMap : Entity
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public string TileTypeAt(int x, int y) => _grid.TileTypeAt(x, y);
 
-    private static QuadIntent[] BuildQuads(TileGrid grid)
-    {
-        ReadOnlySpan<TileDefinition> palette = grid.TileTypes;
-        Vector2 size = new(grid.TileSize, grid.TileSize);
-        List<QuadIntent> quads = [];
-
-        for (int y = 0; y < grid.Height; y++)
-        {
-            for (int x = 0; x < grid.Width; x++)
-            {
-                int tile = grid.TileAt(x, y);
-                if (tile == 0)
-                {
-                    continue;
-                }
-
-                // Index 0 is the one palette entry without a colour, and the grid guarantees it.
-                Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
-                quads.Add(new QuadIntent(corner, corner, size, palette[tile].Color!.Value));
-            }
-        }
-
-        return [.. quads];
-    }
-
-    // Terrain never moves, so the intents are the bake: drawing is a copy, and a step allocates
-    // nothing to produce it.
-    private sealed class BakedQuads(QuadIntent[] quads) : Renderer
+    private sealed class VisibleTiles(TileGrid grid) : Renderer
     {
         public override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 
-            foreach (ref readonly QuadIntent quad in quads.AsSpan())
+            (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
+            ReadOnlySpan<int> tiles = grid.Tiles;
+            ReadOnlySpan<TileDefinition> palette = grid.TileTypes;
+            Vector2 size = new(grid.TileSize, grid.TileSize);
+
+            for (int y = minY; y < maxY; y++)
             {
-                view.AddQuad(quad);
+                int row = y * grid.Width;
+                for (int x = minX; x < maxX; x++)
+                {
+                    int tile = tiles[row + x];
+                    ColorRgba? color = palette[tile].Color;
+                    if (color is null)
+                    {
+                        continue;
+                    }
+
+                    Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
+                    view.AddQuad(new QuadIntent(corner, corner, size, color.Value));
+                }
             }
+        }
+
+        private (int MinX, int MinY, int MaxX, int MaxY) VisibleBounds(CameraView camera)
+        {
+            Vector2 halfSize = camera.Size / 2f;
+            float left = camera.Center.X - halfSize.X;
+            float top = camera.Center.Y - halfSize.Y;
+            float right = camera.Center.X + halfSize.X;
+            float bottom = camera.Center.Y + halfSize.Y;
+
+            if (!(camera.Size.X > 0f) ||
+                !(camera.Size.Y > 0f) ||
+                !float.IsFinite(left) ||
+                !float.IsFinite(top) ||
+                !float.IsFinite(right) ||
+                !float.IsFinite(bottom))
+            {
+                return default;
+            }
+
+            return (
+                StartCoordinate(left, grid.TileSize, grid.Width),
+                StartCoordinate(top, grid.TileSize, grid.Height),
+                EndCoordinate(right, grid.TileSize, grid.Width),
+                EndCoordinate(bottom, grid.TileSize, grid.Height));
+        }
+
+        private static int StartCoordinate(float boundary, int tileSize, int limit)
+        {
+            float coordinate = boundary / tileSize;
+            if (coordinate <= 0f)
+            {
+                return 0;
+            }
+
+            if (coordinate >= limit)
+            {
+                return limit;
+            }
+
+            return (int)MathF.Floor(coordinate);
+        }
+
+        private static int EndCoordinate(float boundary, int tileSize, int limit)
+        {
+            float coordinate = boundary / tileSize;
+            if (coordinate <= 0f)
+            {
+                return 0;
+            }
+
+            if (coordinate >= limit)
+            {
+                return limit;
+            }
+
+            return (int)MathF.Ceiling(coordinate);
         }
     }
 }
