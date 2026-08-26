@@ -22,6 +22,8 @@ internal sealed class CapsuleGame : Game
     private FrameRenderer _renderer = null!;
     private double _accumulator;
     private long _tick;
+    private bool _fullscreenChordHeld;
+    private bool _fullscreenChordQuarantined;
 
     internal CapsuleGame(EngineOptions options, ISimulation simulation)
     {
@@ -34,6 +36,10 @@ internal sealed class CapsuleGame : Game
         {
             PreferredBackBufferWidth = options.WindowWidth,
             PreferredBackBufferHeight = options.WindowHeight,
+            // Borderless. The preferred size is ignored while fullscreen, so leaving it
+            // restores the configured window with no work here.
+            HardwareModeSwitch = false,
+            IsFullScreen = options.Fullscreen,
         };
 
         IsFixedTimeStep = false;
@@ -44,7 +50,7 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        _renderer = new FrameRenderer(GraphicsDevice);
+        _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution);
 
         base.LoadContent();
     }
@@ -54,7 +60,16 @@ internal sealed class CapsuleGame : Game
         // Sampled every frame including one that drains no step: the latch is what
         // carries that frame's input to the step that eventually runs. Both devices
         // land in one snapshot; they occupy disjoint parts of it.
-        _latch.Observe(GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter));
+        DeviceSnapshot sampled = GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter);
+
+        // Alt+Enter is the host's, never a bindable action. Withheld from the snapshot for
+        // the whole gesture, or a game that binds Enter reads a press out of it.
+        if (ConsumeFullscreenChord(sampled))
+        {
+            sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
+        }
+
+        _latch.Observe(sampled);
 
         _accumulator += Math.Min(gameTime.ElapsedGameTime.TotalSeconds, _options.MaxFrameSeconds);
         while (_accumulator >= _options.StepSeconds)
@@ -91,5 +106,30 @@ internal sealed class CapsuleGame : Game
         }
 
         base.Dispose(disposing);
+    }
+
+    /// <summary>
+    /// Toggles the window on the chord's leading edge; returns whether Alt and Enter are
+    /// still quarantined from the simulation.
+    /// </summary>
+    private bool ConsumeFullscreenChord(in DeviceSnapshot snapshot)
+    {
+        bool alt = snapshot.IsDown(Key.LeftAlt) || snapshot.IsDown(Key.RightAlt);
+        bool enter = snapshot.IsDown(Key.Enter);
+        bool held = alt && enter;
+
+        if (held && !_fullscreenChordHeld)
+        {
+            _graphics.IsFullScreen = !_graphics.IsFullScreen;
+            _graphics.ApplyChanges();
+        }
+
+        _fullscreenChordHeld = held;
+
+        // The quarantine outlives the chord, ending only once both keys are up: releasing
+        // one first would otherwise hand the other to the simulation as a fresh press.
+        _fullscreenChordQuarantined = held || (_fullscreenChordQuarantined && (alt || enter));
+
+        return _fullscreenChordQuarantined;
     }
 }

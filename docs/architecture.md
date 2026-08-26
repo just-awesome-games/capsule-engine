@@ -25,7 +25,15 @@ a simulation produces the same run. Concretely:
    step never iterates a list changing under it, and two runs over the same inputs produce the
    same update order and the same quads in the same order.
 
-Rendering sits outside the contract: it reads the same state at whatever rate the display runs.
+Rendering sits outside the contract: it reads the same state at whatever rate the display runs,
+and nothing about the window reaches the simulation. The camera's region is fitted into the
+surface being drawn to — scaled uniformly, centred, the slack left as black bars — so two players
+on differently shaped displays see the same world region, and a resize changes only how large it
+is drawn. A game that declares a render resolution rasterises into a fixed-size surface, which is
+then fitted into the back buffer the same way; the rule is applied at every stage and nothing
+stretches at any of them. Alt+Enter toggles the window from the host, outside the step, and the
+chord is withheld from the snapshot rather than routed through the action layer, so a window
+gesture cannot read as game input.
 
 ## Designed, awaiting their game
 
@@ -36,6 +44,8 @@ below is settled in direction and waits for its game — deliberately absent, no
 | --- | --- |
 | Level type validation at build time | The level build hook validates a `.tmj`'s object Classes against the generated registry, so a map painted with a type no `[LevelType]` class claims fails the build rather than the room. The registry itself is built. |
 | Camera follow and interpolation | A camera that tracks a target under a policy the scene sets, and a camera interpolated between steps the way entity positions are, so a moving viewport is as smooth as what it frames. `Camera` carries a centre and a viewport size; a scene moves it in its own step. |
+| Expand-the-view aspect policy | A wider window showing more world rather than bars. Letterbox is the engine's policy because it is the only one that honours the camera's declared region exactly, so every player sees the same thing. A game wanting expand would set its own camera `Size` from the window's aspect, which needs the host to expose that aspect to the simulation — a member with no call site today. |
+| Window-state read-back | Game code cannot observe what the player changed, so a shell booting from a preferences file cannot save `Fullscreen = true` after an Alt+Enter. Closing that loop needs the host to expose the current window state to game code; it lands with the first options surface, whose shape would otherwise be guessed at. |
 | Update filtering | Skipping entities with nothing to update, or components switched inactive, behind a flag on each. Every entity updates today; this waits for a measured frame profile from the verify harness, or for the first population of non-updating entities large enough to show up in one. |
 | Input action sets | Actions grouped into contexts a scene switches between, so a menu and a room read one device differently. One flat binding set until a second kind of scene exists. |
 | Scene picker | A dev boot menu: a client registers its scenes and boots into a list to choose one. Development tooling, never a shipped surface. |

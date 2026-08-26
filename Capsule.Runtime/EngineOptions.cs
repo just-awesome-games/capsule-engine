@@ -8,6 +8,8 @@ internal sealed record EngineOptions(
     int WindowWidth,
     int WindowHeight,
     bool Resizable,
+    bool Fullscreen,
+    (int Width, int Height)? RenderResolution,
     double StepSeconds,
     double MaxFrameSeconds,
     float StickDeadzone,

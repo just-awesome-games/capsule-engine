@@ -47,6 +47,17 @@ an `ISimulation` instead — `Run(simulation)` — which advances one fixed step
 input as named actions, sets `ExitRequested` when it wants to stop, and exposes what to draw as a
 `FrameView`. Neither ever touches a graphics device.
 
+**Capsule never stretches what it draws.** The camera's world region is fitted into the window
+scaled uniformly and centred, with black bars over whatever slack the window's shape leaves, so a
+resize changes how large a frame is drawn and never what it contains. By default the world
+rasterises straight into the window at its live size, imposing no resolution ceiling.
+`WithRenderResolution(width, height)` opts into the other lane: the world rasterises into a
+fixed-size surface, which is then fitted into the window the same way — a canvas declared once,
+after which the window stops mattering. Those pixels are independent of the camera's world units;
+they coincide only where a game wants one unit to be one pixel. `WithFullscreen()` boots
+borderless at the desktop's resolution, Alt+Enter toggles either way, and `WithWindow`'s size is
+the windowed one, returned to on the way back.
+
 Games consume the engine as a **sibling clone, by project reference** — no packaging, no feed, no
 version dance — and reach its build hooks through one import at the game repo root. Capsule's
 hooks derive a level from every Tiled map under `asset-sources/levels/` and ship it as content:

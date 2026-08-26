@@ -44,6 +44,8 @@ public sealed class EngineBuilder
     private int _windowWidth = DefaultWindowWidth;
     private int _windowHeight = DefaultWindowHeight;
     private bool _resizable;
+    private bool _fullscreen;
+    private (int Width, int Height)? _renderResolution;
     private double _stepSeconds = 1.0 / DefaultStepHertz;
     private double _maxFrameSeconds = DefaultSpikeClampSeconds;
     private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
@@ -54,8 +56,13 @@ public sealed class EngineBuilder
     {
     }
 
-    /// <param name="width">Back-buffer width in pixels.</param>
-    /// <param name="height">Back-buffer height in pixels.</param>
+    /// <summary>
+    /// The windowed-mode window: opened at this size unless the game boots fullscreen, and
+    /// returned to at this size whenever fullscreen is left.
+    /// </summary>
+    /// <param name="width">Client width in pixels.</param>
+    /// <param name="height">Client height in pixels.</param>
+    /// <param name="resizable">Whether the player may drag the window's edges; windowed mode only.</param>
     public EngineBuilder WithWindow(string title, int width, int height, bool resizable = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -66,6 +73,38 @@ public sealed class EngineBuilder
         _windowWidth = width;
         _windowHeight = height;
         _resizable = resizable;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Boots fullscreen — borderless, at the desktop's own resolution. Alt+Enter toggles
+    /// either way from there.
+    /// </summary>
+    public EngineBuilder WithFullscreen()
+    {
+        _fullscreen = true;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Rasterises the world into a fixed-size surface and letterboxes that into the window,
+    /// so the window's size stops changing what a frame contains. Left unset, the world
+    /// rasterises straight into the window at its live size, with no resolution ceiling.
+    /// <para>
+    /// These are pixels; a camera's <c>Size</c> is world units. The two are independent, and
+    /// coincide only where a game wants one world unit to be one pixel.
+    /// </para>
+    /// </summary>
+    /// <param name="width">Render-target width in pixels.</param>
+    /// <param name="height">Render-target height in pixels.</param>
+    public EngineBuilder WithRenderResolution(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        _renderResolution = (width, height);
 
         return this;
     }
@@ -184,6 +223,8 @@ public sealed class EngineBuilder
             _windowWidth,
             _windowHeight,
             _resizable,
+            _fullscreen,
+            _renderResolution,
             _stepSeconds,
             _maxFrameSeconds,
             _stickDeadzone,

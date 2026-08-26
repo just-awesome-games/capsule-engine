@@ -19,6 +19,17 @@ public sealed class EngineBuilderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithFixedStep(hertz));
     }
 
+    // A non-positive resolution reaches the host as a render-target size, which throws deep
+    // inside device creation with nothing naming the call that caused it.
+    [Theory]
+    [InlineData(0, 180)]
+    [InlineData(320, 0)]
+    [InlineData(-320, -180)]
+    public void WithRenderResolution_RejectsANonPositiveExtent(int width, int height)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithRenderResolution(width, height));
+    }
+
     // NaN passes every comparison-based range guard and an infinite ceiling never binds —
     // either would reach the loop as a frame bound that silently does nothing.
     [Theory]
