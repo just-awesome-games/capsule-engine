@@ -29,25 +29,23 @@ Rendering sits outside the contract: it reads the same state at whatever rate th
 
 ## Designed, awaiting their game
 
-Engine code lands only with a consuming game call site in the same change-set (see
-[`AGENTS.md`](../AGENTS.md)), so each entry below is settled in direction and waits for the game
-that calls it. The direction is recorded so the eventual implementation is not re-litigated; the
-absence is recorded so nobody reads a gap as an oversight.
+Engine code lands only with a consuming call site (see [`AGENTS.md`](../AGENTS.md)), so each entry
+below is settled in direction and waits for its game — deliberately absent, not overlooked.
 
 | Not yet built | Decided direction |
 | --- | --- |
-| Level type validation at build time | The level build hook validates a `.tmj`'s object Classes against the generated registry, so a map painted with a type no `[LevelType]` class claims fails the build rather than the room. The registry itself is built (D-capsule-004). |
+| Level type validation at build time | The level build hook validates a `.tmj`'s object Classes against the generated registry, so a map painted with a type no `[LevelType]` class claims fails the build rather than the room. The registry itself is built. |
 | Camera follow and interpolation | A camera that tracks a target under a policy the scene sets, and a camera interpolated between steps the way entity positions are, so a moving viewport is as smooth as what it frames. `Camera` carries a centre and a viewport size; a scene moves it in its own step. |
 | Update filtering | Skipping entities with nothing to update, or components switched inactive, behind a flag on each. Every entity updates today; this waits for a measured frame profile from the verify harness, or for the first population of non-updating entities large enough to show up in one. |
 | Input action sets | Actions grouped into contexts a scene switches between, so a menu and a room read one device differently. One flat binding set until a second kind of scene exists. |
 | Scene picker | A dev boot menu: a client registers its scenes and boots into a list to choose one. Development tooling, never a shipped surface. |
-| Collision | Broad-phase plus swept AABB against a tile grid, inside the fixed step, allocation-free. Physics stays the game's; the scene owns the `CollisionWorld` and supplies queries to entity and game code (D-capsule-004 re-homes it; the algorithm is unchanged). |
-| Entity properties | The spawn contract hands an entity its level-entity data at construction, and the level format grows optional fields non-breakingly. A general per-entity property bag still waits for the first game that needs one (D-capsule-004). |
-| Tile definitions | A tile's behavioural class and its appearance — a colour now, a sprite region later — are authored as Tiled tileset tile properties, carried into the level format's palette non-breakingly by the importer, and rendered by the engine `TileMap`. A tile with no appearance fails at import. Until then a `TileMap` takes a game-supplied `TileColorResolver`, asked for the whole palette at construction so an unpainted type still fails at load; that seam goes when this lands (D-capsule-004). |
+| Collision | Broad-phase plus swept AABB against a tile grid, inside the fixed step, allocation-free. Physics stays the game's; the scene owns the `CollisionWorld` and supplies queries to entity and game code. |
+| Entity properties | The spawn contract hands an entity its level-entity data at construction, and the level format grows optional fields non-breakingly. A general per-entity property bag waits for the first game that needs one. |
+| Tile definitions | A tile's behavioural class and its appearance — a colour now, a sprite region later — are authored as Tiled tileset tile properties, carried into the level format's palette non-breakingly by the importer, and rendered by the engine `TileMap`. A tile with no appearance fails at import. Until then a `TileMap` takes a game-supplied `TileColorResolver`, asked for the whole palette at construction so an unpainted type still fails at load; that seam goes when this lands. |
 | Several tile layers | One tile layer per level. Background, foreground and collision as separate layers is a game's composition question, and answering it early would fix a layering vocabulary in the format. |
-| Textures and sprites | Raw runtime load behind a Capsule-typed facade, same hiding contract as rendering, with content referenced by handle so `Capsule.Scenes` stays substrate-free. A `SpriteRenderer` component, sheets and animation, and a textured-quad intent beside the colour quad. Lands with the first game that ships image assets (D-capsule-004). |
+| Textures and sprites | Raw runtime load behind a Capsule-typed facade, same hiding contract as rendering, with content referenced by handle so `Capsule.Scenes` stays substrate-free. A `SpriteRenderer` component, sheets and animation, and a textured-quad intent beside the colour quad. Lands with the first game that ships image assets. |
 | Audio | Raw runtime load behind a Capsule-typed facade, same hiding contract as rendering: no backend type in a public signature. |
-| Debug text | A zero-asset pixel font, returning with the debug overlay and the verify harness that need it. An implementation existed for the bootstrap screen and was deleted with it; it is recoverable from git history rather than re-derived. |
+| Debug text | A zero-asset pixel font, landing with the debug overlay and the verify harness that need it. |
 | Game-facing text | Games bring their own font files, rendered through a future text facility. The engine never ships a game-facing font: a built-in glyph set is a visual decision, and that belongs to the game. |
 | Verify harness | A headless-ish entry point that seeds deterministically, plays a scripted `DeviceSnapshot` sequence for N fixed steps, captures a screenshot plus a state dump, runs the allocation probe, and exits non-zero on any failure. `DeviceSnapshot` already exists for it. |
 | Screen-space (HUD) intents | A coordinate-space attribute on render intent — world, or camera-relative — rather than a second view or a second renderer. It arrives with the first HUD element that needs it. |

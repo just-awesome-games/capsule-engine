@@ -5,34 +5,33 @@ is a rule the compiler, a test or CI cannot already enforce for you.
 
 ## Code is the documentation plane
 
-Agents reason through code, not prose. **The whole doc surface is
+Agents reason through code, not prose. **The whole prose surface is
 [`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md),
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md),
-[`Capsule.Levels/README.md`](Capsule.Levels/README.md) and the doc-comments.** Nothing else.
-A new prose document needs a ratified reason in the design repo's technical decision ledger
-before it exists, and the two beyond the root pair each earn theirs the same way — by carrying
-knowledge that lives outside this repository. `consuming-capsule.md` describes a client repo's
-own files, which no code here compiles; `Capsule.Levels/README.md` covers installing and driving
-a third-party editor. Module READMEs are not a general permission: a module whose story is told
-by its API gets none.
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md) and
+[`Capsule.Levels/README.md`](Capsule.Levels/README.md).** Nothing else. Each carries what code
+cannot: `README.md` is the human on-ramp — what Capsule is, its shape, a quickstart, build and
+test; `docs/architecture.md` is the determinism contract plus the capabilities designed but not
+yet built; `consuming-capsule.md` describes a client repo's own files, which no code here
+compiles; `Capsule.Levels/README.md` covers installing and driving a third-party editor. A new
+prose document, or a second module README, needs a maintainer-ratified reason — a module whose
+story is told by its API gets none.
+
+**Documentation is declarative current-state.** It describes the engine as it is, as if written
+fresh: no history sections, no changelogs, no supersession notes, no design-rationale essays, no
+decision records — anywhere in this repository, code comments included. Design rationale and
+decision history are maintained internally by JAG Studios in the design repo's decision ledgers.
 
 **Doc-comments on the public API are the API reference.** They are API-specific — contract,
 invariant, unit, hazard — and nothing else. No history (what a thing replaced, regained or used
-to be), no forward reference to a feature that has not landed, no design-rationale essay:
-rationale belongs in the ledger. Any extra colour is one tight clause, or it is cut. Every other
-comment earns its place the same way, at the density of the file it is in; delete anything that
-narrates the next line or addresses a reviewer.
+to be), no forward reference to a feature that has not landed. Any extra colour is one tight
+clause, or it is cut. Every other comment earns its place the same way, at the density of the
+file it is in; delete anything that narrates the next line or addresses a reviewer.
 
-**Prose that restates code is deleted on sight**, wherever it is found. The root pair earns its
-place the same way: `README.md` is human-first orientation — what Capsule is, its shape, a
-quickstart, how to build and test — and `docs/architecture.md` is the determinism contract plus
-the capabilities designed but not yet built.
-
-A technical fact lives in the strongest home available: compiler-enforced structure first, then
-a test or assert, then a one-line comment at the site. Prose is the last resort.
-
-Whatever survives, **update it in the same change** as the code it describes. Documentation that
-lags is worse than none: it is confidently wrong.
+**Prose that restates code is deleted on sight**, wherever it is found. A technical fact lives in
+the strongest home available: compiler-enforced structure first, then a test or assert, then a
+one-line comment at the site. Prose is the last resort. Whatever survives, **update it in the
+same change** as the code it describes. Documentation that lags is worse than none: it is
+confidently wrong.
 
 ## The boundaries
 

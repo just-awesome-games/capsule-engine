@@ -144,6 +144,9 @@ A scene is one screen of game. Subclass `Scene` and compose what that screen is 
 in the logic project, so a headless test drives the same type the shell ships:
 
 ```csharp
+using System.Numerics;            // Vector2
+using Capsule;                    // StepContext
+using Capsule.Levels;             // Level
 using Capsule.Scenes;             // Scene, Entity, Component, Renderer, Camera
 using Capsule.Scenes.Components;  // QuadRenderer
 using Capsule.Scenes.Entities;    // TileMap, TileColorResolver
