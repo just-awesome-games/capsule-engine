@@ -5,15 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="JAG.Capsule.Core" Version="[$(CapsuleVersion)]" />
-    <PackageReference Include="JAG.Capsule.Maps" Version="[$(CapsuleVersion)]" />
-    <PackageReference Include="JAG.Capsule.Scenes" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Core/Capsule.Core.csproj" />
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Maps/Capsule.Maps.csproj" />
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Scenes/Capsule.Scenes.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule/Capsule.csproj" />
   </ItemGroup>
 
 </Project>

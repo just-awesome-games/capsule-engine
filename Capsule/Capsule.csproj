@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The pack root for JAG.Capsule. The package boundary is the purity boundary, not the module
+       boundary: every module that passes the substrate-free admission test ships in this one
+       package, and the ProjectReference list below is that admission list, gated by
+       Capsule.Architecture.targets. The modules stay separate assemblies so their dependency
+       direction keeps being enforced by the compiler rather than by review.
+
+       The package declares no dependencies because no module admitted here takes a package
+       reference; the assemblies it carries are composed into lib/ by IncludeCapsulePureModules.
+       This project holds no code, and the empty assembly that falls out of it ships anyway, so
+       that a reference to the package and a reference to this project expose one graph. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>JAG.Capsule</PackageId>
+    <Description>Everything a Capsule game's logic is written against: the simulation seam and its fixed step, input as named actions, render intent, the map format and its loader, and the world of scenes, entities, components and the camera. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- NU5128 asks a package carrying lib assets to declare a dependency group for that
+         framework. This one deliberately declares no dependencies at all, and NuGet exempts a
+         suppressed framework only in the opposite direction, so the check has nothing to say
+         here. Scoped to this project; every other package still answers to it. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules</TargetsForTfmSpecificContentInPackage>
+    <TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);IncludeCapsulePureModuleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
+    <ProjectReference Include="../Capsule.Maps/Capsule.Maps.csproj" />
+    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
+  </ItemGroup>
+
+  <!-- Derived from the reference list rather than restated, so a module joins the package by
+       being admitted above and nowhere else. -->
+  <Target Name="_CapsuleCollectPureModuleAssets">
+    <ItemGroup>
+      <_CapsulePureModuleAssembly Include="@(ProjectReference->'$(OutputPath)%(Filename).dll')" />
+      <!-- The XML documentation is the API reference a consumer reads, so it ships beside every
+           assembly the package carries. -->
+      <_CapsulePureModuleApiReference Include="@(ProjectReference->'$(OutputPath)%(Filename).xml')" />
+      <_CapsulePureModuleSymbols Include="@(ProjectReference->'$(OutputPath)%(Filename).pdb')" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeCapsulePureModules" DependsOnTargets="_CapsuleCollectPureModuleAssets">
+    <Error Condition="'@(_CapsulePureModuleAssembly)' == ''"
+           Text="JAG.Capsule admits no module." />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_CapsulePureModuleAssembly);@(_CapsulePureModuleApiReference)"
+                              PackagePath="lib/$(TargetFramework)/" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeCapsulePureModuleSymbols" DependsOnTargets="_CapsuleCollectPureModuleAssets">
+    <ItemGroup>
+      <TfmSpecificDebugSymbolsFile Include="@(_CapsulePureModuleSymbols)"
+                                   TargetPath="%(_CapsulePureModuleSymbols.Filename)%(_CapsulePureModuleSymbols.Extension)"
+                                   TargetFramework="$(TargetFramework)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

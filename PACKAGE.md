@@ -7,14 +7,13 @@
 A code-first C# game engine — the whole game in one capsule, the machinery sealed inside.
 
 Capsule is JAG Studios' open-source engine: 2D, deterministic, code-first. It owns the frame —
-loop, clock, window, input, the sim/render seam, the determinism contract — and the world inside
-it: a scene, the entities on it, and the order they update and draw in. A game brings its own
-`Program.cs`, its scenes, and its entities. **No editor, no serialized scene format, no project
+loop, clock, window, input, the sim/render seam — and the world inside it: a scene, the entities on
+it, and the order they update and draw in. **No editor, no serialized scene format, no project
 wizard: scenes are C#, maps are data.**
 
-Gameplay is pure by construction. A scene advances one fixed step at a time, reads input as named
+Gameplay is pure by construction: a scene advances one fixed step at a time, reads input as named
 actions, never touches a graphics device, and so is assertable headlessly. MonoGame is an
-implementation detail Capsule hides: a `Microsoft.Xna.Framework` using in a consuming game does
+implementation detail Capsule hides — a `Microsoft.Xna.Framework` using in a consuming game does
 not compile.
 
 ```csharp
@@ -32,14 +31,13 @@ GameBoot.Configure("My Game")
 
 | Package | What it is for |
 | --- | --- |
-| `JAG.Capsule.Core` | The pure contracts a game codes against: the simulation seam, the fixed step, input as named actions, render intent. |
-| `JAG.Capsule.Maps` | The map format and its loader: a tile grid, what its tiles draw as, and the typed objects placed over it. |
-| `JAG.Capsule.Scenes` | The world a game composes: scenes, entities, components, renderers, the camera, and the step choreography. |
+| `JAG.Capsule` | Everything a game's logic is written against: the simulation seam and its fixed step, input as named actions, render intent, the map format and its loader, and the world of scenes, entities, components and the camera. Substrate-free throughout. |
 | `JAG.Capsule.Runtime` | The host: window, graphics device, clock, keyboard and gamepad, renderer, crash log. |
 | `JAG.Capsule.Build` | Build hooks, source generators, analyzers and the map importer. Tooling only; none of it ships in the executable. |
 
-A game references `JAG.Capsule.Build` from every project, `Core`/`Maps`/`Scenes` from its logic,
-and `Runtime` from its one-file shell.
+The package boundary is the purity boundary. `JAG.Capsule` is the set of modules that touch no
+substrate, so a game references it from its logic, `JAG.Capsule.Runtime` from its one-file shell,
+and `JAG.Capsule.Build` from every project.
 
 ## Setting a game up
 

@@ -10,6 +10,13 @@
         "dependencies": {
           "Capsule.Core": "[0.2.0, )"
         }
+      },
+      "capsule.scenes": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Core": "[0.2.0, )",
+          "Capsule.Maps": "[0.2.0, )"
+        }
       }
     }
   }

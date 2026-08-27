@@ -1,9 +1,11 @@
 <Project>
 
-  <!-- These two foundations intentionally stay portable. Enforce their dependency direction at
-       build time so a convenient package reference cannot silently turn into engine policy. -->
+  <!-- The substrate-free modules and the pack root that publishes them as JAG.Capsule. Their
+       purity is what the package boundary means, so enforce it at build time: a convenient
+       package reference on any of them would reach every consuming game's logic project, and a
+       project reference admitted into the pack root would ship in that package. -->
   <Target Name="CapsuleValidateModuleDependencies" BeforeTargets="ResolveReferences">
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Maps'">
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Maps' or '$(MSBuildProjectName)' == 'Capsule.Scenes' or '$(MSBuildProjectName)' == 'Capsule'">
       <!-- PublishAot injects its compiler pack as an SDK-owned PackageReference. The boundary is
            against dependencies authored by the module, not toolchain implementation items. -->
       <_CapsuleExplicitPackageReference Include="@(PackageReference)"
@@ -12,6 +14,16 @@
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Maps'">
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
           Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj'" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes'">
+      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
+          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Maps.csproj'" />
+    </ItemGroup>
+    <!-- The pack root's reference list is the package's membership list, so admitting a module
+         to JAG.Capsule is a deliberate edit here and not a side effect of a reference. -->
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule'">
+      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
+          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Maps.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />
     </ItemGroup>
 
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(ProjectReference)' != ''"
@@ -22,6 +34,14 @@
            Text="Capsule.Maps must not reference a package." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Maps' and '@(_CapsuleForbiddenProjectReference)' != ''"
            Text="Capsule.Maps may reference Capsule.Core only; found @(_CapsuleForbiddenProjectReference)." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleExplicitPackageReference)' != ''"
+           Text="Capsule.Scenes must not reference a package." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleForbiddenProjectReference)' != ''"
+           Text="Capsule.Scenes may reference Capsule.Core and Capsule.Maps only; found @(_CapsuleForbiddenProjectReference)." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleExplicitPackageReference)' != ''"
+           Text="JAG.Capsule must not reference a package." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleForbiddenProjectReference)' != ''"
+           Text="JAG.Capsule admits Capsule.Core, Capsule.Maps and Capsule.Scenes only; found @(_CapsuleForbiddenProjectReference)." />
   </Target>
 
 </Project>

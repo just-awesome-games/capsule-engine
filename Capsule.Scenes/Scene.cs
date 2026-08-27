@@ -225,7 +225,12 @@ public class Scene
     {
     }
 
-    /// <summary>Adds one entity per spawn, in the order given.</summary>
+    /// <summary>
+    /// Adds one entity per spawn, in the order given. A scene composing from something other than
+    /// a map passes the registry its source generator emitted,
+    /// <c>Capsule.Scenes.Generated.GameEntities.Registry</c> — the same seam
+    /// <see cref="MapScene"/> spawns through.
+    /// </summary>
     /// <exception cref="SpawnException">A spawn's type is claimed by no entity.</exception>
     protected void Spawn(ReadOnlySpan<EntitySpawn> spawns, EntityRegistry entities)
     {

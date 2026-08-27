@@ -6,8 +6,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Scenes</RootNamespace>
-    <PackageId>JAG.Capsule.Scenes</PackageId>
-    <Description>The world a Capsule game composes: scenes, entities, components, renderers, the camera, and the fixed-step choreography behind the simulation seam. Device-free, so a scene is assertable headlessly.</Description>
+    <!-- Packed as part of JAG.Capsule, never as an ID of its own: Capsule/Capsule.csproj. -->
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
