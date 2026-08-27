@@ -16,7 +16,7 @@ env:
 
 jobs:
   # Build, format, unit and coverage. The engine is a library: window-and-device
-  # verification remains a separate Runtime integration concern.
+  # testing remains a separate Runtime integration concern.
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -114,7 +114,7 @@ jobs:
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml
@@ -137,10 +137,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            verify-binary: ./artifacts/aot-verify/PackageConsumer.Verify
+            smoke-binary: ./artifacts/aot-smoke/PackageConsumer.Smoke
           - os: windows-latest
             runtime: win-x64
-            verify-binary: ./artifacts/aot-verify/PackageConsumer.Verify.exe
+            smoke-binary: ./artifacts/aot-smoke/PackageConsumer.Smoke.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -174,25 +174,17 @@ jobs:
           -p:CapsuleSourcePath=../..
 
       # Publishing proves the graph is analyzable. Only running the result proves the game
-      # boots, and boot is where ahead-of-time compilation actually fails: the verify consumer
+      # boots, and boot is where ahead-of-time compilation actually fails: the smoke consumer
       # is device-free, so its published binary runs headless on both platforms.
-      - name: Publish verify consumer with NativeAOT
+      - name: Publish smoke consumer with NativeAOT
         run: >
-          dotnet publish tests/PackageConsumer/Verify/PackageConsumer.Verify.csproj
+          dotnet publish tests/PackageConsumer/Smoke/PackageConsumer.Smoke.csproj
           --configuration Release
           --runtime ${{ matrix.runtime }}
           --self-contained true
           -p:PublishAot=true
           -p:CapsuleSourcePath=../..
-          --output artifacts/aot-verify
+          --output artifacts/aot-smoke
 
-      - name: Run the published verify consumer
-        run: ${{ matrix.verify-binary }} artifacts/verify
-
-      - name: Upload verify artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: verify-${{ matrix.runtime }}
-          path: artifacts/verify
-          if-no-files-found: warn
+      - name: Run the published smoke consumer
+        run: ${{ matrix.smoke-binary }}

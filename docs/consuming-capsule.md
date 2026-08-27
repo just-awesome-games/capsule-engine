@@ -10,8 +10,8 @@ replace those packages with a local source clone for one build, without editing 
 
 Capsule packages use NuGet.org's standard public source and require no Capsule-specific credentials.
 
-All six packages in a release carry one version: `JAG.Capsule.Core`, `JAG.Capsule.Maps`,
-`JAG.Capsule.Scenes`, `JAG.Capsule.Runtime`, `JAG.Capsule.Verify`, and the tooling-only
+All five packages in a release carry one version: `JAG.Capsule.Core`, `JAG.Capsule.Maps`,
+`JAG.Capsule.Scenes`, `JAG.Capsule.Runtime`, and the tooling-only
 `JAG.Capsule.Build`. Assemblies and namespaces remain `Capsule.*`. A game pins one exact
 `CapsuleVersion`, commits the resulting lock files, and upgrades it deliberately.
 
@@ -143,8 +143,8 @@ the shell role; tests and ordinary libraries take neither role. A shell that ref
 assembly has no scenes to boot and is `CAP015`.
 
 The shell role also imports the game's maps. A project that takes no role but still has to read
-them — a headless verify binary, a test project driving a map-backed scene — asks for the import
-on its own instead, and gets the same `Assets/Maps` content beside its own executable:
+them — a test project driving a map-backed scene — asks for the import on its own instead, and
+gets the same `Assets/Maps` content beside its own executable:
 
 ```xml
 <PropertyGroup>
@@ -181,8 +181,8 @@ on its own instead, and gets the same `Assets/Maps` content beside its own execu
 ```
 
 The package and source branches expose the same assembly graph. The explicit logic references
-make the purity boundary visible at the call site; the shell alone takes Runtime. A verify project
-uses the same conditional pair for `JAG.Capsule.Verify`.
+make the purity boundary visible at the call site; the shell alone takes Runtime. A test project
+uses the same conditional pair as the logic project.
 
 For a one-off local engine build without the persistent file above, clone Capsule beside the game
 and set the switch on the command:
@@ -416,13 +416,15 @@ project that reaches Runtime, MonoGame, nondeterministic host services, or async
 `Capsule.Runtime` privatises its backend's compile assets so no backend type reaches the shell
 either. A game repository never adds a backend `PackageReference` of its own.
 
-## Verification
+## Headless tests
 
-A game-owned verify executable references `Capsule.Verify` and its logic assembly, but not
-`Capsule.Runtime`. It gives `VerifyRunner` the real simulation, bindings, one `DeviceSnapshot` per
-tick, warm-up count and, where it wants them asserted, allocation budgets. A budget left unset
-asserts nothing; `0` asserts that nothing allocates. Game-owned artifact writers run after
-measurement. `tests/PackageConsumer/Verify` in the engine repository is a minimal one end to end.
+A test project takes neither role. It references the same pure modules the logic assembly does,
+references that assembly, and never `Capsule.Runtime`. It drives a scene by constructing a
+`SceneSimulation` over it and calling `Step` with one `DeviceSnapshot` per tick, then asserts on
+the scene's own state — no window, no device, no clock. Where it has to read maps the game ships,
+it opts into `CapsuleImportMaps` as above.
 
-The runner is device-free. A render-intent image is deterministic but is not a MonoGame framebuffer
-test; games needing that claim add a separately labelled real-device integration.
+`tests/PackageConsumer/Smoke` in the engine repository is that shape as an executable: a real map
+loaded from beside the binary, a scripted input sequence, a state assertion, and a non-zero exit
+on failure. What the render intent draws to is not asserted there; a MonoGame framebuffer claim
+needs a separately labelled real-device integration.

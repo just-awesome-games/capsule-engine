@@ -52,7 +52,7 @@ The hook that does this ships in `Capsule.Build`, or directly from the source cl
 engine development. A game wires its package/source resolution once and declares
 `<CapsuleGameShell>true</CapsuleGameShell>` on the shell project
 ([`docs/consuming-capsule.md`](../docs/consuming-capsule.md)), which imports maps by definition.
-Anything else that has to read the maps a game ships — a headless verify binary, a test project —
+Anything else that has to read the maps a game ships — a test project, a headless smoke binary —
 sets `<CapsuleImportMaps>true</CapsuleImportMaps>` and gets the same import and the same content
 without taking a role or a `Capsule.Runtime` reference.
 

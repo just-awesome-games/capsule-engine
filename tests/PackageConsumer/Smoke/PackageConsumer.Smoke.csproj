@@ -10,17 +10,21 @@
        runs is the one that reads it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>PackageConsumer.Verify</RootNamespace>
+    <RootNamespace>PackageConsumer.Smoke</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <CapsuleImportMaps>true</CapsuleImportMaps>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="JAG.Capsule.Verify" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Core" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Maps" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Scenes" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Verify/Capsule.Verify.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Core/Capsule.Core.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Maps/Capsule.Maps.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Scenes/Capsule.Scenes.csproj" />
   </ItemGroup>
 
   <ItemGroup>

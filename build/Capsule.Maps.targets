@@ -9,7 +9,7 @@
          <CapsuleImportMaps>true</CapsuleImportMaps>
 
        A shell is one by definition and needs no line. Anything else that has to read the maps a
-       game ships — a headless verify binary, a test project — opts in with that property, and
+       game ships — a test project, a headless smoke binary — opts in with that property, and
        gets the import and the content without a Capsule.Runtime reference, a window or a role.
 
        Sources are found by convention at $(CapsuleAssetSourcesDir)/maps/**/*.tmj, and dispatch

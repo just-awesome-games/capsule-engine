@@ -8,7 +8,7 @@ namespace Capsule.Tests.Runtime;
 
 /// <summary>
 /// Builder validation only: anything past <c>Run</c> needs a window and a graphics
-/// device, which belongs to the verify harness rather than a unit spec.
+/// device, which no unit spec can supply.
 /// </summary>
 public sealed class EngineBuilderTests
 {

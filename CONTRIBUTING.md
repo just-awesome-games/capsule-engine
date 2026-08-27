@@ -42,15 +42,19 @@ All of these are enforced in [CI](.github/workflows/ci.yml), and none is optiona
   both are built.
 - **`dotnet format --verify-no-changes`.** Formatting is not a review topic.
 - **Tests pass, and line coverage stays at or above 80%** over `Capsule.Core`, `Capsule.Maps`,
-  `Capsule.Runtime`, `Capsule.Scenes` and `Capsule.Verify`. The floor is a floor, never a target:
+  `Capsule.Runtime` and `Capsule.Scenes`. The floor is a floor, never a target:
   a test that restates what the code visibly does is deleted like any other restatement.
 - **Restore is locked.** `dotnet restore --locked-mode` must succeed, so a dependency change
   arrives with its lock files in the same commit.
-- **The package consumer builds three ways** — against the published packages, against packages
-  forced from a local pack, and against project references into this clone — proving the package
-  surface and the source surface stay the same surface.
+- **The package consumer builds three ways** — against the packages CI has just packed, against
+  those same packages with `CapsuleUsePackages` overriding a source path, and against project
+  references into this clone — proving the packaged surface and the source surface are the same
+  surface, and that NuGet's machinery delivers it: the nuspec layout, the `buildTransitive` hooks,
+  the analyzer and tool asset paths. The exact version pin resolves against the local feed, so what
+  is gated is the shape of the package rather than a published release.
 - **The NativeAOT publish runs.** A device-free consumer is published ahead-of-time and executed
-  on Linux and Windows; it exits non-zero on a failed assertion or a blown allocation budget.
+  on Linux and Windows; it loads a real map, drives a scripted input sequence through the scene it
+  composes, and exits non-zero on a failed assertion.
 
 ## Conventions
 

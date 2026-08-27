@@ -183,12 +183,6 @@
           "JAG.Capsule.Core": "[0.2.0, )",
           "JAG.Capsule.Maps": "[0.2.0, )"
         }
-      },
-      "JAG.Capsule.Verify": {
-        "type": "Project",
-        "dependencies": {
-          "JAG.Capsule.Core": "[0.2.0, )"
-        }
       }
     }
   }

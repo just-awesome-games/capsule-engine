@@ -142,8 +142,6 @@ Tiled-parsing code.
   and the map importer to a game; none of it ships in the executable.
 - **`Capsule.Runtime`** — the host: window, graphics device, clock, keyboard and gamepad, renderer,
   crash log. The only project that references MonoGame.
-- **`Capsule.Verify`** — the device-free scripted verification runner and allocation probe a game
-  drives with its own simulation and artifact sink. It references Core only.
 - **`Capsule.Tests`** — xUnit specs over Core, Maps and Scenes; hosts the generator over
   compilations it builds; adds builder validation and a reflection guard over Runtime's public
   surface.
@@ -158,12 +156,12 @@ dotnet pack --configuration Release --output artifacts/packages
 ```
 
 With coverage, gated at a floor of 80% line coverage over `Capsule.Core`, `Capsule.Maps`,
-`Capsule.Runtime`, `Capsule.Scenes` and `Capsule.Verify`. `CapsuleGame` and `FrameRenderer` need a
-live window and device, so they are excluded by file — the assembly around them is gated, and a
-new device-free type in it is gated the day it lands:
+`Capsule.Runtime` and `Capsule.Scenes`. `CapsuleGame` and `FrameRenderer` need a live window and
+device, so they are excluded by file — the assembly around them is gated, and a new device-free
+type in it is gated the day it lands:
 
 ```
-dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*" "-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
+dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*" "-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
 ```
 
 To restore exactly the committed dependency set — as CI does:
@@ -179,15 +177,16 @@ check, tests. Activate it once per clone:
 git config core.hooksPath hooks
 ```
 
-`Capsule.Verify` replays per-tick input, gates steady-state allocations against the budgets a
-caller opts into, and records timing/render metrics; games supply state and image artifact
-writers. The engine drives it against a workload the size of a real stage — a 512x64 map, two
-hundred entities, a camera moving every step, twenty spawns and twenty despawns a second — and CI
-holds that workload to allocating nothing of the engine's own and to reconstructing a scene
-without touching a file. Those two are deterministic; wall time on a shared runner is not, and is
-recorded rather than gated. A deterministic render-intent image is not a real-device framebuffer test, which remains
-a game/runtime integration concern. `tests/PackageConsumer/Verify` is a working example, and CI
-publishes it NativeAOT and runs it on Linux and Windows.
+The engine measures itself against a workload the size of a real stage — a 512x64 map, two hundred
+entities, a camera moving every step, twenty spawns and twenty despawns a second — in
+`Capsule.Tests/Performance`, and CI holds that workload to allocating nothing of the engine's own
+and to reconstructing a scene without touching a file. Those two are deterministic; wall time on a
+shared runner is not, and is recorded rather than gated.
+
+`tests/PackageConsumer/Smoke` is a device-free executable that loads a real map, composes the
+scene, drives it through a scripted input sequence and exits non-zero on a failed assertion. CI
+publishes it NativeAOT and runs it on Linux and Windows, which is what proves an
+ahead-of-time-compiled game boots rather than merely publishing.
 
 ## Further reading
 

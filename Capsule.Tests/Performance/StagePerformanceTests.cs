@@ -1,10 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
-using Capsule.Input;
 using Capsule.Maps;
 using Capsule.Runtime;
 using Capsule.Scenes;
-using Capsule.Verify;
 using Xunit.Abstractions;
 
 namespace Capsule.Tests.Performance;
@@ -36,11 +34,11 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     {
         Map map = StageWorkload.Build();
 
-        Report("no structural change", Measure(map, StageChurn.None, maxPerRun: 0));
+        Report("no structural change", Measure(map, StageChurn.None), maxPerRun: 0);
 
         // The draw list is derived and rebuilt whole whenever anything joins or leaves. Rebuilding
         // it every step must still cost no allocation at all.
-        Report("draw list every step", Measure(map, StageChurn.DrawListOnly, maxPerRun: 0));
+        Report("draw list every step", Measure(map, StageChurn.DrawListOnly), maxPerRun: 0);
     }
 
     [Fact]
@@ -48,7 +46,8 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     {
         Report(
             "20 spawns and despawns a second",
-            Measure(StageWorkload.Build(), StageChurn.Spawning, maxPerRun: SparksSpawned * SpawnBytesEach));
+            Measure(StageWorkload.Build(), StageChurn.Spawning),
+            maxPerRun: SparksSpawned * SpawnBytesEach);
     }
 
     // The most frequent transition a game performs is dying and resuming at a checkpoint, and it
@@ -108,25 +107,17 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
         }
     }
 
-    private static (VerifyRunResult Result, VerifyFrameMetrics[] Metrics, int Entities) Measure(
-        Map map,
-        StageChurn churn,
-        long maxPerRun)
+    private static (StepSample[] Samples, int Entities) Measure(Map map, StageChurn churn)
     {
-        DeviceSnapshot[] script = new DeviceSnapshot[WarmupSteps + MeasuredSteps];
-        Array.Fill(script, DeviceSnapshot.Empty);
-        VerifyFrameMetrics[] metrics = new VerifyFrameMetrics[MeasuredSteps];
-
         using SceneSimulation simulation = new(StageWorkload.Compose(map, churn), null, StageWorkload.Defaults);
 
-        VerifyRunResult result = VerifyRunner.Run(
+        StepSample[] samples = StepMeasurement.Measure(
             simulation,
-            new ActionBindings(),
-            script,
-            new VerifyRunOptions(StageWorkload.StepSeconds, WarmupSteps, MaxAllocatedBytesPerRun: maxPerRun),
-            metrics);
+            StageWorkload.StepSeconds,
+            WarmupSteps,
+            MeasuredSteps);
 
-        return (result, metrics, simulation.Scene.Entities.Length);
+        return (samples, simulation.Scene.Entities.Length);
     }
 
     private void ReportTransition(string label, long startTimestamp, long startBytes)
@@ -137,35 +128,40 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
             $"{label}: {elapsed:0.000} ms, {GC.GetAllocatedBytesForCurrentThread() - startBytes} bytes"));
     }
 
-    private void Report(string label, (VerifyRunResult Result, VerifyFrameMetrics[] Metrics, int Entities) measured)
+    private void Report(string label, (StepSample[] Samples, int Entities) measured, long maxPerRun)
     {
-        (VerifyRunResult result, VerifyFrameMetrics[] metrics, int entities) = measured;
+        (StepSample[] samples, int entities) = measured;
 
+        long allocated = 0;
+        long peakAllocated = 0;
+        TimeSpan measuredDuration = TimeSpan.Zero;
+        TimeSpan peakDuration = TimeSpan.Zero;
         long total = 0;
         long visible = 0;
-        TimeSpan peak = TimeSpan.Zero;
-        foreach (VerifyFrameMetrics frame in metrics)
+        foreach (StepSample sample in samples)
         {
-            total += frame.Render.TotalQuads;
-            visible += frame.Render.VisibleQuads;
-            peak = frame.Duration > peak ? frame.Duration : peak;
+            allocated += sample.AllocatedBytes;
+            peakAllocated = Math.Max(peakAllocated, sample.AllocatedBytes);
+            measuredDuration += sample.Duration;
+            peakDuration = sample.Duration > peakDuration ? sample.Duration : peakDuration;
+            total += sample.Render.TotalQuads;
+            visible += sample.Render.VisibleQuads;
         }
 
-        TimeSpan mean = result.MeasuredDuration / result.MeasuredSteps;
+        TimeSpan mean = measuredDuration / samples.Length;
 
         output.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
-            $"{label}: {entities} entities, {result.AllocatedBytes / (double)result.MeasuredSteps:0.0} bytes/step "
-            + $"(peak {result.PeakFrameAllocatedBytes}, run {result.AllocatedBytes} of {result.MaxAllocatedBytesPerRun}), "
-            + $"mean {mean.TotalMilliseconds * 1000.0:0.00} us, peak {peak.TotalMilliseconds * 1000.0:0.00} us, "
-            + $"quads {total / (double)metrics.Length:0.0} total / {visible / (double)metrics.Length:0.0} visible / "
-            + $"{(total - visible) / (double)metrics.Length:0.0} culled"));
+            $"{label}: {entities} entities, {allocated / (double)samples.Length:0.0} bytes/step "
+            + $"(peak {peakAllocated}, run {allocated} of {maxPerRun}), "
+            + $"mean {mean.TotalMilliseconds * 1000.0:0.00} us, peak {peakDuration.TotalMilliseconds * 1000.0:0.00} us, "
+            + $"quads {total / (double)samples.Length:0.0} total / {visible / (double)samples.Length:0.0} visible / "
+            + $"{(total - visible) / (double)samples.Length:0.0} culled"));
 
-        Assert.Equal(MeasuredSteps, result.MeasuredSteps);
         Assert.True(
-            result.AllocationBudgetSatisfied,
+            allocated <= maxPerRun,
             FormattableString.Invariant(
-                $"{label} allocated {result.AllocatedBytes} bytes over {result.MeasuredSteps} steps, budget {result.MaxAllocatedBytesPerRun}."));
+                $"{label} allocated {allocated} bytes over {samples.Length} steps, budget {maxPerRun}."));
         Assert.True(
             mean < MaxMeanStep,
             FormattableString.Invariant($"{label} averaged {mean.TotalMilliseconds:0.000} ms a step."));

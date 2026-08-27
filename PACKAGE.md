@@ -36,7 +36,6 @@ GameBoot.Configure("My Game")
 | `JAG.Capsule.Maps` | The map format and its loader: a tile grid, what its tiles draw as, and the typed objects placed over it. |
 | `JAG.Capsule.Scenes` | The world a game composes: scenes, entities, components, renderers, the camera, and the step choreography. |
 | `JAG.Capsule.Runtime` | The host: window, graphics device, clock, keyboard and gamepad, renderer, crash log. |
-| `JAG.Capsule.Verify` | The device-free scripted verification runner and allocation probe. |
 | `JAG.Capsule.Build` | Build hooks, source generators, analyzers and the map importer. Tooling only; none of it ships in the executable. |
 
 A game references `JAG.Capsule.Build` from every project, `Core`/`Maps`/`Scenes` from its logic,
