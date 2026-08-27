@@ -56,10 +56,14 @@ logic project, and an engine capability that would grow that list is misdesigned
 The game root's `Directory.Build.props` owns the one version and the optional source override:
 
 ```xml
+<Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props"
+        Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+
 <PropertyGroup>
   <CapsuleVersion>0.1.0</CapsuleVersion>
-  <CapsuleSourceRoot Condition="'$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
-  <RestorePackagesWithLockFile Condition="'$(CapsuleSourceRoot)' == ''">true</RestorePackagesWithLockFile>
+  <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
+  <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  <NuGetLockFilePath Condition="'$(CapsuleSourceRoot)' != ''">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>
 </PropertyGroup>
 
 <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
@@ -88,6 +92,23 @@ The root `Directory.Build.targets` supplies the source-development lane:
 
 This file changes only when the consumption contract changes; ordinary engine releases change
 `CapsuleVersion` alone.
+
+For the normal engine-and-game development loop, add `Directory.Build.local.props` to the game's
+`.gitignore`, then create the ignored file in the game root:
+
+```xml
+<!-- Directory.Build.local.props -->
+<Project>
+  <PropertyGroup>
+    <CapsuleSourcePath>../capsule-engine</CapsuleSourcePath>
+  </PropertyGroup>
+</Project>
+```
+
+The local file makes every ordinary IDE and `dotnet` invocation use Capsule source without
+changing committed configuration. `CapsuleUsePackages=true` forces package mode for a command
+without moving that file, which is how release tooling regenerates and validates the canonical
+lock files.
 
 ### 4. Declare the roles
 
@@ -152,8 +173,8 @@ The package and source branches expose the same assembly graph. The explicit log
 make the purity boundary visible at the call site; the shell alone takes Runtime. A verify project
 uses the same conditional pair for `JAG.Capsule.Verify`.
 
-For local engine development, clone Capsule beside the game and set the switch on any restore,
-build, test, run, or IDE launch:
+For a one-off local engine build without the persistent file above, clone Capsule beside the game
+and set the switch on the command:
 
 ```
 git clone https://github.com/just-awesome-games/capsule-engine.git ../capsule-engine

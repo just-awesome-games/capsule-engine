@@ -23,7 +23,11 @@ project wizard: scenes are C#, maps are data.**
 
 ## Quickstart
 
-A complete Capsule game's entry point:
+Install the .NET SDK selected by [`global.json`](global.json). Capsule needs no editor, engine SDK,
+or MonoGame installation: a game restores the exact `JAG.Capsule.*` packages it pins from
+NuGet.org. The complete two-project bootstrap is in
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md); once wired, the entire host is ordinary
+C#:
 
 ```csharp
 using Capsule.Runtime.Generated;
@@ -70,6 +74,25 @@ separate so game logic never references `Capsule.Runtime`. For engine work, one
 clone without editing a project file. Capsule's hooks import every `.tmj` under
 `asset-sources/maps/` and ship the result as content: create one, build, and it is in the game.
 Nothing generated is committed.
+
+### Develop a game and Capsule together
+
+Clone Capsule beside the game, ignore `Directory.Build.local.props` in the game repository, and
+create that file locally:
+
+```xml
+<!-- Directory.Build.local.props -->
+<Project>
+  <PropertyGroup>
+    <CapsuleSourcePath>../capsule-engine</CapsuleSourcePath>
+  </PropertyGroup>
+</Project>
+```
+
+Ordinary restore, build, test, run, IDE navigation, and debugging now use project references into
+the live engine source. The committed package version and lock files remain unchanged. Delete the
+file to return to packages, or set `CapsuleUsePackages=true` for one command when the consumer
+supports the standard override contract.
 
 **Setting a game up is one door: [`docs/consuming-capsule.md`](docs/consuming-capsule.md).** It
 carries the bootstrap sequence end to end — package source, project skeleton, the local-source

@@ -55,6 +55,21 @@ jobs:
           --configuration Release
           --no-restore
 
+      - name: Restore forced-package consumer
+        run: >
+          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
+          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
+          -p:CapsuleSourcePath=../..
+          -p:CapsuleUsePackages=true
+
+      - name: Build forced-package consumer
+        run: >
+          dotnet build tests/PackageConsumer/PackageConsumer.slnx
+          --configuration Release
+          --no-restore
+          -p:CapsuleSourcePath=../..
+          -p:CapsuleUsePackages=true
+
       - name: Restore source consumer
         run: >
           dotnet restore tests/PackageConsumer/PackageConsumer.slnx

@@ -40,9 +40,9 @@ jobs:
             version="${GITHUB_REF_NAME#v}"
           fi
 
-          semver='^0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?$'
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?$'
           if [[ ! "$version" =~ $semver ]]; then
-            echo "Capsule releases require strict pre-1.0 SemVer without build metadata." >&2
+            echo "Capsule releases require strict SemVer without build metadata." >&2
             exit 1
           fi
 
