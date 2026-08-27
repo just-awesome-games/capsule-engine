@@ -3,13 +3,14 @@ using Microsoft.CodeAnalysis;
 namespace Capsule.Scenes.Generator;
 
 /// <summary>
-/// Everything <c>[SpawnType]</c> can be wrong about, plus the collisions two classes can reach
-/// without it. All errors: each one would otherwise surface as authored content that fails to load
-/// at run time, on a machine that is not the author's.
+/// Everything <c>[SpawnType]</c> can be wrong about, the collisions two classes can reach without
+/// it, and the three an asset's file name can reach. All errors: each one would otherwise surface
+/// as authored content that fails to load at run time, on a machine that is not the author's.
 /// </summary>
 internal static class RegistryDiagnostics
 {
     private const string Category = "Capsule.Scenes";
+    private const string AssetCategory = "Capsule.Assets";
 
     internal static readonly DiagnosticDescriptor NotAConcreteEntity = new(
         "CAP001",
@@ -128,6 +129,30 @@ internal static class RegistryDiagnostics
         "A game-shell project must reference a game-logic assembly",
         "This project declares CapsuleGameShell but references no assembly declaring CapsuleGameLogic, so its entry point would name no scenes; reference the game's logic project",
         Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor DuplicateAssetIdentifier = new(
+        "CAP016",
+        "Two assets claim one name",
+        "'{0}' and '{1}' both name asset '{2}' in the '{3}' domain; rename one so each asset has a name of its own",
+        AssetCategory,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor UnsafeAssetName = new(
+        "CAP017",
+        "An asset name must become an identifier",
+        "'{0}' cannot be named in code; use ASCII letters, digits, hyphens and underscores, starting with a letter",
+        AssetCategory,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = new(
+        "CAP018",
+        "An asset cannot be named after its domain",
+        "'{0}' names asset '{1}', which is the class its domain is declared as; rename the file so the member and the class it sits on differ",
+        AssetCategory,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 }

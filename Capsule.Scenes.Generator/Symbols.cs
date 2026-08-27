@@ -1,11 +1,18 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>The engine types the generator recognises, and the shape tests it judges a class by.</summary>
+/// <summary>
+/// The engine types the generators recognise, the roles they branch on, and the shape tests they
+/// judge a class by.
+/// </summary>
 internal static class Symbols
 {
+    internal const string LogicRole = "build_property.CapsuleGameLogic";
+    internal const string ShellRole = "build_property.CapsuleGameShell";
+
     internal const string Entity = "Capsule.Scenes.Entity";
     internal const string EntitySpawn = "Capsule.Scenes.Spawning.EntitySpawn";
     internal const string SpawnTypeAttribute = "Capsule.Scenes.Spawning.SpawnTypeAttribute";
@@ -15,6 +22,11 @@ internal static class Symbols
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
     internal const string RegistryProviderAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryProviderAttribute";
     internal const string RegistryClaimAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute";
+    internal const string TextureHandle = "Capsule.Assets.TextureHandle";
+
+    // MSBuild passes a boolean property through verbatim and compares it case-insensitively itself.
+    internal static bool Declares(AnalyzerConfigOptions options, string key) =>
+        options.TryGetValue(key, out string? value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
     // Syntax only: this runs on every type declaration in the assembly at every keystroke, so a
     // semantic lookup here would be paid over and over. A registered class states its base type,

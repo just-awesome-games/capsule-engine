@@ -1,6 +1,6 @@
 <Project>
 
-  <!-- Derives a map from every Tiled map in the game's asset sources and ships it as content
+  <!-- Derives a map from every map source in the game's asset sources and ships it as content
        at Assets/Maps. The derived files live in obj/ and are never committed.
 
        A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
@@ -12,36 +12,20 @@
        game ships — a test project, a headless smoke binary — opts in with that property, and
        gets the import and the content without a Capsule.Runtime reference, a window or a role.
 
-       Sources are found by convention at $(CapsuleAssetSourcesDir)/maps/**/*.tmj, and dispatch
-       is by extension: a second authoring tool becomes another item group here, never new
-       wiring in the game.
+       Sources are found by convention under $(CapsuleAssetSourcesDir)/maps, and dispatch is by
+       extension: a second authoring tool becomes another item group here, never new wiring in
+       the game. Two are wired today — Tiled's *.tmj, and *.map.json authored by hand in Capsule's
+       own format. A native source is a source like any other: it is validated and re-emitted
+       canonically rather than copied, so the shipped plane is wholly derived either way.
 
        An importing project may declare the one tile size every map is authored at, and a map
        whose own differs then fails the build:
 
          <CapsuleTileSize>16</CapsuleTileSize>
 
-       Left unset, no size is imposed and each map keeps its own.
-
-       Every path here is composed with forward slashes and canonicalised through the MSBuild
-       path intrinsics. A literal backslash survives into property functions, Exec command lines
-       and Link metadata untouched, and on Linux it is an ordinary filename character rather
-       than a separator — so one would name a directory instead of pointing at it. -->
-
-  <PropertyGroup>
-    <CapsuleImportMaps Condition="'$(CapsuleImportMaps)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportMaps>
-  </PropertyGroup>
+       Left unset, no size is imposed and each map keeps its own. -->
 
   <PropertyGroup Condition="'$(CapsuleImportMaps)' == 'true'">
-    <!-- Read before the default below fills it in: the convention is where sources are looked
-         for, and an explicit path is a promise that they are there. -->
-    <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
-    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
-    <!-- Rooted against the project, not the working directory, so an override may be relative
-         and every message names a path a person can open. NormalizePath rather than
-         Path.GetFullPath: it repairs the separators of an override too, and this value is read
-         back by Exists(), which is evaluated raw. -->
-    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
     <CapsuleMapsCliProject Condition="'$(CapsuleMapsCliProject)' == '' and Exists('$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj')">$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj</CapsuleMapsCliProject>
     <CapsuleMapsCliAssembly Condition="'$(CapsuleMapsCliAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll</CapsuleMapsCliAssembly>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
@@ -50,6 +34,7 @@
 
   <ItemGroup Condition="'$(CapsuleImportMaps)' == 'true'">
     <CapsuleTiledMap Include="$(CapsuleAssetSourcesDir)/maps/**/*.tmj" />
+    <CapsuleNativeMap Include="$(CapsuleAssetSourcesDir)/maps/**/*.map.json" />
 
     <!-- Not an import target of its own: a Tiled map's tilesets are read during its import, so
          they are the other half of what a derived map is up to date with respect to. The tool
@@ -69,28 +54,30 @@
   </ItemGroup>
 
   <!-- Hooked into the build in its own right, not only through the import: the checks below
-       must run whether or not there is anything to import.
-
-       No sources and no maps is a game that has not authored one yet, which is every game on its
-       first build: nothing to import is a no-op, never an error. Only a path the consumer named
-       itself has to exist, because naming one that does not is a typo. -->
+       must run whether or not there is anything to import. -->
   <Target Name="CapsuleMapsInit"
           Condition="'$(CapsuleImportMaps)' == 'true'"
+          DependsOnTargets="CapsuleAssetSourcesInit"
           BeforeTargets="AssignTargetPaths">
-    <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
-           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (Tiled maps at maps/*.tmj under it), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
-    <Error Condition="'@(CapsuleTiledMap)' != '' and '$(CapsuleMapsCliProject)' == '' and '$(CapsuleMapsCliAssembly)' == ''"
+    <Error Condition="('@(CapsuleTiledMap)' != '' or '@(CapsuleNativeMap)' != '') and '$(CapsuleMapsCliProject)' == '' and '$(CapsuleMapsCliAssembly)' == ''"
            Text="Capsule: the map importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
+    <!-- A native source's %(Filename) is '<stem>.map', so the extension comes off it a second
+         time: the two source kinds only collide detectably if they name their maps the same way. -->
     <ItemGroup>
-      <_CapsuleMapName Include="@(CapsuleTiledMap->'%(Filename)')" />
+      <_CapsuleMapSource Include="@(CapsuleTiledMap);@(CapsuleNativeMap)" />
+      <_CapsuleNativeMapStem Include="@(CapsuleNativeMap)">
+        <Stem>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</Stem>
+      </_CapsuleNativeMapStem>
+      <_CapsuleMapName Include="@(CapsuleTiledMap->'%(Filename)');@(_CapsuleNativeMapStem->'%(Stem)')" />
       <_CapsuleMapNameDistinct Include="@(_CapsuleMapName->Distinct())" />
     </ItemGroup>
 
     <!-- A map is named after its source and the output tree is flat, so a repeated source name
-         would leave one map silently overwriting the other. -->
+         would leave one map silently overwriting the other — across the source kinds as much as
+         within one, since both derive into the same directory. -->
     <Error Condition="'@(_CapsuleMapName->Count())' != '@(_CapsuleMapNameDistinct->Count())'"
-           Text="Capsule: two Tiled maps under '$(CapsuleAssetSourcesDir)/maps' share a file name, and a map is named after its source. Rename one of: @(CapsuleTiledMap, ' ')" />
+           Text="Capsule: two map sources under '$(CapsuleAssetSourcesDir)/maps' share a name, and a map is named after its source. Rename one of: @(_CapsuleMapSource, ' ')" />
 
     <!-- The importer runs from the importing project's directory, so the derived paths are made
          absolute rather than left relative to wherever MSBuild was launched. The out directory
@@ -102,8 +89,10 @@
       <CapsuleMapsOutDir>$(CapsuleMapsObjDir)/maps</CapsuleMapsOutDir>
       <CapsuleMapsDerivedDir>$(CapsuleMapsOutDir)/</CapsuleMapsDerivedDir>
       <CapsuleMapsBatchFile>$(CapsuleMapsObjDir)/tiled-maps.txt</CapsuleMapsBatchFile>
+      <CapsuleNativeMapsBatchFile>$(CapsuleMapsObjDir)/native-maps.txt</CapsuleNativeMapsBatchFile>
       <CapsuleMapsTileSizeStamp>$(CapsuleMapsObjDir)/tile-size.txt</CapsuleMapsTileSizeStamp>
       <CapsuleMapsDependencyStamp>$(CapsuleMapsObjDir)/tiled-dependencies.txt</CapsuleMapsDependencyStamp>
+      <CapsuleMapsSourceStamp>$(CapsuleMapsObjDir)/map-sources.txt</CapsuleMapsSourceStamp>
       <CapsuleMapsDependencyRootArg>--dependency-root &quot;$(CapsuleAssetSourcesDir)&quot; </CapsuleMapsDependencyRootArg>
       <CapsuleTileSizeArg Condition="'$(CapsuleTileSize)' != ''">--tile-size &quot;$(CapsuleTileSize)&quot; </CapsuleTileSizeArg>
     </PropertyGroup>
@@ -122,6 +111,17 @@
          that path from Inputs and can make a stale derived map appear current. -->
     <WriteLinesToFile File="$(CapsuleMapsDependencyStamp)"
                       Lines="@(CapsuleTiledTileset->'%(FullPath)')"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!-- Which source each map is derived from, kind included. The two kinds derive into one
+         directory under one naming rule, and each import target tracks only its own sources:
+         lifting a shipped map back in as a `.map.json` and deleting the `.tmj` leaves a derived
+         map the native target never authored, and no source of its own is newer than it. This
+         stamp is what puts that map out of date, so the lift is validated, re-emitted and stamped
+         with its new provenance rather than skipped. -->
+    <WriteLinesToFile File="$(CapsuleMapsSourceStamp)"
+                      Lines="@(CapsuleTiledMap->'%(Filename)=%(FullPath)');@(_CapsuleNativeMapStem->'%(Stem)=%(FullPath)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
 
@@ -166,16 +166,16 @@
        @(CapsuleTiledMap), and the whole batch goes to one process. Never one process per map —
        a few hundred rooms would spend most of a cold build in host startup.
 
-       The tilesets, the tile-size stamp and the importer's assemblies are discrete inputs,
-       correlating with nothing: touching any of them puts every map out of date and re-derives
-       the lot. That is the honest dependency — a tile's Class is what a map's palette is made of,
-       and the importer is what turns one into the other, so a game consuming Capsule from a
-       sibling clone must not keep maps a changed importer would now write differently. A full
-       re-derive is one process either way. -->
+       The tilesets, the two stamps and the importer's assemblies are discrete inputs, correlating
+       with nothing: touching any of them puts every map out of date and re-derives the lot. That
+       is the honest dependency — a tile's Class is what a map's palette is made of, and the
+       importer is what turns one into the other, so a game consuming Capsule from a sibling clone
+       must not keep maps a changed importer would now write differently. A full re-derive is one
+       process either way. -->
   <Target Name="CapsuleImportTiledMaps"
           Condition="'$(CapsuleImportMaps)' == 'true' and '@(CapsuleTiledMap)' != ''"
           DependsOnTargets="CapsuleMapsInit;ResolveProjectReferences"
-          Inputs="@(CapsuleTiledMap);@(CapsuleTiledTileset);$(CapsuleMapsDependencyStamp);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
+          Inputs="@(CapsuleTiledMap);@(CapsuleTiledTileset);$(CapsuleMapsDependencyStamp);$(CapsuleMapsSourceStamp);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
           Outputs="@(CapsuleTiledMap->'$(CapsuleMapsDerivedDir)%(Filename).map.json')">
 
     <Error Condition="!Exists('@(_CapsuleMapsTool)')"
@@ -209,17 +209,46 @@
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- Separate from the import so the content is wired on an up-to-date build too, where the
-       import target is skipped entirely. -->
+  <!-- As the Tiled import, minus the tilesets: a native source references nothing, so it, the
+       stamps and the importer are the whole dependency. The derived name falls out of
+       %(Filename) — '<stem>.map' — plus the .json this re-emits it as. -->
+  <Target Name="CapsuleImportNativeMaps"
+          Condition="'$(CapsuleImportMaps)' == 'true' and '@(CapsuleNativeMap)' != ''"
+          DependsOnTargets="CapsuleMapsInit;ResolveProjectReferences"
+          Inputs="@(CapsuleNativeMap);$(CapsuleMapsSourceStamp);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
+          Outputs="@(CapsuleNativeMap->'$(CapsuleMapsDerivedDir)%(Filename).json')">
+
+    <Error Condition="!Exists('@(_CapsuleMapsTool)')"
+           Text="Capsule: the map importer was not built (expected '@(_CapsuleMapsTool)')." />
+
+    <ItemGroup>
+      <_CapsuleNativeMapArg Include="@(CapsuleNativeMap)">
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
+      </_CapsuleNativeMapArg>
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(CapsuleNativeMapsBatchFile)"
+                      Lines="@(_CapsuleNativeMapArg->'%(ProjectRelativePath)')"
+                      Overwrite="true" />
+
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleMapsTool)&quot; import-native --out &quot;$(CapsuleMapsOutDir)&quot; $(CapsuleTileSizeArg)--maps-from &quot;$(CapsuleNativeMapsBatchFile)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- Separate from the imports so the content is wired on an up-to-date build too, where they
+       are skipped entirely. -->
   <Target Name="CapsuleAddMapsToOutput"
-          Condition="'$(CapsuleImportMaps)' == 'true' and '@(CapsuleTiledMap)' != ''"
-          DependsOnTargets="CapsuleImportTiledMaps"
+          Condition="'$(CapsuleImportMaps)' == 'true' and ('@(CapsuleTiledMap)' != '' or '@(CapsuleNativeMap)' != '')"
+          DependsOnTargets="CapsuleImportTiledMaps;CapsuleImportNativeMaps"
           BeforeTargets="AssignTargetPaths">
 
     <!-- Named in two steps on purpose: %() in the Content metadata below batches over the item
          the Include names, so a transform there would resolve %(Filename) against the source. -->
     <ItemGroup>
       <_CapsuleDerivedMap Include="@(CapsuleTiledMap->'$(CapsuleMapsDerivedDir)%(Filename).map.json')" />
+      <_CapsuleDerivedMap Include="@(CapsuleNativeMap->'$(CapsuleMapsDerivedDir)%(Filename).json')" />
     </ItemGroup>
 
     <ItemGroup>

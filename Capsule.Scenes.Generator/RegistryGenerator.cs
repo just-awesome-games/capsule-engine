@@ -1,6 +1,4 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Capsule.Scenes.Generator;
 
@@ -25,13 +23,12 @@ namespace Capsule.Scenes.Generator;
 [Generator(LanguageNames.CSharp)]
 public sealed class RegistryGenerator : IIncrementalGenerator
 {
-    private const string LogicRole = "build_property.CapsuleGameLogic";
-    private const string ShellRole = "build_property.CapsuleGameShell";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValueProvider<(bool Logic, bool Shell)> roles = context.AnalyzerConfigOptionsProvider
-            .Select(static (options, _) => (Declares(options.GlobalOptions, LogicRole), Declares(options.GlobalOptions, ShellRole)));
+            .Select(static (options, _) => (
+                Symbols.Declares(options.GlobalOptions, Symbols.LogicRole),
+                Symbols.Declares(options.GlobalOptions, Symbols.ShellRole)));
 
         // An assembly that does not reference Capsule.Scenes has no registry to hold and no call
         // site to satisfy, so it gets nothing rather than code it could not compile.
@@ -106,8 +103,4 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             }
         });
     }
-
-    // MSBuild passes a boolean property through verbatim and compares it case-insensitively itself.
-    private static bool Declares(AnalyzerConfigOptions options, string key) =>
-        options.TryGetValue(key, out string? value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 }

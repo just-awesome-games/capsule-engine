@@ -55,7 +55,10 @@ internal static class MapFixtures
 
         internal string Write(string name, string text)
         {
-            File.WriteAllText(System.IO.Path.Combine(_directory.FullName, name), text);
+            string path = System.IO.Path.Combine(_directory.FullName, name);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, text);
+
             return name;
         }
 

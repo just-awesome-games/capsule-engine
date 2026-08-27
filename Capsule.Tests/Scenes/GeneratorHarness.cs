@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Tests.Scenes;
 
@@ -19,6 +20,7 @@ internal static class GeneratorHarness
 {
     internal const string GameEntitiesFile = "CapsuleGameEntities.g.cs";
     internal const string GameScenesFile = "CapsuleGameScenes.g.cs";
+    internal const string GameAssetsFile = "CapsuleGameAssets.g.cs";
     internal const string GameBootFile = "CapsuleGameBoot.g.cs";
     internal const string RegistryProviderFile = "CapsuleRegistryProvider.g.cs";
 
@@ -120,6 +122,31 @@ internal static class GeneratorHarness
         return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
+    /// <summary>
+    /// The asset half of the build, as the compiler hands it over: the shipped files as additional
+    /// texts, each carrying the domain metadata <c>build/Capsule.Assets.targets</c> makes visible.
+    /// The files are never opened, here or in a real build.
+    /// </summary>
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
+        bool logic,
+        params string[] assetPaths)
+    {
+        Dictionary<string, string> domains = new(StringComparer.Ordinal);
+        ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
+        foreach (string path in assetPaths)
+        {
+            domains[path] = path.Split('/')[0];
+            texts.Add(new AssetFile(path));
+        }
+
+        return Run(
+            Compiled("AssetSpecs", "namespace Game; public sealed class Marker;", References),
+            logic,
+            shell: !logic,
+            texts.ToImmutable(),
+            domains);
+    }
+
     private enum Role
     {
         Logic,
@@ -151,13 +178,17 @@ internal static class GeneratorHarness
     private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(
         CSharpCompilation compilation,
         bool logic,
-        bool shell)
+        bool shell,
+        ImmutableArray<AdditionalText>? assets = null,
+        IReadOnlyDictionary<string, string>? domains = null)
     {
+        // Both generators, as the compiler loads them: they ship in one assembly, so a spec over
+        // either runs against what the other emits into the same compilation.
         CSharpGeneratorDriver.Create(
-                [new RegistryGenerator().AsSourceGenerator()],
-                additionalTexts: null,
+                [new RegistryGenerator().AsSourceGenerator(), new AssetRegistryGenerator().AsSourceGenerator()],
+                additionalTexts: assets,
                 parseOptions: null,
-                optionsProvider: new DeclaredRole(logic, shell))
+                optionsProvider: new DeclaredRole(logic, shell, domains))
             .RunGeneratorsAndUpdateCompilation(compilation, out Compilation updated, out ImmutableArray<Diagnostic> diagnostics);
 
         return (diagnostics, updated);
@@ -190,18 +221,36 @@ internal static class GeneratorHarness
         return references.ToImmutable();
     }
 
-    /// <summary>One declared MSBuild role, as the compiler hands it to a generator.</summary>
+    /// <summary>An additional file the generator never opens, which is how a real asset arrives.</summary>
+    private sealed class AssetFile(string path) : AdditionalText
+    {
+        public override string Path { get; } = path;
+
+        public override SourceText? GetText(CancellationToken cancellationToken = default) => null;
+    }
+
+    /// <summary>
+    /// One declared MSBuild role plus the per-file asset metadata, as the compiler hands them to a
+    /// generator.
+    /// </summary>
     private sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
         private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false);
 
-        internal DeclaredRole(bool logic, bool shell) => GlobalOptions = new Properties(logic, shell);
+        private readonly IReadOnlyDictionary<string, string> _domains;
+
+        internal DeclaredRole(bool logic, bool shell, IReadOnlyDictionary<string, string>? domains = null)
+        {
+            GlobalOptions = new Properties(logic, shell);
+            _domains = domains ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        }
 
         public override AnalyzerConfigOptions GlobalOptions { get; }
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
 
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => None;
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) =>
+            _domains.TryGetValue(textFile.Path, out string? domain) ? new AssetMetadata(domain) : None;
 
         private sealed class Properties(bool logic, bool shell) : AnalyzerConfigOptions
         {
@@ -212,6 +261,23 @@ internal static class GeneratorHarness
                 if (declared)
                 {
                     value = "true";
+
+                    return true;
+                }
+
+                value = null;
+
+                return false;
+            }
+        }
+
+        private sealed class AssetMetadata(string domain) : AnalyzerConfigOptions
+        {
+            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
+            {
+                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetDomain", StringComparison.Ordinal))
+                {
+                    value = domain;
 
                     return true;
                 }

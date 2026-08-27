@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Maps;
 using Capsule.Rendering;
@@ -22,6 +23,10 @@ internal static class Program
 
     // Where a shipped game's maps are, and what the boot verbs resolve a map name against.
     private const string MapPath = "Assets/Maps/room.map.json";
+
+    // The other half of the shipped plane: a map authored by hand in Capsule's own format rather
+    // than in Tiled, and the two asset domains this consumer authors.
+    private const string NativeMapPath = "Assets/Maps/hall.map.json";
 
     public static int Main()
     {
@@ -69,13 +74,14 @@ internal static class Program
             steps == script.Length &&
             simulation.ExitRequested &&
             finalX == startX + AdvanceSteps &&
-            render.VisibleQuads > 0;
+            render.VisibleQuads > 0 &&
+            ContentShipped();
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"Package consumer smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, marker {startX} -> {finalX}, {render.VisibleQuads}/{render.TotalQuads} quads."));
+                    $"Package consumer smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, marker {startX} -> {finalX}, {render.VisibleQuads}/{render.TotalQuads} quads, content {ContentShipped()}."));
             return 1;
         }
 
@@ -99,4 +105,18 @@ internal static class Program
     // in a binary published ahead of time. That whole chain is what this run exists to exercise.
     private static Map RoomMap() =>
         MapFile.Load(Path.Combine(AppContext.BaseDirectory, MapPath));
+
+    // The rest of the shipped plane, asserted rather than merely published: a hand-authored map
+    // arrives validated and stamped as derived, and every asset is beside the executable under
+    // the domain it was authored in, named by the handle the generator built from that file.
+    private static bool ContentShipped()
+    {
+        Map hall = MapFile.Load(Path.Combine(AppContext.BaseDirectory, NativeMapPath));
+
+        return hall.Source is { Tool: "native" }
+            && GameAssets.Textures.Marker.Name == "marker"
+            && GameAssets.Audio.StepSoft.Name == "step-soft"
+            && File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets/textures/marker.png"))
+            && File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets/audio/step-soft.wav"));
+    }
 }

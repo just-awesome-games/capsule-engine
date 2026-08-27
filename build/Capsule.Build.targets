@@ -10,7 +10,47 @@
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
+  <!-- The authoring plane, resolved here because more than one hook reads it: maps and general
+       assets are two trees under one root, and a project that reads either has to agree with the
+       other on where it is. The shipped plane beside the executable is wholly derived from it,
+       and none of it is committed.
+
+       Every path in these hooks is composed with forward slashes and canonicalised through the
+       MSBuild path intrinsics. A literal backslash survives into property functions, Exec command
+       lines and Link metadata untouched, and on Linux it is an ordinary filename character rather
+       than a separator — so one would name a directory instead of pointing at it. -->
+  <PropertyGroup>
+    <CapsuleImportMaps Condition="'$(CapsuleImportMaps)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportMaps>
+    <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
+    <!-- A logic assembly ships nothing, but its generated asset registry is named after the same
+         tree, so it reads the sources too. -->
+    <CapsuleReadsAssetSources Condition="'$(CapsuleImportMaps)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
+    <!-- Read before the default below fills it in: the convention is where sources are looked
+         for, and an explicit path is a promise that they are there. -->
+    <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
+    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
+    <!-- Rooted against the project, not the working directory, so an override may be relative
+         and every message names a path a person can open. NormalizePath rather than
+         Path.GetFullPath: it repairs the separators of an override too, and this value is read
+         back by Exists(), which is evaluated raw. -->
+    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
+  </PropertyGroup>
+
+  <!-- No sources at all is a game that has authored nothing yet, which is every game on its first
+       build: an absent root is a no-op, never an error. Only a path the consumer named itself has
+       to exist, because naming one that does not is a typo. -->
+  <Target Name="CapsuleAssetSourcesInit"
+          Condition="'$(CapsuleReadsAssetSources)' == 'true'"
+          BeforeTargets="AssignTargetPaths">
+    <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
+           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (maps under maps/, assets under textures/, audio/ and fonts/), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
+  </Target>
+
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Maps.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Scenes.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Analyzers.targets"
           Condition="Exists('$(MSBuildThisFileDirectory)Capsule.Analyzers.targets')" />

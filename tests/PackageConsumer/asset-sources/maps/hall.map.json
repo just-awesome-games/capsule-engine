@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "grid": {
+    "tileSize": 16,
+    "width": 4,
+    "height": 2,
+    "tileTypes": [
+      { "type": "empty" },
+      { "type": "ground", "color": "#4a5568ff" }
+    ],
+    "tiles": [0, 0, 0, 0, 1, 1, 1, 1]
+  },
+  "objects": [
+    { "id": 1, "type": "marker", "x": 16, "y": 16 }
+  ],
+  "nextObjectId": 2
+}

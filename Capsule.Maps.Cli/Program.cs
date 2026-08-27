@@ -7,11 +7,17 @@ internal static class Program
     private const string Usage = """
         Capsule.Maps.Cli import-tiled --out <dir> [--dependency-root <dir>] [--tile-size <px>] <map.tmj> [<map.tmj>...]
         Capsule.Maps.Cli import-tiled --out <dir> [--dependency-root <dir>] [--tile-size <px>] --maps-from <list.txt>
+        Capsule.Maps.Cli import-native --out <dir> [--tile-size <px>] <map.map.json> [<map.map.json>...]
+        Capsule.Maps.Cli import-native --out <dir> [--tile-size <px>] --maps-from <list.txt>
 
-          Writes <dir>/<map>.map.json for every Tiled map, creating <dir> if absent. Every map
+          Writes <dir>/<map>.map.json for every source, creating <dir> if absent. Every source
           is attempted. Exit 0 when all succeeded, 1 when any failed, 2 on a usage error.
 
-          Name the Tiled maps by a relative path: each one is recorded verbatim in its map's
+          import-tiled reads Tiled maps; import-native reads maps already in Capsule's own
+          format, validates them and re-emits them canonically, so nothing ships unvalidated
+          and nothing ships uncanonicalised.
+
+          Name the sources by a relative path: each one is recorded verbatim in its map's
           source block, and the format rejects an absolute one.
 
           --tile-size is the tile size the game declares, and a map whose own differs fails.
@@ -21,7 +27,7 @@ internal static class Program
           --dependency-root confines external tilesets to a tree the caller tracks. Capsule's
           build hook passes the asset-source root and includes every .tsj beneath it as an input.
 
-          --maps-from reads the Tiled maps one per line, which is how Capsule's build hook
+          --maps-from reads the sources one per line, which is how Capsule's build hook
           (build/Capsule.Maps.targets) passes a whole project's worth of them. Running this by
           hand is for debugging.
         """;
@@ -29,28 +35,22 @@ internal static class Program
     private static int Main(string[] args) => args switch
     {
         ["import-tiled", "--out", string outputDirectory, .. string[] rest] => ImportTiled(outputDirectory, rest),
+        ["import-native", "--out", string outputDirectory, .. string[] rest] => ImportNative(outputDirectory, rest),
         _ => UsageError(),
     };
 
     private static int ImportTiled(string outputDirectory, string[] args)
     {
         string? dependencyRoot = null;
-        int? tileSize = null;
         if (args is ["--dependency-root", string root, .. string[] rest])
         {
             dependencyRoot = root;
             args = rest;
         }
 
-        if (args is ["--tile-size", string declared, .. string[] tileSizeRest])
+        if (!TryTakeTileSize(ref args, out int? tileSize))
         {
-            if (!int.TryParse(declared, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || size <= 0)
-            {
-                return UsageError();
-            }
-
-            tileSize = size;
-            args = tileSizeRest;
+            return UsageError();
         }
 
         return args switch
@@ -60,6 +60,41 @@ internal static class Program
             [_, ..] => MapTool.ImportTiled(outputDirectory, args, tileSize, Console.Out, Console.Error, dependencyRoot),
             _ => UsageError(),
         };
+    }
+
+    private static int ImportNative(string outputDirectory, string[] args)
+    {
+        if (!TryTakeTileSize(ref args, out int? tileSize))
+        {
+            return UsageError();
+        }
+
+        return args switch
+        {
+            ["--maps-from", string list] =>
+                MapTool.ImportNativeFromList(outputDirectory, list, tileSize, Console.Out, Console.Error),
+            [_, ..] => MapTool.ImportNative(outputDirectory, args, tileSize, Console.Out, Console.Error),
+            _ => UsageError(),
+        };
+    }
+
+    private static bool TryTakeTileSize(ref string[] args, out int? tileSize)
+    {
+        tileSize = null;
+        if (args is not ["--tile-size", string declared, .. string[] rest])
+        {
+            return true;
+        }
+
+        if (!int.TryParse(declared, NumberStyles.None, CultureInfo.InvariantCulture, out int size) || size <= 0)
+        {
+            return false;
+        }
+
+        tileSize = size;
+        args = rest;
+
+        return true;
     }
 
     private static int UsageError()

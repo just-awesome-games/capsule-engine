@@ -94,12 +94,12 @@ Tiled-parsing code.
 
 | Project | What it is |
 | --- | --- |
-| `Capsule.Core` | The contracts a game codes against: `ISimulation`, the fixed step, input as named actions, render intent. |
+| `Capsule.Core` | The contracts a game codes against: `ISimulation`, the fixed step, input as named actions, render intent, asset handles. |
 | `Capsule.Maps` | The map format and its loader ([README](Capsule.Maps/README.md)). |
-| `Capsule.Maps.Cli` | The dev-time tool a build hook runs to import Tiled maps. |
+| `Capsule.Maps.Cli` | The dev-time tool a build hook runs to derive a game's maps from its authoring sources. |
 | `Capsule.Scenes` | The world: `Scene`, `MapScene`, `Entity`, `Component`, `Renderer`, `Camera`. |
 | `Capsule` | The pack root publishing the substrate-free modules as `JAG.Capsule`. Holds no code. |
-| `Capsule.Scenes.Generator` | Turns a game's classes into the registries it boots through. Generated code, never reflection. |
+| `Capsule.Scenes.Generator` | Turns a game's classes into the registries it boots through, and its shipped assets into typed handles. Generated code, never reflection. |
 | `Capsule.Analyzers` | Compile-time enforcement of logic purity, deterministic services and role legality. |
 | `Capsule.Build` | The tooling-only package carrying build hooks, generators, analyzers and the map importer to a game. |
 | `Capsule.Runtime` | The host: window, device, clock, input, renderer, crash log. The only project referencing MonoGame. |

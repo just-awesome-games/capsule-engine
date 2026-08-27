@@ -5,14 +5,15 @@
        logic assembly rather than being part of it — and never references Capsule.Runtime, so the
        binary CI runs is device-free and opens no window.
 
-       It does import maps, though: the map a shipped game reads at Assets/Maps is the artefact
-       most at risk under trimming and ahead-of-time compilation, so the binary CI publishes and
-       runs is the one that reads it. -->
+       It does import maps and ship assets, though: the content a shipped game reads from beside
+       its executable is the artefact most at risk under trimming and ahead-of-time compilation,
+       so the binary CI publishes and runs is the one that reads it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>PackageConsumer.Smoke</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <CapsuleImportMaps>true</CapsuleImportMaps>
+    <CapsuleShipAssets>true</CapsuleShipAssets>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">

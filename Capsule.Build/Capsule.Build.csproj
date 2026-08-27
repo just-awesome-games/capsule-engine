@@ -29,6 +29,9 @@
     <None Include="../build/Capsule.Maps.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
+    <None Include="../build/Capsule.Assets.targets"
+          Pack="true"
+          PackagePath="buildTransitive/" />
     <None Include="../build/Capsule.Scenes.targets"
           Pack="true"
           PackagePath="buildTransitive/" />

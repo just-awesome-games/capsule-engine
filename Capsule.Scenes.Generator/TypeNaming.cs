@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>The convention that turns a class name into the name it claims.</summary>
+/// <summary>The conventions that turn a class name into the name it claims, and back.</summary>
 internal static class TypeNaming
 {
     /// <summary>
@@ -47,6 +47,40 @@ internal static class TypeNaming
         }
 
         return id.ToString();
+    }
+
+    /// <summary>
+    /// The inverse convention, for a name a file carries rather than a class: <c>footstep-stone</c>
+    /// gives <c>FootstepStone</c>, and an inner capital survives, so <c>fooBar</c> gives
+    /// <c>FooBar</c>. Underscores separate words like hyphens, which is what makes
+    /// <c>a-b</c> and <c>a_b</c> one name and therefore a collision rather than two members
+    /// differing invisibly. Null where no identifier can come out — anything outside ASCII
+    /// letters, digits, hyphens and underscores, or a leading digit.
+    /// </summary>
+    internal static string? ToIdentifier(string name)
+    {
+        StringBuilder identifier = new(name.Length);
+        bool startOfWord = true;
+
+        foreach (char character in name)
+        {
+            if (character is '-' or '_')
+            {
+                startOfWord = true;
+                continue;
+            }
+
+            bool legal = character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
+            if (!legal)
+            {
+                return null;
+            }
+
+            identifier.Append(startOfWord ? char.ToUpperInvariant(character) : character);
+            startOfWord = false;
+        }
+
+        return identifier.Length > 0 && !char.IsDigit(identifier[0]) ? identifier.ToString() : null;
     }
 
     internal static bool IsSafeMapName(string mapName)

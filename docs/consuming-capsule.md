@@ -24,12 +24,14 @@ my-game/
   MyGame.Shell/               # the host executable
     MyGame.Shell.csproj
     Program.cs
-    Assets/                   # shipped content; Assets/Maps/ is derived, never committed
   MyGame.Game/                # game logic, substrate-free
     MyGame.Game.csproj
   MyGame.Tests/               # xUnit over MyGame.Game, run headless
-  asset-sources/
-    maps/                     # Tiled maps and their .tsj tilesets
+  asset-sources/              # the committed authoring plane
+    maps/                     # .tmj + .tsj tilesets, and hand-authored .map.json
+    textures/                 # .png
+    audio/                    # .ogg, .wav
+    fonts/                    # .ttf, .otf
   Directory.Build.props
   Directory.Build.targets
   global.json
@@ -41,9 +43,18 @@ that owns the window, the device and file IO. The shell sets `<AssemblyName>` to
 name, so the shipped executable is `MyGame.exe` rather than `MyGame.Shell.exe`.
 
 `asset-sources/` is top-level and owned by no project: a second target shell feeds from the same
-Tiled maps, so putting them under one shell would make it the odd owner of what the others build
-from. Capsule has no asset scanner to hide a file from — what ships is exactly what the shell
-`.csproj` copies, and authoring sources stay unshipped by living outside `Assets/`.
+maps, so putting them under one shell would make it the odd owner of what the others build from.
+
+**`Assets/` beside the executable does not appear above because nothing authors it.** It is
+build-owned and wholly derived — maps at `Assets/Maps`, everything else flat under its domain at
+`Assets/<domain>` — and none of it is committed. Capsule has no asset scanner to hide a file from:
+what ships is exactly what the hooks copy there, and an authoring source stays unshipped by living
+under `asset-sources/`.
+
+Within a domain root, sources nest however the game likes and the shipped tree is flat, so two
+assets in one domain sharing a file name fail the build. A file under a domain root whose extension
+that domain does not admit fails the build too, rather than silently never shipping — an
+intermediate the game keeps around belongs outside these roots.
 
 ## 3. Declare package and local-source resolution
 
@@ -135,17 +146,40 @@ and the one shell project aggregates every referenced provider and emits `GameBo
 holding the combined registry — so a game may split logic across modules with no registration and
 no reflection. Exactly one project takes the shell role; tests and ordinary libraries take neither.
 
-The shell role also imports the game's maps. A project with no role that still has to read them —
-a test project driving a map-backed scene — asks for the import itself and gets the same
-`Assets/Maps` content beside its own executable:
+The shell role also derives the game's maps and ships its assets. A project with no role that still
+has to read that content — a test project driving a map-backed scene, a headless smoke binary —
+asks for either half itself and gets the same content beside its own executable:
 
 ```xml
 <PropertyGroup>
   <CapsuleImportMaps>true</CapsuleImportMaps>
+  <CapsuleShipAssets>true</CapsuleShipAssets>
 </PropertyGroup>
 ```
 
 Every way to get a role wrong is a `CAP0xx` build error naming the project and the fix.
+
+### Naming the content, never the path
+
+A logic project's generated `GameAssets` gives every asset the build ships a typed handle, the way
+`GameScenes` gives every scene a registration:
+
+```csharp
+using Capsule.Assets;
+using Capsule.Assets.Generated;
+
+TextureHandle hero = GameAssets.Textures.Hero;          // asset-sources/textures/hero.png
+AudioHandle step = GameAssets.Audio.FootstepStone;      // asset-sources/audio/footstep-stone.ogg
+```
+
+The member is the file's stem in PascalCase, so a misspelling is a compile error rather than a file
+that turns out to be missing on somebody else's machine. Two stems that differ only in how they
+separate words — `foot-step` and `foot_step` — reach one member and fail the build, as does a stem
+no identifier can come out of, and one that lands on the name of its own domain's class —
+`audio/audio.wav`.
+
+A handle is data: it carries the stem and resolves nothing, which is why logic code may hold one
+without breaking the purity rule below.
 
 ## 5. Wire the references
 

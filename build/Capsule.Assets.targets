@@ -1,0 +1,85 @@
+<Project>
+
+  <!-- Ships the game's general assets and names them for its code. asset-sources/ is the
+       committed authoring plane; Assets/ beside the executable is derived and build-owned, so
+       nothing under it is committed and what ships is exactly what is authored.
+
+       Three domain roots under $(CapsuleAssetSourcesDir), each admitting the extensions listed
+       below: textures/ (.png), audio/ (.ogg, .wav) and fonts/ (.ttf, .otf). Sources nest freely
+       within a root and the shipped tree is flat per domain, so an asset lands at
+       Assets/<domain>/<stem>.<ext> whatever it was filed under. A domain gained here is a domain
+       gained everywhere, and the handle it hands out is paired with it in
+       Capsule.Scenes.Generator's asset registry — the one other place the domains are named.
+
+       A project ships them by declaring:
+
+         <CapsuleShipAssets>true</CapsuleShipAssets>
+
+       A shell is one by definition and needs no line. A logic assembly ships nothing and gets the
+       generated GameAssets registry instead: the asset list reaches the generator as
+       AdditionalFiles, so a handle is a compile-time name for a file the build has seen, and a
+       misspelt asset is a compile error rather than a missing file on somebody else's machine.
+
+       Nothing here transforms bytes. An asset is copied verbatim, and what reads it back is a
+       runtime concern Capsule does not have yet. -->
+
+  <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png">
+      <CapsuleAssetDomain>textures</CapsuleAssetDomain>
+    </CapsuleAsset>
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/audio/**/*.ogg;$(CapsuleAssetSourcesDir)/audio/**/*.wav">
+      <CapsuleAssetDomain>audio</CapsuleAssetDomain>
+    </CapsuleAsset>
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/fonts/**/*.ttf;$(CapsuleAssetSourcesDir)/fonts/**/*.otf">
+      <CapsuleAssetDomain>fonts</CapsuleAssetDomain>
+    </CapsuleAsset>
+
+    <!-- Everything under a domain root, so whatever the lists above did not admit is caught as a
+         typo rather than silently never shipping. A file outside these roots is not an asset and
+         is not looked at, which is where an authoring intermediate belongs. -->
+    <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/textures/**/*;$(CapsuleAssetSourcesDir)/audio/**/*;$(CapsuleAssetSourcesDir)/fonts/**/*" />
+    <_CapsuleUnknownAsset Include="@(_CapsuleDomainFile)" Exclude="@(CapsuleAsset)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
+    <AdditionalFiles Include="@(CapsuleAsset)" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetDomain" />
+  </ItemGroup>
+
+  <!-- Hooked into the build in its own right, not only through the copy: the checks below must
+       run in a logic assembly too, where nothing ships. -->
+  <Target Name="CapsuleAssetsInit"
+          Condition="'$(CapsuleReadsAssetSources)' == 'true'"
+          DependsOnTargets="CapsuleAssetSourcesInit"
+          BeforeTargets="AssignTargetPaths">
+
+    <Error Condition="'@(_CapsuleUnknownAsset)' != ''"
+           Text="Capsule: a file under an asset domain root has an extension that domain does not admit — textures/ takes .png, audio/ takes .ogg and .wav, fonts/ takes .ttf and .otf. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)': @(_CapsuleUnknownAsset, ' ')" />
+
+    <ItemGroup>
+      <_CapsuleAssetName Include="@(CapsuleAsset->'%(CapsuleAssetDomain)/%(Filename)')" />
+      <_CapsuleAssetNameDistinct Include="@(_CapsuleAssetName->Distinct())" />
+    </ItemGroup>
+
+    <!-- An asset is named after its source and the shipped tree is flat per domain, so a repeated
+         name within a domain would leave one asset silently overwriting the other. -->
+    <Error Condition="'@(_CapsuleAssetName->Count())' != '@(_CapsuleAssetNameDistinct->Count())'"
+           Text="Capsule: two assets in one domain under '$(CapsuleAssetSourcesDir)' share a file name, and an asset ships flat under its domain. Rename one of: @(CapsuleAsset, ' ')" />
+  </Target>
+
+  <Target Name="CapsuleAddAssetsToOutput"
+          Condition="'$(CapsuleShipAssets)' == 'true' and '@(CapsuleAsset)' != ''"
+          DependsOnTargets="CapsuleAssetsInit"
+          BeforeTargets="AssignTargetPaths">
+    <!-- Qualified metadata, not bare: %() in the Content metadata below would otherwise batch over
+         Content, which already carries a game's own files and the derived maps. -->
+    <ItemGroup>
+      <Content Include="@(CapsuleAsset)">
+        <Link>Assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.Filename)%(CapsuleAsset.Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+</Project>

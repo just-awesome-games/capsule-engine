@@ -28,33 +28,31 @@ read from a file, identically, throwing `MapFormatException` on anything the for
   below `nextObjectId`, and unique within the map. Ids are never reused, and deleting an object
   never rewinds the counter.
 - **A `source` block is provenance** — the tool, the path it was handed, and the SHA-256 of the
-  complete source closure including external tilesets. Its presence means the file is an artifact:
-  edit the source and re-import, never the file. The path is relative and forward-slashed, and
-  nothing resolves it at runtime.
+  complete source closure, external tilesets included. Its presence means the file is an artifact:
+  edit the file the path names and rebuild, never this one. The path is relative and
+  forward-slashed, and nothing resolves it at runtime.
 
-## Authoring with Tiled
+## Where a map comes from
 
-Tiled ([mapeditor.org](https://www.mapeditor.org)) is a door to the format, reached through the
-build rather than at runtime. The build dispatches by extension, so a second authoring tool becomes
-another item group in [`build/Capsule.Maps.targets`](../build/Capsule.Maps.targets), never new
-wiring in the game.
+Every map a game ships is derived at build time from a source under
+`$(CapsuleAssetSourcesDir)/maps`, and the build dispatches by extension. Two extensions are wired,
+and a third authoring tool becomes another item group in
+[`build/Capsule.Maps.targets`](../build/Capsule.Maps.targets), never new wiring in the game.
 
-- **`tiled.exe` is a GUI-subsystem binary.** Run from a console it prints nothing at all — no
-  output, no error, no exit message — while doing exactly what it was asked. Silence is not failure.
-- **`tmxrasterizer.exe` renders a `.tmj` to PNG headlessly**, which is how to look at one without
-  opening the editor.
+| Source | Read by |
+| --- | --- |
+| `*.tmj` | Tiled's vocabulary, translated into the format below. |
+| `*.map.json` | The format itself, authored by hand. |
 
-Create or edit a `.tmj` under the game's `asset-sources/maps/` and build. The map is derived into
-`obj/` and copied to `Assets/Maps/<name>.map.json` beside the executable, which is where a game
-loads it from. **Nothing generated is committed**: the `.tmj` is the source, the map is a build
-artifact, and there is no step to remember.
+Whichever it came from, the map is derived into `obj/` and copied to
+`Assets/Maps/<name>.map.json` beside the executable, which is where a game loads it from. A map is
+named after its source and the output tree is flat, so two sources sharing a name fail the build —
+across the two kinds as much as within one. **Nothing generated is committed**: the source is the
+source, the map is a build artifact, and there is no step to remember.
 
-Sources are found at `$(CapsuleAssetSourcesDir)/maps/**/*.tmj`, defaulting to
-`$(MSBuildProjectDirectory)/../asset-sources`. A map is named after the `.tmj` it came from.
-Referenced `.tsj` tilesets anywhere under that root are inputs too — and so is the importer itself,
-so a Capsule upgrade re-derives every map rather than shipping what the previous one wrote. A map
-may reference across or upward within the tree; a reference resolving outside it fails, because the
-build could not track the file.
+Sources are found at `$(CapsuleAssetSourcesDir)/maps/**`, defaulting to
+`$(MSBuildProjectDirectory)/../asset-sources`. The importer itself is an input, so a Capsule
+upgrade re-derives every map rather than shipping what the previous one wrote.
 
 The shell role imports maps by definition; anything else that must read them — a test project, a
 headless smoke binary — sets `<CapsuleImportMaps>true</CapsuleImportMaps>`
@@ -67,6 +65,35 @@ every map is authored at, on the shell project:
 
 A map whose own tile size differs then fails the build, naming the map, its size and the declared
 one. Left unset, each map keeps its own.
+
+## Authoring by hand
+
+A `.map.json` under `asset-sources/maps/` is the format above, written directly — by a person or by
+a tool of the game's own. It is a source and not a shipped file: the build validates it, re-emits
+it canonically, and stamps its `source` block, so a map that would fail to load fails the build
+instead, and what ships is byte-identical to what any other source of the same map would produce.
+
+Author no `source` block. One in a source is overwritten by the provenance of the file itself,
+which is the file being edited.
+
+A shipped map read back in as a source round-trips: the two kinds derive into one directory under
+one naming rule, so a map that came out of Tiled can be lifted into `asset-sources/maps/` and
+hand-edited from then on, with only its provenance changing.
+
+## Authoring with Tiled
+
+Tiled ([mapeditor.org](https://www.mapeditor.org)) is the other door to the format, reached through
+the build rather than at runtime.
+
+- **`tiled.exe` is a GUI-subsystem binary.** Run from a console it prints nothing at all — no
+  output, no error, no exit message — while doing exactly what it was asked. Silence is not failure.
+- **`tmxrasterizer.exe` renders a `.tmj` to PNG headlessly**, which is how to look at one without
+  opening the editor.
+
+Create or edit a `.tmj` under the game's `asset-sources/maps/` and build. Referenced `.tsj` tilesets
+anywhere under the asset-source root are inputs too, so painting with a retyped tile re-derives the
+maps that use it. A map may reference across or upward within the tree; a reference resolving
+outside it fails, because the build could not track the file.
 
 ### How a `.tmj` is read
 
@@ -90,15 +117,18 @@ nothing about a map built from code.
 
 ## The importer
 
-`Capsule.Maps.Cli` is the dev-time tool the hook runs, once per build with the `.tmj`s that changed:
+`Capsule.Maps.Cli` is the dev-time tool the hook runs, once per build per source kind, with the
+sources of that kind that changed:
 
 ```
-Capsule.Maps.Cli import-tiled --out <dir> [--tile-size <px>] <map.tmj> [<map.tmj>...]
-Capsule.Maps.Cli import-tiled --out <dir> [--tile-size <px>] --maps-from <list.txt>
+Capsule.Maps.Cli import-tiled  --out <dir> [--tile-size <px>] <map.tmj> [<map.tmj>...]
+Capsule.Maps.Cli import-tiled  --out <dir> [--tile-size <px>] --maps-from <list.txt>
+Capsule.Maps.Cli import-native --out <dir> [--tile-size <px>] <map.map.json> [<map.map.json>...]
+Capsule.Maps.Cli import-native --out <dir> [--tile-size <px>] --maps-from <list.txt>
 ```
 
-The build uses the second form — a few hundred source paths overflow a command line. Running either
-by hand is for debugging an import, never a step in the workflow. It exits 0 when every source
-succeeded, 1 when any failed and 2 on a usage error, and per-source failures reach the build output
-verbatim. Name sources relatively: each path is stamped into its map's `source` block verbatim, and
-the format refuses an absolute one.
+The build uses the list form — a few hundred source paths overflow a command line. Running any of
+them by hand is for debugging an import, never a step in the workflow. Each exits 0 when every
+source succeeded, 1 when any failed and 2 on a usage error, and per-source failures reach the build
+output verbatim. Name sources relatively: each path is stamped into its map's `source` block
+verbatim, and the format refuses an absolute one.
