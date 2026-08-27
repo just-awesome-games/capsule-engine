@@ -28,10 +28,15 @@ a simulation produces the same run. Concretely:
    randomness remains explicit state; role-free tools are outside this policy.
 
 Rendering sits outside the contract: it reads the same state at whatever rate the display runs,
-and nothing about the window reaches the simulation. The camera's region is fitted into the
-surface being drawn to — scaled uniformly, centred, the slack left as black bars — so two players
-on differently shaped displays see the same world region, and a resize changes only how large it
-is drawn. A game that declares a render resolution rasterises into a fixed-size surface, which is
+and nothing about the window reaches the simulation. A frame between two steps interpolates every
+quad from where it was to where it is, and the camera along with them — one fraction applied to
+the whole scene, so a moving camera does not drag the world back and let it catch up. A deliberate
+cut sets the camera's previous centre to its current one and so renders as a cut. Culling tests
+the union of the camera's previous and current regions, the way a quad is tested over its own
+swept corner, so what is visible at any point mid-step reaches the frame. The camera's region is
+fitted into the surface being drawn to — scaled uniformly, centred, the slack left as black bars —
+so two players on differently shaped displays see the same world region, and a resize changes only
+how large it is drawn. A game that declares a render resolution rasterises into a fixed-size surface, which is
 then fitted into the back buffer the same way; the rule is applied at every stage and nothing
 stretches at any of them. Alt+Enter toggles the window from the host, outside the step, and the
 chord is withheld from the snapshot rather than routed through the action layer, so a window

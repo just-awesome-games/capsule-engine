@@ -13,11 +13,13 @@ public sealed class QuadRenderer(Vector2 size, ColorRgba color) : Renderer
     /// <summary>The extent drawn from the corner.</summary>
     public Vector2 Size { get; set; } = size;
 
+    /// <summary>The colour the rectangle is filled with.</summary>
     public ColorRgba Color { get; set; } = color;
 
     /// <summary>Added to the entity's position to give the quad's corner; zero by default.</summary>
     public Vector2 Offset { get; set; }
 
+    /// <inheritdoc/>
     public override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);

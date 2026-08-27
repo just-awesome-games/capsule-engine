@@ -4,16 +4,20 @@
        at Assets/Maps. The derived files live in obj/ and are never committed.
 
        A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
-       inert until a project declares itself the shell:
+       inert until a project asks for maps:
 
-         <CapsuleGameShell>true</CapsuleGameShell>
+         <CapsuleImportMaps>true</CapsuleImportMaps>
+
+       A shell is one by definition and needs no line. Anything else that has to read the maps a
+       game ships — a headless verify binary, a test project — opts in with that property, and
+       gets the import and the content without a Capsule.Runtime reference, a window or a role.
 
        Sources are found by convention at $(CapsuleAssetSourcesDir)/maps/**/*.tmj, and dispatch
        is by extension: a second authoring tool becomes another item group here, never new
        wiring in the game.
 
-       A shell may declare the one tile size every map is authored at, and a map whose own
-       differs then fails the build:
+       An importing project may declare the one tile size every map is authored at, and a map
+       whose own differs then fails the build:
 
          <CapsuleTileSize>16</CapsuleTileSize>
 
@@ -24,7 +28,14 @@
        and Link metadata untouched, and on Linux it is an ordinary filename character rather
        than a separator — so one would name a directory instead of pointing at it. -->
 
-  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+  <PropertyGroup>
+    <CapsuleImportMaps Condition="'$(CapsuleImportMaps)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportMaps>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CapsuleImportMaps)' == 'true'">
+    <!-- Read before the default below fills it in: the convention is where sources are looked
+         for, and an explicit path is a promise that they are there. -->
+    <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
     <!-- Rooted against the project, not the working directory, so an override may be relative
          and every message names a path a person can open. NormalizePath rather than
@@ -37,7 +48,7 @@
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(CapsuleGameShell)' == 'true'">
+  <ItemGroup Condition="'$(CapsuleImportMaps)' == 'true'">
     <CapsuleTiledMap Include="$(CapsuleAssetSourcesDir)/maps/**/*.tmj" />
 
     <!-- Not an import target of its own: a Tiled map's tilesets are read during its import, so
@@ -51,20 +62,24 @@
                       Condition="'$(CapsuleMapsCliProject)' != ''"
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"
-                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       ExcludeAssets="all"
                       PrivateAssets="all"
                       Private="false" />
   </ItemGroup>
 
-  <!-- Hooked into the build in its own right, not only through the import: a missing source
-       tree yields no Tiled maps, and that is exactly the case the error below has to catch. -->
+  <!-- Hooked into the build in its own right, not only through the import: the checks below
+       must run whether or not there is anything to import.
+
+       No sources and no maps is a game that has not authored one yet, which is every game on its
+       first build: nothing to import is a no-op, never an error. Only a path the consumer named
+       itself has to exist, because naming one that does not is a typo. -->
   <Target Name="CapsuleMapsInit"
-          Condition="'$(CapsuleGameShell)' == 'true'"
+          Condition="'$(CapsuleImportMaps)' == 'true'"
           BeforeTargets="AssignTargetPaths">
-    <Error Condition="!Exists('$(CapsuleAssetSourcesDir)')"
-           Text="Capsule: CapsuleGameShell is set but the asset source directory '$(CapsuleAssetSourcesDir)' does not exist. A Capsule game keeps authoring sources at &lt;repo&gt;/asset-sources (Tiled maps in asset-sources/maps/*.tmj) with the shell project one level below the repo root, or points CapsuleAssetSourcesDir at where they live." />
-    <Error Condition="'$(CapsuleMapsCliProject)' == '' and '$(CapsuleMapsCliAssembly)' == ''"
+    <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
+           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (Tiled maps at maps/*.tmj under it), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
+    <Error Condition="'@(CapsuleTiledMap)' != '' and '$(CapsuleMapsCliProject)' == '' and '$(CapsuleMapsCliAssembly)' == ''"
            Text="Capsule: the map importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
     <ItemGroup>
@@ -77,12 +92,12 @@
     <Error Condition="'@(_CapsuleMapName->Count())' != '@(_CapsuleMapNameDistinct->Count())'"
            Text="Capsule: two Tiled maps under '$(CapsuleAssetSourcesDir)/maps' share a file name, and a map is named after its source. Rename one of: @(CapsuleTiledMap, ' ')" />
 
-    <!-- The importer runs from the shell project directory, so the derived paths are made
+    <!-- The importer runs from the importing project's directory, so the derived paths are made
          absolute rather than left relative to wherever MSBuild was launched. The out directory
          carries no trailing separator: it is spliced into a command line, where a trailing one
          would escape the closing quote on Windows. -->
     <PropertyGroup>
-      <CapsuleShellProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleShellProjectDir>
+      <CapsuleImportProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleImportProjectDir>
       <CapsuleMapsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleMapsObjDir>
       <CapsuleMapsOutDir>$(CapsuleMapsObjDir)/maps</CapsuleMapsOutDir>
       <CapsuleMapsDerivedDir>$(CapsuleMapsOutDir)/</CapsuleMapsDerivedDir>
@@ -113,11 +128,16 @@
     <!-- Resolved here rather than where it is used: the importer is an input to every derived
          map, and a target's Inputs are evaluated after its DependsOnTargets have run but before
          its own tasks. Asked from inside the import target, the path would arrive after the
-         up-to-date check that needs it, and a rebuilt importer would leave every map untouched. -->
+         up-to-date check that needs it, and a rebuilt importer would leave every map untouched.
+
+         The removed properties are the same set the ProjectReference above drops, and they must
+         be: the tool is built without them, so asking with them would name an output directory
+         nothing wrote — a runtime identifier alone moves it under a RID folder. -->
     <MSBuild Projects="$(CapsuleMapsCliProject)"
              Condition="'$(CapsuleMapsCliProject)' != ''"
              Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)">
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
       <Output TaskParameter="TargetOutputs" ItemName="_CapsuleMapsTool" />
     </MSBuild>
 
@@ -153,7 +173,7 @@
        sibling clone must not keep maps a changed importer would now write differently. A full
        re-derive is one process either way. -->
   <Target Name="CapsuleImportTiledMaps"
-          Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleTiledMap)' != ''"
+          Condition="'$(CapsuleImportMaps)' == 'true' and '@(CapsuleTiledMap)' != ''"
           DependsOnTargets="CapsuleMapsInit;ResolveProjectReferences"
           Inputs="@(CapsuleTiledMap);@(CapsuleTiledTileset);$(CapsuleMapsDependencyStamp);$(CapsuleMapsTileSizeStamp);@(_CapsuleMapsTool);@(_CapsuleMapsToolAssembly)"
           Outputs="@(CapsuleTiledMap->'$(CapsuleMapsDerivedDir)%(Filename).map.json')">
@@ -165,14 +185,15 @@
          8191-character line limit a couple of hundred map paths blow past — and the error when
          they do names neither the limit nor a map.
 
-         The Tiled maps are named relative to the shell project, and the tool runs from there. It
+         The Tiled maps are named relative to the importing project, and the tool runs from there.
+         It
          stamps each path into its map's source block verbatim, so this is what decides that
          provenance reads '../asset-sources/maps/room.tmj' rather than a walk out of obj/. -->
 
     <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text. -->
     <ItemGroup>
       <_CapsuleTiledMapArg Include="@(CapsuleTiledMap)">
-        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleShellProjectDir), %(FullPath)))</ProjectRelativePath>
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
       </_CapsuleTiledMapArg>
     </ItemGroup>
 
@@ -191,7 +212,7 @@
   <!-- Separate from the import so the content is wired on an up-to-date build too, where the
        import target is skipped entirely. -->
   <Target Name="CapsuleAddMapsToOutput"
-          Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleTiledMap)' != ''"
+          Condition="'$(CapsuleImportMaps)' == 'true' and '@(CapsuleTiledMap)' != ''"
           DependsOnTargets="CapsuleImportTiledMaps"
           BeforeTargets="AssignTargetPaths">
 

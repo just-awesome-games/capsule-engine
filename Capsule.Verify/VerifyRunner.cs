@@ -6,6 +6,18 @@ namespace Capsule.Verify;
 /// <summary>Drives an <see cref="ISimulation"/> from a deterministic per-tick input script.</summary>
 public static class VerifyRunner
 {
+    /// <summary>
+    /// Runs one step per snapshot until the script is spent or the simulation requests exit.
+    /// </summary>
+    /// <param name="simulation">The simulation to drive; it is stepped, never rendered.</param>
+    /// <param name="bindings">The game's action bindings, as its shell registers them.</param>
+    /// <param name="snapshots">One device snapshot per step, warm-up steps included.</param>
+    /// <param name="options">The fixed step, the warm-up length, and any allocation budgets.</param>
+    /// <param name="metrics">
+    /// Filled with one entry per measured step where it has room for them all; empty collects none.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">The step, the warm-up or a budget is out of range.</exception>
+    /// <exception cref="ArgumentException">The metrics span is too short for the measured steps.</exception>
     public static VerifyRunResult Run(
         ISimulation simulation,
         ActionBindings bindings,
@@ -147,7 +159,7 @@ public static class VerifyRunner
                 "Warm-up steps must fit inside the input script.");
         }
 
-        if (options.MaxAllocatedBytesPerStep < 0 || options.MaxAllocatedBytesPerRun < 0)
+        if (options.MaxAllocatedBytesPerStep is < 0 || options.MaxAllocatedBytesPerRun is < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "Allocation budgets cannot be negative.");
         }

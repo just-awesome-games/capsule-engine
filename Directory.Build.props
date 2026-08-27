@@ -10,23 +10,29 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.2.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
-    <Description>Capsule is a deterministic, code-first C# game engine.</Description>
     <PackageTags>game-engine;2d;monogame;deterministic</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/just-awesome-games/capsule-engine</RepositoryUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- PACKAGE.md, not README.md: nuget.org resolves neither a relative image nor a relative
+         document link, so the packed readme carries absolute ones. -->
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- The XML docs are the API reference a consumer reads in their editor; CS1591 holds every
+         public member of a reference assembly to carrying one. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)README.md"
+    <None Include="$(MSBuildThisFileDirectory)PACKAGE.md"
           Pack="true"
           PackagePath="/"
           Visible="false" />

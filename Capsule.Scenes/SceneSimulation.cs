@@ -5,26 +5,31 @@ namespace Capsule.Scenes;
 /// <summary>
 /// A <see cref="Scenes.Scene"/> behind the engine's simulation seam. It owns the step
 /// choreography — retain positions, run the scene's own step, update entities and their
-/// components in order, land the step's deferred changes, rewrite the frame — and that order is
-/// the contract every scene runs under.
+/// components in order, run the scene's late step, land the step's deferred changes, rewrite the
+/// frame — and that order is the contract every scene runs under.
 /// </summary>
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();
     private bool _disposed;
 
-    /// <summary>Starts <paramref name="scene"/> and builds its first frame.</summary>
+    /// <summary>Starts <paramref name="scene"/> under <paramref name="defaults"/> and builds its first frame.</summary>
+    /// <param name="scene">The scene to run.</param>
+    /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
+    /// <param name="defaults">
+    /// The game's scene defaults, which fill in whatever the scene set nothing for.
+    /// </param>
     /// <exception cref="InvalidOperationException">
     /// The scene has already been started; a scene belongs to one simulation for its lifetime.
     /// </exception>
-    public SceneSimulation(Scene scene, object? entryPayload = null)
+    public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
         Scene = scene;
         try
         {
-            scene.Start(entryPayload);
+            scene.Start(entryPayload, defaults);
             RewriteView();
         }
         catch (Exception startFailure)
@@ -45,12 +50,17 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
     }
 
+    /// <summary>The scene being advanced, for the lifetime of this simulation.</summary>
     public Scene Scene { get; }
 
+    /// <inheritdoc/>
     public bool ExitRequested => Scene.ExitRequested;
 
+    /// <inheritdoc/>
     public FrameView View => _view;
 
+    /// <inheritdoc/>
+    /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
     public void Step(in StepContext context)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -58,6 +68,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.BeginStep();
         Scene.RunStep(in context);
         Scene.UpdateEntities(in context);
+
+        // Ahead of EndStep, not after it: EndStep clears the deferral flag, so a late step run
+        // past it would reach the entity list directly instead of queueing like everything else.
+        Scene.RunLateStep(in context);
         Scene.EndStep();
 
         RewriteView();
@@ -85,7 +99,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     private void RewriteView()
     {
         _view.Clear();
-        _view.Camera = new CameraView(Scene.Camera.Center, Scene.Camera.ViewportSize);
+        _view.Camera = new CameraView(Scene.Camera.PreviousCenter, Scene.Camera.Center, Scene.Camera.ViewportSize);
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 

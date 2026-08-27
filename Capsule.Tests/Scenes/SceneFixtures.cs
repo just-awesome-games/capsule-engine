@@ -62,7 +62,8 @@ internal static class SceneFixtures
         new(1.0 / 60.0, new InputState(new ActionBindings()), tick);
 
     /// <summary>A scene with no map: the spec composes whatever entities it needs.</summary>
-    internal sealed class HookScene(Action<Scene>? start = null, StepHook? step = null) : Scene
+    internal sealed class HookScene(Action<Scene>? start = null, StepHook? step = null, StepHook? lateStep = null)
+        : Scene
     {
         internal int Starts { get; private set; }
 
@@ -73,6 +74,8 @@ internal static class SceneFixtures
         }
 
         protected override void OnStep(in StepContext context) => step?.Invoke(this, in context);
+
+        protected override void OnLateStep(in StepContext context) => lateStep?.Invoke(this, in context);
     }
 
     /// <summary>A scene with no map in sight, composed from spawn data alone.</summary>

@@ -51,12 +51,20 @@ artifact, and there is no step to remember or forget.
 The hook that does this ships in `Capsule.Build`, or directly from the source clone during local
 engine development. A game wires its package/source resolution once and declares
 `<CapsuleGameShell>true</CapsuleGameShell>` on the shell project
-([`docs/consuming-capsule.md`](../docs/consuming-capsule.md)).
+([`docs/consuming-capsule.md`](../docs/consuming-capsule.md)), which imports maps by definition.
+Anything else that has to read the maps a game ships — a headless verify binary, a test project —
+sets `<CapsuleImportMaps>true</CapsuleImportMaps>` and gets the same import and the same content
+without taking a role or a `Capsule.Runtime` reference.
 
 Sources are found at `$(CapsuleAssetSourcesDir)/maps/**/*.tmj`, defaulting to
-`$(MSBuildProjectDirectory)/../asset-sources` — the shell one level below the repo root, with
-`asset-sources/` its sibling. Set `CapsuleAssetSourcesDir` to move them. A map is named after the
-`.tmj` it came from, so those file names are unique across the whole tree.
+`$(MSBuildProjectDirectory)/../asset-sources` — the importing project one level below the repo
+root, with `asset-sources/` its sibling. Set `CapsuleAssetSourcesDir` to move them. A map is named
+after the `.tmj` it came from, so those file names are unique across the whole tree.
+
+The convention is where sources are looked for, not a requirement: a game with no maps yet has
+nothing to import and builds clean. A `CapsuleAssetSourcesDir` the game sets itself is a promise
+that the directory is there, so one pointing at nothing fails the build rather than silently
+importing no maps.
 
 Referenced `.tsj` tilesets anywhere under `CapsuleAssetSourcesDir` are inputs too: editing a
 tile's Class or colour re-derives every map, since a tileset is where a palette comes from. A map

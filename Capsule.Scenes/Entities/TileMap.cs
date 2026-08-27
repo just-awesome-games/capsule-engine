@@ -15,6 +15,7 @@ public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
 
+    /// <param name="grid">The grid to hold and to draw; its palette decides what a tile looks like.</param>
     public TileMap(TileGrid grid)
         : base(Vector2.Zero)
     {
@@ -75,29 +76,22 @@ public sealed class TileMap : Entity
             }
         }
 
+        // The camera's swept bounds, not its settled region: the renderer interpolates the
+        // camera, so a tile the camera only reaches mid-step is still drawn on this frame.
         private (int MinX, int MinY, int MaxX, int MaxY) VisibleBounds(CameraView camera)
         {
-            Vector2 halfSize = camera.Size / 2f;
-            float left = camera.Center.X - halfSize.X;
-            float top = camera.Center.Y - halfSize.Y;
-            float right = camera.Center.X + halfSize.X;
-            float bottom = camera.Center.Y + halfSize.Y;
+            ViewBounds swept = camera.SweptBounds;
 
-            if (!(camera.Size.X > 0f) ||
-                !(camera.Size.Y > 0f) ||
-                !float.IsFinite(left) ||
-                !float.IsFinite(top) ||
-                !float.IsFinite(right) ||
-                !float.IsFinite(bottom))
+            if (!(camera.Size.X > 0f) || !(camera.Size.Y > 0f) || swept.IsEmpty)
             {
                 return default;
             }
 
             return (
-                StartCoordinate(left, grid.TileSize, grid.Width),
-                StartCoordinate(top, grid.TileSize, grid.Height),
-                EndCoordinate(right, grid.TileSize, grid.Width),
-                EndCoordinate(bottom, grid.TileSize, grid.Height));
+                StartCoordinate(swept.Left, grid.TileSize, grid.Width),
+                StartCoordinate(swept.Top, grid.TileSize, grid.Height),
+                EndCoordinate(swept.Right, grid.TileSize, grid.Width),
+                EndCoordinate(swept.Bottom, grid.TileSize, grid.Height));
         }
 
         private static int StartCoordinate(float boundary, int tileSize, int limit)

@@ -5,12 +5,20 @@ is a rule the compiler, a test or CI cannot already enforce for you.
 
 ## Code is the documentation plane
 
-Agents reason through code, not prose. **The whole prose surface is this file,
+Agents reason through code, not prose. **The whole narrative prose surface is this file,
 [`README.md`](README.md), [`docs/architecture.md`](docs/architecture.md),
 [`docs/consuming-capsule.md`](docs/consuming-capsule.md) and
 [`Capsule.Maps/README.md`](Capsule.Maps/README.md).** Nothing else. A new prose document, or
 a second module README, needs a maintainer-ratified reason — a module whose story is told by its
 API gets none.
+
+**Contract and community files sit outside that cap.** They are terms a public repository states
+rather than a story it tells, they are what the platform and a stranger look for by name, and
+their shape is fixed by convention rather than chosen: [`LICENSE`](LICENSE),
+[`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md),
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) and [`PACKAGE.md`](PACKAGE.md), the readme packed into
+every NuGet package. They are not deletable as unratified prose, and they are held to the same
+declarative current-state rule as everything else.
 
 **Documentation is declarative current-state.** It describes the engine as it is, as if written
 fresh: no history sections, no changelogs, no supersession notes, no design-rationale essays, no

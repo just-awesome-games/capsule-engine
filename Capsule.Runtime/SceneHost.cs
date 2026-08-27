@@ -51,18 +51,20 @@ internal delegate Scene SceneResolver(in SceneTarget target);
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
+    private readonly SceneDefaults _defaults;
 
     private SceneTarget _currentTarget;
     private SceneSimulation _current;
     private bool _disposed;
 
-    internal SceneHost(in SceneTarget initialTarget, SceneResolver resolve)
+    internal SceneHost(in SceneTarget initialTarget, SceneResolver resolve, SceneDefaults defaults = default)
     {
         ArgumentNullException.ThrowIfNull(resolve);
 
         _resolve = resolve;
+        _defaults = defaults;
         _currentTarget = initialTarget;
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload);
+        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults);
     }
 
     public bool ExitRequested { get; private set; }
@@ -123,7 +125,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Scene next = _resolve(target);
 
         _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload);
+        _current = new SceneSimulation(next, target.Payload, _defaults);
         _currentTarget = target;
     }
 }

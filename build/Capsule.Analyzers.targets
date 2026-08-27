@@ -1,11 +1,10 @@
 <Project>
 
   <!-- A game's declared role is the complete configuration surface. The analyzer makes that
-       role enforceable without requiring consumers to copy rule lists or editor settings. -->
-  <Target Name="CapsuleValidateProjectRole" BeforeTargets="CoreCompile"
-          Condition="'$(CapsuleGameLogic)' == 'true' and '$(CapsuleGameShell)' == 'true'">
-    <Error Text="Capsule: a project cannot declare both CapsuleGameLogic and CapsuleGameShell." />
-  </Target>
+       role enforceable without requiring consumers to copy rule lists or editor settings.
+       Role legality itself — conflicting roles, a role without the module it needs — is
+       diagnosed by the registry generator (CAP011 onwards), so it reaches the editor live and
+       reads as one family rather than half a build error and half a diagnostic. -->
 
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
     <CompilerVisibleProperty Include="CapsuleGameLogic" />
@@ -16,8 +15,8 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      AdditionalProperties="PublishAot=false;SelfContained=false"
-                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
+                      AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all"
                       Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj')" />
   </ItemGroup>

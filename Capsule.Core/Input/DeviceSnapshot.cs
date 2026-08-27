@@ -44,10 +44,15 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return new DeviceSnapshot(down, 0, default);
     }
 
+    /// <summary>Whether nothing is held and every axis is at rest.</summary>
     public bool IsEmpty => Equals(Empty);
 
+    /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
     public bool IsDown(Key key) => (_down & Bit(key)) != UInt128.Zero;
 
+    /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public bool IsDown(PadButton button) => (_padDown & PadBit(button)) != 0;
 
     /// <summary>Position of <paramref name="axis"/>, past deadzone filtering; 0 at rest.</summary>
@@ -67,6 +72,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public DeviceSnapshot Without(PadButton button) => new(_down, (ushort)(_padDown & ~PadBit(button)), _axes);
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
+    /// <param name="axis">The axis to place; never <see cref="PadAxis.None"/>.</param>
     /// <param name="value">In [-1, 1] for a stick, [0, 1] for a trigger.</param>
     /// <exception cref="ArgumentOutOfRangeException">The axis names none, or the value is outside its range.</exception>
     public DeviceSnapshot WithAxis(PadAxis axis, float value)
@@ -94,6 +100,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(_down | newer._down, (ushort)(_padDown | newer._padDown), newer._axes);
 
+    /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
     public bool Equals(DeviceSnapshot other)
     {
         if (_down != other._down || _padDown != other._padDown)
@@ -112,8 +119,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return true;
     }
 
+    /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is DeviceSnapshot other && Equals(other);
 
+    /// <inheritdoc/>
     public override int GetHashCode()
     {
         HashCode hash = new();
@@ -127,8 +136,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return hash.ToHashCode();
     }
 
+    /// <summary>Whether the two snapshots capture the same instant.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
+    /// <summary>Whether the two snapshots differ in anything held or any axis.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     private static UInt128 Bit(Key key)

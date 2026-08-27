@@ -1,4 +1,4 @@
 using Capsule.Runtime.Generated;
 using PackageConsumer.Game;
 
-GameBoot.Configure().RunScene<MainMenu>();
+GameBoot.Configure("Package Consumer").RunScene<MainMenu>();

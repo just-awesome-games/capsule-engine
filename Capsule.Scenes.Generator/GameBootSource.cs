@@ -144,6 +144,13 @@ internal static class GameBootSource
             context.ReportDiagnostic(Diagnostic.Create(RegistryDiagnostics.InvalidRegistryProvider, Location.None, assemblyName));
         }
 
+        // The entry point exists to hand the game's scenes over, so a shell with no logic assembly
+        // to take them from is a wiring mistake, caught here rather than at the first RunScene.
+        if (model.Providers.IsEmpty && model.InvalidAssemblies.IsEmpty)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(RegistryDiagnostics.ShellRoleMissingLogic, Location.None));
+        }
+
         ReportDuplicateClaims(context, model.Providers);
         context.AddSource(FileName, SourceText.From(Render(model.Providers), Encoding.UTF8));
     }
@@ -205,49 +212,35 @@ internal static class GameBootSource
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
         source.AppendLine("    public static class GameBoot");
         source.AppendLine("    {");
-
-        if (!providers.IsEmpty)
-        {
-            source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();");
-            source.AppendLine();
-        }
-
+        source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();");
+        source.AppendLine();
         source.AppendLine("        /// <summary>The engine, configured with every registry this game generates.</summary>");
-        if (providers.IsEmpty)
+        source.AppendLine("        /// <param name=\"gameName\">The game's display name: its window title, and its crash-log folder as a slug.</param>");
+        source.AppendLine("        public static global::Capsule.Runtime.SceneEngineBuilder Configure(string gameName) =>");
+        source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes);");
+        source.AppendLine();
+        source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry CreateScenes()");
+        source.AppendLine("        {");
+        source.AppendLine("            var entities = new global::System.Collections.Generic.List<global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>>();");
+        foreach (RegistryProviderModel provider in providers)
         {
-            source.AppendLine("        public static global::Capsule.Runtime.EngineBuilder Configure() =>");
-            source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure();");
-        }
-        else
-        {
-            source.AppendLine("        public static global::Capsule.Runtime.EngineBuilder Configure() =>");
-            source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure()");
-            source.AppendLine("                .WithScenes(Scenes);");
-            source.AppendLine();
-            source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry CreateScenes()");
-            source.AppendLine("        {");
-            source.AppendLine("            var entities = new global::System.Collections.Generic.List<global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>>();");
-            foreach (RegistryProviderModel provider in providers)
-            {
-                source.Append("            ");
-                source.Append(provider.QualifiedName);
-                source.AppendLine(".AddEntities(entities);");
-            }
-
-            source.AppendLine("            var scenes = new global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration>();");
-            foreach (RegistryProviderModel provider in providers)
-            {
-                source.Append("            ");
-                source.Append(provider.QualifiedName);
-                source.AppendLine(".AddScenes(scenes);");
-            }
-
-            source.AppendLine("            return new global::Capsule.Scenes.SceneRegistry(");
-            source.AppendLine("                new global::Capsule.Scenes.Spawning.EntityRegistry(entities),");
-            source.AppendLine("                scenes);");
-            source.AppendLine("        }");
+            source.Append("            ");
+            source.Append(provider.QualifiedName);
+            source.AppendLine(".AddEntities(entities);");
         }
 
+        source.AppendLine("            var scenes = new global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration>();");
+        foreach (RegistryProviderModel provider in providers)
+        {
+            source.Append("            ");
+            source.Append(provider.QualifiedName);
+            source.AppendLine(".AddScenes(scenes);");
+        }
+
+        source.AppendLine("            return new global::Capsule.Scenes.SceneRegistry(");
+        source.AppendLine("                new global::Capsule.Scenes.Spawning.EntityRegistry(entities),");
+        source.AppendLine("                scenes);");
+        source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");
         return source.ToString();

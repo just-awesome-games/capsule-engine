@@ -3,9 +3,16 @@ namespace Capsule.Scenes;
 /// <summary>The operation a scene asks its host to perform after the current step.</summary>
 public enum SceneTransitionKind
 {
+    /// <summary>Shut the host down once the current step finishes.</summary>
     Exit,
+
+    /// <summary>Reconstruct the current scene from the target that opened it.</summary>
     Restart,
+
+    /// <summary>Replace the current scene with one named by class.</summary>
     Scene,
+
+    /// <summary>Replace the current scene with the one composed from a named map.</summary>
     Map,
 }
 
@@ -29,6 +36,7 @@ public readonly record struct SceneTransition
         HasPayload = hasPayload;
     }
 
+    /// <summary>Which operation the host is being asked to perform.</summary>
     public SceneTransitionKind Kind { get; }
 
     /// <summary>The requested scene class when <see cref="Kind"/> is <see cref="SceneTransitionKind.Scene"/>.</summary>

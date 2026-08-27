@@ -107,6 +107,31 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(8, 0), tile.Position);
     }
 
+    // The renderer interpolates the camera, so terrain is culled against where the camera has
+    // been as well as where it ended: a tile crossed mid-step is drawn on that frame.
+    [Fact]
+    public void TerrainEmitsTheTilesTheCameraSweepsAcross()
+    {
+        TileGrid grid = new(
+            tileSize: 8,
+            width: 4,
+            height: 1,
+            [TileGrid.EmptyTile, new TileDefinition("solid", SceneFixtures.Solid)],
+            [1, 1, 1, 1]);
+
+        static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(28, 4);
+
+        SceneFixtures.HookScene scene = new(step: Sweep);
+        scene.Camera.Center = new Vector2(4, 4);
+        scene.Camera.ViewportSize = new Vector2(8, 8);
+        scene.Add(new TileMap(grid));
+
+        SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(4, simulation.View.Quads.Length);
+    }
+
     [Fact]
     public void TerrainEmitsNothingBeforeTheCameraOpens()
     {

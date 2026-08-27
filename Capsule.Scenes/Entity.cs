@@ -23,6 +23,7 @@ public class Entity
         PreviousPosition = position;
     }
 
+    /// <summary>Where the entity is now, in world units.</summary>
     public Vector2 Position { get; set; }
 
     /// <summary>

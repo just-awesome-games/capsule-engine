@@ -7,8 +7,8 @@ namespace Capsule.Tests.Scenes;
 /// The shell half of the generator, over the two compilations a game really has. What is asserted
 /// is that the entry point reaches the registry across the project reference, that the shell gets
 /// no registry of its own though it sees Capsule.Scenes through the game assembly, that the game
-/// assembly gets no entry point though it sees the engine host, and that a shell finding no
-/// registry still hands its <c>Program</c> a builder that compiles.
+/// assembly gets no entry point though it sees the engine host, and that a shell referencing no
+/// game assembly at all fails the build rather than generating an entry point naming no scenes.
 /// </summary>
 public sealed class GameBootGeneratorTests
 {
@@ -27,7 +27,7 @@ public sealed class GameBootGeneratorTests
 
         public static class Program
         {
-            public static void Boot() => GameBoot.Configure().WithWindow("Spec", 320, 180);
+            public static void Boot() => GameBoot.Configure("Spec Game").WithWindow(320, 180);
         }
         """;
 
@@ -39,7 +39,7 @@ public sealed class GameBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
-            ".WithScenes(Scenes)",
+            "CapsuleEngine.Configure(gameName, Scenes)",
             GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile),
             StringComparison.Ordinal);
     }
@@ -66,19 +66,15 @@ public sealed class GameBootGeneratorTests
         Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameBootFile));
     }
 
-    // A shell running a hand-written simulation references no game assembly and needs no registry,
-    // so the entry point is emitted either way and the shell's Program compiles the same.
+    // The shell role exists to hand a game's scenes to the engine, so a shell that references no
+    // assembly declaring any is wired wrong. Diagnosed at compile time rather than left to fail on
+    // the player's machine at the first RunScene.
     [Fact]
-    public void AShellReferencingNoGeneratedRegistry_BootsUnwired()
+    public void AShellReferencingNoLogicAssembly_FailsTheBuild()
     {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(ShellSource);
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShell(ShellSource).Diagnostics;
 
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
-        Assert.DoesNotContain(
-            "WithScenes",
-            GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile),
-            StringComparison.Ordinal);
+        Assert.Equal("CAP015", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     [Fact]

@@ -6,6 +6,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule</RootNamespace>
     <PackageId>JAG.Capsule.Core</PackageId>
+    <Description>The pure contracts a Capsule game codes against: the simulation seam, the fixed step, input as named actions, and render intent. No package references, so game logic cannot reach a graphics device.</Description>
   </PropertyGroup>
 
 </Project>

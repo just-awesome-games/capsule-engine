@@ -1,11 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- An executable, not a library: publishing proves the graph is analyzable, and only running
+       the result proves a Capsule game boots. It declares no Capsule role — it drives the game's
+       logic assembly rather than being part of it — and never references Capsule.Runtime, so the
+       binary CI runs is device-free and opens no window.
+
+       It does import maps, though: the map a shipped game reads at Assets/Maps is the artefact
+       most at risk under trimming and ahead-of-time compilation, so the binary CI publishes and
+       runs is the one that reads it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PackageConsumer.Verify</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <CapsuleImportMaps>true</CapsuleImportMaps>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
     <PackageReference Include="JAG.Capsule.Verify" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
     <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Verify/Capsule.Verify.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Game/PackageConsumer.Game.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Maps</RootNamespace>
     <PackageId>JAG.Capsule.Maps</PackageId>
+    <Description>Capsule's map format and its runtime loader: a tile grid, the palette its tiles draw from, and the typed objects placed over it. Takes no dependency on any authoring tool.</Description>
   </PropertyGroup>
 
   <ItemGroup>

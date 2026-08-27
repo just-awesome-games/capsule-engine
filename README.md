@@ -30,30 +30,46 @@ NuGet.org. The complete two-project bootstrap is in
 C#:
 
 ```csharp
+using System.Numerics;
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-GameBoot.Configure()
-    .WithWindow("My Game", 1280, 720, resizable: true)
-    .WithFixedStep(60)
-    .WithCrashLog("MyGame")
+GameBoot.Configure("My Game")
+    .WithCameraViewport(new Vector2(320f, 180f))
     .WithBindings(MyGameInput.Bind)
     .RunScene("room-01");
 ```
 
 `GameBoot` is generated into the shell already carrying the registry the compiler built from the
 game's own classes, so a boot registers nothing and every line in the chain is a knob with a
-default.
+default. The game's name is the one thing it asks for: the window's title, and the folder the
+crash log writes under as a slug of it — `WithWindowTitle` and `WithCrashLog` replace either, and
+`WithoutCrashLog()` turns off the log a windowed build has nowhere else to report a crash to. The
+window opens at 1280x720 and resizable, and the fixed step at 60 Hz.
 `RunScene` takes a map name and boots the class claiming that map — or a plain `MapScene` when no
 class claims it; `RunScene<TScene>()` boots a scene by class instead. A scene composed from a map
 derives from `MapScene`, which has already added the terrain and spawned the map's objects,
-leaving the subclass `OnStart` to open the camera and `OnStep` for scene-wide input. It runs until
-game code exits or replaces it.
+leaving the subclass `OnStart` for whatever the game default does not cover, `OnStep` for
+scene-wide input, and `OnLateStep` for camera policy. It runs until game code exits or replaces
+it.
+
+`WithCameraViewport` and `WithSampling` set the two values every scene would otherwise restate —
+what a camera spans and how world textures filter — and any scene still declares its own where it
+differs.
 
 Below the scene sits the seam it is built on. A game that wants its own container hands the host
-an `ISimulation` instead — `Run(simulation)` — which advances one fixed step at a time, reads
-input as named actions, sets `ExitRequested` when it wants to stop, and exposes what to draw as a
-`FrameView`. Neither ever touches a graphics device.
+an `ISimulation` instead — `CapsuleEngine.Configure(name).Run(simulation)` — which advances one
+fixed step at a time, reads input as named actions, sets `ExitRequested` when it wants to stop,
+and exposes what to draw as a `FrameView`. Neither ever touches a graphics device. That entry
+point names no scenes and so has no `RunScene` at all: the two differ by type, and a boot that
+could not name its scenes is a compile error rather than a message on a player's machine.
+
+**The camera moves with the world it looks at.** A frame drawn between two steps interpolates the
+camera by the same fraction it interpolates every quad, so a scene that scrolls does not slide
+back and catch up once per step. A cut — a respawn, a warp, the first frame of a scene — goes
+through `Camera.Teleport`, which moves without interpolating. A scene aims it in `OnLateStep`,
+which runs once every entity has moved, so a camera framing one entity, the midpoint of two, or a
+path belonging to none of them frames this step rather than the one before it.
 
 **Capsule never stretches what it draws.** The camera's world region is fitted into the window
 scaled uniformly and centred, with black bars over whatever slack the window's shape leaves, so a
@@ -142,10 +158,12 @@ dotnet pack --configuration Release --output artifacts/packages
 ```
 
 With coverage, gated at a floor of 80% line coverage over `Capsule.Core`, `Capsule.Maps`,
-`Capsule.Scenes` and `Capsule.Verify`:
+`Capsule.Runtime`, `Capsule.Scenes` and `Capsule.Verify`. `CapsuleGame` and `FrameRenderer` need a
+live window and device, so they are excluded by file — the assembly around them is gated, and a
+new device-free type in it is gated the day it lands:
 
 ```
-dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
+dotnet test -p:CollectCoverage=true "-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*" "-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs" -p:CoverletOutputFormat=cobertura -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total
 ```
 
 To restore exactly the committed dependency set — as CI does:
@@ -154,18 +172,27 @@ To restore exactly the committed dependency set — as CI does:
 dotnet restore --locked-mode
 ```
 
-The pre-commit hook mirrors the CI gates. Activate it once per clone:
+The pre-commit hook runs the fast subset of the CI gates — locked restore, Debug build, format
+check, tests. Activate it once per clone:
 
 ```
 git config core.hooksPath hooks
 ```
 
-`Capsule.Verify` replays per-tick input, gates steady-state allocations and records timing/render
-metrics; games supply state and image artifact writers. A deterministic render-intent image is not
-a real-device framebuffer test, which remains a game/runtime integration concern.
+`Capsule.Verify` replays per-tick input, gates steady-state allocations against the budgets a
+caller opts into, and records timing/render metrics; games supply state and image artifact
+writers. The engine drives it against a workload the size of a real stage — a 512x64 map, two
+hundred entities, a camera moving every step, twenty spawns and twenty despawns a second — and CI
+holds that workload to allocating nothing of the engine's own and to reconstructing a scene
+without touching a file. Those two are deterministic; wall time on a shared runner is not, and is
+recorded rather than gated. A deterministic render-intent image is not a real-device framebuffer test, which remains
+a game/runtime integration concern. `tests/PackageConsumer/Verify` is a working example, and CI
+publishes it NativeAOT and runs it on Linux and Windows.
 
 ## Further reading
 
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is where to start on a change: how to build, the gates it
+must pass, and what kinds of change are welcome.
 [`AGENTS.md`](AGENTS.md) is the rules any contributor — human or agent — works under here.
 [`docs/consuming-capsule.md`](docs/consuming-capsule.md) is the other side of the fence: what a
 game repository sets up to build against this one.

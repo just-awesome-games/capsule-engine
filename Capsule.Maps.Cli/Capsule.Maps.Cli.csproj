@@ -8,6 +8,8 @@
     <RootNamespace>Capsule.Maps.Cli</RootNamespace>
     <AssemblyName>Capsule.Maps.Cli</AssemblyName>
     <IsPackable>false</IsPackable>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier></RuntimeIdentifier>

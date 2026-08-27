@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Verify</RootNamespace>
     <PackageId>JAG.Capsule.Verify</PackageId>
+    <Description>Capsule's device-free verification runner: replays a per-tick input script through a simulation, gates steady-state allocations, and records timing and render metrics for a game's own artifact sink.</Description>
   </PropertyGroup>
 
   <ItemGroup>

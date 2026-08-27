@@ -60,7 +60,7 @@ The game root's `Directory.Build.props` owns the one version and the optional so
         Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
 
 <PropertyGroup>
-  <CapsuleVersion>0.1.0</CapsuleVersion>
+  <CapsuleVersion>0.2.0</CapsuleVersion>
   <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
   <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   <NuGetLockFilePath Condition="'$(CapsuleSourceRoot)' != ''">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>
@@ -139,7 +139,18 @@ see. Each logic project publishes a generated registry provider for the classes 
 the one shell project aggregates every referenced provider, diagnoses duplicate claims across
 assemblies, and emits `GameBoot` already holding the combined registry. A game may therefore split
 logic into several modules without client registration or reflection. Exactly one project takes
-the shell role; tests and ordinary libraries take neither role.
+the shell role; tests and ordinary libraries take neither role. A shell that references no logic
+assembly has no scenes to boot and is `CAP015`.
+
+The shell role also imports the game's maps. A project that takes no role but still has to read
+them — a headless verify binary, a test project driving a map-backed scene — asks for the import
+on its own instead, and gets the same `Assets/Maps` content beside its own executable:
+
+```xml
+<PropertyGroup>
+  <CapsuleImportMaps>true</CapsuleImportMaps>
+</PropertyGroup>
+```
 
 ### 5. Wire the references
 
@@ -199,12 +210,15 @@ committed graph. The release build omits `CapsuleSourcePath` and proves the lock
 `Program.cs` is the whole shell:
 
 ```csharp
+using System.Numerics;
+using Capsule.Rendering;
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-GameBoot.Configure()
-    .WithWindow("My Game", 1280, 720, resizable: true)
-    .WithCrashLog("MyGame")
+GameBoot.Configure("My Game")
+    .WithRenderResolution(320, 180)
+    .WithCameraViewport(new Vector2(320f, 180f))
+    .WithSampling(TextureSampling.Point)
     .WithBindings(MyGameInput.Bind)
     .RunScene("room-01");
 ```
@@ -215,15 +229,44 @@ every boot verb resolves through. So a game's boot registers nothing, and every 
 is a knob: set only what you disagree with, because every one ships a default and restating one
 you agree with is noise.
 
-`CapsuleEngine.Configure()` is the same builder unwired, taking a hand-built `SceneRegistry`
-through `WithScenes`. That is the path a test or a bespoke host takes; a game boots through
-`GameBoot`.
+The game's name is the one required argument. It titles the window, and it slugs to the folder the
+crash log writes under — so a crash in a windowed build, which has no console to print to, leaves
+an artefact behind without the game asking. `WithWindowTitle(title)` and `WithCrashLog(folder)`
+replace either independently, and `WithoutCrashLog()` opts out of the log. A name no safe folder
+comes out of — punctuation alone, or a reserved device name — is rejected at the `Configure` call,
+like every other misconfiguration on the builder. The window itself defaults to 1280x720 and
+resizable, which is safe because Capsule never stretches what it draws.
+
+`CapsuleEngine.Configure(gameName, scenes)` is the same builder taking a hand-built
+`SceneRegistry`, which is the path a test or a bespoke host takes; a game boots through `GameBoot`.
+`CapsuleEngine.Configure(gameName)` names no scenes at all and so has no `RunScene` — it hosts an
+`ISimulation` through `Run` and nothing else. The two entry points differ by type, so a boot that
+could not name its scenes does not compile rather than failing on a player's machine.
 
 `RunScene(mapName)` resolves its argument against `Assets/Maps/<name>.map.json` beside the
 executable, which is where the map hook ships it, so the name is the Tiled map's own. It runs the
 class claiming that map, or a plain `MapScene` when no class claims it. `RunScene<TScene>()` boots
 a scene by class instead, loading the map backing it first where one does. A map file that is not
 there fails at load, naming the full path it looked for.
+
+The map being played is kept parsed, so reconstructing a scene from it reaches no file and parses
+nothing — which is what `RequestRestart` does, and what a game dropping the player back at a
+checkpoint does many times a session. One map is held, never a history of them: moving to another
+map reads that one and lets the previous go.
+
+### Game-level scene defaults
+
+Two values every scene would otherwise restate are set once on the builder:
+
+- `WithCameraViewport(Vector2)` — the world units a scene's camera opens spanning. These are world
+  units and stay independent of `WithRenderResolution`'s pixels; the two coincide only where a game
+  wants one unit to be one pixel.
+- `WithSampling(TextureSampling)` — how world-space textures filter, which is where a pixel-art
+  game declares `TextureSampling.Point` once for the whole game.
+
+A scene that sets either keeps its own value, whether it sets it in its constructor or in
+`OnStart`. Declare neither and a camera spans nothing until a scene opens it, and sampling is
+`TextureSampling.Linear`.
 
 ## Scenes
 
@@ -242,7 +285,8 @@ using Capsule.Scenes;             // Scene, MapScene, MapSceneContext, Entity, C
 
 public sealed class Room01(MapSceneContext context) : MapScene(context)
 {
-    protected override void OnStart() => Camera.ViewportSize = new Vector2(320f, 180f);
+    // Only where this room disagrees with the game's own default span.
+    protected override void OnStart() => Camera.ViewportSize = new Vector2(640f, 360f);
 
     protected override void OnStep(in StepContext step)
     {
@@ -251,6 +295,9 @@ public sealed class Room01(MapSceneContext context) : MapScene(context)
             RequestExit();
         }
     }
+
+    // Every entity has moved by now, so this frames where the player is rather than where it was.
+    protected override void OnLateStep(in StepContext step) => Camera.Center = FindSingle<Player>().Position;
 }
 ```
 
@@ -263,13 +310,23 @@ public sealed class MainMenu : Scene
 }
 ```
 
-- `OnStart` runs once, before the first frame is built, which is where the camera opens.
+- `OnStart` runs once, before the first frame is built and after the game's defaults have landed,
+  which is where a scene aims and opens its camera.
 - `OnStop` runs once before deterministic reverse-order entity detachment when a scene is replaced,
   restarted, or its host ends.
 - `OnStep` runs once per fixed step, after every position is retained and ahead of every entity
-  update.
+  update — scene-wide input, and anything else reading the scene as it stood at the start of the
+  step.
+- `OnLateStep` runs once per fixed step, after every entity and component has updated and before
+  the frame is built. A position read there is this step's, so this is where camera policy lives;
+  an add or remove issued there still lands at the end of the step like any other.
 - `Size` is the scene's world extent, and a `MapScene` takes it from its tilemap.
-- `Camera` is always there, carries a centre and a viewport size, and starts spanning nothing.
+- `Camera` is always there, carries a centre and a viewport size, and opens at the game's default
+  span — spanning nothing where the game declares none. Setting `Center` moves it, and the frame
+  interpolates that move with everything it is looking at; `Teleport(Vector2)` cuts to a centre
+  with no interpolation, which is what a respawn or a warp wants. A scene's first frame never
+  interpolates, wherever `OnStart` aimed it. Aim it in `OnLateStep`: a camera framing one entity,
+  the midpoint of two, or a path belonging to no entity all read the step that just settled.
 - `MapScene` keeps the `Map` it was composed from and its `Tiles` as protected members, so a
   subclass can query the terrain it is standing on.
 
@@ -363,7 +420,9 @@ either. A game repository never adds a backend `PackageReference` of its own.
 
 A game-owned verify executable references `Capsule.Verify` and its logic assembly, but not
 `Capsule.Runtime`. It gives `VerifyRunner` the real simulation, bindings, one `DeviceSnapshot` per
-tick, warm-up count and allocation budgets. Game-owned artifact writers run after measurement.
+tick, warm-up count and, where it wants them asserted, allocation budgets. A budget left unset
+asserts nothing; `0` asserts that nothing allocates. Game-owned artifact writers run after
+measurement. `tests/PackageConsumer/Verify` in the engine repository is a minimal one end to end.
 
 The runner is device-free. A render-intent image is deterministic but is not a MonoGame framebuffer
 test; games needing that claim add a separately labelled real-device integration.

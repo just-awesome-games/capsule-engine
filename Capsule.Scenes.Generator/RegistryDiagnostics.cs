@@ -122,4 +122,12 @@ internal static class RegistryDiagnostics
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor ShellRoleMissingLogic = new(
+        "CAP015",
+        "A game-shell project must reference a game-logic assembly",
+        "This project declares CapsuleGameShell but references no assembly declaring CapsuleGameLogic, so its entry point would name no scenes; reference the game's logic project",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

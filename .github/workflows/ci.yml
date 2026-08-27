@@ -86,17 +86,36 @@ jobs:
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
 
-      # Include filters are joined with the MSBuild comma escape, not a literal comma.
-      # Capsule.Maps.Cli and Capsule.Scenes.Generator are dev-time tools and are not
+      # The workload-scale gates, run uninstrumented and named on their own so a regression
+      # reads as one. They assert allocation and file access, not wall time: those two are
+      # deterministic where a duration on a shared runner is not. They run again inside the
+      # coverage pass below; this is the run whose numbers are the engine's own, and detailed
+      # verbosity is what puts them in the log.
+      - name: Performance gates
+        run: >
+          dotnet test
+          --configuration Release
+          --no-build
+          --filter FullyQualifiedName~Capsule.Tests.Performance
+          --logger "console;verbosity=detailed"
+
+      # Include and exclude filters are joined with the MSBuild comma escape, not a literal
+      # comma. Capsule.Maps.Cli and Capsule.Scenes.Generator are dev-time tools and are not
       # gated; the importer is covered through the golden fixtures and the generator
       # through its own specs either way.
+      #
+      # Capsule.Runtime is gated on everything a test can reach — the builders, the letterbox
+      # fit, the scheduler, the scene host, deadzone filtering. The two types that need a live
+      # window and device are excluded by file rather than the assembly by name, so a new
+      # device-free type in Runtime is gated the day it lands.
       - name: Test with coverage
         run: >
           dotnet test
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*%2c[Capsule.Verify]*'
+          '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml
           -p:Threshold=80
@@ -118,8 +137,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
+            verify-binary: ./artifacts/aot-verify/PackageConsumer.Verify
           - os: windows-latest
             runtime: win-x64
+            verify-binary: ./artifacts/aot-verify/PackageConsumer.Verify.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -134,6 +155,15 @@ jobs:
       - name: Build engine (Release)
         run: dotnet build --configuration Release --no-restore
 
+      # The specs are platform-agnostic; what they assert is not. The crash log's reserved
+      # device names and its application-data path are Windows rules, and the Linux leg above
+      # never executes them.
+      - name: Test
+        if: matrix.os == 'windows-latest'
+        run: dotnet test --configuration Release --no-build
+
+      # The shell links the graphics backend, so publishing it is the compile-level check that
+      # a whole game — window and all — stays ILC-analyzable.
       - name: Publish source consumer with NativeAOT
         run: >
           dotnet publish tests/PackageConsumer/Shell/PackageConsumer.Shell.csproj
@@ -142,3 +172,27 @@ jobs:
           --self-contained true
           -p:PublishAot=true
           -p:CapsuleSourcePath=../..
+
+      # Publishing proves the graph is analyzable. Only running the result proves the game
+      # boots, and boot is where ahead-of-time compilation actually fails: the verify consumer
+      # is device-free, so its published binary runs headless on both platforms.
+      - name: Publish verify consumer with NativeAOT
+        run: >
+          dotnet publish tests/PackageConsumer/Verify/PackageConsumer.Verify.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --self-contained true
+          -p:PublishAot=true
+          -p:CapsuleSourcePath=../..
+          --output artifacts/aot-verify
+
+      - name: Run the published verify consumer
+        run: ${{ matrix.verify-binary }} artifacts/verify
+
+      - name: Upload verify artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verify-${{ matrix.runtime }}
+          path: artifacts/verify
+          if-no-files-found: warn

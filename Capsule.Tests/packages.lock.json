@@ -153,7 +153,7 @@
       "capsule.maps.cli": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Maps": "[0.1.0, )"
+          "JAG.Capsule.Maps": "[0.2.0, )"
         }
       },
       "capsule.scenes.generator": {
@@ -165,29 +165,29 @@
       "JAG.Capsule.Maps": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Core": "[0.1.0, )"
+          "JAG.Capsule.Core": "[0.2.0, )"
         }
       },
       "JAG.Capsule.Runtime": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Core": "[0.1.0, )",
-          "JAG.Capsule.Maps": "[0.1.0, )",
-          "JAG.Capsule.Scenes": "[0.1.0, )",
+          "JAG.Capsule.Core": "[0.2.0, )",
+          "JAG.Capsule.Maps": "[0.2.0, )",
+          "JAG.Capsule.Scenes": "[0.2.0, )",
           "MonoGame.Framework.DesktopGL": "[3.8.5.1, )"
         }
       },
       "JAG.Capsule.Scenes": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Core": "[0.1.0, )",
-          "JAG.Capsule.Maps": "[0.1.0, )"
+          "JAG.Capsule.Core": "[0.2.0, )",
+          "JAG.Capsule.Maps": "[0.2.0, )"
         }
       },
       "JAG.Capsule.Verify": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Core": "[0.1.0, )"
+          "JAG.Capsule.Core": "[0.2.0, )"
         }
       }
     }

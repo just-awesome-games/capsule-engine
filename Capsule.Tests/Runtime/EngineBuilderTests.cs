@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -11,6 +12,8 @@ namespace Capsule.Tests.Runtime;
 /// </summary>
 public sealed class EngineBuilderTests
 {
+    private const string GameName = "Spec Game";
+
     // Zero would divide to an infinite step rather than fail, so the guard is the only
     // thing between a misconfiguration and a loop that never advances.
     [Theory]
@@ -18,7 +21,7 @@ public sealed class EngineBuilderTests
     [InlineData(-60)]
     public void WithFixedStep_RejectsANonPositiveRate(int hertz)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithFixedStep(hertz));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithFixedStep(hertz));
     }
 
     // A non-positive resolution reaches the host as a render-target size, which throws deep
@@ -29,7 +32,7 @@ public sealed class EngineBuilderTests
     [InlineData(-320, -180)]
     public void WithRenderResolution_RejectsANonPositiveExtent(int width, int height)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithRenderResolution(width, height));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithRenderResolution(width, height));
     }
 
     // NaN passes every comparison-based range guard and an infinite ceiling never binds —
@@ -39,7 +42,7 @@ public sealed class EngineBuilderTests
     [InlineData(double.PositiveInfinity)]
     public void WithSpikeClamp_RejectsANonFiniteCeiling(double seconds)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure().WithSpikeClamp(seconds));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithSpikeClamp(seconds));
     }
 
     // Same NaN hole on the float side: a NaN radius would ride into PadFilter and poison
@@ -50,7 +53,7 @@ public sealed class EngineBuilderTests
     public void WithGamepadDeadzones_RejectsANaNRadius(float stick, float trigger)
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => CapsuleEngine.Configure().WithGamepadDeadzones(stick, trigger));
+            () => CapsuleEngine.Configure(GameName).WithGamepadDeadzones(stick, trigger));
     }
 
     // A clamp below one step could never carry a whole step, so the simulation would fall
@@ -59,11 +62,36 @@ public sealed class EngineBuilderTests
     [Fact]
     public void Run_RejectsASpikeClampBelowTheFixedStep()
     {
-        EngineBuilder builder = CapsuleEngine.Configure()
+        SimulationEngineBuilder builder = CapsuleEngine.Configure(GameName)
             .WithFixedStep(60)
             .WithSpikeClamp(1.0 / 120);
 
         Assert.Throws<InvalidOperationException>(() => builder.Run(new IdleSimulation()));
+    }
+
+    // The crash log is on by default under a folder slugged from the game's name, so a name no
+    // safe folder comes out of has to fail here rather than at the moment the game crashes —
+    // the one moment nothing is left to report it.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("!!!")]
+    [InlineData("nul")]
+    [InlineData("CON")]
+    public void Configure_RejectsAGameNameThatNoSafeCrashLogFolderSlugsOutOf(string gameName)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(gameName));
+    }
+
+    // Separators and punctuation are ordinary in a display name and become one hyphen each;
+    // only what survives has to be a directory name.
+    [Theory]
+    [InlineData("X Plus")]
+    [InlineData("JAG.Studios.XPlus")]
+    [InlineData("CONsole")]
+    public void Configure_AcceptsAnOrdinaryGameName(string gameName)
+    {
+        CapsuleEngine.Configure(gameName);
     }
 
     // The separator and device cases are Windows-invalid but legal on POSIX: they must be
@@ -80,7 +108,7 @@ public sealed class EngineBuilderTests
     {
         // Each of these either escapes %LOCALAPPDATA%/<appName> or, on Windows, resolves
         // to something other than a directory.
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure().WithCrashLog(appName));
+        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(GameName).WithCrashLog(appName));
     }
 
     // The ends of the control range: an off-by-one in the set builder loses one of them.
@@ -92,7 +120,7 @@ public sealed class EngineBuilderTests
     public void WithCrashLog_RejectsAControlCharacter(int codePoint)
     {
         Assert.Throws<ArgumentException>(
-            () => CapsuleEngine.Configure().WithCrashLog($"Game{(char)codePoint}Name"));
+            () => CapsuleEngine.Configure(GameName).WithCrashLog($"Game{(char)codePoint}Name"));
     }
 
     // The false-positive side: a device name is a whole stem, not a prefix, and an
@@ -104,40 +132,47 @@ public sealed class EngineBuilderTests
     [InlineData("COM10")]
     public void WithCrashLog_AcceptsAnOrdinaryApplicationName(string appName)
     {
-        CapsuleEngine.Configure().WithCrashLog(appName);
+        CapsuleEngine.Configure(GameName).WithCrashLog(appName);
     }
 
-    // Boot resolves through the generated registry, and reaching this means the game booted from
-    // the unwired entry point instead — which is the whole mitigation for there being two, so the
-    // failure has to name the generated one as well as the call that fills it in.
     [Fact]
-    public void RunScene_WithoutARegistry_NamesWhatToConfigure()
+    public void WithWindowTitle_RejectsABlankTitle()
     {
-        InvalidOperationException byClass = Assert.Throws<InvalidOperationException>(
-            () => CapsuleEngine.Configure().RunScene<Menu>());
-        InvalidOperationException byMap = Assert.Throws<InvalidOperationException>(
-            () => CapsuleEngine.Configure().RunScene("room-01"));
+        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(GameName).WithWindowTitle("  "));
+    }
 
-        foreach (string message in new[] { byClass.Message, byMap.Message })
-        {
-            Assert.Contains("GameBoot", message, StringComparison.Ordinal);
-            Assert.Contains("WithScenes", message, StringComparison.Ordinal);
-        }
+    // A NaN span passes every comparison-based guard and a negative one inverts the projection:
+    // either reaches the renderer as a camera that quietly draws nothing.
+    [Theory]
+    [InlineData(float.NaN, 180f)]
+    [InlineData(320f, float.PositiveInfinity)]
+    [InlineData(-320f, 180f)]
+    [InlineData(320f, -180f)]
+    public void WithCameraViewport_RejectsASpanThatIsNotFiniteAndNonNegative(float width, float height)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => SceneBuilder().WithCameraViewport(new Vector2(width, height)));
+    }
+
+    [Fact]
+    public void WithSampling_RejectsAModeThatIsNotDeclared()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => SceneBuilder().WithSampling((TextureSampling)99));
     }
 
     [Fact]
     public void RunScene_ForAClassTheRegistryDoesNotHold_NamesWhatItDoesHold()
     {
-        EngineBuilder builder = CapsuleEngine.Configure().WithScenes(Scenes(MenuRegistration));
-
-        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => builder.RunScene<Room01>());
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => SceneBuilder().RunScene<Room01>());
 
         Assert.Contains("Room01", failure.Message, StringComparison.Ordinal);
         Assert.Contains("Menu", failure.Message, StringComparison.Ordinal);
     }
 
     // Maps ship into one flat directory beside the executable, so a name that is a path or that
-    // Windows resolves as a device would not name a file the build hook wrote.
+    // Windows resolves as a device would not name a file the build hook wrote. Reached through a
+    // full chain, which is also what holds the registry-carrying type across every With: were any
+    // of them to hand back the registry-free builder, RunScene would not compile here.
     [Theory]
     [InlineData("maps/room-01")]
     [InlineData("../room-01")]
@@ -145,16 +180,22 @@ public sealed class EngineBuilderTests
     [InlineData("room-01 ")]
     public void RunScene_RejectsAMapNameThatIsNotOneSafeFileName(string mapName)
     {
-        EngineBuilder builder = CapsuleEngine.Configure().WithScenes(Scenes(MenuRegistration));
+        SceneEngineBuilder builder = SceneBuilder()
+            .WithRenderResolution(320, 180)
+            .WithCameraViewport(new Vector2(320, 180))
+            .WithSampling(TextureSampling.Point)
+            .WithWindow(1280, 720)
+            .WithoutCrashLog()
+            .WithBindings(static _ => { });
 
         Assert.Throws<ArgumentException>(() => builder.RunScene(mapName));
     }
 
+    private static SceneEngineBuilder SceneBuilder() =>
+        CapsuleEngine.Configure(GameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
+
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());
-
-    private static SceneRegistry Scenes(params SceneRegistration[] scenes) =>
-        new(new EntityRegistry([]), scenes);
 
     private sealed class Menu : Scene;
 

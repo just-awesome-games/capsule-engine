@@ -49,9 +49,10 @@ internal sealed class FrameRenderer : IDisposable
     // Allocation-free at steady state: the span is iterated directly, the matrix and the
     // fits are on the stack, and there is no closure or LINQ in the path.
 
+    /// <param name="view">What the simulation wants drawn.</param>
     /// <param name="alpha">
-    /// Fraction of a fixed step not yet simulated, in [0, 1). Each quad is drawn that
-    /// far from its previous position towards its current one.
+    /// Fraction of a fixed step not yet simulated, in [0, 1). Each quad, and the camera
+    /// looking at it, is drawn that far from its previous position towards its current one.
     /// </param>
     internal void Draw(FrameView view, float alpha)
     {
@@ -100,7 +101,11 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        Vector2 topLeft = camera.Center - (camera.Size / 2f);
+        // The camera moves on the same clock as what it looks at. Snapping it to the step's end
+        // while the quads interpolate would slide the whole world back and let it catch up once
+        // per step, which is the one artefact interpolation exists to remove.
+        Vector2 center = Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
+        Vector2 topLeft = center - (camera.Size / 2f);
         Matrix worldToScreen =
             Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
             Matrix.CreateScale(fit.Scale, fit.Scale, 1f);

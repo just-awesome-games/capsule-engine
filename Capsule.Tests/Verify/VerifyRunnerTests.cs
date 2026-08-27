@@ -55,7 +55,11 @@ public sealed class VerifyRunnerTests
             simulation,
             new ActionBindings(),
             new DeviceSnapshot[5],
-            new VerifyRunOptions(StepSeconds, WarmupSteps: 2));
+            new VerifyRunOptions(
+                StepSeconds,
+                WarmupSteps: 2,
+                MaxAllocatedBytesPerStep: 0,
+                MaxAllocatedBytesPerRun: 0));
 
         Assert.Equal(5, result.CompletedSteps);
         Assert.Equal(3, result.MeasuredSteps);
@@ -71,10 +75,40 @@ public sealed class VerifyRunnerTests
             new AllocatingSimulation(),
             new ActionBindings(),
             new DeviceSnapshot[3],
-            new VerifyRunOptions(StepSeconds));
+            new VerifyRunOptions(StepSeconds, MaxAllocatedBytesPerStep: 0, MaxAllocatedBytesPerRun: 0));
 
         Assert.True(result.PeakFrameAllocatedBytes > 0);
         Assert.True(result.AllocatedBytes >= result.PeakFrameAllocatedBytes);
+        Assert.False(result.AllocationBudgetSatisfied);
+    }
+
+    // A budget is an assertion a caller opts into. Omitting one asserts nothing, so a run that
+    // allocates freely still passes rather than failing with no budget to point at.
+    [Fact]
+    public void Run_AssertsNoAllocationBudgetWhereNoneWasGiven()
+    {
+        VerifyRunResult result = VerifyRunner.Run(
+            new AllocatingSimulation(),
+            new ActionBindings(),
+            new DeviceSnapshot[3],
+            new VerifyRunOptions(StepSeconds));
+
+        Assert.True(result.PeakFrameAllocatedBytes > 0);
+        Assert.Null(result.MaxAllocatedBytesPerStep);
+        Assert.Null(result.MaxAllocatedBytesPerRun);
+        Assert.True(result.AllocationBudgetSatisfied);
+    }
+
+    // Half a contract is still a contract: the budget that was set is asserted on its own.
+    [Fact]
+    public void Run_AssertsOnlyTheBudgetThatWasGiven()
+    {
+        VerifyRunResult result = VerifyRunner.Run(
+            new AllocatingSimulation(),
+            new ActionBindings(),
+            new DeviceSnapshot[3],
+            new VerifyRunOptions(StepSeconds, MaxAllocatedBytesPerStep: 0));
+
         Assert.False(result.AllocationBudgetSatisfied);
     }
 

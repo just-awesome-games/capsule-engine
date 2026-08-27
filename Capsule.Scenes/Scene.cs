@@ -28,8 +28,12 @@ public class Scene
     private bool _renderersStale = true;
     private bool _exitRequested;
     private SceneTransition? _transition;
+    private TextureSampling? _sampling;
 
-    /// <summary>The camera, always present. Game code moves it; it starts spanning nothing.</summary>
+    /// <summary>
+    /// The camera, always present. Game code moves it; it opens at the game's default span, or
+    /// spanning nothing where there is none.
+    /// </summary>
     public Camera Camera { get; } = new();
 
     /// <summary>
@@ -41,8 +45,15 @@ public class Scene
     /// <summary>The colour behind everything the scene draws.</summary>
     public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
 
-    /// <summary>The sampling policy for world-space textures.</summary>
-    public TextureSampling Sampling { get; protected set; } = TextureSampling.Linear;
+    /// <summary>
+    /// The sampling policy for world-space textures: the game's default, or
+    /// <see cref="TextureSampling.Linear"/> where there is none, until the scene sets its own.
+    /// </summary>
+    public TextureSampling Sampling
+    {
+        get => _sampling ?? TextureSampling.Linear;
+        protected set => _sampling = value;
+    }
 
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
@@ -196,9 +207,21 @@ public class Scene
 
     /// <summary>
     /// Runs once per fixed step, after every position is retained and before any entity updates:
-    /// scene-wide input, and camera policy.
+    /// scene-wide input, and anything else that must read the scene as it stood at the start of
+    /// the step. Anything reading where entities ended up — camera policy above all — belongs in
+    /// <see cref="OnLateStep"/> instead.
     /// </summary>
     protected virtual void OnStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
+    /// Runs once per fixed step, after every entity and its components have updated and before
+    /// the frame is built: camera policy, and anything else that must read the step as it
+    /// settled. A position read here is this step's, never the previous step's. It is still
+    /// inside the step, so an add or remove made here lands at the end of it like any other.
+    /// </summary>
+    protected virtual void OnLateStep(in StepContext context)
     {
     }
 
@@ -214,7 +237,7 @@ public class Scene
         }
     }
 
-    internal void Start(object? entryPayload)
+    internal void Start(object? entryPayload, in SceneDefaults defaults)
     {
         if (_started)
         {
@@ -224,7 +247,18 @@ public class Scene
 
         _started = true;
         EntryPayload = entryPayload;
+
+        // Whatever the scene's own construction set stands; the game default fills the rest, and
+        // OnStart runs after both, so a camera opened there still wins.
+        _sampling ??= defaults.Sampling;
+        Camera.OpenAt(defaults.CameraViewport);
+
         OnStart();
+
+        // Wherever OnStart left the camera is where the scene opens, not somewhere it slid in
+        // from: a scene's first frame never interpolates, and neither does the one a transition
+        // opens, since that scene is a new one starting here too.
+        Camera.Retain();
     }
 
     internal void Stop()
@@ -311,6 +345,8 @@ public class Scene
     {
         _stepping = true;
 
+        Camera.Retain();
+
         foreach (Entity entity in Entities)
         {
             entity.PreviousPosition = entity.Position;
@@ -328,6 +364,8 @@ public class Scene
             entity.UpdateComponents(context);
         }
     }
+
+    internal void RunLateStep(in StepContext context) => OnLateStep(context);
 
     /// <summary>
     /// Closes a step: everything queued during it lands, additions before removals, in the order

@@ -31,22 +31,89 @@ public sealed class SceneStepTests
     }
 
     [Fact]
-    public void TheScenesStepRunsFirst_ThenEachEntityWithItsComponentsAfterIt()
+    public void TheScenesStepRunsFirst_ThenEachEntityWithItsComponents_ThenItsLateStep()
     {
         List<string> log = [];
         SceneFixtures.Recorder first = new("first", log);
         first.Add(new SceneFixtures.RecordingComponent("first.component", log));
         SceneFixtures.Recorder second = new("second", log);
 
-        void Hook(Scene scene, in StepContext context) => log.Add("scene");
+        void Early(Scene scene, in StepContext context) => log.Add("scene");
+        void Late(Scene scene, in StepContext context) => log.Add("scene.late");
 
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), first, second);
+        SceneSimulation simulation = Simulation(
+            new SceneFixtures.HookScene(step: Early, lateStep: Late),
+            first,
+            second);
         log.Clear();
 
         simulation.Step(SceneFixtures.Step());
 
-        string[] expected = ["scene", "first", "first.component", "second"];
+        string[] expected = ["scene", "first", "first.component", "second", "scene.late"];
         Assert.Equal(expected, log);
+    }
+
+    /// <summary>
+    /// The one-step gap the two hooks exist either side of: a camera aimed from the early hook
+    /// frames a position every entity has already left.
+    /// </summary>
+    [Fact]
+    public void TheLateStepReadsThisStepsPositions_WhereTheStepReadsTheOneBeforeIt()
+    {
+        SceneFixtures.Drifter drifter = new(new Vector2(5, 5));
+        Vector2 seenEarly = Vector2.Zero;
+        Vector2 seenLate = Vector2.Zero;
+
+        void Early(Scene scene, in StepContext context) => seenEarly = drifter.Position;
+        void Late(Scene scene, in StepContext context) => seenLate = drifter.Position;
+
+        SceneSimulation simulation = Simulation(
+            new SceneFixtures.HookScene(step: Early, lateStep: Late),
+            drifter);
+
+        simulation.Step(SceneFixtures.Step());
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(new Vector2(6, 5), seenEarly);
+        Assert.Equal(new Vector2(7, 5), seenLate);
+    }
+
+    [Fact]
+    public void AnAddOrRemoveIssuedByTheLateStep_LandsAtTheEndOfTheStepLikeAnyOther()
+    {
+        List<string> log = [];
+        SceneFixtures.Recorder leaving = new("leaving", log);
+        SceneFixtures.Drifter joining = new(new Vector2(3, 3));
+        int heldDuringTheLateStep = 0;
+
+        void Late(Scene scene, in StepContext context)
+        {
+            if (context.Tick != 0)
+            {
+                return;
+            }
+
+            scene.Add(joining);
+            scene.Remove(leaving);
+            heldDuringTheLateStep = scene.Entities.Length;
+        }
+
+        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(lateStep: Late), leaving);
+        log.Clear();
+
+        simulation.Step(SceneFixtures.Step());
+
+        string[] expected = ["leaving", "leaving-"];
+        Assert.Equal(1, heldDuringTheLateStep);
+        Assert.Equal(expected, log);
+        Assert.Same(joining, Assert.Single(simulation.Scene.Entities.ToArray()));
+
+        // It joined past this step's updates, so it starts running on the next one.
+        Assert.Equal(new Vector2(3, 3), joining.Position);
+
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(new Vector2(4, 3), joining.Position);
     }
 
     [Fact]

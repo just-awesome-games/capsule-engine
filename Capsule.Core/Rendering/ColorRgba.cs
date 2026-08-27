@@ -9,7 +9,9 @@ public readonly record struct ColorRgba(byte R, byte G, byte B, byte A)
     {
     }
 
+    /// <summary>Opaque black.</summary>
     public static ColorRgba Black => new(0, 0, 0);
 
+    /// <summary>Opaque white.</summary>
     public static ColorRgba White => new(255, 255, 255);
 }

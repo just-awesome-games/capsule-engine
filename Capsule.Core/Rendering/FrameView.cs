@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Capsule.Rendering;
@@ -15,10 +14,7 @@ public sealed class FrameView
     private int _totalQuads;
 
     private CameraView _camera;
-    private float _cameraLeft;
-    private float _cameraTop;
-    private float _cameraRight;
-    private float _cameraBottom;
+    private ViewBounds _cullBounds;
     private bool _hasCullBounds;
 
     private TextureSampling _sampling = TextureSampling.Linear;
@@ -30,20 +26,11 @@ public sealed class FrameView
         set
         {
             _camera = value;
+            _cullBounds = value.SweptBounds;
 
-            Vector2 halfSize = value.Size / 2f;
-            _cameraLeft = value.Center.X - halfSize.X;
-            _cameraTop = value.Center.Y - halfSize.Y;
-            _cameraRight = value.Center.X + halfSize.X;
-            _cameraBottom = value.Center.Y + halfSize.Y;
-
-            _hasCullBounds =
-                value.Size.X > 0f &&
-                value.Size.Y > 0f &&
-                float.IsFinite(_cameraLeft) &&
-                float.IsFinite(_cameraTop) &&
-                float.IsFinite(_cameraRight) &&
-                float.IsFinite(_cameraBottom);
+            // A camera that spans nothing has swept bounds only where it also moved, and a
+            // sliver of a rect is not a region anything should be culled against.
+            _hasCullBounds = value.Size.X > 0f && value.Size.Y > 0f && !_cullBounds.IsEmpty;
         }
     }
 
@@ -81,7 +68,7 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// Adds a quad when its swept bounds cross the camera. A camera without finite positive
+    /// Adds a quad when its swept bounds cross the camera's. A camera without finite positive
     /// bounds leaves culling disabled, allowing a view to be assembled before its camera opens.
     /// </summary>
     public void AddQuad(in QuadIntent quad)
@@ -96,24 +83,21 @@ public sealed class FrameView
 
     private bool IsVisible(in QuadIntent quad)
     {
+        // Tested on the size itself, never left to the swept rect: travel widens that rect, so a
+        // quad moving further than a negative extent still measures positive area there and would
+        // reach the renderer to be drawn inverted. NaN fails this comparison too.
         if (!(quad.Size.X > 0f) || !(quad.Size.Y > 0f))
         {
             return false;
         }
 
-        float left = MathF.Min(quad.PreviousPosition.X, quad.Position.X);
-        float top = MathF.Min(quad.PreviousPosition.Y, quad.Position.Y);
-        float right = MathF.Max(quad.PreviousPosition.X, quad.Position.X) + quad.Size.X;
-        float bottom = MathF.Max(quad.PreviousPosition.Y, quad.Position.Y) + quad.Size.Y;
+        ViewBounds swept = new(
+            MathF.Min(quad.PreviousPosition.X, quad.Position.X),
+            MathF.Min(quad.PreviousPosition.Y, quad.Position.Y),
+            MathF.Max(quad.PreviousPosition.X, quad.Position.X) + quad.Size.X,
+            MathF.Max(quad.PreviousPosition.Y, quad.Position.Y) + quad.Size.Y);
 
-        return
-            float.IsFinite(left) &&
-            float.IsFinite(top) &&
-            float.IsFinite(right) &&
-            float.IsFinite(bottom) &&
-            right > _cameraLeft &&
-            bottom > _cameraTop &&
-            left < _cameraRight &&
-            top < _cameraBottom;
+        // What remains for IsEmpty is a corner or an extent that is not finite.
+        return !swept.IsEmpty && swept.Intersects(_cullBounds);
     }
 }

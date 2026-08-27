@@ -101,6 +101,41 @@ public sealed class RenderIntentTests
         Assert.Equal(crossing, Assert.Single(view.Quads.ToArray()));
     }
 
+    // The camera is interpolated like everything it looks at, so what it passes over mid-step is
+    // drawn even though it is outside the region the step ended on.
+    [Fact]
+    public void AView_KeepsAQuadTheCameraSweepsPast()
+    {
+        FrameView view = new()
+        {
+            Camera = new CameraView(new Vector2(5, 5), new Vector2(25, 5), new Vector2(10, 10)),
+        };
+        QuadIntent passed = new(new Vector2(14, 2), new Vector2(14, 2), Vector2.One, ColorRgba.White);
+
+        view.AddQuad(passed);
+
+        Assert.Equal(passed, Assert.Single(view.Quads.ToArray()));
+    }
+
+    // A negative extent draws inverted, and travel hides it: a quad moving ten units with an
+    // extent of minus one still sweeps a rect of positive area, so only the size itself can
+    // reject it.
+    [Fact]
+    public void AView_RejectsAQuadWithANonPositiveExtent_MovingOrStill()
+    {
+        FrameView view = new()
+        {
+            Camera = new CameraView(new Vector2(5, 5), new Vector2(10, 10)),
+        };
+
+        view.AddQuad(new QuadIntent(new Vector2(0, 2), new Vector2(10, 2), new Vector2(-1, 1), ColorRgba.White));
+        view.AddQuad(new QuadIntent(new Vector2(2, 0), new Vector2(2, 10), new Vector2(1, -1), ColorRgba.White));
+        view.AddQuad(new QuadIntent(new Vector2(2, 2), new Vector2(2, 2), Vector2.Zero, ColorRgba.White));
+
+        Assert.Empty(view.Quads.ToArray());
+        Assert.Equal(new RenderMetrics(TotalQuads: 3, VisibleQuads: 0), view.Metrics);
+    }
+
     [Fact]
     public void AView_RejectsAnUnknownSamplingMode()
     {

@@ -8,6 +8,7 @@ public readonly struct StepContext(double deltaSeconds, InputState input, long t
     /// <summary>Simulated seconds this step represents; constant for a given engine configuration.</summary>
     public double DeltaSeconds { get; } = deltaSeconds;
 
+    /// <summary>Action-level input for this step; the same instance across every step of a run.</summary>
     public InputState Input { get; } = input;
 
     /// <summary>Index of this step; 0 on the first step ever delivered.</summary>

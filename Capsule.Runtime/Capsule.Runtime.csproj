@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
+    <Description>The Capsule host a game's shell boots: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, and the crash log. The only module that links the graphics backend.</Description>
   </PropertyGroup>
 
   <ItemGroup>

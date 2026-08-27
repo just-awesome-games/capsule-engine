@@ -7,6 +7,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Capsule.Scenes.Generator</RootNamespace>
     <IsPackable>false</IsPackable>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <!-- RS2008 tracks diagnostic IDs across released analyzer packages. This generator is
          consumed from a source clone at a pinned ref, so the ref is the release record. -->

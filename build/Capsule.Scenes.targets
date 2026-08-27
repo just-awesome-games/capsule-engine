@@ -25,8 +25,8 @@
                       Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      AdditionalProperties="PublishAot=false;SelfContained=false"
-                      GlobalPropertiesToRemove="PublishAot;RuntimeIdentifier;SelfContained"
+                      AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all" />
 
     <!-- The generator reads the declared role for itself; these conditions only decide whether it

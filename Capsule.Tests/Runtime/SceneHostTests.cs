@@ -1,3 +1,5 @@
+using System.Numerics;
+using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
 
@@ -90,6 +92,41 @@ public sealed class SceneHostTests
         Assert.Equal(1, scene.Stops);
     }
 
+    // The game's defaults belong to the host, not to the scene that happened to boot first, so a
+    // replacement opens at them too.
+    [Fact]
+    public void TheGamesSceneDefaults_ReachEverySceneTheHostOpens()
+    {
+        SceneDefaults defaults = new(new Vector2(320, 180), TextureSampling.Point);
+
+        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(MapRequestingScene)
+            ? new MapRequestingScene()
+            : new PassiveScene();
+
+        using SceneHost host = new(SceneTarget.ForScene(typeof(MapRequestingScene)), Resolve, defaults);
+        host.Step(SceneStep(0));
+
+        Assert.IsType<PassiveScene>(host.Scene);
+        Assert.Equal(new Vector2(320, 180), host.View.Camera.Size);
+        Assert.Equal(TextureSampling.Point, host.View.Sampling);
+    }
+
+    // A transition is a cut. The scene left behind was looking somewhere else entirely, and a
+    // frame drawn between the two must not sweep the camera from there to here.
+    [Fact]
+    public void ASceneOpenedByATransition_DoesNotSweepIntoPlace()
+    {
+        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(MapRequestingScene)
+            ? new MapRequestingScene()
+            : new FarAwayScene();
+
+        using SceneHost host = new(SceneTarget.ForScene(typeof(MapRequestingScene)), Resolve);
+        host.Step(SceneStep(0));
+
+        Assert.Equal(new Vector2(4000, 4000), host.View.Camera.Center);
+        Assert.Equal(host.View.Camera.Center, host.View.Camera.PreviousCenter);
+    }
+
     private static StepContext SceneStep(long tick) => Capsule.Tests.Scenes.SceneFixtures.Step(tick);
 
     private sealed class FirstScene(List<string> log) : Scene
@@ -156,6 +193,15 @@ public sealed class SceneHostTests
     }
 
     private sealed class PassiveScene : Scene;
+
+    private sealed class FarAwayScene : Scene
+    {
+        protected override void OnStart()
+        {
+            Camera.Center = new Vector2(4000, 4000);
+            Camera.ViewportSize = new Vector2(320, 180);
+        }
+    }
 
     private sealed class ExitScene : Scene
     {
