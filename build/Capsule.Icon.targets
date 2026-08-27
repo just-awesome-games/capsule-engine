@@ -1,0 +1,71 @@
+<Project>
+
+  <!-- The shell's identity in the operating system: two files beside the shell project, each
+       falling back to Capsule's own mark so a game that authors neither still ships a JAG icon
+       rather than the backend's.
+
+         Icon.ico   the executable's icon, read by Explorer, shortcuts and the file dialog
+         Icon.bmp   the window and taskbar icon, read at window creation
+
+       They are separate files because the two consumers are: the first is a PE resource the
+       compiler embeds and the shell's process never sees, the second is a managed resource the
+       backend looks up in the entry assembly and hands to the window. 128x128 32-bit
+       uncompressed is what that lookup can load — a run-length encoded or bitfield BMP is a
+       silently iconless window — so the default here is exactly that and a game's own file has
+       to be too.
+
+       ApplicationIcon is Windows-only by construction; on another platform the compiler is
+       given it and the resulting PE resource is simply never read. -->
+
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <_CapsuleGameIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.ico'))</_CapsuleGameIcon>
+    <_CapsuleGameWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.bmp'))</_CapsuleGameWindowIcon>
+    <!-- Beside these hooks, so one path resolves both an engine clone and the buildTransitive
+         directory a package consumer imports this file from. -->
+    <_CapsuleDefaultIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.ico'))</_CapsuleDefaultIcon>
+    <_CapsuleDefaultWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.bmp'))</_CapsuleDefaultWindowIcon>
+
+    <!-- An ApplicationIcon the game set itself wins outright: it is the same escape hatch by the
+         same name a non-Capsule project would use, and pointing it anywhere is the whole override. -->
+    <ApplicationIcon Condition="'$(ApplicationIcon)' == '' and Exists('$(_CapsuleGameIcon)')">$(_CapsuleGameIcon)</ApplicationIcon>
+    <ApplicationIcon Condition="'$(ApplicationIcon)' == ''">$(_CapsuleDefaultIcon)</ApplicationIcon>
+  </PropertyGroup>
+
+  <Target Name="CapsuleIconInit"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          BeforeTargets="AssignTargetPaths">
+
+    <!-- Read in a target rather than at import, because a package consumer imports these hooks
+         before its own Directory.Build.targets: a resource declared there is invisible to an
+         evaluation-time test, and a second Icon.bmp is CS1508 at the compile rather than a
+         fallback. By the time any target runs, every item the project will ever have is in hand. -->
+    <PropertyGroup>
+      <_CapsuleGameDeclaredWindowIcon Condition="'@(EmbeddedResource->WithMetadataValue('LogicalName', 'Icon.bmp'))' != ''">true</_CapsuleGameDeclaredWindowIcon>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_CapsuleGameDeclaredWindowIcon)' != 'true'">
+      <!-- LogicalName spelt out, never the default: the manifest name the compiler derives is
+           $(RootNamespace).Icon.bmp, and the backend looks for <assembly name>.Icon.bmp or a bare
+           Icon.bmp. A shell whose assembly name is the game's while its root namespace is the
+           project's matches neither, and gets the backend's own icon with no diagnostic. -->
+      <EmbeddedResource Include="$(_CapsuleGameWindowIcon)"
+                        LogicalName="Icon.bmp"
+                        Visible="false"
+                        Condition="Exists('$(_CapsuleGameWindowIcon)')" />
+      <EmbeddedResource Include="$(_CapsuleDefaultWindowIcon)"
+                        LogicalName="Icon.bmp"
+                        Visible="false"
+                        Condition="!Exists('$(_CapsuleGameWindowIcon)')" />
+    </ItemGroup>
+
+    <!-- Each file falls back on its own, so half a pair ships one JAG icon on somebody else's
+         game — a typo or a half-finished branding pass rather than an intent. Each half is
+         warned about only where its fallback actually took effect: a game that named the other
+         icon by another route chose that, and has nothing to fix. -->
+    <Warning Condition="Exists('$(_CapsuleGameIcon)') and !Exists('$(_CapsuleGameWindowIcon)') and '$(_CapsuleGameDeclaredWindowIcon)' != 'true'"
+             Text="Capsule: this shell has an Icon.ico but no Icon.bmp, so its window and taskbar keep Capsule's default icon. Add a 128x128 32-bit uncompressed Icon.bmp beside the project, or remove Icon.ico to take both defaults." />
+    <Warning Condition="!Exists('$(_CapsuleGameIcon)') and Exists('$(_CapsuleGameWindowIcon)') and '$(ApplicationIcon)' == '$(_CapsuleDefaultIcon)'"
+             Text="Capsule: this shell has an Icon.bmp but no Icon.ico, so its executable keeps Capsule's default icon. Add an Icon.ico beside the project, or remove Icon.bmp to take both defaults." />
+  </Target>
+
+</Project>

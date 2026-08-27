@@ -42,6 +42,7 @@ internal static class AssetRegistrySource
         return new AssetModel(
             domain,
             name,
+            Path.GetExtension(text.Path),
             Path.GetFileName(text.Path),
             identifier ?? string.Empty,
             FaultIn(domain, identifier));
@@ -175,7 +176,7 @@ internal static class AssetRegistrySource
         List<AssetModel> registered,
         (string Domain, string ClassName, string Handle) domain)
     {
-        source.Append("        /// <summary>Everything shipped at <c>Assets/").Append(domain.Domain).AppendLine("</c>.</summary>");
+        source.Append("        /// <summary>Everything shipped at <c>assets/").Append(domain.Domain).AppendLine("</c>.</summary>");
         source.Append("        public static class ").AppendLine(domain.ClassName);
         source.AppendLine("        {");
 
@@ -190,6 +191,8 @@ internal static class AssetRegistrySource
             source.Append("            public static ").Append(domain.Handle).Append(' ').Append(model.Identifier);
             source.Append(" => new ").Append(domain.Handle).Append('(');
             source.Append(SymbolDisplay.FormatLiteral(model.Name, quote: true));
+            source.Append(", ");
+            source.Append(SymbolDisplay.FormatLiteral(model.Extension, quote: true));
             source.AppendLine(");");
         }
 

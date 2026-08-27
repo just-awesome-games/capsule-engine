@@ -35,6 +35,17 @@
     <None Include="../build/Capsule.Scenes.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
+    <None Include="../build/Capsule.Icon.targets"
+          Pack="true"
+          PackagePath="buildTransitive/" />
+    <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
+         pair whether a game builds against the packages or an engine clone. -->
+    <None Include="../build/Icon.ico"
+          Pack="true"
+          PackagePath="buildTransitive/" />
+    <None Include="../build/Icon.bmp"
+          Pack="true"
+          PackagePath="buildTransitive/" />
     <None Include="../build/Capsule.Analyzers.targets"
           Pack="true"
           PackagePath="buildTransitive/"

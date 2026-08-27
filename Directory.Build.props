@@ -20,6 +20,7 @@
     <!-- PACKAGE.md, not README.md: nuget.org resolves neither a relative image nor a relative
          document link, so the packed readme carries absolute ones. -->
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageIcon>capsule-package-icon.png</PackageIcon>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -33,6 +34,10 @@
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)PACKAGE.md"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)docs/assets/capsule-package-icon.png"
           Pack="true"
           PackagePath="/"
           Visible="false" />

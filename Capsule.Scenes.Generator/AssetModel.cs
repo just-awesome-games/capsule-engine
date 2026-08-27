@@ -14,10 +14,17 @@ internal enum AssetFault
 /// </summary>
 internal readonly struct AssetModel : IEquatable<AssetModel>
 {
-    internal AssetModel(string domain, string name, string fileName, string identifier, AssetFault fault)
+    internal AssetModel(
+        string domain,
+        string name,
+        string extension,
+        string fileName,
+        string identifier,
+        AssetFault fault)
     {
         Domain = domain;
         Name = name;
+        Extension = extension;
         FileName = fileName;
         Identifier = identifier;
         Fault = fault;
@@ -26,8 +33,11 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
     /// <summary>The domain root it was authored under, which is also where it ships.</summary>
     internal string Domain { get; }
 
-    /// <summary>The file stem, which is what a handle carries.</summary>
+    /// <summary>The file stem, which is half of what a handle carries.</summary>
     internal string Name { get; }
+
+    /// <summary>The extension with its dot, which is the other half.</summary>
+    internal string Extension { get; }
 
     /// <summary>The file as a diagnostic and a doc comment name it.</summary>
     internal string FileName { get; }

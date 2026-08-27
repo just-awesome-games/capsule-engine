@@ -56,7 +56,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     [Fact]
     public void ARestart_ComposesTheStageAgainWithoutReadingItsMapFromDisk()
     {
-        string directory = Path.Combine(AppContext.BaseDirectory, "Assets", "Maps");
+        string directory = Path.Combine(AppContext.BaseDirectory, "assets", "maps");
         string path = Path.Combine(directory, StageWorkload.MapName + ".map.json");
         Directory.CreateDirectory(directory);
 

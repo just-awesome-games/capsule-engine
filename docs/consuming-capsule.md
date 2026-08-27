@@ -24,6 +24,8 @@ my-game/
   MyGame.Shell/               # the host executable
     MyGame.Shell.csproj
     Program.cs
+    Icon.ico                  # optional, see below
+    Icon.bmp                  # optional, see below
   MyGame.Game/                # game logic, substrate-free
     MyGame.Game.csproj
   MyGame.Tests/               # xUnit over MyGame.Game, run headless
@@ -45,9 +47,9 @@ name, so the shipped executable is `MyGame.exe` rather than `MyGame.Shell.exe`.
 `asset-sources/` is top-level and owned by no project: a second target shell feeds from the same
 maps, so putting them under one shell would make it the odd owner of what the others build from.
 
-**`Assets/` beside the executable does not appear above because nothing authors it.** It is
-build-owned and wholly derived — maps at `Assets/Maps`, everything else flat under its domain at
-`Assets/<domain>` — and none of it is committed. Capsule has no asset scanner to hide a file from:
+**`assets/` beside the executable does not appear above because nothing authors it.** It is
+build-owned and wholly derived — maps at `assets/maps`, everything else flat under its domain at
+`assets/<domain>` — and none of it is committed. Capsule has no asset scanner to hide a file from:
 what ships is exactly what the hooks copy there, and an authoring source stays unshipped by living
 under `asset-sources/`.
 
@@ -159,6 +161,24 @@ asks for either half itself and gets the same content beside its own executable:
 
 Every way to get a role wrong is a `CAP0xx` build error naming the project and the fix.
 
+### The game's icon
+
+The shell role also gives the game its icon, from two files beside the shell project:
+
+| File | Where it appears | Format |
+| --- | --- | --- |
+| `Icon.ico` | the executable, in Explorer and on shortcuts | multi-size `.ico`, 16 through 256 |
+| `Icon.bmp` | the window and the taskbar | 128x128, 32-bit, uncompressed |
+
+Each falls back on its own to Capsule's mark, so a game with neither still ships an icon rather than
+the backend's, and a warning names either half that fell back while the other did not. `Icon.bmp` is
+read at window creation and a run-length encoded or bitfield BMP is silently no icon at all, so it is
+the plain 32-bit form or nothing.
+
+Either half is overridable by the ordinary means, which takes that file out of the picture and is
+never warned about: `<ApplicationIcon>` points the executable's icon wherever the shell likes, and an
+`EmbeddedResource` the shell declares with `LogicalName="Icon.bmp"` is the window's.
+
 ### Naming the content, never the path
 
 A logic project's generated `GameAssets` gives every asset the build ships a typed handle, the way
@@ -178,8 +198,11 @@ separate words — `foot-step` and `foot_step` — reach one member and fail the
 no identifier can come out of, and one that lands on the name of its own domain's class —
 `audio/audio.wav`.
 
-A handle is data: it carries the stem and resolves nothing, which is why logic code may hold one
-without breaking the purity rule below.
+A handle is data: it carries the stem and the extension of the file it came from, and resolves
+nothing — which is why logic code may hold one without breaking the purity rule below. The pair is
+sufficient on its own to locate the asset, at `assets/<domain>/<stem><extension>` beside the
+executable, so whatever ends up reading the bytes takes a handle and never probes a directory for
+whichever extension the game happened to author.
 
 ## 5. Wire the references
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Assets;
 using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Maps;
@@ -22,11 +23,11 @@ internal static class Program
     private const int AdvanceSteps = 30;
 
     // Where a shipped game's maps are, and what the boot verbs resolve a map name against.
-    private const string MapPath = "Assets/Maps/room.map.json";
+    private const string MapPath = "assets/maps/room.map.json";
 
     // The other half of the shipped plane: a map authored by hand in Capsule's own format rather
     // than in Tiled, and the two asset domains this consumer authors.
-    private const string NativeMapPath = "Assets/Maps/hall.map.json";
+    private const string NativeMapPath = "assets/maps/hall.map.json";
 
     public static int Main()
     {
@@ -112,11 +113,18 @@ internal static class Program
     private static bool ContentShipped()
     {
         Map hall = MapFile.Load(Path.Combine(AppContext.BaseDirectory, NativeMapPath));
+        TextureHandle marker = GameAssets.Textures.Marker;
+        AudioHandle step = GameAssets.Audio.StepSoft;
 
         return hall.Source is { Tool: "native" }
-            && GameAssets.Textures.Marker.Name == "marker"
-            && GameAssets.Audio.StepSoft.Name == "step-soft"
-            && File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets/textures/marker.png"))
-            && File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets/audio/step-soft.wav"));
+            && marker.Name == "marker"
+            && step.Name == "step-soft"
+            && Shipped("textures", marker.Name, marker.Extension)
+            && Shipped("audio", step.Name, step.Extension);
     }
+
+    // Built from the handle rather than spelled out: a handle locating its own file is the
+    // contract, and a run on a case-sensitive filesystem is what proves the plane is lowercase.
+    private static bool Shipped(string domain, string name, string extension) =>
+        File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", domain, name + extension));
 }

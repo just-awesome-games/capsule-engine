@@ -52,6 +52,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Maps.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Scenes.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Analyzers.targets"
           Condition="Exists('$(MSBuildThisFileDirectory)Capsule.Analyzers.targets')" />
 

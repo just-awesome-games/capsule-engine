@@ -10,7 +10,8 @@ namespace Capsule.Tests.Scenes;
 public sealed class AssetGeneratorTests
 {
     // The naming contract in both directions: the member is the file's stem PascalCased, and the
-    // handle it hands out carries that stem back — which is what a loader will resolve against.
+    // handle it hands out carries that stem and the source file's extension back — the pair a
+    // loader resolves against, with nothing left for it to probe for.
     [Fact]
     public void AnAsset_BecomesATypedHandleUnderItsDomain()
     {
@@ -19,11 +20,11 @@ public sealed class AssetGeneratorTests
             GeneratorHarness.GameAssetsFile);
 
         Assert.Contains(
-            "public static global::Capsule.Assets.AudioHandle FootstepStone => new global::Capsule.Assets.AudioHandle(\"footstep-stone\");",
+            "public static global::Capsule.Assets.AudioHandle FootstepStone => new global::Capsule.Assets.AudioHandle(\"footstep-stone\", \".ogg\");",
             generated,
             StringComparison.Ordinal);
         Assert.Contains(
-            "public static global::Capsule.Assets.TextureHandle Hero => new global::Capsule.Assets.TextureHandle(\"hero\");",
+            "public static global::Capsule.Assets.TextureHandle Hero => new global::Capsule.Assets.TextureHandle(\"hero\", \".png\");",
             generated,
             StringComparison.Ordinal);
     }

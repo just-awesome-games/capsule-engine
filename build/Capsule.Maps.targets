@@ -1,7 +1,7 @@
 <Project>
 
   <!-- Derives a map from every map source in the game's asset sources and ships it as content
-       at Assets/Maps. The derived files live in obj/ and are never committed.
+       at assets/maps. The derived files live in obj/ and are never committed.
 
        A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
        inert until a project asks for maps:
@@ -253,7 +253,7 @@
 
     <ItemGroup>
       <Content Include="@(_CapsuleDerivedMap)">
-        <Link>Assets/Maps/%(Filename)%(Extension)</Link>
+        <Link>assets/maps/%(Filename)%(Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>

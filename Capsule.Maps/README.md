@@ -45,7 +45,7 @@ and a third authoring tool becomes another item group in
 | `*.map.json` | The format itself, authored by hand. |
 
 Whichever it came from, the map is derived into `obj/` and copied to
-`Assets/Maps/<name>.map.json` beside the executable, which is where a game loads it from. A map is
+`assets/maps/<name>.map.json` beside the executable, which is where a game loads it from. A map is
 named after its source and the output tree is flat, so two sources sharing a name fail the build —
 across the two kinds as much as within one. **Nothing generated is committed**: the source is the
 source, the map is a build artifact, and there is no step to remember.

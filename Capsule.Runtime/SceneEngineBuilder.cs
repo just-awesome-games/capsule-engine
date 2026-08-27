@@ -85,7 +85,7 @@ public sealed class SceneEngineBuilder : EngineBuilder<SceneEngineBuilder>
     /// <summary>
     /// Opens the window and runs a map until game code requests exit: as the class claiming that
     /// map name, or as a plain <see cref="Capsule.Scenes.MapScene"/> when no class claims it. The
-    /// map is read from <c>Assets/Maps/{mapName}.map.json</c> beside the executable, where the map
+    /// map is read from <c>assets/maps/{mapName}.map.json</c> beside the executable, where the map
     /// build hook ships it, and the map being played is then kept parsed — so reconstructing a
     /// scene from it, which is what <see cref="Scene.RequestRestart()"/> does, reads no file.
     /// </summary>

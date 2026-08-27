@@ -1,13 +1,13 @@
 <Project>
 
   <!-- Ships the game's general assets and names them for its code. asset-sources/ is the
-       committed authoring plane; Assets/ beside the executable is derived and build-owned, so
+       committed authoring plane; assets/ beside the executable is derived and build-owned, so
        nothing under it is committed and what ships is exactly what is authored.
 
        Three domain roots under $(CapsuleAssetSourcesDir), each admitting the extensions listed
        below: textures/ (.png), audio/ (.ogg, .wav) and fonts/ (.ttf, .otf). Sources nest freely
        within a root and the shipped tree is flat per domain, so an asset lands at
-       Assets/<domain>/<stem>.<ext> whatever it was filed under. A domain gained here is a domain
+       assets/<domain>/<stem>.<ext> whatever it was filed under. A domain gained here is a domain
        gained everywhere, and the handle it hands out is paired with it in
        Capsule.Scenes.Generator's asset registry — the one other place the domains are named.
 
@@ -75,7 +75,7 @@
          Content, which already carries a game's own files and the derived maps. -->
     <ItemGroup>
       <Content Include="@(CapsuleAsset)">
-        <Link>Assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.Filename)%(CapsuleAsset.Extension)</Link>
+        <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.Filename)%(CapsuleAsset.Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>

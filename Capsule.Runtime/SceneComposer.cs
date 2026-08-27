@@ -16,7 +16,7 @@ internal sealed class SceneComposer(SceneRegistry scenes)
 {
     // Where the map build hook lands its output in a shell's content, and the extension it
     // writes; a map name resolves against exactly that.
-    private const string MapDirectory = "Assets/Maps";
+    private const string MapDirectory = "assets/maps";
     private const string MapExtension = ".map.json";
 
     private string? _heldName;
