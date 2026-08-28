@@ -4,7 +4,7 @@ These rules cover judgments the build cannot enforce. Read diagnostics before ad
 
 ## Scope
 
-Engine code lands with a consuming game call site. Do not add hooks, options, or abstractions for hypothetical consumers. Keep public names game-agnostic, and leave game policy in the game.
+Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
 
 ## Documentation
 

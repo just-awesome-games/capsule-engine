@@ -22,6 +22,8 @@ dotnet run --project tests/PackageConsumer/Shell -p:CapsuleSourcePath=.
 ```
 
 A Capsule game has a substrate-free logic project and a small executable shell. The generated boot API starts a scene:
+Keep both projects and the committed authoring sources together under `src/`—for example, `src/MyGame.Game/`, `src/MyGame.Shell/`, and `src/asset-sources/`—with tests under `tests/`.
+This layout works with Capsule's asset conventions without extra path configuration.
 
 ```csharp
 using Capsule.Runtime.Generated;
@@ -38,7 +40,7 @@ namespace MyGame.Game;
 public sealed class MainMenu : Scene;
 ```
 
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains the minimal project wiring needed to start a game.
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains a ready-to-copy repository layout and the minimal project wiring needed to start a game.
 
 ## Model
 

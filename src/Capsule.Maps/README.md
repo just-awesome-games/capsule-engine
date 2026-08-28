@@ -17,7 +17,7 @@ Invalid maps throw `MapFormatException`.
 
 ## Build pipeline
 
-Games author sources under `asset-sources/maps/`:
+With the canonical game layout, games author sources under `src/asset-sources/maps/`:
 
 | Source | Import |
 | --- | --- |

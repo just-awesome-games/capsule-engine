@@ -6,19 +6,33 @@ Capsule games use two projects: a substrate-free logic library and a small execu
 
 ```text
 my-game/
-  MyGame.Game/
-  MyGame.Shell/
-  MyGame.Tests/
-  asset-sources/
-    maps/
-    textures/
-    audio/
-    fonts/
+  src/
+    MyGame.Game/
+      MyGame.Game.csproj
+    MyGame.Shell/
+      MyGame.Shell.csproj
+    asset-sources/
+      maps/
+      textures/
+      audio/
+      fonts/
+  tests/
+    MyGame.Tests/
+      MyGame.Tests.csproj
   Directory.Build.props
   Directory.Build.targets
+  MyGame.slnx
 ```
 
-`asset-sources/` is committed. The build derives `assets/` beside each executable; do not commit or author files there.
+Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored assets at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override.
+Commit `src/asset-sources/`. The build derives `assets/` beside each executable; do not commit or author files there.
+
+From the repository root, create the modern solution and add the three projects after writing the project files below:
+
+```text
+dotnet new sln --name MyGame
+dotnet sln MyGame.slnx add src/MyGame.Game src/MyGame.Shell tests/MyGame.Tests
+```
 
 ## Shared configuration
 
@@ -79,7 +93,13 @@ The logic role activates source generation and purity analysis:
 </Project>
 ```
 
-Tests reference the logic project and `JAG.Capsule`; they take no Capsule role.
+Tests reference the logic project and `JAG.Capsule`; they take no Capsule role. From `tests/MyGame.Tests/MyGame.Tests.csproj`, the logic reference is:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="../../src/MyGame.Game/MyGame.Game.csproj" />
+</ItemGroup>
+```
 
 ## Shell project
 

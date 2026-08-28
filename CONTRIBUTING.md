@@ -1,6 +1,6 @@
 # Contributing to Capsule
 
-Capsule is developed for JAG Studios' games in public. Changes are accepted when they improve an existing engine capability or its documentation. New subsystems, hooks, and options need a consuming game use case; open an issue before investing in a speculative feature.
+Capsule is developed for JAG Studios' games in public. Changes are accepted when they improve an existing engine capability or its documentation. New subsystems, hooks, and options need a consuming game use case — open an issue before investing in a speculative feature — but what ships must stand on its own: complete, peak-performance, never knowingly suboptimal or brute-force, and never bounded to the initiating game's immediate use.
 
 ## Build
 
