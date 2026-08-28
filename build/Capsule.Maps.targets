@@ -26,7 +26,7 @@
        Left unset, no size is imposed and each map keeps its own. -->
 
   <PropertyGroup Condition="'$(CapsuleImportMaps)' == 'true'">
-    <CapsuleMapsCliProject Condition="'$(CapsuleMapsCliProject)' == '' and Exists('$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj')">$(MSBuildThisFileDirectory)../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj</CapsuleMapsCliProject>
+    <CapsuleMapsCliProject Condition="'$(CapsuleMapsCliProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Maps.Cli/Capsule.Maps.Cli.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Maps.Cli/Capsule.Maps.Cli.csproj</CapsuleMapsCliProject>
     <CapsuleMapsCliAssembly Condition="'$(CapsuleMapsCliAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Maps.Cli.dll</CapsuleMapsCliAssembly>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>

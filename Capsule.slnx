@@ -1,0 +1,21 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/Capsule/Capsule.csproj" />
+    <Project Path="src/Capsule.Analyzers/Capsule.Analyzers.csproj" />
+    <Project Path="src/Capsule.Build/Capsule.Build.csproj" />
+    <Project Path="src/Capsule.Core/Capsule.Core.csproj" />
+    <Project Path="src/Capsule.Maps/Capsule.Maps.csproj" />
+    <Project Path="src/Capsule.Maps.Cli/Capsule.Maps.Cli.csproj" />
+    <Project Path="src/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <Project Path="src/Capsule.Scenes/Capsule.Scenes.csproj" />
+    <Project Path="src/Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
+  </Folder>
+</Solution>

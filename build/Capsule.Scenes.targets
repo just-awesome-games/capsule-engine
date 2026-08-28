@@ -21,8 +21,8 @@
     <!-- The generator rides the game's own restore and build graph, the way the map importer
          does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
          the game's output or its publish set. -->
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
-                      Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj')"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
+                      Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"

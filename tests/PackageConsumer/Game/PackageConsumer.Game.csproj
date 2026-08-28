@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule/Capsule.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>
 
 </Project>

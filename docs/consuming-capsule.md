@@ -74,7 +74,7 @@ The logic role activates source generation and purity analysis:
     <PackageReference Include="JAG.Capsule" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule/Capsule.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>
 </Project>
 ```
@@ -100,7 +100,7 @@ Exactly one project takes the shell role:
     <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
   </ItemGroup>
 </Project>
 ```

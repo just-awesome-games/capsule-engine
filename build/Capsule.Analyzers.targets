@@ -12,13 +12,13 @@
 
     <!-- Source-clone development. The private package replaces this with an Analyzer item that
          points at its bundled DLL while preserving the same zero-configuration behavior. -->
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Analyzers/Capsule.Analyzers.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all"
-                      Condition="Exists('$(MSBuildThisFileDirectory)../Capsule.Analyzers/Capsule.Analyzers.csproj')" />
+                      Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Analyzers/Capsule.Analyzers.csproj')" />
   </ItemGroup>
 
 </Project>

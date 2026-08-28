@@ -50,7 +50,7 @@ Logic projects cannot reference the runtime, backend, file IO, ambient clocks, r
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-Maps are canonical JSON derived during the build from native map sources or Tiled files. Their format and importer constraints are in [`Capsule.Maps/README.md`](Capsule.Maps/README.md).
+Maps are canonical JSON derived during the build from native map sources or Tiled files. Their format and importer constraints are in [`src/Capsule.Maps/README.md`](src/Capsule.Maps/README.md).
 
 Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
 

@@ -53,17 +53,17 @@ jobs:
 
       - name: Build
         run: >
-          dotnet build Capsule.sln
+          dotnet build Capsule.slnx
           --configuration Release
           --no-restore
           -p:Version=$CAPSULE_PACKAGE_VERSION
 
       - name: Test
-        run: dotnet test Capsule.sln --configuration Release --no-build
+        run: dotnet test Capsule.slnx --configuration Release --no-build
 
       - name: Pack
         run: >
-          dotnet pack Capsule.sln
+          dotnet pack Capsule.slnx
           --configuration Release
           --no-build
           --output artifacts/packages

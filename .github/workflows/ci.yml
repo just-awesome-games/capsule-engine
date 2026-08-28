@@ -39,7 +39,7 @@ jobs:
 
       - name: Pack
         run: >
-          dotnet pack Capsule.sln
+          dotnet pack Capsule.slnx
           --configuration Release
           --no-build
           --output artifacts/packages
@@ -127,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage
-          path: Capsule.Tests/TestResults/coverage.cobertura.xml
+          path: tests/Capsule.Tests/TestResults/coverage.cobertura.xml
           if-no-files-found: warn
 
   platform-and-aot:

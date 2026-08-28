@@ -23,33 +23,33 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../build/Capsule.Build.targets"
+    <None Include="../../build/Capsule.Build.targets"
           Pack="true"
           PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
-    <None Include="../build/Capsule.Maps.targets"
+    <None Include="../../build/Capsule.Maps.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
-    <None Include="../build/Capsule.Assets.targets"
+    <None Include="../../build/Capsule.Assets.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
-    <None Include="../build/Capsule.Scenes.targets"
+    <None Include="../../build/Capsule.Scenes.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
-    <None Include="../build/Capsule.Icon.targets"
+    <None Include="../../build/Capsule.Icon.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
     <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
          pair whether a game builds against the packages or an engine clone. -->
-    <None Include="../build/Icon.ico"
+    <None Include="../../build/Icon.ico"
           Pack="true"
           PackagePath="buildTransitive/" />
-    <None Include="../build/Icon.bmp"
+    <None Include="../../build/Icon.bmp"
           Pack="true"
           PackagePath="buildTransitive/" />
-    <None Include="../build/Capsule.Analyzers.targets"
+    <None Include="../../build/Capsule.Analyzers.targets"
           Pack="true"
           PackagePath="buildTransitive/"
-          Condition="Exists('../build/Capsule.Analyzers.targets')" />
+          Condition="Exists('../../build/Capsule.Analyzers.targets')" />
   </ItemGroup>
 
   <Target Name="IncludeCapsuleBuildAssets">
