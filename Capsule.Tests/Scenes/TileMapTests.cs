@@ -7,10 +7,6 @@ using Capsule.Scenes.Entities;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The tilemap: a grid to query, quads baked once from it, and terrain that draws first because
-/// the scene added it first — never because the engine treats it as special.
-/// </summary>
 public sealed class TileMapTests
 {
     [Fact]
@@ -28,7 +24,6 @@ public sealed class TileMapTests
 
         Assert.Equal(2, simulation.View.Quads.Length);
 
-        // The one solid tile is at (1, 0), and terrain never moves.
         QuadIntent terrain = simulation.View.Quads[0];
         Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), terrain.Position);
         Assert.Equal(terrain.Position, terrain.PreviousPosition);
@@ -51,9 +46,6 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), simulation.View.Quads[0].Position);
     }
 
-    // A tilemap takes a grid, not a document: nothing here loads a file or builds a map, and a
-    // procedurally generated grid reaches the renderer the same way an imported one does. The
-    // colours come from the grid's own palette, so nothing outside it says what a tile looks like.
     [Fact]
     public void ATilemapIsBuiltFromAGridAlone_WithNoMapAnywhere()
     {
@@ -107,8 +99,6 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(8, 0), tile.Position);
     }
 
-    // The renderer interpolates the camera, so terrain is culled against where the camera has
-    // been as well as where it ended: a tile crossed mid-step is drawn on that frame.
     [Fact]
     public void TerrainEmitsTheTilesTheCameraSweepsAcross()
     {

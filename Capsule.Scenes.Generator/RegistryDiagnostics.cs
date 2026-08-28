@@ -2,11 +2,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// Everything <c>[SpawnType]</c> can be wrong about, the collisions two classes can reach without
-/// it, and the three an asset's file name can reach. All errors: each one would otherwise surface
-/// as authored content that fails to load at run time, on a machine that is not the author's.
-/// </summary>
 internal static class RegistryDiagnostics
 {
     private const string Category = "Capsule.Scenes";

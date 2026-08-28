@@ -3,13 +3,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The shell half of the generator, over the two compilations a game really has. What is asserted
-/// is that the entry point reaches the registry across the project reference, that the shell gets
-/// no registry of its own though it sees Capsule.Scenes through the game assembly, that the game
-/// assembly gets no entry point though it sees the engine host, and that a shell referencing no
-/// game assembly at all fails the build rather than generating an entry point naming no scenes.
-/// </summary>
 public sealed class GameBootGeneratorTests
 {
     private const string LogicSource = """
@@ -44,9 +37,6 @@ public sealed class GameBootGeneratorTests
             StringComparison.Ordinal);
     }
 
-    // The trap the roles exist for: a shell reaches Capsule.Scenes through the game assembly, so a
-    // generator gated on what it can see would emit a second, empty pair of registries here — and
-    // source shadows metadata, so the shell would boot through those instead.
     [Fact]
     public void TheShell_GetsNoRegistryOfItsOwn_ThoughItSeesCapsuleScenesThroughTheGame()
     {
@@ -66,9 +56,6 @@ public sealed class GameBootGeneratorTests
         Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameBootFile));
     }
 
-    // The shell role exists to hand a game's scenes to the engine, so a shell that references no
-    // assembly declaring any is wired wrong. Diagnosed at compile time rather than left to fail on
-    // the player's machine at the first RunScene.
     [Fact]
     public void AShellReferencingNoLogicAssembly_FailsTheBuild()
     {

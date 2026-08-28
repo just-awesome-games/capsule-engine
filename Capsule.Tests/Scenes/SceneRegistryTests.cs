@@ -4,11 +4,6 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The table the engine boots through, indexed both ways from one set of registrations: by class,
-/// for a game that names the scene it starts on, and by map name, for one that names the map. A
-/// map no class claims is not a failure — it is the case that makes a per-map class optional.
-/// </summary>
 public sealed class SceneRegistryTests
 {
     private static readonly EntityRegistry NoEntities = SceneFixtures.Registry();
@@ -33,7 +28,6 @@ public sealed class SceneRegistryTests
         Assert.IsType<SceneFixtures.Room01>(composed);
     }
 
-    // A per-map class is optional, and this is what that cashes out as.
     [Fact]
     public void AMapNoClassClaims_ComposesIntoAPlainMapScene()
     {
@@ -57,8 +51,6 @@ public sealed class SceneRegistryTests
         Assert.Contains("Room01", failure.Message, StringComparison.Ordinal);
     }
 
-    // Constructing one without its map would produce a scene with no terrain and no objects,
-    // which is not what the class says it is.
     [Fact]
     public void AMapBackedClassCannotBeBuiltWithoutItsMap()
     {

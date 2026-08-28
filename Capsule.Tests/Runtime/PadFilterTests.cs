@@ -6,8 +6,6 @@ public sealed class PadFilterTests
 {
     private const float Tolerance = 1e-5f;
 
-    // A configured pair, well clear of the defaults: a filter that ignored what it was
-    // built with would land on a visibly different value in the remap specs below.
     private const float ConfiguredStickDeadzone = 0.5f;
     private const float ConfiguredTriggerDeadzone = 0.4f;
 
@@ -31,7 +29,6 @@ public sealed class PadFilterTests
     [Fact]
     public void AStickJustOutsideTheDeadzone_ReadsNearZero()
     {
-        // The remap is continuous at the boundary: no jump from centred to a step value.
         (float x, float y) = Default.Stick(PadFilter.DefaultStickDeadzone + 0.001f, 0f);
 
         Assert.InRange(x, 0f, 0.01f);
@@ -54,7 +51,6 @@ public sealed class PadFilterTests
     {
         PadFilter filter = new(deadzone, PadFilter.DefaultTriggerDeadzone);
 
-        // Halfway between the deadzone and full deflection reads half.
         float halfway = deadzone + ((1f - deadzone) / 2f);
 
         (float x, _) = filter.Stick(halfway, 0f);
@@ -82,7 +78,6 @@ public sealed class PadFilterTests
         {
             float radians = degrees * MathF.PI / 180f;
 
-            // Magnitude 1.4 stands in for the worst corner a square gate reports.
             (float x, float y) = Default.Stick(1.4f * MathF.Cos(radians), 1.4f * MathF.Sin(radians));
 
             Assert.InRange(MathF.Sqrt((x * x) + (y * y)), 0f, 1f + Tolerance);

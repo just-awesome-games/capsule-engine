@@ -4,13 +4,7 @@ using Capsule.Rendering;
 
 namespace Capsule.Scenes.Entities;
 
-/// <summary>
-/// A tile grid as one entity: the grid to query, and visible coloured tiles drawn as quads.
-/// The quads are in world coordinates from the origin and
-/// <see cref="Entity.Position"/> is never consulted, so a tilemap does not move. It draws in the
-/// scene's insertion order like any entity, so a scene that adds its tilemap first draws terrain
-/// behind everything.
-/// </summary>
+/// <summary>A stationary, world-origin tile grid that draws colored palette entries as quads.</summary>
 public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;

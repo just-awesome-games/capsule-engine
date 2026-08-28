@@ -3,12 +3,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The entity half of the generated registries. Registration is a class's constructor shape, so
-/// what is asserted is which shapes reach the registry, which are passed over without a word, and
-/// which of the mistakes an author can make are compile errors in a game rather than content that
-/// fails to load on someone else's machine.
-/// </summary>
 public sealed class EntityGeneratorTests
 {
     [Fact]
@@ -30,7 +24,6 @@ public sealed class EntityGeneratorTests
         Assert.Contains("\"health-pickup\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"http-probe\"", generated, StringComparison.Ordinal);
 
-        // A run of digits is its own word, so a numbered class matches a numbered authoring name.
         Assert.Contains("\"enemy-2\"", generated, StringComparison.Ordinal);
     }
 

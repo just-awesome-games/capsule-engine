@@ -7,13 +7,8 @@ using Capsule.Scenes.Spawning;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// One screen of game: every entity in play, and the camera looking at them. Subclass it and
-/// compose the entities the screen is made of; a screen composed from a map subclasses
-/// <see cref="MapScene"/>, which has already composed them.
-/// Entities keep the order they were added in — never a hash order — and adding or removing one
-/// during a step takes effect at the end of that step, so a step never iterates a list that
-/// changes under it. The first transition requested before the host consumes one is the one it
-/// performs.
+/// An ordered world of entities and a camera. Mutations requested during a step are deferred
+/// until it ends; the first pending transition wins.
 /// </summary>
 public class Scene
 {
@@ -64,10 +59,7 @@ public class Scene
     /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
-    /// <summary>
-    /// Takes <paramref name="entity"/>, which no scene may already hold. Called during a step,
-    /// the entity joins at the end of it, after every entity has updated.
-    /// </summary>
+    /// <summary>Adds an unowned entity, deferred to the end of the current step when necessary.</summary>
     /// <exception cref="InvalidOperationException">The entity is already in a scene or already queued.</exception>
     public void Add(Entity entity)
     {
@@ -89,11 +81,7 @@ public class Scene
         Attach(entity);
     }
 
-    /// <summary>
-    /// Lets go of <paramref name="entity"/>. Called during a step, it stays for the rest of that
-    /// step — it has already updated, or is about to — and leaves at the end of it. Idempotent
-    /// within a step: two causes may remove the same entity in one step, and it detaches once.
-    /// </summary>
+    /// <summary>Removes an entity, deferred and idempotent within the current step.</summary>
     /// <exception cref="InvalidOperationException">The entity is not in this scene.</exception>
     public void Remove(Entity entity)
     {
@@ -205,32 +193,17 @@ public class Scene
     {
     }
 
-    /// <summary>
-    /// Runs once per fixed step, after every position is retained and before any entity updates:
-    /// scene-wide input, and anything else that must read the scene as it stood at the start of
-    /// the step. Anything reading where entities ended up — camera policy above all — belongs in
-    /// <see cref="OnLateStep"/> instead.
-    /// </summary>
+    /// <summary>Runs after positions are retained and before entities update.</summary>
     protected virtual void OnStep(in StepContext context)
     {
     }
 
-    /// <summary>
-    /// Runs once per fixed step, after every entity and its components have updated and before
-    /// the frame is built: camera policy, and anything else that must read the step as it
-    /// settled. A position read here is this step's, never the previous step's. It is still
-    /// inside the step, so an add or remove made here lands at the end of it like any other.
-    /// </summary>
+    /// <summary>Runs after entities update and before the frame is built; use it for camera policy.</summary>
     protected virtual void OnLateStep(in StepContext context)
     {
     }
 
-    /// <summary>
-    /// Adds one entity per spawn, in the order given. A scene composing from something other than
-    /// a map passes the registry its source generator emitted,
-    /// <c>Capsule.Scenes.Generated.GameEntities.Registry</c> — the same seam
-    /// <see cref="MapScene"/> spawns through.
-    /// </summary>
+    /// <summary>Adds one entity per spawn, in source order.</summary>
     /// <exception cref="SpawnException">A spawn's type is claimed by no entity.</exception>
     protected void Spawn(ReadOnlySpan<EntitySpawn> spawns, EntityRegistry entities)
     {
@@ -326,13 +299,7 @@ public class Scene
         return true;
     }
 
-    /// <summary>
-    /// The renderers to draw, in entity order then attachment order within an entity: the draw
-    /// order itself. Derived — marked stale by any structural change and rebuilt here, whole
-    /// rather than appended to, because a renderer attached to an early entity draws in that
-    /// entity's place. Maintaining it surgically is the upgrade path if mutation-heavy frames
-    /// ever profile hot.
-    /// </summary>
+    // Draw order is entity order, then component attachment order.
     internal ReadOnlySpan<Renderer> RenderersInDrawOrder()
     {
         if (_renderersStale)
@@ -345,7 +312,6 @@ public class Scene
 
     internal void InvalidateRenderers() => _renderersStale = true;
 
-    /// <summary>Opens a step: retains every position, and defers scene changes to <see cref="EndStep"/>.</summary>
     internal void BeginStep()
     {
         _stepping = true;
@@ -360,7 +326,6 @@ public class Scene
 
     internal void RunStep(in StepContext context) => OnStep(context);
 
-    /// <summary>Updates every entity in order, each followed by its own components.</summary>
     internal void UpdateEntities(in StepContext context)
     {
         foreach (Entity entity in Entities)
@@ -372,12 +337,7 @@ public class Scene
 
     internal void RunLateStep(in StepContext context) => OnLateStep(context);
 
-    /// <summary>
-    /// Closes a step: everything queued during it lands, additions before removals, in the order
-    /// it was queued. Deferral stays on for the whole drain, so a lifecycle hook that adds or
-    /// removes joins these queues under the same coalescing rules rather than reaching the
-    /// entity list directly, and what a hook queues lands before this returns.
-    /// </summary>
+    // Keep deferral active while lifecycle hooks grow either queue.
     internal void EndStep()
     {
         // Indexed against a live Count, never a span: a hook may grow the list being drained.

@@ -7,17 +7,10 @@ using Capsule.Rendering;
 
 namespace Capsule.Maps.Cli.Tiled;
 
-/// <summary>
-/// Turns a Tiled map into a Capsule map. A pure function of the source and its tilesets: the
-/// same inputs always produce the same map, which is what lets a build skip an unchanged source
-/// and a golden fixture pin the output byte for byte.
-/// </summary>
 public static class TiledImporter
 {
-    /// <summary>The value stamped into an imported map's <c>source.tool</c>.</summary>
     public const string ToolName = "tiled";
 
-    /// <summary>The tileset tile property carrying optional colour presentation.</summary>
     public const string ColorProperty = "color";
 
     // Tiled's name for the Color property type; it equals ColorProperty only by coincidence.
@@ -26,19 +19,6 @@ public static class TiledImporter
     // Tiled packs flip and rotation into the top nibble of a gid.
     private const uint OrientationFlags = 0xF000_0000u;
 
-    /// <summary>
-    /// Imports the Tiled map at <paramref name="mapPath"/>. The path is stamped into the map's
-    /// source block exactly as given, separators normalised — so it must be relative, and it
-    /// means what it means from the working directory this ran in.
-    /// </summary>
-    /// <param name="tileSize">
-    /// The tile size the game declares, which every map it imports must match. Null declares
-    /// nothing, and each map keeps its own.
-    /// </param>
-    /// <param name="dependencyRoot">
-    /// When supplied, external tilesets must resolve beneath this tracked source directory.
-    /// </param>
-    /// <exception cref="TiledImportException">The source uses something Capsule does not import.</exception>
     public static Map Import(string mapPath, int? tileSize = null, string? dependencyRoot = null)
     {
         byte[] mapBytes = File.ReadAllBytes(mapPath);

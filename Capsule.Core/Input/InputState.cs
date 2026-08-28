@@ -1,10 +1,6 @@
 namespace Capsule.Input;
 
-/// <summary>
-/// Action-level input for the current fixed step. Every edge is a diff of two consecutive
-/// <see cref="DeviceSnapshot"/>s, never an OS callback, so a replayed snapshot sequence
-/// reproduces a run exactly. The runtime owns <see cref="Advance"/>; a simulation only reads.
-/// </summary>
+/// <summary>Action-level input derived from consecutive deterministic device snapshots.</summary>
 public sealed class InputState(ActionBindings bindings)
 {
     private readonly ActionBindings _bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
@@ -12,11 +8,7 @@ public sealed class InputState(ActionBindings bindings)
     private DeviceSnapshot _previous;
     private DeviceSnapshot _current;
 
-    /// <summary>
-    /// Makes <paramref name="snapshot"/> the current instant and the former current
-    /// the previous one. Advancing twice against the same snapshot reports no edges
-    /// the second time, so a frame that drains several steps fires each edge once.
-    /// </summary>
+    /// <summary>Advances to a snapshot; repeated snapshots produce no repeated edges.</summary>
     public void Advance(in DeviceSnapshot snapshot)
     {
         _previous = _current;

@@ -2,24 +2,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// Emits what the project's declared role calls for. In the game's logic assembly
-/// (<c>CapsuleGameLogic</c>): its spawnable entities and scenes as the registries the engine boots
-/// through, <c>Capsule.Scenes.Generated.GameEntities.Registry</c> and
-/// <c>Capsule.Scenes.Generated.GameScenes.Registry</c>. A class joins either by its constructor
-/// shape alone; anything else is an ordinary class and is passed over in silence. Both registries
-/// are emitted whatever the assembly declares, so a call site referring to one always compiles. A
-/// uniquely named provider keeps each assembly's factories beside the types they construct. In the
-/// shell (<c>CapsuleGameShell</c>): <c>Capsule.Runtime.Generated.GameBoot</c>, the engine entry point
-/// already composing every provider in the logic assemblies it references.
-/// <para>
-/// Which half is emitted follows the declared role and never what a compilation happens to see: a
-/// shell reaches Capsule.Scenes through the logic assemblies, and registries emitted there would
-/// shadow their generated metadata.
-/// </para>
-/// Generating this rather than reflecting for it at boot is what keeps a Capsule game NativeAOT-able
-/// and its boot table compile-checked.
-/// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class RegistryGenerator : IIncrementalGenerator
 {

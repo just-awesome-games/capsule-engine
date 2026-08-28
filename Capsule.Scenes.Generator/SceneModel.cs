@@ -11,10 +11,6 @@ internal enum SceneFault
     AmbiguousConstructors,
 }
 
-/// <summary>
-/// One scene class as the pipeline carries it. Symbols are flattened to strings here: a model that
-/// outlives its compilation would pin the whole one in the generator cache.
-/// </summary>
 internal readonly struct SceneModel : IEquatable<SceneModel>
 {
     internal SceneModel(string qualifiedName, string displayName, string? mapName, SceneFault fault, Location location)
@@ -26,13 +22,10 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
         Location = location;
     }
 
-    /// <summary>The type as generated code must name it, <c>global::</c> and all.</summary>
     internal string QualifiedName { get; }
 
-    /// <summary>The type as a diagnostic message names it.</summary>
     internal string DisplayName { get; }
 
-    /// <summary>The map composed into it, or null when no map backs it.</summary>
     internal string? MapName { get; }
 
     internal SceneFault Fault { get; }

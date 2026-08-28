@@ -5,12 +5,7 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 
-/// <summary>
-/// A scene composed from a map: the grid as a <see cref="TileMap"/> added first, so terrain draws
-/// behind everything, then one entity per placed object in the map's own order. Subclass it where
-/// a map needs behaviour of its own and pass the context straight through; a map no class claims
-/// runs as one of these.
-/// </summary>
+/// <summary>A map's tile grid followed by its spawned entities, preserving authored order.</summary>
 public class MapScene : Scene
 {
     /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>

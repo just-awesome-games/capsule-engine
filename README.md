@@ -4,117 +4,58 @@
 
 <h1 align="center">Capsule Engine</h1>
 
-<p align="center">A code-first C# game engine — the whole game in one capsule, the machinery sealed inside.</p>
+<p align="center">A deterministic, code-first 2D game engine for C#.</p>
 
----
+Capsule owns the game loop, fixed-step clock, input, rendering, scenes, entities, maps, and build pipeline. Games author scenes in C# and maps as data; there is no editor, project wizard, or serialized scene graph. MonoGame is an internal host dependency and is unavailable to game logic.
 
-Capsule is JAG Studios' open-source engine: 2D, deterministic, code-first. It owns the frame —
-loop, clock, window, input, the sim/render seam — and the world inside it: a scene, the entities on
-it, and the order they update and draw in. **No editor, no serialized scene format, no project
-wizard: scenes are C#, maps are data.**
+Capsule is a good fit for a 2D game that values headless-testable gameplay, explicit code, deterministic stepping, and a small engine surface. It is not a fit for teams that need visual scene authoring, 3D, a large plugin ecosystem, or a stable 1.0 API.
 
-Gameplay is pure by construction: a scene advances one fixed step at a time, reads input as named
-actions, never touches a graphics device, and so is assertable headlessly. MonoGame is an
-implementation detail — `Capsule.Runtime` marks its compile assets private, so a
-`Microsoft.Xna.Framework` using in a consuming game does not compile.
+## Quick start
 
-## Quickstart
+Install the .NET SDK selected by [`global.json`](global.json), then run the repository's package-consumer game:
 
-Install the .NET SDK selected by [`global.json`](global.json). Nothing else — no editor, no engine
-SDK, no MonoGame install: a game restores the `JAG.Capsule.*` packages it pins from NuGet.org.
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md) has the two-project bootstrap.
+```text
+git clone https://github.com/just-awesome-games/capsule-engine.git
+cd capsule-engine
+dotnet restore --locked-mode
+dotnet run --project tests/PackageConsumer/Shell -p:CapsuleSourcePath=.
+```
 
-A game is a shell, its scenes and its entities. The shell:
+A Capsule game has a substrate-free logic project and a small executable shell. The generated boot API starts a scene:
 
 ```csharp
-using System.Numerics;
 using Capsule.Runtime.Generated;
+using MyGame.Game;
 
-GameBoot.Configure("My Game")
-    .WithCameraViewport(new Vector2(320f, 180f))
-    .WithBindings(MyGameInput.Bind)
-    .RunScene("room-01");
+GameBoot.Configure("My Game").RunScene<MainMenu>();
 ```
-
-A scene in the logic project, composed from the map its name derives:
 
 ```csharp
-using Capsule;
 using Capsule.Scenes;
 
-public sealed class Room01(MapSceneContext context) : MapScene(context)
-{
-    protected override void OnStep(in StepContext step)
-    {
-        if (step.Input.WasPressed(MyGameInput.Quit))
-        {
-            RequestExit();
-        }
-    }
+namespace MyGame.Game;
 
-    // Every entity has moved by now, so this frames the step that just settled.
-    protected override void OnLateStep(in StepContext step) =>
-        Camera.Center = FindSingle<Player>().Position;
-}
+public sealed class MainMenu : Scene;
 ```
 
-And an entity, claiming the map objects typed `player`:
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains the minimal project wiring needed to start a game.
 
-```csharp
-using System.Numerics;
-using Capsule;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Components;
-using Capsule.Scenes.Spawning;
+## Model
 
-public sealed class Player : Entity
-{
-    public Player(EntitySpawn spawn)
-        : base(spawn.Position) =>
-        Add(new QuadRenderer(new Vector2(8f, 8f), new ColorRgba(0xE0, 0x6C, 0x2A)));
+- `JAG.Capsule` is the substrate-free API used by game logic: fixed-step contracts, input actions, render intents, maps, scenes, entities, components, and cameras.
+- `JAG.Capsule.Runtime` is the executable host. Only the shell references it.
+- `JAG.Capsule.Build` supplies analyzers, source generators, asset hooks, and map import. It does not ship in the game.
 
-    public override void Update(in StepContext step) =>
-        Position += new Vector2(step.Input.Axis(MyGameInput.Move) * 120f * (float)step.DeltaSeconds, 0f);
-}
-```
+Logic projects cannot reference the runtime, backend, file IO, ambient clocks, randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot.
 
-Nothing above is registered by hand and nothing is reflected for: `GameBoot` is generated into the
-shell already holding the registries the compiler built from those classes. Every verb is
-documented where it is defined — the XML doc comments are the API reference, in your editor and in
-the packages.
+Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-## Architecture
+Maps are canonical JSON derived during the build from native map sources or Tiled files. Their format and importer constraints are in [`Capsule.Maps/README.md`](Capsule.Maps/README.md).
 
-Dependencies point one way and the build fails on a violation: Core references nothing, Maps
-references Core, Scenes references Core and Maps, Runtime references all three. A game's logic
-references only the substrate-free modules and its one-file shell alone references
-`Capsule.Runtime` — which is why gameplay stays headless-testable, and why no game links a line of
-Tiled-parsing code.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
 
-| Project | What it is |
-| --- | --- |
-| `Capsule.Core` | The contracts a game codes against: `ISimulation`, the fixed step, input as named actions, render intent, asset handles. |
-| `Capsule.Maps` | The map format and its loader ([README](Capsule.Maps/README.md)). |
-| `Capsule.Maps.Cli` | The dev-time tool a build hook runs to derive a game's maps from its authoring sources. |
-| `Capsule.Scenes` | The world: `Scene`, `MapScene`, `Entity`, `Component`, `Renderer`, `Camera`. |
-| `Capsule` | The pack root publishing the substrate-free modules as `JAG.Capsule`. Holds no code. |
-| `Capsule.Scenes.Generator` | Turns a game's classes into the registries it boots through, and its shipped assets into typed handles. Generated code, never reflection. |
-| `Capsule.Analyzers` | Compile-time enforcement of logic purity, deterministic services and role legality. |
-| `Capsule.Build` | The tooling-only package carrying build hooks, generators, analyzers and the map importer to a game. |
-| `Capsule.Runtime` | The host: window, device, clock, input, renderer, crash log. The only project referencing MonoGame. |
-| `Capsule.Tests` | xUnit specs over all of it. |
+## Contributing
 
-A release is three packages carrying one version — `JAG.Capsule` (every substrate-free module),
-`JAG.Capsule.Runtime` (the host) and `JAG.Capsule.Build` (tooling). The package boundary is the
-purity boundary; assemblies and namespaces stay `Capsule.*`.
-
-## Further reading
-
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — building the engine, and the gates a change passes.
-- [`AGENTS.md`](AGENTS.md) — the rules a contributor works under here.
-- [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — what a game repository sets up.
-- [`docs/architecture.md`](docs/architecture.md) — the determinism contract.
-- [`Capsule.Maps/README.md`](Capsule.Maps/README.md) — the map format and the Tiled import.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the build and test gates, [`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations.
 
 Capsule is licensed under the [MIT License](LICENSE).

@@ -2,12 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace Capsule.Rendering;
 
-/// <summary>
-/// Everything a simulation wants drawn. A simulation holds one and rewrites it once per
-/// fixed step — <see cref="Clear"/>, set frame intent, then <see cref="AddQuad"/> — while
-/// the renderer reads it on every draw frame; rewriting anywhere but the step tears.
-/// <see cref="Clear"/> retains the quad capacity, so the steady state allocates nothing.
-/// </summary>
+/// <summary>Mutable render intent, rewritten once per fixed step and read on draw frames.</summary>
 public sealed class FrameView
 {
     private readonly List<QuadIntent> _quads = [];
@@ -58,19 +53,14 @@ public sealed class FrameView
     /// <summary>Quad counts from the current rewrite.</summary>
     public RenderMetrics Metrics => new(_totalQuads, _quads.Count);
 
-    /// <summary>
-    /// Drops every quad and resets <see cref="Metrics"/>, keeping capacity and render intent.
-    /// </summary>
+    /// <summary>Drops every quad and resets <see cref="Metrics"/>, retaining capacity.</summary>
     public void Clear()
     {
         _quads.Clear();
         _totalQuads = 0;
     }
 
-    /// <summary>
-    /// Adds a quad when its swept bounds cross the camera's. A camera without finite positive
-    /// bounds leaves culling disabled, allowing a view to be assembled before its camera opens.
-    /// </summary>
+    /// <summary>Adds a quad when its swept bounds cross the camera; an unset camera disables culling.</summary>
     public void AddQuad(in QuadIntent quad)
     {
         _totalQuads++;

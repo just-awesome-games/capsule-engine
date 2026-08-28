@@ -2,15 +2,8 @@ using System.Text;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>The conventions that turn a class name into the name it claims, and back.</summary>
 internal static class TypeNaming
 {
-    /// <summary>
-    /// Kebab-cases <paramref name="typeName"/>: a boundary falls before an upper-case letter
-    /// that starts a word, so <c>HealthPickup</c> gives <c>health-pickup</c> and an acronym
-    /// stays whole — <c>HttpProbe</c> and <c>HTTPProbe</c> both give <c>http-probe</c>. A run of
-    /// digits is a word of its own, so <c>Room01</c> gives <c>room-01</c>.
-    /// </summary>
     internal static string FromTypeName(string typeName)
     {
         StringBuilder id = new(typeName.Length + 4);
@@ -49,14 +42,6 @@ internal static class TypeNaming
         return id.ToString();
     }
 
-    /// <summary>
-    /// The inverse convention, for a name a file carries rather than a class: <c>footstep-stone</c>
-    /// gives <c>FootstepStone</c>, and an inner capital survives, so <c>fooBar</c> gives
-    /// <c>FooBar</c>. Underscores separate words like hyphens, which is what makes
-    /// <c>a-b</c> and <c>a_b</c> one name and therefore a collision rather than two members
-    /// differing invisibly. Null where no identifier can come out — anything outside ASCII
-    /// letters, digits, hyphens and underscores, or a leading digit.
-    /// </summary>
     internal static string? ToIdentifier(string name)
     {
         StringBuilder identifier = new(name.Length);

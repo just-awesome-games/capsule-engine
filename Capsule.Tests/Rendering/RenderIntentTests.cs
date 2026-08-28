@@ -101,8 +101,6 @@ public sealed class RenderIntentTests
         Assert.Equal(crossing, Assert.Single(view.Quads.ToArray()));
     }
 
-    // The camera is interpolated like everything it looks at, so what it passes over mid-step is
-    // drawn even though it is outside the region the step ended on.
     [Fact]
     public void AView_KeepsAQuadTheCameraSweepsPast()
     {
@@ -117,9 +115,6 @@ public sealed class RenderIntentTests
         Assert.Equal(passed, Assert.Single(view.Quads.ToArray()));
     }
 
-    // A negative extent draws inverted, and travel hides it: a quad moving ten units with an
-    // extent of minus one still sweeps a rect of positive area, so only the size itself can
-    // reject it.
     [Fact]
     public void AView_RejectsAQuadWithANonPositiveExtent_MovingOrStill()
     {

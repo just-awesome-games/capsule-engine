@@ -33,7 +33,6 @@ public sealed class SnapshotLatchTests
     [Fact]
     public void SeveralStepsDrainedInOneFrame_SeeTheSameSnapshot()
     {
-        // The frame samples once; the extra steps must not invent a release.
         SnapshotLatch latch = new();
         DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
 
@@ -60,8 +59,6 @@ public sealed class SnapshotLatchTests
     [Fact]
     public void AnAxis_TakesTheLatestObservedPositionRatherThanTheExtreme()
     {
-        // A stick is a level, not an edge: the step wants where it is now, not where
-        // it passed through since the last one.
         SnapshotLatch latch = new();
 
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 1f));
@@ -79,8 +76,6 @@ public sealed class SnapshotLatchTests
         int presses = 0;
         int releases = 0;
 
-        // Three frames at a render rate above the step rate, only the last of which
-        // drains steps: without the latch the tap would be gone by then.
         latch.Observe(DeviceSnapshot.Of(Key.Space));
         latch.Observe(DeviceSnapshot.Empty);
         latch.Observe(DeviceSnapshot.Empty);

@@ -3,12 +3,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The scene half of the generated registries. A class's constructor shape is the whole opt-in and
-/// says which of the two kinds it is; the map it is composed from is its kebab-cased name, so what
-/// is asserted is that both shapes reach the registry under the right kind, that anything else is
-/// passed over without a word, and that two classes cannot silently claim one map.
-/// </summary>
 public sealed class SceneGeneratorTests
 {
     [Fact]
@@ -22,7 +16,6 @@ public sealed class SceneGeneratorTests
             public sealed class BossArena(MapSceneContext context) : MapScene(context);
             """);
 
-        // The digit is a word of its own, so Room01 boots room-01.map.json.
         Assert.Contains("MapBacked(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
         Assert.Contains("MapBacked(typeof(global::Game.BossArena), \"boss-arena\"", generated, StringComparison.Ordinal);
     }
@@ -160,8 +153,6 @@ public sealed class SceneGeneratorTests
         Assert.Contains("'room-01'", message, StringComparison.Ordinal);
     }
 
-    // The trap constructor discovery sets: an assembly with nothing to register still has call
-    // sites naming both registries, and under an opt-in attribute their absence was self-evident.
     [Fact]
     public void BothRegistriesAreEmitted_WhenTheAssemblyDeclaresNothingToRegister()
     {

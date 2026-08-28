@@ -5,11 +5,6 @@ using Capsule.Scenes.Components;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The camera moves on the same clock as the world it looks at: it is retained and interpolated
-/// exactly as an entity's position is, so a frame drawn between two steps shows one instant
-/// rather than a settled camera over half-moved quads. A cut is the exception it has to be.
-/// </summary>
 public sealed class SceneCameraTests
 {
     [Fact]
@@ -76,7 +71,6 @@ public sealed class SceneCameraTests
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        // The frame the step produced, not the next one: the late step runs ahead of the rewrite.
         Assert.Equal(new Vector2(11, 0), subject.Position);
         Assert.Equal(subject.Position, simulation.View.Camera.Center);
     }
@@ -87,8 +81,6 @@ public sealed class SceneCameraTests
         SceneFixtures.Drifter standing = new(new Vector2(50, 0));
         standing.Add(new QuadRenderer(Vector2.One, ColorRgba.White));
 
-        // The quad sits outside the camera at both ends of the step and inside it in between,
-        // so only the union of the two rects keeps it.
         static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(60, 0);
 
         SceneFixtures.HookScene scene = new(start: Open(new Vector2(40, 0), new Vector2(10, 10)), step: Sweep);

@@ -58,8 +58,6 @@ public sealed class InputStateTests
     [Fact]
     public void AdvancingTwiceOnOneSnapshot_FiresTheEdgeOnTheFirstStepOnly()
     {
-        // The runtime samples once per frame and drains several steps against that
-        // sample; an edge must not repeat across them.
         InputState input = Bound(Key.Space);
         DeviceSnapshot frame = DeviceSnapshot.Of(Key.Space);
         int presses = 0;

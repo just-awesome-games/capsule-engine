@@ -5,11 +5,6 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Capsule.Analyzers;
 
-/// <summary>
-/// Keeps deterministic game logic independent from the runtime substrate and common ambient
-/// sources of nondeterminism. Capsule projects opt into a role through MSBuild; consumers do not
-/// configure individual rules.
-/// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 {

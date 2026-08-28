@@ -2,12 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace Capsule.Input;
 
-/// <summary>
-/// The keys and gamepad buttons held down at one instant plus every axis position, and the
-/// determinism seam: the runtime derives one per frame from hardware, a harness fabricates
-/// them, and nothing downstream distinguishes the two. A value type over fixed bitsets and
-/// a fixed axis set, so producing, copying and comparing snapshots never touches the heap.
-/// </summary>
+/// <summary>An allocation-free snapshot of held keys, pad buttons, and axis positions.</summary>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {
     /// <summary>Keys whose <see cref="Key"/> value must remain below this to be representable.</summary>
@@ -92,11 +87,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return new DeviceSnapshot(_down, _padDown, axes);
     }
 
-    /// <summary>
-    /// This snapshot folded with a later sample of the same step: keys and pad buttons union,
-    /// axis values are <paramref name="newer"/>'s. An axis is a level rather than an edge, so
-    /// its latest sample is its truth.
-    /// </summary>
+    /// <summary>Unions held buttons with a newer sample and takes its axis values.</summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(_down | newer._down, (ushort)(_padDown | newer._padDown), newer._axes);
 

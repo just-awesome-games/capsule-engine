@@ -5,17 +5,10 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Performance;
 
-/// <summary>What one measured fixed step cost, and what it drew.</summary>
 internal readonly record struct StepSample(long AllocatedBytes, TimeSpan Duration, RenderMetrics Render);
 
-/// <summary>Steps a simulation behind a warm-up prefix and samples what the steps after it cost.</summary>
 internal static class StepMeasurement
 {
-    /// <summary>
-    /// A sample spans what a host pays for once a frame — advancing input, stepping, then reading
-    /// the view — so warm-up walks that same sequence and first-touch work lands there instead of
-    /// in a measurement.
-    /// </summary>
     internal static StepSample[] Measure(
         SceneSimulation simulation,
         double stepSeconds,

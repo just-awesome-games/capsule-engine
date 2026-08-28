@@ -92,8 +92,6 @@ public sealed class SceneHostTests
         Assert.Equal(1, scene.Stops);
     }
 
-    // The game's defaults belong to the host, not to the scene that happened to boot first, so a
-    // replacement opens at them too.
     [Fact]
     public void TheGamesSceneDefaults_ReachEverySceneTheHostOpens()
     {
@@ -111,8 +109,6 @@ public sealed class SceneHostTests
         Assert.Equal(TextureSampling.Point, host.View.Sampling);
     }
 
-    // A transition is a cut. The scene left behind was looking somewhere else entirely, and a
-    // frame drawn between the two must not sweep the camera from there to here.
     [Fact]
     public void ASceneOpenedByATransition_DoesNotSweepIntoPlace()
     {

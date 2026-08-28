@@ -3,16 +3,9 @@ using Capsule.Maps.Cli;
 
 namespace Capsule.Tests.Maps;
 
-/// <summary>
-/// The second authoring source as the build hook drives it: a map written by hand in Capsule's
-/// own format is a source like a Tiled one, so it is validated, re-emitted canonically and named
-/// after itself rather than passed through.
-/// </summary>
 [Collection(MapWorkspaceCollection.Name)]
 public sealed class NativeMapToolTests
 {
-    // Deliberately not canonical: no source block, inline arrays, and a palette entry the writer
-    // would lay out differently. What comes out has to be the format's own bytes regardless.
     private const string Authored = """
         { "formatVersion": 1,
           "grid": { "tileSize": 16, "width": 2, "height": 1,
@@ -22,8 +15,6 @@ public sealed class NativeMapToolTests
           "nextObjectId": 2 }
         """;
 
-    // A map is named after its source, and the format's extension is two of them: a stem taken
-    // one extension at a time would ship 'hall.map.map.json'.
     [Fact]
     public void ImportNative_ReEmitsCanonicallyUnderTheSourceStem()
     {
@@ -41,8 +32,6 @@ public sealed class NativeMapToolTests
         Assert.Equal("player", derived.Objects[0].Type);
     }
 
-    // The shipped map is an artifact whatever it was authored in, so it carries provenance back
-    // to the file that is edited — and never one saying it came from Tiled.
     [Fact]
     public void ImportNative_StampsTheSourcePathItWasHanded()
     {
@@ -62,8 +51,6 @@ public sealed class NativeMapToolTests
         Assert.Equal("rooms/hall.map.json", derived.Source?.Path);
     }
 
-    // A hand-authored map is validated rather than trusted: the whole point of re-emitting one is
-    // that nothing reaches the shipped plane the loader would reject at boot.
     [Fact]
     public void ImportNative_FailsAMalformedMapByNameAndStillImportsTheOthers()
     {
@@ -85,8 +72,6 @@ public sealed class NativeMapToolTests
         Assert.True(File.Exists("maps/hall.map.json"));
     }
 
-    // The declared tile size binds every source kind: a game that mixes them must not end up with
-    // one half of its maps checked against it.
     [Fact]
     public void ImportNative_FailsAMapWhoseTileSizeIsNotTheDeclaredOne()
     {
@@ -120,9 +105,6 @@ public sealed class NativeMapToolTests
         Assert.Contains("would overwrite", error.ToString(), StringComparison.Ordinal);
     }
 
-    // The two source kinds derive into one directory under one naming rule, so a map that came
-    // out of Tiled reads back in as a hand-authored source and re-emits identically but for the
-    // provenance. Nothing about the format is Tiled's.
     [Fact]
     public void ImportNative_RoundTripsAMapTheTiledImporterWrote()
     {

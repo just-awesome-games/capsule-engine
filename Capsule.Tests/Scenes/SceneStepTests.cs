@@ -7,10 +7,6 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The step choreography and the deferral rule that makes it safe: everything a game may do
-/// mid-step lands where the contract says it does, in an order two runs cannot disagree on.
-/// </summary>
 public sealed class SceneStepTests
 {
     [Fact]
@@ -53,10 +49,6 @@ public sealed class SceneStepTests
         Assert.Equal(expected, log);
     }
 
-    /// <summary>
-    /// The one-step gap the two hooks exist either side of: a camera aimed from the early hook
-    /// frames a position every entity has already left.
-    /// </summary>
     [Fact]
     public void TheLateStepReadsThisStepsPositions_WhereTheStepReadsTheOneBeforeIt()
     {
@@ -108,7 +100,6 @@ public sealed class SceneStepTests
         Assert.Equal(expected, log);
         Assert.Same(joining, Assert.Single(simulation.Scene.Entities.ToArray()));
 
-        // It joined past this step's updates, so it starts running on the next one.
         Assert.Equal(new Vector2(3, 3), joining.Position);
 
         simulation.Step(SceneFixtures.Step(1));
@@ -148,7 +139,6 @@ public sealed class SceneStepTests
         Assert.Equal(expected, simulation.Scene.Entities.ToArray());
         Assert.Same(simulation.Scene, joining.Scene);
 
-        // It joined after the step's updates, so it has not run one yet.
         Assert.Equal(Vector2.Zero, joining.Position);
     }
 
@@ -200,7 +190,6 @@ public sealed class SceneStepTests
         List<string> log = [];
         SceneFixtures.Recorder leaving = new("leaving", log);
 
-        // Attached partway through the drain, its hook removes what the same drain is about to.
         SceneFixtures.Meddler meddler = new(scene => scene.Remove(leaving));
 
         void Hook(Scene scene, in StepContext context)
@@ -240,7 +229,6 @@ public sealed class SceneStepTests
         Entity[] expected = [meddler, grandchild];
         Assert.Equal(expected, simulation.Scene.Entities.ToArray());
 
-        // The step's updates are long past, so it starts running on the next one.
         Assert.Equal(new Vector2(9, 9), grandchild.Position);
 
         simulation.Step(SceneFixtures.Step(1));
@@ -309,7 +297,6 @@ public sealed class SceneStepTests
 
         simulation.Scene.Remove(removed);
 
-        // Same, not Equal: every Twin compares equal, which is the very confusion under test.
         Assert.Equal(1, simulation.Scene.Entities.Length);
         Assert.Same(kept, simulation.Scene.Entities[0]);
         Assert.Same(simulation.Scene, kept.Scene);

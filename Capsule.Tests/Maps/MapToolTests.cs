@@ -3,16 +3,9 @@ using Capsule.Maps.Cli;
 
 namespace Capsule.Tests.Maps;
 
-/// <summary>
-/// The tool as the build hook drives it: one invocation, the whole stale batch, each map named
-/// after its source.
-/// </summary>
 [Collection(MapWorkspaceCollection.Name)]
 public sealed class MapToolTests
 {
-    // The build hook's geometry: an output directory that does not exist yet, several maps per
-    // run, and a stamp that names the source the build passed rather than anything about where
-    // the map landed — obj/ is a build detail and no provenance should mention it.
     [Fact]
     public void ImportTiled_WritesOneMapPerSourceIntoAnOutputDirectoryItCreates()
     {
@@ -33,8 +26,6 @@ public sealed class MapToolTests
             MapFile.Load(Path.Combine(Output, "room.map.json")).Source?.Path);
     }
 
-    // The form every build actually takes, because a project's worth of source paths does not
-    // fit on a command line.
     [Fact]
     public void ImportTiledFromList_ImportsTheSourcesNamedOnePerLine()
     {
@@ -48,8 +39,6 @@ public sealed class MapToolTests
         Assert.True(File.Exists("maps/hall.map.json"));
     }
 
-    // A batch is one process for the whole build, so a single unimportable source must not cost
-    // the rest of the maps.
     [Fact]
     public void ImportTiled_ReportsAFailedSourceByNameAndStillImportsTheOthers()
     {
@@ -69,8 +58,6 @@ public sealed class MapToolTests
         Assert.True(File.Exists("maps/room.map.json"));
     }
 
-    // The declared tile size reaches the importer through the same argument the build hook
-    // fills from CapsuleTileSize, and a map that breaks it fails the build like any other.
     [Fact]
     public void ImportTiled_FailsAMapWhoseTileSizeIsNotTheDeclaredOne()
     {
@@ -84,8 +71,6 @@ public sealed class MapToolTests
         Assert.False(File.Exists("maps/room.map.json"));
     }
 
-    // Maps are named after their sources and the output tree is flat, so two sources of the
-    // same name would otherwise leave one silently overwritten by the other.
     [Fact]
     public void ImportTiled_RefusesTwoSourcesThatWouldClaimTheSameMap()
     {

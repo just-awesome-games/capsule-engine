@@ -2,11 +2,7 @@ using System.Globalization;
 
 namespace Capsule.Maps;
 
-/// <summary>
-/// A tile grid plus the objects placed on it. Always valid: the constructor rejects anything
-/// the format forbids, so a map that exists is a map a game can trust. Constructing one from
-/// code is a first-class path — a file is one way to get a map, never the only one.
-/// </summary>
+/// <summary>A validated tile grid and its placed objects.</summary>
 public sealed class Map
 {
     private const int Sha256HexLength = 64;

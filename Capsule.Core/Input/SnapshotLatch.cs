@@ -1,12 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// Folds every sampled <see cref="DeviceSnapshot"/> into the one snapshot the next fixed
-/// step consumes: observed once per frame, consumed once per step. Without it a frame that
-/// drains no step discards its sample, losing a key pressed and released between two steps
-/// entirely. A harness that already owns per-tick snapshots may bypass this and drive
-/// <see cref="InputState.Advance"/> directly — the determinism seam is
-/// <see cref="DeviceSnapshot"/>, not the latch.
+/// Preserves sampled input until a fixed step consumes it, including presses between steps.
+/// Per-tick harnesses may drive <see cref="InputState.Advance"/> directly.
 /// </summary>
 public sealed class SnapshotLatch
 {
@@ -22,12 +18,7 @@ public sealed class SnapshotLatch
         _observedSinceStep = true;
     }
 
-    /// <summary>
-    /// The snapshot for one fixed step: every key and pad button seen down in any frame
-    /// observed since the previous step, with each axis at its latest observed position.
-    /// When no frame has been observed since — several steps draining in one frame — the
-    /// last observed frame stands, so an edge still fires only once.
-    /// </summary>
+    /// <summary>Consumes latched buttons and the latest axis values for one fixed step.</summary>
     public DeviceSnapshot ConsumeStepSnapshot()
     {
         DeviceSnapshot consumed = _observedSinceStep ? _latched : _live;

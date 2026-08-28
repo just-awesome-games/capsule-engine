@@ -3,28 +3,10 @@ using System.Text;
 
 namespace Capsule.Maps.Cli;
 
-/// <summary>
-/// Reads a hand-authored map in Capsule's own format. Validation is the format's own — the text
-/// goes through <see cref="MapFile"/> like any other map — and the only thing added is provenance,
-/// so a native source is a source like a Tiled one and the shipped plane stays wholly derived.
-/// A failure describes the fault and leaves naming the file to the caller, as the Tiled importer
-/// does.
-/// </summary>
 public static class NativeMapImporter
 {
-    /// <summary>The value stamped into a re-emitted map's <c>source.tool</c>.</summary>
     public const string ToolName = "native";
 
-    /// <summary>
-    /// Imports the map at <paramref name="mapPath"/>. The path is stamped into the map's source
-    /// block exactly as given, separators normalised — so it must be relative, and it means what
-    /// it means from the working directory this ran in.
-    /// </summary>
-    /// <param name="tileSize">
-    /// The tile size the game declares, which every map it imports must match. Null declares
-    /// nothing, and each map keeps its own.
-    /// </param>
-    /// <exception cref="MapFormatException">The file is not a map this build can read.</exception>
     public static Map Import(string mapPath, int? tileSize = null)
     {
         // Read once, because the hash is over the source bytes: the source block records what was

@@ -8,12 +8,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// The <c>GameScenes</c> registry: every class in the assembly that is a non-abstract
-/// <c>Capsule.Scenes.Scene</c>, under the constructor shape that says how it is built — one taking
-/// a <c>MapSceneContext</c> is composed from the map its kebab-cased class name derives, one
-/// taking nothing is a scene no map backs.
-/// </summary>
 internal static class SceneRegistrySource
 {
     private const string FileName = "CapsuleGameScenes.g.cs";

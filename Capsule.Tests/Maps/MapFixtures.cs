@@ -1,10 +1,5 @@
 namespace Capsule.Tests.Maps;
 
-/// <summary>
-/// The checked-in Tiled fixtures, and a scratch copy of them. The importer and the CLI both
-/// read from disk and resolve paths relative to their inputs, so a spec that mutates anything
-/// works on a copy rather than on the fixtures themselves.
-/// </summary>
 internal static class MapFixtures
 {
     internal static string Path(string name) =>
@@ -12,10 +7,6 @@ internal static class MapFixtures
 
     internal static string Read(string name) => File.ReadAllText(Path(name));
 
-    /// <summary>
-    /// A scratch tree holding the room fixture once per name — <c>"room"</c>, <c>"a/room"</c> —
-    /// each as <c>&lt;name&gt;.tmj</c> beside the tileset it references.
-    /// </summary>
     internal static Workspace CopyMaps(params string[] mapNames)
     {
         Workspace workspace = new();
@@ -40,12 +31,6 @@ internal static class MapFixtures
         return workspace;
     }
 
-    /// <summary>
-    /// A scratch tree that is also the working directory for as long as it lives. The importer
-    /// stamps a map path as it received it, so a spec only means anything if it drives the tool
-    /// the way the build does — from the directory the map paths are written against. Every
-    /// name a workspace takes or hands back is therefore relative.
-    /// </summary>
     internal sealed class Workspace : IDisposable
     {
         private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("capsule-maps-");

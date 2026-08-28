@@ -3,14 +3,8 @@ using Capsule.Rendering;
 
 namespace Capsule.Tests.Maps;
 
-/// <summary>
-/// The format's contract: what a map file may say, and the exact bytes one is written back as.
-/// The canonical form is load-bearing — the golden fixture byte-compares against it.
-/// </summary>
 public sealed class MapFileTests
 {
-    // Real-shaped: the format takes 64 lowercase hex characters and nothing else, so a
-    // placeholder here would fail every spec below on its hash rather than on what it pins.
     private const string Sha256 = "c304030d3d53c9c440cd5d251080080a16b34be3832ad1218b2b63cae622cf6d";
 
     private static readonly ColorRgba Slate = new(0x4A, 0x55, 0x68);
@@ -65,8 +59,6 @@ public sealed class MapFileTests
         Assert.Contains("tiles[1] is 7", error.Message, StringComparison.Ordinal);
     }
 
-    // Every channel differs, so a reader that shuffled them would still parse and still be
-    // wrong; the ends of the range pin the two saturating cases.
     [Theory]
     [InlineData("#00000000", 0x00, 0x00, 0x00, 0x00)]
     [InlineData("#ffffffff", 0xFF, 0xFF, 0xFF, 0xFF)]
@@ -95,8 +87,6 @@ public sealed class MapFileTests
         Assert.Equal(json, MapFile.ToJson(round));
     }
 
-    // The written form is lowercase #rrggbbaa and only that: anything else read back would be
-    // written out differently, and the map would not survive its own round trip.
     [Theory]
     [InlineData("#4A5568FF")]
     [InlineData("#4a5568")]
@@ -122,8 +112,6 @@ public sealed class MapFileTests
         Assert.Contains("appears more than once", error.Message, StringComparison.Ordinal);
     }
 
-    // nextObjectId is the promise that ids are never reused; an id at or above it means the
-    // counter was rewound, and the next id minted would collide with one already placed.
     [Fact]
     public void Parse_RejectsAnObjectIdThatNextObjectIdWouldHandOutAgain()
     {
@@ -133,8 +121,6 @@ public sealed class MapFileTests
         Assert.Contains("is not below nextObjectId 4", error.Message, StringComparison.Ordinal);
     }
 
-    // The message is the whole point of this error: an object written without an id is a map
-    // author's mistake, and nothing in the file says where ids come from.
     [Fact]
     public void Parse_NamesTheFixWhenAnObjectHasNoId()
     {
@@ -146,8 +132,6 @@ public sealed class MapFileTests
             error.Message);
     }
 
-    // Strict by choice: a typo'd field in a map written from code or a test would otherwise be
-    // silently dropped and only surface as wrong behaviour in play.
     [Fact]
     public void Parse_RejectsAFieldTheFormatDoesNotDefine()
     {
@@ -161,9 +145,6 @@ public sealed class MapFileTests
             () => MapFile.Parse(MapText(tileTypes: """[{"type": "empty"}, {"type": "ground", "sprite": "wall.png"}]""")));
     }
 
-    // Pins the canonical form whole: field order, the nested grid, the palette entry shape and
-    // its omitted colour on the reserved entry, indent, LF, the trailing newline, and that an
-    // absent source block is omitted rather than written as null.
     [Fact]
     public void ToJson_WritesTheCanonicalForm()
     {
@@ -209,7 +190,6 @@ public sealed class MapFileTests
         Assert.Equal(expected, MapFile.ToJson(map));
     }
 
-    // Neither has a JSON number, so either would construct a map that cannot be written out.
     [Theory]
     [InlineData(float.NaN, 0f)]
     [InlineData(0f, float.PositiveInfinity)]
@@ -221,8 +201,6 @@ public sealed class MapFileTests
         Assert.Contains("not a position", error.Message, StringComparison.Ordinal);
     }
 
-    // A half-filled block writes a source object that Parse rejects: the map would fail its own
-    // round trip.
     [Theory]
     [InlineData("", "room.tmj", Sha256)]
     [InlineData("tiled", "", Sha256)]
@@ -238,8 +216,6 @@ public sealed class MapFileTests
         Assert.Throws<MapFormatException>(() => new Map(Grid(), [], 1, default(MapSource)));
     }
 
-    // The source block only means anything if it resolves on someone else's machine: an
-    // absolute or backslashed path records provenance nobody else can follow.
     [Theory]
     [InlineData("..\\maps\\room.tmj")]
     [InlineData("maps\\room.tmj")]
@@ -253,8 +229,6 @@ public sealed class MapFileTests
         Assert.Contains("must be relative", error.Message, StringComparison.Ordinal);
     }
 
-    // A hash no importer could have produced can only ever mismatch, so the gate would report
-    // a stale map where the real defect is a hand-written source block.
     [Theory]
     [InlineData("abc123")]
     [InlineData("C304030D3D53C9C440CD5D251080080A16B34BE3832AD1218B2B63CAE622CF6D")]

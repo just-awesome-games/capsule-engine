@@ -4,10 +4,6 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// The engine types the generators recognise, the roles they branch on, and the shape tests they
-/// judge a class by.
-/// </summary>
 internal static class Symbols
 {
     internal const string LogicRole = "build_property.CapsuleGameLogic";

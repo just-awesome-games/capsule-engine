@@ -181,8 +181,6 @@ public sealed class DeviceSnapshotTests
         Assert.Equal(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f).GetHashCode(), held.GetHashCode());
     }
 
-    // An out-of-range shift wraps in C# rather than throwing, so without the guard an
-    // unrepresentable key would silently alias a real one.
     [Theory]
     [InlineData(-1)]
     [InlineData(DeviceSnapshot.Capacity)]
@@ -191,7 +189,6 @@ public sealed class DeviceSnapshotTests
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((Key)value));
     }
 
-    // The axis set is an InlineArray: out of bounds is a memory hazard, not a wrong answer.
     [Theory]
     [InlineData(-1)]
     [InlineData(99)]

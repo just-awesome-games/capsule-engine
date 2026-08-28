@@ -6,13 +6,7 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// The engine configured with the scenes a game declares, so it can boot one by class or by map
-/// name as well as host a bare <see cref="ISimulation"/>. The generated
-/// <c>Capsule.Runtime.Generated.GameBoot</c> hands one of these back already holding the game's
-/// registry; a hand-built <see cref="SceneRegistry"/> reaches the same builder through
-/// <see cref="CapsuleEngine.Configure(string, SceneRegistry)"/>.
-/// </summary>
+/// <summary>Host configuration with a game's generated scene registry.</summary>
 public sealed class SceneEngineBuilder : EngineBuilder<SceneEngineBuilder>
 {
     private readonly SceneRegistry _scenes;
@@ -83,11 +77,8 @@ public sealed class SceneEngineBuilder : EngineBuilder<SceneEngineBuilder>
         => RunScene(SceneTarget.ForScene(typeof(TScene)));
 
     /// <summary>
-    /// Opens the window and runs a map until game code requests exit: as the class claiming that
-    /// map name, or as a plain <see cref="Capsule.Scenes.MapScene"/> when no class claims it. The
-    /// map is read from <c>assets/maps/{mapName}.map.json</c> beside the executable, where the map
-    /// build hook ships it, and the map being played is then kept parsed — so reconstructing a
-    /// scene from it, which is what <see cref="Scene.RequestRestart()"/> does, reads no file.
+    /// Runs the scene claiming <paramref name="mapName"/>, or a plain <see cref="MapScene"/>.
+    /// The current parsed map is reused on restart.
     /// </summary>
     /// <param name="mapName">A map's bare name, as its authoring source is named.</param>
     /// <exception cref="MapFormatException">The map file is malformed.</exception>

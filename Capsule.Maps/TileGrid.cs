@@ -1,10 +1,6 @@
 namespace Capsule.Maps;
 
-/// <summary>
-/// A rectangle of tiles over a palette of tile definitions. Always valid: the constructor rejects
-/// anything the format forbids, so a grid that exists is a grid a game can trust. Constructing
-/// one from code is a first-class path — a map file is one way to get a grid, never the only one.
-/// </summary>
+/// <summary>A validated rectangular grid of palette indices.</summary>
 public sealed class TileGrid
 {
     /// <summary>The palette entry at index 0, meaning "no tile here". Reserved; never a game's tile type.</summary>

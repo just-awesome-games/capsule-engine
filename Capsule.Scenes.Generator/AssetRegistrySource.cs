@@ -8,12 +8,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// The <c>GameAssets</c> registry: every asset the build ships, as a typed handle nested under its
-/// domain. The domain each asset belongs to arrives as item metadata on the additional file, so
-/// this decides nothing about where an asset may live — <c>build/Capsule.Assets.targets</c> does,
-/// and the table below is the other half of that agreement.
-/// </summary>
 internal static class AssetRegistrySource
 {
     private const string FileName = "CapsuleGameAssets.g.cs";

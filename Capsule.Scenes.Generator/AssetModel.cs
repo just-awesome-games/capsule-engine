@@ -7,11 +7,6 @@ internal enum AssetFault
     DomainCollision,
 }
 
-/// <summary>
-/// One shipped asset as the pipeline carries it. A path is flattened to the names generated code
-/// and a diagnostic need: the file itself is never read, so an asset's bytes changing re-ships it
-/// without recompiling anything.
-/// </summary>
 internal readonly struct AssetModel : IEquatable<AssetModel>
 {
     internal AssetModel(
@@ -30,19 +25,14 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
         Fault = fault;
     }
 
-    /// <summary>The domain root it was authored under, which is also where it ships.</summary>
     internal string Domain { get; }
 
-    /// <summary>The file stem, which is half of what a handle carries.</summary>
     internal string Name { get; }
 
-    /// <summary>The extension with its dot, which is the other half.</summary>
     internal string Extension { get; }
 
-    /// <summary>The file as a diagnostic and a doc comment name it.</summary>
     internal string FileName { get; }
 
-    /// <summary>The member generated code declares, or empty where the name cannot become one.</summary>
     internal string Identifier { get; }
 
     internal AssetFault Fault { get; }

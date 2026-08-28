@@ -3,19 +3,10 @@ using Capsule.Maps.Cli.Tiled;
 
 namespace Capsule.Maps.Cli;
 
-/// <summary>
-/// The verbs, separated from argument parsing so they are driveable from a test. Each returns a
-/// process exit code: 0 on success, 1 on any failure, with every failure written to <c>error</c>.
-/// </summary>
 public static class MapTool
 {
     private const string MapExtension = ".map.json";
 
-    /// <summary>
-    /// As <see cref="ImportTiled"/>, reading the Tiled maps one per line from
-    /// <paramref name="listPath"/>. This is the form a build drives: a few hundred source paths
-    /// overflow a command line, and the failure when they do names nothing useful.
-    /// </summary>
     public static int ImportTiledFromList(
         string outputDirectory,
         string listPath,
@@ -25,15 +16,6 @@ public static class MapTool
         string? dependencyRoot = null) =>
         ImportFromList(Tiled(tileSize, dependencyRoot), outputDirectory, listPath, output, error);
 
-    /// <summary>
-    /// Generates one map per Tiled map into <paramref name="outputDirectory"/>, creating it if
-    /// absent. A map is named after its source, so two sources sharing a file name is an error
-    /// rather than a silent overwrite. Every source is attempted: one broken source reports and
-    /// does not hide the rest.
-    /// </summary>
-    /// <param name="tileSize">
-    /// The tile size the game declares, which every map must match; null declares nothing.
-    /// </param>
     public static int ImportTiled(
         string outputDirectory,
         IReadOnlyList<string> sourcePaths,
@@ -43,10 +25,6 @@ public static class MapTool
         string? dependencyRoot = null) =>
         Import(Tiled(tileSize, dependencyRoot), outputDirectory, sourcePaths, output, error);
 
-    /// <summary>
-    /// As <see cref="ImportNative"/>, reading the maps one per line from
-    /// <paramref name="listPath"/>. This is the form a build drives.
-    /// </summary>
     public static int ImportNativeFromList(
         string outputDirectory,
         string listPath,
@@ -55,13 +33,6 @@ public static class MapTool
         TextWriter error) =>
         ImportFromList(Native(tileSize), outputDirectory, listPath, output, error);
 
-    /// <summary>
-    /// Re-emits every hand-authored map into <paramref name="outputDirectory"/> in canonical form,
-    /// validated and stamped with its source path. Otherwise as <see cref="ImportTiled"/>.
-    /// </summary>
-    /// <param name="tileSize">
-    /// The tile size the game declares, which every map must match; null declares nothing.
-    /// </param>
     public static int ImportNative(
         string outputDirectory,
         IReadOnlyList<string> sourcePaths,

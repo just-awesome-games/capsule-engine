@@ -2,12 +2,7 @@ using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
-/// <summary>
-/// A <see cref="Scenes.Scene"/> behind the engine's simulation seam. It owns the step
-/// choreography — retain positions, run the scene's own step, update entities and their
-/// components in order, run the scene's late step, land the step's deferred changes, rewrite the
-/// frame — and that order is the contract every scene runs under.
-/// </summary>
+/// <summary>Runs a <see cref="Scenes.Scene"/> through Capsule's fixed-step lifecycle.</summary>
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();

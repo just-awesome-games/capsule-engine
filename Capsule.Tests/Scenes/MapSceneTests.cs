@@ -6,12 +6,6 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The scene a map composes into: the terrain first — the contract <see cref="TileMapTests"/>
-/// asserts over — then the map's own objects, turned into spawn data here and nowhere else. A
-/// subclass gets all of it by passing its context on, and reaches the map and the terrain it was
-/// built from.
-/// </summary>
 public sealed class MapSceneTests
 {
     [Fact]
@@ -29,7 +23,6 @@ public sealed class MapSceneTests
 
         Entity[] entities = scene.Entities.ToArray();
 
-        // The tilemap is the scene's first entity; the map's own objects follow it in file order.
         Assert.Equal(3, entities.Length);
         Assert.IsType<TileMap>(entities[0]);
         Assert.Equal(
@@ -55,7 +48,6 @@ public sealed class MapSceneTests
         Assert.IsType<SceneFixtures.Placed>(scene.Entities[1]);
     }
 
-    // The context is a struct, so a caller can hand over one that names no map at all.
     [Fact]
     public void AContextWithNoMap_IsRejected()
     {

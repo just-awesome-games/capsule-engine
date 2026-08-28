@@ -8,12 +8,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Scenes.Generator;
 
-/// <summary>
-/// The <c>GameEntities</c> registry: every class in the assembly that is a non-abstract
-/// <c>Capsule.Scenes.Entity</c> with a public constructor taking one <c>EntitySpawn</c>, under the
-/// spawn type it claims. <c>[SpawnType]</c> overrides the type a class would otherwise take from
-/// its name, and is the one way to be wrong out loud.
-/// </summary>
 internal static class EntityRegistrySource
 {
     private const string FileName = "CapsuleGameEntities.g.cs";

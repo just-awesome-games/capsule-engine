@@ -10,12 +10,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The generator hosted the way the compiler hosts it, over compilations built here: a rejected
-/// input is an assertion rather than a broken build, and the emitted registries are read back as
-/// source. The role a project would declare in MSBuild is supplied the same way the compiler
-/// supplies it, so the specs exercise the gate the generator actually branches on.
-/// </summary>
 internal static class GeneratorHarness
 {
     internal const string GameEntitiesFile = "CapsuleGameEntities.g.cs";
@@ -58,7 +52,6 @@ internal static class GeneratorHarness
         return emitted;
     }
 
-    /// <summary>The generated file's source, or null where the generator emitted none.</summary>
     internal static string? Emission(Compilation compiled, string fileName)
     {
         foreach (SyntaxTree tree in compiled.SyntaxTrees)
@@ -94,12 +87,6 @@ internal static class GeneratorHarness
         return Run(Compiled("RoleSpecs", source, references.ToImmutable()), logic, shell);
     }
 
-    /// <summary>
-    /// A game's two projects as they actually meet: the logic half is generated, emitted to
-    /// metadata and referenced by the shell, so the shell's compilation reaches Capsule.Scenes and
-    /// the game's registries the way a real one does — through a reference, never in its own
-    /// source. Pass no logic source for a shell that references no game assembly at all.
-    /// </summary>
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileShell(string shellSource, string? logicSource = null)
     {
         ImmutableArray<MetadataReference> references = logicSource is null
@@ -122,11 +109,6 @@ internal static class GeneratorHarness
         return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
-    /// <summary>
-    /// The asset half of the build, as the compiler hands it over: the shipped files as additional
-    /// texts, each carrying the domain metadata <c>build/Capsule.Assets.targets</c> makes visible.
-    /// The files are never opened, here or in a real build.
-    /// </summary>
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
         bool logic,
         params string[] assetPaths)
@@ -221,7 +203,6 @@ internal static class GeneratorHarness
         return references.ToImmutable();
     }
 
-    /// <summary>An additional file the generator never opens, which is how a real asset arrives.</summary>
     private sealed class AssetFile(string path) : AdditionalText
     {
         public override string Path { get; } = path;
@@ -229,10 +210,6 @@ internal static class GeneratorHarness
         public override SourceText? GetText(CancellationToken cancellationToken = default) => null;
     }
 
-    /// <summary>
-    /// One declared MSBuild role plus the per-file asset metadata, as the compiler hands them to a
-    /// generator.
-    /// </summary>
     private sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
         private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false);

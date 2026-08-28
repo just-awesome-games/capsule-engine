@@ -3,12 +3,7 @@ using Capsule.Runtime.Input;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// Fluent configuration for one engine host. Every <c>With</c> validates eagerly, so a
-/// misconfiguration throws at the call site that caused it rather than inside the loop, and
-/// returns the builder it was called on, so a chain keeps whatever the entry point handed it.
-/// <see cref="Run"/> blocks until the game exits.
-/// </summary>
+/// <summary>Fluent, eagerly validated host configuration. <see cref="Run"/> blocks until exit.</summary>
 /// <typeparam name="TBuilder">The concrete builder, which every <c>With</c> returns.</typeparam>
 public abstract class EngineBuilder<TBuilder>
     where TBuilder : EngineBuilder<TBuilder>
@@ -91,13 +86,8 @@ public abstract class EngineBuilder<TBuilder>
     }
 
     /// <summary>
-    /// Rasterises the world into a fixed-size surface and letterboxes that into the window,
-    /// so the window's size stops changing what a frame contains. Left unset, the world
-    /// rasterises straight into the window at its live size, with no resolution ceiling.
-    /// <para>
-    /// These are pixels; a camera's <c>ViewportSize</c> is world units. The two are independent,
-    /// and coincide only where a game wants one world unit to be one pixel.
-    /// </para>
+    /// Sets a fixed render surface, letterboxed into the window. Dimensions are pixels and are
+    /// independent of the camera's world-unit viewport.
     /// </summary>
     /// <param name="width">Render-target width in pixels.</param>
     /// <param name="height">Render-target height in pixels.</param>
@@ -121,11 +111,7 @@ public abstract class EngineBuilder<TBuilder>
         return Self;
     }
 
-    /// <summary>
-    /// Ceiling on the simulated time one frame may contribute. Without it a long stall
-    /// (breakpoint, window drag) queues more steps than the following frames can run, and
-    /// the accumulator never drains.
-    /// </summary>
+    /// <summary>Caps simulated time contributed by one frame after a stall.</summary>
     /// <param name="seconds">
     /// Real seconds, positive and finite, never below one fixed step; a shorter ceiling
     /// could not carry a whole step, and <see cref="Run"/> — where both values are known —
@@ -186,10 +172,7 @@ public abstract class EngineBuilder<TBuilder>
         return Self;
     }
 
-    /// <summary>
-    /// Lets an escaping exception go unrecorded. A windowed build has no console to print it to,
-    /// so this trades the one artefact such a crash leaves behind for writing nothing to disk.
-    /// </summary>
+    /// <summary>Disables crash-log writes for escaping exceptions.</summary>
     public TBuilder WithoutCrashLog()
     {
         _crashLogAppName = null;

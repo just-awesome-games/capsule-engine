@@ -12,10 +12,6 @@ internal enum EntityFault
     AmbiguousSpawnConstructors,
 }
 
-/// <summary>
-/// One candidate class as the pipeline carries it. Symbols are flattened to strings here: a model
-/// that outlives its compilation would pin the whole one in the generator cache.
-/// </summary>
 internal readonly struct EntityModel : IEquatable<EntityModel>
 {
     internal EntityModel(string qualifiedName, string displayName, string spawnType, EntityFault fault, Location location)
@@ -27,10 +23,8 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
         Location = location;
     }
 
-    /// <summary>The type as generated code must name it, <c>global::</c> and all.</summary>
     internal string QualifiedName { get; }
 
-    /// <summary>The type as a diagnostic message names it.</summary>
     internal string DisplayName { get; }
 
     internal string SpawnType { get; }

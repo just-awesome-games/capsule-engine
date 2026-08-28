@@ -2,7 +2,6 @@ using Capsule.Input;
 
 namespace PackageConsumer.Game;
 
-/// <summary>The actions this consumer binds, as a game's own input module does.</summary>
 public static class ConsumerInput
 {
     public static readonly InputAction Advance = new("advance");

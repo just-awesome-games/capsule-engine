@@ -7,7 +7,6 @@ using Capsule.Scenes.Spawning;
 
 namespace PackageConsumer.Game;
 
-/// <summary>A spawnable entity, claiming the <c>marker</c> objects the room map places.</summary>
 public sealed class Marker : Entity
 {
     private static readonly Vector2 Body = new(8f, 8f);

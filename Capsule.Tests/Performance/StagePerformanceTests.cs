@@ -7,12 +7,6 @@ using Xunit.Abstractions;
 
 namespace Capsule.Tests.Performance;
 
-/// <summary>
-/// What the engine costs to run one screen of a real game, and the ceilings that cost is held
-/// under. What is asserted is allocation and file access: those two are deterministic, where a
-/// duration threshold on a shared runner measures the runner. Every measurement, durations
-/// included, is written to the test output for a person reading the run.
-/// </summary>
 [Collection(StagePerformanceCollection.Name)]
 public sealed class StagePerformanceTests(ITestOutputHelper output)
 {

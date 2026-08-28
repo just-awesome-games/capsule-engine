@@ -1,73 +1,25 @@
-# Agents
+# Agent rules
 
-Operating rules for anyone changing this repository, human or agent. Every one is a rule no
-compiler, test or CI job can enforce for you. Everything that *can* be enforced is, and is not
-restated here — read the failure.
+These rules cover judgments the build cannot enforce. Read diagnostics before adding prose: architecture, role legality, public API documentation, and packaging are already gated.
 
-## Code is the documentation plane
+## Scope
 
-**The XML doc comment is the single copy of the API surface.** `CS1591` is an error in every
-assembly a game compiles against, so every public member is already documented where it is
-defined. Markdown that narrates the API is a second copy that will drift, and is deleted rather
-than corrected. Prose keeps only what code cannot carry: build configuration, data formats, and
-the rules on this page. A short example that compiles is not narration — a reader on the web has
-no IntelliSense — but the paragraphs explaining one are.
+Engine code lands with a consuming game call site. Do not add hooks, options, or abstractions for hypothetical consumers. Keep public names game-agnostic, and leave game policy in the game.
 
-**The whole narrative prose surface is this file, [`README.md`](README.md),
-[`docs/architecture.md`](docs/architecture.md),
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md) and
-[`Capsule.Maps/README.md`](Capsule.Maps/README.md)** — capped in volume as much as in count. Each
-states one job no other file does; one that cannot is deleted rather than trimmed. A new prose
-document, or a second module README, needs a maintainer-ratified reason.
+## Documentation
 
-**The contract files sit outside that cap** — [`LICENSE`](LICENSE),
-[`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md),
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and [`PACKAGE.md`](PACKAGE.md), the readme packed into
-every NuGet package. A stranger looks for them by name and convention fixes their shape. Every
-rule below still binds them.
+XML comments are the API reference and the only prose copy of public behavior. Keep them precise about units, ownership, lifecycle, exceptions, and non-obvious contracts; do not narrate signatures.
 
-**Documentation is declarative current-state**: no history, no changelogs, no supersession notes,
-no rationale essays, no decision records — anywhere, code comments included. Decision history is
-maintained internally by JAG Studios in the design repo's ledgers.
+Markdown is limited to onboarding, cross-cutting architecture, build configuration, data formats, and standard project contracts. Keep all documentation declarative and current: no changelogs, migration notes, decision history, or forward references to unimplemented features.
 
-**No doc-comment forward-references a feature that has not landed.**
-[`docs/architecture.md`](docs/architecture.md) is the one place a capability designed but not built
-may be recorded; the API reference describes only what compiles today.
-
-**Whatever prose survives, update it in the same change** as the code it describes. Documentation
-that lags is worse than none: it is confidently wrong.
-
-## Placement — no engine code without a call site
-
-**Engine code lands only alongside a consuming game call site in the same change-set.** A subsystem
-with no caller is a guess about a future need, and it calcifies before anything corrects it.
-
-## Publishable as-is
-
-**Every commit should be able to go public unchanged**: no game vocabulary on the public surface,
-docs that stand without studio context, CI a stranger could run. This is a quality bar, never a
-scope bar — a hook or option for a hypothetical external user is still speculative engine, and
-still fails the placement rule.
-
-## Tests
-
-**A test guards what the code cannot state for itself** — a contract, an invariant, a boundary or a
-hazard. One that restates what the code visibly does is deleted like any other restatement, the
-coverage floor is never a target, and no test asserts a game's tuning values or authored content.
+Comments explain invariants and hazards the code cannot state. Delete walkthroughs, section labels, and commentary addressed to reviewers.
 
 ## Boundaries
 
-Module dependency direction, the purity of the modules `JAG.Capsule` ships, and the legality of a
-consuming project's roles are gated by
-[`build/Capsule.Architecture.targets`](build/Capsule.Architecture.targets) and `Capsule.Analyzers`.
+The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats belong in `Capsule.Maps.Cli`, never in the runtime-linked `Capsule.Maps` assembly.
 
-The one boundary no build holds: **an authoring format's parser belongs in `Capsule.Maps.Cli`,
-which a game never references.** `Capsule.Maps` is what a game links at runtime, so a parser
-reaching it would ship in every game.
+Warnings are fixed or suppressed with the reason at the suppression site. Every commit must remain publishable without studio-only context.
 
-## Where the conventions live
+## Tests
 
-**This repository is the authority on how Capsule is built and used.** MonoGame is a substrate
-Capsule hides, so substrate conventions are Capsule's own and are held here, not deferred
-upstream. A warning is fixed, or suppressed with its justification at the suppression site. A
-deviation is recorded in the same change, never silent.
+Test contracts, invariants, boundaries, and failure modes. Do not test obvious implementation steps, target coverage mechanically, or assert a game's content and tuning in the engine suite.

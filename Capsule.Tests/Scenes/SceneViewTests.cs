@@ -7,10 +7,6 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// What a scene hands the renderer: the camera it is looked at through, and every renderer in
-/// the scene's own order — with no engine knowledge of what any of them draw.
-/// </summary>
 public sealed class SceneViewTests
 {
     [Fact]
@@ -56,7 +52,6 @@ public sealed class SceneViewTests
         Assert.Equal(new Vector2(8, 9), body.Position);
         Assert.Equal(new Vector2(4, 8), body.Size);
 
-        // A renderer the engine has never heard of reaches the frame on the same terms.
         QuadIntent stripe = simulation.View.Quads[1];
         Assert.Equal(new Vector2(1f, 64f), stripe.Size);
         Assert.Equal(ColorRgba.Black, stripe.Color);
@@ -79,8 +74,6 @@ public sealed class SceneViewTests
         early.Add(new QuadRenderer(Vector2.One, ColorRgba.White));
         simulation.Step(SceneFixtures.Step());
 
-        // Entity order decides, not the order the renderers appeared: the later attachment
-        // belongs to the earlier entity, so it draws first.
         Assert.Equal(2, simulation.View.Quads.Length);
         Assert.Equal(ColorRgba.White, simulation.View.Quads[0].Color);
         Assert.Equal(ColorRgba.Black, simulation.View.Quads[1].Color);

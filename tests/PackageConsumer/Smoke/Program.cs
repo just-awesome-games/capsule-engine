@@ -11,22 +11,13 @@ using PackageConsumer.Game;
 
 namespace PackageConsumer.Smoke;
 
-/// <summary>
-/// The consumer's headless boot check: read the map the build hook shipped, compose the
-/// map-backed scene the game declares, drive it through a scripted input sequence, and assert
-/// where it ended up. Published ahead of time and executed in CI, this is what proves a Capsule
-/// game boots rather than merely publishing.
-/// </summary>
 internal static class Program
 {
     private const double StepSeconds = 1.0 / 60.0;
     private const int AdvanceSteps = 30;
 
-    // Where a shipped game's maps are, and what the boot verbs resolve a map name against.
     private const string MapPath = "assets/maps/room.map.json";
 
-    // The other half of the shipped plane: a map authored by hand in Capsule's own format rather
-    // than in Tiled, and the two asset domains this consumer authors.
     private const string NativeMapPath = "assets/maps/hall.map.json";
 
     public static int Main()
@@ -101,15 +92,9 @@ internal static class Program
         return snapshots;
     }
 
-    // Read from beside the executable, exactly as the engine's own boot verbs read it: the file
-    // the build hook derived from the game's Tiled source, through the source-generated reader,
-    // in a binary published ahead of time. That whole chain is what this run exists to exercise.
     private static Map RoomMap() =>
         MapFile.Load(Path.Combine(AppContext.BaseDirectory, MapPath));
 
-    // The rest of the shipped plane, asserted rather than merely published: a hand-authored map
-    // arrives validated and stamped as derived, and every asset is beside the executable under
-    // the domain it was authored in, named by the handle the generator built from that file.
     private static bool ContentShipped()
     {
         Map hall = MapFile.Load(Path.Combine(AppContext.BaseDirectory, NativeMapPath));
@@ -123,8 +108,6 @@ internal static class Program
             && Shipped("audio", step.Name, step.Extension);
     }
 
-    // Built from the handle rather than spelled out: a handle locating its own file is the
-    // contract, and a run on a case-sensitive filesystem is what proves the plane is lowercase.
     private static bool Shipped(string domain, string name, string extension) =>
         File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", domain, name + extension));
 }

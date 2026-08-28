@@ -4,11 +4,6 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// Turning spawn data into a scene's entities, with no authoring format in sight: in the order
-/// given, carrying the data as handed over, and with a failure that names what went wrong rather
-/// than drawing nothing.
-/// </summary>
 public sealed class SpawnTests
 {
     [Fact]
@@ -32,7 +27,6 @@ public sealed class SpawnTests
         Assert.Equal(chestSpawn, chest.Spawn);
         Assert.Equal(playerSpawn, player.Spawn);
 
-        // The authored coordinate is the entity's to interpret, and it starts there untouched.
         Assert.Equal(new Vector2(48f, 16f), chest.Position);
         Assert.Equal(chest.Position, chest.PreviousPosition);
     }

@@ -3,7 +3,6 @@ using Capsule.Scenes;
 
 namespace PackageConsumer.Game;
 
-/// <summary>The scene claiming the <c>room</c> map: terrain, one marker, and a camera on it.</summary>
 [MapName("room")]
 public sealed class Room : MapScene
 {

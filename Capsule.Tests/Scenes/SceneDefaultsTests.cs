@@ -4,11 +4,6 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Scenes;
 
-/// <summary>
-/// The game-level defaults a scene opens at, and the precedence between them and a scene that
-/// declares its own. What a game declares none of is covered by the scenes elsewhere in this
-/// suite, every one of which runs on the default value.
-/// </summary>
 public sealed class SceneDefaultsTests
 {
     private static readonly SceneDefaults Defaults = new(new Vector2(320, 180), TextureSampling.Point);
@@ -22,8 +17,6 @@ public sealed class SceneDefaultsTests
         Assert.Equal(TextureSampling.Point, simulation.View.Sampling);
     }
 
-    // A scene composes itself in its constructor, which runs before the defaults are handed to it,
-    // so "the scene said nothing" has to survive that gap rather than being read off the value.
     [Fact]
     public void ASceneDeclaringItsOwn_KeepsThemOverTheGamesDefaults()
     {
@@ -33,8 +26,6 @@ public sealed class SceneDefaultsTests
         Assert.Equal(TextureSampling.Linear, simulation.View.Sampling);
     }
 
-    // Spanning nothing is a scene's own answer, not the absence of one: a cutscene that draws
-    // through no camera must not have the game default filled in behind its back.
     [Fact]
     public void ASceneSpanningNothingDeliberately_IsNotTakenForUnset()
     {

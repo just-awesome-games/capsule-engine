@@ -1,40 +1,25 @@
-# Capsule — Architecture
+# Architecture
 
-The determinism contract the engine's types and analyzers enforce together.
+Capsule keeps gameplay deterministic and headless-testable by separating pure simulation from the host.
 
-## The determinism contract
+## Determinism contract
 
-Given the same starting state, the same sequence of `DeviceSnapshot`s and the same fixed step,
-a simulation produces the same run. Concretely:
+Given the same initial state, fixed-step duration, and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.
 
-1. **The step is fixed, and time is the engine's.** Gameplay reads `StepContext.DeltaSeconds`,
-   `Tick` and `TotalSeconds`, never wall-clock time. The runtime owns the accumulator and the
-   tick counter; MonoGame's own fixed step is off. `TotalSeconds` is `Tick * DeltaSeconds`
-   rather than an accumulation, so two runs over the same tick sequence agree exactly.
-2. **Input edges are diffs, never events.** No callback, queue or timestamp reaches a
-   simulation — only the difference between two snapshots.
-3. **Sampling is decoupled from stepping.** `SnapshotLatch` reconciles the two rates in both
-   directions — many frames per step and many steps per frame — so a frame-rate change cannot
-   change how many times an edge fires, nor whether it fires at all.
-4. **The simulation is single-threaded.** No worker threads, no `async` in the step path.
-5. **Frame time is clamped** at the configured spike clamp, 0.25 s by default, so a stall
-   bounds the number of steps it can queue.
-6. **A scene's order is insertion order.** Entities update and draw in the order they were
-   added, never in hash order, and an add or remove during a step lands at the end of it — so a
-   step never iterates a list changing under it, and two runs over the same inputs produce the
-   same update order and the same quads in the same order.
-7. **The compiler guards the boundary.** A logic-role project fails its build if it reaches the
-   runtime/backend, external I/O, ambient clocks or randomness, or asynchronous execution. Seeded
-   randomness remains explicit state; role-free tools are outside this policy.
+- Gameplay reads `StepContext`; it cannot access wall-clock time, external IO, ambient randomness, asynchronous execution, or the graphics backend.
+- Input edges are differences between snapshots. `SnapshotLatch` preserves them when render and simulation rates differ.
+- Simulation is single-threaded. Scene entities update and draw in insertion order, and mutations requested during a step apply after iteration.
+- `TotalSeconds` is derived from the tick count rather than accumulated.
+- The runtime clamps frame spikes before scheduling fixed steps.
 
-Rendering sits outside the contract: it reads the same state at whatever rate the display runs,
-and nothing about the window reaches the simulation. A frame between two steps interpolates every
-quad from where it was to where it is, and the camera along with them — one fraction applied to
-the whole scene, so a moving camera does not drag the world back and let it catch up. Culling
-tests the union of the camera's previous and current regions, the way a quad is tested over its
-own swept corner, so what is visible at any point mid-step reaches the frame. Nothing stretches at
-any stage: the camera's region is fitted into whatever it is drawn to, scaled uniformly and
-centred, with the slack left as black bars — so two players on differently shaped displays see the
-same world region. Alt+Enter toggles the window from the host, outside the step, and the chord is
-withheld from the snapshot rather than routed through the action layer, so a window gesture cannot
-read as game input.
+The analyzer enforces the logic boundary. Tests hold the scheduling, input-latching, scene-ordering, and mutation contracts.
+
+## Render seam
+
+Simulation emits backend-free render intents. The host draws them at display rate, interpolating entities and camera from the previous settled step to the current one with a shared fraction. Rendering never feeds state back into simulation.
+
+The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region.
+
+## Package boundary
+
+`JAG.Capsule` contains every substrate-free module. `JAG.Capsule.Runtime` contains the host and is the only package linked to MonoGame. `JAG.Capsule.Build` contains build-time tooling. The same boundary is enforced for project-reference and package consumers.

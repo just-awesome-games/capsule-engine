@@ -4,14 +4,7 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// Turns a <see cref="SceneTarget"/> into a scene, reading the map behind a map-backed one from
-/// beside the executable. The map currently being played is kept parsed, so re-entering it reaches
-/// no file and parses nothing: a restart is a re-entry, and a restart at a checkpoint is the
-/// transition a game performs most. One map is held, never a history of them — a map's tile array
-/// alone is a hundred kilobytes, and a stage's worth of rooms retained would be tens of megabytes
-/// held for a hit that only a walk back through a door would take.
-/// </summary>
+// Holds only the current parsed map so restarts do not touch disk.
 internal sealed class SceneComposer(SceneRegistry scenes)
 {
     // Where the map build hook lands its output in a shell's content, and the extension it

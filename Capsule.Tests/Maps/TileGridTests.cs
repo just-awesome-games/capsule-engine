@@ -3,15 +3,10 @@ using Capsule.Rendering;
 
 namespace Capsule.Tests.Maps;
 
-/// <summary>
-/// The grid's own contract, held without a map or a file anywhere: a grid built in code is
-/// validated the same way one read from disk is.
-/// </summary>
 public sealed class TileGridTests
 {
     private static readonly ColorRgba Slate = new(0x4A, 0x55, 0x68);
 
-    // Index 0 is the format's one reserved slot: every unpainted cell points at it.
     [Fact]
     public void Constructor_RejectsAPaletteThatDoesNotBeginWithEmpty()
     {
@@ -21,8 +16,6 @@ public sealed class TileGridTests
         Assert.Contains("tileTypes[0] must be \"empty\"", error.Message, StringComparison.Ordinal);
     }
 
-    // A repeated name makes TileTypeAt ambiguous, and the importer's bijectivity rule assumes
-    // this cannot happen in a file either.
     [Fact]
     public void Constructor_RejectsARepeatedTileTypeName()
     {
@@ -32,8 +25,6 @@ public sealed class TileGridTests
         Assert.Contains("must be unique", error.Message, StringComparison.Ordinal);
     }
 
-    // Tile identity is semantic. Presentation can arrive through a renderer other than the
-    // current colour lane without forcing a dummy colour into the map format.
     [Fact]
     public void Constructor_AcceptsATileTypeWithNoColour()
     {
@@ -43,7 +34,6 @@ public sealed class TileGridTests
         Assert.Null(grid.TileTypes[1].Color);
     }
 
-    // The reserved entry is the one exception: it is never drawn, so it has nothing to look like.
     [Fact]
     public void Constructor_AcceptsTheReservedEmptyEntryWithoutOne()
     {
@@ -53,8 +43,6 @@ public sealed class TileGridTests
         Assert.Equal(Slate, grid.TileTypes[1].Color);
     }
 
-    // Width * Height as an int wraps: 65536 x 65536 is 0, which an empty tiles array would have
-    // satisfied, leaving every TileAt on the grid to throw instead.
     [Fact]
     public void Constructor_RejectsAGridWhoseAreaOverflowsAnInt()
     {
@@ -64,8 +52,6 @@ public sealed class TileGridTests
         Assert.Contains("requires 4294967296", error.Message, StringComparison.Ordinal);
     }
 
-    // Row-major is a contract a reader cannot check: a transposed grid still has the right
-    // number of tiles and still validates.
     [Fact]
     public void TileTypeAt_ReadsTheGridRowMajor()
     {
