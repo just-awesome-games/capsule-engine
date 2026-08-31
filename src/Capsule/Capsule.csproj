@@ -13,7 +13,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>JAG.Capsule</PackageId>
-    <Description>Everything a Capsule game's logic is written against: the simulation seam and its fixed step, input as named actions, render intent, the map format and its loader, and the world of scenes, entities, components and the camera. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
+    <Description>Everything a Capsule game's logic is written against: the simulation seam and its fixed step, input as named actions, render intent, tile grids, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <!-- NU5128 asks a package carrying lib assets to declare a dependency group for that
          framework. This one deliberately declares no dependencies at all, and NuGet exempts a
@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
-    <ProjectReference Include="../Capsule.Maps/Capsule.Maps.csproj" />
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
   </ItemGroup>
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
@@ -54,5 +55,20 @@ public sealed class SpawnTests
         ];
 
         Assert.Throws<ArgumentException>(() => new EntityRegistry(entries));
+    }
+
+    // The engine composes a scene document's terrain entry itself, so no game class may claim
+    // the type it is written under.
+    [Fact]
+    public void ARegistryClaimingTheReservedTerrainType_IsRejectedWhereItIsBuilt()
+    {
+        List<KeyValuePair<string, EntitySpawner>> entries =
+        [
+            new(SceneDocument.TileMapType, static spawn => new SceneFixtures.Placed(spawn)),
+        ];
+
+        ArgumentException failure = Assert.Throws<ArgumentException>(() => new EntityRegistry(entries));
+
+        Assert.Contains("reserved", failure.Message, StringComparison.Ordinal);
     }
 }

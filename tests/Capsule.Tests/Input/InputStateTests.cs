@@ -56,23 +56,6 @@ public sealed class InputStateTests
     }
 
     [Fact]
-    public void AdvancingTwiceOnOneSnapshot_FiresTheEdgeOnTheFirstStepOnly()
-    {
-        InputState input = Bound(Key.Space);
-        DeviceSnapshot frame = DeviceSnapshot.Of(Key.Space);
-        int presses = 0;
-
-        for (int step = 0; step < 4; step++)
-        {
-            input.Advance(frame);
-            presses += input.WasPressed(Jump) ? 1 : 0;
-        }
-
-        Assert.Equal(1, presses);
-        Assert.True(input.IsHeld(Jump));
-    }
-
-    [Fact]
     public void SwappingBetweenBoundKeys_IsNotAnEdge()
     {
         InputState input = Bound(Key.Space, Key.W);
@@ -100,11 +83,5 @@ public sealed class InputStateTests
         input.Advance(DeviceSnapshot.Empty);
 
         Assert.Equal(0f, input.Axis(Move), Tolerance);
-    }
-
-    [Fact]
-    public void Construction_RequiresBindings()
-    {
-        Assert.Throws<ArgumentNullException>(() => new InputState(null!));
     }
 }

@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
@@ -66,28 +66,29 @@ public sealed class SceneEngineBuilder : EngineBuilder<SceneEngineBuilder>
 
     /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit. A
-    /// scene composed from a map loads it first; one that is not runs as it is.
+    /// scene a document backs loads it first; one that is not runs as it is.
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
-    /// <exception cref="MapFormatException">The map file is malformed.</exception>
-    /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
     public void RunScene<TScene>()
         where TScene : Scene
         => RunScene(SceneTarget.ForScene(typeof(TScene)));
 
     /// <summary>
-    /// Runs the scene claiming <paramref name="mapName"/>, or a plain <see cref="MapScene"/>.
-    /// The current parsed map is reused on restart.
+    /// Opens the window and runs the scene the named document backs, or a plain
+    /// <see cref="Scene"/> composed from it when no class claims it. The current parsed document
+    /// is reused on restart.
     /// </summary>
-    /// <param name="mapName">A map's bare name, as its authoring source is named.</param>
-    /// <exception cref="MapFormatException">The map file is malformed.</exception>
-    /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
-    public void RunScene(string mapName)
+    /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public void RunScene(string name)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTarget.ForMap(mapName));
+        RunScene(SceneTarget.ForName(name));
     }
 
     private void RunScene(in SceneTarget initialTarget)

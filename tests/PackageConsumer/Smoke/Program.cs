@@ -3,9 +3,9 @@ using Capsule;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
 using Capsule.Input;
-using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
 using PackageConsumer.Game;
 
@@ -16,9 +16,9 @@ internal static class Program
     private const double StepSeconds = 1.0 / 60.0;
     private const int AdvanceSteps = 30;
 
-    private const string MapPath = "assets/maps/room.map.json";
+    private const string RoomPath = "assets/scenes/room.scene.json";
 
-    private const string NativeMapPath = "assets/maps/hall.map.json";
+    private const string NativeScenePath = "assets/scenes/hall.scene.json";
 
     public static int Main()
     {
@@ -40,7 +40,7 @@ internal static class Program
         InputState input = new(bindings);
 
         using SceneSimulation simulation = new(
-            new Room(new MapSceneContext(RoomMap(), GameEntities.Registry)),
+            new Room(new SceneContent(RoomDocument(), GameEntities.Registry)),
             null,
             new SceneDefaults(new Vector2(320f, 180f), TextureSampling.Point));
 
@@ -92,12 +92,12 @@ internal static class Program
         return snapshots;
     }
 
-    private static Map RoomMap() =>
-        MapFile.Load(Path.Combine(AppContext.BaseDirectory, MapPath));
+    private static SceneDocument RoomDocument() =>
+        SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, RoomPath));
 
     private static bool ContentShipped()
     {
-        Map hall = MapFile.Load(Path.Combine(AppContext.BaseDirectory, NativeMapPath));
+        SceneDocument hall = SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, NativeScenePath));
         TextureHandle marker = GameAssets.Textures.Marker;
         AudioHandle step = GameAssets.Audio.StepSoft;
 

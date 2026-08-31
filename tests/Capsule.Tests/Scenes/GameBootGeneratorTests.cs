@@ -10,7 +10,7 @@ public sealed class GameBootGeneratorTests
 
         namespace Game;
 
-        public sealed class Room01(MapSceneContext context) : MapScene(context);
+        public sealed class Room01(SceneContent content) : Scene(content);
         """;
 
     private const string ShellSource = """
@@ -80,7 +80,7 @@ public sealed class GameBootGeneratorTests
 
             namespace Rooms;
 
-            internal sealed class Opening(MapSceneContext context) : MapScene(context);
+            internal sealed class Opening(SceneContent content) : Scene(content);
             """;
 
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) =
@@ -123,19 +123,19 @@ public sealed class GameBootGeneratorTests
     }
 
     [Fact]
-    public void DuplicateMapClaimsAcrossLogicAssemblies_FailTheShellBuild()
+    public void DuplicateDocumentClaimsAcrossLogicAssemblies_FailTheShellBuild()
     {
         const string first = """
             using Capsule.Scenes;
             namespace First;
-            [MapName("opening")]
-            public sealed class FirstOpening(MapSceneContext context) : MapScene(context);
+            [SceneDocument("opening")]
+            public sealed class FirstOpening(SceneContent content) : Scene(content);
             """;
         const string second = """
             using Capsule.Scenes;
             namespace Second;
-            [MapName("opening")]
-            public sealed class SecondOpening(MapSceneContext context) : MapScene(context);
+            [SceneDocument("opening")]
+            public sealed class SecondOpening(SceneContent content) : Scene(content);
             """;
 
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(

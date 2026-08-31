@@ -6,16 +6,16 @@ namespace Capsule.Runtime;
 internal enum SceneTargetKind
 {
     Scene,
-    Map,
+    Named,
 }
 
 internal readonly record struct SceneTarget
 {
-    private SceneTarget(SceneTargetKind kind, Type? sceneType, string? mapName, object? payload)
+    private SceneTarget(SceneTargetKind kind, Type? sceneType, string? documentName, object? payload)
     {
         Kind = kind;
         SceneType = sceneType;
-        MapName = mapName;
+        DocumentName = documentName;
         Payload = payload;
     }
 
@@ -23,7 +23,7 @@ internal readonly record struct SceneTarget
 
     internal Type? SceneType { get; }
 
-    internal string? MapName { get; }
+    internal string? DocumentName { get; }
 
     internal object? Payload { get; }
 
@@ -33,20 +33,21 @@ internal readonly record struct SceneTarget
         return new SceneTarget(SceneTargetKind.Scene, sceneType, null, payload);
     }
 
-    internal static SceneTarget ForMap(string mapName, object? payload = null)
+    internal static SceneTarget ForName(string documentName, object? payload = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
-        return new SceneTarget(SceneTargetKind.Map, null, mapName, payload);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
+        return new SceneTarget(SceneTargetKind.Named, null, documentName, payload);
     }
 
-    internal SceneTarget WithPayload(object? payload) => new(Kind, SceneType, MapName, payload);
+    internal SceneTarget WithPayload(object? payload) => new(Kind, SceneType, DocumentName, payload);
 }
 
 internal delegate Scene SceneResolver(in SceneTarget target);
 
 /// <summary>
 /// Keeps the runtime alive while scenes replace one another. It resolves requested targets at
-/// the host boundary so maps and other content never enter game logic as file operations.
+/// the host boundary so scene documents and other content never enter game logic as file
+/// operations.
 /// </summary>
 internal sealed class SceneHost : ISimulation, IDisposable
 {
@@ -100,8 +101,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 Replace(SceneTarget.ForScene(transition.SceneType!, transition.Payload));
                 break;
 
-            case SceneTransitionKind.Map:
-                Replace(SceneTarget.ForMap(transition.MapName!, transition.Payload));
+            case SceneTransitionKind.Named:
+                Replace(SceneTarget.ForName(transition.DocumentName!, transition.Payload));
                 break;
 
             default:

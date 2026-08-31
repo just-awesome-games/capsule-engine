@@ -9,52 +9,20 @@ public sealed class SceneRegistryTests
     private static readonly EntityRegistry NoEntities = SceneFixtures.Registry();
 
     [Fact]
-    public void ASceneIsFoundByItsClass_AndAMapBackedOneNamesItsMap()
+    public void APlainSceneIsFoundByItsClass()
     {
-        SceneRegistry scenes = Registry(Room01, Menu);
+        SceneRegistry scenes = Registry(Menu);
 
-        Assert.Equal("room-01", scenes.MapNameOf(typeof(SceneFixtures.Room01)));
-        Assert.Null(scenes.MapNameOf(typeof(SceneFixtures.HookScene)));
+        Assert.Null(scenes.DocumentNameOf(typeof(SceneFixtures.HookScene)));
         Assert.IsType<SceneFixtures.HookScene>(scenes.Create(typeof(SceneFixtures.HookScene)));
     }
 
     [Fact]
-    public void AMapIsComposedIntoTheClassClaimingIt()
+    public void ADocumentBackedSceneNamesItsDocument_AndIsNotBuiltByClassAlone()
     {
-        SceneRegistry scenes = Registry(Room01, Menu);
+        SceneRegistry scenes = Registry(Menu, Room01);
 
-        Scene composed = scenes.CreateForMap("room-01", SceneFixtures.Room());
-
-        Assert.IsType<SceneFixtures.Room01>(composed);
-    }
-
-    [Fact]
-    public void AMapNoClassClaims_ComposesIntoAPlainMapScene()
-    {
-        SceneRegistry scenes = Registry(Room01, Menu);
-
-        Scene composed = scenes.CreateForMap("attic", SceneFixtures.Room());
-
-        Assert.Equal(typeof(MapScene), composed.GetType());
-        Assert.IsType<TileMap>(composed.Entities[0]);
-    }
-
-    [Fact]
-    public void AnUnregisteredClass_NamesItselfAndWhatIsRegistered()
-    {
-        SceneRegistry scenes = Registry(Room01);
-
-        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
-            () => scenes.MapNameOf(typeof(SceneFixtures.HookScene)));
-
-        Assert.Contains("HookScene", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("Room01", failure.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AMapBackedClassCannotBeBuiltWithoutItsMap()
-    {
-        SceneRegistry scenes = Registry(Room01);
+        Assert.Equal("room-01", scenes.DocumentNameOf(typeof(SceneFixtures.Room01)));
 
         InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
             () => scenes.Create(typeof(SceneFixtures.Room01)));
@@ -63,20 +31,51 @@ public sealed class SceneRegistryTests
     }
 
     [Fact]
-    public void OneClassRegisteredTwice_IsRejectedWhereTheRegistryIsBuilt()
+    public void ADocumentIsComposedIntoTheClassClaimingIt()
     {
-        Assert.Throws<ArgumentException>(() => Registry(Room01, Room01));
+        SceneRegistry scenes = Registry(Room01);
+
+        Assert.IsType<SceneFixtures.Room01>(scenes.CreateFromDocument("room-01", SceneFixtures.Room()));
     }
 
     [Fact]
-    public void TwoClassesClaimingOneMap_AreRejectedWhereTheRegistryIsBuilt()
+    public void ADocumentNoClassClaims_ComposesIntoAPlainScene()
     {
-        SceneRegistration menuOnRoom01 = SceneRegistration.MapBacked(
+        SceneRegistry scenes = Registry(Room01);
+
+        Scene composed = scenes.CreateFromDocument("attic", SceneFixtures.Room());
+
+        Assert.Equal(typeof(Scene), composed.GetType());
+        Assert.IsType<TileMap>(composed.Entities[0]);
+    }
+
+    [Fact]
+    public void AnUnregisteredClass_NamesItselfAndWhatIsRegistered()
+    {
+        SceneRegistry scenes = Registry(Menu);
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
+            () => scenes.Create(typeof(SceneFixtures.SpawnScene)));
+
+        Assert.Contains("SpawnScene", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("HookScene", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OneClassRegisteredTwice_IsRejectedWhereTheRegistryIsBuilt()
+    {
+        Assert.Throws<ArgumentException>(() => Registry(Menu, Menu));
+    }
+
+    [Fact]
+    public void TwoClassesClaimingOneDocument_AreRejectedWhereTheRegistryIsBuilt()
+    {
+        SceneRegistration hookSceneOnRoom01 = SceneRegistration.FromDocument(
             typeof(SceneFixtures.HookScene),
             "room-01",
-            static context => new SceneFixtures.Room01(context));
+            static content => new SceneFixtures.Room01(content));
 
-        Assert.Throws<ArgumentException>(() => Registry(Room01, menuOnRoom01));
+        Assert.Throws<ArgumentException>(() => Registry(Room01, hookSceneOnRoom01));
     }
 
     [Fact]
@@ -85,14 +84,14 @@ public sealed class SceneRegistryTests
         Assert.Throws<ArgumentException>(() => Registry(default(SceneRegistration)));
     }
 
-    private static SceneRegistration Room01 => SceneRegistration.MapBacked(
-        typeof(SceneFixtures.Room01),
-        "room-01",
-        static context => new SceneFixtures.Room01(context));
-
     private static SceneRegistration Menu => SceneRegistration.Plain(
         typeof(SceneFixtures.HookScene),
         static () => new SceneFixtures.HookScene());
+
+    private static SceneRegistration Room01 => SceneRegistration.FromDocument(
+        typeof(SceneFixtures.Room01),
+        "room-01",
+        static content => new SceneFixtures.Room01(content));
 
     private static SceneRegistry Registry(params SceneRegistration[] scenes) => new(NoEntities, scenes);
 }

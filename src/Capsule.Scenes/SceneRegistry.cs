@@ -1,20 +1,22 @@
-using Capsule.Maps;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 
 /// <summary>
-/// The scenes one assembly declares, indexed both by class and by the map backing one, fixed once
-/// built. A game passes the registry its source generator emits; hand-building one is the test
-/// path.
+/// The scenes one assembly declares, indexed both by class and by the scene document backing one,
+/// fixed once built. A game passes the registry its source generator emits; hand-building one is
+/// the test path.
 /// </summary>
 public sealed class SceneRegistry
 {
     private readonly Dictionary<Type, SceneRegistration> _byType = [];
-    private readonly Dictionary<string, SceneRegistration> _byMapName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SceneRegistration> _byDocumentName = new(StringComparer.Ordinal);
     private readonly EntityRegistry _entities;
 
-    /// <exception cref="ArgumentException">A registration names no class, or a class or a map is registered twice.</exception>
+    /// <param name="entities">What each spawn type in a scene document constructs.</param>
+    /// <param name="scenes">Every scene the assembly declares.</param>
+    /// <exception cref="ArgumentException">A registration names no class, or a class or a document is registered twice.</exception>
     public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
     {
         ArgumentNullException.ThrowIfNull(entities);
@@ -33,46 +35,51 @@ public sealed class SceneRegistry
                 throw new ArgumentException($"The scene '{registration.SceneType}' is registered more than once.", nameof(scenes));
             }
 
-            if (registration.MapName is { } mapName && !_byMapName.TryAdd(mapName, registration))
+            if (registration.DocumentName is { } name && !_byDocumentName.TryAdd(name, registration))
             {
-                throw new ArgumentException($"The map '{mapName}' backs more than one scene.", nameof(scenes));
+                throw new ArgumentException($"The scene document '{name}' backs more than one scene.", nameof(scenes));
             }
         }
     }
 
-    /// <summary>The map backing <paramref name="sceneType"/>, or null when no map does.</summary>
+    /// <summary>
+    /// The scene document backing <paramref name="sceneType"/>, or null when no document does.
+    /// </summary>
     /// <exception cref="InvalidOperationException">Nothing registers that class.</exception>
-    public string? MapNameOf(Type sceneType) => Registered(sceneType).MapName;
+    public string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 
     /// <summary>Builds the scene registered for <paramref name="sceneType"/>.</summary>
-    /// <exception cref="InvalidOperationException">Nothing registers that class, or a map backs it.</exception>
+    /// <exception cref="InvalidOperationException">Nothing registers that class, or a document backs it.</exception>
     public Scene Create(Type sceneType)
     {
         SceneRegistration registration = Registered(sceneType);
-        if (registration.MapName is { } mapName)
+        if (registration.DocumentName is { } name)
         {
             throw new InvalidOperationException(
-                $"The scene '{sceneType}' is composed from map '{mapName}'; it can only be built with that map loaded.");
+                $"The scene '{sceneType}' is composed from scene document '{name}', so it is built through that "
+                + $"name rather than its class: CreateFromDocument(\"{name}\", document).");
         }
 
         return registration.Create();
     }
 
     /// <summary>
-    /// Builds the scene <paramref name="mapName"/> is composed into: the class claiming that name,
-    /// or a plain <see cref="MapScene"/> when no class claims it.
+    /// Builds the scene <paramref name="name"/> composes into: the class claiming that name, or a
+    /// plain <see cref="Scene"/> when no class claims it.
     /// </summary>
-    /// <exception cref="SpawnException">A map object's spawn type is claimed by no entity.</exception>
-    public Scene CreateForMap(string mapName, Map map)
+    /// <param name="name">The document's bare name, without the <c>.scene.json</c> suffix.</param>
+    /// <param name="document">The parsed document to compose.</param>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public Scene CreateFromDocument(string name, SceneDocument document)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
-        ArgumentNullException.ThrowIfNull(map);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(document);
 
-        MapSceneContext context = new(map, _entities);
+        SceneContent content = new(document, _entities);
 
-        return _byMapName.TryGetValue(mapName, out SceneRegistration claimed)
-            ? claimed.Create(context)
-            : new MapScene(context);
+        return _byDocumentName.TryGetValue(name, out SceneRegistration claimed)
+            ? claimed.Create(content)
+            : new Scene(content);
     }
 
     private SceneRegistration Registered(Type sceneType)
@@ -82,9 +89,10 @@ public sealed class SceneRegistry
         if (!_byType.TryGetValue(sceneType, out SceneRegistration registration))
         {
             throw new InvalidOperationException(
-                $"No scene is registered for '{sceneType}'. A class is registered by being a non-abstract "
-                + "Capsule.Scenes.Scene with a public constructor taking one Capsule.Scenes.MapSceneContext — "
-                + "which composes it from the map named after the class — or one taking nothing. "
+                $"No scene is registered for '{sceneType}'. A scene registers by being a non-abstract "
+                + "Capsule.Scenes.Scene with either a public parameterless constructor, or a public constructor "
+                + "taking one Capsule.Scenes.SceneContent — which composes it from the scene document it names, "
+                + "its class name kebab-cased unless [SceneDocument(\"name\")] overrides that. "
                 + $"Registered: {RegisteredTypes()}.");
         }
 

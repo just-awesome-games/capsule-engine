@@ -4,7 +4,7 @@ These rules cover judgments the build cannot enforce. Read diagnostics before ad
 
 ## Scope
 
-Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
+Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. That bar is not a compatibility ceremony: JAG's own games are the only considered consumers, so break a public API whenever the better design needs it and migrate the consuming game in the same wave. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
 
 ## Documentation
 
@@ -12,11 +12,13 @@ XML comments are the API reference and the only prose copy of public behavior. K
 
 Markdown is limited to onboarding, cross-cutting architecture, build configuration, data formats, and standard project contracts. Keep all documentation declarative and current: no changelogs, migration notes, decision history, or forward references to unimplemented features.
 
+Every shipped package carries a charter README: what it is, what is inside it, and where the deeper documentation lives — never API reference, and never substance that belongs to `docs/`.
+
 Comments explain invariants and hazards the code cannot state. Delete walkthroughs, section labels, and commentary addressed to reviewers.
 
 ## Boundaries
 
-The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats belong in `Capsule.Maps.Cli`, never in the runtime-linked `Capsule.Maps` assembly.
+The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats belong in `Capsule.Cli`, never in a runtime-linked assembly.
 
 Warnings are fixed or suppressed with the reason at the suppression site. Every commit must remain publishable without studio-only context.
 

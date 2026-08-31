@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
-using Capsule.Maps;
 using Capsule.Runtime;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Xunit.Abstractions;
 
 namespace Capsule.Tests.Performance;
@@ -26,13 +26,13 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     [Fact]
     public void AStageThatSpawnsNothing_AllocatesNothing()
     {
-        Map map = StageWorkload.Build();
+        SceneDocument document = StageWorkload.Build();
 
-        Report("no structural change", Measure(map, StageChurn.None), maxPerRun: 0);
+        Report("no structural change", Measure(document, StageChurn.None), maxPerRun: 0);
 
         // The draw list is derived and rebuilt whole whenever anything joins or leaves. Rebuilding
         // it every step must still cost no allocation at all.
-        Report("draw list every step", Measure(map, StageChurn.DrawListOnly), maxPerRun: 0);
+        Report("draw list every step", Measure(document, StageChurn.DrawListOnly), maxPerRun: 0);
     }
 
     [Fact]
@@ -45,26 +45,26 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     }
 
     // The most frequent transition a game performs is dying and resuming at a checkpoint, and it
-    // happens between two fixed steps with a frame waiting on it. Deleting the map first is the
-    // assertion: a restart that read the file could not survive it.
+    // happens between two fixed steps with a frame waiting on it. Deleting the document first is
+    // the assertion: a restart that read the file could not survive it.
     [Fact]
-    public void ARestart_ComposesTheStageAgainWithoutReadingItsMapFromDisk()
+    public void ARestart_ComposesTheStageAgainWithoutReadingItsDocumentFromDisk()
     {
-        string directory = Path.Combine(AppContext.BaseDirectory, "assets", "maps");
-        string path = Path.Combine(directory, StageWorkload.MapName + ".map.json");
+        string directory = Path.Combine(AppContext.BaseDirectory, "assets", "scenes");
+        string path = Path.Combine(directory, StageWorkload.DocumentName + ".scene.json");
         Directory.CreateDirectory(directory);
 
         try
         {
-            MapFile.Save(StageWorkload.Build(), path);
-            output.WriteLine(FormattableString.Invariant($"map file: {new FileInfo(path).Length} bytes"));
+            SceneDocumentFile.Save(StageWorkload.Build(), path);
+            output.WriteLine(FormattableString.Invariant($"scene document: {new FileInfo(path).Length} bytes"));
 
             SceneComposer composer = new(StageWorkload.Scenes());
 
             long coldBytes = GC.GetAllocatedBytesForCurrentThread();
             long coldStart = Stopwatch.GetTimestamp();
             using SceneHost host = new(
-                SceneTarget.ForMap(StageWorkload.MapName),
+                SceneTarget.ForName(StageWorkload.DocumentName),
                 composer.Resolve,
                 StageWorkload.Defaults);
             ReportTransition("boot", coldStart, coldBytes);
@@ -101,9 +101,9 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
         }
     }
 
-    private static (StepSample[] Samples, int Entities) Measure(Map map, StageChurn churn)
+    private static (StepSample[] Samples, int Entities) Measure(SceneDocument document, StageChurn churn)
     {
-        using SceneSimulation simulation = new(StageWorkload.Compose(map, churn), null, StageWorkload.Defaults);
+        using SceneSimulation simulation = new(StageWorkload.Compose(document, churn), null, StageWorkload.Defaults);
 
         StepSample[] samples = StepMeasurement.Measure(
             simulation,

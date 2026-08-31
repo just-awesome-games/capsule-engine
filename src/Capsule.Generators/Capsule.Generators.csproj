@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
+
+  <!-- The entity, scene and asset registry source generator. netstandard2.0 because the compiler loads an analyzer
+       into its own process, and pinned to the oldest Roslyn whose API this needs: a generator
+       runs on any newer compiler, never an older one. It ships to no game output. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Capsule.Generators</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- RS2008 tracks diagnostic IDs across released analyzer packages. This generator is
+         consumed from a source clone at a pinned ref, so the ref is the release record. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier></RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

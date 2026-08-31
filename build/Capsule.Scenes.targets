@@ -15,14 +15,15 @@
        hand registration, runtime reflection, or a second empty registry of its own.
 
        Paths are composed with forward slashes and left for MSBuild to canonicalise, matching
-       Capsule.Maps.targets: a literal backslash is an ordinary filename character on Linux. -->
+       Capsule.SceneDocuments.targets: a literal backslash is an ordinary filename character on
+       Linux. -->
 
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
-    <!-- The generator rides the game's own restore and build graph, the way the map importer
+    <!-- The generator rides the game's own restore and build graph, the way the scene importer
          does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
          the game's output or its publish set. -->
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
-                      Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj')"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj"
+                      Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"

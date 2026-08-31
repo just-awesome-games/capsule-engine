@@ -31,24 +31,16 @@
       "capsule.core": {
         "type": "Project"
       },
-      "capsule.maps": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Core": "[0.2.0, )"
-        }
-      },
       "capsule.scenes": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.2.0, )",
-          "Capsule.Maps": "[0.2.0, )"
+          "Capsule.Core": "[0.2.0, )"
         }
       },
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
           "Capsule.Core": "[0.2.0, )",
-          "Capsule.Maps": "[0.2.0, )",
           "Capsule.Scenes": "[0.2.0, )"
         }
       }

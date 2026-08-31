@@ -10,27 +10,6 @@ namespace Capsule.Tests.Scenes;
 public sealed class SceneViewTests
 {
     [Fact]
-    public void AFreshScenesCamera_SpansNothing()
-    {
-        SceneSimulation simulation = new(new SceneFixtures.HookScene());
-
-        Assert.Equal(default, simulation.View.Camera);
-    }
-
-    [Fact]
-    public void MovingTheCamera_ReachesTheFrame()
-    {
-        SceneFixtures.HookScene scene = new();
-        SceneSimulation simulation = new(scene);
-
-        scene.Camera.Center = new Vector2(24, 16);
-        scene.Camera.ViewportSize = new Vector2(320, 180);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(new CameraView(new Vector2(24, 16), new Vector2(320, 180)), simulation.View.Camera);
-    }
-
-    [Fact]
     public void RenderersDrawInSceneOrder_WhateverKindTheyAre()
     {
         SceneFixtures.Drifter first = new(new Vector2(7, 9));

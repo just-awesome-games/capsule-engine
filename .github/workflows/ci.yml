@@ -100,7 +100,7 @@ jobs:
           --logger "console;verbosity=detailed"
 
       # Include and exclude filters are joined with the MSBuild comma escape, not a literal
-      # comma. Capsule.Maps.Cli and Capsule.Scenes.Generator are dev-time tools and are not
+      # comma. Capsule.Cli and Capsule.Generators are dev-time tools and are not
       # gated; the importer is covered through the golden fixtures and the generator
       # through its own specs either way.
       #
@@ -114,7 +114,7 @@ jobs:
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Maps]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml

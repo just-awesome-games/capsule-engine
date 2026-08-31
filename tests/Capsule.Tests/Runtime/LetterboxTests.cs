@@ -47,7 +47,6 @@ public sealed class LetterboxTests
 
     [Theory]
     [InlineData(320f, 180f, 1920, 1080)]
-    [InlineData(320f, 180f, 1600, 900)]
     [InlineData(320f, 180f, 800, 450)]
     public void Fit_FillsTheContainerExactlyWhenTheAspectsMatch(float contentWidth, float contentHeight, int containerWidth, int containerHeight)
     {

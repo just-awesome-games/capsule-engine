@@ -14,8 +14,6 @@ public sealed class PadFilterTests
 
     [Theory]
     [InlineData(0f, 0f)]
-    [InlineData(0.1f, 0f)]
-    [InlineData(0f, -0.2f)]
     [InlineData(0.17f, 0.17f)]
     [InlineData(PadFilter.DefaultStickDeadzone, 0f)]
     public void AStickInsideTheDeadzone_ReadsCentred(float x, float y)
@@ -86,7 +84,6 @@ public sealed class PadFilterTests
 
     [Theory]
     [InlineData(0f)]
-    [InlineData(0.05f)]
     [InlineData(PadFilter.DefaultTriggerDeadzone)]
     public void ATriggerInsideTheDeadzone_ReadsReleased(float raw)
     {

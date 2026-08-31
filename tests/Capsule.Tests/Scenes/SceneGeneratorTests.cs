@@ -6,31 +6,31 @@ namespace Capsule.Tests.Scenes;
 public sealed class SceneGeneratorTests
 {
     [Fact]
-    public void AMapSceneContextConstructor_ComposesTheSceneFromItsKebabCasedName()
+    public void ASceneContentConstructor_ComposesTheSceneFromItsKebabCasedName()
     {
         string generated = Generated($$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class Room01(MapSceneContext context) : MapScene(context);
+            public sealed class Room01(SceneContent content) : Scene(content);
 
-            public sealed class BossArena(MapSceneContext context) : MapScene(context);
+            public sealed class BossArena(SceneContent content) : Scene(content);
             """);
 
-        Assert.Contains("MapBacked(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
-        Assert.Contains("MapBacked(typeof(global::Game.BossArena), \"boss-arena\"", generated, StringComparison.Ordinal);
+        Assert.Contains("FromDocument(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
+        Assert.Contains("FromDocument(typeof(global::Game.BossArena), \"boss-arena\"", generated, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MapName_FixesTheAuthoredIdentityAcrossAClassRename()
+    public void SceneDocument_FixesTheAuthoredIdentityAcrossAClassRename()
     {
         string generated = Generated($$"""
             {{GeneratorHarness.Preamble}}
 
-            [MapName("room-01")]
-            public sealed class OpeningRoom(MapSceneContext context) : MapScene(context);
+            [SceneDocument("room-01")]
+            public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """);
 
-        Assert.Contains("MapBacked(typeof(global::Game.OpeningRoom), \"room-01\"", generated, StringComparison.Ordinal);
+        Assert.Contains("FromDocument(typeof(global::Game.OpeningRoom), \"room-01\"", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
 
@@ -39,25 +39,25 @@ public sealed class SceneGeneratorTests
     [InlineData("../room")]
     [InlineData("rooms/opening")]
     [InlineData("opening room")]
-    public void AnUnsafeExplicitMapName_FailsTheBuild(string mapName)
+    public void AnUnsafeExplicitDocumentName_FailsTheBuild(string documentName)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [MapName("{{mapName}}")]
-            public sealed class OpeningRoom(MapSceneContext context) : MapScene(context);
+            [SceneDocument("{{documentName}}")]
+            public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """).Diagnostics;
 
         Assert.Equal("CAP006", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     [Fact]
-    public void MapName_OnASceneWithoutAMapConstructor_FailsTheBuild()
+    public void SceneDocument_OnASceneWithoutAContentConstructor_FailsTheBuild()
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [MapName("menu")]
+            [SceneDocument("menu")]
             public sealed class MainMenu : Scene;
             """).Diagnostics;
 
@@ -70,10 +70,10 @@ public sealed class SceneGeneratorTests
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class Room : MapScene
+            public sealed class Room : Scene
             {
-                public Room() : base(null!) { }
-                public Room(MapSceneContext context) : base(context) { }
+                public Room() { }
+                public Room(SceneContent content) : base(content) { }
             }
             """).Diagnostics;
 
@@ -88,7 +88,7 @@ public sealed class SceneGeneratorTests
 
             public static class Scenes
             {
-                private sealed class Room(MapSceneContext context) : MapScene(context);
+                private sealed class Room(SceneContent content) : Scene(content);
             }
             """).Diagnostics;
 
@@ -96,7 +96,7 @@ public sealed class SceneGeneratorTests
     }
 
     [Fact]
-    public void AParameterlessConstructor_RegistersASceneNoMapBacks()
+    public void AParameterlessConstructor_RegistersASceneNoDocumentBacks()
     {
         string generated = Generated($$"""
             {{GeneratorHarness.Preamble}}
@@ -110,7 +110,7 @@ public sealed class SceneGeneratorTests
     [Theory]
     [InlineData("public sealed class Overlay : Scene { public Overlay(int depth) { } }")]
     [InlineData("public sealed class Overlay : Scene { private Overlay() { } }")]
-    [InlineData("public abstract class Room : MapScene { protected Room(MapSceneContext context) : base(context) { } }")]
+    [InlineData("public abstract class Room : Scene { protected Room(SceneContent content) : base(content) { } }")]
     [InlineData("public sealed class Overlay { public Overlay() { } }")]
     public void ASceneOfAnotherShape_IsPassedOverInSilence(string declaration)
     {
@@ -128,19 +128,19 @@ public sealed class SceneGeneratorTests
     }
 
     [Fact]
-    public void TwoClassesDerivingOneMapName_FailTheBuildNamingBoth()
+    public void TwoClassesDerivingOneDocumentName_FailTheBuildNamingBoth()
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile("""
             using Capsule.Scenes;
 
             namespace Game
             {
-                public sealed class Room01(MapSceneContext context) : MapScene(context);
+                public sealed class Room01(SceneContent content) : Scene(content);
             }
 
             namespace Game.Deep
             {
-                public sealed class Room01(MapSceneContext context) : MapScene(context);
+                public sealed class Room01(SceneContent content) : Scene(content);
             }
             """).Diagnostics;
 
@@ -173,7 +173,7 @@ public sealed class SceneGeneratorTests
         Compilation compiled = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class Room01(MapSceneContext context) : MapScene(context);
+            public sealed class Room01(SceneContent content) : Scene(content);
 
             public sealed class MainMenu : Scene;
 

@@ -2,6 +2,17 @@
 
 Capsule keeps gameplay deterministic and headless-testable by separating pure simulation from the host.
 
+## Modules
+
+| Module | Charter | May reference |
+| --- | --- | --- |
+| `Capsule.Core` | Simulation seam, fixed step, input, render intent, asset handles. | nothing |
+| `Capsule.Scenes` | The world: scenes, entities, components, camera, spawning, transitions, tile grids, and the [scene document](scenes.md) — format, loader, composition. | Core |
+| `Capsule.Runtime` | The host: window, device, clock, sampling, renderer, crash log. | the pure modules |
+| `Capsule.Build`, `Capsule.Analyzers`, `Capsule.Generators`, `Capsule.Cli` | Build-time tooling; ships in no game. | unconstrained |
+
+`Capsule.Architecture.targets` enforces the reference column for the substrate-free modules, and that they take no package dependency at all.
+
 ## Determinism contract
 
 Given the same initial state, fixed-step duration, and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.

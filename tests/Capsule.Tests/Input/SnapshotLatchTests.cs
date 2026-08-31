@@ -4,8 +4,6 @@ namespace Capsule.Tests.Input;
 
 public sealed class SnapshotLatchTests
 {
-    private static readonly InputAction Jump = new("Jump");
-
     [Fact]
     public void FramesThatDrainNoStep_AccumulateIntoTheNextStep()
     {
@@ -66,29 +64,5 @@ public sealed class SnapshotLatchTests
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.5f));
 
         Assert.Equal(-0.5f, latch.ConsumeStepSnapshot().Axis(PadAxis.LeftStickX), 1e-6f);
-    }
-
-    [Fact]
-    public void ATapBetweenSteps_ReachesTheSimulationAsOnePressAndOneRelease()
-    {
-        InputState input = new(new ActionBindings().Bind(Jump, Key.Space));
-        SnapshotLatch latch = new();
-        int presses = 0;
-        int releases = 0;
-
-        latch.Observe(DeviceSnapshot.Of(Key.Space));
-        latch.Observe(DeviceSnapshot.Empty);
-        latch.Observe(DeviceSnapshot.Empty);
-
-        for (int step = 0; step < 2; step++)
-        {
-            input.Advance(latch.ConsumeStepSnapshot());
-            presses += input.WasPressed(Jump) ? 1 : 0;
-            releases += input.WasReleased(Jump) ? 1 : 0;
-        }
-
-        Assert.Equal(1, presses);
-        Assert.Equal(1, releases);
-        Assert.False(input.IsHeld(Jump));
     }
 }

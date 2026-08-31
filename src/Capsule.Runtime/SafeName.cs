@@ -5,7 +5,7 @@ namespace Capsule.Runtime;
 
 /// <summary>
 /// The one place a name that will become a directory or a file is judged portable, for the crash
-/// log's folder and for a map's file alike.
+/// log's folder and for a scene document's file alike.
 /// </summary>
 internal static class SafeName
 {

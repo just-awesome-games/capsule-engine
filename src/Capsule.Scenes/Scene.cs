@@ -2,6 +2,8 @@ using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Capsule.Rendering;
+using Capsule.Scenes.Documents;
+using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
@@ -25,6 +27,34 @@ public class Scene
     private SceneTransition? _transition;
     private TextureSampling? _sampling;
 
+    /// <summary>An empty world, for a scene that builds itself in code.</summary>
+    public Scene()
+    {
+    }
+
+    /// <summary>
+    /// The world a scene document describes: its grid as a <see cref="TileMap"/> when it carries
+    /// one, then one entity per placement in authored order. The document is construction data and
+    /// is not retained; a subclass that needs the terrain later asks for
+    /// <see cref="FindFirst{T}"/> of <see cref="TileMap"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The content carries no document or no entity registry.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public Scene(SceneContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content.Document);
+        ArgumentNullException.ThrowIfNull(content.Entities);
+
+        if (content.Document.Grid is { } grid)
+        {
+            TileMap tiles = new(grid);
+            Add(tiles);
+            Size = tiles.Size;
+        }
+
+        Spawn(SpawnsOf(content.Document), content.Entities);
+    }
+
     /// <summary>
     /// The camera, always present. Game code moves it; it opens at the game's default span, or
     /// spanning nothing where there is none.
@@ -33,7 +63,7 @@ public class Scene
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
-    /// A scene built from a map takes it from its <see cref="Entities.TileMap"/>.
+    /// A scene composed from a scene document with a grid takes it from its <see cref="TileMap"/>.
     /// </summary>
     public Vector2 Size { get; protected set; }
 
@@ -171,11 +201,16 @@ public class Scene
         where TScene : Scene =>
         TryRequest(SceneTransition.ToScene(typeof(TScene), payload));
 
-    /// <summary>Asks the host to replace this scene with the scene composed from a map.</summary>
-    public void RequestScene(string mapName, object? payload = null)
+    /// <summary>
+    /// Asks the host to replace this scene with the scene the named document backs, or a plain
+    /// <see cref="Scene"/> composed from it when no class claims it.
+    /// </summary>
+    /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <param name="payload">State offered to the next scene.</param>
+    public void RequestScene(string name, object? payload = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
-        TryRequest(SceneTransition.ToMap(mapName, payload));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        TryRequest(SceneTransition.ToName(name, payload));
     }
 
     /// <summary>
@@ -425,6 +460,20 @@ public class Scene
         }
 
         _renderersStale = false;
+    }
+
+    private static EntitySpawn[] SpawnsOf(SceneDocument document)
+    {
+        ReadOnlySpan<EntityPlacement> placements = document.Entities;
+        EntitySpawn[] spawns = new EntitySpawn[placements.Length];
+
+        for (int index = 0; index < placements.Length; index++)
+        {
+            EntityPlacement placed = placements[index];
+            spawns[index] = new EntitySpawn(placed.Id, placed.Type, new Vector2(placed.X, placed.Y));
+        }
+
+        return spawns;
     }
 
     // Membership is reference identity: an entity subclass may override Equals, and two

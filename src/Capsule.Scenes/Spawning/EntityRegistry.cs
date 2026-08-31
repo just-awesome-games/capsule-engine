@@ -1,3 +1,5 @@
+using Capsule.Scenes.Documents;
+
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>Constructs one entity from its spawn data.</summary>
@@ -11,7 +13,7 @@ public sealed class EntityRegistry
 {
     private readonly Dictionary<string, EntitySpawner> _spawners;
 
-    /// <exception cref="ArgumentException">A spawn type is blank or repeated, or a spawner is null.</exception>
+    /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
     public EntityRegistry(IEnumerable<KeyValuePair<string, EntitySpawner>> entities)
     {
         ArgumentNullException.ThrowIfNull(entities);
@@ -22,6 +24,14 @@ public sealed class EntityRegistry
             if (string.IsNullOrWhiteSpace(type))
             {
                 throw new ArgumentException("A spawn type cannot be blank.", nameof(entities));
+            }
+
+            if (string.Equals(type, SceneDocument.TileMapType, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"The spawn type '{SceneDocument.TileMapType}' is reserved for a scene document's terrain entry, "
+                    + "which the engine composes itself; give the class a [SpawnType] of its own.",
+                    nameof(entities));
             }
 
             if (spawner is null)

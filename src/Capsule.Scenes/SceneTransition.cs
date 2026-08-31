@@ -12,8 +12,8 @@ public enum SceneTransitionKind
     /// <summary>Replace the current scene with one named by class.</summary>
     Scene,
 
-    /// <summary>Replace the current scene with the one composed from a named map.</summary>
-    Map,
+    /// <summary>Replace the current scene with the one a named scene document composes into.</summary>
+    Named,
 }
 
 /// <summary>
@@ -25,13 +25,13 @@ public readonly record struct SceneTransition
     private SceneTransition(
         SceneTransitionKind kind,
         Type? sceneType,
-        string? mapName,
+        string? documentName,
         object? payload,
         bool hasPayload)
     {
         Kind = kind;
         SceneType = sceneType;
-        MapName = mapName;
+        DocumentName = documentName;
         Payload = payload;
         HasPayload = hasPayload;
     }
@@ -42,8 +42,8 @@ public readonly record struct SceneTransition
     /// <summary>The requested scene class when <see cref="Kind"/> is <see cref="SceneTransitionKind.Scene"/>.</summary>
     public Type? SceneType { get; }
 
-    /// <summary>The requested map name when <see cref="Kind"/> is <see cref="SceneTransitionKind.Map"/>.</summary>
-    public string? MapName { get; }
+    /// <summary>The requested document name when <see cref="Kind"/> is <see cref="SceneTransitionKind.Named"/>.</summary>
+    public string? DocumentName { get; }
 
     /// <summary>State offered to the next scene, including null when <see cref="HasPayload"/> is true.</summary>
     public object? Payload { get; }
@@ -63,6 +63,6 @@ public readonly record struct SceneTransition
     internal static SceneTransition ToScene(Type sceneType, object? payload) =>
         new(SceneTransitionKind.Scene, sceneType, null, payload, true);
 
-    internal static SceneTransition ToMap(string mapName, object? payload) =>
-        new(SceneTransitionKind.Map, null, mapName, payload, true);
+    internal static SceneTransition ToName(string documentName, object? payload) =>
+        new(SceneTransitionKind.Named, null, documentName, payload, true);
 }

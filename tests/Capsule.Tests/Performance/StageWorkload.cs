@@ -1,9 +1,10 @@
 using System.Numerics;
-using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Components;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Tests.Performance;
 
@@ -14,7 +15,7 @@ internal static class StageWorkload
     internal const int TilesHigh = 64;
     internal const double StepSeconds = 1.0 / 60.0;
 
-    internal const string MapName = "stage";
+    internal const string DocumentName = "stage";
 
     internal const int StepsBetweenSpawns = 3;
 
@@ -35,7 +36,7 @@ internal static class StageWorkload
 
     internal static SceneDefaults Defaults => new(CameraViewport, TextureSampling.Point);
 
-    internal static Map Build()
+    internal static SceneDocument Build()
     {
         int[] tiles = new int[TilesWide * TilesHigh];
         for (int x = 0; x < TilesWide; x++)
@@ -61,20 +62,25 @@ internal static class StageWorkload
 
         TileGrid grid = new(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles);
 
-        MapObject[] objects = new MapObject[PlacedEntities];
-        objects[0] = new MapObject(1, "hero", 4f * TileSize, HeroTileY * TileSize);
+        EntityPlacement[] placements = new EntityPlacement[PlacedEntities];
+        placements[0] = new EntityPlacement(1, "hero", 4f * TileSize, HeroTileY * TileSize);
 
         float spacing = (float)TilesWide * TileSize / (PlacedEntities - 1);
         for (int index = 1; index < PlacedEntities; index++)
         {
-            objects[index] = new MapObject(
+            placements[index] = new EntityPlacement(
                 index + 1,
                 "actor",
                 index * spacing,
                 (HeroTileY + (index % 4)) * TileSize);
         }
 
-        return new Map(grid, objects, PlacedEntities + 1);
+        // The terrain entry takes the id after the placements, so the whole workload has one id
+        // space the way an authored document does.
+        return new SceneDocument(
+            new TileMapPlacement(PlacedEntities + 1, grid),
+            placements,
+            PlacedEntities + 2);
     }
 
     internal static EntityRegistry Entities() =>
@@ -87,10 +93,15 @@ internal static class StageWorkload
     internal static SceneRegistry Scenes() =>
         new(
             Entities(),
-            [SceneRegistration.MapBacked(typeof(StageScene), MapName, static context => new StageScene(context))]);
+            [
+                SceneRegistration.FromDocument(
+                    typeof(StageScene),
+                    DocumentName,
+                    static content => new StageScene(content)),
+            ]);
 
-    internal static StageScene Compose(Map map, StageChurn churn = StageChurn.Spawning) =>
-        new(new MapSceneContext(map, Entities()), churn);
+    internal static StageScene Compose(SceneDocument document, StageChurn churn = StageChurn.Spawning) =>
+        new(new SceneContent(document, Entities()), churn);
 
     internal sealed class Hero : Entity
     {
@@ -142,15 +153,15 @@ internal static class StageWorkload
         }
     }
 
-    internal sealed class StageScene : MapScene
+    internal sealed class StageScene : Scene
     {
         private readonly Hero _hero;
         private readonly StageChurn _churn;
         private readonly Entity _flicker;
         private int _spawned;
 
-        internal StageScene(MapSceneContext context, StageChurn churn = StageChurn.Spawning)
-            : base(context)
+        internal StageScene(SceneContent content, StageChurn churn = StageChurn.Spawning)
+            : base(content)
         {
             _churn = churn;
             _hero = FindSingle<Hero>();

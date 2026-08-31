@@ -60,21 +60,21 @@ public sealed class SceneHostTests
     }
 
     [Fact]
-    public void AMapRequest_IsResolvedByNameAtTheHostBoundary()
+    public void ANamedRequest_IsResolvedByDocumentNameAtTheHostBoundary()
     {
         SceneTarget seen = default;
 
         Scene Resolve(in SceneTarget target)
         {
             seen = target;
-            return target.Kind == SceneTargetKind.Scene ? new MapRequestingScene() : new PassiveScene();
+            return target.Kind == SceneTargetKind.Scene ? new NameRequestingScene() : new PassiveScene();
         }
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(MapRequestingScene)), Resolve);
+        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve);
         host.Step(SceneStep(0));
 
-        Assert.Equal(SceneTargetKind.Map, seen.Kind);
-        Assert.Equal("boss-room", seen.MapName);
+        Assert.Equal(SceneTargetKind.Named, seen.Kind);
+        Assert.Equal("boss-room", seen.DocumentName);
         Assert.IsType<PassiveScene>(host.Scene);
     }
 
@@ -97,11 +97,11 @@ public sealed class SceneHostTests
     {
         SceneDefaults defaults = new(new Vector2(320, 180), TextureSampling.Point);
 
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(MapRequestingScene)
-            ? new MapRequestingScene()
+        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(NameRequestingScene)
+            ? new NameRequestingScene()
             : new PassiveScene();
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(MapRequestingScene)), Resolve, defaults);
+        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve, defaults);
         host.Step(SceneStep(0));
 
         Assert.IsType<PassiveScene>(host.Scene);
@@ -112,11 +112,11 @@ public sealed class SceneHostTests
     [Fact]
     public void ASceneOpenedByATransition_DoesNotSweepIntoPlace()
     {
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(MapRequestingScene)
-            ? new MapRequestingScene()
+        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(NameRequestingScene)
+            ? new NameRequestingScene()
             : new FarAwayScene();
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(MapRequestingScene)), Resolve);
+        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve);
         host.Step(SceneStep(0));
 
         Assert.Equal(new Vector2(4000, 4000), host.View.Camera.Center);
@@ -183,7 +183,7 @@ public sealed class SceneHostTests
         }
     }
 
-    private sealed class MapRequestingScene : Scene
+    private sealed class NameRequestingScene : Scene
     {
         protected override void OnStep(in StepContext context) => RequestScene("boss-room");
     }

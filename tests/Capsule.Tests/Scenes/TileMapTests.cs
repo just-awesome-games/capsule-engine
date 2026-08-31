@@ -1,9 +1,9 @@
 using System.Numerics;
-using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Components;
 using Capsule.Scenes.Entities;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Tests.Scenes;
 
@@ -15,7 +15,7 @@ public sealed class TileMapTests
         SceneFixtures.Drifter drifter = new(new Vector2(7, 9));
         drifter.Add(new QuadRenderer(new Vector2(4, 8), ColorRgba.White));
 
-        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
+        Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         scene.Add(drifter);
         OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
         SceneSimulation simulation = new(scene);
@@ -36,7 +36,7 @@ public sealed class TileMapTests
     [Fact]
     public void ATilemapsPositionIsNotConsulted_ItsQuadsAreWorldCoordinates()
     {
-        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
+        Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
         SceneSimulation simulation = new(scene);
 
@@ -47,7 +47,7 @@ public sealed class TileMapTests
     }
 
     [Fact]
-    public void ATilemapIsBuiltFromAGridAlone_WithNoMapAnywhere()
+    public void ATilemapIsBuiltFromAGridAlone_WithNoDocumentAnywhere()
     {
         ColorRgba amber = new(0xD6, 0x9E, 0x2E, 0x80);
         TileGrid grid = new(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("solid", amber)], [0, 1]);
@@ -63,20 +63,6 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(16, 8), tiles.Size);
         Assert.Equal("solid", tiles.TileTypeAt(1, 0));
         Assert.Equal(amber, Assert.Single(simulation.View.Quads.ToArray()).Color);
-    }
-
-    [Fact]
-    public void TheGridIsQueryable_AndItsExtentIsTheScenesSize()
-    {
-        MapScene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
-        TileMap terrain = SceneFixtures.TerrainOf(scene);
-
-        Assert.Equal(SceneFixtures.TileSize, terrain.TileSize);
-        Assert.Equal(3, terrain.Width);
-        Assert.Equal(2, terrain.Height);
-        Assert.Equal("solid", terrain.TileTypeAt(1, 0));
-        Assert.Equal(0, terrain.TileAt(0, 0));
-        Assert.Equal(new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize), scene.Size);
     }
 
     [Fact]

@@ -1,11 +1,12 @@
 using System.Numerics;
 using Capsule.Input;
-using Capsule.Maps;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Components;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Tests.Scenes;
 
@@ -13,20 +14,19 @@ internal static class SceneFixtures
 {
     internal const int TileSize = 16;
 
+    // Above every placement id the fixtures mint, so the terrain entry never collides with one.
+    internal const int TerrainId = 100;
+
     internal static readonly ColorRgba Solid = new(0x44, 0x53, 0x6B);
 
     internal delegate void StepHook(Scene scene, in StepContext context);
 
-    internal static Map Room(params MapObject[] objects)
-    {
-        int nextId = 1;
-        foreach (MapObject placed in objects)
-        {
-            nextId = Math.Max(nextId, placed.Id + 1);
-        }
+    internal static SceneDocument Room(params EntityPlacement[] entities) =>
+        new(new TileMapPlacement(TerrainId, RoomGrid()), entities, TerrainId + 1);
 
-        return new Map(RoomGrid(), objects, nextId);
-    }
+    /// <summary>A document of entities alone: no terrain entry, so no tile map composes out of it.</summary>
+    internal static SceneDocument RoomWithoutTerrain(params EntityPlacement[] entities) =>
+        new(null, entities, TerrainId + 1);
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", Solid)], [0, 1, 0, 0, 0, 0]);
@@ -42,9 +42,10 @@ internal static class SceneFixtures
         return new EntityRegistry(entries);
     }
 
-    internal static MapSceneContext Context(Map map, EntityRegistry entities) => new(map, entities);
+    internal static SceneContent Content(SceneDocument document, EntityRegistry entities) => new(document, entities);
 
-    internal static MapScene RoomScene(Map map, EntityRegistry entities) => new(Context(map, entities));
+    internal static Scene RoomScene(SceneDocument document, EntityRegistry entities) =>
+        new(Content(document, entities));
 
     internal static TileMap TerrainOf(Scene scene) => Assert.IsType<TileMap>(scene.Entities[0]);
 
@@ -72,11 +73,9 @@ internal static class SceneFixtures
         internal SpawnScene(EntityRegistry entities, params EntitySpawn[] spawns) => Spawn(spawns, entities);
     }
 
-    internal sealed class Room01(MapSceneContext context) : MapScene(context)
+    internal sealed class Room01(SceneContent content) : Scene(content)
     {
-        internal Map Composed => Map;
-
-        internal TileMap Terrain => Tiles;
+        internal TileMap Terrain => FindSingle<TileMap>();
     }
 
     internal sealed class Drifter(Vector2 position) : Entity(position)

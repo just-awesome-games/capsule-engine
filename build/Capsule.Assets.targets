@@ -9,7 +9,7 @@
        within a root and the shipped tree is flat per domain, so an asset lands at
        assets/<domain>/<stem>.<ext> whatever it was filed under. A domain gained here is a domain
        gained everywhere, and the handle it hands out is paired with it in
-       Capsule.Scenes.Generator's asset registry — the one other place the domains are named.
+       Capsule.Generators' asset registry — the one other place the domains are named.
 
        A project ships them by declaring:
 
@@ -72,7 +72,7 @@
           DependsOnTargets="CapsuleAssetsInit"
           BeforeTargets="AssignTargetPaths">
     <!-- Qualified metadata, not bare: %() in the Content metadata below would otherwise batch over
-         Content, which already carries a game's own files and the derived maps. -->
+         Content, which already carries a game's own files and the derived scene documents. -->
     <ItemGroup>
       <Content Include="@(CapsuleAsset)">
         <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.Filename)%(CapsuleAsset.Extension)</Link>

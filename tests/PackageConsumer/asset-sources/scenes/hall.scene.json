@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "entities": [
+    {
+      "id": 1,
+      "type": "tile-map",
+      "x": 0,
+      "y": 0,
+      "properties": {
+        "tileSize": 16,
+        "width": 4,
+        "height": 2,
+        "tileTypes": [
+          { "type": "empty" },
+          { "type": "ground", "color": "#4a5568ff" }
+        ],
+        "tiles": [0, 0, 0, 0, 1, 1, 1, 1]
+      }
+    },
+    { "id": 2, "type": "marker", "x": 16, "y": 16 }
+  ],
+  "nextEntityId": 3
+}

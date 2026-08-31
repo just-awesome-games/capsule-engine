@@ -12,7 +12,7 @@ my-game/
     MyGame.Shell/
       MyGame.Shell.csproj
     asset-sources/
-      maps/
+      scenes/
       textures/
       audio/
       fonts/
@@ -24,8 +24,8 @@ my-game/
   MyGame.slnx
 ```
 
-Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored assets at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override.
-Commit `src/asset-sources/`. The build derives `assets/` beside each executable; do not commit or author files there.
+Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override.
+Commit `src/asset-sources/`. The build derives `assets/` beside each executable; do not commit or author files there. Scene sources live under `scenes/`; their format and pipeline are in [`scenes.md`](scenes.md).
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
@@ -125,13 +125,13 @@ Exactly one project takes the shell role:
 </Project>
 ```
 
-The shell role generates `GameBoot`, imports maps, ships assets, and supplies default application icons. Set `<CapsuleTileSize>` on this project when every map must use one tile size. Override the executable icon with standard `<ApplicationIcon>` and the window icon with an embedded `Icon.bmp` whose logical name is `Icon.bmp`.
+The shell role generates `GameBoot`, imports scene documents, ships assets, and supplies default application icons. Set `<CapsuleTileSize>` on this project when every scene must use one tile size, and a scene whose grid differs fails the build. Override the executable icon with standard `<ApplicationIcon>` and the window icon with an embedded `Icon.bmp` whose logical name is `Icon.bmp`.
 
-A role-free executable that needs derived content can opt into `<CapsuleImportMaps>` and `<CapsuleShipAssets>` independently.
+A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>` and `<CapsuleShipAssets>` independently.
 
 ## Package and source modes
 
-Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`.
+Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`.
 
 For one source build against a sibling engine clone:
 
@@ -140,5 +140,7 @@ dotnet build -p:CapsuleSourcePath=../capsule-engine
 ```
 
 For persistent local development, place the same property in an ignored `Directory.Build.local.props`. Set `CapsuleUsePackages=true` to force the committed package graph.
+
+`dotnet format` accepts no MSBuild properties, so `-p:CapsuleSourcePath=...` never reaches it. A format gate selects source mode through the `CapsuleSourcePath` environment variable or `Directory.Build.local.props`, both of which MSBuild evaluation picks up.
 
 The source and package branches expose the same assemblies: game logic sees only `JAG.Capsule`; the shell alone sees `JAG.Capsule.Runtime`.

@@ -3,11 +3,11 @@ using Capsule.Scenes;
 
 namespace PackageConsumer.Game;
 
-[MapName("room")]
-public sealed class Room : MapScene
+[SceneDocument("room")]
+public sealed class Room : Scene
 {
-    public Room(MapSceneContext context)
-        : base(context)
+    public Room(SceneContent content)
+        : base(content)
     {
     }
 

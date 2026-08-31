@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>JAG.Capsule.Build</PackageId>
-    <Description>Build integration, source generators, analyzers, and map tooling for Capsule games.</Description>
+    <Description>Build integration, source generators, analyzers, and scene-document tooling for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
@@ -11,10 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Maps.Cli/Capsule.Maps.Cli.csproj"
+    <ProjectReference Include="../Capsule.Cli/Capsule.Cli.csproj"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
-    <ProjectReference Include="../Capsule.Scenes.Generator/Capsule.Scenes.Generator.csproj"
+    <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
     <ProjectReference Include="../Capsule.Analyzers/Capsule.Analyzers.csproj"
@@ -26,7 +26,7 @@
     <None Include="../../build/Capsule.Build.targets"
           Pack="true"
           PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
-    <None Include="../../build/Capsule.Maps.targets"
+    <None Include="../../build/Capsule.SceneDocuments.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Assets.targets"
@@ -54,11 +54,11 @@
 
   <Target Name="IncludeCapsuleBuildAssets">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="../Capsule.Maps.Cli/bin/$(Configuration)/net10.0/*.dll"
+      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.dll"
                               PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Maps.Cli/bin/$(Configuration)/net10.0/*.json"
+      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.json"
                               PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Scenes.Generator/bin/$(Configuration)/netstandard2.0/Capsule.Scenes.Generator.dll"
+      <TfmSpecificPackageFile Include="../Capsule.Generators/bin/$(Configuration)/netstandard2.0/Capsule.Generators.dll"
                               PackagePath="analyzers/dotnet/cs/" />
       <TfmSpecificPackageFile Include="../Capsule.Analyzers/bin/$(Configuration)/netstandard2.0/Capsule.Analyzers.dll"
                               PackagePath="analyzers/dotnet/cs/" />

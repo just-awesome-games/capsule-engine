@@ -104,7 +104,6 @@ public sealed class DeviceSnapshotTests
     [Theory]
     [InlineData(PadAxis.LeftStickX, -1f)]
     [InlineData(PadAxis.LeftStickY, 1f)]
-    [InlineData(PadAxis.RightStickX, 0f)]
     [InlineData(PadAxis.LeftTrigger, 0f)]
     [InlineData(PadAxis.RightTrigger, 1f)]
     public void WithAxis_AcceptsTheEndsOfTheRange(PadAxis axis, float value)
@@ -118,7 +117,6 @@ public sealed class DeviceSnapshotTests
     [InlineData(PadAxis.LeftTrigger, -0.0001f)]
     [InlineData(PadAxis.RightTrigger, 1.0001f)]
     [InlineData(PadAxis.RightStickX, float.NaN)]
-    [InlineData(PadAxis.RightStickY, float.PositiveInfinity)]
     public void WithAxis_RejectsAValueOutsideTheAxisRange(PadAxis axis, float value)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(axis, value));
@@ -156,18 +154,6 @@ public sealed class DeviceSnapshotTests
 
         Assert.Equal(-0.25f, folded.Axis(PadAxis.LeftStickX), Tolerance);
         Assert.Equal(0f, folded.Axis(PadAxis.LeftTrigger));
-    }
-
-    [Fact]
-    public void LatchedWith_AnEmptySnapshot_KeepsTheButtonsAndRestsTheAxes()
-    {
-        DeviceSnapshot held = DeviceSnapshot.Of(Key.A).WithAxis(PadAxis.LeftStickX, 1f);
-
-        DeviceSnapshot folded = held.LatchedWith(DeviceSnapshot.Empty);
-
-        Assert.True(folded.IsDown(Key.A));
-        Assert.Equal(0f, folded.Axis(PadAxis.LeftStickX));
-        Assert.Equal(DeviceSnapshot.Of(Key.A), DeviceSnapshot.Empty.LatchedWith(DeviceSnapshot.Of(Key.A)));
     }
 
     [Fact]

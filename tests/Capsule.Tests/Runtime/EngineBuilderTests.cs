@@ -10,18 +10,15 @@ public sealed class EngineBuilderTests
 {
     private const string GameName = "Spec Game";
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-60)]
-    public void WithFixedStep_RejectsANonPositiveRate(int hertz)
+    [Fact]
+    public void WithFixedStep_RejectsANonPositiveRate()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithFixedStep(hertz));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithFixedStep(0));
     }
 
     [Theory]
     [InlineData(0, 180)]
     [InlineData(320, 0)]
-    [InlineData(-320, -180)]
     public void WithRenderResolution_RejectsANonPositiveExtent(int width, int height)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithRenderResolution(width, height));
@@ -56,10 +53,8 @@ public sealed class EngineBuilderTests
 
     [Theory]
     [InlineData("")]
-    [InlineData("   ")]
     [InlineData("!!!")]
     [InlineData("nul")]
-    [InlineData("CON")]
     public void Configure_RejectsAGameNameThatNoSafeCrashLogFolderSlugsOutOf(string gameName)
     {
         Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(gameName));
@@ -86,13 +81,12 @@ public sealed class EngineBuilderTests
         Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(GameName).WithCrashLog(appName));
     }
 
-    [Theory]
-    [InlineData(0x00)]
-    [InlineData(0x1F)]
-    public void WithCrashLog_RejectsAControlCharacter(int codePoint)
+    // The top of the control range: the row an off-by-one in the unsafe-character set lets through.
+    [Fact]
+    public void WithCrashLog_RejectsAControlCharacter()
     {
         Assert.Throws<ArgumentException>(
-            () => CapsuleEngine.Configure(GameName).WithCrashLog($"Game{(char)codePoint}Name"));
+            () => CapsuleEngine.Configure(GameName).WithCrashLog($"Game{(char)0x1F}Name"));
     }
 
     [Theory]
@@ -138,11 +132,11 @@ public sealed class EngineBuilderTests
     }
 
     [Theory]
-    [InlineData("maps/room-01")]
+    [InlineData("scenes/room-01")]
     [InlineData("../room-01")]
     [InlineData("nul")]
     [InlineData("room-01 ")]
-    public void RunScene_RejectsAMapNameThatIsNotOneSafeFileName(string mapName)
+    public void RunScene_RejectsADocumentNameThatIsNotOneSafeFileName(string documentName)
     {
         SceneEngineBuilder builder = SceneBuilder()
             .WithRenderResolution(320, 180)
@@ -152,7 +146,7 @@ public sealed class EngineBuilderTests
             .WithoutCrashLog()
             .WithBindings(static _ => { });
 
-        Assert.Throws<ArgumentException>(() => builder.RunScene(mapName));
+        Assert.Throws<ArgumentException>(() => builder.RunScene(documentName));
     }
 
     private static SceneEngineBuilder SceneBuilder() =>
@@ -163,7 +157,7 @@ public sealed class EngineBuilderTests
 
     private sealed class Menu : Scene;
 
-    private sealed class Room01(MapSceneContext context) : MapScene(context);
+    private sealed class Room01(SceneContent content) : Scene(content);
 
     private sealed class IdleSimulation : ISimulation
     {

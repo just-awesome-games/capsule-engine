@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Capsule.Generators;
 using Capsule.Scenes;
-using Capsule.Scenes.Generator;
+using Capsule.Scenes.Tiles;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -176,9 +177,9 @@ internal static class GeneratorHarness
         return (diagnostics, updated);
     }
 
-    // Whatever this test host is running against, plus Capsule.Scenes itself: the generator asks
-    // the compilation for Capsule.Scenes.Entity and Capsule.Scenes.Scene, so a spec without it
-    // would assert nothing.
+    // Whatever this test host is running against, plus the modules the generator names: it asks
+    // the compilation for Capsule.Scenes.Entity and Capsule.Scenes.Scene, and the registrations it
+    // emits carry a SceneContent whose document holds a Capsule.Scenes.Tiles grid.
     private static ImmutableArray<MetadataReference> LoadReferences()
     {
         HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
@@ -192,6 +193,7 @@ internal static class GeneratorHarness
         }
 
         paths.Add(typeof(Entity).Assembly.Location);
+        paths.Add(typeof(TileGrid).Assembly.Location);
         paths.Add(typeof(object).Assembly.Location);
 
         ImmutableArray<MetadataReference>.Builder references = ImmutableArray.CreateBuilder<MetadataReference>(paths.Count);

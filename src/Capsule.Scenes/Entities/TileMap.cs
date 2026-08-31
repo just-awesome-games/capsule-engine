@@ -1,6 +1,6 @@
 using System.Numerics;
-using Capsule.Maps;
 using Capsule.Rendering;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes.Entities;
 

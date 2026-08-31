@@ -17,6 +17,7 @@ public static class CapsuleEngine
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
     /// </param>
-    /// <param name="scenes">The scenes the game declares; every <c>RunScene</c> resolves through it.</param>
-    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes) => new(gameName, scenes);
+    /// <param name="scenes">Every scene the game declares, plain and document-backed alike.</param>
+    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes) =>
+        new(gameName, scenes);
 }

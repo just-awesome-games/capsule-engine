@@ -1,0 +1,266 @@
+<Project>
+
+  <!-- Derives a scene document from every scene source in the game's asset sources and ships it as
+       content at assets/scenes. The derived files live in obj/ and are never committed.
+
+       A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
+       inert until a project asks for scenes:
+
+         <CapsuleImportScenes>true</CapsuleImportScenes>
+
+       A shell is one by definition and needs no line. Anything else that has to read the scene
+       documents a game ships — a test project, a headless smoke binary — opts in with that
+       property, and gets the import and the content without a Capsule.Runtime reference, a window
+       or a role.
+
+       Sources are found by convention under $(CapsuleAssetSourcesDir)/scenes, and dispatch is by
+       extension: a second authoring tool becomes another item group here, never new wiring in the
+       game. Two are wired today — Tiled's *.tmj, and *.scene.json authored by hand in Capsule's own
+       format. A native source is a source like any other: it is validated and re-emitted
+       canonically rather than copied, so the shipped plane is wholly derived either way.
+
+       An importing project may declare the one tile size every scene is authored at, and a scene
+       whose grid differs then fails the build:
+
+         <CapsuleTileSize>16</CapsuleTileSize>
+
+       Left unset, no size is imposed and each scene keeps its own. -->
+
+  <PropertyGroup Condition="'$(CapsuleImportScenes)' == 'true'">
+    <CapsuleCliProject Condition="'$(CapsuleCliProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Cli/Capsule.Cli.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Cli/Capsule.Cli.csproj</CapsuleCliProject>
+    <CapsuleCliAssembly Condition="'$(CapsuleCliAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Cli.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Cli.dll</CapsuleCliAssembly>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
+    <CapsuleTiledScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.tmj" />
+    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json" />
+
+    <!-- Not an import target of its own: a Tiled source's tilesets are read during its import, so
+         they are the other half of what a derived scene document is up to date with respect to.
+         The tool confines references to this recursively tracked tree. -->
+    <CapsuleTiledTileset Include="$(CapsuleAssetSourcesDir)/**/*.tsj" />
+
+    <!-- The tool rides the game's own restore and build graph, so it restores under the game's
+         locked mode and contributes nothing to the game's output or publish set. -->
+    <ProjectReference Include="$(CapsuleCliProject)"
+                      Condition="'$(CapsuleCliProject)' != ''"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
+                      ExcludeAssets="all"
+                      PrivateAssets="all"
+                      Private="false" />
+  </ItemGroup>
+
+  <!-- Hooked into the build in its own right, not only through the import: the checks below
+       must run whether or not there is anything to import. -->
+  <Target Name="CapsuleSceneDocumentsInit"
+          Condition="'$(CapsuleImportScenes)' == 'true'"
+          DependsOnTargets="CapsuleAssetSourcesInit"
+          BeforeTargets="AssignTargetPaths">
+    <Error Condition="('@(CapsuleTiledScene)' != '' or '@(CapsuleNativeScene)' != '') and '$(CapsuleCliProject)' == '' and '$(CapsuleCliAssembly)' == ''"
+           Text="Capsule: the scene importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
+
+    <!-- A native source's %(Filename) is '<stem>.scene', so the extension comes off it a second
+         time: the two source kinds only collide detectably if they name their scenes the same
+         way. -->
+    <ItemGroup>
+      <_CapsuleSceneSource Include="@(CapsuleTiledScene);@(CapsuleNativeScene)" />
+      <_CapsuleNativeSceneStem Include="@(CapsuleNativeScene)">
+        <Stem>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</Stem>
+      </_CapsuleNativeSceneStem>
+      <_CapsuleSceneName Include="@(CapsuleTiledScene->'%(Filename)');@(_CapsuleNativeSceneStem->'%(Stem)')" />
+      <_CapsuleSceneNameDistinct Include="@(_CapsuleSceneName->Distinct())" />
+    </ItemGroup>
+
+    <!-- A scene document is named after its source and the output tree is flat, so a repeated
+         source name would leave one document silently overwriting the other — across the source
+         kinds as much as within one, since both derive into the same directory. -->
+    <Error Condition="'@(_CapsuleSceneName->Count())' != '@(_CapsuleSceneNameDistinct->Count())'"
+           Text="Capsule: two scene sources under '$(CapsuleAssetSourcesDir)/scenes' share a name, and a scene document is named after its source. Rename one of: @(_CapsuleSceneSource, ' ')" />
+
+    <!-- The importer runs from the importing project's directory, so the derived paths are made
+         absolute rather than left relative to wherever MSBuild was launched. The out directory
+         carries no trailing separator: it is spliced into a command line, where a trailing one
+         would escape the closing quote on Windows. -->
+    <PropertyGroup>
+      <CapsuleImportProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleImportProjectDir>
+      <CapsuleSceneDocumentsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleSceneDocumentsObjDir>
+      <CapsuleSceneDocumentsOutDir>$(CapsuleSceneDocumentsObjDir)/scenes</CapsuleSceneDocumentsOutDir>
+      <CapsuleSceneDocumentsDerivedDir>$(CapsuleSceneDocumentsOutDir)/</CapsuleSceneDocumentsDerivedDir>
+      <CapsuleTiledScenesBatchFile>$(CapsuleSceneDocumentsObjDir)/tiled-scenes.txt</CapsuleTiledScenesBatchFile>
+      <CapsuleNativeScenesBatchFile>$(CapsuleSceneDocumentsObjDir)/native-scenes.txt</CapsuleNativeScenesBatchFile>
+      <CapsuleSceneDocumentsTileSizeStamp>$(CapsuleSceneDocumentsObjDir)/tile-size.txt</CapsuleSceneDocumentsTileSizeStamp>
+      <CapsuleSceneDocumentsDependencyStamp>$(CapsuleSceneDocumentsObjDir)/tiled-dependencies.txt</CapsuleSceneDocumentsDependencyStamp>
+      <CapsuleSceneDocumentsSourceStamp>$(CapsuleSceneDocumentsObjDir)/scene-sources.txt</CapsuleSceneDocumentsSourceStamp>
+      <CapsuleSceneDocumentsDependencyRootArg>--dependency-root &quot;$(CapsuleAssetSourcesDir)&quot; </CapsuleSceneDocumentsDependencyRootArg>
+      <CapsuleTileSizeArg Condition="'$(CapsuleTileSize)' != ''">--tile-size &quot;$(CapsuleTileSize)&quot; </CapsuleTileSizeArg>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(CapsuleSceneDocumentsObjDir)" />
+
+    <!-- The declared size is an input to every scene's import, and MSBuild's incrementality is
+         file-based: without this stamp, changing CapsuleTileSize would leave documents already
+         derived under the old one up to date and unchecked. -->
+    <WriteLinesToFile File="$(CapsuleSceneDocumentsTileSizeStamp)"
+                      Lines="$(CapsuleTileSize)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!-- A file list is itself an input. Without it, deleting or renaming a tileset removes
+         that path from Inputs and can make a stale derived document appear current. -->
+    <WriteLinesToFile File="$(CapsuleSceneDocumentsDependencyStamp)"
+                      Lines="@(CapsuleTiledTileset->'%(FullPath)')"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!-- Which source each scene document is derived from, kind included. The two kinds derive into
+         one directory under one naming rule, and each import target tracks only its own sources:
+         lifting a shipped document back in as a `.scene.json` and deleting the `.tmj` leaves a
+         derived document the native target never authored, and no source of its own is newer than
+         it. This stamp is what puts that document out of date, so the lift is validated, re-emitted
+         and stamped with its new provenance rather than skipped. -->
+    <WriteLinesToFile File="$(CapsuleSceneDocumentsSourceStamp)"
+                      Lines="@(CapsuleTiledScene->'%(Filename)=%(FullPath)');@(_CapsuleNativeSceneStem->'%(Stem)=%(FullPath)')"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!-- Resolved here rather than where it is used: the importer is an input to every derived
+         scene document, and a target's Inputs are evaluated after its DependsOnTargets have run
+         but before its own tasks. Asked from inside the import target, the path would arrive after
+         the up-to-date check that needs it, and a rebuilt importer would leave every document
+         untouched.
+
+         The removed properties are the same set the ProjectReference above drops, and they must
+         be: the tool is built without them, so asking with them would name an output directory
+         nothing wrote — a runtime identifier alone moves it under a RID folder. -->
+    <MSBuild Projects="$(CapsuleCliProject)"
+             Condition="'$(CapsuleCliProject)' != ''"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleCliTool" />
+    </MSBuild>
+
+    <ItemGroup Condition="'$(CapsuleCliAssembly)' != ''">
+      <_CapsuleCliTool Include="$(CapsuleCliAssembly)" />
+    </ItemGroup>
+
+    <!-- The importer is the assembly graph it loads, not its entry point. Reference assemblies
+         are on, so an implementation-only change in Capsule.Scenes rebuilds Capsule.Scenes.dll and
+         never recompiles Capsule.Cli — the entry point's timestamp would call every derived
+         document current while the tool now writes them differently. The tool's own output
+         directory is that graph, so globbing it derives the closure instead of listing it and a
+         dependency added later needs no line here.
+
+         The names are read now, before this build rebuilds the tool; the timestamps behind them
+         at the up-to-date check, after. A dependency added since the last build therefore joins
+         the list one build late, which changes nothing: adding it also rebuilt an assembly the
+         list already holds. -->
+    <ItemGroup>
+      <_CapsuleCliToolAssembly Include="%(_CapsuleCliTool.RootDir)%(_CapsuleCliTool.Directory)*.dll" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Inputs/Outputs make this partially incremental: the Tiled sources correlate one-to-one with
+       the derived documents, so MSBuild re-runs the target with only the stale ones in
+       @(CapsuleTiledScene), and the whole batch goes to one process. Never one process per scene —
+       a few hundred rooms would spend most of a cold build in host startup.
+
+       The tilesets, the two stamps and the importer's assemblies are discrete inputs, correlating
+       with nothing: touching any of them puts every scene out of date and re-derives the lot. That
+       is the honest dependency — a tile's Class is what a grid's palette is made of, and the
+       importer is what turns one into the other, so a game consuming Capsule from a sibling clone
+       must not keep documents a changed importer would now write differently. A full re-derive is
+       one process either way. -->
+  <Target Name="CapsuleImportTiledScenes"
+          Condition="'$(CapsuleImportScenes)' == 'true' and '@(CapsuleTiledScene)' != ''"
+          DependsOnTargets="CapsuleSceneDocumentsInit;ResolveProjectReferences"
+          Inputs="@(CapsuleTiledScene);@(CapsuleTiledTileset);$(CapsuleSceneDocumentsDependencyStamp);$(CapsuleSceneDocumentsSourceStamp);$(CapsuleSceneDocumentsTileSizeStamp);@(_CapsuleCliTool);@(_CapsuleCliToolAssembly)"
+          Outputs="@(CapsuleTiledScene->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).scene.json')">
+
+    <Error Condition="!Exists('@(_CapsuleCliTool)')"
+           Text="Capsule: the scene importer was not built (expected '@(_CapsuleCliTool)')." />
+
+    <!-- The batch goes through a file, not the command line: Exec runs through cmd, whose
+         8191-character line limit a couple of hundred paths blow past — and the error when they
+         do names neither the limit nor a scene.
+
+         The Tiled sources are named relative to the importing project, and the tool runs from
+         there. It stamps each path into its document's source block verbatim, so this is what
+         decides that provenance reads '../asset-sources/scenes/room.tmj' rather than a walk out
+         of obj/. -->
+
+    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text. -->
+    <ItemGroup>
+      <_CapsuleTiledSceneArg Include="@(CapsuleTiledScene)">
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
+      </_CapsuleTiledSceneArg>
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(CapsuleTiledScenesBatchFile)"
+                      Lines="@(_CapsuleTiledSceneArg->'%(ProjectRelativePath)')"
+                      Overwrite="true" />
+
+    <!-- LogStandardErrorAsError surfaces the tool's own per-source messages verbatim as build
+         errors, each already anchored to the source that failed. -->
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleCliTool)&quot; import-tiled --out &quot;$(CapsuleSceneDocumentsOutDir)&quot; $(CapsuleSceneDocumentsDependencyRootArg)$(CapsuleTileSizeArg)--scenes-from &quot;$(CapsuleTiledScenesBatchFile)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- As the Tiled import, minus the tilesets: a native source references nothing, so it, the
+       stamps and the importer are the whole dependency. The derived name falls out of
+       %(Filename) — '<stem>.scene' — plus the .json this re-emits it as. -->
+  <Target Name="CapsuleImportNativeScenes"
+          Condition="'$(CapsuleImportScenes)' == 'true' and '@(CapsuleNativeScene)' != ''"
+          DependsOnTargets="CapsuleSceneDocumentsInit;ResolveProjectReferences"
+          Inputs="@(CapsuleNativeScene);$(CapsuleSceneDocumentsSourceStamp);$(CapsuleSceneDocumentsTileSizeStamp);@(_CapsuleCliTool);@(_CapsuleCliToolAssembly)"
+          Outputs="@(CapsuleNativeScene->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).json')">
+
+    <Error Condition="!Exists('@(_CapsuleCliTool)')"
+           Text="Capsule: the scene importer was not built (expected '@(_CapsuleCliTool)')." />
+
+    <ItemGroup>
+      <_CapsuleNativeSceneArg Include="@(CapsuleNativeScene)">
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
+      </_CapsuleNativeSceneArg>
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(CapsuleNativeScenesBatchFile)"
+                      Lines="@(_CapsuleNativeSceneArg->'%(ProjectRelativePath)')"
+                      Overwrite="true" />
+
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleCliTool)&quot; import-native --out &quot;$(CapsuleSceneDocumentsOutDir)&quot; $(CapsuleTileSizeArg)--scenes-from &quot;$(CapsuleNativeScenesBatchFile)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- Separate from the imports so the content is wired on an up-to-date build too, where they
+       are skipped entirely. -->
+  <Target Name="CapsuleAddSceneDocumentsToOutput"
+          Condition="'$(CapsuleImportScenes)' == 'true' and ('@(CapsuleTiledScene)' != '' or '@(CapsuleNativeScene)' != '')"
+          DependsOnTargets="CapsuleImportTiledScenes;CapsuleImportNativeScenes"
+          BeforeTargets="AssignTargetPaths">
+
+    <!-- Named in two steps on purpose: %() in the Content metadata below batches over the item
+         the Include names, so a transform there would resolve %(Filename) against the source. -->
+    <ItemGroup>
+      <_CapsuleDerivedScene Include="@(CapsuleTiledScene->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).scene.json')" />
+      <_CapsuleDerivedScene Include="@(CapsuleNativeScene->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).json')" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="@(_CapsuleDerivedScene)">
+        <Link>assets/scenes/%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+</Project>

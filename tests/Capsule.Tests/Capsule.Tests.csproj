@@ -13,7 +13,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- The map-object generator's specs host it the way the compiler does: over a compilation
+    <!-- The registry generator's specs host it the way the compiler does: over a compilation
          they build in memory, so a diagnostic can be asserted without failing this build. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
@@ -28,21 +28,20 @@
        MonoGame-hiding contract: these specs compile without any Microsoft.Xna
        reference being available. -->
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Capsule.Cli\Capsule.Cli.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Core\Capsule.Core.csproj" />
-    <ProjectReference Include="..\..\src\Capsule.Maps\Capsule.Maps.csproj" />
-    <ProjectReference Include="..\..\src\Capsule.Maps.Cli\Capsule.Maps.Cli.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Runtime\Capsule.Runtime.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Scenes\Capsule.Scenes.csproj" />
     <!-- Referenced as an ordinary library, not as an analyzer: these specs drive the generator
          directly so that a rejected input is an assertion here rather than a broken build. -->
-    <ProjectReference Include="..\..\src\Capsule.Scenes.Generator\Capsule.Scenes.Generator.csproj" />
+    <ProjectReference Include="..\..\src\Capsule.Generators\Capsule.Generators.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Analyzers\Capsule.Analyzers.csproj" />
   </ItemGroup>
 
   <!-- The importer and the CLI resolve paths relative to their inputs, so the Tiled fixtures
-       and the golden map must sit beside each other in the test output. -->
+       and the golden scene document must sit beside each other in the test output. -->
   <ItemGroup>
-    <None Include="Maps\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Documents\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
