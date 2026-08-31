@@ -18,7 +18,7 @@ Install the .NET SDK selected by [`global.json`](global.json), then run the repo
 git clone https://github.com/just-awesome-games/capsule-engine.git
 cd capsule-engine
 dotnet restore --locked-mode
-dotnet run --project tests/PackageConsumer/Shell -p:CapsuleSourcePath=.
+dotnet run --project tests/PackageConsumer/Shell -p:CapsuleSourcePath=../..
 ```
 
 A Capsule game has a substrate-free logic project and a small executable shell. Keep both, and the committed authoring sources, together under `src/` — `src/MyGame.Game/`, `src/MyGame.Shell/`, and `src/asset-sources/` — with tests under `tests/`; that layout matches Capsule's asset conventions without extra path configuration.
@@ -29,7 +29,7 @@ The shell's entry point is generated, and it starts a scene:
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-GameBoot.Configure("My Game").RunScene<MainMenu>();
+CapsuleBoot.Configure("My Game").RunScene<MainMenu>();
 ```
 
 ```csharp
@@ -60,7 +60,7 @@ A scene is data, behaviour, or both, and Capsule composes all three combinations
 
 A document is written by hand or by an agent, or drawn in Tiled and derived by the build into the identical file; the runtime loads only the native one. The authoring model and the format are in [`docs/scenes.md`](docs/scenes.md).
 
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Consumer-facing MSBuild properties and icon conventions are collected in [`docs/build-configuration.md`](docs/build-configuration.md).
 
 ## Contributing
 

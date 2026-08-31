@@ -75,11 +75,10 @@ internal static class StageWorkload
                 (HeroTileY + (index % 4)) * TileSize);
         }
 
-        // The terrain entry takes the id after the placements, so the whole workload has one id
+        // The tile-map entry takes the id after the placements, so the whole workload has one id
         // space the way an authored document does.
         return new SceneDocument(
-            new TileMapPlacement(PlacedEntities + 1, grid),
-            placements,
+            [new TileMapPlacement(PlacedEntities + 1, grid), .. placements],
             PlacedEntities + 2);
     }
 

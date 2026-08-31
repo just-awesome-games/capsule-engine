@@ -37,26 +37,24 @@ public static class TiledImporter
         List<TileDefinition> palette = [TileGrid.EmptyTile];
         Dictionary<int, int> paletteIndexByGid = BuildPalette(tilesets, palette);
 
-        (TiledLayer tileLayer, List<TiledLayer> objectLayers) = SplitLayers(map);
-        int[] tiles = ReadTiles(tileLayer, map, tilesets, paletteIndexByGid);
-        List<EntityPlacement> entities = ReadObjects(objectLayers);
+        int nextEntityId = map.NextObjectId;
+        List<SceneDocumentEntry> entries = ReadEntries(
+            map,
+            tilesets,
+            palette,
+            paletteIndexByGid,
+            ref nextEntityId);
 
         SceneDocumentSource source = new(
             ToolName,
             mapPath.Replace('\\', '/'),
             Convert.ToHexStringLower(sourceHash.GetHashAndReset()));
 
-        // Tiled mints ids for its objects alone, so the terrain entry takes the next one the
-        // source would have handed out and the document's counter moves past it.
+        // Tiled mints ids for objects alone. Tile layers take ids from the first value Tiled would
+        // hand to another object, preserving one collision-free id space in the native document.
         try
         {
-            return new SceneDocument(
-                new TileMapPlacement(
-                    map.NextObjectId,
-                    new TileGrid(map.TileWidth, map.Width, map.Height, palette, tiles)),
-                entities,
-                map.NextObjectId + 1,
-                source);
+            return new SceneDocument(entries, nextEntityId, source);
         }
         // The grid rejects its own input as an argument fault and the document as a format one;
         // from here both mean the same thing, that the Tiled source imports to something invalid.
@@ -275,27 +273,45 @@ public static class TiledImporter
     }
 
     // Layer type, never layer name: what a layer is called is a game's convention, not Capsule's.
-    private static (TiledLayer TileLayer, List<TiledLayer> ObjectLayers) SplitLayers(TiledMap map)
+    // Entries are appended while walking the layer list so foreground tile layers remain above
+    // the object layers they follow instead of being collapsed into one terrain surface.
+    private static List<SceneDocumentEntry> ReadEntries(
+        TiledMap map,
+        TiledTileset[] tilesets,
+        List<TileDefinition> palette,
+        Dictionary<int, int> paletteIndexByGid,
+        ref int nextEntityId)
     {
-        TiledLayer? tileLayer = null;
-        List<TiledLayer> objectLayers = [];
+        List<SceneDocumentEntry> entries = [];
 
         foreach (TiledLayer layer in map.Layers)
         {
             switch (layer.Type)
             {
                 case "tilelayer":
-                    if (tileLayer is not null)
-                    {
-                        throw new TiledImportException(
-                            $"the map has more than one tile layer ('{tileLayer.Name}' and '{layer.Name}'); exactly one is supported.");
-                    }
-
-                    tileLayer = layer;
+                    entries.Add(new TileMapPlacement(
+                        nextEntityId++,
+                        new TileGrid(
+                            map.TileWidth,
+                            map.Width,
+                            map.Height,
+                            palette,
+                            ReadTiles(layer, map, tilesets, paletteIndexByGid))));
                     break;
 
                 case "objectgroup":
-                    objectLayers.Add(layer);
+                    foreach (TiledObject placed in layer.Objects ?? [])
+                    {
+                        string? objectClass = placed.ResolvedClass;
+                        if (string.IsNullOrWhiteSpace(objectClass))
+                        {
+                            throw new TiledImportException(
+                                $"object {placed.Id} on layer '{layer.Name}' has no Class; every object is typed by its Class.");
+                        }
+
+                        entries.Add(new EntityPlacement(placed.Id, objectClass, (float)placed.X, (float)placed.Y));
+                    }
+
                     break;
 
                 default:
@@ -304,7 +320,7 @@ public static class TiledImporter
             }
         }
 
-        return (tileLayer ?? throw new TiledImportException("the map has no tile layer."), objectLayers);
+        return entries;
     }
 
     private static int[] ReadTiles(
@@ -403,27 +419,6 @@ public static class TiledImporter
             ? new TiledImportException($"tile gid {gid} at index {index} belongs to no tileset in the map.")
             : new TiledImportException(
                 $"tile {(int)gid - owner.FirstGid} of tileset '{owner.Name}' is painted at index {index} but has no Class; give every painted tile a Class in Tiled.");
-    }
-
-    private static List<EntityPlacement> ReadObjects(List<TiledLayer> objectLayers)
-    {
-        List<EntityPlacement> entities = [];
-        foreach (TiledLayer layer in objectLayers)
-        {
-            foreach (TiledObject placed in layer.Objects ?? [])
-            {
-                string? objectClass = placed.ResolvedClass;
-                if (string.IsNullOrWhiteSpace(objectClass))
-                {
-                    throw new TiledImportException(
-                        $"object {placed.Id} on layer '{layer.Name}' has no Class; every object is typed by its Class.");
-                }
-
-                entities.Add(new EntityPlacement(placed.Id, objectClass, (float)placed.X, (float)placed.Y));
-            }
-        }
-
-        return entities;
     }
 
     private static string DirectoryOf(string path) =>

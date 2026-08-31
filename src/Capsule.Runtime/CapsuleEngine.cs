@@ -4,7 +4,7 @@ namespace Capsule.Runtime;
 
 /// <summary>
 /// The engine's entry point. A game's <c>Program</c> starts at the
-/// <c>Capsule.Runtime.Generated.GameBoot</c> generated into its shell, which starts here with the
+/// <c>Capsule.Runtime.Generated.CapsuleBoot</c> generated into its shell, which starts here with the
 /// scene registry the compiler built from the game's own classes.
 /// </summary>
 public static class CapsuleEngine

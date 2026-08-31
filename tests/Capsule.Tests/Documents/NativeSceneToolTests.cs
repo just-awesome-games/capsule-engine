@@ -30,8 +30,8 @@ public sealed class NativeSceneToolTests
         SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
         Assert.Equal(SceneDocumentFile.ToJson(derived), emitted);
         Assert.NotEqual(Authored, emitted);
-        Assert.Equal(2, derived.Grid!.Width);
-        Assert.Equal("player", derived.Entities[0].Type);
+        Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
+        Assert.Equal("player", derived.Entries[1].Entity!.Value.Type);
     }
 
     [Fact]
@@ -111,5 +111,5 @@ public sealed class NativeSceneToolTests
 
     private static string Unstamped(SceneDocument document) =>
         SceneDocumentFile.ToJson(
-            new SceneDocument(document.TileMap, document.Entities.ToArray(), document.NextEntityId));
+            new SceneDocument(document.Entries.ToArray(), document.NextEntityId));
 }

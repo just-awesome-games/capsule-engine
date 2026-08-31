@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Scenes;
 
-public sealed class GameBootGeneratorTests
+public sealed class CapsuleBootGeneratorTests
 {
     private const string LogicSource = """
         using Capsule.Scenes;
@@ -20,7 +20,7 @@ public sealed class GameBootGeneratorTests
 
         public static class Program
         {
-            public static void Boot() => GameBoot.Configure("Spec Game").WithWindow(320, 180);
+            public static void Boot() => CapsuleBoot.Configure("Spec Game").WithWindow(320, 180);
         }
         """;
 
@@ -33,7 +33,7 @@ public sealed class GameBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
             "CapsuleEngine.Configure(gameName, Scenes)",
-            GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile),
+            GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile),
             StringComparison.Ordinal);
     }
 
@@ -53,7 +53,7 @@ public sealed class GameBootGeneratorTests
         Compilation updated = GeneratorHarness.Compile(LogicSource).Updated;
 
         Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Runtime.CapsuleEngine"));
-        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameBootFile));
+        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.CapsuleBootFile));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class GameBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
 
-        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.GameBootFile);
+        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
         Assert.Equal(2, generated.Split(".AddEntities(entities);", StringSplitOptions.None).Length - 1);
         Assert.Equal(2, generated.Split(".AddScenes(scenes);", StringSplitOptions.None).Length - 1);
     }

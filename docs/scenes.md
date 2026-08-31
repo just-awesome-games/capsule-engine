@@ -1,6 +1,6 @@
 # Scenes
 
-A scene is one world: the terrain under it, the entities on it, and a camera. Capsule has a single scene concept, and a `*.scene.json` **scene document** is its serialized form — a scene's data, carrying no behaviour.
+A scene is one world: its ordered contents and a camera. Capsule has a single scene concept, and a `*.scene.json` **scene document** is its serialized form — a scene's data, carrying no behaviour. Tile maps are one engine-native entry type, not a requirement or a separate kind of scene.
 
 ## Authoring model
 
@@ -22,7 +22,7 @@ public sealed class OpeningRoom(SceneContent content) : Scene(content)
 }
 ```
 
-`Scene(SceneContent)` adds the document's terrain as a `TileMap` when it carries one, takes `Size` from it, then spawns one entity per remaining entry in file order. The document is construction data and is not retained; a subclass that needs the terrain later asks `FindFirst<TileMap>()`.
+`Scene(SceneContent)` composes one `TileMap` or game entity per entry in file order. Its `Size` spans the largest tile map it carries. The document is construction data and is not retained; a subclass queries the composed entities when it needs them.
 
 Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestScene(name)` a document. Both resolve through `SceneRegistry`, which games never build — the source generator emits it from the assembly's own classes.
 
@@ -54,30 +54,18 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 ```
 
 - `formatVersion` is required and must be supported.
-- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required, the terrain entry included; `properties` follows when the type declares a contract.
-- IDs are unique, positive, and lower than `nextEntityId`, across every entry including the terrain. Deleted IDs are not reused.
+- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `properties` follows when the type declares a contract.
+- IDs are unique, positive, and lower than `nextEntityId`, across every entry. Deleted IDs are not reused.
 - `entities` may be empty: that is a valid empty scene.
 - A `source` block records tool, relative source path, and SHA-256 of the source closure. Its presence marks a derived file, so an authoring source omits it.
 
-`properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Properties on any other type are rejected at parse.
+`properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Its properties are `tileSize`, `width`, `height`, `tileTypes`, and `tiles`; palette index 0 is `empty`, `tiles` contains exactly `width * height` palette indices, and colors use lowercase `#rrggbbaa`. Properties on any other type are rejected at parse.
 
 Invalid documents throw `SceneDocumentFormatException`.
 
-### The `tile-map` entry
+### Entries and composition
 
-`tile-map` is the terrain, reserved by the engine: no game class may claim it as a spawn type.
-
-- A document carries at most one, and it is the first entry. File order is composition order, so terrain composes under everything placed on it.
-- Its `properties` are the grid: `tileSize`, `width`, `height`, `tileTypes`, `tiles`.
-- Palette index 0 is `empty` with no color. Other tile types are unique and non-blank.
-- `tiles` contains exactly `width * height` palette indices.
-- Colors use lowercase `#rrggbbaa`.
-- Terrain is anchored at the world origin, so its `x` and `y` are 0.
-- Omit the entry entirely for a scene of entities alone; nothing then draws terrain and the scene spans nothing until it sets its own size.
-
-### Entity entries
-
-Every remaining `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims its kebab-cased class name, and `[SpawnType("type")]` names another. A type no class claims fails the scene at load.
+`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin and file order determines draw order. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims its kebab-cased class name, and `[SpawnType("type")]` names another. A type no class claims fails the scene at load.
 
 ## From source to game
 
@@ -98,13 +86,13 @@ The shell role imports scenes on its own; any other project that needs them opts
 
 The runtime loads only the native scene document. The Tiled importer is a build-time translator into it, so dropping Tiled deletes no runtime code.
 
-Capsule imports `.tmj` files that are orthogonal, finite, square-tiled, CSV-encoded, unflipped, and contain exactly one tile layer.
+Capsule imports `.tmj` files that are orthogonal, finite, square-tiled, CSV-encoded, and unflipped. Tile and object layers become document entries in authored order; a map may contain any number of either.
 
 - A tileset tile's Class becomes its semantic tile type.
 - An optional Color property named `color` becomes its presentation color.
 - Tile Classes are unique across all referenced tilesets; `empty` is reserved.
 - Object layers contain objects whose Class becomes the spawn type.
-- Tiled's object IDs are preserved. The terrain entry takes the source's `nextobjectid`, and the document's `nextEntityId` is one past it.
+- Tiled's object IDs are preserved. Tile layers take consecutive IDs beginning at the source's `nextobjectid`, and the document's `nextEntityId` follows them.
 - Referenced `.tsj` files must remain under the asset-source root.
 
 Unsupported input fails the build with the file and the violated constraint.

@@ -1,63 +1,52 @@
 using System.Globalization;
-using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
-/// A scene as data: one uniform list of entries, each with an id, a type and a position. The
-/// engine claims one type of its own, <see cref="TileMapType"/>, whose properties carry the
-/// terrain grid; every other entry is a placed entity the game's own class spawns.
+/// A scene as data: one ordered list of engine-native tile maps and game-defined entity
+/// placements. File order is composition order.
 /// </summary>
 public sealed class SceneDocument
 {
     /// <summary>
-    /// The entry type the engine reserves for a scene's terrain. At most one entry may carry it,
-    /// and it is the document's first entry, so terrain composes under everything placed on it.
+    /// The entry type the engine reserves for tile maps. Any number may appear; each composes at
+    /// its position in the document's entry list.
     /// </summary>
     public const string TileMapType = "tile-map";
 
     private const int Sha256HexLength = 64;
 
-    private readonly EntityPlacement[] _entities;
+    private readonly SceneDocumentEntry[] _entries;
 
-    /// <param name="tileMap">The terrain entry, or null for a scene of entities alone.</param>
-    /// <param name="entities">Every other entry, in file order.</param>
+    /// <param name="entries">Every tile map and entity placement, in composition order.</param>
     /// <param name="nextEntityId">The next id to hand out; at least 1 and above every entry's id.</param>
     /// <param name="source">Provenance when the document is derived, null when it is authored.</param>
     /// <exception cref="SceneDocumentFormatException">Some invariant of the document format is broken.</exception>
     public SceneDocument(
-        TileMapPlacement? tileMap,
-        IReadOnlyList<EntityPlacement> entities,
+        IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,
         SceneDocumentSource? source = null)
     {
-        ArgumentNullException.ThrowIfNull(entities);
+        ArgumentNullException.ThrowIfNull(entries);
 
-        TileMap = tileMap;
         NextEntityId = nextEntityId;
         Source = source;
-        _entities = [.. entities];
+        _entries = [.. entries];
 
         Validate();
     }
 
-    /// <summary>The terrain entry, or null when the document carries none.</summary>
-    public TileMapPlacement? TileMap { get; }
-
-    /// <summary>The terrain's grid, or null when the document carries no terrain entry.</summary>
-    public TileGrid? Grid => TileMap?.Grid;
+    /// <summary>Every tile map and entity placement, in composition order.</summary>
+    public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
     /// <summary>
     /// The next id to hand out. Monotonic: ids are never reused, and deleting an entry never
-    /// rewinds it. Every entry's id is below it, the terrain's included.
+    /// rewinds it. Every entry's id is below it.
     /// </summary>
     public int NextEntityId { get; }
 
     /// <summary>The authoring source this document was derived from, or null when it is hand-authored.</summary>
     public SceneDocumentSource? Source { get; }
-
-    /// <summary>Every entry but the terrain, in file order.</summary>
-    public ReadOnlySpan<EntityPlacement> Entities => _entities;
 
     private void Validate()
     {
@@ -66,81 +55,67 @@ public sealed class SceneDocument
             throw Malformed($"nextEntityId must be at least 1, not {NextEntityId}.");
         }
 
-        HashSet<int> seen = [];
-        ValidateTileMap(seen);
-        ValidateEntities(seen);
+        ValidateEntries();
         ValidateSource();
     }
 
-    private void ValidateTileMap(HashSet<int> seen)
+    private void ValidateEntries()
     {
-        if (TileMap is not { } tileMap)
+        HashSet<int> seen = [];
+        for (int i = 0; i < _entries.Length; i++)
         {
-            return;
-        }
-
-        if (tileMap.Grid is null)
-        {
-            throw Malformed($"the '{TileMapType}' entry carries no grid; its properties are the grid it draws.");
-        }
-
-        if (tileMap.Id < 1)
-        {
-            throw Malformed(
-                $"the '{TileMapType}' entry has no id — every entry takes one from nextEntityId when it is created.");
-        }
-
-        if (tileMap.Id >= NextEntityId)
-        {
-            throw Malformed($"entity id {tileMap.Id} is not below nextEntityId {NextEntityId}.");
-        }
-
-        seen.Add(tileMap.Id);
-    }
-
-    private void ValidateEntities(HashSet<int> seen)
-    {
-        for (int i = 0; i < _entities.Length; i++)
-        {
-            EntityPlacement placed = _entities[i];
-
-            if (string.Equals(placed.Type, TileMapType, StringComparison.Ordinal))
+            SceneDocumentEntry entry = _entries[i];
+            EntityPlacement? entity = entry.Entity;
+            TileMapPlacement? tileMap = entry.TileMap;
+            if (entity is null && tileMap is null)
             {
-                throw Malformed(
-                    $"a '{TileMapType}' entry must be the document's first entry, and a document carries at most one.");
+                throw Malformed($"entries[{i}] has no entry type.");
             }
 
             // Identity is minted where the document is authored — by the authoring tool, or from
             // nextEntityId in the code that builds one — never by the reader.
-            if (placed.Id < 1)
+            if (entry.Id < 1)
             {
-                throw Malformed(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"entity '{placed.Type}' at ({placed.X}, {placed.Y}) has no id — every entry takes one from nextEntityId when it is created."));
+                string identity = entity is { } unidentified
+                    ? string.Create(CultureInfo.InvariantCulture, $"entity '{unidentified.Type}' at ({unidentified.X}, {unidentified.Y})")
+                    : $"the '{TileMapType}' entry";
+                throw Malformed($"{identity} has no id — every entry takes one from nextEntityId when it is created.");
             }
 
-            if (string.IsNullOrWhiteSpace(placed.Type))
+            if (tileMap is { Grid: null })
             {
-                throw Malformed($"entity id {placed.Id} has no type.");
+                throw Malformed($"the '{TileMapType}' entry carries no grid; its properties are the grid it draws.");
+            }
+
+            if (entity is { } placed
+                && string.Equals(placed.Type, TileMapType, StringComparison.Ordinal))
+            {
+                throw Malformed(
+                    $"the type '{TileMapType}' is reserved for {nameof(TileMapPlacement)} entries.");
+            }
+
+            if (entity is { } placedWithoutType && string.IsNullOrWhiteSpace(placedWithoutType.Type))
+            {
+                throw Malformed($"entity id {placedWithoutType.Id} has no type.");
             }
 
             // NaN and the infinities have no JSON number, so one of them here would construct a
             // document that cannot be written back out.
-            if (!float.IsFinite(placed.X) || !float.IsFinite(placed.Y))
+            if (!float.IsFinite(entry.X) || !float.IsFinite(entry.Y))
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity id {placed.Id} is at ({placed.X}, {placed.Y}), which is not a position."));
+                    $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position."));
             }
 
-            if (placed.Id >= NextEntityId)
+            if (entry.Id >= NextEntityId)
             {
-                throw Malformed($"entity id {placed.Id} is not below nextEntityId {NextEntityId}.");
+                throw Malformed($"entity id {entry.Id} is not below nextEntityId {NextEntityId}.");
             }
 
-            if (!seen.Add(placed.Id))
+            if (!seen.Add(entry.Id))
             {
-                throw Malformed($"entity id {placed.Id} appears more than once.");
+                throw Malformed($"entity id {entry.Id} appears more than once.");
             }
         }
     }

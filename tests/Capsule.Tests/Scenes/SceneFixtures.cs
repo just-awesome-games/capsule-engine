@@ -14,7 +14,7 @@ internal static class SceneFixtures
 {
     internal const int TileSize = 16;
 
-    // Above every placement id the fixtures mint, so the terrain entry never collides with one.
+    // Above every placement id the fixtures mint, so the tile-map entry never collides with one.
     internal const int TerrainId = 100;
 
     internal static readonly ColorRgba Solid = new(0x44, 0x53, 0x6B);
@@ -22,11 +22,11 @@ internal static class SceneFixtures
     internal delegate void StepHook(Scene scene, in StepContext context);
 
     internal static SceneDocument Room(params EntityPlacement[] entities) =>
-        new(new TileMapPlacement(TerrainId, RoomGrid()), entities, TerrainId + 1);
+        new([new TileMapPlacement(TerrainId, RoomGrid()), .. entities], TerrainId + 1);
 
-    /// <summary>A document of entities alone: no terrain entry, so no tile map composes out of it.</summary>
+    /// <summary>A document of entities alone: no tile-map entry composes out of it.</summary>
     internal static SceneDocument RoomWithoutTerrain(params EntityPlacement[] entities) =>
-        new(null, entities, TerrainId + 1);
+        new([.. entities], TerrainId + 1);
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", Solid)], [0, 1, 0, 0, 0, 0]);

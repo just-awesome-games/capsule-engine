@@ -54,7 +54,7 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("the scene document has no entities", error.Message, StringComparison.Ordinal);
     }
 
-    // Terrain is one entry among the rest, so a scene of entities alone is an ordinary document
+    // A tile map is one entry among the rest, so a scene of entities alone is an ordinary document
     // and an empty list is an empty scene.
     [Fact]
     public void ADocumentWithNoTileMapEntry_ParsesAndRoundTripsByteForByte()
@@ -77,8 +77,7 @@ public sealed class SceneDocumentFileTests
 
         SceneDocument document = SceneDocumentFile.Parse(json);
 
-        Assert.Null(document.Grid);
-        Assert.Equal(new EntityPlacement(1, "coin", 8f, 0f), Assert.Single(document.Entities.ToArray()));
+        Assert.Equal(new EntityPlacement(1, "coin", 8f, 0f), Assert.Single(document.Entries.ToArray()));
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 
@@ -87,12 +86,11 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 1, "entities": [], "nextEntityId": 1}""");
 
-        Assert.Null(document.Grid);
-        Assert.Empty(document.Entities.ToArray());
+        Assert.Empty(document.Entries.ToArray());
     }
 
     [Fact]
-    public void Parse_RejectsATileMapEntryThatIsNotTheFirstEntry()
+    public void Parse_AllowsATileMapAfterAnEntity()
     {
         string json = """
             {
@@ -107,16 +105,16 @@ public sealed class SceneDocumentFileTests
             }
             """;
 
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentFile.Parse(json));
+        SceneDocument document = SceneDocumentFile.Parse(json);
 
-        Assert.Contains("must be the document's first entry", error.Message, StringComparison.Ordinal);
+        Assert.NotNull(document.Entries[0].Entity);
+        Assert.NotNull(document.Entries[1].TileMap);
     }
 
     [Fact]
-    public void Parse_RejectsASecondTileMapEntry()
+    public void Parse_AllowsMoreThanOneTileMapEntry()
     {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
+        SceneDocument document = SceneDocumentFile.Parse(DocumentText(
                 entities: """
                     ,
                         {
@@ -128,9 +126,10 @@ public sealed class SceneDocumentFileTests
                                           "tileTypes": [ { "type": "empty" } ], "tiles": [0] }
                         }
                     """,
-                nextEntityId: 3)));
+                nextEntityId: 3));
 
-        Assert.Contains("second 'tile-map' entry", error.Message, StringComparison.Ordinal);
+        Assert.NotNull(document.Entries[0].TileMap);
+        Assert.NotNull(document.Entries[1].TileMap);
     }
 
     // Properties are a contract per entry type, not a bag the reader sets by name, so a type with
@@ -245,7 +244,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = SceneDocumentFile.Parse(DocumentText(tileTypes: Palette(color)));
 
-        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), document.Grid!.TileTypes[1].Color);
+        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), TileMapOf(document).Grid.TileTypes[1].Color);
         Assert.Contains($"\"color\": \"{color}\"", SceneDocumentFile.ToJson(document), StringComparison.Ordinal);
     }
 
@@ -253,15 +252,14 @@ public sealed class SceneDocumentFileTests
     public void PaletteEntryWithoutAColourRoundTripsCanonically()
     {
         SceneDocument document = new(
-            new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [1])),
-            [],
+            [new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [1]))],
             2);
 
         string json = SceneDocumentFile.ToJson(document);
         SceneDocument round = SceneDocumentFile.Parse(json);
 
         Assert.DoesNotContain("\"color\"", json, StringComparison.Ordinal);
-        Assert.Equal(document.Grid!.TileTypes.ToArray(), round.Grid!.TileTypes.ToArray());
+        Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
         Assert.Equal(json, SceneDocumentFile.ToJson(round));
     }
 
@@ -415,8 +413,10 @@ public sealed class SceneDocumentFileTests
     public void ToJson_WritesTheCanonicalForm()
     {
         SceneDocument document = new(
-            new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [0, 1])),
-            [new EntityPlacement(2, "coin", 8f, 0f)],
+            [
+                new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [0, 1])),
+                new EntityPlacement(2, "coin", 8f, 0f),
+            ],
             3);
 
         string expected = string.Join(
@@ -468,18 +468,18 @@ public sealed class SceneDocumentFileTests
     public void Constructor_RejectsANonFiniteEntityPosition(float x, float y)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument(Terrain(), [new EntityPlacement(2, "coin", x, y)], 3));
+            () => new SceneDocument([Terrain(), new EntityPlacement(2, "coin", x, y)], 3));
 
         Assert.Contains("not a position", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Constructor_RejectsATileMapPlacementAmongTheEntities()
+    public void Constructor_RejectsAnEntityPlacementClaimingTheReservedTileMapType()
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument(null, [new EntityPlacement(1, SceneDocument.TileMapType, 0f, 0f)], 2));
+            () => new SceneDocument([new EntityPlacement(1, SceneDocument.TileMapType, 0f, 0f)], 2));
 
-        Assert.Contains("must be the document's first entry", error.Message, StringComparison.Ordinal);
+        Assert.Contains("reserved", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -489,7 +489,7 @@ public sealed class SceneDocumentFileTests
     public void Constructor_RejectsAnIncompleteSourceBlock(string tool, string path, string hash)
     {
         Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument(Terrain(), [], 2, new SceneDocumentSource(tool, path, hash)));
+            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource(tool, path, hash)));
     }
 
     [Theory]
@@ -499,7 +499,7 @@ public sealed class SceneDocumentFileTests
     public void Constructor_RejectsASourcePathThatIsNotRelativeAndPortable(string path)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument(Terrain(), [], 2, new SceneDocumentSource("tiled", path, Sha256)));
+            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("tiled", path, Sha256)));
 
         Assert.Contains("must be relative", error.Message, StringComparison.Ordinal);
     }
@@ -510,7 +510,7 @@ public sealed class SceneDocumentFileTests
     public void Constructor_RejectsAHashThatIsNotALowercaseSha256(string hash)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument(Terrain(), [], 2, new SceneDocumentSource("tiled", "room.tmj", hash)));
+            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("tiled", "room.tmj", hash)));
 
         Assert.Contains("64 lowercase hex", error.Message, StringComparison.Ordinal);
     }
@@ -519,8 +519,10 @@ public sealed class SceneDocumentFileTests
     public void ToJson_RoundTripsADocumentWithASourceBlock()
     {
         SceneDocument document = new(
-            new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [1, 0])),
-            [new EntityPlacement(3, "player", 40.5f, 24f)],
+            [
+                new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [1, 0])),
+                new EntityPlacement(3, "player", 40.5f, 24f),
+            ],
             4,
             new SceneDocumentSource("tiled", "../scenes/room.tmj", Sha256));
 
@@ -528,12 +530,16 @@ public sealed class SceneDocumentFileTests
 
         Assert.Equal(SceneDocumentFile.ToJson(document), SceneDocumentFile.ToJson(round));
         Assert.Equal(document.Source, round.Source);
-        Assert.Equal(document.TileMap?.Id, round.TileMap?.Id);
-        Assert.Equal(document.Grid!.TileTypes.ToArray(), round.Grid!.TileTypes.ToArray());
+        Assert.Equal(document.Entries[0].Id, round.Entries[0].Id);
+        Assert.Equal(document.Entries[1], round.Entries[1]);
+        Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
     }
 
     private static TileMapPlacement Terrain() =>
         new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [0, 1]));
+
+    private static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
+        document.Entries[index].TileMap!.Value;
 
     private static string Palette(string color) =>
         $$"""[{"type": "empty"}, {"type": "ground", "color": "{{color}}"}]""";

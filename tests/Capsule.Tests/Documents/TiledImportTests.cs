@@ -24,7 +24,7 @@ public sealed class TiledImportTests
 
         SceneDocument document = TiledImporter.Import("room.tmj");
 
-        string[] types = [.. document.Grid!.TileTypes.ToArray().Select(static definition => definition.Type)];
+        string[] types = [.. TileMapOf(document).Grid.TileTypes.ToArray().Select(static definition => definition.Type)];
 
         Assert.Equal(["empty", "ground", "wall", "ledge", "hazard"], types);
     }
@@ -43,7 +43,7 @@ public sealed class TiledImportTests
 
         SceneDocument document = TiledImporter.Import(mapPath);
 
-        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), document.Grid!.TileTypes[3].Color);
+        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), TileMapOf(document).Grid.TileTypes[3].Color);
     }
 
     [Fact]
@@ -55,8 +55,8 @@ public sealed class TiledImportTests
 
         SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", SceneDocumentFixtures.Read("room.tmj")));
 
-        Assert.Null(document.Grid!.TileTypes[1].Color);
-        Assert.Equal("ground", document.Grid!.TileTypes[1].Type);
+        Assert.Null(TileMapOf(document).Grid.TileTypes[1].Color);
+        Assert.Equal("ground", TileMapOf(document).Grid.TileTypes[1].Type);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class TiledImportTests
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
 
-        Assert.Equal(8, TiledImporter.Import(workspace.Write("room.tmj", map)).Grid!.TileSize);
+        Assert.Equal(8, TileMapOf(TiledImporter.Import(workspace.Write("room.tmj", map))).Grid.TileSize);
     }
 
     [Fact]
@@ -112,11 +112,13 @@ public sealed class TiledImportTests
         SceneDocument document = TiledImporter.Import(
             workspace.Write("room-tiled19.tmj", SceneDocumentFixtures.Read("room-tiled19.tmj")));
 
-        Assert.Equal(golden.Grid!.TileSize, document.Grid!.TileSize);
+        Assert.Equal(TileMapOf(golden).Grid.TileSize, TileMapOf(document).Grid.TileSize);
         Assert.Equal(golden.NextEntityId, document.NextEntityId);
-        Assert.Equal(golden.Grid.TileTypes.ToArray(), document.Grid.TileTypes.ToArray());
-        Assert.Equal(golden.Grid.Tiles.ToArray(), document.Grid.Tiles.ToArray());
-        Assert.Equal(golden.Entities.ToArray(), document.Entities.ToArray());
+        Assert.Equal(TileMapOf(golden).Grid.TileTypes.ToArray(), TileMapOf(document).Grid.TileTypes.ToArray());
+        Assert.Equal(TileMapOf(golden).Grid.Tiles.ToArray(), TileMapOf(document).Grid.Tiles.ToArray());
+        Assert.Equal(
+            golden.Entries.ToArray().Select(static entry => entry.Entity).Where(static entity => entity is not null),
+            document.Entries.ToArray().Select(static entry => entry.Entity).Where(static entity => entity is not null));
     }
 
     [Fact]
@@ -155,7 +157,7 @@ public sealed class TiledImportTests
 
         SceneDocument imported = TiledImporter.Import("assets/scenes/room.tmj", dependencyRoot: "assets");
 
-        Assert.Equal("ground", imported.Grid!.TileTypes[1].Type);
+        Assert.Equal("ground", TileMapOf(imported).Grid.TileTypes[1].Type);
     }
 
     [Fact]
@@ -189,8 +191,6 @@ public sealed class TiledImportTests
     [InlineData("\"infinite\":false", "\"infinite\":true", "infinite map")]
     [InlineData("\"tileheight\":16", "\"tileheight\":8", "square tiles only")]
     [InlineData("\"type\":\"tilelayer\"", "\"type\":\"imagelayer\"", "unsupported layer type")]
-    [InlineData("\"type\":\"objectgroup\"", "\"type\":\"tilelayer\"", "more than one tile layer")]
-    [InlineData("\"type\":\"tilelayer\"", "\"type\":\"objectgroup\"", "no tile layer")]
     [InlineData("1, 1, 1, 4]", "1, 1, 1, 2147483649]", "flipped or rotated")]
     [InlineData("1, 1, 1, 4]", "1, 1, 1, 5]", "has no Class")]
     [InlineData("1, 1, 1, 4]", "1, 1, 1, 4, 0]", "requires 12")]
@@ -203,6 +203,51 @@ public sealed class TiledImportTests
         TiledImportException error = ImportMutated(from, to, mutateTileset: false);
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Import_PreservesMultipleTileAndObjectLayersInAuthoredOrder()
+    {
+        string authored = SceneDocumentFixtures.Read("room.tmj").ReplaceLineEndings("\n");
+        string map = Mutate(
+            authored,
+            "        }],\n \"nextlayerid\":3,",
+            """
+                    },
+                    {
+                     "data":[0, 0, 0, 0, 1, 1, 2, 0, 1, 1, 1, 4],
+                     "height":3,
+                     "id":3,
+                     "name":"foreground",
+                     "type":"tilelayer",
+                     "width":4
+                    }],
+             "nextlayerid":4,
+            """);
+
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", map));
+
+        Assert.Collection(
+            document.Entries.ToArray(),
+            entry => Assert.NotNull(entry.TileMap),
+            entry => Assert.Equal("player", entry.Entity!.Value.Type),
+            entry => Assert.Equal("coin", entry.Entity!.Value.Type),
+            entry => Assert.NotNull(entry.TileMap));
+        Assert.Equal(8, document.NextEntityId);
+    }
+
+    [Fact]
+    public void Import_AllowsAnObjectOnlyMap()
+    {
+        string map = Mutate(SceneDocumentFixtures.Read("room.tmj"), "\"type\":\"tilelayer\"", "\"type\":\"objectgroup\"");
+
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", map));
+
+        Assert.All(document.Entries.ToArray(), entry => Assert.NotNull(entry.Entity));
     }
 
     [Fact]
@@ -257,6 +302,9 @@ public sealed class TiledImportTests
 
         return Assert.Throws<TiledImportException>(() => TiledImporter.Import(mapPath));
     }
+
+    private static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
+        document.Entries[index].TileMap!.Value;
 
     private static string Mutate(string text, string from, string to)
     {

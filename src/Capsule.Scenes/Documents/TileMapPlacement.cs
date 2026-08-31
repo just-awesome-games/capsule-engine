@@ -3,8 +3,8 @@ using Capsule.Scenes.Tiles;
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
-/// A scene document's terrain entry: its id in the document's one id space, and the grid its
-/// properties carry. Terrain is anchored at the world origin, so the entry has no position of its
-/// own.
+/// One engine-native tile-map entry. Its grid is anchored at the world origin.
 /// </summary>
+/// <param name="Id">The entry's identity in the document's one id space.</param>
+/// <param name="Grid">The tile grid carried by the entry's properties.</param>
 public readonly record struct TileMapPlacement(int Id, TileGrid Grid);

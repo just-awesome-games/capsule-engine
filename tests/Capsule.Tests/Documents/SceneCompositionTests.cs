@@ -63,6 +63,30 @@ public sealed class SceneCompositionTests
     }
 
     [Fact]
+    public void TileMapsAndEntities_ComposeInDocumentOrder()
+    {
+        SceneDocument document = new(
+            [
+                new TileMapPlacement(3, SceneFixtures.RoomGrid()),
+                new EntityPlacement(1, "player", 32f, 24f),
+                new TileMapPlacement(4, SceneFixtures.RoomGrid()),
+                new EntityPlacement(2, "effect", 48f, 16f),
+            ],
+            5);
+
+        Scene scene = SceneFixtures.RoomScene(
+            document,
+            SceneFixtures.Registry(
+                ("player", static spawn => new SceneFixtures.Placed(spawn)),
+                ("effect", static spawn => new SceneFixtures.Placed(spawn))));
+
+        Assert.IsType<TileMap>(scene.Entities[0]);
+        Assert.IsType<SceneFixtures.Placed>(scene.Entities[1]);
+        Assert.IsType<TileMap>(scene.Entities[2]);
+        Assert.IsType<SceneFixtures.Placed>(scene.Entities[3]);
+    }
+
+    [Fact]
     public void ContentWithNoDocument_IsRejected()
     {
         Assert.Throws<ArgumentNullException>(() => new Scene(default));

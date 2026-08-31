@@ -2,4 +2,21 @@
 
   <Import Project="build/Capsule.Architecture.targets" />
 
+  <!-- A project opened through another repository's solution is consumed as its reference
+       assembly rather than as source. Keep the XML API reference beside that assembly so
+       language services can attach the same IntelliSense documentation they see in packages. -->
+  <Target Name="CapsulePlaceDocumentationBesideReferenceAssembly"
+          AfterTargets="CoreCompile"
+          Condition="'$(GenerateDocumentationFile)' == 'true' and '$(TargetRefPath)' != '' and Exists('$(DocumentationFile)') and Exists('$(TargetRefPath)')">
+    <PropertyGroup>
+      <_CapsuleReferenceDocumentation>$([System.IO.Path]::ChangeExtension('$(TargetRefPath)', '.xml'))</_CapsuleReferenceDocumentation>
+    </PropertyGroup>
+    <Copy SourceFiles="$(DocumentationFile)"
+          DestinationFiles="$(_CapsuleReferenceDocumentation)"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <FileWrites Include="$(_CapsuleReferenceDocumentation)" />
+    </ItemGroup>
+  </Target>
+
 </Project>

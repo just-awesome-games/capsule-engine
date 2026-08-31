@@ -7,7 +7,7 @@ otherwise hand-maintain, so a game keeps no registration table and uses no refle
 
 - `RegistryGenerator` — the entry point; `AssetRegistryGenerator` covers shipped assets.
 - `SceneRegistrySource`, `EntityRegistrySource`, `AssetRegistrySource`, `RegistryProviderSource`,
-  `GameBootSource` — one emitter per generated artifact.
+  `CapsuleBootSource` — one emitter per generated artifact.
 - `SceneModel`, `EntityModel`, `AssetModel`, `Symbols`, `TypeNaming` — the compilation-shaped
   inputs and the naming rules.
 - `RegistryDiagnostics` — the `CAP0xx` diagnostics a malformed claim reports.

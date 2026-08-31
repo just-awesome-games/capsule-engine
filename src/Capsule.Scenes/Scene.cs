@@ -33,10 +33,8 @@ public class Scene
     }
 
     /// <summary>
-    /// The world a scene document describes: its grid as a <see cref="TileMap"/> when it carries
-    /// one, then one entity per placement in authored order. The document is construction data and
-    /// is not retained; a subclass that needs the terrain later asks for
-    /// <see cref="FindFirst{T}"/> of <see cref="TileMap"/>.
+    /// The world a scene document describes: one <see cref="TileMap"/> or game entity per entry,
+    /// in authored order. The document is construction data and is not retained.
     /// </summary>
     /// <exception cref="ArgumentNullException">The content carries no document or no entity registry.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
@@ -45,14 +43,22 @@ public class Scene
         ArgumentNullException.ThrowIfNull(content.Document);
         ArgumentNullException.ThrowIfNull(content.Entities);
 
-        if (content.Document.Grid is { } grid)
+        foreach (SceneDocumentEntry entry in content.Document.Entries)
         {
-            TileMap tiles = new(grid);
-            Add(tiles);
-            Size = tiles.Size;
+            if (entry.TileMap is { } tileMap)
+            {
+                TileMap tiles = new(tileMap.Grid);
+                Add(tiles);
+                Size = Vector2.Max(Size, tiles.Size);
+            }
+            else if (entry.Entity is { } placed)
+            {
+                Add(content.Entities.Create(new EntitySpawn(
+                    placed.Id,
+                    placed.Type,
+                    new Vector2(placed.X, placed.Y))));
+            }
         }
-
-        Spawn(SpawnsOf(content.Document), content.Entities);
     }
 
     /// <summary>
@@ -63,7 +69,7 @@ public class Scene
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
-    /// A scene composed from a scene document with a grid takes it from its <see cref="TileMap"/>.
+    /// A scene composed from a scene document with tile maps spans their largest dimensions.
     /// </summary>
     public Vector2 Size { get; protected set; }
 
@@ -460,20 +466,6 @@ public class Scene
         }
 
         _renderersStale = false;
-    }
-
-    private static EntitySpawn[] SpawnsOf(SceneDocument document)
-    {
-        ReadOnlySpan<EntityPlacement> placements = document.Entities;
-        EntitySpawn[] spawns = new EntitySpawn[placements.Length];
-
-        for (int index = 0; index < placements.Length; index++)
-        {
-            EntityPlacement placed = placements[index];
-            spawns[index] = new EntitySpawn(placed.Id, placed.Type, new Vector2(placed.X, placed.Y));
-        }
-
-        return spawns;
     }
 
     // Membership is reference identity: an entity subclass may override Equals, and two

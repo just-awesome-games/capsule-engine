@@ -58,9 +58,9 @@ internal sealed class BootModel
     internal ImmutableArray<string> InvalidAssemblies { get; }
 }
 
-internal static class GameBootSource
+internal static class CapsuleBootSource
 {
-    private const string FileName = "CapsuleGameBoot.g.cs";
+    private const string FileName = "CapsuleBoot.g.cs";
 
     internal static BootModel Describe(Compilation compilation)
     {
@@ -210,7 +210,7 @@ internal static class GameBootSource
         source.AppendLine("{");
         source.AppendLine("    /// <summary>This game's entry point. Generated; do not edit.</summary>");
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class GameBoot");
+        source.AppendLine("    public static class CapsuleBoot");
         source.AppendLine("    {");
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();");
         source.AppendLine();

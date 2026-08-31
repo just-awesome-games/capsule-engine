@@ -15,10 +15,16 @@ public static class NativeSceneImporter
         byte[] sourceBytes = File.ReadAllBytes(documentPath);
         SceneDocument authored = SceneDocumentFile.Parse(Text(sourceBytes));
 
-        if (tileSize is { } declared && authored.Grid is { } grid && grid.TileSize != declared)
+        if (tileSize is { } declared)
         {
-            throw new SceneDocumentFormatException(
-                $"the scene document has {grid.TileSize}px tiles but the game declares {declared}px; set grid.tileSize to {declared}, or change CapsuleTileSize.");
+            foreach (SceneDocumentEntry entry in authored.Entries)
+            {
+                if (entry.TileMap is { Grid.TileSize: var actual } && actual != declared)
+                {
+                    throw new SceneDocumentFormatException(
+                        $"the scene document has {actual}px tiles but the game declares {declared}px; set tileSize to {declared} on every tile-map entry, or change CapsuleTileSize.");
+                }
+            }
         }
 
         SceneDocumentSource source = new(
@@ -26,7 +32,7 @@ public static class NativeSceneImporter
             documentPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(sourceBytes)));
 
-        return new SceneDocument(authored.TileMap, authored.Entities.ToArray(), authored.NextEntityId, source);
+        return new SceneDocument(authored.Entries.ToArray(), authored.NextEntityId, source);
     }
 
     // The format is written without one, but an editor may add one, and the JSON reader would

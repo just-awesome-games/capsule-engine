@@ -12,12 +12,12 @@ constructible and assertable headlessly.
   is named and resolved.
 - `Documents/` — the `*.scene.json` format: the document, its canonical reader and writer, and
   the placement records it holds.
-- `Tiles/` — `TileGrid` and `TileDefinition`: a validated grid of palette indices. Terrain data
+- `Tiles/` — `TileGrid` and `TileDefinition`: a validated grid of palette indices. Tile-map data
   with no behaviour, read from above by the document and by `Entities/TileMap`.
 - `Entities/`, `Components/`, `Spawning/` — the entities and components the engine itself ships,
   and the construction seam below.
 
-`Spawning/` is where a document entry becomes an entity: a registry mapping a type string to a
+`Spawning/` is where a game-defined document entry becomes an entity: a registry mapping a type string to a
 constructor, the analogue of Godot's ClassDB instantiate inside a `PackedScene`. It is not a
 lifecycle manager — entity CRUD is `new` plus `Scene.Add`/`Scene.Remove`.
 

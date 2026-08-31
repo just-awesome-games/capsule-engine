@@ -29,7 +29,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 : null);
 
         IncrementalValueProvider<BootModel> boot = context.CompilationProvider
-            .Select(static (compilation, _) => GameBootSource.Describe(compilation))
+            .Select(static (compilation, _) => CapsuleBootSource.Describe(compilation))
             .Combine(roles)
             .Select(static (input, _) => input.Right.Shell && !input.Right.Logic ? input.Left : BootModel.None);
 
@@ -68,7 +68,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             static (production, input) => SceneRegistrySource.Emit(production, input.Left, input.Right));
 
         context.RegisterSourceOutput(provider, static (production, providerName) => RegistryProviderSource.Emit(production, providerName));
-        context.RegisterSourceOutput(boot, static (production, wiring) => GameBootSource.Emit(production, wiring));
+        context.RegisterSourceOutput(boot, static (production, wiring) => CapsuleBootSource.Emit(production, wiring));
         context.RegisterSourceOutput(configuration, static (production, configured) =>
         {
             if (configured.Logic && configured.Shell)

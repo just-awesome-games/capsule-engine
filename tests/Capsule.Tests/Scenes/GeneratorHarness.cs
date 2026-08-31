@@ -16,7 +16,7 @@ internal static class GeneratorHarness
     internal const string GameEntitiesFile = "CapsuleGameEntities.g.cs";
     internal const string GameScenesFile = "CapsuleGameScenes.g.cs";
     internal const string GameAssetsFile = "CapsuleGameAssets.g.cs";
-    internal const string GameBootFile = "CapsuleGameBoot.g.cs";
+    internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
     internal const string RegistryProviderFile = "CapsuleRegistryProvider.g.cs";
 
     internal const string Preamble = """

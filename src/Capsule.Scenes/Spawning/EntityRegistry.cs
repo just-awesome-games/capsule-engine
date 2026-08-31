@@ -29,7 +29,7 @@ public sealed class EntityRegistry
             if (string.Equals(type, SceneDocument.TileMapType, StringComparison.Ordinal))
             {
                 throw new ArgumentException(
-                    $"The spawn type '{SceneDocument.TileMapType}' is reserved for a scene document's terrain entry, "
+                    $"The spawn type '{SceneDocument.TileMapType}' is reserved for scene-document tile-map entries, "
                     + "which the engine composes itself; give the class a [SpawnType] of its own.",
                     nameof(entities));
             }

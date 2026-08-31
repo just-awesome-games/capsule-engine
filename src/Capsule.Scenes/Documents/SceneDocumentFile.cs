@@ -55,29 +55,16 @@ public static class SceneDocumentFile
                 "the scene document has no entities; a scene with nothing in it is written as an empty list.");
         }
 
-        TileMapPlacement? tileMap = null;
-        int first = 0;
-        if (entries.Length > 0)
-        {
-            SceneEntryJson head = Entry(entries, 0, out float headX, out float headY);
-            if (IsTileMap(head))
-            {
-                tileMap = ReadTileMap(head, headX, headY);
-                first = 1;
-            }
-        }
-
-        EntityPlacement[] entities = new EntityPlacement[entries.Length - first];
-        for (int i = first; i < entries.Length; i++)
+        SceneDocumentEntry[] documentEntries = new SceneDocumentEntry[entries.Length];
+        for (int i = 0; i < entries.Length; i++)
         {
             SceneEntryJson entry = Entry(entries, i, out float x, out float y);
             string type = entry.Type ?? string.Empty;
 
             if (IsTileMap(entry))
             {
-                throw new SceneDocumentFormatException(tileMap is not null
-                    ? $"entities[{i}] is a second '{SceneDocument.TileMapType}' entry; a scene carries one terrain."
-                    : $"the '{SceneDocument.TileMapType}' entry at entities[{i}] must be the document's first entry: file order is composition order, so terrain composes under everything placed on it.");
+                documentEntries[i] = ReadTileMap(entry, x, y);
+                continue;
             }
 
             if (entry.Properties is not null)
@@ -86,10 +73,10 @@ public static class SceneDocumentFile
                     $"entities[{i}] declares properties, but the type '{type}' has no properties contract; only '{SceneDocument.TileMapType}' declares one.");
             }
 
-            entities[i - first] = new EntityPlacement(entry.Id ?? 0, type, x, y);
+            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y);
         }
 
-        return new SceneDocument(tileMap, entities, file.NextEntityId, ToSource(file.Source));
+        return new SceneDocument(documentEntries, file.NextEntityId, ToSource(file.Source));
     }
 
     /// <summary>The canonical text of <paramref name="document"/>.</summary>
@@ -97,35 +84,39 @@ public static class SceneDocumentFile
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        ReadOnlySpan<EntityPlacement> placements = document.Entities;
-        bool hasTerrain = document.TileMap is not null;
-        SceneEntryJson[] entries = new SceneEntryJson[placements.Length + (hasTerrain ? 1 : 0)];
+        ReadOnlySpan<SceneDocumentEntry> placements = document.Entries;
+        SceneEntryJson[] entries = new SceneEntryJson[placements.Length];
 
-        if (document.TileMap is { } tileMap)
+        for (int i = 0; i < placements.Length; i++)
         {
-            // The terrain's origin is written, not left implicit: every entry carries an x and a y.
-            entries[0] = new SceneEntryJson
+            SceneDocumentEntry entry = placements[i];
+            if (entry.TileMap is { } tileMap)
             {
-                Id = tileMap.Id,
-                Type = SceneDocument.TileMapType,
-                X = 0f,
-                Y = 0f,
-                Properties = JsonSerializer.SerializeToElement(
-                    ToJson(tileMap.Grid),
-                    SceneDocumentJsonContext.Default.TileGridJson),
-            };
-        }
-
-        int next = hasTerrain ? 1 : 0;
-        foreach (EntityPlacement placed in placements)
-        {
-            entries[next++] = new SceneEntryJson
+                entries[i] = new SceneEntryJson
+                {
+                    Id = tileMap.Id,
+                    Type = SceneDocument.TileMapType,
+                    X = entry.X,
+                    Y = entry.Y,
+                    Properties = JsonSerializer.SerializeToElement(
+                        ToJson(tileMap.Grid),
+                        SceneDocumentJsonContext.Default.TileGridJson),
+                };
+            }
+            else if (entry.Entity is { } placed)
             {
-                Id = placed.Id,
-                Type = placed.Type,
-                X = placed.X,
-                Y = placed.Y,
-            };
+                entries[i] = new SceneEntryJson
+                {
+                    Id = placed.Id,
+                    Type = placed.Type,
+                    X = placed.X,
+                    Y = placed.Y,
+                };
+            }
+            else
+            {
+                throw new SceneDocumentFormatException($"entry {entry.Id} has no entry type.");
+            }
         }
 
         SceneDocumentJson file = new()
