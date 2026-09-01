@@ -7,9 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <CapsuleVersion>0.4.0</CapsuleVersion>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
-    <NuGetLockFilePath Condition="'$(CapsuleSourceRoot)' != ''">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>
+    <!-- Source mode resolves the engine through project references and must restore without the
+         local feed in NuGet.config: NuGet rejects a missing local source (NU1301) even when nothing
+         resolves from it, and the feed exists only after a pack. -->
+    <RestoreSources Condition="'$(CapsuleSourceRoot)' != ''">https://api.nuget.org/v3/index.json</RestoreSources>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 

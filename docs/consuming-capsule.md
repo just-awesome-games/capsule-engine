@@ -143,7 +143,7 @@ The complete minimal game is [`samples/MinimalGame/`](../samples/MinimalGame/): 
 
 ## Package and source modes
 
-Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`.
+Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`. The in-repo sample is the one consumer that commits no lock file: its feed is repacked from source on every run, and a repacked `.nupkg` never reproduces its content hash, so a committed hash could only ever fail restore.
 
 For persistent local development, create an ignored `Directory.Build.local.props`:
 
