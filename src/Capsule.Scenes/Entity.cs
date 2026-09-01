@@ -13,18 +13,62 @@ public class Entity
 {
     private readonly List<Component> _components = [];
 
+    private int _movementTrackers;
+
     /// <param name="position">
     /// Where the entity starts. <see cref="PreviousPosition"/> starts equal to it, so a spawn
     /// does not slide in from wherever the renderer would otherwise interpolate from.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     protected Entity(Vector2 position)
     {
         Position = position;
         PreviousPosition = position;
     }
 
-    /// <summary>Where the entity is now, in world units.</summary>
-    public Vector2 Position { get; set; }
+    /// <summary>
+    /// Where the entity is now, in world units. Always finite: a NaN or infinite position is
+    /// refused rather than stored, because everything downstream reads it — the renderer
+    /// interpolates it against <see cref="PreviousPosition"/>, and a collider on this entity hands
+    /// it straight to the collision broadphase.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The position is not finite, or a collider attached to this entity cannot step to it from
+    /// where it stands — two positions at opposite ends of the float range have an infinite one
+    /// between them.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// A collider attached to this entity has no place at that position: its shape there covers a
+    /// region no float box holds.
+    /// </exception>
+    public Vector2 Position
+    {
+        get;
+
+        // Asked, then written, then announced. Every component that tracks position gets to refuse
+        // the new one first — a collider whose shape could not be placed there, or whose step to it
+        // overflows, throws from the preflight while this entity and all its siblings are still
+        // untouched. Only once every one of them has accepted is the field written, which is what
+        // makes the announcement below unable to fail: it carries no input the preflight has not
+        // already validated. The counter keeps both passes free for an entity carrying no such
+        // component.
+        set
+        {
+            RequireFinite(value);
+
+            if (_movementTrackers > 0)
+            {
+                NotifyMoving(value);
+            }
+
+            field = value;
+
+            if (_movementTrackers > 0)
+            {
+                NotifyMoved();
+            }
+        }
+    }
 
     /// <summary>
     /// <see cref="Position"/> as of the previous step. Engine-managed: the scene retains it at
@@ -38,14 +82,40 @@ public class Entity
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
     /// <summary>Moves immediately, with no interpolation from the old position.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The position is not finite, or a collider attached to this entity cannot step to it from
+    /// where it stands.
+    /// </exception>
+    /// <exception cref="ArgumentException">A collider attached to this entity has no place at that position.</exception>
     public void Teleport(Vector2 position)
     {
+        // Position validates first, so a rejected teleport leaves both values as they were rather
+        // than collapsing the interpolation pair onto a position the entity never reached.
         Position = position;
         PreviousPosition = position;
     }
 
+    private static void RequireFinite(Vector2 position)
+    {
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(position),
+                position,
+                "An entity's position must be finite; a NaN or infinite one spreads to everything that reads it, from render interpolation to the collision broadphase.");
+        }
+    }
+
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
-    /// <exception cref="InvalidOperationException">The component is already attached to an entity.</exception>
+    /// <exception cref="ArgumentException">
+    /// The component cannot live on this entity where it stands — a collider whose shape covers no
+    /// region a float box holds at this entity's position.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// The component is already attached to an entity; or this entity is already in a scene and the
+    /// component cannot register with it — a collider needing more collision tag names than the
+    /// scene's world has room left to intern.
+    /// </exception>
     public void Add(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -56,11 +126,33 @@ public class Entity
                 $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity at a time.");
         }
 
+        // Asked before it is held: a component that cannot live on this entity where it stands, or
+        // cannot register with the scene that entity is already in, says so while neither of them
+        // has changed. The siblings already here have interned whatever names they needed, so only
+        // this one's are still to find room for.
+        component.OnAttachingTo(this);
+
+        if (Scene is { } joining)
+        {
+            List<string> tags = joining.BeginAdmission();
+            component.OnAddingTo(joining, this, tags);
+            joining.ReserveTags(tags);
+        }
+
         component.Entity = this;
         _components.Add(component);
 
+        // Registered only now, with nothing left that can refuse: an increment taken before a
+        // preflight that then threw would have nobody to take it back out.
+        component.OnAttachedTo(this);
+
         // Attaching to an entity a scene already holds changes that scene's renderer set.
         Scene?.InvalidateRenderers();
+
+        if (Scene is not null)
+        {
+            component.EnterScene();
+        }
     }
 
     /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
@@ -77,6 +169,8 @@ public class Entity
 
         int held = IndexOf(component);
         _components.RemoveAt(held);
+        component.LeaveScene();
+        component.OnDetachingFrom(this);
         component.Entity = null;
         Scene?.InvalidateRenderers();
     }
@@ -122,6 +216,52 @@ public class Entity
     {
     }
 
+    /// <summary>Counts the components that want telling when this entity moves.</summary>
+    internal void TrackMovement(int delta) => _movementTrackers += delta;
+
+    // Every component asked before any of them registers, so a scene one of them cannot join
+    // leaves the entity outside it with no sibling half-registered. The tag names they want are
+    // pooled into one list and judged against the world's remaining capacity once: asked one at a
+    // time, two siblings each needing the last free slot would both be told yes.
+    internal void PreflightScene(Scene scene)
+    {
+        List<string> tags = scene.BeginAdmission();
+
+        for (int index = 0; index < _components.Count; index++)
+        {
+            _components[index].OnAddingTo(scene, this, tags);
+        }
+
+        // Taken, not merely counted, and taken before a single entry hook runs. Past this line the
+        // registrations these components are about to make cannot fail for want of a tag: what
+        // they were promised is already in the table, and a hook that interns one of its own — or
+        // attaches another collider, which goes through Add and preflights against what is left —
+        // can only spend what nobody here was counting on.
+        scene.ReserveTags(tags);
+    }
+
+    internal void EnterScene()
+    {
+        // Indexed against a live Count: a component may attach another from its own hook, and
+        // EnterScene is idempotent, so reaching it twice is a no-op rather than a double
+        // registration.
+        for (int index = 0; index < _components.Count; index++)
+        {
+            _components[index].EnterScene();
+        }
+    }
+
+    internal void LeaveScene()
+    {
+        for (int index = _components.Count - 1; index >= 0; index--)
+        {
+            if (index < _components.Count)
+            {
+                _components[index].LeaveScene();
+            }
+        }
+    }
+
     internal void UpdateComponents(in StepContext context)
     {
         for (int index = 0; index < _components.Count;)
@@ -135,6 +275,22 @@ public class Entity
             {
                 index++;
             }
+        }
+    }
+
+    private void NotifyMoving(Vector2 position)
+    {
+        for (int index = 0; index < _components.Count; index++)
+        {
+            _components[index].OnEntityMoving(position);
+        }
+    }
+
+    private void NotifyMoved()
+    {
+        for (int index = 0; index < _components.Count; index++)
+        {
+            _components[index].OnEntityMoved();
         }
     }
 

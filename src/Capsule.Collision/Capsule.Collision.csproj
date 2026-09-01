@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Collision only: shapes, broadphase, queries, sweeps and the mover. No dynamics and no
+       solver, and no knowledge of entities, components or tile maps — Capsule.Scenes adapts
+       both sides onto this. Substrate-free — Core only — so it passes the purity admission
+       test and a game's headless tests query a world directly. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Collision</RootNamespace>
+    <!-- Packed as part of JAG.Capsule, never as an ID of its own: Capsule/Capsule.csproj. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
+</Project>

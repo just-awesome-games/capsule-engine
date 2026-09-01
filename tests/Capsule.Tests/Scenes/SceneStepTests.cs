@@ -287,6 +287,35 @@ public sealed class SceneStepTests
         Assert.True(simulation.ExitRequested);
     }
 
+    // The deferred queues answer the same way. Indexed by value, one twin would be read as the
+    // other already queued, and the second of them would be silently dropped.
+    [Fact]
+    public void QueueMembershipIsReferenceIdentityToo_NeverAnEntityEqualsOverride()
+    {
+        List<string> log = [];
+        SceneFixtures.Twin first = new("first", log);
+        SceneFixtures.Twin second = new("second", log);
+        SceneFixtures.HookScene scene = new(step: (Scene joined, in StepContext _) =>
+        {
+            joined.Add(first);
+            joined.Add(second);
+        });
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(2, scene.Entities.Length);
+        Assert.Same(first, scene.Entities[0]);
+        Assert.Same(second, scene.Entities[1]);
+
+        // And the same for the remove queue, drained the step after.
+        scene.Remove(first);
+        scene.Remove(second);
+
+        Assert.Empty(scene.Entities.ToArray());
+        Assert.Equal(["first-", "second-"], log);
+    }
+
     [Fact]
     public void MembershipIsReferenceIdentity_NeverAnEntityEqualsOverride()
     {

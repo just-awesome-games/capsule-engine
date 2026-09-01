@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Tiles;
@@ -15,8 +16,13 @@ public static class TiledImporter
 
     public const string ColorProperty = "color";
 
+    public const string CollisionProperty = "collision";
+
     // Tiled's name for the Color property type; it equals ColorProperty only by coincidence.
     private const string ColorPropertyType = "color";
+
+    // Tiled's name for the String property type, which it omits when writing one.
+    private const string StringPropertyType = "string";
 
     // Tiled packs flip and rotation into the top nibble of a gid.
     private const uint OrientationFlags = 0xF000_0000u;
@@ -200,7 +206,10 @@ public static class TiledImporter
                 }
 
                 paletteIndexByGid[tileset.FirstGid + tile.Id] = palette.Count;
-                palette.Add(new TileDefinition(tileClass, ColorOf(tile, tileClass, tilesetName)));
+                palette.Add(new TileDefinition(
+                    tileClass,
+                    ColorOf(tile, tileClass, tilesetName),
+                    CollisionOf(tile, tileClass, tilesetName)));
             }
         }
 
@@ -231,6 +240,34 @@ public static class TiledImporter
         return (authored is null ? null : ParseColor(authored))
             ?? throw new TiledImportException(
                 $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{ColorProperty}' = '{authored}', which is not a Tiled colour.");
+    }
+
+    // Collision is a plain string property, so an unknown spelling is an authoring mistake rather
+    // than a tile that quietly collides as nothing.
+    private static TileCollision CollisionOf(TiledTile tile, string tileClass, string tilesetName)
+    {
+        TiledProperty? property = tile.Property(CollisionProperty);
+        if (property is null)
+        {
+            return TileCollision.None;
+        }
+
+        // Several of Tiled's property types carry a string value, and every one of them would read
+        // here as a collision spelling. Only the declared type separates a tile authored to the
+        // contract from one that happens to look like it; Tiled omits the type of a string
+        // property, which is why an absent one is the string type rather than a mismatch.
+        if (property.Type is { } declared && !string.Equals(declared, StringPropertyType, StringComparison.Ordinal))
+        {
+            throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') declares '{CollisionProperty}' as a '{declared}' property; it has to be a string property of {string.Join(" or ", TileCollisionNames.All)}, or be left off entirely.");
+        }
+
+        string? authored = property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
+
+        return TileCollisionNames.TryParse(authored, out TileCollision collision)
+            ? collision
+            : throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{CollisionProperty}' = '{authored}'; it has to be a string property of {string.Join(" or ", TileCollisionNames.All)}, or be left off entirely.");
     }
 
     // Tiled writes a colour as #AARRGGBB — alpha leading, and optional — while every colour past

@@ -6,6 +6,7 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
+[Collection(LogSinkCollection.Name)]
 public sealed class EngineBuilderTests
 {
     private const string GameName = "Spec Game";

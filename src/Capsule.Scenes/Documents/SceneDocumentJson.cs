@@ -98,6 +98,11 @@ internal sealed class TileTypeJson
     [JsonPropertyName("color")]
     [JsonPropertyOrder(1)]
     public string? Color { get; set; }
+
+    // Absent for every tile type that collides as nothing, which is the default.
+    [JsonPropertyName("collision")]
+    [JsonPropertyOrder(2)]
+    public string? Collision { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Tiles;
 
@@ -212,6 +213,7 @@ public static class SceneDocumentFile
             {
                 Type = palette[i].Type,
                 Color = palette[i].Color is { } color ? FormatColor(color) : null,
+                Collision = TileCollisionNames.Format(palette[i].Collision),
             };
         }
 
@@ -253,7 +255,8 @@ public static class SceneDocumentFile
 
             tileTypes[i] = new TileDefinition(
                 tileType.Type ?? string.Empty,
-                tileType.Color is { } color ? ParseColor(color, i) : null);
+                tileType.Color is { } color ? ParseColor(color, i) : null,
+                ParseCollision(tileType.Collision, i));
         }
 
         try
@@ -282,6 +285,19 @@ public static class SceneDocumentFile
 
         throw new SceneDocumentFormatException(
             $"tileTypes[{index}].color must be lowercase #rrggbbaa, not \"{color}\".");
+    }
+
+    private static TileCollision ParseCollision(string? collision, int index)
+    {
+        if (collision is null)
+        {
+            return TileCollision.None;
+        }
+
+        return TileCollisionNames.TryParse(collision, out TileCollision parsed)
+            ? parsed
+            : throw new SceneDocumentFormatException(
+                $"tileTypes[{index}].collision is \"{collision}\"; it must be one of {string.Join(", ", TileCollisionNames.All)}, or be left out entirely.");
     }
 
     private static bool TryHexByte(ReadOnlySpan<char> hex, out byte value)

@@ -28,20 +28,28 @@
         "resolved": "0.10.4",
         "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
+      "capsule.collision": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Core": "[0.4.0, )"
+        }
+      },
       "capsule.core": {
         "type": "Project"
       },
       "capsule.scenes": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.2.0, )"
+          "Capsule.Collision": "[0.4.0, )",
+          "Capsule.Core": "[0.4.0, )"
         }
       },
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.2.0, )",
-          "Capsule.Scenes": "[0.2.0, )"
+          "Capsule.Collision": "[0.4.0, )",
+          "Capsule.Core": "[0.4.0, )",
+          "Capsule.Scenes": "[0.4.0, )"
         }
       }
     }

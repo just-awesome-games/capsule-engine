@@ -152,6 +152,41 @@ For persistent local development, place the same property in an ignored `Directo
 
 The source and package branches expose the same assemblies: game logic sees only `JAG.Capsule`; the shell alone sees `JAG.Capsule.Runtime`.
 
+## Seeing your game's output
+
+Game logic cannot reach `System.Console` — the analyzer stops it — so it says things out loud through `Capsule.Diagnostics.Log`:
+
+```csharp
+using Capsule.Diagnostics;
+
+Log.Info($"picked up {tile}");
+Log.Warning("no spawn point on this map");
+```
+
+The shell installs a console sink at boot, and every level goes to standard output in the order it was written, prefixed with the simulation tick:
+
+```text
+[   boot] info  main menu started
+[     30] warn  no spawn point on this map
+```
+
+Run the shell with `dotnet run --project src/MyGame.Shell` and the lines appear in that terminal. A shell launched by double-clicking its executable has no terminal attached and shows nothing; run it from a terminal when you want to read the log.
+
+`Log` is write-only telemetry and reads nothing back, so it does not weaken the determinism contract: a run with a sink installed and a run without one produce the same state transitions.
+
+Nothing is installed until the host runs, so a headless test harness supplies its own. `CollectingLogSink` keeps what it is given:
+
+```csharp
+CollectingLogSink log = new();
+Log.UseSink(log);
+
+// ... step the simulation ...
+
+Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
+```
+
+`WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
+
 ## Build configuration
 
 Capsule's role, content, scene-import, local-development, and icon options are collected in the [build configuration reference](build-configuration.md). Set shared defaults in `Directory.Build.props`; set a role-specific option such as `CapsuleTileSize` or `ApplicationIcon` in the project that owns it.

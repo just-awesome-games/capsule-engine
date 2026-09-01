@@ -114,7 +114,7 @@ jobs:
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Collision]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
           -p:CoverletOutputFormat=cobertura
           -p:CoverletOutput=TestResults/coverage.cobertura.xml

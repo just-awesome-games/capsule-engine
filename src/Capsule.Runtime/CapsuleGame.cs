@@ -45,6 +45,8 @@ internal sealed class CapsuleGame : Game
         Window.AllowUserResizing = options.Resizable;
     }
 
+    internal long SimulationTick => _scheduler.Tick;
+
     protected override void LoadContent()
     {
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution);

@@ -9,6 +9,7 @@
     <Project Path="src/Capsule.Analyzers/Capsule.Analyzers.csproj" />
     <Project Path="src/Capsule.Build/Capsule.Build.csproj" />
     <Project Path="src/Capsule.Cli/Capsule.Cli.csproj" />
+    <Project Path="src/Capsule.Collision/Capsule.Collision.csproj" />
     <Project Path="src/Capsule.Core/Capsule.Core.csproj" />
     <Project Path="src/Capsule.Generators/Capsule.Generators.csproj" />
     <Project Path="src/Capsule.Runtime/Capsule.Runtime.csproj" />

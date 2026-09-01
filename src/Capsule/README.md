@@ -11,7 +11,7 @@ what the game needs. The modules stay separate assemblies so their dependency di
 being enforced by the compiler instead of by review.
 
 This project's `ProjectReference` list is that admission list, and nothing else:
-`Capsule.Core` and `Capsule.Scenes`. `build/Capsule.Architecture.targets` gates it, along with
+`Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes`. `build/Capsule.Architecture.targets` gates it, along with
 each admitted module's own reference rules, so joining the package is a deliberate edit here and
 never a side effect. The package declares no dependencies because no module admitted here takes
 one.

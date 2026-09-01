@@ -1,7 +1,9 @@
 using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Capsule.Collision;
 using Capsule.Rendering;
+using Capsule.Scenes.Components;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
@@ -17,7 +19,23 @@ public class Scene
     private readonly List<Entity> _entities = [];
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
+
+    // Membership of the two queues above, which both guard against queueing the same entity twice.
+    // Scanning the queue for it made a step's worth of spawns cost the square of their number, and
+    // a game that spawns a wave at once pays that where it can least afford to.
+    //
+    // By reference, never by Equals: a scene holds entities, not values, and a game that gives two
+    // of them an equality of their own must still be able to have both. The rest of the scene
+    // already answers that way.
+    private readonly HashSet<Entity> _pendingAddSet = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<Entity> _pendingRemoveSet = new(ReferenceEqualityComparer.Instance);
+
+    // Scratch for the tag names one admission would have to intern. Reused rather than allocated
+    // per attach, because spawning is common and the names are nearly always interned already.
+    // Never nested: a component's OnAddingTo only asks questions, and cannot admit anything itself.
+    private readonly List<string> _admissionTags = [];
     private readonly List<Renderer> _renderers = [];
+    private readonly List<Collider> _contactReporters = [];
 
     private bool _stepping;
     private bool _started;
@@ -68,6 +86,13 @@ public class Scene
     public Camera Camera { get; } = new();
 
     /// <summary>
+    /// Everything in this scene that can be collided with. A <see cref="Collider"/> registers here
+    /// when its entity joins the scene, and a <see cref="Entities.TileMap"/> registers the grid it
+    /// draws; game code queries it directly for rays, sweeps and overlaps.
+    /// </summary>
+    public CollisionWorld Collision { get; } = new();
+
+    /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
     /// A scene composed from a scene document with tile maps spans their largest dimensions.
     /// </summary>
@@ -95,14 +120,29 @@ public class Scene
     /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
-    /// <summary>Adds an unowned entity, deferred to the end of the current step when necessary.</summary>
-    /// <exception cref="InvalidOperationException">The entity is already in a scene or already queued.</exception>
+    /// <summary>
+    /// Adds an unowned entity, deferred to the end of the current step when necessary.
+    /// <para>
+    /// Its components are asked first, and any of them may refuse — a collider needing more
+    /// collision tag names than the world has room left to intern, or one whose shape has no place
+    /// where the entity stands. A refusal leaves the entity out of the scene with none of its
+    /// components registered. Added during a step, that refusal surfaces where the queue is drained
+    /// at the end of the step rather than from this call.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The entity is already in a scene or already queued; or, when the add is not deferred, a
+    /// component refused the scene.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// When the add is not deferred, a collider on the entity has no place at its position.
+    /// </exception>
     public void Add(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
         ThrowIfStopped();
 
-        if (entity.Scene is not null || IndexOf(_pendingAdds, entity) >= 0)
+        if (entity.Scene is not null || _pendingAddSet.Contains(entity))
         {
             throw new InvalidOperationException(
                 $"A {entity.GetType().Name} is already in a scene; an entity belongs to one at a time.");
@@ -111,6 +151,7 @@ public class Scene
         if (_stepping)
         {
             _pendingAdds.Add(entity);
+            _pendingAddSet.Add(entity);
             return;
         }
 
@@ -131,7 +172,7 @@ public class Scene
 
         if (_stepping)
         {
-            if (IndexOf(_pendingRemoves, entity) < 0)
+            if (_pendingRemoveSet.Add(entity))
             {
                 _pendingRemoves.Add(entity);
             }
@@ -312,8 +353,11 @@ public class Scene
         }
 
         _pendingAdds.Clear();
+        _pendingAddSet.Clear();
         _pendingRemoves.Clear();
+        _pendingRemoveSet.Clear();
         _renderers.Clear();
+        _contactReporters.Clear();
         _renderersStale = false;
 
         if (failures is [Exception failure])
@@ -376,37 +420,151 @@ public class Scene
         }
     }
 
+    // Between the entity update and the late step: every position this step is going to produce
+    // has been produced, and a scene's own late-step policy already sees the settled contact set.
+    internal void SettleContacts()
+    {
+        for (int index = 0; index < _contactReporters.Count;)
+        {
+            Collider reporter = _contactReporters[index];
+            reporter.SettleContacts();
+
+            // A handler may have stopped this reporter or one before it. Stay at this index when
+            // the occupant changed, so the collider shifted into it still settles this step.
+            if (index < _contactReporters.Count && ReferenceEquals(_contactReporters[index], reporter))
+            {
+                index++;
+            }
+        }
+    }
+
+    internal List<string> BeginAdmission()
+    {
+        _admissionTags.Clear();
+
+        return _admissionTags;
+    }
+
+    // Judged once over everything being admitted together — a collider asked on its own would
+    // compare its one wanted name against a capacity its sibling is about to take — and then taken.
+    //
+    // Interning is the reservation. Checking capacity without claiming it leaves a gap: entry hooks
+    // run in attachment order, and one ahead of a preflighted collider may legitimately intern a
+    // tag of its own, or attach another collider, and spend the slot that collider was counting on.
+    // Claiming here closes it, which is what lets the commit be a step that cannot fail: interning
+    // is idempotent and permanent, so a collider that passed finds its name already in the table.
+    // An admission refused above this line interns nothing.
+    internal void ReserveTags(List<string> wanted)
+    {
+        int room = CollisionWorld.MaxTags - Collision.TagCount;
+
+        if (wanted.Count > room)
+        {
+            throw new InvalidOperationException(
+                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld.MaxTags} tag names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
+        }
+
+        for (int index = 0; index < wanted.Count; index++)
+        {
+            Collision.Tag(wanted[index]);
+        }
+    }
+
+    internal void TrackContacts(Collider collider)
+    {
+        if (!_contactReporters.Contains(collider))
+        {
+            _contactReporters.Add(collider);
+        }
+    }
+
+    internal void UntrackContacts(Collider collider) => _contactReporters.Remove(collider);
+
     internal void RunLateStep(in StepContext context) => OnLateStep(context);
 
     // Keep deferral active while lifecycle hooks grow either queue.
     internal void EndStep()
     {
-        // Indexed against a live Count, never a span: a hook may grow the list being drained.
-        while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0)
+        // A cursor, and the processed prefix dropped in a finally. Indexing keeps the drain linear
+        // in the queue — a hook may still grow it, and the loop re-reads Count — while dropping the
+        // prefix however the drain ended is what keeps an entity that refuses this scene from being
+        // tried again next step, and the ones attached before it from attaching twice.
+        try
         {
-            for (int index = 0; index < _pendingAdds.Count; index++)
+            while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0)
             {
-                Attach(_pendingAdds[index]);
+                int processed = 0;
+                try
+                {
+                    while (processed < _pendingAdds.Count)
+                    {
+                        Entity pending = _pendingAdds[processed];
+
+                        // Counted as dealt with before the attempt, so one that throws goes too.
+                        processed++;
+                        Attach(pending);
+                    }
+                }
+                finally
+                {
+                    Forget(_pendingAdds, _pendingAddSet, processed);
+                }
+
+                processed = 0;
+                try
+                {
+                    while (processed < _pendingRemoves.Count)
+                    {
+                        Entity pending = _pendingRemoves[processed];
+                        processed++;
+                        Detach(pending);
+                    }
+                }
+                finally
+                {
+                    Forget(_pendingRemoves, _pendingRemoveSet, processed);
+                }
             }
+        }
+        finally
+        {
+            // The step is over however the drain went; leaving this set would refuse every
+            // mutation the game made afterwards.
+            _stepping = false;
+        }
+    }
 
-            _pendingAdds.Clear();
-
-            for (int index = 0; index < _pendingRemoves.Count; index++)
-            {
-                Detach(_pendingRemoves[index]);
-            }
-
-            _pendingRemoves.Clear();
+    // Drops the processed prefix from a queue and from the set that mirrors it.
+    private static void Forget(List<Entity> queue, HashSet<Entity> membership, int processed)
+    {
+        for (int index = 0; index < processed; index++)
+        {
+            membership.Remove(queue[index]);
         }
 
-        _stepping = false;
+        queue.RemoveRange(0, processed);
     }
 
     private void Attach(Entity entity)
     {
+        // Idempotent, because the drain hands an entity over before it knows the attach succeeds:
+        // one already here has nothing left to do.
+        if (entity.Scene is not null)
+        {
+            return;
+        }
+
+        // Asked before anything is published, so a component that cannot register with this scene
+        // leaves the entity outside it rather than half in.
+        entity.PreflightScene(this);
+
         _entities.Add(entity);
         _renderersStale = true;
         entity.Scene = this;
+
+        // Components before the entity's own hook: one attached from inside OnAddedToScene is
+        // notified by Entity.Add instead, so nothing is reached twice and nothing is missed.
+        entity.EnterScene();
         entity.OnAddedToScene();
     }
 
@@ -427,6 +585,7 @@ public class Scene
         _renderersStale = true;
         entity.Scene = null;
         entity.OnRemovedFromScene();
+        entity.LeaveScene();
     }
 
     private bool TryRequest(in SceneTransition transition)

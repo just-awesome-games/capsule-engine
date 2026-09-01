@@ -44,7 +44,7 @@ public sealed class MainMenu : Scene;
 
 ## Model
 
-- `JAG.Capsule` is the substrate-free API used by game logic: fixed-step contracts, input actions, render intents, tile grids, scene documents, scenes, entities, components, and cameras.
+- `JAG.Capsule` is the substrate-free API used by game logic: fixed-step contracts, input actions, render intents, tile grids, collision shapes and queries, scene documents, scenes, entities, components, and cameras.
 - `JAG.Capsule.Runtime` is the executable host. Only the shell references it.
 - `JAG.Capsule.Build` supplies analyzers, source generators, asset hooks, and scene import. It does not ship in the game.
 
@@ -59,6 +59,8 @@ A scene is data, behaviour, or both, and Capsule composes all three combinations
 - a `Scene` subclass alone, built entirely in code.
 
 A document is written by hand or by an agent, or drawn in Tiled and derived by the build into the identical file; the runtime loads only the native one. The authoring model and the format are in [`docs/scenes.md`](docs/scenes.md).
+
+Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 
 Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Consumer-facing MSBuild properties and icon conventions are collected in [`docs/build-configuration.md`](docs/build-configuration.md).
 

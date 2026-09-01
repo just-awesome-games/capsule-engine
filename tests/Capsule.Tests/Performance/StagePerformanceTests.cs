@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using Capsule.Runtime;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Tests.Scenes;
 using Xunit.Abstractions;
 
 namespace Capsule.Tests.Performance;
@@ -23,6 +25,10 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     // number on a shared runner can honestly claim.
     private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(1);
 
+    // A wave of 65536 deferred adds measures in the tens of milliseconds drained linearly and in
+    // thousands drained by the square; this sits an order of magnitude clear of both.
+    private static readonly TimeSpan MaxWaveDrain = TimeSpan.FromMilliseconds(400);
+
     [Fact]
     public void AStageThatSpawnsNothing_AllocatesNothing()
     {
@@ -42,6 +48,78 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
             "20 spawns and despawns a second",
             Measure(StageWorkload.Build(), StageChurn.Spawning),
             maxPerRun: SparksSpawned * SpawnBytesEach);
+    }
+
+    // A wave spawned in one step is queued and drained at the end of it. Both halves of that used
+    // to cost the square of the wave: the queue was scanned for duplicates on every add, and then
+    // drained by taking the front off it. Linear, this batch is tens of milliseconds; quadratic it
+    // was four and a half seconds, so a budget this far above the one still catches the other.
+    [Fact]
+    public void AWaveOfDeferredAdds_CostsNoMoreThanTheEntitiesItSpawns()
+    {
+        // Warmed first, so the measurement is not taken against a cold JIT.
+        Drain(256);
+
+        const int Wave = 65536;
+        (TimeSpan elapsed, long bytes) = Drain(Wave);
+
+        output.WriteLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Wave} deferred adds: {elapsed.TotalMilliseconds:0.000} ms, {bytes} bytes ({(double)bytes / Wave:0} each)"));
+
+        Assert.True(
+            elapsed < MaxWaveDrain,
+            FormattableString.Invariant($"{Wave} deferred adds took {elapsed.TotalMilliseconds:0.000} ms, which is not linear in the queue."));
+
+        // The queue and its membership index are the only things the drain itself keeps, so the
+        // step costs what the entities cost and little more.
+        Assert.True(
+            bytes < Wave * SpawnBytesEach,
+            FormattableString.Invariant($"{Wave} deferred adds allocated {bytes} bytes, more than the entities themselves account for."));
+
+        // This test is the one thing in the collection that leaves a heap behind it. Its neighbours
+        // assert that a step allocates nothing at all, and a background collection of these entities
+        // landing inside one of their measured windows is enough to make that read as a per-step
+        // allocation. Handed back here rather than left for whoever runs next.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    private static (TimeSpan Elapsed, long Bytes) Drain(int count)
+    {
+        Scene scene = new();
+        using SceneSimulation simulation = new(scene);
+
+        // From Update, not from scene entry: only a mutation requested mid-step is deferred, and
+        // the deferred queue is the thing being measured.
+        scene.Add(new Spawner(count));
+
+        long bytes = GC.GetAllocatedBytesForCurrentThread();
+        long start = Stopwatch.GetTimestamp();
+        simulation.Step(SceneFixtures.Step(0));
+
+        return (Stopwatch.GetElapsedTime(start), GC.GetAllocatedBytesForCurrentThread() - bytes);
+    }
+
+    private sealed class Spawner(int count) : Entity(Vector2.Zero)
+    {
+        private bool _spawned;
+
+        public override void Update(in StepContext context)
+        {
+            if (_spawned)
+            {
+                return;
+            }
+
+            _spawned = true;
+
+            for (int index = 0; index < count; index++)
+            {
+                Scene!.Add(new SceneFixtures.Drifter(Vector2.Zero));
+            }
+        }
     }
 
     // The most frequent transition a game performs is dying and resuming at a checkpoint, and it

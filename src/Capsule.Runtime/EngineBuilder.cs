@@ -1,3 +1,4 @@
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime.Input;
 
@@ -26,6 +27,9 @@ public abstract class EngineBuilder<TBuilder>
     private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
     private float _triggerDeadzone = PadFilter.DefaultTriggerDeadzone;
     private string? _crashLogAppName;
+    private ILogSink? _logSink;
+    private ConsoleLogSink? _consoleSink;
+    private bool _loggingSilenced;
 
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
@@ -180,6 +184,29 @@ public abstract class EngineBuilder<TBuilder>
         return Self;
     }
 
+    /// <summary>
+    /// Sends <see cref="Log"/> output to <paramref name="sink"/> instead of to the console the
+    /// host would otherwise write to.
+    /// </summary>
+    public TBuilder WithLogSink(ILogSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+
+        _logSink = sink;
+        _loggingSilenced = false;
+
+        return Self;
+    }
+
+    /// <summary>Silences <see cref="Log"/> entirely, so nothing the game writes goes anywhere.</summary>
+    public TBuilder WithoutLogging()
+    {
+        _logSink = null;
+        _loggingSilenced = true;
+
+        return Self;
+    }
+
     /// <summary>Registers action bindings; call it more than once and the registrations accumulate.</summary>
     public TBuilder WithBindings(Action<ActionBindings> configure)
     {
@@ -194,6 +221,8 @@ public abstract class EngineBuilder<TBuilder>
     public void Run(ISimulation simulation)
     {
         ArgumentNullException.ThrowIfNull(simulation);
+
+        InstallLogging();
 
         // Neither call can see the other's value, so the pair settles here.
         if (_maxFrameSeconds < _stepSeconds)
@@ -246,9 +275,28 @@ public abstract class EngineBuilder<TBuilder>
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
-    private static void Host(EngineOptions options, ISimulation simulation)
+    // Idempotent, and called before anything a game could log from: a scene's OnStart runs while
+    // the host is still being composed, and its lines have to reach the same sink as the rest.
+    private protected void InstallLogging()
+    {
+        if (_loggingSilenced)
+        {
+            Log.UseSink(null);
+            return;
+        }
+
+        Log.UseSink(_logSink ?? (_consoleSink ??= new ConsoleLogSink()));
+    }
+
+    private void Host(EngineOptions options, ISimulation simulation)
     {
         using CapsuleGame game = new(options, simulation);
+
+        if (_consoleSink is not null)
+        {
+            _consoleSink.Tick = () => game.SimulationTick;
+        }
+
         game.Run();
     }
 }

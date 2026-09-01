@@ -29,6 +29,7 @@
        reference being available. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Capsule.Cli\Capsule.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Capsule.Collision\Capsule.Collision.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Core\Capsule.Core.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Runtime\Capsule.Runtime.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Scenes\Capsule.Scenes.csproj" />

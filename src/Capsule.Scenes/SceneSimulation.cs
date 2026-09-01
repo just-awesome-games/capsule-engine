@@ -64,6 +64,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.RunStep(in context);
         Scene.UpdateEntities(in context);
 
+        // Contacts settle where every position this step will produce has been produced, so an
+        // enter or exit is never raised against a position something is about to leave.
+        Scene.SettleContacts();
+
         // Ahead of EndStep, not after it: EndStep clears the deferral flag, so a late step run
         // past it would reach the entity list directly instead of queueing like everything else.
         Scene.RunLateStep(in context);

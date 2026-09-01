@@ -93,6 +93,9 @@ public sealed class SceneEngineBuilder : EngineBuilder<SceneEngineBuilder>
 
     private void RunScene(in SceneTarget initialTarget)
     {
+        // Ahead of composing, not inside Run: a scene's OnStart runs while the host is built here.
+        InstallLogging();
+
         SceneComposer composer = new(_scenes);
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_cameraViewport, _sampling));

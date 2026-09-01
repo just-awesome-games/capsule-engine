@@ -15,7 +15,7 @@ project and no package at all — that absence is what keeps a graphics type out
 ## How it ships
 
 Inside the `JAG.Capsule` package as its own assembly; see [`../Capsule/`](../Capsule/README.md).
-Referenced by `Capsule.Scenes` and `Capsule.Runtime`.
+Referenced by `Capsule.Collision`, `Capsule.Scenes` and `Capsule.Runtime`.
 
 ## Further reading
 

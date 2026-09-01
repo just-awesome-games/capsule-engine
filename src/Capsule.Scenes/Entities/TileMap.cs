@@ -1,13 +1,20 @@
 using System.Numerics;
+using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes.Entities;
 
-/// <summary>A stationary, world-origin tile grid that draws colored palette entries as quads.</summary>
+/// <summary>
+/// A stationary, world-origin tile grid that draws colored palette entries as quads and, where its
+/// palette says any tile type collides, registers one <see cref="GridCollider"/> with the
+/// scene's world for the whole layer.
+/// </summary>
 public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
+
+    private CollisionWorld? _world;
 
     /// <param name="grid">The grid to hold and to draw; its palette decides what a tile looks like.</param>
     public TileMap(TileGrid grid)
@@ -33,6 +40,13 @@ public sealed class TileMap : Entity
     /// <summary>World units the grid spans, from the world origin.</summary>
     public Vector2 Size { get; }
 
+    /// <summary>
+    /// This layer's collider in the scene's world, or null when it is in no scene or no tile type
+    /// in its palette collides. Its cells carry the tile type as their tag, so a contact against
+    /// terrain names the type that was authored.
+    /// </summary>
+    public GridCollider? Collision { get; private set; }
+
     /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public int TileAt(int x, int y) => _grid.TileAt(x, y);
@@ -40,6 +54,46 @@ public sealed class TileMap : Entity
     /// <summary>The tile type name at a tile coordinate.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public string TileTypeAt(int x, int y) => _grid.TileTypeAt(x, y);
+
+    /// <inheritdoc/>
+    protected internal override void OnAddedToScene()
+    {
+        if (!_grid.Collides)
+        {
+            return;
+        }
+
+        _world = Scene!.Collision;
+
+        ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
+        CellProfile[] profiles = new CellProfile[palette.Length];
+        for (int index = 0; index < profiles.Length; index++)
+        {
+            profiles[index] = new CellProfile(ToCellCollision(palette[index].Collision), palette[index].Type);
+        }
+
+        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _grid.Cells, profiles, this);
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnRemovedFromScene()
+    {
+        if (Collision is { } collider)
+        {
+            _world!.Remove(collider);
+        }
+
+        Collision = null;
+        _world = null;
+    }
+
+    private static CellCollision ToCellCollision(TileCollision collision) => collision switch
+    {
+        TileCollision.None => CellCollision.None,
+        TileCollision.Solid => CellCollision.Solid,
+        TileCollision.OneWay => CellCollision.OneWay,
+        _ => throw new ArgumentOutOfRangeException(nameof(collision), collision, "The tile collision kind is not defined."),
+    };
 
     private sealed class VisibleTiles(TileGrid grid) : Renderer
     {

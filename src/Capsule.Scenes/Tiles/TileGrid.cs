@@ -1,3 +1,5 @@
+using Capsule.Collision;
+
 namespace Capsule.Scenes.Tiles;
 
 /// <summary>A validated rectangular grid of palette indices.</summary>
@@ -49,6 +51,27 @@ public sealed class TileGrid
     /// <summary>Palette indices, row-major, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
 
+    /// <summary>Whether any palette entry collides, so the grid is worth a collider at all.</summary>
+    public bool Collides
+    {
+        get
+        {
+            foreach (TileDefinition definition in _tileTypes)
+            {
+                if (definition.Collision != TileCollision.None)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    // Handed to a tilemap collider, which reads it rather than copying it: a room-scale grid is
+    // tens of thousands of ints, and there is one truth about which cell holds what.
+    internal int[] Cells => _tiles;
+
     /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public int TileAt(int x, int y)
@@ -90,9 +113,11 @@ public sealed class TileGrid
     {
         if (_tileTypes.Length == 0 || _tileTypes[0] != EmptyTile)
         {
-            string actual = _tileTypes.Length == 0 ? "an empty palette" : $"\"{_tileTypes[0].Type}\"";
+            string actual = _tileTypes.Length == 0
+                ? "an empty palette"
+                : $"\"{_tileTypes[0].Type}\" with colour {_tileTypes[0].Color?.ToString() ?? "none"} and collision {_tileTypes[0].Collision}";
             throw Malformed(
-                $"tileTypes[0] must be \"{EmptyTileType}\" with no colour, not {actual}.",
+                $"tileTypes[0] must be \"{EmptyTileType}\" with no colour and no collision, not {actual}.",
                 "tileTypes");
         }
 

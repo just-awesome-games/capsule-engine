@@ -153,7 +153,13 @@
       "capsule.cli": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Scenes": "[0.2.0, )"
+          "Capsule.Scenes": "[0.4.0, )"
+        }
+      },
+      "capsule.collision": {
+        "type": "Project",
+        "dependencies": {
+          "Capsule.Core": "[0.4.0, )"
         }
       },
       "capsule.core": {
@@ -165,20 +171,22 @@
       "capsule.scenes": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.2.0, )"
+          "Capsule.Collision": "[0.4.0, )",
+          "Capsule.Core": "[0.4.0, )"
         }
       },
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.2.0, )",
-          "Capsule.Scenes": "[0.2.0, )"
+          "Capsule.Collision": "[0.4.0, )",
+          "Capsule.Core": "[0.4.0, )",
+          "Capsule.Scenes": "[0.4.0, )"
         }
       },
       "JAG.Capsule.Runtime": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule": "[0.2.0, )",
+          "JAG.Capsule": "[0.4.0, )",
           "MonoGame.Framework.DesktopGL": "[3.8.5.1, )"
         }
       }

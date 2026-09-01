@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Capsule.Analyzers;
+using Capsule.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -59,6 +60,28 @@ public sealed class GameBoundaryAnalyzerTests
             """;
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Empty(diagnostics);
+    }
+
+    // The console is closed to game logic, so the engine's own log is the way out; a rule change
+    // that closed that too would leave a game with nothing to say anything with.
+    [Fact]
+    public async Task Logic_accepts_the_engines_log_where_the_console_is_forbidden()
+    {
+        const string source = """
+            using Capsule.Diagnostics;
+
+            public static class Logic
+            {
+                public static void Say() => Log.Info("something happened");
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(
+            source,
+            logic: true,
+            extraReferences: [MetadataReference.CreateFromFile(typeof(Log).Assembly.Location)]);
 
         Assert.Empty(diagnostics);
     }
