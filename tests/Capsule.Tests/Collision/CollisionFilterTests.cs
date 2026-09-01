@@ -9,11 +9,11 @@ public sealed class CollisionFilterTests
     [Fact]
     public void Tag_InternsTheSameNameOnceAndKeepsTheUntaggedEntryFirst()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
 
         CollisionTag solid = world.Tag("solid");
 
-        Assert.Equal(0, world.Tag(CollisionWorld.UntaggedName).Index);
+        Assert.Equal(0, world.Tag(CollisionWorld2D.UntaggedName).Index);
         Assert.Equal(1, solid.Index);
         Assert.Equal(solid, world.Tag("solid"));
         Assert.Equal(2, world.TagCount);
@@ -22,8 +22,8 @@ public sealed class CollisionFilterTests
     [Fact]
     public void Tag_IsDeterministicAcrossWorldsRegisteredInTheSameOrder()
     {
-        CollisionWorld first = new();
-        CollisionWorld second = new();
+        CollisionWorld2D first = new();
+        CollisionWorld2D second = new();
 
         foreach (string name in new[] { "solid", "one-way", "hazard" })
         {
@@ -34,13 +34,13 @@ public sealed class CollisionFilterTests
     [Fact]
     public void Tag_RefusesToInternMoreThanTheWorldsCap()
     {
-        CollisionWorld world = new();
-        for (int index = 1; index < CollisionWorld.MaxTags; index++)
+        CollisionWorld2D world = new();
+        for (int index = 1; index < CollisionWorld2D.MaxTags; index++)
         {
             world.Tag(index.ToString(CultureInfo.InvariantCulture));
         }
 
-        Assert.Equal(CollisionWorld.MaxTags, world.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxTags, world.TagCount);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => world.Tag("one too many"));
         Assert.Contains("at most 64 tags", error.Message, StringComparison.Ordinal);
@@ -49,22 +49,22 @@ public sealed class CollisionFilterTests
     [Fact]
     public void Tag_AtTheLastIndexStillMatchesItsOwnFilter()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionTag last = default;
-        for (int index = 1; index < CollisionWorld.MaxTags; index++)
+        for (int index = 1; index < CollisionWorld2D.MaxTags; index++)
         {
             last = world.Tag(index.ToString(CultureInfo.InvariantCulture));
         }
 
-        Assert.Equal(CollisionWorld.MaxTags - 1, last.Index);
+        Assert.Equal(CollisionWorld2D.MaxTags - 1, last.Index);
         Assert.True(CollisionFilter.Of(last).Matches(last));
-        Assert.False(CollisionFilter.Of(last).Matches(world.Tag(CollisionWorld.UntaggedName)));
+        Assert.False(CollisionFilter.Of(last).Matches(world.Tag(CollisionWorld2D.UntaggedName)));
     }
 
     [Fact]
     public void Filter_MatchesEveryNamedTagAndNothingElse()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFilter filter = world.Filter("solid", "one-way");
 
         Assert.True(filter.Matches(world.Tag("solid")));
@@ -77,7 +77,7 @@ public sealed class CollisionFilterTests
     [Fact]
     public void TryFindTag_DoesNotInternAName()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
 
         Assert.False(world.TryFindTag("solid", out _));
         Assert.Equal(1, world.TagCount);
@@ -89,12 +89,12 @@ public sealed class CollisionFilterTests
     [Fact]
     public void ATagNoWorldInterned_CannotBeTurnedIntoAFilterOrTestedAgainstOne()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionTag solid = world.Tag("solid");
         CollisionFilter filter = CollisionFilter.Of(solid);
 
         Assert.False(world.TryFindTag("hazard", out CollisionTag missing));
-        Assert.Equal(world.Tag(CollisionWorld.UntaggedName).Index, missing.Index);
+        Assert.Equal(world.Tag(CollisionWorld2D.UntaggedName).Index, missing.Index);
 
         Assert.Throws<ArgumentException>(() => CollisionFilter.Of(missing));
         Assert.Throws<ArgumentException>(() => CollisionFilter.Of(solid, missing));
@@ -108,9 +108,9 @@ public sealed class CollisionFilterTests
     [Fact]
     public void EveryWorldSeamTakingATag_RefusesOneNoWorldInterned()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionTag solid = world.Tag("solid");
-        Shape box = Shape.Box(Vector2.Zero, new Vector2(8f, 8f));
+        Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         ColliderHandle handle = world.Add(box, Vector2.Zero, solid, CollisionFilter.None);
 
         Assert.False(world.TryFindTag("hazard", out CollisionTag missing));
@@ -124,7 +124,7 @@ public sealed class CollisionFilterTests
     [Fact]
     public void WithAndWithout_AddAndRemoveOneTag()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionTag solid = world.Tag("solid");
         CollisionTag hazard = world.Tag("hazard");
 
@@ -139,8 +139,8 @@ public sealed class CollisionFilterTests
     [Fact]
     public void AFilter_RefusesATagFromAnotherWorldRatherThanMatchingItsBit()
     {
-        CollisionWorld first = new();
-        CollisionWorld second = new();
+        CollisionWorld2D first = new();
+        CollisionWorld2D second = new();
         CollisionTag hazard = first.Tag("hazard");
         CollisionTag solid = second.Tag("solid");
 
@@ -153,8 +153,8 @@ public sealed class CollisionFilterTests
     [Fact]
     public void AFilter_RefusesToCombineTwoWorldsTags()
     {
-        CollisionWorld first = new();
-        CollisionWorld second = new();
+        CollisionWorld2D first = new();
+        CollisionWorld2D second = new();
         CollisionTag hazard = first.Tag("hazard");
         CollisionTag solid = second.Tag("solid");
         CollisionFilter left = CollisionFilter.Of(hazard);
@@ -172,8 +172,8 @@ public sealed class CollisionFilterTests
     [Fact]
     public void NoneAndEverything_NameNoTableAndAreTakenByEveryWorld()
     {
-        CollisionWorld first = new();
-        CollisionWorld second = new();
+        CollisionWorld2D first = new();
+        CollisionWorld2D second = new();
         CollisionTag hazard = first.Tag("hazard");
 
         Assert.True(CollisionFilter.Everything.Matches(hazard));
@@ -181,7 +181,7 @@ public sealed class CollisionFilterTests
         Assert.True(CollisionFilter.Everything.Matches(first.Tag("interned afterwards")));
         Assert.False(CollisionFilter.None.Matches(hazard));
 
-        Aabb probe = Aabb.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
+        Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
         Assert.Equal(0, second.OverlapBox(probe, CollisionFilter.Everything, default));
         Assert.Equal(0, second.OverlapBox(probe, CollisionFilter.None, default));
         Assert.Throws<ArgumentException>(() => second.OverlapBox(probe, CollisionFilter.Of(hazard), default));

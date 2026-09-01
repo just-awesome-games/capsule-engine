@@ -5,15 +5,15 @@ namespace Capsule.Tests.Collision;
 
 public sealed class MoverTests
 {
-    private const float Tolerance = 2f * CollisionWorld.LinearSlop;
+    private const float Tolerance = 2f * CollisionWorld2D.LinearSlop;
 
     [Fact]
     public void MoveBox_AppliesTheWholeTranslationWhereNothingIsInTheWay()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "....");
 
-        MoveResult result = world.MoveBox(
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(4f, 4f, 8f, 8f),
             new Vector2(10f, 6f),
             CollisionFilter.Everything,
@@ -27,11 +27,11 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_StopsAtTheSurfaceItRunsIntoAndReportsIt()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
-        Span<Contact> contacts = stackalloc Contact[8];
-        MoveResult result = world.MoveBox(
+        Span<Contact2D> contacts = stackalloc Contact2D[8];
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(0f, 4f, 8f, 8f),
             new Vector2(60f, 0f),
             CollisionFilter.Everything,
@@ -50,10 +50,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_SlidesAlongASurfaceInsteadOfStoppingDead()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#", "..#");
 
-        MoveResult result = world.MoveBox(
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(20f, 4f, 8f, 8f),
             new Vector2(20f, 10f),
             CollisionFilter.Everything,
@@ -70,16 +70,16 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_CrossesEveryCellSeamOfAFlatRunWithoutCatching()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "........", "########");
 
-        Aabb box = CollisionFixtures.Box(0f, 4f, 8f, 8f);
+        Aabb2D box = CollisionFixtures.Box(0f, 4f, 8f, 8f);
         float travelled = 0f;
 
         for (int step = 0; step < 60; step++)
         {
             // Pressed down into the ground every step, exactly as a falling character is.
-            MoveResult result = world.MoveBox(box, new Vector2(2f, 4f), CollisionFilter.Everything, default);
+            MoveResult2D result = world.MoveBox(box, new Vector2(2f, 4f), CollisionFilter.Everything, default);
             box = box.Translated(result.Translation);
             travelled += result.Translation.X;
         }
@@ -93,10 +93,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_DrivingItsLeadingCornerIntoACellSeam_LandsOnTheSurface()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
 
-        MoveResult result = world.MoveBox(
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(0f, 0f, 8f, 8f),
             new Vector2(16f, 16f),
             CollisionFilter.Everything,
@@ -111,15 +111,15 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_RestsOnASurfaceWithoutDriftingOrJittering()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
 
-        Aabb box = CollisionFixtures.Box(8f, 0f, 8f, 8f);
+        Aabb2D box = CollisionFixtures.Box(8f, 0f, 8f, 8f);
         float settled = float.NaN;
 
         for (int step = 0; step < 120; step++)
         {
-            MoveResult result = world.MoveBox(box, new Vector2(0f, 5f), CollisionFilter.Everything, default);
+            MoveResult2D result = world.MoveBox(box, new Vector2(0f, 5f), CollisionFilter.Everything, default);
             box = box.Translated(result.Translation);
 
             if (step == 8)
@@ -135,12 +135,12 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_NeverPassesThroughAWallAtAnySpeed()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
         foreach (float speed in new[] { 40f, 400f, 40_000f, 4_000_000f })
         {
-            MoveResult result = world.MoveBox(
+            MoveResult2D result = world.MoveBox(
                 CollisionFixtures.Box(0f, 4f, 8f, 8f),
                 new Vector2(speed, 0f),
                 CollisionFilter.Everything,
@@ -153,10 +153,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_LandsOnAOneWayEdgeFromAboveAndPassesItFromBelow()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
 
-        MoveResult falling = world.MoveBox(
+        MoveResult2D falling = world.MoveBox(
             CollisionFixtures.Box(20f, 4f, 8f, 8f),
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
@@ -164,7 +164,7 @@ public sealed class MoverTests
         Assert.True(falling.BlockedY);
         Assert.Equal(4f, falling.Translation.Y, Tolerance);
 
-        MoveResult rising = world.MoveBox(
+        MoveResult2D rising = world.MoveBox(
             CollisionFixtures.Box(20f, 36f, 8f, 8f),
             new Vector2(0f, -20f),
             CollisionFilter.Everything,
@@ -176,10 +176,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_IsNeverStoppedSidewaysByAOneWayEdge()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "----", "----");
 
-        MoveResult sideways = world.MoveBox(
+        MoveResult2D sideways = world.MoveBox(
             CollisionFixtures.Box(0f, 12f, 8f, 8f),
             new Vector2(40f, 0f),
             CollisionFilter.Everything,
@@ -192,10 +192,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_FallsPastAOneWayEdgeItAlreadyStartedBelow()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
 
-        MoveResult result = world.MoveBox(
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(20f, 20f, 8f, 8f),
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
@@ -208,12 +208,12 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_IsBlockedByAnotherColliderAndIgnoresItsOwn()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionTag body = world.Tag("body");
-        ColliderHandle self = world.Add(Shape.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
-        world.Add(Shape.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
+        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
 
-        MoveResult blocked = world.MoveBox(
+        MoveResult2D blocked = world.MoveBox(
             CollisionFixtures.Box(0f, 0f, 8f, 8f),
             new Vector2(60f, 0f),
             CollisionFilter.Of(body),
@@ -223,7 +223,7 @@ public sealed class MoverTests
         Assert.True(blocked.BlockedX);
         Assert.Equal(32f, blocked.Translation.X, Tolerance);
 
-        MoveResult unfiltered = world.MoveBox(
+        MoveResult2D unfiltered = world.MoveBox(
             CollisionFixtures.Box(0f, 0f, 8f, 8f),
             new Vector2(60f, 0f),
             CollisionFilter.None,
@@ -236,10 +236,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_IsStoppedByTheFaceASolidCellSharesWithOneTheFilterExcludes()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "=#..");
 
-        MoveResult result = world.MoveBox(
+        MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(40f, 4f, 8f, 8f),
             new Vector2(-40f, 0f),
             world.Filter(CollisionFixtures.Climb),
@@ -252,10 +252,10 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_LeavesAnOverlapItAlreadyStartedInsteadOfFreezingInIt()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
-        MoveResult escaping = world.MoveBox(
+        MoveResult2D escaping = world.MoveBox(
             CollisionFixtures.Box(34f, 4f, 8f, 8f),
             new Vector2(-20f, 0f),
             CollisionFilter.Everything,
@@ -267,7 +267,7 @@ public sealed class MoverTests
     [Fact]
     public void MoveBox_RejectsATranslationThatIsNotFinite()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => world.MoveBox(
             CollisionFixtures.Box(0f, 0f, 8f, 8f),
@@ -283,16 +283,16 @@ public sealed class MoverTests
     {
         static (Vector2 Translation, (bool Tile, int X, int Y, string Tag, Vector2 Normal)[] Contacts) Run()
         {
-            CollisionWorld world = new();
+            CollisionWorld2D world = new();
             CollisionFixtures.Paint(world, "..#", "####");
             world.Add(
-                Shape.Circle(new Vector2(20f, 6f), 3f),
+                Shape2D.Circle(new Vector2(20f, 6f), 3f),
                 Vector2.Zero,
                 world.Tag("pickup"),
                 CollisionFilter.None);
 
-            Contact[] contacts = new Contact[8];
-            MoveResult result = world.MoveBox(
+            Contact2D[] contacts = new Contact2D[8];
+            MoveResult2D result = world.MoveBox(
                 CollisionFixtures.Box(0f, 8f, 8f, 8f),
                 new Vector2(40f, 12f),
                 CollisionFilter.Everything,

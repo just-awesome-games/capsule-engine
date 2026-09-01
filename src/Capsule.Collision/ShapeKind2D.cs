@@ -1,7 +1,7 @@
 namespace Capsule.Collision;
 
-/// <summary>Which member of the fixed shape union a <see cref="Shape"/> is.</summary>
-public enum ShapeKind
+/// <summary>Which member of the fixed shape union a <see cref="Shape2D"/> is.</summary>
+public enum ShapeKind2D
 {
     /// <summary>One point and a positive radius.</summary>
     Circle,

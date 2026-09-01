@@ -24,15 +24,15 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     [Fact]
     public void AMoverOnARoomScaleTilemap_AllocatesNothingAndStaysWithinTheStepBudget()
     {
-        CollisionWorld world = CollisionWorkload.World();
+        CollisionWorld2D world = CollisionWorkload.World();
         CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
-        Aabb box = CollisionWorkload.Mover;
-        Contact[] contacts = new Contact[16];
+        Aabb2D box = CollisionWorkload.Mover;
+        Contact2D[] contacts = new Contact2D[16];
         float direction = 1f;
 
         Report("mover on a room", Measure(step =>
         {
-            MoveResult result = world.MoveBox(box, new Vector2(direction * 2f, 4f), filter, contacts);
+            MoveResult2D result = world.MoveBox(box, new Vector2(direction * 2f, 4f), filter, contacts);
             box = box.Translated(result.Translation);
 
             if (result.BlockedX)
@@ -47,10 +47,10 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     [Fact]
     public void ABatchOfRaysAndOverlaps_AllocatesNothing()
     {
-        CollisionWorld world = CollisionWorkload.World();
+        CollisionWorld2D world = CollisionWorkload.World();
         CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
-        Contact[] contacts = new Contact[32];
-        RayHit[] hits = new RayHit[16];
+        Contact2D[] contacts = new Contact2D[32];
+        RayHit2D[] hits = new RayHit2D[16];
 
         Report("64 rays and 64 overlaps", Measure(step =>
         {
@@ -60,7 +60,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
                 float x = ((index * 61) + step) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
                 Vector2 origin = new(x, 34f * CollisionWorkload.TileSize);
 
-                if (world.Raycast(origin, Vector2.UnitY, 256f, filter, out RayHit hit))
+                if (world.Raycast(origin, Vector2.UnitY, 256f, filter, out RayHit2D hit))
                 {
                     found += hit.Target.CellY;
                 }
@@ -72,7 +72,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
             {
                 float x = ((index * 37) + step) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
                 found += world.OverlapBox(
-                    Aabb.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f)),
+                    Aabb2D.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f)),
                     filter,
                     contacts);
             }
@@ -87,9 +87,9 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     [Fact]
     public void ABatchOfMapLengthDiagonalCasts_AllocatesNothingAndStaysWithinTheStepBudget()
     {
-        CollisionWorld world = CollisionWorkload.World();
+        CollisionWorld2D world = CollisionWorkload.World();
         CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
-        Shape shape = Shape.Box(Vector2.Zero, new Vector2(12f, 24f));
+        Shape2D shape = Shape2D.Box(Vector2.Zero, new Vector2(12f, 24f));
 
         const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
         const float down = CollisionWorkload.TilesHigh * CollisionWorkload.TileSize;
@@ -102,7 +102,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
                 float offset = ((index * 13) + step) % CollisionWorkload.TileSize;
                 Vector2 origin = new(offset, offset);
 
-                if (world.ShapeCast(shape, origin, new Vector2(across, down), filter, out ShapeCastHit hit))
+                if (world.ShapeCast(shape, origin, new Vector2(across, down), filter, out ShapeCastHit2D hit))
                 {
                     found += hit.Target.CellX;
                 }
@@ -119,16 +119,16 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     [Fact]
     public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()
     {
-        CollisionWorld world = CollisionWorkload.World();
+        CollisionWorld2D world = CollisionWorkload.World();
         CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
-        RayHit[] one = new RayHit[1];
+        RayHit2D[] one = new RayHit2D[1];
 
         // Along the floor: every cell of the row is solid, so an unpruned walk tests all 256 of
         // them after the very first has already filled the span.
         Vector2 origin = new(8f, (41.5f * CollisionWorkload.TileSize) + 0.5f);
         const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
 
-        TimeSpan bounded = Measure(_ => world.Raycast(origin, Vector2.UnitX, across, filter, out RayHit _) ? 1 : 0).Elapsed;
+        TimeSpan bounded = Measure(_ => world.Raycast(origin, Vector2.UnitX, across, filter, out RayHit2D _) ? 1 : 0).Elapsed;
         TimeSpan saturated = Measure(_ => world.RaycastAll(origin, Vector2.UnitX, across, filter, one)).Elapsed;
 
         output.WriteLine(string.Create(

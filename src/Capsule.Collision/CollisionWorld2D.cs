@@ -7,7 +7,7 @@ namespace Capsule.Collision;
 /// <summary>
 /// Every collider a game can hit, and the only way to ask about them. Collision only: shapes,
 /// broadphase, queries and sweeps, with no dynamics and no solver. Moving colliders sit in a
-/// dynamic bounding-volume hierarchy; terrain sits in <see cref="GridCollider"/> grids that are
+/// dynamic bounding-volume hierarchy; terrain sits in <see cref="GridCollider2D"/> grids that are
 /// their own broadphase. A world is single-threaded, and every query is allocation-free once its
 /// colliders exist.
 /// <para>
@@ -17,7 +17,7 @@ namespace Capsule.Collision;
 /// and are accepted anywhere.
 /// </para>
 /// </summary>
-public sealed partial class CollisionWorld
+public sealed partial class CollisionWorld2D
 {
     /// <summary>The tag a collider carries when it was given no name.</summary>
     public const string UntaggedName = "untagged";
@@ -46,7 +46,7 @@ public sealed partial class CollisionWorld
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
     private readonly Dictionary<string, int> _tagIndices = new(StringComparer.Ordinal);
     private readonly List<string> _tagNames = [];
-    private readonly List<GridCollider> _grids = [];
+    private readonly List<GridCollider2D> _grids = [];
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree _tree = new();
 
@@ -54,7 +54,7 @@ public sealed partial class CollisionWorld
     private int _slotsUsed;
 
     /// <summary>A world holding nothing, with only <see cref="UntaggedName"/> interned.</summary>
-    public CollisionWorld() => Tag(UntaggedName);
+    public CollisionWorld2D() => Tag(UntaggedName);
 
     /// <summary>How many colliders and grid colliders the world holds.</summary>
     public int ColliderCount { get; private set; }
@@ -63,7 +63,7 @@ public sealed partial class CollisionWorld
     public int TagCount => _tagIndices.Count;
 
     /// <summary>The grid colliders the world holds, in the order they were added.</summary>
-    public ReadOnlySpan<GridCollider> Grids => CollectionsMarshal.AsSpan(_grids);
+    public ReadOnlySpan<GridCollider2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     /// <summary>
     /// The tag <paramref name="name"/> interns to, interning it if this is the first time it is
@@ -142,12 +142,12 @@ public sealed partial class CollisionWorld
     /// <param name="collidesWith">What this collider's own moves and contact queries may hit.</param>
     /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
     /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape"/>, the tag or filter came from another world, or
+    /// The shape is a default <see cref="Shape2D"/>, the tag or filter came from another world, or
     /// the shape placed at this position exceeds what a float box holds.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     public ColliderHandle Add(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 position,
         CollisionTag tag,
         CollisionFilter collidesWith,
@@ -160,7 +160,7 @@ public sealed partial class CollisionWorld
 
         // Placed before the slot is claimed, so a shape that cannot be positioned leaves the world
         // exactly as it was rather than half-registered.
-        Shape placed = shape.Translated(position);
+        Shape2D placed = shape.Translated(position);
 
         int index = AllocateSlot();
         ref ColliderSlot slot = ref _slots[index];
@@ -201,7 +201,7 @@ public sealed partial class CollisionWorld
 
     /// <summary>Removes a grid collider.</summary>
     /// <exception cref="ArgumentException">The grid belongs to no world, or to another one.</exception>
-    public void Remove(GridCollider grid)
+    public void Remove(GridCollider2D grid)
     {
         ArgumentNullException.ThrowIfNull(grid);
 
@@ -242,7 +242,7 @@ public sealed partial class CollisionWorld
         // it was rather than half-moved with a stale proxy. The step between the two positions is
         // derived rather than given, and two finite positions at opposite ends of the range have an
         // infinite one between them.
-        Shape placed = slot.Local.Translated(position);
+        Shape2D placed = slot.Local.Translated(position);
         Vector2 displacement = position - slot.Position;
         RequireFinite(displacement, nameof(position));
 
@@ -254,10 +254,10 @@ public sealed partial class CollisionWorld
     /// <summary>Replaces a collider's shape, keeping its position.</summary>
     /// <exception cref="ArgumentException">
     /// The handle names no live collider, names a grid, or was issued by another world; or the
-    /// shape is a default <see cref="Shape"/>, or exceeds what a float box holds where the collider
+    /// shape is a default <see cref="Shape2D"/>, or exceeds what a float box holds where the collider
     /// stands.
     /// </exception>
-    public void SetShape(ColliderHandle handle, in Shape shape)
+    public void SetShape(ColliderHandle handle, in Shape2D shape)
     {
         RequireShape(shape, nameof(shape));
 
@@ -265,7 +265,7 @@ public sealed partial class CollisionWorld
         ref ColliderSlot slot = ref _slots[index];
 
         // Same order as SetPosition: nothing is written until the placed shape is known good.
-        Shape placed = shape.Translated(slot.Position);
+        Shape2D placed = shape.Translated(slot.Position);
         slot.Local = shape;
         slot.World = placed;
         _tree.MoveProxy(slot.ProxyId, placed.Bounds, Vector2.Zero);
@@ -295,11 +295,11 @@ public sealed partial class CollisionWorld
 
     /// <summary>A collider's shape, in its own space.</summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
-    public Shape ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;
+    public Shape2D ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;
 
     /// <summary>
     /// What a collider is. A grid collider is not one thing: its cells carry the tags of the
-    /// profiles they were painted from, which <see cref="GridCollider.TagAt"/> reads.
+    /// profiles they were painted from, which <see cref="GridCollider2D.TagAt"/> reads.
     /// </summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
     public CollisionTag TagOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Tag;
@@ -318,7 +318,7 @@ public sealed partial class CollisionWorld
     /// refuse it.
     /// </summary>
     /// <exception cref="ArgumentException">The handle was issued by another world.</exception>
-    public GridCollider? GridOf(ColliderHandle handle)
+    public GridCollider2D? GridOf(ColliderHandle handle)
     {
         RequireOwn(handle, nameof(handle));
 
@@ -338,7 +338,7 @@ public sealed partial class CollisionWorld
     /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
     /// <exception cref="ArgumentException">Some invariant of the grid is broken; the message names the defect.</exception>
     /// <exception cref="InvalidOperationException">Interning a profile's tag would exceed <see cref="MaxTags"/>.</exception>
-    public GridCollider AddGrid(
+    public GridCollider2D AddGrid(
         int cellSize,
         int width,
         int height,
@@ -405,7 +405,7 @@ public sealed partial class CollisionWorld
         slot.CollidesWith = CollisionFilter.None;
         slot.UserData = userData;
 
-        GridCollider grid = new(
+        GridCollider2D grid = new(
             HandleAt(slotIndex),
             cellSize,
             width,
@@ -439,7 +439,7 @@ public sealed partial class CollisionWorld
         Vector2 direction,
         float distance,
         CollisionFilter filter,
-        out RayHit hit,
+        out RayHit2D hit,
         ColliderHandle ignore = default)
     {
         Vector2 unit = RequireRay(origin, direction, distance);
@@ -457,7 +457,7 @@ public sealed partial class CollisionWorld
             return false;
         }
 
-        hit = new RayHit(accumulator.Target, origin + (unit * accumulator.Distance), accumulator.Normal, accumulator.Distance);
+        hit = new RayHit2D(accumulator.Target, origin + (unit * accumulator.Distance), accumulator.Normal, accumulator.Distance);
 
         return true;
     }
@@ -485,7 +485,7 @@ public sealed partial class CollisionWorld
         Vector2 direction,
         float distance,
         CollisionFilter filter,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ColliderHandle ignore = default)
     {
         Vector2 unit = RequireRay(origin, direction, distance);
@@ -521,16 +521,16 @@ public sealed partial class CollisionWorld
     /// The origin or the translation is not finite, or the box the sweep covers between them is not.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape"/>, the filter came from another world, or the ignored handle names no live collider of this world —
+    /// The shape is a default <see cref="Shape2D"/>, the filter came from another world, or the ignored handle names no live collider of this world —
     /// a handle it never issued, or one whose collider has been removed.
     /// <see cref="ColliderHandle.None"/> is the no-ignore value and is always accepted.
     /// </exception>
     public bool ShapeCast(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 origin,
         Vector2 translation,
         CollisionFilter filter,
-        out ShapeCastHit hit,
+        out ShapeCastHit2D hit,
         ColliderHandle ignore = default)
     {
         hit = default;
@@ -540,7 +540,7 @@ public sealed partial class CollisionWorld
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
-        Shape moving = shape.Translated(origin);
+        Shape2D moving = shape.Translated(origin);
         CastAccumulator accumulator = default;
         Cast(moving, translation, filter, ignore, default, ref accumulator);
 
@@ -549,7 +549,7 @@ public sealed partial class CollisionWorld
             return false;
         }
 
-        hit = new ShapeCastHit(accumulator.Target, accumulator.Point, accumulator.Normal, accumulator.Fraction);
+        hit = new ShapeCastHit2D(accumulator.Target, accumulator.Point, accumulator.Normal, accumulator.Fraction);
 
         return true;
     }
@@ -562,15 +562,15 @@ public sealed partial class CollisionWorld
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The origin is not finite.</exception>
     /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape"/>, the filter came from another world, or the ignored handle names no live collider of this world —
+    /// The shape is a default <see cref="Shape2D"/>, the filter came from another world, or the ignored handle names no live collider of this world —
     /// a handle it never issued, or one whose collider has been removed.
     /// <see cref="ColliderHandle.None"/> is the no-ignore value and is always accepted.
     /// </exception>
     public int Overlap(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 origin,
         CollisionFilter filter,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
         RequireShape(shape, nameof(shape));
@@ -583,7 +583,7 @@ public sealed partial class CollisionWorld
 
     /// <summary>
     /// Everything an axis-aligned box is inside or touching; the box form of
-    /// <see cref="Overlap(in Shape, Vector2, CollisionFilter, Span{Contact}, ColliderHandle)"/>.
+    /// <see cref="Overlap(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <exception cref="ArgumentException">
     /// The box spans nothing on an axis, the filter came from another world, or the ignored handle names no live collider of this world —
@@ -591,24 +591,24 @@ public sealed partial class CollisionWorld
     /// <see cref="ColliderHandle.None"/> is the no-ignore value and is always accepted.
     /// </exception>
     public int OverlapBox(
-        in Aabb box,
+        in Aabb2D box,
         CollisionFilter filter,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
-        return Touching(Shape.Box(box), filter, 0f, ignore, contacts);
+        return Touching(Shape2D.Box(box), filter, 0f, ignore, contacts);
     }
 
     /// <summary>
     /// Everything a registered collider is touching right now — within <see cref="ContactSkin"/>
     /// of it, matching its own filter, and never itself. Ordering matches
-    /// <see cref="Overlap(in Shape, Vector2, CollisionFilter, Span{Contact}, ColliderHandle)"/>.
+    /// <see cref="Overlap(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
-    public int OverlapCollider(ColliderHandle handle, Span<Contact> contacts)
+    public int OverlapCollider(ColliderHandle handle, Span<Contact2D> contacts)
     {
         int index = RequireShapeSlot(handle);
 
@@ -631,16 +631,16 @@ public sealed partial class CollisionWorld
     /// The origin or the translation is not finite, or the box the sweep covers between them is not.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape"/>, the filter came from another world, or the ignored handle names no live collider of this world —
+    /// The shape is a default <see cref="Shape2D"/>, the filter came from another world, or the ignored handle names no live collider of this world —
     /// a handle it never issued, or one whose collider has been removed.
     /// <see cref="ColliderHandle.None"/> is the no-ignore value and is always accepted.
     /// </exception>
-    public MoveResult Move(
-        in Shape shape,
+    public MoveResult2D Move(
+        in Shape2D shape,
         Vector2 origin,
         Vector2 translation,
         CollisionFilter filter,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
         RequireShape(shape, nameof(shape));
@@ -663,12 +663,12 @@ public sealed partial class CollisionWorld
         bool blockedY = SweepAxis(shape, ref at, translation.Y, false, filter, ignore, contacts, ref written, out float movedY);
         applied.Y = movedY;
 
-        return new MoveResult(applied, blockedX, blockedY, written);
+        return new MoveResult2D(applied, blockedX, blockedY, written);
     }
 
     /// <summary>
     /// Moves an axis-aligned box; the box form of
-    /// <see cref="Move(in Shape, Vector2, Vector2, CollisionFilter, Span{Contact}, ColliderHandle)"/>.
+    /// <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The translation is not finite, or the box the move covers between where it starts and where
@@ -679,13 +679,13 @@ public sealed partial class CollisionWorld
     /// a handle it never issued, or one whose collider has been removed.
     /// <see cref="ColliderHandle.None"/> is the no-ignore value and is always accepted.
     /// </exception>
-    public MoveResult MoveBox(
-        in Aabb box,
+    public MoveResult2D MoveBox(
+        in Aabb2D box,
         Vector2 translation,
         CollisionFilter filter,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ColliderHandle ignore = default) =>
-        Move(Shape.Box(box), Vector2.Zero, translation, filter, contacts, ignore);
+        Move(Shape2D.Box(box), Vector2.Zero, translation, filter, contacts, ignore);
 
     /// <summary>
     /// Moves a registered collider by its own shape and filter, ignoring itself, and leaves it
@@ -700,10 +700,10 @@ public sealed partial class CollisionWorld
     /// The translation is not finite, or the box the move covers between where the collider stands
     /// and where it would end is not.
     /// </exception>
-    public MoveResult MoveCollider(ColliderHandle handle, Vector2 translation, Span<Contact> contacts)
+    public MoveResult2D MoveCollider(ColliderHandle handle, Vector2 translation, Span<Contact2D> contacts)
     {
         int index = RequireShapeSlot(handle);
-        MoveResult result = Move(
+        MoveResult2D result = Move(
             _slots[index].Local,
             _slots[index].Position,
             translation,
@@ -737,7 +737,7 @@ public sealed partial class CollisionWorld
         return direction / length;
     }
 
-    // A default Shape is the zero value of a validated type: it holds no points at all, so it has
+    // A default Shape2D is the zero value of a validated type: it holds no points at all, so it has
     // no hull for the narrowphase to answer about and a ray would read its empty point set as an
     // immediate hit. Every seam that takes a shape refuses it rather than passing it along.
     // A NaN or infinite bound entering the dynamic tree does not stay where it was put: the tree
@@ -756,18 +756,18 @@ public sealed partial class CollisionWorld
         }
     }
 
-    private static void RequireFinite(in Aabb bounds, string parameterName)
+    private static void RequireFinite(in Aabb2D bounds, string parameterName)
     {
         RequireFinite(bounds.Min, parameterName);
         RequireFinite(bounds.Max, parameterName);
     }
 
-    private static void RequireShape(in Shape shape, string parameterName)
+    private static void RequireShape(in Shape2D shape, string parameterName)
     {
         if (shape.PointCount == 0)
         {
             throw new ArgumentException(
-                "A default Shape holds no points and is not a shape; build one with Shape.Box, Shape.Circle, Shape.Capsule or Shape.Polygon.",
+                "A default Shape2D holds no points and is not a shape; build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
                 parameterName);
         }
     }
@@ -877,13 +877,13 @@ public sealed partial class CollisionWorld
 
     private struct ColliderSlot
     {
-        internal Shape Local;
-        internal Shape World;
+        internal Shape2D Local;
+        internal Shape2D World;
         internal Vector2 Position;
         internal CollisionTag Tag;
         internal CollisionFilter CollidesWith;
         internal object? UserData;
-        internal GridCollider? Grid;
+        internal GridCollider2D? Grid;
         internal int ProxyId;
         internal int Generation;
         internal bool InUse;

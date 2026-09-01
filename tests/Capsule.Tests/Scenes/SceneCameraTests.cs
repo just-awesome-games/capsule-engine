@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
 
 namespace Capsule.Tests.Scenes;
 

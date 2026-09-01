@@ -16,7 +16,7 @@ public sealed class DynamicTreeTests
         }
 
         Assert.Equal(400, tree.ProxyCount);
-        Assert.Equal([0, 1, 20, 21], Found(tree, new Aabb(new Vector2(9f, 9f), new Vector2(11f, 11f))));
+        Assert.Equal([0, 1, 20, 21], Found(tree, new Aabb2D(new Vector2(9f, 9f), new Vector2(11f, 11f))));
     }
 
     // A tree that never rebuilds still has to stay shallow, or a query walks a list.
@@ -62,7 +62,7 @@ public sealed class DynamicTreeTests
         Assert.Equal(32, tree.ProxyCount);
         Assert.Equal(
             [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63],
-            Found(tree, new Aabb(new Vector2(0f, 0f), new Vector2(640f, 8f))));
+            Found(tree, new Aabb2D(new Vector2(0f, 0f), new Vector2(640f, 8f))));
     }
 
     [Fact]
@@ -80,10 +80,10 @@ public sealed class DynamicTreeTests
         Assert.Equal([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], collector.Sorted());
     }
 
-    private static Aabb Cell(int x, int y) =>
-        Aabb.FromCorner(new Vector2(x * 10f, y * 10f), new Vector2(8f, 8f));
+    private static Aabb2D Cell(int x, int y) =>
+        Aabb2D.FromCorner(new Vector2(x * 10f, y * 10f), new Vector2(8f, 8f));
 
-    private static int[] Found(DynamicTree tree, in Aabb box)
+    private static int[] Found(DynamicTree tree, in Aabb2D box)
     {
         Collector collector = new(tree);
         tree.Query(box, ref collector);

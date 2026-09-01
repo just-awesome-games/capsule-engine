@@ -1,32 +1,41 @@
 using System.Numerics;
 using Capsule.Collision;
 
-namespace Capsule.Scenes.Components;
+namespace Capsule.Scenes.Physics;
 
 /// <summary>
-/// Attempts translations for one entity through a <see cref="Collider"/>, stopping and sliding
+/// Attempts translations for one entity through a <see cref="Collider2D"/>, stopping and sliding
 /// against the independently configured set of blocking tags. The caller owns movement intent,
 /// velocity, acceleration, pushing, and every other gameplay rule; this component only resolves
 /// one requested translation.
+/// <para>
+/// The collider is a selection, not merely a requirement: an entity may carry hurt and hit boxes
+/// beside the one body shape that sweeps, and the constructor argument names which. One mover per
+/// entity — two would each write the entity's position from their own sweep.
+/// </para>
 /// </summary>
-public sealed class KinematicMover : Component
+[DisallowMultipleComponent]
+public sealed class KinematicMover2D : Component
 {
-    private readonly Collider _collider;
+    private readonly Collider2D _collider;
     private readonly List<string> _blocksOn = [];
 
-    private Contact[] _found = new Contact[16];
-    private ColliderContact[] _moveContacts = new ColliderContact[16];
+    private Contact2D[] _found = new Contact2D[16];
+    private ColliderContact2D[] _moveContacts = new ColliderContact2D[16];
     private int _moveContactCount;
 
-    /// <summary>The collider whose shape this mover sweeps.</summary>
-    public KinematicMover(Collider collider)
+    /// <param name="collider">
+    /// The collider whose shape this mover sweeps. It must be attached to the same entity as the
+    /// mover by the time that entity joins a scene; the two may be attached in either order.
+    /// </param>
+    public KinematicMover2D(Collider2D collider)
     {
         ArgumentNullException.ThrowIfNull(collider);
         _collider = collider;
     }
 
     /// <summary>The collider whose shape this mover sweeps.</summary>
-    public Collider Collider => _collider;
+    public Collider2D Collider => _collider;
 
     /// <summary>
     /// The world-specific filter built from <see cref="BlocksOn"/> while this component is in a
@@ -35,11 +44,11 @@ public sealed class KinematicMover : Component
     public CollisionFilter Filter { get; private set; }
 
     /// <summary>The blocking surfaces encountered by the most recent <see cref="Move"/>.</summary>
-    public ReadOnlySpan<ColliderContact> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
+    public ReadOnlySpan<ColliderContact2D> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
 
     /// <summary>
     /// Replaces the tags that stop this mover. This is independent of
-    /// <see cref="Collider.Detects"/>: a collider can report an overlap without that overlap
+    /// <see cref="Collider2D.Detects"/>: a collider can report an overlap without that overlap
     /// changing movement.
     /// </summary>
     /// <param name="tags">The tag names that block movement; an empty list blocks on nothing.</param>
@@ -81,22 +90,22 @@ public sealed class KinematicMover : Component
     /// The mover is not in a scene, its collider is disabled or detached, or the collider no
     /// longer belongs to the mover's entity.
     /// </exception>
-    public MoveResult Move(Vector2 translation)
+    public MoveResult2D Move(Vector2 translation)
     {
         Entity entity = Entity
-            ?? throw new InvalidOperationException("A KinematicMover attached to no entity cannot move one.");
+            ?? throw new InvalidOperationException("A KinematicMover2D attached to no entity cannot move one.");
 
         if (!ReferenceEquals(_collider.Entity, entity))
         {
             throw new InvalidOperationException(
-                "A KinematicMover cannot move after its collider has left the mover's entity.");
+                "A KinematicMover2D cannot move after its collider has left the mover's entity.");
         }
 
-        CollisionWorld world = _collider.World
+        CollisionWorld2D world = _collider.World
             ?? throw new InvalidOperationException(
-                "A KinematicMover needs its collider enabled and registered in a scene before it can move.");
+                "A KinematicMover2D needs its collider enabled and registered in a scene before it can move.");
 
-        MoveResult result = world.Move(
+        MoveResult2D result = world.Move(
             world.ShapeOf(_collider.Handle),
             entity.Position,
             translation,
@@ -117,7 +126,7 @@ public sealed class KinematicMover : Component
         }
 
         entity.Position += result.Translation;
-        _moveContactCount = Collider.Describe(
+        _moveContactCount = Collider2D.Describe(
             world,
             _found.AsSpan(0, result.ContactCount),
             ref _moveContacts);
@@ -125,17 +134,18 @@ public sealed class KinematicMover : Component
         return result;
     }
 
-    internal override void OnAttachingTo(Entity entity)
+    // Asked as the whole entity is judged, not as the mover is attached: a constructor is free to
+    // add the mover before the collider it sweeps, and only by the time the entity joins a scene
+    // does the pair have to be on the same entity. Refusing here leaves the entity outside the
+    // scene with nothing registered, which is what OnAddingTo already promises.
+    internal override void OnAddingTo(Scene scene, Entity entity, List<string> tags)
     {
         if (!ReferenceEquals(_collider.Entity, entity))
         {
             throw new InvalidOperationException(
-                "Attach a KinematicMover's collider to the same entity before attaching the mover.");
+                "A KinematicMover2D's collider must be attached to the same entity before that entity joins a scene.");
         }
-    }
 
-    internal override void OnAddingTo(Scene scene, Entity entity, List<string> tags)
-    {
         for (int index = 0; index < _blocksOn.Count; index++)
         {
             Want(scene.Collision, tags, _blocksOn[index]);
@@ -152,7 +162,7 @@ public sealed class KinematicMover : Component
         _moveContactCount = 0;
     }
 
-    private CollisionFilter ResolveFilter(CollisionWorld world)
+    private CollisionFilter ResolveFilter(CollisionWorld2D world)
     {
         CollisionFilter filter = CollisionFilter.None;
         foreach (string tag in _blocksOn)
@@ -163,7 +173,7 @@ public sealed class KinematicMover : Component
         return filter;
     }
 
-    private static void Want(CollisionWorld world, List<string> tags, string name)
+    private static void Want(CollisionWorld2D world, List<string> tags, string name)
     {
         if (!world.TryFindTag(name, out _) && !tags.Contains(name))
         {

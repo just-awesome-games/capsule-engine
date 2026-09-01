@@ -1,6 +1,6 @@
 using Capsule.Scenes;
-using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Tests.Scenes;
 

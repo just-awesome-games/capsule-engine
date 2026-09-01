@@ -1,20 +1,19 @@
 using System.Numerics;
 using Capsule.Collision;
 using Capsule.Rendering;
-using Capsule.Scenes.Tiles;
 
-namespace Capsule.Scenes.Entities;
+namespace Capsule.Scenes.Tiles;
 
 /// <summary>
 /// A stationary, world-origin tile grid that draws colored palette entries as quads and, where its
-/// palette says any tile type collides, registers one <see cref="GridCollider"/> with the
+/// palette says any tile type collides, registers one <see cref="GridCollider2D"/> with the
 /// scene's world for the whole layer.
 /// </summary>
 public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
 
-    private CollisionWorld? _world;
+    private CollisionWorld2D? _world;
 
     /// <param name="grid">The grid to hold and to draw; its palette decides what a tile looks like.</param>
     public TileMap(TileGrid grid)
@@ -45,7 +44,7 @@ public sealed class TileMap : Entity
     /// in its palette collides. Its cells carry the tile type as their tag, so a contact against
     /// terrain names the type that was authored.
     /// </summary>
-    public GridCollider? Collision { get; private set; }
+    public GridCollider2D? Collision { get; private set; }
 
     /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>

@@ -2,14 +2,14 @@ namespace Capsule.Collision;
 
 /// <summary>
 /// Which tags a query or a mover may hit, held as one bit per <see cref="CollisionTag"/>. Built
-/// from names at setup — <see cref="CollisionWorld.Filter(System.ReadOnlySpan{string})"/> — and
+/// from names at setup — <see cref="CollisionWorld2D.Filter(System.ReadOnlySpan{string})"/> — and
 /// read as a mask afterwards, so matching costs one bit test.
 /// <para>
 /// A filter built from tags belongs to the world that interned them, because a bit means nothing
 /// without the table it indexes. Mixing two worlds' tags or filters, and testing a filter against
 /// a tag from elsewhere, throw <see cref="ArgumentException"/> rather than aliasing one world's
 /// names onto another's — as does any tag no world interned, such as the one a failed
-/// <see cref="CollisionWorld.TryFindTag"/> leaves behind.
+/// <see cref="CollisionWorld2D.TryFindTag"/> leaves behind.
 /// </para>
 /// <para>
 /// <see cref="None"/> and <see cref="Everything"/> name no table, and they alone are accepted by

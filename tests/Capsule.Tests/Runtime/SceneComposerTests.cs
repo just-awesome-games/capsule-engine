@@ -1,8 +1,8 @@
 using Capsule.Runtime;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 using Capsule.Tests.Documents;
 using Capsule.Tests.Scenes;
 

@@ -46,11 +46,11 @@ internal sealed class DynamicTree
 
     internal int Height => _root == NullNode ? 0 : _nodes[_root].Height;
 
-    internal Aabb BoundsOf(int proxyId) => _nodes[proxyId].Box;
+    internal Aabb2D BoundsOf(int proxyId) => _nodes[proxyId].Box;
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
-    internal int CreateProxy(in Aabb tight, int userData)
+    internal int CreateProxy(in Aabb2D tight, int userData)
     {
         int proxyId = AllocateNode();
         _nodes[proxyId].Box = tight.Expanded(BoundsMargin);
@@ -70,7 +70,7 @@ internal sealed class DynamicTree
     }
 
     /// <summary>Refits the proxy, reinserting it only when its tight bounds escape its fat ones.</summary>
-    internal bool MoveProxy(int proxyId, in Aabb tight, Vector2 displacement)
+    internal bool MoveProxy(int proxyId, in Aabb2D tight, Vector2 displacement)
     {
         if (_nodes[proxyId].Box.Contains(tight))
         {
@@ -79,7 +79,7 @@ internal sealed class DynamicTree
 
         RemoveLeaf(proxyId);
 
-        Aabb fat = tight.Expanded(BoundsMargin);
+        Aabb2D fat = tight.Expanded(BoundsMargin);
 
         // Predicted along the motion so a proxy travelling in one direction reinserts less often;
         // the slack is added on the side it is heading towards and nowhere else.
@@ -91,7 +91,7 @@ internal sealed class DynamicTree
         // the end of the float range is dropped rather than stored: the tight box is what the
         // proxy has to cover, and an infinite bound here would union its way up the ancestors and
         // lose colliders that have nothing to do with this one.
-        _nodes[proxyId].Box = IsFinite(min) && IsFinite(max) ? new Aabb(min, max) : fat;
+        _nodes[proxyId].Box = IsFinite(min) && IsFinite(max) ? new Aabb2D(min, max) : fat;
         InsertLeaf(proxyId);
 
         return true;
@@ -99,7 +99,7 @@ internal sealed class DynamicTree
 
     private static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 
-    internal void Query<TVisitor>(in Aabb box, ref TVisitor visitor)
+    internal void Query<TVisitor>(in Aabb2D box, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor, allows ref struct
     {
         if (_root == NullNode)
@@ -237,7 +237,7 @@ internal sealed class DynamicTree
             return;
         }
 
-        Aabb leafBox = _nodes[leaf].Box;
+        Aabb2D leafBox = _nodes[leaf].Box;
         int index = _root;
         while (!_nodes[index].IsLeaf)
         {
@@ -292,9 +292,9 @@ internal sealed class DynamicTree
         Refit(_nodes[leaf].Parent);
     }
 
-    private float DescentCost(int child, in Aabb leafBox, float inheritanceCost)
+    private float DescentCost(int child, in Aabb2D leafBox, float inheritanceCost)
     {
-        Aabb combined = _nodes[child].Box.Union(leafBox);
+        Aabb2D combined = _nodes[child].Box.Union(leafBox);
 
         return _nodes[child].IsLeaf
             ? combined.Perimeter + inheritanceCost
@@ -432,7 +432,7 @@ internal sealed class DynamicTree
 
     private struct Node
     {
-        internal Aabb Box;
+        internal Aabb2D Box;
         internal int UserData;
         internal int Parent;
         internal int Child1;

@@ -1,8 +1,8 @@
 using System.Numerics;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Documents;

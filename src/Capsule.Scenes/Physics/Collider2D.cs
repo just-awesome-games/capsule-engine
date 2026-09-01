@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Capsule.Collision;
 
-namespace Capsule.Scenes.Components;
+namespace Capsule.Scenes.Physics;
 
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. It registers when
@@ -10,34 +10,37 @@ namespace Capsule.Scenes.Components;
 /// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
 /// sees a stale one.
 /// <para>
-/// A box collider is anchored the way a <c>QuadRenderer</c> is: the shape's corner is the entity's
-/// position plus <see cref="Offset"/>, so a collider matching a drawn quad is the same two values.
+/// The shape itself belongs to the subclass: <see cref="BoxCollider2D"/>,
+/// <see cref="CircleCollider2D"/>, <see cref="CapsuleCollider2D"/> and
+/// <see cref="PolygonCollider2D"/> each hold their own authoring state and rebuild
+/// <see cref="Shape"/> from it. Where that shape sits relative to the entity's position is each
+/// subclass's own convention.
 /// </para>
 /// </summary>
-public sealed class Collider : Component
+public abstract class Collider2D : Component
 {
     private const int NotDispatching = int.MaxValue;
 
     private readonly List<string> _detects = [];
 
-    private Shape _shape;
+    private Shape2D _shape;
 
     // The shape as the world holds it: this shape at this offset. Kept rather than recomputed,
     // because the placement preflight runs on every write to a tracking entity's position and has
     // to compose exactly the translations the commit does — from here, that is one of them.
-    private Shape _local;
+    private Shape2D _local;
     private Vector2 _offset;
-    private string _tag = CollisionWorld.UntaggedName;
+    private string _tag = CollisionWorld2D.UntaggedName;
     private bool _enabled = true;
     private bool _reportsContacts;
 
-    private CollisionWorld? _world;
+    private CollisionWorld2D? _world;
     private Scene? _scene;
     private ColliderHandle _handle;
 
-    private Contact[] _found = new Contact[16];
-    private ColliderContact[] _touching = new ColliderContact[16];
-    private ColliderContact[] _wasTouching = new ColliderContact[16];
+    private Contact2D[] _found = new Contact2D[16];
+    private ColliderContact2D[] _touching = new ColliderContact2D[16];
+    private ColliderContact2D[] _wasTouching = new ColliderContact2D[16];
     private int _touchingCount;
     private int _wasTouchingCount;
 
@@ -53,17 +56,9 @@ public sealed class Collider : Component
     // live again and resume delivering a set that described the registration before it.
     private int _reportingEpoch;
 
-    /// <summary>An axis-aligned box collider of <paramref name="size"/>, cornered at <see cref="Offset"/>.</summary>
-    /// <exception cref="ArgumentException">The size spans nothing on an axis.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">A component of <paramref name="size"/> is negative or not finite.</exception>
-    public Collider(Vector2 size)
-        : this(Shape.Box(Vector2.Zero, size))
-    {
-    }
-
-    /// <summary>A collider of any shape, expressed relative to the entity's position.</summary>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Collision.Shape"/>, which is no shape at all.</exception>
-    public Collider(in Shape shape)
+    /// <summary>The shape this collider starts out holding, expressed relative to the entity's position.</summary>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, which is no shape at all.</exception>
+    protected Collider2D(in Shape2D shape)
     {
         RequireShape(shape);
 
@@ -77,7 +72,7 @@ public sealed class Collider : Component
     /// turned off — including for the step in which a handler is what caused either, so a handler
     /// may tear its own collider down and be sure nothing further arrives.
     /// </summary>
-    public event Action<ColliderContact>? ContactEntered;
+    public event Action<ColliderContact2D>? ContactEntered;
 
     /// <summary>
     /// Raised for each thing this collider stopped touching since the previous step, and for
@@ -86,26 +81,10 @@ public sealed class Collider : Component
     /// announced is never announced as ending. Silent under the same conditions as
     /// <see cref="ContactEntered"/>.
     /// </summary>
-    public event Action<ColliderContact>? ContactExited;
+    public event Action<ColliderContact2D>? ContactExited;
 
     /// <summary>The shape, in the collider's own space; <see cref="Offset"/> and the entity's position place it.</summary>
-    /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Collision.Shape"/>, which is no shape at all, or it cannot
-    /// be placed at this collider's offset and position.
-    /// </exception>
-    public Shape Shape
-    {
-        get => _shape;
-        set
-        {
-            RequireShape(value);
-            RequirePlaceable(value, _offset);
-
-            _shape = value;
-            _local = value.Translated(_offset);
-            Resync();
-        }
-    }
+    public Shape2D Shape => _shape;
 
     /// <summary>Added to the entity's position to place the shape; zero by default.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>
@@ -130,7 +109,7 @@ public sealed class Collider : Component
 
     /// <summary>
     /// What this collider is, for other queries' filters to match. Defaults to
-    /// <see cref="CollisionWorld.UntaggedName"/>.
+    /// <see cref="CollisionWorld2D.UntaggedName"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
     /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
@@ -229,7 +208,7 @@ public sealed class Collider : Component
     }
 
     /// <summary>The world this collider is registered with, or null while disabled or in no scene.</summary>
-    public CollisionWorld? World => _world;
+    public CollisionWorld2D? World => _world;
 
     /// <summary>This collider's identity in <see cref="World"/>; <see cref="ColliderHandle.None"/> while it is in no scene.</summary>
     public ColliderHandle Handle => _handle;
@@ -244,19 +223,19 @@ public sealed class Collider : Component
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
-    public Aabb Bounds => _shape.Translated(Origin).Bounds;
+    public Aabb2D Bounds => _shape.Translated(Origin).Bounds;
 
     /// <summary>
     /// Everything this collider was touching as of the last step, while
     /// <see cref="ReportsContacts"/> is on; empty otherwise. Never abridged, so every entry has had
     /// its <see cref="ContactEntered"/> and will get its <see cref="ContactExited"/>.
     /// </summary>
-    public ReadOnlySpan<ColliderContact> Touching => _touching.AsSpan(0, _touchingCount);
+    public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
 
     private Vector2 Origin =>
         Entity is { } entity
             ? entity.Position + _offset
-            : throw new InvalidOperationException("A Collider that is attached to no entity has no place in the world.");
+            : throw new InvalidOperationException("A Collider2D that is attached to no entity has no place in the world.");
 
     // Whether this collider is still owed contact events. A handler is free to detach the collider,
     // detach its entity, or turn reporting off; each makes this false.
@@ -269,8 +248,8 @@ public sealed class Collider : Component
 
     /// <summary>
     /// Replaces what this collider's contact queries detect. Detection does not block movement;
-    /// <see cref="KinematicMover.BlocksOn"/> owns that independent filter. Tag names are setup-time
-    /// text, interned once and never compared during a query.
+    /// <see cref="KinematicMover2D.BlocksOn"/> owns that independent filter. Tag names are
+    /// setup-time text, interned once and never compared during a query.
     /// </summary>
     /// <param name="tags">The tag names to hit; an empty list hits nothing.</param>
     /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
@@ -308,12 +287,32 @@ public sealed class Collider : Component
 
     /// <summary>
     /// Everything this collider is touching right now — within
-    /// <see cref="CollisionWorld.ContactSkin"/>, matching <see cref="Filter"/>, never itself.
+    /// <see cref="CollisionWorld2D.ContactSkin"/>, matching <see cref="Filter"/>, never itself.
     /// Written into <paramref name="contacts"/>; the return is how many, never more than the span
     /// holds.
     /// </summary>
     /// <exception cref="InvalidOperationException">The collider is in no scene.</exception>
-    public int Overlap(Span<Contact> contacts) => RequireWorld().OverlapCollider(_handle, contacts);
+    public int Overlap(Span<Contact2D> contacts) => RequireWorld().OverlapCollider(_handle, contacts);
+
+    /// <summary>
+    /// Takes <paramref name="shape"/> as the collider's shape and resyncs whatever world holds it,
+    /// so a registered collider is queried as its new shape from the moment the call returns. A
+    /// subclass rebuilds its shape through here whenever its authoring state changes; a refusal
+    /// leaves the collider exactly as it was.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The shape is a default <see cref="Shape2D"/>, which is no shape at all, or it cannot be
+    /// placed at this collider's offset and position.
+    /// </exception>
+    protected void SetShape(in Shape2D shape)
+    {
+        RequireShape(shape);
+        RequirePlaceable(shape, _offset);
+
+        _shape = shape;
+        _local = shape.Translated(_offset);
+        Resync();
+    }
 
     // Movement is tracked from the moment this collider joins an entity, not from the moment that
     // entity joins a scene: whether a shape can be placed where the entity stands is a fact about
@@ -331,7 +330,7 @@ public sealed class Collider : Component
     // reserved table entries would be changing the world it is only supposed to be asking about.
     internal override void OnAddingTo(Scene scene, Entity entity, List<string> tags)
     {
-        CollisionWorld world = scene.Collision;
+        CollisionWorld2D world = scene.Collision;
 
         RequirePlaceableAt(_local, entity.Position);
 
@@ -364,7 +363,7 @@ public sealed class Collider : Component
     private void Register()
     {
         Scene scene = _scene!;
-        CollisionWorld world = scene.Collision;
+        CollisionWorld2D world = scene.Collision;
         CollisionFilter filter = ResolveFilter(world);
         ColliderHandle handle = world.Add(_local, Entity!.Position, world.Tag(_tag), filter, this);
 
@@ -385,10 +384,10 @@ public sealed class Collider : Component
             return;
         }
 
-        ColliderContact[] touching = _touching;
+        ColliderContact2D[] touching = _touching;
         int touchingCount = _touchingCount;
         int announced = _entersDispatched;
-        ColliderContact[] previous = _wasTouching;
+        ColliderContact2D[] previous = _wasTouching;
         int previousCount = _wasTouchingCount;
 
         _reportingEpoch++;
@@ -409,11 +408,11 @@ public sealed class Collider : Component
             }
         }
     }
-    // The two things CollisionWorld.SetPosition derives and can refuse, checked here while nothing
-    // has moved: the shape placed at the new position, and the step taken to reach it. What the
-    // world holds for this collider is exactly the shape at this offset, standing at the entity's
-    // current position, so this preflight sees the same values the commit will — which is what
-    // lets OnEntityMoved be a write that cannot fail.
+    // The two things CollisionWorld2D.SetPosition derives and can refuse, checked here while
+    // nothing has moved: the shape placed at the new position, and the step taken to reach it. What
+    // the world holds for this collider is exactly the shape at this offset, standing at the
+    // entity's current position, so this preflight sees the same values the commit will — which is
+    // what lets OnEntityMoved be a write that cannot fail.
     internal override void OnEntityMoving(Vector2 position)
     {
         // Whether the shape has a place at all is world-independent, so it is asked wherever the
@@ -458,9 +457,9 @@ public sealed class Collider : Component
         _touchingCount = Describe(world, _found.AsSpan(0, count), ref _touching);
 
         // Local copies, because a handler may detach this collider and clear the fields.
-        ColliderContact[] entered = _touching;
+        ColliderContact2D[] entered = _touching;
         int enteredCount = _touchingCount;
-        ColliderContact[] left = _wasTouching;
+        ColliderContact2D[] left = _wasTouching;
         int leftCount = _wasTouchingCount;
 
         // The registration these contacts describe. Liveness alone would not do: a handler can
@@ -505,9 +504,9 @@ public sealed class Collider : Component
     // it needs a world: an offset that could never be placed, or one that cannot be placed where
     // the entity stands, is refused where it is set rather than surfacing much later as a failure
     // to join a scene.
-    private void RequirePlaceable(in Shape shape, Vector2 offset)
+    private void RequirePlaceable(in Shape2D shape, Vector2 offset)
     {
-        Shape local = shape.Translated(offset);
+        Shape2D local = shape.Translated(offset);
 
         if (Entity is { } entity)
         {
@@ -519,14 +518,14 @@ public sealed class Collider : Component
     // own bounds rather than by building the placed shapes: this runs on every write to every
     // tracking entity's position, and the point sets are not what is in question. The world holds
     // exactly this shape at this offset, so its bounds are the first translation's result — the
-    // same float values, composed the same way, that CollisionWorld would check.
+    // same float values, composed the same way, that CollisionWorld2D would check.
     // The commit's own arithmetic, run for its refusals. The world holds this shape at this offset
     // and translates that by the position, so composing the two translations the same way is what
     // makes the preflight exact rather than an approximation of it: bounds off the end of the float
     // range, an extent that rounding collapses, a hull whose points land on each other — whatever
     // the commit would refuse is refused here, which is the whole of the promise that a preflight
     // once passed cannot fail.
-    private static void RequirePlaceableAt(in Shape local, Vector2 position)
+    private static void RequirePlaceableAt(in Shape2D local, Vector2 position)
     {
         _ = local.Translated(position);
     }
@@ -534,7 +533,7 @@ public sealed class Collider : Component
     // Notes a name the world would have to intern. One it already holds costs nothing, and one
     // already on the list — whether this collider asked for it twice or a sibling asked first —
     // costs nothing more.
-    private static void Want(CollisionWorld world, List<string> tags, string name)
+    private static void Want(CollisionWorld2D world, List<string> tags, string name)
     {
         if (!world.TryFindTag(name, out _) && !tags.Contains(name))
         {
@@ -544,17 +543,17 @@ public sealed class Collider : Component
 
     private static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 
-    private static void RequireShape(in Shape shape, [CallerArgumentExpression(nameof(shape))] string? parameterName = null)
+    private static void RequireShape(in Shape2D shape, [CallerArgumentExpression(nameof(shape))] string? parameterName = null)
     {
         if (shape.PointCount == 0)
         {
             throw new ArgumentException(
-                "A default Shape holds no points and is not a shape; build one with Shape.Box, Shape.Circle, Shape.Capsule or Shape.Polygon.",
+                "A default Shape2D holds no points and is not a shape; build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
                 parameterName);
         }
     }
 
-    private static bool Holds(ColliderContact[] contacts, int count, in CollisionTarget target)
+    private static bool Holds(ColliderContact2D[] contacts, int count, in CollisionTarget target)
     {
         for (int index = 0; index < count; index++)
         {
@@ -568,9 +567,9 @@ public sealed class Collider : Component
     }
 
     internal static int Describe(
-        CollisionWorld world,
-        ReadOnlySpan<Contact> found,
-        ref ColliderContact[] into)
+        CollisionWorld2D world,
+        ReadOnlySpan<Contact2D> found,
+        ref ColliderContact2D[] into)
     {
         if (into.Length < found.Length)
         {
@@ -579,18 +578,18 @@ public sealed class Collider : Component
 
         for (int index = 0; index < found.Length; index++)
         {
-            Contact contact = found[index];
+            Contact2D contact = found[index];
             object? owner = world.UserDataOf(contact.Target.Collider);
-            Collider? otherCollider = contact.Target.IsGridCell ? null : owner as Collider;
-            GridCellContact? cell = contact.Target.IsGridCell
-                ? new GridCellContact(
+            Collider2D? otherCollider = contact.Target.IsGridCell ? null : owner as Collider2D;
+            GridCellContact2D? cell = contact.Target.IsGridCell
+                ? new GridCellContact2D(
                     world.GridOf(contact.Target.Collider)!,
                     contact.Target.CellX,
                     contact.Target.CellY,
                     owner)
                 : null;
 
-            into[index] = new ColliderContact(
+            into[index] = new ColliderContact2D(
                 contact.Target,
                 world.NameOf(contact.Target.Tag),
                 contact.Point,
@@ -602,7 +601,7 @@ public sealed class Collider : Component
         return found.Length;
     }
 
-    private CollisionFilter ResolveFilter(CollisionWorld world)
+    private CollisionFilter ResolveFilter(CollisionWorld2D world)
     {
         CollisionFilter filter = CollisionFilter.None;
         foreach (string tag in _detects)
@@ -622,7 +621,7 @@ public sealed class Collider : Component
         }
     }
 
-    private CollisionWorld RequireWorld() =>
+    private CollisionWorld2D RequireWorld() =>
         _world ?? throw new InvalidOperationException(
-            "A disabled Collider, or one that is in no scene, has no world to query; enable it and add its entity to a scene first.");
+            "A disabled Collider2D, or one that is in no scene, has no world to query; enable it and add its entity to a scene first.");
 }

@@ -2,9 +2,7 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
 using Capsule.Scenes.Tiles;
 
@@ -30,6 +28,33 @@ internal static class SceneFixtures
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", Solid)], [0, 1, 0, 0, 0, 0]);
+
+    /// <summary>A scene of one tile map drawn as rows of '#' for solid terrain and '.' for empty.</summary>
+    internal static Scene Terrain(params string[] rows) =>
+        new(Content(
+            new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows))], TerrainId + 1),
+            Registry()));
+
+    /// <summary>The grid behind <see cref="Terrain"/>: every '#' collides and carries the tag "solid".</summary>
+    internal static TileGrid TerrainGrid(params string[] rows)
+    {
+        int width = rows[0].Length;
+        int[] cells = new int[width * rows.Length];
+        for (int y = 0; y < rows.Length; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                cells[(y * width) + x] = rows[y][x] == '#' ? 1 : 0;
+            }
+        }
+
+        return new TileGrid(
+            TileSize,
+            width,
+            rows.Length,
+            [TileGrid.EmptyTile, new TileDefinition("solid", Solid, TileCollision.Solid)],
+            cells);
+    }
 
     internal static EntityRegistry Registry(params (string Type, EntitySpawner Spawner)[] entities)
     {

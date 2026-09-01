@@ -1,7 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 
-namespace Capsule.Scenes.Components;
+namespace Capsule.Scenes;
 
 /// <summary>
 /// Draws its entity as one axis-aligned rectangle. The quad's top-left corner is the entity's

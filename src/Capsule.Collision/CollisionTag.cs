@@ -1,10 +1,10 @@
 namespace Capsule.Collision;
 
 /// <summary>
-/// A collider's name interned by one <see cref="CollisionWorld"/>, held as the index it interned
+/// A collider's name interned by one <see cref="CollisionWorld2D"/>, held as the index it interned
 /// to. Setup code speaks the string; results carry this, so no hot path compares text and every
 /// query result stays unmanaged — a caller may keep its contact buffer on the stack.
-/// <see cref="CollisionWorld.NameOf"/> reads the name back. A tag also carries the world that
+/// <see cref="CollisionWorld2D.NameOf"/> reads the name back. A tag also carries the world that
 /// interned it: two worlds' tags never compare equal even at the same index, and a world rejects a
 /// tag it did not intern. The default value is no world's tag.
 /// </summary>

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -11,6 +12,12 @@ namespace Capsule.Scenes;
 /// </summary>
 public class Entity
 {
+    // The type that limits each component type to one per entity, resolved once and remembered:
+    // the walk up a hierarchy looking for [DisallowMultipleComponent] is reflection, and Add runs
+    // it on every attach. Concurrent because engine test classes run in parallel, and a null value
+    // is a real answer — that component type carries no limit.
+    private static readonly ConcurrentDictionary<Type, Type?> SingleInstanceTypes = new();
+
     private readonly List<Component> _components = [];
 
     private int _movementTrackers;
@@ -95,6 +102,50 @@ public class Entity
         PreviousPosition = position;
     }
 
+    // Refused before OnAttachingTo, so nothing about either the entity or the offered component has
+    // been touched. The limit belongs to the outermost type that declares it, not to the
+    // component's own class: every subclass of a limited type shares its one slot, whichever of
+    // them arrived first.
+    private void RequireSingleInstanceIsFree(Component component)
+    {
+        if (SingleInstanceTypeOf(component.GetType()) is not { } single)
+        {
+            return;
+        }
+
+        for (int index = 0; index < _components.Count; index++)
+        {
+            Component held = _components[index];
+            if (single.IsInstanceOfType(held))
+            {
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} already holds a {held.GetType().Name}, and {single.Name} permits one per entity; a {component.GetType().Name} cannot join it.");
+            }
+        }
+    }
+
+    // The outermost type from the component's own class up to Component that carries the attribute,
+    // or null where none does. Outermost, not nearest: a marked subclass of a marked base would
+    // otherwise be counted against a different slot from its base, and whether the two could share
+    // an entity would turn on which of them was attached first. Declared attributes only, so the
+    // walk finds the declarations themselves rather than the same one inherited at every level.
+    private static Type? SingleInstanceTypeOf(Type component) =>
+        SingleInstanceTypes.GetOrAdd(
+            component,
+            static type =>
+            {
+                Type? outermost = null;
+                for (Type? current = type; current is not null && current != typeof(Component); current = current.BaseType)
+                {
+                    if (current.IsDefined(typeof(DisallowMultipleComponentAttribute), inherit: false))
+                    {
+                        outermost = current;
+                    }
+                }
+
+                return outermost;
+            });
+
     private static void RequireFinite(Vector2 position)
     {
         if (!float.IsFinite(position.X) || !float.IsFinite(position.Y))
@@ -112,9 +163,10 @@ public class Entity
     /// region a float box holds at this entity's position.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// The component is already attached to an entity; or this entity is already in a scene and the
-    /// component cannot register with it — a collider needing more collision tag names than the
-    /// scene's world has room left to intern.
+    /// The component is already attached to an entity; this entity already holds one of a type
+    /// marked <see cref="DisallowMultipleComponentAttribute"/> that the component shares; or this
+    /// entity is already in a scene and the component cannot register with it — a collider needing
+    /// more collision tag names than the scene's world has room left to intern.
     /// </exception>
     public void Add(Component component)
     {
@@ -125,6 +177,8 @@ public class Entity
             throw new InvalidOperationException(
                 $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity at a time.");
         }
+
+        RequireSingleInstanceIsFree(component);
 
         // Asked before it is held: a component that cannot live on this entity where it stands, or
         // cannot register with the scene that entity is already in, says so while neither of them

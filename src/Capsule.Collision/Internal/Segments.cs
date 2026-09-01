@@ -13,11 +13,11 @@ internal static class Segments
     private const float Parallel = 1e-8f;
 
     /// <summary>Whether a ray could reach <paramref name="box"/> within <paramref name="limit"/>.</summary>
-    internal static bool IntersectsBox(in Aabb box, Vector2 origin, Vector2 direction, float limit) =>
+    internal static bool IntersectsBox(in Aabb2D box, Vector2 origin, Vector2 direction, float limit) =>
         RayBox(box, origin, direction, limit, out _, out _);
 
     internal static bool RayBox(
-        in Aabb box,
+        in Aabb2D box,
         Vector2 origin,
         Vector2 direction,
         float limit,
@@ -27,7 +27,7 @@ internal static class Segments
 
     /// <summary>Where a ray enters and leaves a box; the entry is zero when it starts inside.</summary>
     internal static bool RayBoxRange(
-        in Aabb box,
+        in Aabb2D box,
         Vector2 origin,
         Vector2 direction,
         float limit,
@@ -91,14 +91,14 @@ internal static class Segments
 
     /// <summary>The nearest point of a shape a ray reaches; the shape's points are in world space.</summary>
     internal static bool RayShape(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 origin,
         Vector2 direction,
         float limit,
         out float t,
         out Vector2 normal)
     {
-        if (shape.Kind == ShapeKind.Box)
+        if (shape.Kind == ShapeKind2D.Box)
         {
             return RayBox(shape.Bounds, origin, direction, limit, out t, out normal);
         }
@@ -198,7 +198,7 @@ internal static class Segments
     internal static float Cross(Vector2 left, Vector2 right) => (left.X * right.Y) - (left.Y * right.X);
 
     /// <summary>The outward unit normal of the edge leaving point <paramref name="index"/>.</summary>
-    internal static Vector2 EdgeNormal(in Shape shape, int index)
+    internal static Vector2 EdgeNormal(in Shape2D shape, int index)
     {
         Vector2 edge = shape.PointAt((index + 1) % shape.PointCount) - shape.PointAt(index);
 
@@ -208,7 +208,7 @@ internal static class Segments
     // Half-plane clipping over the polygon's own edges: exact, and the only routine that reports
     // which face was crossed rather than deriving a normal from a witness point.
     private static bool RayPolygon(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 origin,
         Vector2 direction,
         float limit,
@@ -269,7 +269,7 @@ internal static class Segments
     // A rounded hull is its offset faces and its corner circles; taking the nearest of those is
     // exact for a circle, a capsule and a polygon with a radius alike.
     private static bool RayRounded(
-        in Shape shape,
+        in Shape2D shape,
         Vector2 origin,
         Vector2 direction,
         float limit,

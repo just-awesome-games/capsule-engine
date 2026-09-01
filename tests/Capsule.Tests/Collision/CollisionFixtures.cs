@@ -22,7 +22,7 @@ internal static class CollisionFixtures
     ];
 
     /// <summary>A grid painted from rows of characters: '.' empty, '#' solid, '-' one-way, '=' climbable.</summary>
-    internal static GridCollider Paint(CollisionWorld world, params string[] rows)
+    internal static GridCollider2D Paint(CollisionWorld2D world, params string[] rows)
     {
         int width = rows[0].Length;
         int[] cells = new int[width * rows.Length];
@@ -44,6 +44,6 @@ internal static class CollisionFixtures
         return world.AddGrid(TileSize, width, rows.Length, cells, Profiles);
     }
 
-    internal static Aabb Box(float x, float y, float width, float height) =>
-        Aabb.FromCorner(new Vector2(x, y), new Vector2(width, height));
+    internal static Aabb2D Box(float x, float y, float width, float height) =>
+        Aabb2D.FromCorner(new Vector2(x, y), new Vector2(width, height));
 }

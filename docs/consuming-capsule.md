@@ -152,6 +152,16 @@ For persistent local development, place the same property in an ignored `Directo
 
 The source and package branches expose the same assemblies: game logic sees only `JAG.Capsule`; the shell alone sees `JAG.Capsule.Runtime`.
 
+## Publishing
+
+Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a runtime identifier:
+
+```text
+dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
+```
+
+Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule and its reason are in [`architecture.md`](architecture.md#nativeaot-floor).
+
 ## Seeing your game's output
 
 Game logic cannot reach `System.Console` — the analyzer stops it — so it says things out loud through `Capsule.Diagnostics.Log`:

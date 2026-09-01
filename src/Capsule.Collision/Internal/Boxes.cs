@@ -13,11 +13,11 @@ internal static class Boxes
     /// unit direction from <paramref name="b"/> towards <paramref name="a"/> — for an overlap, the
     /// axis of least penetration.
     /// </summary>
-    internal static float Separation(in Aabb a, in Aabb b, out Vector2 normal) =>
+    internal static float Separation(in Aabb2D a, in Aabb2D b, out Vector2 normal) =>
         Separation(a, b, out normal, out _);
 
     /// <summary>The separation and a closest surface point on <paramref name="b"/>.</summary>
-    internal static float Separation(in Aabb a, in Aabb b, out Vector2 normal, out Vector2 point)
+    internal static float Separation(in Aabb2D a, in Aabb2D b, out Vector2 normal, out Vector2 point)
     {
         float lowX = b.Min.X - a.Max.X;
         float highX = a.Min.X - b.Max.X;
@@ -56,16 +56,16 @@ internal static class Boxes
     /// <paramref name="fraction"/> is 0 when they already overlap.
     /// </summary>
     internal static bool Sweep(
-        in Aabb moving,
+        in Aabb2D moving,
         Vector2 translation,
-        in Aabb target,
+        in Aabb2D target,
         out float fraction,
         out Vector2 normal)
     {
         // Minkowski form: the moving box shrinks to its centre and the target grows by its half
         // extents, which turns the sweep into one ray against one box.
         Vector2 half = moving.Size * 0.5f;
-        Aabb grown = new(target.Min - half, target.Max + half);
+        Aabb2D grown = new(target.Min - half, target.Max + half);
 
         if (!Segments.RayBox(grown, moving.Center, translation, 1f, out fraction, out normal))
         {

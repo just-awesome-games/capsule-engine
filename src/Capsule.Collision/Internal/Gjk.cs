@@ -18,13 +18,13 @@ internal static class Gjk
     /// normal points from <paramref name="b"/> towards <paramref name="a"/>, and is zero only when
     /// the hulls themselves intersect, where the distance carries no direction.
     /// </summary>
-    internal static float Separation(in Shape a, in Shape b, out Vector2 normal) =>
+    internal static float Separation(in Shape2D a, in Shape2D b, out Vector2 normal) =>
         Separation(a, b, out normal, out _);
 
     /// <summary>
     /// How far apart two shapes are, with a closest point on <paramref name="b"/>'s surface.
     /// </summary>
-    internal static float Separation(in Shape a, in Shape b, out Vector2 normal, out Vector2 point)
+    internal static float Separation(in Shape2D a, in Shape2D b, out Vector2 normal, out Vector2 point)
     {
         float hull = Distance(a, b, out Vector2 pointA, out Vector2 pointB);
 
@@ -45,7 +45,7 @@ internal static class Gjk
     /// The distance between the two hulls, with the closest point on each. Both shapes' points are
     /// already in world space; radii are the caller's to subtract.
     /// </summary>
-    internal static float Distance(in Shape a, in Shape b, out Vector2 pointA, out Vector2 pointB)
+    internal static float Distance(in Shape2D a, in Shape2D b, out Vector2 pointA, out Vector2 pointB)
     {
         Simplex simplex = default;
         simplex.Count = 1;
@@ -105,8 +105,8 @@ internal static class Gjk
     /// overlap has no time of impact to report.
     /// </summary>
     internal static bool ShapeCast(
-        in Shape target,
-        in Shape moving,
+        in Shape2D target,
+        in Shape2D moving,
         Vector2 translation,
         out float fraction,
         out Vector2 point,
@@ -120,8 +120,8 @@ internal static class Gjk
 
         // The advance stops at this separation rather than at zero: a hull pair that meets exactly
         // has no separating direction to read a normal from.
-        float sigma = MathF.Max(CollisionWorld.LinearSlop, radius - CollisionWorld.LinearSlop);
-        float tolerance = 0.5f * CollisionWorld.LinearSlop;
+        float sigma = MathF.Max(CollisionWorld2D.LinearSlop, radius - CollisionWorld2D.LinearSlop);
+        float tolerance = 0.5f * CollisionWorld2D.LinearSlop;
 
         Simplex simplex = default;
         simplex.Count = 0;
@@ -215,7 +215,7 @@ internal static class Gjk
         return true;
     }
 
-    private static SimplexVertex Vertex(in Shape a, in Shape b, int indexA, int indexB)
+    private static SimplexVertex Vertex(in Shape2D a, in Shape2D b, int indexA, int indexB)
     {
         Vector2 pointA = a.PointAt(indexA);
         Vector2 pointB = b.PointAt(indexB);
@@ -231,7 +231,7 @@ internal static class Gjk
         };
     }
 
-    private static int SupportIndex(in Shape shape, Vector2 direction)
+    private static int SupportIndex(in Shape2D shape, Vector2 direction)
     {
         int best = 0;
         float bestDot = Vector2.Dot(shape.PointAt(0), direction);

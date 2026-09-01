@@ -14,19 +14,19 @@ namespace Capsule.Collision;
 /// answering about an empty point set.
 /// </para>
 /// </summary>
-public readonly struct Shape : IEquatable<Shape>
+public readonly struct Shape2D : IEquatable<Shape2D>
 {
     /// <summary>The most points a shape may hold.</summary>
     public const int MaxPoints = 8;
 
     // Points closer together than this, and polygon corners flatter than its square, are read as
     // authoring mistakes rather than geometry: neither has a well-defined outward direction.
-    private const float PointTolerance = CollisionWorld.LinearSlop;
+    private const float PointTolerance = CollisionWorld2D.LinearSlop;
 
     private readonly PointBuffer _points;
     private readonly int _count;
 
-    private Shape(ShapeKind kind, in PointBuffer points, int count, float radius, in Aabb bounds)
+    private Shape2D(ShapeKind2D kind, in PointBuffer points, int count, float radius, in Aabb2D bounds)
     {
         Kind = kind;
         _points = points;
@@ -36,7 +36,7 @@ public readonly struct Shape : IEquatable<Shape>
     }
 
     /// <summary>Which member of the shape union this is.</summary>
-    public ShapeKind Kind { get; }
+    public ShapeKind2D Kind { get; }
 
     /// <summary>How far the shape extends beyond the hull of its points, in world units.</summary>
     public float Radius { get; }
@@ -48,12 +48,12 @@ public readonly struct Shape : IEquatable<Shape>
     public int PointCount => _count;
 
     /// <summary>The shape's own bounds, in the space its points are expressed in, radius included.</summary>
-    public Aabb Bounds { get; }
+    public Aabb2D Bounds { get; }
 
     /// <summary>A circle of <paramref name="radius"/> around <paramref name="center"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The radius is not finite and positive, or the centre is not finite.</exception>
     /// <exception cref="ArgumentException">The centre and radius together overflow the shape's bounds.</exception>
-    public static Shape Circle(Vector2 center, float radius)
+    public static Shape2D Circle(Vector2 center, float radius)
     {
         RequirePositiveRadius(radius);
         RequireFinite(center, nameof(center));
@@ -61,7 +61,7 @@ public readonly struct Shape : IEquatable<Shape>
         PointBuffer points = default;
         points[0] = center;
 
-        return new Shape(ShapeKind.Circle, points, 1, radius, Bounded(points, 1, radius, nameof(radius)));
+        return new Shape2D(ShapeKind2D.Circle, points, 1, radius, Bounded(points, 1, radius, nameof(radius)));
     }
 
     /// <summary>Everything within <paramref name="radius"/> of the segment from <paramref name="start"/> to <paramref name="end"/>.</summary>
@@ -71,7 +71,7 @@ public readonly struct Shape : IEquatable<Shape>
     /// them is not a number: the segment between them, its squared length, or the bounds and
     /// extent the endpoints and radius together describe.
     /// </exception>
-    public static Shape Capsule(Vector2 start, Vector2 end, float radius)
+    public static Shape2D Capsule(Vector2 start, Vector2 end, float radius)
     {
         RequirePositiveRadius(radius);
         RequireFinite(start, nameof(start));
@@ -92,14 +92,14 @@ public readonly struct Shape : IEquatable<Shape>
         // has to be a number even when both ends are.
         RequireFiniteGeometry(points, 2, nameof(end));
 
-        return new Shape(ShapeKind.Capsule, points, 2, radius, Bounded(points, 2, radius, nameof(radius)));
+        return new Shape2D(ShapeKind2D.Capsule, points, 2, radius, Bounded(points, 2, radius, nameof(radius)));
     }
 
     /// <summary>An axis-aligned rectangle covering <paramref name="box"/>.</summary>
     /// <exception cref="ArgumentException">
     /// The box is inverted, spans nothing on an axis, or spans more than a float can measure.
     /// </exception>
-    public static Shape Box(in Aabb box)
+    public static Shape2D Box(in Aabb2D box)
     {
         RequireFinite(box.Min, nameof(box));
         RequireFinite(box.Max, nameof(box));
@@ -127,7 +127,7 @@ public readonly struct Shape : IEquatable<Shape>
 
         // The box is its own bounds, already checked finite corner by corner and expanded by no
         // radius, so there is nothing left to derive or to re-test.
-        return new Shape(ShapeKind.Box, points, 4, 0f, box);
+        return new Shape2D(ShapeKind2D.Box, points, 4, 0f, box);
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public readonly struct Shape : IEquatable<Shape>
     /// measure on an axis or across both.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">A component of <paramref name="size"/> is negative or not finite.</exception>
-    public static Shape Box(Vector2 corner, Vector2 size) => Box(Aabb.FromCorner(corner, size));
+    public static Shape2D Box(Vector2 corner, Vector2 size) => Box(Aabb2D.FromCorner(corner, size));
 
     /// <summary>
     /// A convex polygon of three to eight points, rounded by <paramref name="radius"/> when one is
@@ -154,7 +154,7 @@ public readonly struct Shape : IEquatable<Shape>
     /// vector or its squared length, the twice-signed area the winding is decided by, a corner's
     /// cross product, or the bounds and extent the points and radius together describe.
     /// </exception>
-    public static Shape Polygon(ReadOnlySpan<Vector2> points, float radius = 0f)
+    public static Shape2D Polygon(ReadOnlySpan<Vector2> points, float radius = 0f)
     {
         if (!float.IsFinite(radius) || radius < 0f)
         {
@@ -185,24 +185,24 @@ public readonly struct Shape : IEquatable<Shape>
         NormaliseWinding(ref buffer, points.Length);
         RequireConvex(buffer, points.Length);
 
-        Aabb bounds = Bounded(buffer, points.Length, radius, nameof(radius));
-        ShapeKind kind = radius == 0f && points.Length == 4 && IsCornersOf(buffer, bounds)
-            ? ShapeKind.Box
-            : ShapeKind.Polygon;
+        Aabb2D bounds = Bounded(buffer, points.Length, radius, nameof(radius));
+        ShapeKind2D kind = radius == 0f && points.Length == 4 && IsCornersOf(buffer, bounds)
+            ? ShapeKind2D.Box
+            : ShapeKind2D.Polygon;
 
-        return new Shape(kind, buffer, points.Length, radius, bounds);
+        return new Shape2D(kind, buffer, points.Length, radius, bounds);
     }
 
     // A bare segment: a hull of two points with no radius, which is what a one-way tile edge is.
     // Never public — every shape a game can build has an interior — and never routed through the
     // rounded-hull ray casts, which would read its zero radius as a polygon.
-    internal static Shape Segment(Vector2 start, Vector2 end)
+    internal static Shape2D Segment(Vector2 start, Vector2 end)
     {
         PointBuffer points = default;
         points[0] = start;
         points[1] = end;
 
-        return new Shape(ShapeKind.Capsule, points, 2, 0f, Bounded(points, 2, 0f, nameof(start)));
+        return new Shape2D(ShapeKind2D.Capsule, points, 2, 0f, Bounded(points, 2, 0f, nameof(start)));
     }
 
     /// <summary>The point at <paramref name="index"/>, in the shape's own space.</summary>
@@ -223,7 +223,7 @@ public readonly struct Shape : IEquatable<Shape>
     /// an axis it has extent on, or two of the points its hull is built from would land on each
     /// other.
     /// </exception>
-    public Shape Translated(Vector2 offset)
+    public Shape2D Translated(Vector2 offset)
     {
         if (!float.IsFinite(offset.X) || !float.IsFinite(offset.Y))
         {
@@ -236,15 +236,15 @@ public readonly struct Shape : IEquatable<Shape>
             moved[index] += offset;
         }
 
-        Aabb bounds = Finite(Bounds.Translated(offset), nameof(offset));
+        Aabb2D bounds = Finite(Bounds.Translated(offset), nameof(offset));
         RequireExtentSurvives(Bounds.Size, bounds.Size);
 
-        if (Kind is ShapeKind.Capsule or ShapeKind.Polygon)
+        if (Kind is ShapeKind2D.Capsule or ShapeKind2D.Polygon)
         {
             RequireDistinctSurvives(_points, moved, _count);
         }
 
-        return new Shape(Kind, moved, _count, Radius, bounds);
+        return new Shape2D(Kind, moved, _count, Radius, bounds);
     }
 
     // Far enough out, the floats either side of a small shape are the same float. The narrowphase
@@ -280,7 +280,7 @@ public readonly struct Shape : IEquatable<Shape>
     }
 
     /// <inheritdoc/>
-    public bool Equals(Shape other)
+    public bool Equals(Shape2D other)
     {
         if (Kind != other.Kind || _count != other._count || Radius != other.Radius)
         {
@@ -299,7 +299,7 @@ public readonly struct Shape : IEquatable<Shape>
     }
 
     /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is Shape other && Equals(other);
+    public override bool Equals(object? obj) => obj is Shape2D other && Equals(other);
 
     /// <inheritdoc/>
     public override int GetHashCode()
@@ -316,10 +316,10 @@ public readonly struct Shape : IEquatable<Shape>
     }
 
     /// <summary>Whether two shapes hold the same kind, radius and points.</summary>
-    public static bool operator ==(Shape left, Shape right) => left.Equals(right);
+    public static bool operator ==(Shape2D left, Shape2D right) => left.Equals(right);
 
     /// <summary>Whether two shapes differ in kind, radius or points.</summary>
-    public static bool operator !=(Shape left, Shape right) => !left.Equals(right);
+    public static bool operator !=(Shape2D left, Shape2D right) => !left.Equals(right);
 
     // The furthest point along a direction, ties going to the lowest index so a query over
     // identical inputs walks the identical simplex.
@@ -418,7 +418,7 @@ public readonly struct Shape : IEquatable<Shape>
         }
     }
 
-    private static Aabb Bounded(in PointBuffer points, int count, float radius, string parameterName)
+    private static Aabb2D Bounded(in PointBuffer points, int count, float radius, string parameterName)
     {
         Vector2 min = points[0];
         Vector2 max = min;
@@ -428,7 +428,7 @@ public readonly struct Shape : IEquatable<Shape>
             max = Vector2.Max(max, points[index]);
         }
 
-        return Finite(new Aabb(min, max).Expanded(radius), parameterName);
+        return Finite(new Aabb2D(min, max).Expanded(radius), parameterName);
     }
 
     // Each input can be finite while the box they describe is not: a point out at the edge of the
@@ -441,7 +441,7 @@ public readonly struct Shape : IEquatable<Shape>
     // from and what the tree's surface-area heuristic sums; both would go on to compute with an
     // infinity. Every quantity derived from the bounds is checked here, not at the query that
     // reads it.
-    private static Aabb Finite(in Aabb bounds, string parameterName)
+    private static Aabb2D Finite(in Aabb2D bounds, string parameterName)
     {
         if (!float.IsFinite(bounds.Min.X) || !float.IsFinite(bounds.Min.Y)
             || !float.IsFinite(bounds.Max.X) || !float.IsFinite(bounds.Max.Y))
@@ -508,7 +508,7 @@ public readonly struct Shape : IEquatable<Shape>
         }
     }
 
-    private static bool IsCornersOf(in PointBuffer points, in Aabb bounds)
+    private static bool IsCornersOf(in PointBuffer points, in Aabb2D bounds)
     {
         int seen = 0;
         for (int index = 0; index < 4; index++)

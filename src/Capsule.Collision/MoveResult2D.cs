@@ -13,4 +13,4 @@ namespace Capsule.Collision;
 /// How many contacts were written into the caller's span; never more than that span holds, even
 /// when more were touched.
 /// </param>
-public readonly record struct MoveResult(Vector2 Translation, bool BlockedX, bool BlockedY, int ContactCount);
+public readonly record struct MoveResult2D(Vector2 Translation, bool BlockedX, bool BlockedY, int ContactCount);

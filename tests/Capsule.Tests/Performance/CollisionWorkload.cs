@@ -2,9 +2,8 @@ using System.Numerics;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Entities;
+using Capsule.Scenes.Physics;
 using Capsule.Scenes.Spawning;
 using Capsule.Scenes.Tiles;
 
@@ -43,8 +42,8 @@ internal static class CollisionWorkload
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
-    internal static Aabb Mover =>
-        Aabb.FromCorner(new Vector2(4f * TileSize, (FloorRow - 2) * TileSize), new Vector2(12f, 24f));
+    internal static Aabb2D Mover =>
+        Aabb2D.FromCorner(new Vector2(4f * TileSize, (FloorRow - 2) * TileSize), new Vector2(12f, 24f));
 
     internal static int[] Cells()
     {
@@ -72,9 +71,9 @@ internal static class CollisionWorkload
         return cells;
     }
 
-    internal static CollisionWorld World()
+    internal static CollisionWorld2D World()
     {
-        CollisionWorld world = new();
+        CollisionWorld2D world = new();
         world.AddGrid(TileSize, TilesWide, TilesHigh, Cells(), Profiles);
 
         CollisionTag actor = world.Tag(Actor);
@@ -82,7 +81,7 @@ internal static class CollisionWorkload
         for (int index = 0; index < Actors; index++)
         {
             world.Add(
-                Shape.Box(Vector2.Zero, new Vector2(12f, 12f)),
+                Shape2D.Box(Vector2.Zero, new Vector2(12f, 12f)),
                 new Vector2(index * spacing, ((FloorRow - 1 - (index % 3)) * TileSize) + 4f),
                 actor,
                 CollisionFilter.None);
@@ -103,20 +102,20 @@ internal static class CollisionWorkload
     /// <summary>An entity that walks right, falls, and turns around at the far wall.</summary>
     internal sealed class Walker : Entity
     {
-        private readonly Collider _collider;
-        private readonly KinematicMover _mover;
+        private readonly BoxCollider2D _collider;
+        private readonly KinematicMover2D _mover;
         private float _direction = 1f;
 
         internal Walker(Vector2 position)
             : base(position)
         {
-            _collider = new Collider(new Vector2(12f, 24f));
+            _collider = new BoxCollider2D(new Vector2(12f, 24f));
             _collider.Detects(Solid, Platform);
             _collider.ReportsContacts = true;
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;
             Add(_collider);
-            _mover = new KinematicMover(_collider);
+            _mover = new KinematicMover2D(_collider);
             _mover.BlocksOn(Solid, Platform);
             Add(_mover);
         }
@@ -125,7 +124,7 @@ internal static class CollisionWorkload
 
         public override void Update(in StepContext context)
         {
-            MoveResult result = _mover.Move(new Vector2(_direction * 2f, 4f));
+            MoveResult2D result = _mover.Move(new Vector2(_direction * 2f, 4f));
 
             if (result.BlockedX)
             {

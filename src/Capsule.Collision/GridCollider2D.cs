@@ -7,7 +7,7 @@ namespace Capsule.Collision;
 /// a query visits only the cells it crosses rather than a list of individual colliders. It holds
 /// cell indices, collision kinds and tags, and knows nothing about what authored those cells.
 /// </summary>
-public sealed class GridCollider
+public sealed class GridCollider2D
 {
     private readonly int[] _cells;
     private readonly CellCollision[] _kinds;
@@ -19,7 +19,7 @@ public sealed class GridCollider
     // some of the grid out re-decides the faces it culled, through NeighbourAdmits.
     private readonly CellState[] _state;
 
-    internal GridCollider(
+    internal GridCollider2D(
         ColliderHandle handle,
         int cellSize,
         int width,
@@ -37,7 +37,7 @@ public sealed class GridCollider
         _tags = tags;
         _state = new CellState[cells.Length];
 
-        Bounds = new Aabb(Vector2.Zero, new Vector2(width * (float)cellSize, height * (float)cellSize));
+        Bounds = new Aabb2D(Vector2.Zero, new Vector2(width * (float)cellSize, height * (float)cellSize));
 
         DeriveCells();
     }
@@ -55,7 +55,7 @@ public sealed class GridCollider
     public int Height { get; }
 
     /// <summary>The world region the grid covers, from the origin.</summary>
-    public Aabb Bounds { get; }
+    public Aabb2D Bounds { get; }
 
     // The union of the palette's tags: a query whose filter shares none of them skips this grid
     // without walking a single cell.
@@ -81,7 +81,7 @@ public sealed class GridCollider
 
     /// <summary>The world-space box of the cell at (<paramref name="x"/>, <paramref name="y"/>).</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
-    public Aabb CellBounds(int x, int y)
+    public Aabb2D CellBounds(int x, int y)
     {
         RequireOnGrid(x, y);
 
@@ -123,17 +123,17 @@ public sealed class GridCollider
         return _kinds[cell] == CellCollision.Solid && filter.Matches(_tags[cell]);
     }
 
-    internal Aabb CellBox(int x, int y) =>
+    internal Aabb2D CellBox(int x, int y) =>
         new(
             new Vector2(x * (float)CellSize, y * (float)CellSize),
             new Vector2((x + 1) * (float)CellSize, (y + 1) * (float)CellSize));
 
     // The one-way edge, as the degenerate box the narrowphase treats it as: the cell's low-Y face.
-    internal Aabb OneWayEdge(int x, int y)
+    internal Aabb2D OneWayEdge(int x, int y)
     {
         float top = y * (float)CellSize;
 
-        return new Aabb(new Vector2(x * (float)CellSize, top), new Vector2((x + 1) * (float)CellSize, top));
+        return new Aabb2D(new Vector2(x * (float)CellSize, top), new Vector2((x + 1) * (float)CellSize, top));
     }
 
     internal static int FloorDiv(float world, int cellSize) =>

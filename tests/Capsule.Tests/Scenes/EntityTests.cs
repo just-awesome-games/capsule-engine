@@ -2,7 +2,7 @@ using System.Numerics;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
+using Capsule.Scenes.Physics;
 
 namespace Capsule.Tests.Scenes;
 
@@ -41,7 +41,7 @@ public sealed class EntityTests
     {
         Scene scene = new();
         TestEntity entity = new(new Vector2(4, 6));
-        Collider collider = new(new Vector2(8f, 8f));
+        BoxCollider2D collider = new(new Vector2(8f, 8f));
         entity.Add(collider);
         scene.Add(entity);
 
@@ -59,7 +59,7 @@ public sealed class EntityTests
     {
         Scene scene = new();
         TestEntity entity = new(new Vector2(4, 6));
-        Collider collider = new(Shape.Circle(Vector2.Zero, 8e37f));
+        CircleCollider2D collider = new(8e37f);
         entity.Add(collider);
         scene.Add(entity);
 
@@ -76,8 +76,8 @@ public sealed class EntityTests
     {
         Scene scene = new();
         TestEntity entity = new(new Vector2(4, 6));
-        Collider ordinary = new(new Vector2(8f, 8f));
-        Collider enormous = new(Shape.Circle(Vector2.Zero, 8e37f));
+        BoxCollider2D ordinary = new(new Vector2(8f, 8f));
+        CircleCollider2D enormous = new(8e37f);
         entity.Add(ordinary);
         entity.Add(enormous);
         scene.Add(entity);
@@ -96,7 +96,7 @@ public sealed class EntityTests
     public void APositionAnAttachedColliderCannotBePlacedAt_IsRefusedOutOfASceneToo()
     {
         TestEntity entity = new(new Vector2(4, 6));
-        entity.Add(new Collider(Shape.Circle(Vector2.Zero, 8e37f)));
+        entity.Add(new CircleCollider2D(8e37f));
 
         Assert.Throws<ArgumentException>(() => entity.Position = new Vector2(3e38f, 0f));
         Assert.Equal(new Vector2(4, 6), entity.Position);
@@ -116,10 +116,10 @@ public sealed class EntityTests
     {
         TestEntity entity = new(new Vector2(3e38f, 0f));
 
-        Assert.Throws<ArgumentException>(() => entity.Add(new Collider(Shape.Circle(Vector2.Zero, 8e37f))));
+        Assert.Throws<ArgumentException>(() => entity.Add(new CircleCollider2D(8e37f)));
 
         // Nothing was taken hold of, so no collider tracks this entity and it is still writable.
-        Assert.False(entity.TryGet(out Collider? _));
+        Assert.False(entity.TryGet(out Collider2D? _));
         entity.Position = new Vector2(3e38f, 0f);
         Assert.Equal(new Vector2(3e38f, 0f), entity.Position);
     }
@@ -187,7 +187,28 @@ public sealed class EntityTests
         Assert.Equal(["remove", "next"], log);
     }
 
+    // The slot is the outermost marked type's, so a marked subclass of a marked base shares it —
+    // and shares it whichever of the two arrives first. Judged by the nearest marking instead,
+    // the base after the subclass would be refused while the subclass after the base got in.
+    [Fact]
+    public void AMarkedSubclassOfAMarkedBase_SharesItsSlotInEitherOrder()
+    {
+        TestEntity baseFirst = new(Vector2.Zero);
+        baseFirst.Add(new SingleComponent());
+        Assert.Throws<InvalidOperationException>(() => baseFirst.Add(new SingleAgainComponent()));
+
+        TestEntity subclassFirst = new(Vector2.Zero);
+        subclassFirst.Add(new SingleAgainComponent());
+        Assert.Throws<InvalidOperationException>(() => subclassFirst.Add(new SingleComponent()));
+    }
+
     private sealed class TestEntity(Vector2 position) : Entity(position);
+
+    [DisallowMultipleComponent]
+    private class SingleComponent : Component;
+
+    [DisallowMultipleComponent]
+    private sealed class SingleAgainComponent : SingleComponent;
 
     private abstract class BaseComponent : Component;
 

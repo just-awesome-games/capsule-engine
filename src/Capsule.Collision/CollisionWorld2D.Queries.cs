@@ -4,7 +4,7 @@ using Capsule.Collision.Internal;
 namespace Capsule.Collision;
 
 /// <summary>The traversal behind the query seam: the grid walk, the tree walk, and the mover.</summary>
-public sealed partial class CollisionWorld
+public sealed partial class CollisionWorld2D
 {
     // Sweep fractions this close together are one moment: a box landing squarely on a run of tiles
     // meets several faces at once, and every one of them is what stopped it.
@@ -12,7 +12,7 @@ public sealed partial class CollisionWorld
 
     private static void RecordRay(
         ref RayAccumulator accumulator,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ref int count,
         bool all,
         float distance,
@@ -23,7 +23,7 @@ public sealed partial class CollisionWorld
     {
         if (all)
         {
-            Insert(hits, ref count, new RayHit(target, origin + (unit * distance), normal, distance));
+            Insert(hits, ref count, new RayHit2D(target, origin + (unit * distance), normal, distance));
 
             // A full span is also the limit: nothing past its farthest entry can join the result,
             // so the grid walk and the tree walk both stop looking beyond it from here on.
@@ -49,7 +49,7 @@ public sealed partial class CollisionWorld
     // The span holds the nearest hits found so far, in order. A full span gives up its farthest
     // entry to a nearer one rather than dropping the newcomer, so which hits survive depends on
     // where they are and never on the order the traversal happened to meet them.
-    private static void Insert(Span<RayHit> hits, ref int count, in RayHit hit)
+    private static void Insert(Span<RayHit2D> hits, ref int count, in RayHit2D hit)
     {
         if (count == hits.Length)
         {
@@ -75,7 +75,7 @@ public sealed partial class CollisionWorld
     // Nearest first, and then a tie-break that reads nothing from the tree's current arrangement:
     // tiles before colliders, then by slot, then by cell. Two runs over the same world must fill
     // the same span with the same hits in the same order.
-    private static bool Precedes(in RayHit left, in RayHit right)
+    private static bool Precedes(in RayHit2D left, in RayHit2D right)
     {
         if (left.Distance != right.Distance)
         {
@@ -99,7 +99,7 @@ public sealed partial class CollisionWorld
 
     private static void Consider(
         ref CastAccumulator accumulator,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         Vector2 translation,
         float fraction,
         in CollisionTarget target,
@@ -129,7 +129,7 @@ public sealed partial class CollisionWorld
 
         if (accumulator.Count < contacts.Length)
         {
-            contacts[accumulator.Count++] = new Contact(target, point, normal);
+            contacts[accumulator.Count++] = new Contact2D(target, point, normal);
         }
     }
 
@@ -157,7 +157,7 @@ public sealed partial class CollisionWorld
     // surface. The tag test costs nothing in the ordinary case: it is reached only for a face the
     // grid already culled, on a grid the filter does not wholly admit.
     private static bool IsActiveFace(
-        GridCollider map,
+        GridCollider2D map,
         int x,
         int y,
         CellState state,
@@ -168,12 +168,12 @@ public sealed partial class CollisionWorld
 
     // A one-way tile's edge and a solid tile's body are both handed over as boxes; a zero-height
     // one is the segment it looks like, which the hull routines read directly.
-    private static Shape AsShape(in Aabb box) =>
-        box.Min.Y == box.Max.Y ? Shape.Segment(box.Min, box.Max) : Shape.Box(box);
+    private static Shape2D AsShape(in Aabb2D box) =>
+        box.Min.Y == box.Max.Y ? Shape2D.Segment(box.Min, box.Max) : Shape2D.Box(box);
 
-    private static float SeparationOf(in Shape shape, in Shape other, out Vector2 normal, out Vector2 point)
+    private static float SeparationOf(in Shape2D shape, in Shape2D other, out Vector2 normal, out Vector2 point)
     {
-        if (shape.Kind == ShapeKind.Box && other.Kind == ShapeKind.Box)
+        if (shape.Kind == ShapeKind2D.Box && other.Kind == ShapeKind2D.Box)
         {
             return Boxes.Separation(shape.Bounds, other.Bounds, out normal, out point);
         }
@@ -193,14 +193,14 @@ public sealed partial class CollisionWorld
     // A tile is an axis-aligned box even when it is the zero-height one a one-way edge is, so a box
     // mover meets terrain through the closed-form sweep and never through the iterated one.
     private static bool SweepAgainstCell(
-        in Shape moving,
+        in Shape2D moving,
         Vector2 translation,
-        in Aabb target,
+        in Aabb2D target,
         out float fraction,
         out Vector2 normal,
         out Vector2 point)
     {
-        if (moving.Kind != ShapeKind.Box)
+        if (moving.Kind != ShapeKind2D.Box)
         {
             return SweepAgainst(moving, translation, AsShape(target), out fraction, out normal, out point);
         }
@@ -216,20 +216,20 @@ public sealed partial class CollisionWorld
         return false;
     }
 
-    private static float SeparationOfCell(in Shape shape, in Aabb cell, out Vector2 normal, out Vector2 point) =>
-        shape.Kind == ShapeKind.Box
+    private static float SeparationOfCell(in Shape2D shape, in Aabb2D cell, out Vector2 normal, out Vector2 point) =>
+        shape.Kind == ShapeKind2D.Box
             ? Boxes.Separation(shape.Bounds, cell, out normal, out point)
             : SeparationOf(shape, AsShape(cell), out normal, out point);
 
     private static bool SweepAgainst(
-        in Shape moving,
+        in Shape2D moving,
         Vector2 translation,
-        in Shape target,
+        in Shape2D target,
         out float fraction,
         out Vector2 normal,
         out Vector2 point)
     {
-        if (moving.Kind == ShapeKind.Box && target.Kind == ShapeKind.Box)
+        if (moving.Kind == ShapeKind2D.Box && target.Kind == ShapeKind2D.Box)
         {
             if (Boxes.Sweep(moving.Bounds, translation, target.Bounds, out fraction, out normal))
             {
@@ -265,11 +265,11 @@ public sealed partial class CollisionWorld
 
     // The tree hands proxies back in whatever shape it currently has, so the collider half of a
     // result set is ordered by handle here and the caller never sees the tree's own arrangement.
-    private static void SortByHandle(Span<Contact> contacts)
+    private static void SortByHandle(Span<Contact2D> contacts)
     {
         for (int index = 1; index < contacts.Length; index++)
         {
-            Contact candidate = contacts[index];
+            Contact2D candidate = contacts[index];
             int position = index - 1;
             while (position >= 0 && contacts[position].Target.Collider.Index > candidate.Target.Collider.Index)
             {
@@ -287,12 +287,12 @@ public sealed partial class CollisionWorld
         CollisionFilter filter,
         ColliderHandle ignore,
         ref RayAccumulator accumulator,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ref int count)
     {
         bool all = !hits.IsEmpty;
 
-        foreach (GridCollider map in _grids)
+        foreach (GridCollider2D map in _grids)
         {
             if (map.Handle == ignore || (filter & map.Tags).IsEmpty)
             {
@@ -311,21 +311,21 @@ public sealed partial class CollisionWorld
     // Amanatides and Woo: the grid is the broadphase, so a ray touches only the cells it crosses,
     // in the order it crosses them.
     private void WalkGrid(
-        GridCollider map,
+        GridCollider2D map,
         Vector2 origin,
         Vector2 unit,
         float enter,
         float exit,
         CollisionFilter filter,
         ref RayAccumulator accumulator,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ref int count,
         bool all)
     {
         int size = map.CellSize;
         Vector2 start = origin + (unit * enter);
-        int x = Math.Clamp(GridCollider.FloorDiv(start.X, size), 0, map.Width - 1);
-        int y = Math.Clamp(GridCollider.FloorDiv(start.Y, size), 0, map.Height - 1);
+        int x = Math.Clamp(GridCollider2D.FloorDiv(start.X, size), 0, map.Width - 1);
+        int y = Math.Clamp(GridCollider2D.FloorDiv(start.Y, size), 0, map.Height - 1);
 
         int stepX = unit.X > 0f ? 1 : (unit.X < 0f ? -1 : 0);
         int stepY = unit.Y > 0f ? 1 : (unit.Y < 0f ? -1 : 0);
@@ -387,14 +387,14 @@ public sealed partial class CollisionWorld
     }
 
     private bool TestCell(
-        GridCollider map,
+        GridCollider2D map,
         int x,
         int y,
         Vector2 origin,
         Vector2 unit,
         CollisionFilter filter,
         ref RayAccumulator accumulator,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ref int count,
         bool all)
     {
@@ -434,7 +434,7 @@ public sealed partial class CollisionWorld
                 return false;
             }
 
-            Aabb edge = map.OneWayEdge(x, y);
+            Aabb2D edge = map.OneWayEdge(x, y);
             if (!Segments.RaySegment(edge.Min, edge.Max, origin, unit, limit, out t))
             {
                 return false;
@@ -463,7 +463,7 @@ public sealed partial class CollisionWorld
         CollisionFilter filter,
         ColliderHandle ignore,
         ref RayAccumulator accumulator,
-        Span<RayHit> hits,
+        Span<RayHit2D> hits,
         ref int count)
     {
         RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
@@ -474,16 +474,16 @@ public sealed partial class CollisionWorld
     }
 
     private int Touching(
-        in Shape world,
+        in Shape2D world,
         CollisionFilter filter,
         float tolerance,
         ColliderHandle ignore,
-        Span<Contact> contacts)
+        Span<Contact2D> contacts)
     {
         int count = 0;
-        Aabb probe = world.Bounds.Expanded(tolerance);
+        Aabb2D probe = world.Bounds.Expanded(tolerance);
 
-        foreach (GridCollider map in _grids)
+        foreach (GridCollider2D map in _grids)
         {
             if (map.Handle == ignore || (filter & map.Tags).IsEmpty || !map.Bounds.Overlaps(probe))
             {
@@ -491,10 +491,10 @@ public sealed partial class CollisionWorld
             }
 
             int size = map.CellSize;
-            int minX = Math.Max(0, GridCollider.FloorDiv(probe.Min.X, size));
-            int maxX = Math.Min(map.Width - 1, GridCollider.FloorDiv(probe.Max.X, size));
-            int minY = Math.Max(0, GridCollider.FloorDiv(probe.Min.Y, size));
-            int maxY = Math.Min(map.Height - 1, GridCollider.FloorDiv(probe.Max.Y, size));
+            int minX = Math.Max(0, GridCollider2D.FloorDiv(probe.Min.X, size));
+            int maxX = Math.Min(map.Width - 1, GridCollider2D.FloorDiv(probe.Max.X, size));
+            int minY = Math.Max(0, GridCollider2D.FloorDiv(probe.Min.Y, size));
+            int maxY = Math.Min(map.Height - 1, GridCollider2D.FloorDiv(probe.Max.Y, size));
 
             for (int y = minY; y <= maxY && count < contacts.Length; y++)
             {
@@ -512,13 +512,13 @@ public sealed partial class CollisionWorld
                         continue;
                     }
 
-                    Aabb cell = (state & CellState.Solid) != 0 ? map.CellBox(x, y) : map.OneWayEdge(x, y);
+                    Aabb2D cell = (state & CellState.Solid) != 0 ? map.CellBox(x, y) : map.OneWayEdge(x, y);
                     if (SeparationOfCell(world, cell, out Vector2 normal, out Vector2 point) > tolerance)
                     {
                         continue;
                     }
 
-                    contacts[count++] = new Contact(CollisionTarget.ForGridCell(map.Handle, x, y, tag), point, normal);
+                    contacts[count++] = new Contact2D(CollisionTarget.ForGridCell(map.Handle, x, y, tag), point, normal);
                 }
             }
         }
@@ -534,22 +534,22 @@ public sealed partial class CollisionWorld
     }
 
     private void Cast(
-        in Shape moving,
+        in Shape2D moving,
         Vector2 translation,
         CollisionFilter filter,
         ColliderHandle ignore,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ref CastAccumulator accumulator)
     {
-        Aabb start = moving.Bounds.Expanded(LinearSlop);
-        Aabb swept = start.Swept(translation);
+        Aabb2D start = moving.Bounds.Expanded(LinearSlop);
+        Aabb2D swept = start.Swept(translation);
 
         // The one derived box both broadphases read: the grid floors it into cell coordinates and
         // the tree queries it directly. Checked here rather than at each seam because ShapeCast and
         // every axis of a move arrive through this one point.
         RequireFinite(swept, nameof(translation));
 
-        foreach (GridCollider map in _grids)
+        foreach (GridCollider2D map in _grids)
         {
             if (map.Handle == ignore || (filter & map.Tags).IsEmpty || !map.Bounds.Overlaps(swept))
             {
@@ -557,8 +557,8 @@ public sealed partial class CollisionWorld
             }
 
             int size = map.CellSize;
-            int minX = Math.Max(0, GridCollider.FloorDiv(swept.Min.X, size));
-            int maxX = Math.Min(map.Width - 1, GridCollider.FloorDiv(swept.Max.X, size));
+            int minX = Math.Max(0, GridCollider2D.FloorDiv(swept.Min.X, size));
+            int maxX = Math.Min(map.Width - 1, GridCollider2D.FloorDiv(swept.Max.X, size));
 
             // Column by column, and within each only the rows the sweep actually passes through.
             // The swept bounds of a long diagonal describe a rectangle the shape never enters most
@@ -587,7 +587,7 @@ public sealed partial class CollisionWorld
     // once — and over that interval the shape's Y range is bounded by its position at the two ends,
     // so the band is exact rather than the bounding rectangle's full height.
     private static bool ColumnRows(
-        in Aabb start,
+        in Aabb2D start,
         Vector2 translation,
         int x,
         int size,
@@ -627,20 +627,20 @@ public sealed partial class CollisionWorld
         float top = start.Min.Y + (translation.Y * (downwards ? enter : exit));
         float bottom = start.Max.Y + (translation.Y * (downwards ? exit : enter));
 
-        minY = Math.Max(0, GridCollider.FloorDiv(top, size));
-        maxY = Math.Min(height - 1, GridCollider.FloorDiv(bottom, size));
+        minY = Math.Max(0, GridCollider2D.FloorDiv(top, size));
+        maxY = Math.Min(height - 1, GridCollider2D.FloorDiv(bottom, size));
 
         return minY <= maxY;
     }
 
     private void CastCell(
-        GridCollider map,
+        GridCollider2D map,
         int x,
         int y,
-        in Shape moving,
+        in Shape2D moving,
         Vector2 translation,
         CollisionFilter filter,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ref CastAccumulator accumulator)
     {
         CellState state = map.StateAt(x, y);
@@ -673,7 +673,7 @@ public sealed partial class CollisionWorld
         }
         else
         {
-            Aabb edge = map.OneWayEdge(x, y);
+            Aabb2D edge = map.OneWayEdge(x, y);
 
             // A one-way edge stops only a sweep crossing it towards +Y that began on the other
             // side of it; nothing else it could meet is a landing.
@@ -700,13 +700,13 @@ public sealed partial class CollisionWorld
     }
 
     private bool SweepAxis(
-        in Shape shape,
+        in Shape2D shape,
         ref Vector2 at,
         float delta,
         bool horizontal,
         CollisionFilter filter,
         ColliderHandle ignore,
-        Span<Contact> contacts,
+        Span<Contact2D> contacts,
         ref int written,
         out float moved)
     {
@@ -717,21 +717,21 @@ public sealed partial class CollisionWorld
         }
 
         Vector2 translation = horizontal ? new Vector2(delta, 0f) : new Vector2(0f, delta);
-        Shape moving = shape.Translated(at);
+        Shape2D moving = shape.Translated(at);
 
-        if (moving.Kind == ShapeKind.Box)
+        if (moving.Kind == ShapeKind2D.Box)
         {
             // A box is shrunk on the axis it is not moving along, so a face exactly flush with its
             // side never reads as something in its way: this is what keeps a slide along a flat run
             // of tiles from catching on the seam between two of them. A rounded shape needs no
             // inset — the narrowphase's own advance already stops short of a tangent surface.
-            Aabb bounds = moving.Bounds;
+            Aabb2D bounds = moving.Bounds;
             Vector2 size = bounds.Size;
             float inset = horizontal
                 ? MathF.Min(LinearSlop, size.Y * 0.25f)
                 : MathF.Min(LinearSlop, size.X * 0.25f);
             Vector2 shrink = horizontal ? new Vector2(0f, inset) : new Vector2(inset, 0f);
-            moving = Shape.Box(new Aabb(bounds.Min + shrink, bounds.Max - shrink));
+            moving = Shape2D.Box(new Aabb2D(bounds.Min + shrink, bounds.Max - shrink));
         }
 
         CastAccumulator accumulator = default;
@@ -762,20 +762,20 @@ public sealed partial class CollisionWorld
 
     private ref struct RayVisitor : IRayVisitor
     {
-        private readonly CollisionWorld _world;
+        private readonly CollisionWorld2D _world;
         private readonly Vector2 _origin;
         private readonly Vector2 _unit;
         private readonly CollisionFilter _filter;
         private readonly ColliderHandle _ignore;
-        private readonly Span<RayHit> _hits;
+        private readonly Span<RayHit2D> _hits;
 
         internal RayVisitor(
-            CollisionWorld world,
+            CollisionWorld2D world,
             Vector2 origin,
             Vector2 unit,
             CollisionFilter filter,
             ColliderHandle ignore,
-            Span<RayHit> hits,
+            Span<RayHit2D> hits,
             int count,
             RayAccumulator accumulator)
         {
@@ -831,20 +831,20 @@ public sealed partial class CollisionWorld
 
     private ref struct TouchVisitor : ITreeVisitor
     {
-        private readonly CollisionWorld _world;
-        private readonly Shape _shape;
+        private readonly CollisionWorld2D _world;
+        private readonly Shape2D _shape;
         private readonly CollisionFilter _filter;
         private readonly float _tolerance;
         private readonly ColliderHandle _ignore;
-        private readonly Span<Contact> _contacts;
+        private readonly Span<Contact2D> _contacts;
 
         internal TouchVisitor(
-            CollisionWorld world,
-            in Shape shape,
+            CollisionWorld2D world,
+            in Shape2D shape,
             CollisionFilter filter,
             float tolerance,
             ColliderHandle ignore,
-            Span<Contact> contacts,
+            Span<Contact2D> contacts,
             int count)
         {
             _world = world;
@@ -879,7 +879,7 @@ public sealed partial class CollisionWorld
                 return true;
             }
 
-            _contacts[Count++] = new Contact(
+            _contacts[Count++] = new Contact2D(
                 CollisionTarget.ForCollider(_world.HandleAt(index), slot.Tag),
                 point,
                 normal);
@@ -890,20 +890,20 @@ public sealed partial class CollisionWorld
 
     private ref struct CastVisitor : ITreeVisitor
     {
-        private readonly CollisionWorld _world;
-        private readonly Shape _moving;
+        private readonly CollisionWorld2D _world;
+        private readonly Shape2D _moving;
         private readonly Vector2 _translation;
         private readonly CollisionFilter _filter;
         private readonly ColliderHandle _ignore;
-        private readonly Span<Contact> _contacts;
+        private readonly Span<Contact2D> _contacts;
 
         internal CastVisitor(
-            CollisionWorld world,
-            in Shape moving,
+            CollisionWorld2D world,
+            in Shape2D moving,
             Vector2 translation,
             CollisionFilter filter,
             ColliderHandle ignore,
-            Span<Contact> contacts,
+            Span<Contact2D> contacts,
             CastAccumulator accumulator)
         {
             _world = world;

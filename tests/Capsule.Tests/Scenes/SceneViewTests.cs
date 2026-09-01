@@ -1,8 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
-using Capsule.Scenes.Entities;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;

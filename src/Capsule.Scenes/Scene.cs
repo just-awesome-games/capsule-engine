@@ -3,10 +3,10 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Capsule.Collision;
 using Capsule.Rendering;
-using Capsule.Scenes.Components;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Entities;
+using Capsule.Scenes.Physics;
 using Capsule.Scenes.Spawning;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes;
 
@@ -35,7 +35,7 @@ public class Scene
     // Never nested: a component's OnAddingTo only asks questions, and cannot admit anything itself.
     private readonly List<string> _admissionTags = [];
     private readonly List<Renderer> _renderers = [];
-    private readonly List<Collider> _contactReporters = [];
+    private readonly List<Collider2D> _contactReporters = [];
 
     private bool _stepping;
     private bool _started;
@@ -86,11 +86,11 @@ public class Scene
     public Camera Camera { get; } = new();
 
     /// <summary>
-    /// Everything in this scene that can be collided with. A <see cref="Collider"/> registers here
-    /// when its entity joins the scene, and a <see cref="Entities.TileMap"/> registers the grid it
+    /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> registers here
+    /// when its entity joins the scene, and a <see cref="Tiles.TileMap"/> registers the grid it
     /// draws; game code queries it directly for rays, sweeps and overlaps.
     /// </summary>
-    public CollisionWorld Collision { get; } = new();
+    public CollisionWorld2D Collision { get; } = new();
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
@@ -124,10 +124,11 @@ public class Scene
     /// Adds an unowned entity, deferred to the end of the current step when necessary.
     /// <para>
     /// Its components are asked first, and any of them may refuse — a collider needing more
-    /// collision tag names than the world has room left to intern, or one whose shape has no place
-    /// where the entity stands. A refusal leaves the entity out of the scene with none of its
-    /// components registered. Added during a step, that refusal surfaces where the queue is drained
-    /// at the end of the step rather than from this call.
+    /// collision tag names than the world has room left to intern, one whose shape has no place
+    /// where the entity stands, or a <see cref="KinematicMover2D"/> whose collider is attached to
+    /// some other entity. A refusal leaves the entity out of the scene with none of its components
+    /// registered. Added during a step, that refusal surfaces where the queue is drained at the end
+    /// of the step rather than from this call.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
@@ -426,7 +427,7 @@ public class Scene
     {
         for (int index = 0; index < _contactReporters.Count;)
         {
-            Collider reporter = _contactReporters[index];
+            Collider2D reporter = _contactReporters[index];
             reporter.SettleContacts();
 
             // A handler may have stopped this reporter or one before it. Stay at this index when
@@ -456,12 +457,12 @@ public class Scene
     // An admission refused above this line interns nothing.
     internal void ReserveTags(List<string> wanted)
     {
-        int room = CollisionWorld.MaxTags - Collision.TagCount;
+        int room = CollisionWorld2D.MaxTags - Collision.TagCount;
 
         if (wanted.Count > room)
         {
             throw new InvalidOperationException(
-                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld.MaxTags} tag names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
+                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld2D.MaxTags} tag names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
         }
 
         for (int index = 0; index < wanted.Count; index++)
@@ -470,7 +471,7 @@ public class Scene
         }
     }
 
-    internal void TrackContacts(Collider collider)
+    internal void TrackContacts(Collider2D collider)
     {
         if (!_contactReporters.Contains(collider))
         {
@@ -478,7 +479,7 @@ public class Scene
         }
     }
 
-    internal void UntrackContacts(Collider collider) => _contactReporters.Remove(collider);
+    internal void UntrackContacts(Collider2D collider) => _contactReporters.Remove(collider);
 
     internal void RunLateStep(in StepContext context) => OnLateStep(context);
 

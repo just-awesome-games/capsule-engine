@@ -48,7 +48,7 @@ public sealed class MainMenu : Scene;
 - `JAG.Capsule.Runtime` is the executable host. Only the shell references it.
 - `JAG.Capsule.Build` supplies analyzers, source generators, asset hooks, and scene import. It does not ship in the game.
 
-Logic projects cannot reference the runtime, backend, file IO, ambient clocks, randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot.
+Logic projects cannot reference the runtime, backend, file IO, ambient clocks, randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation. Publishing is slower; the game starts without JIT warm-up and needs no installed runtime.
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 

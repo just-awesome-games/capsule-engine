@@ -10,16 +10,17 @@ both onto this.
 
 ## Inside
 
-- `CollisionWorld` — the seam. Everything goes through it: colliders, collision grids, tag
+- `CollisionWorld2D` — the seam. Everything goes through it: colliders, collision grids, tag
   interning, `Raycast`, `RaycastAll`, `ShapeCast`, `Overlap`, `OverlapCollider` and `MoveBox`.
-- `Shape`, `ShapeKind`, `Aabb` — the fixed shape union as points and a radius: circle, capsule,
-  box, convex polygon. Validated on construction and free of rotation, which stays render-side.
+- `Shape2D`, `ShapeKind2D`, `Aabb2D` — the fixed shape union as points and a radius: circle,
+  capsule, box, convex polygon. Validated on construction and free of rotation, which stays
+  render-side.
 - `CollisionTag`, `CollisionFilter` — filtering by name rather than by numbered layer. Setup
   speaks strings; queries carry a 64-bit mask.
-- `GridCollider`, `CellCollision`, `CellProfile` — one grid of collidable cells, its own
+- `GridCollider2D`, `CellCollision`, `CellProfile` — one grid of collidable cells, its own
   broadphase, with per-cell tags and derived boundary faces.
-- `ColliderHandle`, `CollisionTarget`, `RayHit`, `ShapeCastHit`, `Contact`, `MoveResult` — what a
-  query hands back.
+- `ColliderHandle`, `CollisionTarget`, `RayHit2D`, `ShapeCastHit2D`, `Contact2D`, `MoveResult2D` —
+  what a query hands back.
 - `Internal/` — the narrowphase and the broadphase: GJK distance and its conservative-advancement
   shape cast, the closed-form box and ray routines that shortcut it, and the dynamic
   bounding-volume hierarchy.

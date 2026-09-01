@@ -2,7 +2,6 @@ using System.Numerics;
 using Capsule;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Components;
 using Capsule.Scenes.Spawning;
 
 namespace PackageConsumer.Game;
