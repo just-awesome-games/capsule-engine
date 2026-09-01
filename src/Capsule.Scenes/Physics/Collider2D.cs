@@ -30,7 +30,7 @@ public abstract class Collider2D : Component
     // to compose exactly the translations the commit does — from here, that is one of them.
     private Shape2D _local;
     private Vector2 _offset;
-    private string _tag = CollisionWorld2D.UntaggedName;
+    private string _layer = CollisionWorld2D.DefaultLayerName;
     private bool _enabled = true;
     private bool _reportsContacts;
 
@@ -108,40 +108,6 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// What this collider is, for other queries' filters to match. Defaults to
-    /// <see cref="CollisionWorld2D.UntaggedName"/>.
-    /// </summary>
-    /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
-    public string Tag
-    {
-        get => _tag;
-        set
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(value);
-
-            if (_scene?.Collision is { } world)
-            {
-                // Interned first: a world with no tag slots left refuses the name here, while the
-                // collider is still filtering by the one it had.
-                CollisionTag tag = world.Tag(value);
-                CollisionFilter filter = ResolveFilter(world);
-
-                _tag = value;
-                if (_world is not null)
-                {
-                    Filter = filter;
-                    world.SetFilter(_handle, tag, filter);
-                }
-
-                return;
-            }
-
-            _tag = value;
-        }
-    }
-
-    /// <summary>
     /// Whether this collider participates in its scene's collision world. A disabled collider
     /// remains attached to its entity but cannot be hit, queried, or report contacts.
     /// </summary>
@@ -215,11 +181,43 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// What this collider's contact queries may detect, in the terms of
-    /// <see cref="World"/>. Rebuilt from the tag names given to <see cref="Detects"/> each
+    /// <see cref="World"/>. Rebuilt from the layer names given to <see cref="Detects"/> each
     /// time the collider joins a scene, so a collider carried between scenes filters against the
     /// world it is in; <see cref="CollisionFilter.None"/> while it is in none.
     /// </summary>
     public CollisionFilter Filter { get; private set; }
+
+    /// <summary>
+    /// The layer this collider is on, which is what other queries' filters match. Defaults to
+    /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
+    public string Layer
+    {
+        get => _layer;
+        set
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+
+            if (_scene?.Collision is { } world)
+            {
+                // Interned first: a world with no layer slots left refuses the name here, while the
+                // collider is still filtering by the one it had.
+                CollisionLayer layer = world.Layer(value);
+
+                _layer = value;
+                if (_world is not null)
+                {
+                    world.SetFilter(_handle, layer, Filter);
+                }
+
+                return;
+            }
+
+            _layer = value;
+        }
+    }
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
@@ -248,40 +246,40 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Replaces what this collider's contact queries detect. Detection does not block movement;
-    /// <see cref="KinematicMover2D.BlocksOn"/> owns that independent filter. Tag names are
+    /// <see cref="KinematicBody2D.BlocksOn"/> owns that independent filter. Layer names are
     /// setup-time text, interned once and never compared during a query.
     /// </summary>
-    /// <param name="tags">The tag names to hit; an empty list hits nothing.</param>
+    /// <param name="names">The layer names to hit; an empty list hits nothing.</param>
     /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
-    public void Detects(params ReadOnlySpan<string> tags)
+    public void Detects(params ReadOnlySpan<string> names)
     {
         // Every name is checked, and every one interned, before the list this collider filters by
         // is touched: a bad name half way along used to leave the old list already cleared.
-        foreach (string tag in tags)
+        foreach (string name in names)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(tag, nameof(tags));
+            ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
         }
 
         CollisionFilter filter = CollisionFilter.None;
         if (_scene?.Collision is { } world)
         {
-            foreach (string tag in tags)
+            foreach (string name in names)
             {
-                filter = filter.With(world.Tag(tag));
+                filter = filter.With(world.Layer(name));
             }
         }
 
         _detects.Clear();
-        foreach (string tag in tags)
+        foreach (string name in names)
         {
-            _detects.Add(tag);
+            _detects.Add(name);
         }
 
         if (_world is { } attached)
         {
             Filter = filter;
-            attached.SetFilter(_handle, attached.Tag(_tag), filter);
+            attached.SetFilter(_handle, attached.Layer(_layer), filter);
         }
     }
 
@@ -325,10 +323,11 @@ public abstract class Collider2D : Component
     internal override void OnDetachingFrom(Entity entity) => entity.TrackMovement(-1);
 
     // Everything registration needs, asked of a world this collider has not touched yet: that its
-    // shape has a place where the entity stands, and that the world's tag table has room for every
-    // name it will have to intern. The names are counted rather than interned — a preflight that
-    // reserved table entries would be changing the world it is only supposed to be asking about.
-    internal override void OnAddingTo(Scene scene, Entity entity, List<string> tags)
+    // shape has a place where the entity stands, and that the world's layer table has room for
+    // every name it will have to intern. The names are counted rather than interned — a preflight
+    // that reserved table entries would be changing the world it is only supposed to be asking
+    // about.
+    internal override void OnAddingTo(Scene scene, Entity entity, List<string> layers)
     {
         CollisionWorld2D world = scene.Collision;
 
@@ -336,10 +335,10 @@ public abstract class Collider2D : Component
 
         // Named, not counted: the room for them is judged against everything else being admitted
         // alongside this collider, and interning here would spend the very capacity being tested.
-        Want(world, tags, _tag);
+        Want(world, layers, _layer);
         for (int index = 0; index < _detects.Count; index++)
         {
-            Want(world, tags, _detects[index]);
+            Want(world, layers, _detects[index]);
         }
     }
 
@@ -365,7 +364,7 @@ public abstract class Collider2D : Component
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
         CollisionFilter filter = ResolveFilter(world);
-        ColliderHandle handle = world.Add(_local, Entity!.Position, world.Tag(_tag), filter, this);
+        ColliderHandle handle = world.Add(_local, Entity!.Position, world.Layer(_layer), filter, this);
 
         _world = world;
         Filter = filter;
@@ -533,11 +532,11 @@ public abstract class Collider2D : Component
     // Notes a name the world would have to intern. One it already holds costs nothing, and one
     // already on the list — whether this collider asked for it twice or a sibling asked first —
     // costs nothing more.
-    private static void Want(CollisionWorld2D world, List<string> tags, string name)
+    private static void Want(CollisionWorld2D world, List<string> layers, string name)
     {
-        if (!world.TryFindTag(name, out _) && !tags.Contains(name))
+        if (!world.TryFindLayer(name, out _) && !layers.Contains(name))
         {
-            tags.Add(name);
+            layers.Add(name);
         }
     }
 
@@ -590,8 +589,8 @@ public abstract class Collider2D : Component
                 : null;
 
             into[index] = new ColliderContact2D(
+                world,
                 contact.Target,
-                world.NameOf(contact.Target.Tag),
                 contact.Point,
                 contact.Normal,
                 otherCollider,
@@ -604,9 +603,9 @@ public abstract class Collider2D : Component
     private CollisionFilter ResolveFilter(CollisionWorld2D world)
     {
         CollisionFilter filter = CollisionFilter.None;
-        foreach (string tag in _detects)
+        foreach (string name in _detects)
         {
-            filter = filter.With(world.Tag(tag));
+            filter = filter.With(world.Layer(name));
         }
 
         return filter;

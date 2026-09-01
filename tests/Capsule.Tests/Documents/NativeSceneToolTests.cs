@@ -7,7 +7,7 @@ namespace Capsule.Tests.Documents;
 public sealed class NativeSceneToolTests
 {
     private const string Authored = """
-        { "formatVersion": 1,
+        { "formatVersion": 2,
           "entities": [
             { "id": 1, "type": "tile-map", "x": 0, "y": 0,
               "properties": { "tileSize": 16, "width": 2, "height": 1,
@@ -58,7 +58,7 @@ public sealed class NativeSceneToolTests
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("hall.scene.json", Authored);
-        workspace.Write("broken.scene.json", """{ "formatVersion": 1, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("broken.scene.json", """{ "formatVersion": 2, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         StringWriter error = new();
         int exitCode = SceneDocumentTool.ImportNative(

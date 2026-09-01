@@ -91,7 +91,7 @@ public sealed class ColliderTests
             contact =>
             {
                 Assert.True(contact.Cell.HasValue);
-                Assert.Equal("solid", contact.Tag);
+                Assert.Equal("solid", contact.LayerName);
                 Assert.Equal(new Vector2(0f, -1f), contact.Normal);
             });
     }
@@ -108,16 +108,16 @@ public sealed class ColliderTests
     }
 
     [Fact]
-    public void ADetectedContact_DoesNotBlockAMoverThatDoesNotBlockOnItsTag()
+    public void ADetectedContact_DoesNotBlockAMoverThatDoesNotBlockOnItsLayer()
     {
         Scene scene = new();
         Body player = new(Vector2.Zero);
         Body enemy = new(new Vector2(10f, 0f));
-        player.Collider.Tag = "player";
+        player.Collider.Layer = "player";
         player.Collider.Detects("enemy");
         player.Collider.ReportsContacts = true;
         player.Mover.BlocksOn("solid");
-        enemy.Collider.Tag = "enemy";
+        enemy.Collider.Layer = "enemy";
 
         List<ColliderContact2D> entered = [];
         player.Collider.ContactEntered += entered.Add;
@@ -149,7 +149,7 @@ public sealed class ColliderTests
         Body second = new(new Vector2(4f, 0f));
         first.Collider.Detects("other");
         first.Collider.ReportsContacts = true;
-        second.Collider.Tag = "other";
+        second.Collider.Layer = "other";
 
         int entered = 0;
         int exited = 0;
@@ -190,8 +190,8 @@ public sealed class ColliderTests
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
-        body.Collider.ContactEntered += contact => log.Add($"+{contact.Tag}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
-        body.Collider.ContactExited += contact => log.Add($"-{contact.Tag}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
+        body.Collider.ContactEntered += contact => log.Add($"+{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
+        body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
 
         scene.Add(body);
         using SceneSimulation simulation = new(scene);
@@ -261,7 +261,7 @@ public sealed class ColliderTests
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
-        body.Collider.ContactExited += contact => log.Add($"-{contact.Tag}");
+        body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}");
 
         scene.Add(body);
         using SceneSimulation simulation = new(scene);
@@ -274,7 +274,7 @@ public sealed class ColliderTests
         Assert.Equal(["-solid"], log);
     }
 
-    // A collider keeps tag names, not bits, so the scene it lands in is the one it filters against.
+    // A collider keeps layer names, not bits, so the scene it lands in is the one it filters against.
     [Fact]
     public void AColliderCarriedToAnotherScene_RebuildsItsFilterAgainstTheNewWorld()
     {
@@ -296,7 +296,7 @@ public sealed class ColliderTests
         second.Add(new TileMap(SceneFixtures.TerrainGrid("....", "####")));
         second.Add(body);
 
-        Assert.NotEqual(first.Collision.Tag("solid").Index, second.Collision.Tag("solid").Index);
+        Assert.NotEqual(first.Collision.Layer("solid").Index, second.Collision.Layer("solid").Index);
         Assert.NotEqual(inFirst, body.Collider.Filter);
         Assert.Throws<ArgumentException>(
             () => second.Collision.OverlapBox(body.Collider.Bounds, inFirst, default));
@@ -304,7 +304,7 @@ public sealed class ColliderTests
         using SceneSimulation simulation = new(second);
         simulation.Step(SceneFixtures.Step(0));
 
-        Assert.Equal(["solid"], body.Collider.Touching.ToArray().Select(contact => contact.Tag));
+        Assert.Equal(["solid"], body.Collider.Touching.ToArray().Select(contact => contact.LayerName));
     }
 
     [Fact]
@@ -549,21 +549,21 @@ public sealed class ColliderTests
         Scene second = SceneFixtures.Terrain("....", "####");
         second.Add(body);
 
-        Assert.True(body.Collider.Filter.Matches(second.Collision.Tag("solid")));
+        Assert.True(body.Collider.Filter.Matches(second.Collision.Layer("solid")));
         Assert.True(body.Mover.Move(new Vector2(0f, 60f)).BlockedY);
     }
 
-    // Registration needs room in the world's tag table, and finding that out halfway through would
+    // Registration needs room in the world's layer table, and finding that out halfway through would
     // leave a collider holding a world it never got a handle from.
     [Fact]
-    public void AColliderNeedingATagTheWorldHasNoRoomFor_IsRefusedAtAttachWithNothingCommitted()
+    public void AColliderNeedingALayerTheWorldHasNoRoomFor_IsRefusedAtAttachWithNothingCommitted()
     {
         Scene scene = new();
         Body host = new(Vector2.Zero);
         scene.Add(host);
         Saturate(scene.Collision);
 
-        int tags = scene.Collision.TagCount;
+        int layers = scene.Collision.LayerCount;
         int colliders = scene.Collision.ColliderCount;
 
         BoxCollider2D late = new(new Vector2(8f, 8f));
@@ -574,7 +574,7 @@ public sealed class ColliderTests
         Assert.Null(late.Entity);
         Assert.Null(late.World);
         Assert.True(late.Handle.IsNone);
-        Assert.Equal(tags, scene.Collision.TagCount);
+        Assert.Equal(layers, scene.Collision.LayerCount);
         Assert.Equal(colliders, scene.Collision.ColliderCount);
     }
 
@@ -605,12 +605,12 @@ public sealed class ColliderTests
     // Asked one at a time, two siblings each wanting the last free slot are both told yes and the
     // second finds out at commit — after its entity is published and its sibling registered.
     [Fact]
-    public void TwoSiblingCollidersWantingTheLastTagBetweenThem_AreRefusedTogether()
+    public void TwoSiblingCollidersWantingTheLastLayerBetweenThem_AreRefusedTogether()
     {
         Scene scene = new();
         Saturate(scene.Collision, spare: 1);
 
-        int tags = scene.Collision.TagCount;
+        int layers = scene.Collision.LayerCount;
         int colliders = scene.Collision.ColliderCount;
 
         Entity carrier = new Body(Vector2.Zero);
@@ -620,13 +620,13 @@ public sealed class ColliderTests
         Assert.Throws<InvalidOperationException>(() => scene.Add(carrier));
 
         Assert.Null(carrier.Scene);
-        Assert.Equal(tags, scene.Collision.TagCount);
+        Assert.Equal(layers, scene.Collision.LayerCount);
         Assert.Equal(colliders, scene.Collision.ColliderCount);
     }
 
     // The same two wanting the same name need one slot between them, not two.
     [Fact]
-    public void TwoSiblingCollidersWantingTheSameNewTag_CountItOnceAndBothRegister()
+    public void TwoSiblingCollidersWantingTheSameNewLayer_CountItOnceAndBothRegister()
     {
         Scene scene = new();
         Saturate(scene.Collision, spare: 1);
@@ -642,7 +642,7 @@ public sealed class ColliderTests
         Assert.Same(scene, carrier.Scene);
         Assert.True(scene.Collision.Contains(first.Handle));
         Assert.True(scene.Collision.Contains(second.Handle));
-        Assert.Equal(CollisionWorld2D.MaxTags, scene.Collision.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     [Fact]
@@ -661,14 +661,14 @@ public sealed class ColliderTests
 
         Assert.True(scene.Collision.Contains(first.Handle));
         Assert.True(scene.Collision.Contains(second.Handle));
-        Assert.Equal(CollisionWorld2D.MaxTags, scene.Collision.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     // Entry hooks run in attachment order, and one ahead of a preflighted collider may legitimately
-    // want a tag of its own. Counting capacity without claiming it would let that hook take the slot
+    // want a layer of its own. Counting capacity without claiming it would let that hook take the slot
     // the collider was promised, and the collider would fail after the entity was published.
     [Fact]
-    public void AnEarlierHookInterningATag_CannotTakeTheSlotALaterColliderWasPromised()
+    public void AnEarlierHookInterningALayer_CannotTakeTheSlotALaterColliderWasPromised()
     {
         Scene scene = new();
         Saturate(scene.Collision, spare: 1);
@@ -685,9 +685,9 @@ public sealed class ColliderTests
         // found the table full.
         Assert.Same(scene, carrier.Scene);
         Assert.True(scene.Collision.Contains(late.Handle));
-        Assert.True(late.Filter.Matches(scene.Collision.Tag("the name that was reserved")));
+        Assert.True(late.Filter.Matches(scene.Collision.Layer("the name that was reserved")));
         Assert.NotNull(greedy.Refused);
-        Assert.Equal(CollisionWorld2D.MaxTags, scene.Collision.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     // The other way a hook can spend capacity: attaching a collider of its own mid-entry. That goes
@@ -712,7 +712,7 @@ public sealed class ColliderTests
         Assert.NotNull(grasping.Refused);
         Assert.Null(grasping.Rejected.Entity);
         Assert.Null(grasping.Rejected.World);
-        Assert.Equal(CollisionWorld2D.MaxTags, scene.Collision.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     private sealed class Greedy : Component
@@ -723,7 +723,7 @@ public sealed class ColliderTests
         {
             try
             {
-                Entity!.Scene!.Collision.Tag("a name nobody reserved");
+                Entity!.Scene!.Collision.Layer("a name nobody reserved");
             }
             catch (InvalidOperationException refused)
             {
@@ -761,28 +761,28 @@ public sealed class ColliderTests
 
     // The preflight is a promise, not a guess: a collider it passes registers.
     [Fact]
-    public void AColliderTakingTheLastTagTheWorldHasRoomFor_PassesPreflightAndRegisters()
+    public void AColliderTakingTheLastLayerTheWorldHasRoomFor_PassesPreflightAndRegisters()
     {
         Scene scene = new();
         Body host = new(Vector2.Zero);
         scene.Add(host);
 
-        // One short of the cap, so the collider's own tag is the last name that fits.
+        // One short of the cap, so the collider's own layer is the last name that fits.
         Saturate(scene.Collision, spare: 1);
 
-        BoxCollider2D last = new(new Vector2(8f, 8f)) { Tag = "the last one that fits" };
+        BoxCollider2D last = new(new Vector2(8f, 8f)) { Layer = "the last one that fits" };
         host.Add(last);
 
         Assert.Same(scene.Collision, last.World);
         Assert.True(scene.Collision.Contains(last.Handle));
-        Assert.Equal(CollisionWorld2D.MaxTags, scene.Collision.TagCount);
+        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     private static void Saturate(CollisionWorld2D world, int spare = 0)
     {
-        for (int index = world.TagCount; index < CollisionWorld2D.MaxTags - spare; index++)
+        for (int index = world.LayerCount; index < CollisionWorld2D.MaxLayers - spare; index++)
         {
-            world.Tag($"filler-{index}");
+            world.Layer($"filler-{index}");
         }
     }
 
@@ -829,8 +829,8 @@ public sealed class ColliderTests
         Scene scene = new();
         Body first = new(Vector2.Zero) { Position = Vector2.Zero };
         Body second = new(new Vector2(4f, 0f));
-        first.Collider.Tag = "one";
-        second.Collider.Tag = "two";
+        first.Collider.Layer = "one";
+        second.Collider.Layer = "two";
         first.Collider.Detects("two");
         first.Collider.ReportsContacts = true;
 
@@ -845,16 +845,165 @@ public sealed class ColliderTests
         Assert.Same(second, touched);
     }
 
+    // A collider is on the default layer until it is told otherwise, which is what makes things
+    // collide out of the box.
     [Fact]
-    public void ATileMapRegistersOneColliderCarryingTheTileTypeAsItsTag()
+    public void ACollider_StartsOnTheDefaultLayer()
+    {
+        Scene scene = new();
+        Body body = new(Vector2.Zero);
+
+        Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
+
+        scene.Add(body);
+
+        Assert.Equal(
+            scene.Collision.Layer(CollisionWorld2D.DefaultLayerName),
+            scene.Collision.LayerOf(body.Collider.Handle));
+    }
+
+    // Setting the layer of a registered collider has to reach the world at once: a query on the very
+    // next line filters by what it is on now, not by what it was on.
+    [Fact]
+    public void SettingTheLayerOfARegisteredCollider_ReFiltersImmediately()
+    {
+        Scene scene = new();
+        Body body = new(Vector2.Zero);
+        scene.Add(body);
+
+        Span<Contact2D> contacts = stackalloc Contact2D[4];
+        Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
+
+        Assert.Equal(0, scene.Collision.OverlapBox(probe, scene.Collision.Filter("hazard"), contacts));
+
+        body.Collider.Layer = "hazard";
+
+        Assert.Equal("hazard", body.Collider.Layer);
+        Assert.Equal(scene.Collision.Layer("hazard"), scene.Collision.LayerOf(body.Collider.Handle));
+        Assert.Equal(1, scene.Collision.OverlapBox(probe, scene.Collision.Filter("hazard"), contacts));
+    }
+
+    // A contact carries the touched thing's layer as an index, and its name for a log line.
+    [Fact]
+    public void AContact_ReportsTheTouchedThingsLayerAndItsName()
+    {
+        Scene scene = new();
+        Body player = new(Vector2.Zero);
+        Body enemy = new(new Vector2(4f, 0f));
+        player.Collider.Detects("enemy");
+        player.Collider.ReportsContacts = true;
+        enemy.Collider.Layer = "enemy";
+
+        ColliderContact2D? seen = null;
+        player.Collider.ContactEntered += contact => seen = contact;
+
+        scene.Add(player);
+        scene.Add(enemy);
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        ColliderContact2D contact = Assert.NotNull(seen);
+        Assert.Equal(scene.Collision.Layer("enemy"), contact.Layer);
+        Assert.Equal("enemy", contact.LayerName);
+    }
+
+    // The per-move filter is for the step, not for the mover: what it blocks on afterwards is
+    // whatever BlocksOn last said.
+    [Fact]
+    public void Move_WithABlockingFilter_HonoursItOverBlocksOnAndLeavesTheStandingFilterAlone()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Body body = new(new Vector2(8f, 8f));
+        body.Mover.BlocksOn("solid");
+        scene.Add(body);
+
+        CollisionFilter standing = body.Mover.Filter;
+
+        // Blocking on nothing for this call alone: the floor the mover normally stops on is not
+        // there as far as this move is concerned.
+        MoveResult2D through = body.Mover.Move(new Vector2(0f, 60f), CollisionFilter.None);
+
+        Assert.False(through.BlockedY);
+        Assert.Equal(68f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(standing, body.Mover.Filter);
+
+        // And the next plain move resolves against the standing filter again.
+        body.Teleport(new Vector2(8f, 8f));
+        Assert.True(body.Mover.Move(new Vector2(0f, 60f)).BlockedY);
+    }
+
+    [Fact]
+    public void Move_WithABlockingFilterFromAnotherWorld_IsRefused()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Body body = new(new Vector2(8f, 8f));
+        scene.Add(body);
+
+        CollisionFilter foreign = new Scene().Collision.Filter("solid");
+
+        Assert.Throws<ArgumentException>(() => body.Mover.Move(Vector2.UnitY, foreign));
+    }
+
+    // A face is a surface only from the side it faces, and this is where a game reads that: a body
+    // rising through a ledge is not standing on it on the way up, and is the moment it settles on
+    // top. An enter while passing would fire a landing in mid-air.
+    [Fact]
+    public void AColliderRisingThroughATopFaceCell_EntersNoContactUntilItRestsOnTop()
+    {
+        Scene scene = Ledge();
+        Body body = new(new Vector2(20f, 16f + (0.5f * CollisionWorld2D.ContactSkin)));
+        body.Collider.Detects("platform");
+        body.Collider.ReportsContacts = true;
+        body.Mover.BlocksOn("platform");
+
+        List<ColliderContact2D> entered = [];
+        body.Collider.ContactEntered += entered.Add;
+        scene.Add(body);
+
+        using SceneSimulation simulation = new(scene);
+
+        // Just under the face, inside the contact skin and on the far side of it: nothing touched.
+        simulation.Step(SceneFixtures.Step(0));
+        Assert.Empty(entered);
+
+        // Rising through it is not blocked, and meets nothing on the way.
+        Assert.False(body.Mover.Move(new Vector2(0f, -20f)).BlockedY);
+        simulation.Step(SceneFixtures.Step(1));
+        Assert.Empty(entered);
+
+        // Falling back onto it lands, and the contact carries the face's own normal.
+        Assert.True(body.Mover.Move(new Vector2(0f, 20f)).BlockedY);
+        simulation.Step(SceneFixtures.Step(2));
+
+        ColliderContact2D contact = Assert.Single(entered);
+        Assert.Equal(new Vector2(0f, -1f), contact.Normal);
+        Assert.Equal("platform", contact.LayerName);
+    }
+
+    // One row of top-face-only tiles across the middle, so the face plane is y = 16.
+    private static Scene Ledge()
+    {
+        Scene scene = new();
+        scene.Add(new TileMap(new TileGrid(
+            16,
+            3,
+            3,
+            [TileGrid.EmptyTile, new TileDefinition("ledge", null, "platform", CellFaces2D.Top)],
+            [0, 0, 0, 1, 1, 1, 0, 0, 0])));
+
+        return scene;
+    }
+
+    [Fact]
+    public void ATileMapRegistersOneColliderWhoseCellsCarryTheAuthoredLayer()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         TileMap map = scene.FindSingle<TileMap>();
 
         Assert.NotNull(map.Collision);
         Assert.Equal(4, map.Collision.Width);
-        Assert.Equal(CellCollision.Solid, map.Collision.CollisionAt(0, 1));
-        Assert.Equal("solid", scene.Collision.NameOf(map.Collision.TagAt(0, 1)));
+        Assert.Equal(CellFaces2D.All, map.Collision.FacesAt(0, 1));
+        Assert.Equal("solid", scene.Collision.NameOf(map.Collision.LayerAt(0, 1)!.Value));
 
         scene.Remove(map);
 
@@ -885,13 +1034,13 @@ public sealed class ColliderTests
         {
             Collider = new BoxCollider2D(new Vector2(8f, 8f));
             Add(Collider);
-            Mover = new KinematicMover2D(Collider);
+            Mover = new KinematicBody2D(Collider);
             Add(Mover);
         }
 
         internal BoxCollider2D Collider { get; }
 
-        internal KinematicMover2D Mover { get; }
+        internal KinematicBody2D Mover { get; }
     }
 
     /// <summary>A body resting across three floor cells, so a dispatch cut short is visible.</summary>
@@ -922,14 +1071,14 @@ public sealed class ColliderTests
             Collider.Detects("solid");
             Collider.ContactEntered += _ => Entered++;
             Add(Collider);
-            Mover = new KinematicMover2D(Collider);
+            Mover = new KinematicBody2D(Collider);
             Mover.BlocksOn("solid");
             Add(Mover);
         }
 
         internal BoxCollider2D Collider { get; }
 
-        internal KinematicMover2D Mover { get; }
+        internal KinematicBody2D Mover { get; }
 
         internal int Entered { get; private set; }
     }

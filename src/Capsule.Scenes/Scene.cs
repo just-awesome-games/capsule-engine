@@ -30,10 +30,10 @@ public class Scene
     private readonly HashSet<Entity> _pendingAddSet = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Entity> _pendingRemoveSet = new(ReferenceEqualityComparer.Instance);
 
-    // Scratch for the tag names one admission would have to intern. Reused rather than allocated
+    // Scratch for the layer names one admission would have to intern. Reused rather than allocated
     // per attach, because spawning is common and the names are nearly always interned already.
     // Never nested: a component's OnAddingTo only asks questions, and cannot admit anything itself.
-    private readonly List<string> _admissionTags = [];
+    private readonly List<string> _admissionLayers = [];
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
@@ -124,8 +124,8 @@ public class Scene
     /// Adds an unowned entity, deferred to the end of the current step when necessary.
     /// <para>
     /// Its components are asked first, and any of them may refuse — a collider needing more
-    /// collision tag names than the world has room left to intern, one whose shape has no place
-    /// where the entity stands, or a <see cref="KinematicMover2D"/> whose collider is attached to
+    /// collision layer names than the world has room left to intern, one whose shape has no place
+    /// where the entity stands, or a <see cref="KinematicBody2D"/> whose collider is attached to
     /// some other entity. A refusal leaves the entity out of the scene with none of its components
     /// registered. Added during a step, that refusal surfaces where the queue is drained at the end
     /// of the step rather than from this call.
@@ -441,9 +441,9 @@ public class Scene
 
     internal List<string> BeginAdmission()
     {
-        _admissionTags.Clear();
+        _admissionLayers.Clear();
 
-        return _admissionTags;
+        return _admissionLayers;
     }
 
     // Judged once over everything being admitted together — a collider asked on its own would
@@ -451,23 +451,23 @@ public class Scene
     //
     // Interning is the reservation. Checking capacity without claiming it leaves a gap: entry hooks
     // run in attachment order, and one ahead of a preflighted collider may legitimately intern a
-    // tag of its own, or attach another collider, and spend the slot that collider was counting on.
-    // Claiming here closes it, which is what lets the commit be a step that cannot fail: interning
-    // is idempotent and permanent, so a collider that passed finds its name already in the table.
-    // An admission refused above this line interns nothing.
-    internal void ReserveTags(List<string> wanted)
+    // layer of its own, or attach another collider, and spend the slot that collider was counting
+    // on. Claiming here closes it, which is what lets the commit be a step that cannot fail:
+    // interning is idempotent and permanent, so a collider that passed finds its name already in
+    // the table. An admission refused above this line interns nothing.
+    internal void ReserveLayers(List<string> wanted)
     {
-        int room = CollisionWorld2D.MaxTags - Collision.TagCount;
+        int room = CollisionWorld2D.MaxLayers - Collision.LayerCount;
 
         if (wanted.Count > room)
         {
             throw new InvalidOperationException(
-                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld2D.MaxTags} tag names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
+                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld2D.MaxLayers} layer names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
         }
 
         for (int index = 0; index < wanted.Count; index++)
         {
-            Collision.Tag(wanted[index]);
+            Collision.Layer(wanted[index]);
         }
     }
 

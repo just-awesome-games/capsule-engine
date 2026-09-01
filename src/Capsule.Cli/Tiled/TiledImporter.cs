@@ -16,6 +16,10 @@ public static class TiledImporter
 
     public const string ColorProperty = "color";
 
+    public const string LayerProperty = "layer";
+
+    public const string CollidableFacesProperty = "collidableFaces";
+
     public const string CollisionProperty = "collision";
 
     // Tiled's name for the Color property type; it equals ColorProperty only by coincidence.
@@ -205,11 +209,15 @@ public static class TiledImporter
                         $"Class '{tileClass}' is defined by more than one tile (tilesets '{tilesetByClass[tileClass]}' and '{tilesetName}'); a Class must name exactly one tile.");
                 }
 
+                RequireNoCollisionProperty(tile, tileClass, tilesetName);
+
+                string? layer = LayerOf(tile, tileClass, tilesetName);
                 paletteIndexByGid[tileset.FirstGid + tile.Id] = palette.Count;
                 palette.Add(new TileDefinition(
                     tileClass,
                     ColorOf(tile, tileClass, tilesetName),
-                    CollisionOf(tile, tileClass, tilesetName)));
+                    layer,
+                    FacesOf(tile, tileClass, tilesetName, layer)));
             }
         }
 
@@ -242,32 +250,120 @@ public static class TiledImporter
                 $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{ColorProperty}' = '{authored}', which is not a Tiled colour.");
     }
 
-    // Collision is a plain string property, so an unknown spelling is an authoring mistake rather
-    // than a tile that quietly collides as nothing.
-    private static TileCollision CollisionOf(TiledTile tile, string tileClass, string tilesetName)
+    private static void RequireNoCollisionProperty(TiledTile tile, string tileClass, string tilesetName)
     {
-        TiledProperty? property = tile.Property(CollisionProperty);
-        if (property is null)
+        if (tile.Property(CollisionProperty) is not null)
         {
-            return TileCollision.None;
+            throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has a '{CollisionProperty}' property, which Capsule no longer reads; name the collision layer the tile is on in a '{LayerProperty}' property, and which of its sides collide in a '{CollidableFacesProperty}' one.");
+        }
+    }
+
+    // The collision layer a tile is on, as a plain string property. Trimmed, so the whitespace
+    // Tiled's property editor leaves behind is not part of the name.
+    private static string? LayerOf(TiledTile tile, string tileClass, string tilesetName)
+    {
+        if (!TryListOf(tile, LayerProperty, tileClass, tilesetName, "one collision layer name", out string[] names))
+        {
+            return null;
         }
 
-        // Several of Tiled's property types carry a string value, and every one of them would read
-        // here as a collision spelling. Only the declared type separates a tile authored to the
-        // contract from one that happens to look like it; Tiled omits the type of a string
-        // property, which is why an absent one is the string type rather than a mismatch.
+        return names.Length switch
+        {
+            // Authored and empty is not the same as absent: somebody meant to name a layer here and
+            // did not, and reading it as decoration would ship a tile that silently never collides.
+            0 => throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has a '{LayerProperty}' property naming nothing; give it one collision layer name, or remove the property."),
+            1 => names[0],
+            _ => throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{LayerProperty}' naming {names.Length} layers; a tile is on one layer."),
+        };
+    }
+
+    private static CellFaces2D FacesOf(TiledTile tile, string tileClass, string tilesetName, string? layer)
+    {
+        string expected = $"a comma-separated list of {string.Join(", ", TileFaceNames.All)}";
+        if (!TryListOf(tile, CollidableFacesProperty, tileClass, tilesetName, expected, out string[] names))
+        {
+            return CellFaces2D.All;
+        }
+
+        // Faces describe sides of a tile that never collides unless it names a layer, so they would
+        // import and then be ignored. Asked of the property's presence, not of what it holds, so an
+        // empty one on a tile with no layer is refused here rather than passing as an absent one.
+        if (layer is null)
+        {
+            throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{CollidableFacesProperty}' but no '{LayerProperty}'; a tile that collides as nothing has no sides to declare.");
+        }
+
+        if (names.Length == 0)
+        {
+            throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has a '{CollidableFacesProperty}' property naming nothing; give it at least one of {string.Join(", ", TileFaceNames.All)}, or remove the property to collide on every side.");
+        }
+
+        CellFaces2D faces = CellFaces2D.None;
+        foreach (string name in names)
+        {
+            faces |= TileFaceNames.TryParse(name, out CellFaces2D one)
+                ? one
+                : throw new TiledImportException(
+                    $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{CollidableFacesProperty}' naming '{name}'; it has to be {expected}, or be left off entirely.");
+        }
+
+        return faces;
+    }
+
+    // A comma-separated string property, trimmed, with blank entries dropped. Returns whether the
+    // property was there at all, which is not the same question as whether it named anything: an
+    // absent property is a default, an authored empty one is a mistake, and only the caller knows
+    // which default it would otherwise be taking. Several of Tiled's property types carry a string
+    // value and every one of them would read here as a list; only the declared type separates a
+    // tile authored to the contract from one that happens to look like it, and Tiled omits the type
+    // of a string property, which is why an absent type is the string type rather than a mismatch.
+    private static bool TryListOf(
+        TiledTile tile,
+        string propertyName,
+        string tileClass,
+        string tilesetName,
+        string expected,
+        out string[] names)
+    {
+        names = [];
+
+        TiledProperty? property = tile.Property(propertyName);
+        if (property is null)
+        {
+            return false;
+        }
+
         if (property.Type is { } declared && !string.Equals(declared, StringPropertyType, StringComparison.Ordinal))
         {
             throw new TiledImportException(
-                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') declares '{CollisionProperty}' as a '{declared}' property; it has to be a string property of {string.Join(" or ", TileCollisionNames.All)}, or be left off entirely.");
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') declares '{propertyName}' as a '{declared}' property; it has to be a string property of {expected}, or be left off entirely.");
         }
 
         string? authored = property.Value.ValueKind == JsonValueKind.String ? property.Value.GetString() : null;
+        if (authored is null)
+        {
+            throw new TiledImportException(
+                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has a '{propertyName}' property that holds no text; it has to be a string property of {expected}, or be left off entirely.");
+        }
 
-        return TileCollisionNames.TryParse(authored, out TileCollision collision)
-            ? collision
-            : throw new TiledImportException(
-                $"tileset '{tilesetName}' tile {tile.Id} (Class '{tileClass}') has '{CollisionProperty}' = '{authored}'; it has to be a string property of {string.Join(" or ", TileCollisionNames.All)}, or be left off entirely.");
+        List<string> parsed = [];
+        foreach (string part in authored.Split(','))
+        {
+            string trimmed = part.Trim();
+            if (trimmed.Length > 0)
+            {
+                parsed.Add(trimmed);
+            }
+        }
+
+        names = [.. parsed];
+
+        return true;
     }
 
     // Tiled writes a colour as #AARRGGBB — alpha leading, and optional — while every colour past

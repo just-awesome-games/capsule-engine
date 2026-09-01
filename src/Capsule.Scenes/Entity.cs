@@ -166,7 +166,7 @@ public class Entity
     /// The component is already attached to an entity; this entity already holds one of a type
     /// marked <see cref="DisallowMultipleComponentAttribute"/> that the component shares; or this
     /// entity is already in a scene and the component cannot register with it — a collider needing
-    /// more collision tag names than the scene's world has room left to intern.
+    /// more collision layer names than the scene's world has room left to intern.
     /// </exception>
     public void Add(Component component)
     {
@@ -188,9 +188,9 @@ public class Entity
 
         if (Scene is { } joining)
         {
-            List<string> tags = joining.BeginAdmission();
-            component.OnAddingTo(joining, this, tags);
-            joining.ReserveTags(tags);
+            List<string> layers = joining.BeginAdmission();
+            component.OnAddingTo(joining, this, layers);
+            joining.ReserveLayers(layers);
         }
 
         component.Entity = this;
@@ -274,24 +274,24 @@ public class Entity
     internal void TrackMovement(int delta) => _movementTrackers += delta;
 
     // Every component asked before any of them registers, so a scene one of them cannot join
-    // leaves the entity outside it with no sibling half-registered. The tag names they want are
+    // leaves the entity outside it with no sibling half-registered. The layer names they want are
     // pooled into one list and judged against the world's remaining capacity once: asked one at a
     // time, two siblings each needing the last free slot would both be told yes.
     internal void PreflightScene(Scene scene)
     {
-        List<string> tags = scene.BeginAdmission();
+        List<string> layers = scene.BeginAdmission();
 
         for (int index = 0; index < _components.Count; index++)
         {
-            _components[index].OnAddingTo(scene, this, tags);
+            _components[index].OnAddingTo(scene, this, layers);
         }
 
         // Taken, not merely counted, and taken before a single entry hook runs. Past this line the
-        // registrations these components are about to make cannot fail for want of a tag: what
+        // registrations these components are about to make cannot fail for want of a layer: what
         // they were promised is already in the table, and a hook that interns one of its own — or
         // attaches another collider, which goes through Add and preflights against what is left —
         // can only spend what nobody here was counting on.
-        scene.ReserveTags(tags);
+        scene.ReserveLayers(layers);
     }
 
     internal void EnterScene()

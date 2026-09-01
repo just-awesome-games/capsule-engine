@@ -38,6 +38,9 @@
     <None Include="../../build/Capsule.Icon.targets"
           Pack="true"
           PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.ApiReference.targets"
+          Pack="true"
+          PackagePath="buildTransitive/" />
     <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
          pair whether a game builds against the packages or an engine clone. -->
     <None Include="../../build/Icon.ico"

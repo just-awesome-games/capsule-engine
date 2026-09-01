@@ -152,9 +152,9 @@ public sealed partial class CollisionWorld2D
 
     // Whether a solid cell's face is a surface this query can meet. The grid's own face culling is
     // geometric — a face shared with a solid neighbour is interior — and that is exactly right only
-    // while the query admits every tag the grid uses. A filter that excludes a tag turns those
+    // while the query admits every layer the grid uses. A filter that excludes a layer turns those
     // cells into empty space, faces included, so an interior face bordering one becomes a real
-    // surface. The tag test costs nothing in the ordinary case: it is reached only for a face the
+    // surface. The layer test costs nothing in the ordinary case: it is reached only for a face the
     // grid already culled, on a grid the filter does not wholly admit.
     private static bool IsActiveFace(
         GridCollider2D map,
@@ -164,12 +164,27 @@ public sealed partial class CollisionWorld2D
         Vector2 normal,
         CollisionFilter filter) =>
         IsBoundaryFace(state, normal)
-        || (!map.AdmitsEveryTag(filter) && !map.NeighbourAdmits(x, y, normal, filter));
+        || (!map.AdmitsEveryLayer(filter) && !map.NeighbourAdmits(x, y, normal, filter));
 
-    // A one-way tile's edge and a solid tile's body are both handed over as boxes; a zero-height
-    // one is the segment it looks like, which the hull routines read directly.
+    // A cell's face and a solid cell's body are both handed over as boxes; a face is the degenerate
+    // one, which is the segment it looks like and which the hull routines read directly.
     private static Shape2D AsShape(in Aabb2D box) =>
-        box.Min.Y == box.Max.Y ? Shape2D.Segment(box.Min, box.Max) : Shape2D.Box(box);
+        box.Min.X == box.Max.X || box.Min.Y == box.Max.Y
+            ? Shape2D.Segment(box.Min, box.Max)
+            : Shape2D.Box(box);
+
+    // The face bits of a cell state, in a fixed order so a cell with several of them is always
+    // tested the same way round.
+    private static ReadOnlySpan<CellState> Faces =>
+        [CellState.FaceMinX, CellState.FaceMaxX, CellState.FaceMinY, CellState.FaceMaxY];
+
+    // How far a shape already reaches past a face's plane, measured inwards. A face is one-
+    // directional: it guards the cell from outside, so a shape that starts more than a slop beyond
+    // it is already through and meets nothing.
+    private static float InwardOf(in Aabb2D bounds, in Aabb2D edge, Vector2 normal) =>
+        normal.X != 0f
+            ? (normal.X < 0f ? bounds.Max.X - edge.Min.X : edge.Min.X - bounds.Min.X)
+            : (normal.Y < 0f ? bounds.Max.Y - edge.Min.Y : edge.Min.Y - bounds.Min.Y);
 
     private static float SeparationOf(in Shape2D shape, in Shape2D other, out Vector2 normal, out Vector2 point)
     {
@@ -190,7 +205,7 @@ public sealed partial class CollisionWorld2D
         return separation;
     }
 
-    // A tile is an axis-aligned box even when it is the zero-height one a one-way edge is, so a box
+    // A cell is an axis-aligned box even when it is the degenerate one a single face is, so a box
     // mover meets terrain through the closed-form sweep and never through the iterated one.
     private static bool SweepAgainstCell(
         in Shape2D moving,
@@ -294,7 +309,7 @@ public sealed partial class CollisionWorld2D
 
         foreach (GridCollider2D map in _grids)
         {
-            if (map.Handle == ignore || (filter & map.Tags).IsEmpty)
+            if (map.Handle == ignore || (filter & map.Layers).IsEmpty)
             {
                 continue;
             }
@@ -398,14 +413,16 @@ public sealed partial class CollisionWorld2D
         ref int count,
         bool all)
     {
+        GridCellsTested++;
+
         CellState state = map.StateAt(x, y);
         if (state == CellState.None)
         {
             return false;
         }
 
-        CollisionTag tag = map.TagOf(x, y);
-        if (!filter.Matches(tag))
+        CollisionLayer layer = map.LayerOf(x, y);
+        if (!filter.Matches(layer))
         {
             return false;
         }
@@ -427,20 +444,9 @@ public sealed partial class CollisionWorld2D
                 return false;
             }
         }
-        else
+        else if (!NearestFace(map, x, y, state, origin, unit, limit, out t, out normal))
         {
-            if (unit.Y <= 0f)
-            {
-                return false;
-            }
-
-            Aabb2D edge = map.OneWayEdge(x, y);
-            if (!Segments.RaySegment(edge.Min, edge.Max, origin, unit, limit, out t))
-            {
-                return false;
-            }
-
-            normal = new Vector2(0f, -1f);
+            return false;
         }
 
         RecordRay(
@@ -449,10 +455,58 @@ public sealed partial class CollisionWorld2D
             ref count,
             all,
             t,
-            CollisionTarget.ForGridCell(map.Handle, x, y, tag),
+            CollisionTarget.ForGridCell(map.Handle, x, y, layer),
             normal,
             origin,
             unit);
+
+        return true;
+    }
+
+    // The first of a partial cell's faces the ray crosses inwards. A face the ray is travelling
+    // along or away from is not one it can cross, which is what makes an edge one-directional.
+    private static bool NearestFace(
+        GridCollider2D map,
+        int x,
+        int y,
+        CellState state,
+        Vector2 origin,
+        Vector2 unit,
+        float limit,
+        out float t,
+        out Vector2 normal)
+    {
+        t = 0f;
+        normal = Vector2.Zero;
+        float nearest = float.PositiveInfinity;
+
+        foreach (CellState face in Faces)
+        {
+            if ((state & face) == 0)
+            {
+                continue;
+            }
+
+            Vector2 outward = GridCollider2D.FaceNormal(face);
+            if (Vector2.Dot(unit, outward) >= 0f)
+            {
+                continue;
+            }
+
+            Aabb2D edge = map.FaceEdge(x, y, face);
+            if (Segments.RaySegment(edge.Min, edge.Max, origin, unit, limit, out float faceT) && faceT < nearest)
+            {
+                nearest = faceT;
+                normal = outward;
+            }
+        }
+
+        if (float.IsPositiveInfinity(nearest))
+        {
+            return false;
+        }
+
+        t = nearest;
 
         return true;
     }
@@ -485,7 +539,7 @@ public sealed partial class CollisionWorld2D
 
         foreach (GridCollider2D map in _grids)
         {
-            if (map.Handle == ignore || (filter & map.Tags).IsEmpty || !map.Bounds.Overlaps(probe))
+            if (map.Handle == ignore || (filter & map.Layers).IsEmpty || !map.Bounds.Overlaps(probe))
             {
                 continue;
             }
@@ -506,19 +560,18 @@ public sealed partial class CollisionWorld2D
                         continue;
                     }
 
-                    CollisionTag tag = map.TagOf(x, y);
-                    if (!filter.Matches(tag))
+                    CollisionLayer layer = map.LayerOf(x, y);
+                    if (!filter.Matches(layer))
                     {
                         continue;
                     }
 
-                    Aabb2D cell = (state & CellState.Solid) != 0 ? map.CellBox(x, y) : map.OneWayEdge(x, y);
-                    if (SeparationOfCell(world, cell, out Vector2 normal, out Vector2 point) > tolerance)
+                    if (!TouchingCell(map, x, y, state, world, tolerance, out Vector2 normal, out Vector2 point))
                     {
                         continue;
                     }
 
-                    contacts[count++] = new Contact2D(CollisionTarget.ForGridCell(map.Handle, x, y, tag), point, normal);
+                    contacts[count++] = new Contact2D(CollisionTarget.ForGridCell(map.Handle, x, y, layer), point, normal);
                 }
             }
         }
@@ -531,6 +584,59 @@ public sealed partial class CollisionWorld2D
         SortByHandle(contacts[first..count]);
 
         return count;
+    }
+
+    // Whether a shape is within tolerance of a cell, and where. One contact a cell however many
+    // faces it carries: the nearest of them is what the shape is touching.
+    private static bool TouchingCell(
+        GridCollider2D map,
+        int x,
+        int y,
+        CellState state,
+        in Shape2D world,
+        float tolerance,
+        out Vector2 normal,
+        out Vector2 point)
+    {
+        if ((state & CellState.Solid) != 0)
+        {
+            return SeparationOfCell(world, map.CellBox(x, y), out normal, out point) <= tolerance;
+        }
+
+        normal = Vector2.Zero;
+        point = Vector2.Zero;
+        float nearest = float.PositiveInfinity;
+
+        foreach (CellState face in Faces)
+        {
+            if ((state & face) == 0)
+            {
+                continue;
+            }
+
+            Vector2 outward = GridCollider2D.FaceNormal(face);
+            Aabb2D edge = map.FaceEdge(x, y, face);
+            float separation = SeparationOfCell(world, edge, out _, out Vector2 facePoint);
+
+            // A face exists only for what crosses it inwards, so it is a surface to a shape on its
+            // outward side and to nothing else: one that has already passed through touches it not
+            // at all. Which side that is comes from the authored plane and never from the
+            // narrowphase, whose least-penetration axis resolves an exact tie towards -X and -Y and
+            // would answer the question differently for a Top than for a Bottom. Measured from the
+            // centre of the shape's bounds, and inclusive: a centre exactly on the plane is
+            // outward, so a body resting on a face while straddling it a skin deep still contacts
+            // it, and all four faces read the same way.
+            if (separation <= tolerance
+                && separation < nearest
+                && Vector2.Dot(world.Bounds.Center - edge.Min, outward) >= 0f)
+            {
+                nearest = separation;
+                normal = outward;
+                point = facePoint;
+            }
+        }
+
+        return !float.IsPositiveInfinity(nearest);
     }
 
     private void Cast(
@@ -551,7 +657,7 @@ public sealed partial class CollisionWorld2D
 
         foreach (GridCollider2D map in _grids)
         {
-            if (map.Handle == ignore || (filter & map.Tags).IsEmpty || !map.Bounds.Overlaps(swept))
+            if (map.Handle == ignore || (filter & map.Layers).IsEmpty || !map.Bounds.Overlaps(swept))
             {
                 continue;
             }
@@ -643,25 +749,25 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ref CastAccumulator accumulator)
     {
+        GridCellsTested++;
+
         CellState state = map.StateAt(x, y);
         if (state == CellState.None)
         {
             return;
         }
 
-        CollisionTag tag = map.TagOf(x, y);
-        if (!filter.Matches(tag))
+        CollisionLayer layer = map.LayerOf(x, y);
+        if (!filter.Matches(layer))
         {
             return;
         }
 
-        float fraction;
-        Vector2 normal;
-        Vector2 point;
+        CollisionTarget target = CollisionTarget.ForGridCell(map.Handle, x, y, layer);
 
         if ((state & CellState.Solid) != 0)
         {
-            if (!SweepAgainstCell(moving, translation, map.CellBox(x, y), out fraction, out normal, out point))
+            if (!SweepAgainstCell(moving, translation, map.CellBox(x, y), out float fraction, out Vector2 normal, out Vector2 point))
             {
                 return;
             }
@@ -670,33 +776,42 @@ public sealed partial class CollisionWorld2D
             {
                 return;
             }
+
+            Consider(ref accumulator, contacts, translation, fraction, target, normal, point);
+
+            return;
         }
-        else
+
+        foreach (CellState face in Faces)
         {
-            Aabb2D edge = map.OneWayEdge(x, y);
-
-            // A one-way edge stops only a sweep crossing it towards +Y that began on the other
-            // side of it; nothing else it could meet is a landing.
-            if (translation.Y <= 0f || moving.Bounds.Max.Y > edge.Min.Y + LinearSlop)
+            if ((state & face) == 0)
             {
-                return;
+                continue;
             }
 
-            if (!SweepAgainstCell(moving, translation, edge, out fraction, out normal, out point)
-                || normal.Y >= 0f)
+            Vector2 outward = GridCollider2D.FaceNormal(face);
+            Aabb2D edge = map.FaceEdge(x, y, face);
+
+            // A face stops only a sweep crossing it inwards that began on the outward side of it;
+            // nothing else it could meet is a landing.
+            if (Vector2.Dot(translation, outward) >= 0f
+                || InwardOf(moving.Bounds, edge, outward) > LinearSlop)
             {
-                return;
+                continue;
             }
+
+            if (!SweepAgainstCell(moving, translation, edge, out float fraction, out Vector2 normal, out Vector2 point)
+                || Vector2.Dot(normal, outward) <= 0f)
+            {
+                continue;
+            }
+
+            // The face's own normal, not the narrowphase's. A rounded shape meeting the end of an
+            // edge is nearest to its endpoint, so GJK answers with the diagonal from that corner —
+            // a direction the surface does not have. The face is a declared plane and this is the
+            // one thing it can report; the test above is what makes the two agree in sign.
+            Consider(ref accumulator, contacts, translation, fraction, target, outward, point);
         }
-
-        Consider(
-            ref accumulator,
-            contacts,
-            translation,
-            fraction,
-            CollisionTarget.ForGridCell(map.Handle, x, y, tag),
-            normal,
-            point);
     }
 
     private bool SweepAxis(
@@ -798,7 +913,7 @@ public sealed partial class CollisionWorld2D
             int index = _world._tree.UserDataOf(proxyId);
             ref ColliderSlot slot = ref _world._slots[index];
 
-            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Tag)
+            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Layer)
                 || IsIgnored(_ignore, index, slot.Generation))
             {
                 return maxFraction;
@@ -817,7 +932,7 @@ public sealed partial class CollisionWorld2D
                 ref count,
                 !_hits.IsEmpty,
                 t,
-                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Tag),
+                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
                 normal,
                 _origin,
                 _unit);
@@ -868,7 +983,7 @@ public sealed partial class CollisionWorld2D
             int index = _world._tree.UserDataOf(proxyId);
             ref ColliderSlot slot = ref _world._slots[index];
 
-            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Tag)
+            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Layer)
                 || IsIgnored(_ignore, index, slot.Generation))
             {
                 return true;
@@ -880,7 +995,7 @@ public sealed partial class CollisionWorld2D
             }
 
             _contacts[Count++] = new Contact2D(
-                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Tag),
+                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
                 point,
                 normal);
 
@@ -922,7 +1037,7 @@ public sealed partial class CollisionWorld2D
             int index = _world._tree.UserDataOf(proxyId);
             ref ColliderSlot slot = ref _world._slots[index];
 
-            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Tag)
+            if (!slot.InUse || slot.Grid is not null || !_filter.Matches(slot.Layer)
                 || IsIgnored(_ignore, index, slot.Generation))
             {
                 return true;
@@ -939,7 +1054,7 @@ public sealed partial class CollisionWorld2D
                 _contacts,
                 _translation,
                 fraction,
-                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Tag),
+                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
                 normal,
                 point);
             Accumulator = accumulator;

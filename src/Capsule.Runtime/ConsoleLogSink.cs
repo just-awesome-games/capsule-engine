@@ -36,6 +36,7 @@ internal sealed class ConsoleLogSink : ILogSink
     {
         string label = level switch
         {
+            LogLevel.Debug => "debug",
             LogLevel.Warning => "warn ",
             LogLevel.Error => "error",
             _ => "info ",

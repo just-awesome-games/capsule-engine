@@ -100,9 +100,23 @@ internal sealed class TileTypeJson
     public string? Color { get; set; }
 
     // Absent for every tile type that collides as nothing, which is the default.
-    [JsonPropertyName("collision")]
+    [JsonPropertyName("layer")]
     [JsonPropertyOrder(2)]
-    public string? Collision { get; set; }
+    public string? Layer { get; set; }
+
+    // Absent for a tile type that collides on every side, which is the default.
+    [JsonPropertyName("collidableFaces")]
+    [JsonPropertyOrder(3)]
+    public string?[]? CollidableFaces { get; set; }
+
+    // Mapped only so the reader can name what replaced it, and held as a raw element so presence is
+    // the question rather than shape: a string member would read an explicit null as an absent
+    // field and refuse a number or an object with a JSON shape error, and neither says anything
+    // about what took this field's place. An absent field leaves ValueKind Undefined.
+    [JsonPropertyName("collision")]
+    [JsonPropertyOrder(4)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public JsonElement Collision { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

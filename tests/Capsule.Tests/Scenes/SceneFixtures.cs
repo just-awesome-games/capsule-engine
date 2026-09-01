@@ -35,7 +35,7 @@ internal static class SceneFixtures
             new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows))], TerrainId + 1),
             Registry()));
 
-    /// <summary>The grid behind <see cref="Terrain"/>: every '#' collides and carries the tag "solid".</summary>
+    /// <summary>The grid behind <see cref="Terrain"/>: every '#' collides on the layer "solid".</summary>
     internal static TileGrid TerrainGrid(params string[] rows)
     {
         int width = rows[0].Length;
@@ -52,7 +52,7 @@ internal static class SceneFixtures
             TileSize,
             width,
             rows.Length,
-            [TileGrid.EmptyTile, new TileDefinition("solid", Solid, TileCollision.Solid)],
+            [TileGrid.EmptyTile, new TileDefinition("solid", Solid, "solid")],
             cells);
     }
 

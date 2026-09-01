@@ -27,18 +27,11 @@ internal static class CollisionWorkload
     private const int FloorRow = 40;
     private const int RoofRow = 30;
 
-    private static readonly CellProfile[] Profiles =
-    [
-        new(CellCollision.None, "empty"),
-        new(CellCollision.Solid, Solid),
-        new(CellCollision.OneWay, Platform),
-    ];
-
     private static readonly TileDefinition[] Palette =
     [
         TileGrid.EmptyTile,
-        new(Solid, new ColorRgba(0x44, 0x53, 0x6B), TileCollision.Solid),
-        new(Platform, new ColorRgba(0x6B, 0x53, 0x44), TileCollision.OneWay),
+        new(Solid, new ColorRgba(0x44, 0x53, 0x6B), Solid),
+        new(Platform, new ColorRgba(0x6B, 0x53, 0x44), Platform, CellFaces2D.Top),
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
@@ -61,7 +54,7 @@ internal static class CollisionWorkload
                 cells[(y * TilesWide) + x] = 1;
             }
 
-            // A one-way ledge every seventh column, three columns wide.
+            // A top-face ledge every seventh column, three columns wide.
             if (x % 7 < 3)
             {
                 cells[((FloorRow - 5) * TilesWide) + x] = 2;
@@ -74,9 +67,15 @@ internal static class CollisionWorkload
     internal static CollisionWorld2D World()
     {
         CollisionWorld2D world = new();
-        world.AddGrid(TileSize, TilesWide, TilesHigh, Cells(), Profiles);
+        CellProfile2D[] profiles =
+        [
+            new(null),
+            new(world.Layer(Solid)),
+            new(world.Layer(Platform), CellFaces2D.Top),
+        ];
+        world.AddGrid(TileSize, TilesWide, TilesHigh, Cells(), profiles);
 
-        CollisionTag actor = world.Tag(Actor);
+        CollisionLayer actor = world.Layer(Actor);
         float spacing = (float)TilesWide * TileSize / Actors;
         for (int index = 0; index < Actors; index++)
         {
@@ -103,7 +102,7 @@ internal static class CollisionWorkload
     internal sealed class Walker : Entity
     {
         private readonly BoxCollider2D _collider;
-        private readonly KinematicMover2D _mover;
+        private readonly KinematicBody2D _mover;
         private float _direction = 1f;
 
         internal Walker(Vector2 position)
@@ -115,7 +114,7 @@ internal static class CollisionWorkload
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;
             Add(_collider);
-            _mover = new KinematicMover2D(_collider);
+            _mover = new KinematicBody2D(_collider);
             _mover.BlocksOn(Solid, Platform);
             Add(_mover);
         }

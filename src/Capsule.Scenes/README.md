@@ -14,11 +14,14 @@ scene document a scene is composed from. Substrate-free — `Capsule.Core` and
 - `Documents/` — the `*.scene.json` format: the document, its canonical reader and writer, and
   the placement records it holds.
 - `Physics/` — `Collider2D` and its shapes (`BoxCollider2D`, `CircleCollider2D`,
-  `CapsuleCollider2D`, `PolygonCollider2D`), `KinematicMover2D`, and the contact records they
-  report. A collider puts an entity in the scene's collision world and raises contact enter and
-  exit; a mover sweeps one of them kinematically.
-- `Tiles/` — `TileGrid` and `TileDefinition`, a validated grid of palette indices, plus `TileMap`,
-  the entity that draws one layer and registers its grid with the scene's collision world.
+  `CapsuleCollider2D`, `PolygonCollider2D`), `KinematicBody2D`, and the contact records they
+  report. A collider puts an entity on a named collision layer in the scene's collision world and
+  raises contact enter and exit; a body sweeps one of them kinematically, against its standing
+  blocking layers or against a filter given per move, and reports whether that move was stopped by
+  a floor, a wall, or a ceiling.
+- `Tiles/` — `TileGrid` and `TileDefinition`, a validated grid of palette indices whose entries
+  name the collision layer they are on and which of their four sides collide, plus `TileMap`, the
+  entity that draws one layer and registers its grid with the scene's collision world.
 - `Spawning/` — the construction seam below the document.
 
 `Spawning/` is where a game-defined document entry becomes an entity: a registry mapping a type string to a

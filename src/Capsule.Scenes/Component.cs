@@ -26,13 +26,13 @@ public abstract class Component
     /// published or claimed: a refusal from any component has to leave the scene as it was, and it
     /// is the admission as a whole — once every component has accepted — that claims what it needs.
     /// <para>
-    /// Collision tag names the component would have to intern go into <paramref name="tags"/>
+    /// Collision layer names the component would have to intern go into <paramref name="layers"/>
     /// rather than being checked against the world's remaining capacity here — every component
     /// being admitted adds to the same list, and the room for all of them is judged once, so two
     /// siblings each wanting the last free slot are refused together rather than one at a time.
     /// </para>
     /// </summary>
-    internal virtual void OnAddingTo(Scene scene, Entity entity, List<string> tags)
+    internal virtual void OnAddingTo(Scene scene, Entity entity, List<string> layers)
     {
     }
 

@@ -193,7 +193,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(kind, buffer, points.Length, radius, bounds);
     }
 
-    // A bare segment: a hull of two points with no radius, which is what a one-way tile edge is.
+    // A bare segment: a hull of two points with no radius, which is what one face of a grid cell is.
     // Never public — every shape a game can build has an interior — and never routed through the
     // rounded-hull ray casts, which would read its zero radius as a polygon.
     internal static Shape2D Segment(Vector2 start, Vector2 end)

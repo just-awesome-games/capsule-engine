@@ -21,6 +21,12 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     // a 16.7 ms frame, so a ceiling this far above it trips on a collapse and not on drift.
     private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(1);
 
+    // The diagonal batch is four 4096 px sweeps a step, not microsecond work: 0.1 to 0.3 ms
+    // uninstrumented on a desktop and some 2.3 ms under coverage instrumentation. A frame is the
+    // nearest ceiling that still reads a collapse without tripping on instrumentation or on a
+    // shared runner, and it is all a wall-clock number in either environment can honestly claim.
+    private static readonly TimeSpan MaxDiagonalBatchStep = TimeSpan.FromMilliseconds(16);
+
     [Fact]
     public void AMoverOnARoomScaleTilemap_AllocatesNothingAndStaysWithinTheStepBudget()
     {
@@ -41,7 +47,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
             }
 
             return result.ContactCount + step;
-        }));
+        }), MaxMeanStep);
     }
 
     [Fact]
@@ -78,12 +84,13 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
             }
 
             return found;
-        }));
+        }), MaxMeanStep);
     }
 
-    // A sweep across the map corner to corner touches O(width) cells; the rectangle its bounds
-    // describe holds O(width x height). Only a traversal that walks the band the shape actually
-    // covers keeps a batch of these inside a frame.
+    // Four sweeps across the map corner to corner, the longest casts a room-scale game issues. What
+    // this asserts is the frame ceiling and zero allocation; whether a sweep walks the band its
+    // shape covers rather than the rectangle its bounds describe is a cell count, not a duration,
+    // and is not claimed here.
     [Fact]
     public void ABatchOfMapLengthDiagonalCasts_AllocatesNothingAndStaysWithinTheStepBudget()
     {
@@ -109,7 +116,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
             }
 
             return found;
-        }));
+        }), MaxDiagonalBatchStep);
     }
 
     // A RaycastAll whose span is full has the same reach left as the Raycast that took one hit, so
@@ -157,7 +164,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
         {
             simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
             return walker.Contacts;
-        }));
+        }), MaxMeanStep);
     }
 
     private static (long Bytes, TimeSpan Elapsed, long Guard) Measure(Func<int, int> step)
@@ -181,7 +188,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
         return (GC.GetAllocatedBytesForCurrentThread() - bytes, elapsed, guard);
     }
 
-    private void Report(string label, (long Bytes, TimeSpan Elapsed, long Guard) measured)
+    private void Report(string label, (long Bytes, TimeSpan Elapsed, long Guard) measured, TimeSpan maxMeanStep)
     {
         (long bytes, TimeSpan elapsed, long guard) = measured;
         TimeSpan mean = elapsed / MeasuredSteps;
@@ -192,7 +199,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
 
         Assert.Equal(0, bytes);
         Assert.True(
-            mean < MaxMeanStep,
+            mean < maxMeanStep,
             FormattableString.Invariant($"{label} averaged {mean.TotalMilliseconds:0.000} ms a step."));
     }
 }

@@ -44,21 +44,21 @@ public sealed class TileGrid
     public int Height { get; }
 
     /// <summary>
-    /// The tile palette. Index 0 is <see cref="EmptyTile"/> and names are unique.
+    /// The tile palette. Index 0 is <see cref="EmptyTile"/> and type names are unique.
     /// </summary>
     public ReadOnlySpan<TileDefinition> TileTypes => _tileTypes;
 
     /// <summary>Palette indices, row-major, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
 
-    /// <summary>Whether any palette entry collides, so the grid is worth a collider at all.</summary>
+    /// <summary>Whether any palette entry is on a layer, so the grid is worth a collider at all.</summary>
     public bool Collides
     {
         get
         {
             foreach (TileDefinition definition in _tileTypes)
             {
-                if (definition.Collision != TileCollision.None)
+                if (definition.Layer is not null)
                 {
                     return true;
                 }
@@ -115,9 +115,9 @@ public sealed class TileGrid
         {
             string actual = _tileTypes.Length == 0
                 ? "an empty palette"
-                : $"\"{_tileTypes[0].Type}\" with colour {_tileTypes[0].Color?.ToString() ?? "none"} and collision {_tileTypes[0].Collision}";
+                : $"\"{_tileTypes[0].Type}\" with colour {_tileTypes[0].Color?.ToString() ?? "none"} and layer {_tileTypes[0].Layer ?? "none"}";
             throw Malformed(
-                $"tileTypes[0] must be \"{EmptyTileType}\" with no colour and no collision, not {actual}.",
+                $"tileTypes[0] must be \"{EmptyTileType}\" with no colour and no layer, not {actual}.",
                 "tileTypes");
         }
 
@@ -134,6 +134,36 @@ public sealed class TileGrid
             if (!seen.Add(definition.Type))
             {
                 throw Malformed($"tileTypes[{i}] repeats \"{definition.Type}\"; tile type names must be unique.", "tileTypes");
+            }
+
+            if ((definition.CollidableFaces & ~CellFaces2D.All) != 0)
+            {
+                throw Malformed(
+                    $"tileTypes[{i}] declares collidableFaces {(int)definition.CollidableFaces}, which is not a combination of the four sides a tile has.",
+                    "tileTypes");
+            }
+
+            if (definition.Layer is { } layer)
+            {
+                if (string.IsNullOrWhiteSpace(layer))
+                {
+                    throw Malformed($"tileTypes[{i}] has a blank layer; a tile that collides names the layer it is on.", "tileTypes");
+                }
+
+                // A tile on a layer with no face collides with nothing at all, which is a mistake
+                // rather than a spelling of "decoration": that is written by naming no layer.
+                if (definition.CollidableFaces == CellFaces2D.None)
+                {
+                    throw Malformed(
+                        $"tileTypes[{i}] is on a layer but has no collidableFaces; a tile that collides needs at least one face, and one that collides as nothing names no layer.",
+                        "tileTypes");
+                }
+            }
+            else if (definition.CollidableFaces != CellFaces2D.All)
+            {
+                throw Malformed(
+                    $"tileTypes[{i}] declares collidableFaces but no layer; a tile that collides as nothing has no sides to declare.",
+                    "tileTypes");
             }
         }
     }

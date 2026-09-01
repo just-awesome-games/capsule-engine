@@ -6,21 +6,26 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class LogTests : IDisposable
 {
-    private readonly ILogSink? _installed = Log.Sink;
-
-    public void Dispose() => Log.UseSink(_installed);
+    // Log's sink is write-only, so a test cannot put back what it found: it leaves logging silent,
+    // which is where a headless run starts.
+    public void Dispose() => Log.UseSink(null);
 
     [Fact]
     public void Log_IsSilentUntilASinkIsInstalled()
     {
         Log.UseSink(null);
 
-        Assert.False(Log.IsEnabled);
-
         // The contract is that this is not an error: a headless run logs into nothing.
-        Log.Info("nobody is listening");
+        Log.Debug("nobody is listening");
+        Log.Info("nor now");
         Log.Warning("still nobody");
-        Log.Error("nor now");
+        Log.Error("nor now either");
+
+        // Nor was any of it held for whoever listens next.
+        CollectingLogSink sink = new();
+        Log.UseSink(sink);
+
+        Assert.Empty(sink.Entries);
     }
 
     [Fact]
@@ -29,15 +34,17 @@ public sealed class LogTests : IDisposable
         CollectingLogSink sink = new();
         Log.UseSink(sink);
 
-        Log.Info("first");
-        Log.Warning("second");
-        Log.Error("third");
+        Log.Write(LogLevel.Debug, "first");
+        Log.Info("second");
+        Log.Warning("third");
+        Log.Error("fourth");
 
         Assert.Equal(
             [
-                new LogEntry(LogLevel.Info, "first"),
-                new LogEntry(LogLevel.Warning, "second"),
-                new LogEntry(LogLevel.Error, "third"),
+                new LogEntry(LogLevel.Debug, "first"),
+                new LogEntry(LogLevel.Info, "second"),
+                new LogEntry(LogLevel.Warning, "third"),
+                new LogEntry(LogLevel.Error, "fourth"),
             ],
             sink.Entries);
     }
@@ -64,14 +71,19 @@ public sealed class LogTests : IDisposable
         Log.Info("the line that breaks it");
 
         Assert.Equal(1, sink.Attempts);
-        Assert.Null(Log.Sink);
-        Assert.False(Log.IsEnabled);
 
         // Nothing reaches it again, so a sink that fails once cannot go on failing.
         Log.Info("and the one after");
         Log.Warning("and another");
 
         Assert.Equal(1, sink.Attempts);
+
+        // The seam itself survives the detachment: the next sink is listened to.
+        CollectingLogSink replacement = new();
+        Log.UseSink(replacement);
+        Log.Info("to the replacement");
+
+        Assert.Single(replacement.Entries);
     }
 
     [Fact]
@@ -83,7 +95,7 @@ public sealed class LogTests : IDisposable
         Log.Info("first");
         Log.Info("second");
 
-        Assert.Same(sink, Log.Sink);
+        // Still listening, and still the same sink: the second line reached it.
         Assert.Equal(2, sink.Entries.Count);
     }
 
@@ -100,11 +112,11 @@ public sealed class LogTests : IDisposable
 
         Assert.Single(first.Entries);
         Assert.Single(second.Entries);
-        Assert.Same(second, Log.Sink);
     }
 
     // The console format is documented for people reading their game's output, so it is a contract.
     [Theory]
+    [InlineData(LogLevel.Debug, 0L, "[      0] debug ready")]
     [InlineData(LogLevel.Info, 0L, "[      0] info  ready")]
     [InlineData(LogLevel.Warning, 1234L, "[   1234] warn  ready")]
     [InlineData(LogLevel.Error, 9_999_999L, "[9999999] error ready")]

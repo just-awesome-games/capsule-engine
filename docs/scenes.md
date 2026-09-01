@@ -28,11 +28,11 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 1 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so an unchanged document re-derives byte for byte. A document is one uniform list of entries:
+`SceneDocumentFile` reads and writes format version 2 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so an unchanged document re-derives byte for byte. A document is one uniform list of entries:
 
 ```json
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "entities": [
     {
       "id": 1,
@@ -45,7 +45,8 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
         "height": 1,
         "tileTypes": [
           { "type": "empty" },
-          { "type": "ground", "color": "#4a5568ff", "collision": "box" }
+          { "type": "ground", "color": "#4a5568ff", "layer": "solid" },
+          { "type": "ledge", "color": "#718096ff", "layer": "ledge", "collidableFaces": ["top"] }
         ],
         "tiles": [0, 1]
       }
@@ -64,15 +65,14 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 `properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Its properties are `tileSize`, `width`, `height`, `tileTypes`, and `tiles`; palette index 0 is `empty`, `tiles` contains exactly `width * height` palette indices, and colors use lowercase `#rrggbbaa`. Properties on any other type are rejected at parse.
 
-A palette entry may also carry `collision`, which is what a tile of that type collides as:
+A palette entry may also carry `layer` and `collidableFaces`, which are what a tile of that type collides as. Face names are grid directions in a Y-down world, so `top` is the tile's -Y side.
 
-| `collision` | Shape |
+| Field | Meaning |
 | --- | --- |
-| absent | Nothing. The tile is decoration as far as collision is concerned. |
-| `"box"` | The whole tile. Faces shared with an adjacent `box` tile never generate a contact, so a flat run of them is one surface with no seams to catch on. |
-| `"one-way"` | The tile's up-facing edge alone. It stops a sweep crossing it downwards from above, and never one moving sideways, moving upwards, or starting below it. |
+| `layer` | The collision layer every tile of this type is on, as one name. Absent is decoration: the tile collides as nothing. The name is the game's own — the engine reserves none — and a query or a mover meets the tile when its own filter names that layer. The tile type is identity and is never a layer, so several types may share one. |
+| `collidableFaces` | Which sides collide, as an array of `"left"`, `"right"`, `"top"` or `"bottom"`. Absent is all four: the whole tile, with sides shared with an adjacent four-sided tile generating no contact, so a flat run of them is one surface with no seams to catch on. A smaller set is that many one-directional edges — each stops only what crosses it into the tile, never motion along it and never something that started on the far side. |
 
-Any other value fails the document. The reserved `empty` entry carries neither a colour nor a collision. A tile map whose palette collides with nothing registers no collider at all.
+Any other face name fails the document, as does `collidableFaces` on a tile with no `layer`, an empty `collidableFaces`, and the `collision` field the two of them replaced. The reserved `empty` entry carries neither a colour nor a layer. A tile map whose palette collides with nothing registers no collider at all.
 
 Invalid documents throw `SceneDocumentFormatException`.
 
@@ -101,9 +101,9 @@ The runtime loads only the native scene document. The Tiled importer is a build-
 
 Capsule imports `.tmj` files that are orthogonal, finite, square-tiled, CSV-encoded, and unflipped. Tile and object layers become document entries in authored order; a map may contain any number of either.
 
-- A tileset tile's Class becomes its semantic tile type.
+- A tileset tile's Class becomes its semantic tile type. It is identity alone and is never a collision layer.
 - An optional Color property named `color` becomes its presentation color.
-- An optional String property named `collision`, valued `box` or `one-way`, becomes its collision. Any other value, or any other property type, fails the import.
+- An optional String property named `layer` becomes the tile's collision layer, and an optional String property named `collidableFaces` is a comma-separated list of face names — both trimmed, with blank entries dropped. A property that is present but names nothing is refused rather than read as an absent one. More than one name in `layer`, an unknown face name, `collidableFaces` without `layer`, or either declared as any other property type fails the import, as does a tile still carrying a `collision` property.
 - Tile Classes are unique across all referenced tilesets; `empty` is reserved.
 - Object layers contain objects whose Class becomes the spawn type.
 - Tiled's object IDs are preserved. Tile layers take consecutive IDs beginning at the source's `nextobjectid`, and the document's `nextEntityId` follows them.

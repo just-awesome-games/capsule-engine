@@ -152,6 +152,12 @@ For persistent local development, place the same property in an ignored `Directo
 
 The source and package branches expose the same assemblies: game logic sees only `JAG.Capsule`; the shell alone sees `JAG.Capsule.Runtime`.
 
+### The API reference
+
+Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
+
+A source consumer has no such directory, so the source build stages the same files at `artifacts/capsule-api/` under the repository root — one directory for the whole repository, holding the documentation of every Capsule assembly the repository references. It is written before each project compiles, so the reference is current even on the build that fails against a changed engine API. Set `CapsuleApiReferenceDirectory` to stage them somewhere else; a relative path is resolved against the repository root. The directory is derived and build-owned: ignore it rather than committing it.
+
 ## Publishing
 
 Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a runtime identifier:

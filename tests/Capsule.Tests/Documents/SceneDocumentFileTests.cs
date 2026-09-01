@@ -27,25 +27,25 @@ public sealed class SceneDocumentFileTests
             () => SceneDocumentFile.Parse("""{"entities": [], "nextEntityId": 1}"""));
 
         Assert.Contains("no formatVersion", error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 1", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 2", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Parse_RejectsAnUnsupportedFormatVersion()
     {
-        string json = DocumentText().Replace("\"formatVersion\": 1", "\"formatVersion\": 2", StringComparison.Ordinal);
+        string json = DocumentText().Replace("\"formatVersion\": 2", "\"formatVersion\": 3", StringComparison.Ordinal);
 
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentFile.Parse(json));
 
-        Assert.Contains("formatVersion 2 is unsupported", error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 1", error.Message, StringComparison.Ordinal);
+        Assert.Contains("formatVersion 3 is unsupported", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 2", error.Message, StringComparison.Ordinal);
     }
 
     // An explicit null arrives as a null the property's own initializer never answers for, so an
     // omitted list passing says nothing about this one.
     [Theory]
-    [InlineData("""{"formatVersion": 1, "nextEntityId": 1}""")]
-    [InlineData("""{"formatVersion": 1, "entities": null, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 2, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 2, "entities": null, "nextEntityId": 1}""")]
     public void Parse_RejectsADocumentWithNoEntities(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -61,7 +61,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 1,
+              "formatVersion": 2,
               "entities": [
                 {
                   "id": 1,
@@ -84,7 +84,7 @@ public sealed class SceneDocumentFileTests
     [Fact]
     public void ADocumentWithNoEntries_IsAnEmptyScene()
     {
-        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 1, "entities": [], "nextEntityId": 1}""");
+        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""");
 
         Assert.Empty(document.Entries.ToArray());
     }
@@ -94,7 +94,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 1,
+              "formatVersion": 2,
               "entities": [
                 { "id": 1, "type": "coin", "x": 0, "y": 0 },
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
@@ -159,7 +159,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 1, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}
+                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}
                 """));
 
         Assert.Contains("declares no properties", error.Message, StringComparison.Ordinal);
@@ -170,7 +170,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 1, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}
+                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}
                 """));
 
         Assert.Contains("declares no properties", error.Message, StringComparison.Ordinal);
@@ -183,7 +183,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 1, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
+                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -318,7 +318,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 1, "entities": [{"type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 2, "entities": [{"type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -422,7 +422,7 @@ public sealed class SceneDocumentFileTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 1,",
+            "  \"formatVersion\": 2,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -552,7 +552,7 @@ public sealed class SceneDocumentFileTests
         string extra = "") =>
         $$"""
         {
-          "formatVersion": 1,
+          "formatVersion": 2,
           "entities": [
             {
               "id": 1,

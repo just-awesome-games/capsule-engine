@@ -13,24 +13,26 @@ public readonly record struct GridCellContact2D(GridCollider2D Grid, int X, int 
 /// <summary>Something a <see cref="Collider2D"/> is touching, named the way the game authored it.</summary>
 public readonly struct ColliderContact2D
 {
+    private readonly CollisionWorld2D? _world;
+
     internal ColliderContact2D(
+        CollisionWorld2D world,
         CollisionTarget target,
-        string tag,
         Vector2 point,
         Vector2 normal,
         Collider2D? otherCollider,
         GridCellContact2D? cell)
     {
+        _world = world;
         Target = target;
-        Tag = tag;
         Point = point;
         Normal = normal;
         OtherCollider = otherCollider;
         Cell = cell;
     }
 
-    /// <summary>The touched thing's tag as a name.</summary>
-    public string Tag { get; }
+    /// <summary>The collision layer the touched thing is on.</summary>
+    public CollisionLayer Layer => Target.Layer;
 
     /// <summary>A world-space point on the touched surface.</summary>
     public Vector2 Point { get; }
@@ -49,6 +51,13 @@ public readonly struct ColliderContact2D
 
     /// <summary>The entity reached through <see cref="OtherCollider"/> or the grid's owner.</summary>
     public Entity? OtherEntity => OtherCollider?.Entity ?? Cell?.Owner as Entity;
+
+    /// <summary>
+    /// The touched thing's layer as the name it was interned under; the readable form, for a log
+    /// line. Empty on a default contact, which names no world. A handler deciding what to do
+    /// compares <see cref="Layer"/> instead, which costs no lookup.
+    /// </summary>
+    public string LayerName => _world?.NameOf(Layer) ?? string.Empty;
 
     // Stable low-level identity used to pair enter and exit without exposing grid implementation
     // details through the scene-level API.

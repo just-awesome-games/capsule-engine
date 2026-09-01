@@ -9,7 +9,7 @@ public sealed class CollisionQueryTests
     public void Raycast_ReturnsTheNearestHitAndItsSurfaceNormal()
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
+        CollisionLayer wall = world.Layer("wall");
         world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
         world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
 
@@ -18,15 +18,15 @@ public sealed class CollisionQueryTests
         Assert.Equal(40f, hit.Distance, 3);
         Assert.Equal(new Vector2(-1f, 0f), hit.Normal);
         Assert.Equal(new Vector2(40f, 0f), hit.Point);
-        Assert.Equal(wall, hit.Target.Tag);
+        Assert.Equal(wall, hit.Target.Layer);
     }
 
     [Fact]
     public void Raycast_RespectsTheFilterAndTheIgnoredCollider()
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
-        CollisionTag ghost = world.Tag("ghost");
+        CollisionLayer wall = world.Layer("wall");
+        CollisionLayer ghost = world.Layer("ghost");
         ColliderHandle near = world.Add(Shape2D.Box(new Vector2(10f, -8f), new Vector2(8f, 16f)), Vector2.Zero, ghost, CollisionFilter.None);
         world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
 
@@ -41,7 +41,7 @@ public sealed class CollisionQueryTests
     public void Raycast_StopsShortOfSomethingBeyondItsDistance()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, world.Tag("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
 
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 39f, CollisionFilter.Everything, out _));
     }
@@ -50,7 +50,7 @@ public sealed class CollisionQueryTests
     public void RaycastAll_WritesEveryHitNearestFirstAndNeverPastTheSpan()
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
+        CollisionLayer wall = world.Layer("wall");
         world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
         world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
         world.Add(Shape2D.Circle(new Vector2(120f, 0f), 6f), Vector2.Zero, wall, CollisionFilter.None);
@@ -73,7 +73,7 @@ public sealed class CollisionQueryTests
     public void RaycastAll_KeepsTheNearestHitsWhenTheSpanCannotHoldThemAll()
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
+        CollisionLayer wall = world.Layer("wall");
 
         // Tilemap cells are walked before colliders, and this grid's only solid cell is the
         // farthest thing on the ray.
@@ -99,27 +99,28 @@ public sealed class CollisionQueryTests
     }
 
     [Fact]
-    public void AWorld_RefusesAHandleOrTagThatCameFromAnotherWorld()
+    public void AWorld_RefusesAHandleOrLayerThatCameFromAnotherWorld()
     {
         CollisionWorld2D first = new();
         CollisionWorld2D second = new();
         GridCollider2D terrain = CollisionFixtures.Paint(first, "##");
-        ColliderHandle foreign = first.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, first.Tag("item"), CollisionFilter.None);
-        ColliderHandle own = second.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, second.Tag("item"), CollisionFilter.None);
+        ColliderHandle foreign = first.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, first.Layer("item"), CollisionFilter.None);
+        ColliderHandle own = second.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, second.Layer("item"), CollisionFilter.None);
 
         // Same slot, same generation, different world: identity has to say so.
         Assert.NotEqual(foreign, own);
-        Assert.NotEqual(first.Tag("item"), second.Tag("item"));
+        Assert.NotEqual(first.Layer("item"), second.Layer("item"));
 
         Assert.Throws<ArgumentException>(() => second.Contains(foreign));
         Assert.Throws<ArgumentException>(() => second.Remove(foreign));
         Assert.Throws<ArgumentException>(() => second.PositionOf(foreign));
         Assert.Throws<ArgumentException>(() => second.GridOf(foreign));
         Assert.Throws<ArgumentException>(() => second.Remove(terrain));
-        Assert.Throws<ArgumentException>(() => second.NameOf(first.Tag("item")));
-        Assert.Throws<ArgumentException>(() => second.NameOf(terrain.TagAt(0, 0)));
+        Assert.Throws<ArgumentException>(() => second.NameOf(first.Layer("item")));
         Assert.Throws<ArgumentException>(
-            () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Tag("item"), CollisionFilter.None));
+            () => second.OverlapBox(terrain.CellBounds(0, 0), first.Filter("solid"), default));
+        Assert.Throws<ArgumentException>(
+            () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Layer("item"), CollisionFilter.None));
         Assert.Throws<ArgumentException>(
             () => second.Raycast(Vector2.Zero, Vector2.UnitX, 10f, CollisionFilter.Everything, out _, foreign));
         Assert.Throws<ArgumentException>(
@@ -131,12 +132,12 @@ public sealed class CollisionQueryTests
     }
 
     [Fact]
-    public void EveryFilterSeam_RefusesAFilterBuiltFromAnotherWorldsTags()
+    public void EveryFilterSeam_RefusesAFilterBuiltFromAnotherWorldsLayers()
     {
         CollisionWorld2D first = new();
         CollisionWorld2D second = new();
         CollisionFilter foreign = first.Filter("wall");
-        CollisionTag item = second.Tag("item");
+        CollisionLayer item = second.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         ColliderHandle handle = second.Add(box, Vector2.Zero, item, CollisionFilter.None);
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
@@ -162,7 +163,7 @@ public sealed class CollisionQueryTests
     public void EveryTransformSeam_RefusesANonFiniteValueAndLeavesTheWorldQueryable()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item, CollisionFilter.None);
 
@@ -197,7 +198,7 @@ public sealed class CollisionQueryTests
     public void EveryDerivedTransform_IsCheckedTooAndLeavesTheWorldQueryable()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
 
         // Wide enough to still have extent out there: a small shape cannot reach these coordinates
         // at all, because the floats either side of it are the same float.
@@ -231,7 +232,7 @@ public sealed class CollisionQueryTests
     public void EveryQueryVerb_RefusesAStaleIgnoreRatherThanSuppressingWhateverTookItsSlot()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
 
@@ -282,7 +283,7 @@ public sealed class CollisionQueryTests
     public void EveryShapeSeam_RefusesADefaultShapeRatherThanActingOnAnEmptyPointSet()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
         ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
         Shape2D none = default;
 
@@ -301,14 +302,14 @@ public sealed class CollisionQueryTests
     public void Raycast_ReachesEveryShapeTheUnionShips()
     {
         CollisionWorld2D world = new();
-        CollisionTag target = world.Tag("target");
+        CollisionLayer target = world.Layer("target");
 
         world.Add(Shape2D.Circle(new Vector2(20f, 0f), 4f), Vector2.Zero, target, CollisionFilter.None);
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D circle));
         Assert.Equal(16f, circle.Distance, 3);
 
         CollisionWorld2D capsules = new();
-        capsules.Add(Shape2D.Capsule(new Vector2(20f, -10f), new Vector2(20f, 10f), 3f), Vector2.Zero, capsules.Tag("target"), CollisionFilter.None);
+        capsules.Add(Shape2D.Capsule(new Vector2(20f, -10f), new Vector2(20f, 10f), 3f), Vector2.Zero, capsules.Layer("target"), CollisionFilter.None);
         Assert.True(capsules.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D capsule));
         Assert.Equal(17f, capsule.Distance, 3);
 
@@ -316,7 +317,7 @@ public sealed class CollisionQueryTests
         polygons.Add(
             Shape2D.Polygon([new Vector2(20f, -8f), new Vector2(36f, 0f), new Vector2(20f, 8f)]),
             Vector2.Zero,
-            polygons.Tag("target"),
+            polygons.Layer("target"),
             CollisionFilter.None);
         Assert.True(polygons.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D polygon));
         Assert.Equal(20f, polygon.Distance, 3);
@@ -325,7 +326,7 @@ public sealed class CollisionQueryTests
         rounded.Add(
             Shape2D.Polygon([new Vector2(20f, -8f), new Vector2(36f, 0f), new Vector2(20f, 8f)], 2f),
             Vector2.Zero,
-            rounded.Tag("target"),
+            rounded.Layer("target"),
             CollisionFilter.None);
         Assert.True(rounded.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D roundedHit));
         Assert.Equal(18f, roundedHit.Distance, 3);
@@ -335,7 +336,7 @@ public sealed class CollisionQueryTests
     public void Overlap_FindsEveryShapeTheQueryTouchesAndOrdersCollidersByHandle()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
         ColliderHandle first = world.Add(Shape2D.Circle(new Vector2(4f, 4f), 4f), Vector2.Zero, item, CollisionFilter.None);
         ColliderHandle second = world.Add(Shape2D.Box(new Vector2(6f, 0f), new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
         world.Add(Shape2D.Circle(new Vector2(400f, 400f), 4f), Vector2.Zero, item, CollisionFilter.None);
@@ -352,8 +353,8 @@ public sealed class CollisionQueryTests
     public void Overlap_RespectsTheFilterAndTheIgnoredCollider()
     {
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
-        CollisionTag other = world.Tag("other");
+        CollisionLayer item = world.Layer("item");
+        CollisionLayer other = world.Layer("other");
         ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
         world.Add(Shape2D.Box(new Vector2(4f, 0f), new Vector2(8f, 8f)), Vector2.Zero, other, CollisionFilter.None);
 
@@ -368,7 +369,7 @@ public sealed class CollisionQueryTests
     public void ShapeCast_StopsAtTheFirstThingAlongTheTranslation()
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
+        CollisionLayer wall = world.Layer("wall");
         world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
 
         Assert.True(world.ShapeCast(
@@ -386,7 +387,7 @@ public sealed class CollisionQueryTests
     public void ShapeCast_MissesWhatTheTranslationDoesNotReach()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Tag("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
 
         Assert.False(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)),
@@ -400,7 +401,7 @@ public sealed class CollisionQueryTests
     public void SetPosition_IsObservedByTheVeryNextQuery()
     {
         CollisionWorld2D world = new();
-        ColliderHandle moving = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Tag("item"), CollisionFilter.None);
+        ColliderHandle moving = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         Assert.Equal(0, world.OverlapBox(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
@@ -414,14 +415,14 @@ public sealed class CollisionQueryTests
     public void Remove_LeavesAStaleHandleNamingNothing()
     {
         CollisionWorld2D world = new();
-        ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Tag("item"), CollisionFilter.None);
+        ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
 
         world.Remove(handle);
 
         Assert.False(world.Contains(handle));
         Assert.Throws<ArgumentException>(() => world.PositionOf(handle));
 
-        ColliderHandle reused = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Tag("item"), CollisionFilter.None);
+        ColliderHandle reused = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
         Assert.NotEqual(handle, reused);
         Assert.False(world.Contains(handle));
     }

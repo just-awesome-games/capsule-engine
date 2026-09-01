@@ -52,7 +52,8 @@ internal static class Boxes
 
     /// <summary>
     /// The fraction of <paramref name="translation"/> at which <paramref name="moving"/> first
-    /// touches <paramref name="target"/>, exactly. Returns false when they never touch;
+    /// touches <paramref name="target"/> over an extent, exactly. Returns false when they never
+    /// touch and when they only ever meet along a line of zero width;
     /// <paramref name="fraction"/> is 0 when they already overlap.
     /// </summary>
     internal static bool Sweep(
@@ -62,6 +63,20 @@ internal static class Boxes
         out float fraction,
         out Vector2 normal)
     {
+        fraction = 0f;
+        normal = Vector2.Zero;
+
+        // Flush on an axis the translation does not move along, the boxes meet over nothing at all
+        // for the whole sweep, and contact with no extent is not a crossing. The ray below cannot
+        // say so: its entry there is degenerate, so the normal falls through to the least-
+        // penetration axis, whose exact tie resolves towards X and would call the same corner touch
+        // a hit on a Left face and a miss on a Top.
+        if ((translation.X == 0f && (moving.Max.X == target.Min.X || moving.Min.X == target.Max.X))
+            || (translation.Y == 0f && (moving.Max.Y == target.Min.Y || moving.Min.Y == target.Max.Y)))
+        {
+            return false;
+        }
+
         // Minkowski form: the moving box shrinks to its centre and the target grows by its half
         // extents, which turns the sweep into one ray against one box.
         Vector2 half = moving.Size * 0.5f;

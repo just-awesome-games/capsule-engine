@@ -151,7 +151,7 @@ public sealed class MoverTests
     }
 
     [Fact]
-    public void MoveBox_LandsOnAOneWayEdgeFromAboveAndPassesItFromBelow()
+    public void MoveBox_LandsOnATopFaceFromAboveAndPassesItFromBelow()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
@@ -174,7 +174,7 @@ public sealed class MoverTests
     }
 
     [Fact]
-    public void MoveBox_IsNeverStoppedSidewaysByAOneWayEdge()
+    public void MoveBox_IsNeverStoppedSidewaysByATopFace()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "----", "----");
@@ -190,7 +190,7 @@ public sealed class MoverTests
     }
 
     [Fact]
-    public void MoveBox_FallsPastAOneWayEdgeItAlreadyStartedBelow()
+    public void MoveBox_FallsPastATopFaceItAlreadyStartedBelow()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
@@ -205,11 +205,105 @@ public sealed class MoverTests
         Assert.Equal(20f, result.Translation.Y, Tolerance);
     }
 
+    // A face is a declared plane, so the surface it reports is its own normal whatever the
+    // narrowphase measured against. A rounded shape coming down past the near end of an edge is
+    // nearest to that endpoint, and GJK answers with the diagonal from the corner — a direction the
+    // surface does not have, and one a game classifying grounded-versus-wall by normal would read
+    // as a wall. The shape is placed so its centre is off the end of the face and only its side
+    // overhangs, which is exactly where the endpoint is the nearest feature.
+    [Theory]
+    [InlineData(ShapeKind2D.Circle)]
+    [InlineData(ShapeKind2D.Capsule)]
+    [InlineData(ShapeKind2D.Box)]
+    public void ShapeCast_PastTheEndOfATopFace_ReportsTheFacesOwnNormal(ShapeKind2D kind)
+    {
+        CollisionWorld2D world = new();
+
+        // The only collidable cell is (1, 1), so the face spans x = 16..32 at y = 16.
+        CollisionFixtures.Paint(world, "..", ".-");
+
+        Assert.True(world.ShapeCast(
+            Landing(kind),
+            new Vector2(14f, 4f),
+            new Vector2(0f, 24f),
+            CollisionFilter.Everything,
+            out ShapeCastHit2D hit));
+
+        Assert.True(hit.Target.IsGridCell);
+        Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
+        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
+    }
+
+    // The same claim through the mover, which is what a game actually reads: every contact it
+    // writes for a directional face carries that face's normal.
+    [Theory]
+    [InlineData(ShapeKind2D.Circle)]
+    [InlineData(ShapeKind2D.Capsule)]
+    public void Move_PastTheEndOfATopFace_ReportsTheFacesOwnNormal(ShapeKind2D kind)
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, "..", ".-");
+
+        Contact2D[] contacts = new Contact2D[8];
+        MoveResult2D result = world.Move(
+            Landing(kind),
+            new Vector2(14f, 4f),
+            new Vector2(0f, 24f),
+            CollisionFilter.Everything,
+            contacts);
+
+        Assert.True(result.BlockedY);
+        Assert.NotEqual(0, result.ContactCount);
+        Assert.All(
+            contacts[..result.ContactCount].ToArray(),
+            contact => Assert.Equal(new Vector2(0f, -1f), contact.Normal));
+    }
+
+    // Centred on the origin, so the cast origin places the shape's middle: a box takes the
+    // closed-form sweep and is the control, the rounded pair take the GJK path this is about.
+    private static Shape2D Landing(ShapeKind2D kind) => kind switch
+    {
+        ShapeKind2D.Circle => Shape2D.Circle(Vector2.Zero, 4f),
+        ShapeKind2D.Capsule => Shape2D.Capsule(new Vector2(0f, -4f), new Vector2(0f, 4f), 3f),
+        _ => Shape2D.Box(Aabb2D.FromCenter(Vector2.Zero, new Vector2(8f, 8f))),
+    };
+
+    // The generalisation: a face is a direction, so the same primitive pointed the other way is
+    // what a body under reversed gravity stands on.
+    [Fact]
+    public void MoveBox_LandsOnABottomFaceFromBelowAndPassesItFromAbove()
+    {
+        CollisionWorld2D world = new();
+        world.AddGrid(
+            CollisionFixtures.TileSize,
+            1,
+            3,
+            [0, 1, 0],
+            [new CellProfile2D(null), new CellProfile2D(world.Layer("ceiling"), CellFaces2D.Bottom)]);
+
+        // The face is at y = 32; a box rising from below stops with its top there.
+        MoveResult2D rising = world.MoveBox(
+            CollisionFixtures.Box(4f, 44f, 8f, 8f),
+            new Vector2(0f, -20f),
+            CollisionFilter.Everything,
+            default);
+        Assert.True(rising.BlockedY);
+        Assert.Equal(-12f, rising.Translation.Y, Tolerance);
+
+        MoveResult2D falling = world.MoveBox(
+            CollisionFixtures.Box(4f, 4f, 8f, 8f),
+            new Vector2(0f, 20f),
+            CollisionFilter.Everything,
+            default);
+        Assert.False(falling.BlockedY);
+        Assert.Equal(20f, falling.Translation.Y, Tolerance);
+    }
+
     [Fact]
     public void MoveBox_IsBlockedByAnotherColliderAndIgnoresItsOwn()
     {
         CollisionWorld2D world = new();
-        CollisionTag body = world.Tag("body");
+        CollisionLayer body = world.Layer("body");
         ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
         world.Add(Shape2D.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
 
@@ -276,19 +370,19 @@ public sealed class MoverTests
             default));
     }
 
-    // Handles and tags name a slot in one world and never compare across two, so what two runs owe
-    // each other is the same surfaces in the same order — cells, tag names and normals.
+    // Handles and layers name a slot in one world and never compare across two, so what two runs
+    // owe each other is the same surfaces in the same order — cells, layer names and normals.
     [Fact]
     public void MoveBox_ProducesTheSameContactsForTheSameInputsOnAFreshWorld()
     {
-        static (Vector2 Translation, (bool Tile, int X, int Y, string Tag, Vector2 Normal)[] Contacts) Run()
+        static (Vector2 Translation, (bool Tile, int X, int Y, string Layer, Vector2 Normal)[] Contacts) Run()
         {
             CollisionWorld2D world = new();
             CollisionFixtures.Paint(world, "..#", "####");
             world.Add(
                 Shape2D.Circle(new Vector2(20f, 6f), 3f),
                 Vector2.Zero,
-                world.Tag("pickup"),
+                world.Layer("pickup"),
                 CollisionFilter.None);
 
             Contact2D[] contacts = new Contact2D[8];
@@ -304,7 +398,7 @@ public sealed class MoverTests
                     contact.Target.IsGridCell,
                     contact.Target.CellX,
                     contact.Target.CellY,
-                    world.NameOf(contact.Target.Tag),
+                    world.NameOf(contact.Target.Layer),
                     contact.Normal))]);
         }
 
@@ -315,4 +409,5 @@ public sealed class MoverTests
         Assert.Equal(firstContacts, secondContacts);
         Assert.NotEmpty(firstContacts);
     }
+
 }

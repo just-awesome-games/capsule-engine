@@ -41,8 +41,8 @@ public sealed class TileMap : Entity
 
     /// <summary>
     /// This layer's collider in the scene's world, or null when it is in no scene or no tile type
-    /// in its palette collides. Its cells carry the tile type as their tag, so a contact against
-    /// terrain names the type that was authored.
+    /// in its palette collides. Its cells carry the collision layer their tile type was authored
+    /// on; the tile type name is identity and is not a layer.
     /// </summary>
     public GridCollider2D? Collision { get; private set; }
 
@@ -65,10 +65,12 @@ public sealed class TileMap : Entity
         _world = Scene!.Collision;
 
         ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
-        CellProfile[] profiles = new CellProfile[palette.Length];
+        CellProfile2D[] profiles = new CellProfile2D[palette.Length];
         for (int index = 0; index < profiles.Length; index++)
         {
-            profiles[index] = new CellProfile(ToCellCollision(palette[index].Collision), palette[index].Type);
+            profiles[index] = new CellProfile2D(
+                palette[index].Layer is { } layer ? _world.Layer(layer) : null,
+                palette[index].CollidableFaces);
         }
 
         Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _grid.Cells, profiles, this);
@@ -85,14 +87,6 @@ public sealed class TileMap : Entity
         Collision = null;
         _world = null;
     }
-
-    private static CellCollision ToCellCollision(TileCollision collision) => collision switch
-    {
-        TileCollision.None => CellCollision.None,
-        TileCollision.Solid => CellCollision.Solid,
-        TileCollision.OneWay => CellCollision.OneWay,
-        _ => throw new ArgumentOutOfRangeException(nameof(collision), collision, "The tile collision kind is not defined."),
-    };
 
     private sealed class VisibleTiles(TileGrid grid) : Renderer
     {

@@ -1,0 +1,51 @@
+<Project>
+
+  <!-- Stages Capsule's XML documentation where a game can read it, for source consumers only.
+
+       The XML comments are the whole API reference, and a package consumer already has them
+       unpacked beside the assemblies in the NuGet cache. A source consumer has them only in the
+       engine clone's own output, and the copies that reach the game's bin/ are made after its
+       CoreCompile — so the build that matters, the one failing because the engine's API moved,
+       never reaches them and leaves the game holding the reference it last compiled against.
+
+       Staged before CoreCompile instead, from the referenced projects' resolved output, so the
+       reference is current exactly when the compile is not. One directory for the whole
+       repository: every role project references the same engine assemblies, so each writes the
+       same bytes over the last.
+
+       Paths are composed with forward slashes and canonicalised through the MSBuild path
+       intrinsics, matching the rest of these hooks: a literal backslash is an ordinary filename
+       character on Linux rather than a separator. -->
+
+  <PropertyGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <!-- The consumer's repository root. Directory.Build.targets is what imports this file in
+         source mode, so it is the one anchor a source consumer is guaranteed to have, and it sits
+         at the root beside the Directory.Build.props that declares the override. An override is
+         resolved against the same root, so the directory stays one directory. -->
+    <CapsuleApiReferenceDirectory Condition="'$(CapsuleApiReferenceDirectory)' == ''">artifacts/capsule-api</CapsuleApiReferenceDirectory>
+    <CapsuleApiReferenceDirectory>$([MSBuild]::NormalizePath('$([System.IO.Path]::GetDirectoryName("$(DirectoryBuildTargetsPath)"))', '$(CapsuleApiReferenceDirectory)'))</CapsuleApiReferenceDirectory>
+  </PropertyGroup>
+
+  <Target Name="CapsuleStageApiReference"
+          Condition="'$(CapsuleSourceRoot)' != ''"
+          DependsOnTargets="ResolveReferences"
+          BeforeTargets="CoreCompile">
+
+    <!-- Resolved rather than globbed: this is the documentation of the engine assemblies this
+         project actually references, so a game that takes no Runtime reference stages no
+         Capsule.Runtime.xml. -->
+    <ItemGroup>
+      <_CapsuleApiReferenceFile Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Extension', '.xml'))"
+                               Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
+    </ItemGroup>
+
+    <!-- Role projects that share the directory build in parallel and stage the same file, so a
+         copy can meet the one another project is part way through writing. -->
+    <Copy SourceFiles="@(_CapsuleApiReferenceFile)"
+          DestinationFolder="$(CapsuleApiReferenceDirectory)"
+          SkipUnchangedFiles="true"
+          Retries="3"
+          RetryDelayMilliseconds="100" />
+  </Target>
+
+</Project>

@@ -43,7 +43,7 @@ public sealed class Shape2DTests
 
         // And every seam that places a shape refuses it for the same reason.
         CollisionWorld2D world = new();
-        CollisionTag item = world.Tag("item");
+        CollisionLayer item = world.Layer("item");
         ColliderHandle handle = world.Add(unit, Vector2.Zero, item, CollisionFilter.None);
 
         Assert.Throws<ArgumentException>(() => world.Add(unit, new Vector2(3e38f, 0f), item, CollisionFilter.None));
@@ -69,7 +69,7 @@ public sealed class Shape2DTests
         Assert.True(placed.Bounds.Size.Y > 0f);
 
         CollisionWorld2D world = new();
-        world.Add(unit, new Vector2(Furthest, 0f), world.Tag("wall"), CollisionFilter.None);
+        world.Add(unit, new Vector2(Furthest, 0f), world.Layer("wall"), CollisionFilter.None);
 
         Assert.True(world.Raycast(
             new Vector2(Furthest - 10f, 0.5f),
@@ -93,7 +93,7 @@ public sealed class Shape2DTests
         Assert.True(float.IsFinite(wide.Bounds.Perimeter));
 
         CollisionWorld2D world = new();
-        world.Add(wide, Vector2.Zero, world.Tag("wall"), CollisionFilter.None);
+        world.Add(wide, Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
 
         Assert.True(world.Raycast(new Vector2(-10f, 5f), Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D hit));
         Assert.Equal(10f, hit.Distance, 3);
@@ -169,7 +169,7 @@ public sealed class Shape2DTests
         static (float Distance, Vector2 Normal) FirstFace(Vector2[] points)
         {
             CollisionWorld2D world = new();
-            world.Add(Shape2D.Polygon(points), Vector2.Zero, world.Tag("target"), CollisionFilter.None);
+            world.Add(Shape2D.Polygon(points), Vector2.Zero, world.Layer("target"), CollisionFilter.None);
 
             Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D hit));
 

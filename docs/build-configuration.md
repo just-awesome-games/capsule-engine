@@ -61,5 +61,6 @@ These properties belong to the consumer repository's package/source switch shown
 | `CapsuleVersion` | consumer-defined | Pins `JAG.Capsule`, `JAG.Capsule.Runtime`, and `JAG.Capsule.Build` to one release. |
 | `CapsuleSourcePath` | unset | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory. |
 | `CapsuleUsePackages` | `false` | Set to `true` to ignore a source override and verify the pinned NuGet graph. |
+| `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |
 
 `CapsuleSourceRoot` is the normalized internal result of `CapsuleSourcePath`; consumers should not set it directly.

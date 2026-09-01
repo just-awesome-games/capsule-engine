@@ -3,20 +3,24 @@ using System.Numerics;
 namespace Capsule.Collision;
 
 /// <summary>
-/// One grid of collidable cells, anchored at the world origin. The grid is its own broadphase, so
-/// a query visits only the cells it crosses rather than a list of individual colliders. It holds
-/// cell indices, collision kinds and tags, and knows nothing about what authored those cells.
+/// One grid of layered cells, anchored at the world origin. Each cell is on the layer its palette
+/// entry names and collides on the sides that entry declares. The grid is its own broadphase, so a
+/// query visits only the cells it crosses rather than a list of individual colliders, and it knows
+/// nothing about what authored those cells.
 /// </summary>
 public sealed class GridCollider2D
 {
     private readonly int[] _cells;
-    private readonly CellCollision[] _kinds;
-    private readonly CollisionTag[] _tags;
+    private readonly CollisionLayer?[] _layers;
+    private readonly CellFaces2D[] _faces;
 
-    // One byte a cell: what it collides as, and which of its faces are not shared with a
-    // neighbour that collides the same way. Derived once, so the mover's inner loop reads a
-    // boundary face without walking back into the palette. Purely geometric: a query that filters
-    // some of the grid out re-decides the faces it culled, through NeighbourAdmits.
+    // One byte a cell: whether it is a solid box, and which of its sides are surfaces a query can
+    // meet. Derived once, so the mover's inner loop reads a face without walking back into the
+    // palette. For a solid cell the sides are the ones not shared with a solid neighbour, which is
+    // purely geometric: a query that filters some of the grid out re-decides the faces it culled,
+    // through NeighbourAdmits. A cell with fewer than four faces keeps exactly the sides it
+    // declared — an edge is one-directional, so one buried behind a neighbour costs a narrowphase
+    // test and can never wrongly block.
     private readonly CellState[] _state;
 
     internal GridCollider2D(
@@ -25,16 +29,16 @@ public sealed class GridCollider2D
         int width,
         int height,
         int[] cells,
-        CellCollision[] kinds,
-        CollisionTag[] tags)
+        CollisionLayer?[] layers,
+        CellFaces2D[] faces)
     {
         Handle = handle;
         CellSize = cellSize;
         Width = width;
         Height = height;
         _cells = cells;
-        _kinds = kinds;
-        _tags = tags;
+        _layers = layers;
+        _faces = faces;
         _state = new CellState[cells.Length];
 
         Bounds = new Aabb2D(Vector2.Zero, new Vector2(width * (float)cellSize, height * (float)cellSize));
@@ -57,26 +61,29 @@ public sealed class GridCollider2D
     /// <summary>The world region the grid covers, from the origin.</summary>
     public Aabb2D Bounds { get; }
 
-    // The union of the palette's tags: a query whose filter shares none of them skips this grid
-    // without walking a single cell.
-    internal CollisionFilter Tags { get; private set; }
+    // The union of the layers of the cells that actually collide: a query whose filter names none
+    // of them skips this grid without walking a single cell.
+    internal CollisionFilter Layers { get; private set; }
 
-    /// <summary>What the cell at (<paramref name="x"/>, <paramref name="y"/>) collides as.</summary>
+    /// <summary>
+    /// The layer the cell at (<paramref name="x"/>, <paramref name="y"/>) is on, or null where the
+    /// cell collides as nothing.
+    /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
-    public CellCollision CollisionAt(int x, int y)
+    public CollisionLayer? LayerAt(int x, int y)
     {
         RequireOnGrid(x, y);
 
-        return _kinds[_cells[(y * Width) + x]];
+        return _layers[_cells[(y * Width) + x]];
     }
 
-    /// <summary>The tag the cell at (<paramref name="x"/>, <paramref name="y"/>) carries.</summary>
+    /// <summary>Which sides of the cell at (<paramref name="x"/>, <paramref name="y"/>) collide.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
-    public CollisionTag TagAt(int x, int y)
+    public CellFaces2D FacesAt(int x, int y)
     {
         RequireOnGrid(x, y);
 
-        return _tags[_cells[(y * Width) + x]];
+        return _faces[_cells[(y * Width) + x]];
     }
 
     /// <summary>The world-space box of the cell at (<paramref name="x"/>, <paramref name="y"/>).</summary>
@@ -94,11 +101,14 @@ public sealed class GridCollider2D
     internal CellState StateAt(int x, int y) =>
         (uint)x < (uint)Width && (uint)y < (uint)Height ? _state[(y * Width) + x] : CellState.None;
 
-    internal CollisionTag TagOf(int x, int y) => _tags[_cells[(y * Width) + x]];
+    // The layer of a cell the caller has already found to collide, which is what makes the value
+    // present: a cell whose palette entry names no layer never reaches a query, because its derived
+    // state is CellState.None.
+    internal CollisionLayer LayerOf(int x, int y) => _layers[_cells[(y * Width) + x]]!.Value;
 
     // Whether the derived face culling answers a query outright. Culling was derived over every
     // cell in the grid, so it is the query's answer only while the query can see every cell.
-    internal bool AdmitsEveryTag(CollisionFilter filter) => (Tags & filter) == Tags;
+    internal bool AdmitsEveryLayer(CollisionFilter filter) => (Layers & filter) == Layers;
 
     // Whether the cell across the face a normal points out of is one the query both collides with
     // and reads as solid. A cell the filter excludes is empty space, so it shares no face.
@@ -120,7 +130,9 @@ public sealed class GridCollider2D
 
         int cell = _cells[(y * Width) + x];
 
-        return _kinds[cell] == CellCollision.Solid && filter.Matches(_tags[cell]);
+        return _faces[cell] == CellFaces2D.All
+            && _layers[cell] is { } layer
+            && filter.Matches(layer);
     }
 
     internal Aabb2D CellBox(int x, int y) =>
@@ -128,73 +140,124 @@ public sealed class GridCollider2D
             new Vector2(x * (float)CellSize, y * (float)CellSize),
             new Vector2((x + 1) * (float)CellSize, (y + 1) * (float)CellSize));
 
-    // The one-way edge, as the degenerate box the narrowphase treats it as: the cell's low-Y face.
-    internal Aabb2D OneWayEdge(int x, int y)
+    // One side of a cell, as the degenerate box the narrowphase treats it as: a zero-thickness
+    // segment lying along that side.
+    internal Aabb2D FaceEdge(int x, int y, CellState face)
     {
-        float top = y * (float)CellSize;
+        Aabb2D cell = CellBox(x, y);
 
-        return new Aabb2D(new Vector2(x * (float)CellSize, top), new Vector2((x + 1) * (float)CellSize, top));
+        return face switch
+        {
+            CellState.FaceMinX => new Aabb2D(cell.Min, new Vector2(cell.Min.X, cell.Max.Y)),
+            CellState.FaceMaxX => new Aabb2D(new Vector2(cell.Max.X, cell.Min.Y), cell.Max),
+            CellState.FaceMinY => new Aabb2D(cell.Min, new Vector2(cell.Max.X, cell.Min.Y)),
+            _ => new Aabb2D(new Vector2(cell.Min.X, cell.Max.Y), cell.Max),
+        };
     }
+
+    // The unit direction a face points away from its cell, which is also the surface normal a query
+    // meeting it reports.
+    internal static Vector2 FaceNormal(CellState face) => face switch
+    {
+        CellState.FaceMinX => new Vector2(-1f, 0f),
+        CellState.FaceMaxX => new Vector2(1f, 0f),
+        CellState.FaceMinY => new Vector2(0f, -1f),
+        _ => new Vector2(0f, 1f),
+    };
 
     internal static int FloorDiv(float world, int cellSize) =>
         (int)MathF.Floor(world / cellSize);
 
+    private static CellState FacesOf(CellFaces2D faces)
+    {
+        CellState state = CellState.None;
+
+        if ((faces & CellFaces2D.Left) != 0)
+        {
+            state |= CellState.FaceMinX;
+        }
+
+        if ((faces & CellFaces2D.Right) != 0)
+        {
+            state |= CellState.FaceMaxX;
+        }
+
+        if ((faces & CellFaces2D.Top) != 0)
+        {
+            state |= CellState.FaceMinY;
+        }
+
+        if ((faces & CellFaces2D.Bottom) != 0)
+        {
+            state |= CellState.FaceMaxY;
+        }
+
+        return state;
+    }
+
     private void DeriveCells()
     {
-        CollisionFilter tags = CollisionFilter.None;
+        CollisionFilter layers = CollisionFilter.None;
 
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
             {
                 int index = (y * Width) + x;
-                CellCollision kind = _kinds[_cells[index]];
-                if (kind == CellCollision.None)
+                int palette = _cells[index];
+                if (_layers[palette] is not { } layer)
                 {
                     continue;
                 }
 
-                tags = tags.With(_tags[_cells[index]]);
-
-                if (kind == CellCollision.OneWay)
+                if (_faces[palette] != CellFaces2D.All)
                 {
-                    // A one-way edge is one segment however its neighbours are painted: adjacent
-                    // edges are collinear, so no seam can catch, and it never blocks along X.
-                    _state[index] = CellState.OneWay | CellState.FaceMinY;
-                    continue;
+                    _state[index] = FacesOf(_faces[palette]);
+                }
+                else
+                {
+                    CellState state = CellState.Solid;
+                    if (!IsSolid(x - 1, y))
+                    {
+                        state |= CellState.FaceMinX;
+                    }
+
+                    if (!IsSolid(x + 1, y))
+                    {
+                        state |= CellState.FaceMaxX;
+                    }
+
+                    if (!IsSolid(x, y - 1))
+                    {
+                        state |= CellState.FaceMinY;
+                    }
+
+                    if (!IsSolid(x, y + 1))
+                    {
+                        state |= CellState.FaceMaxY;
+                    }
+
+                    _state[index] = state;
                 }
 
-                CellState state = CellState.Solid;
-                if (!IsSolid(x - 1, y))
-                {
-                    state |= CellState.FaceMinX;
-                }
-
-                if (!IsSolid(x + 1, y))
-                {
-                    state |= CellState.FaceMaxX;
-                }
-
-                if (!IsSolid(x, y - 1))
-                {
-                    state |= CellState.FaceMinY;
-                }
-
-                if (!IsSolid(x, y + 1))
-                {
-                    state |= CellState.FaceMaxY;
-                }
-
-                _state[index] = state;
+                layers = layers.With(layer);
             }
         }
 
-        Tags = tags;
+        Layers = layers;
     }
 
-    private bool IsSolid(int x, int y) =>
-        (uint)x < (uint)Width && (uint)y < (uint)Height
-        && _kinds[_cells[(y * Width) + x]] == CellCollision.Solid;
+    private bool IsSolid(int x, int y)
+    {
+        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        {
+            return false;
+        }
+
+        int cell = _cells[(y * Width) + x];
+
+        return _faces[cell] == CellFaces2D.All && _layers[cell] is not null;
+    }
 
     private void RequireOnGrid(int x, int y)
     {
@@ -210,9 +273,8 @@ internal enum CellState : byte
 {
     None = 0,
     Solid = 1,
-    OneWay = 2,
-    FaceMinX = 4,
-    FaceMaxX = 8,
-    FaceMinY = 16,
-    FaceMaxY = 32,
+    FaceMinX = 2,
+    FaceMaxX = 4,
+    FaceMinY = 8,
+    FaceMaxY = 16,
 }

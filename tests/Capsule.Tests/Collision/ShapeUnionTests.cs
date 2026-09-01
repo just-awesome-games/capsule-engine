@@ -17,7 +17,7 @@ public sealed class ShapeUnionTests
     public void EveryShape_IsFoundByAnOverlapThatCoversIt(string kind)
     {
         CollisionWorld2D world = new();
-        CollisionTag target = world.Tag("target");
+        CollisionLayer target = world.Layer("target");
         world.Add(Of(kind), new Vector2(50f, 50f), target, CollisionFilter.None);
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
@@ -26,7 +26,7 @@ public sealed class ShapeUnionTests
             Aabb2D.FromCorner(new Vector2(30f, 30f), new Vector2(40f, 40f)),
             CollisionFilter.Everything,
             contacts));
-        Assert.Equal(target, contacts[0].Target.Tag);
+        Assert.Equal(target, contacts[0].Target.Layer);
     }
 
     [Theory]
@@ -34,7 +34,7 @@ public sealed class ShapeUnionTests
     public void EveryShape_IsHitByARayAimedAtIt(string kind)
     {
         CollisionWorld2D world = new();
-        world.Add(Of(kind), new Vector2(50f, 50f), world.Tag("target"), CollisionFilter.None);
+        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"), CollisionFilter.None);
 
         Assert.True(world.Raycast(
             new Vector2(0f, 50f),
@@ -51,7 +51,7 @@ public sealed class ShapeUnionTests
     public void EveryShape_StopsAShapeCastAndAMoveSweptIntoIt(string kind)
     {
         CollisionWorld2D world = new();
-        world.Add(Of(kind), new Vector2(50f, 50f), world.Tag("target"), CollisionFilter.None);
+        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"), CollisionFilter.None);
 
         Assert.True(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),
@@ -76,10 +76,10 @@ public sealed class ShapeUnionTests
     public void EveryShape_MovesAsAColliderOfItsOwn(string kind)
     {
         CollisionWorld2D world = new();
-        CollisionTag wall = world.Tag("wall");
+        CollisionLayer wall = world.Layer("wall");
         world.Add(Shape2D.Box(Vector2.Zero, new Vector2(16f, 64f)), new Vector2(100f, 20f), wall, CollisionFilter.None);
 
-        ColliderHandle mover = world.Add(Of(kind), new Vector2(20f, 50f), world.Tag("mover"), CollisionFilter.Of(wall));
+        ColliderHandle mover = world.Add(Of(kind), new Vector2(20f, 50f), world.Layer("mover"), CollisionFilter.Of(wall));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         MoveResult2D result = world.MoveCollider(mover, new Vector2(200f, 0f), contacts);

@@ -7,14 +7,14 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | Module | Charter | May reference |
 | --- | --- | --- |
 | `Capsule.Core` | Simulation seam, fixed step, input, render intent, asset handles. | nothing |
-| `Capsule.Collision` | Collision only: the shape union, tag filtering, the tilemap grid, the dynamic AABB tree, and the query seam — raycast, shape cast, overlap, mover. | Core |
+| `Capsule.Collision` | Collision only: the shape union, layer filtering, the grid of layered cells, the dynamic AABB tree, and the query seam — raycast, shape cast, overlap, mover. | Core |
 | `Capsule.Scenes` | The world: scenes, entities, components, camera, spawning, transitions, tile grids, and the [scene document](scenes.md) — format, loader, composition. It adapts collision onto entities in `Capsule.Scenes.Physics`. | Core, Collision |
 | `Capsule.Runtime` | The host: window, device, clock, sampling, renderer, crash log. | the pure modules |
 | `Capsule.Build`, `Capsule.Analyzers`, `Capsule.Generators`, `Capsule.Cli` | Build-time tooling; ships in no game. | unconstrained |
 
 `Capsule.Architecture.targets` enforces the reference column for the substrate-free modules, and that they take no package dependency at all.
 
-Public types whose meaning is dimension-specific carry a `2D` suffix in the collision and physics domains; dimension-free vocabulary — tags, filters, handles, targets, cell kinds — and namespaces and modules do not, and the render seam keeps its names.
+Public types whose meaning is dimension-specific carry a `2D` suffix in the collision and physics domains; dimension-free vocabulary — layers, filters, handles, targets, cell faces — and namespaces and modules do not, and the render seam keeps its names.
 
 ## Determinism contract
 
@@ -23,8 +23,8 @@ Given the same initial state, fixed-step duration, and sequence of `DeviceSnapsh
 - Gameplay reads `StepContext`; it cannot access wall-clock time, external IO, ambient randomness, asynchronous execution, or the graphics backend.
 - Input edges are differences between snapshots. `SnapshotLatch` preserves them when render and simulation rates differ.
 - Simulation is single-threaded. Scene entities update and draw in insertion order, and mutations requested during a step apply after iteration.
-- Collision is deterministic for a given sequence of operations: tags intern in registration order, casts report the nearest hit, and overlaps report tilemap cells before colliders — tilemaps in registration order and row-major within each, colliders by handle. `RaycastAll` fills its span with the nearest hits ordered by distance, ties broken by tiles before colliders and then by collider slot and cell, so the result never depends on the broadphase's current shape. Contacts settle after entities update and before the scene's late step, in the order colliders began reporting them.
-- Handles, tags and filters belong to the world that issued them and are rejected by any other, so two worlds' identities are never confused for one another. `CollisionFilter.None` and `CollisionFilter.Everything` name no tag table and are accepted anywhere.
+- Collision is deterministic for a given sequence of operations: layers intern in registration order, casts report the nearest hit, and overlaps report tilemap cells before colliders — tilemaps in registration order and row-major within each, colliders by handle. `RaycastAll` fills its span with the nearest hits ordered by distance, ties broken by tiles before colliders and then by collider slot and cell, so the result never depends on the broadphase's current shape. Contacts settle after entities update and before the scene's late step, in the order colliders began reporting them.
+- Handles, layers and filters belong to the world that issued them and are rejected by any other, so two worlds' identities are never confused for one another. `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted anywhere.
 - `TotalSeconds` is derived from the tick count rather than accumulated.
 - The runtime clamps frame spikes before scheduling fixed steps.
 

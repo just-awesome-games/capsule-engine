@@ -14,7 +14,7 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>Reads and validates the scene document at <paramref name="path"/>.</summary>
@@ -213,7 +213,10 @@ public static class SceneDocumentFile
             {
                 Type = palette[i].Type,
                 Color = palette[i].Color is { } color ? FormatColor(color) : null,
-                Collision = TileCollisionNames.Format(palette[i].Collision),
+                Layer = palette[i].Layer,
+                CollidableFaces = palette[i].Layer is null
+                    ? null
+                    : TileFaceNames.Format(palette[i].CollidableFaces),
             };
         }
 
@@ -253,10 +256,18 @@ public static class SceneDocumentFile
                     $"tileTypes[{i}] is null; every palette entry is an object naming a tile type.");
             }
 
+            if (tileType.Collision.ValueKind != JsonValueKind.Undefined)
+            {
+                throw new SceneDocumentFormatException(
+                    $"tileTypes[{i}] declares collision, which the format no longer has; the layer a tile is on is written as its layer, and which of its sides collide as its collidableFaces.");
+            }
+
+            string? layer = ParseLayer(tileType.Layer, i);
             tileTypes[i] = new TileDefinition(
                 tileType.Type ?? string.Empty,
                 tileType.Color is { } color ? ParseColor(color, i) : null,
-                ParseCollision(tileType.Collision, i));
+                layer,
+                ParseFaces(tileType.CollidableFaces, layer, i));
         }
 
         try
@@ -287,17 +298,50 @@ public static class SceneDocumentFile
             $"tileTypes[{index}].color must be lowercase #rrggbbaa, not \"{color}\".");
     }
 
-    private static TileCollision ParseCollision(string? collision, int index)
+    private static string? ParseLayer(string? layer, int index)
     {
-        if (collision is null)
+        if (layer is null)
         {
-            return TileCollision.None;
+            return null;
         }
 
-        return TileCollisionNames.TryParse(collision, out TileCollision parsed)
-            ? parsed
-            : throw new SceneDocumentFormatException(
-                $"tileTypes[{index}].collision is \"{collision}\"; it must be one of {string.Join(", ", TileCollisionNames.All)}, or be left out entirely.");
+        return string.IsNullOrWhiteSpace(layer)
+            ? throw new SceneDocumentFormatException(
+                $"tileTypes[{index}].layer is blank; a tile that collides names the layer it is on, and one that collides as nothing leaves it out.")
+            : layer;
+    }
+
+    private static CellFaces2D ParseFaces(string?[]? faces, string? layer, int index)
+    {
+        if (faces is null)
+        {
+            return CellFaces2D.All;
+        }
+
+        // A face list on a tile that is on no layer describes sides of a tile that never collides,
+        // so it would be written back and then ignored.
+        if (layer is null)
+        {
+            throw new SceneDocumentFormatException(
+                $"tileTypes[{index}] declares collidableFaces on a tile that collides as nothing; name the layer it is on, or leave the collidableFaces out.");
+        }
+
+        CellFaces2D parsed = CellFaces2D.None;
+        foreach (string? face in faces)
+        {
+            parsed |= TileFaceNames.TryParse(face, out CellFaces2D one)
+                ? one
+                : throw new SceneDocumentFormatException(
+                    $"tileTypes[{index}].collidableFaces holds \"{face}\"; every face is one of {string.Join(", ", TileFaceNames.All)}.");
+        }
+
+        if (parsed == CellFaces2D.None)
+        {
+            throw new SceneDocumentFormatException(
+                $"tileTypes[{index}].collidableFaces is empty; a tile that collides has at least one face, and one that collides as nothing names no layer.");
+        }
+
+        return parsed;
     }
 
     private static bool TryHexByte(ReadOnlySpan<char> hex, out byte value)

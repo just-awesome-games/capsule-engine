@@ -11,7 +11,7 @@ namespace Capsule.Collision;
 /// their own broadphase. A world is single-threaded, and every query is allocation-free once its
 /// colliders exist.
 /// <para>
-/// The handles, tags and filters a world hands out are its own: another world's are rejected with
+/// The handles, layers and filters a world hands out are its own: another world's are rejected with
 /// <see cref="ArgumentException"/> rather than read as whatever sits at the same index.
 /// <see cref="CollisionFilter.None"/> and <see cref="CollisionFilter.Everything"/> name no table
 /// and are accepted anywhere.
@@ -19,11 +19,14 @@ namespace Capsule.Collision;
 /// </summary>
 public sealed partial class CollisionWorld2D
 {
-    /// <summary>The tag a collider carries when it was given no name.</summary>
-    public const string UntaggedName = "untagged";
+    /// <summary>
+    /// The layer a collider is on until it is told otherwise. Interned at world creation, so it is
+    /// always the first entry of the table and things collide by default.
+    /// </summary>
+    public const string DefaultLayerName = "default";
 
-    /// <summary>How many distinct tags one world may intern.</summary>
-    public const int MaxTags = 64;
+    /// <summary>How many distinct layers one world may intern.</summary>
+    public const int MaxLayers = 64;
 
     /// <summary>
     /// World units of tolerance the whole module works to: the gap a blocked move keeps from what
@@ -38,14 +41,14 @@ public sealed partial class CollisionWorld2D
     /// </summary>
     public const float ContactSkin = 0.02f;
 
-    // Worlds are numbered from one so that a default handle or tag — world zero — belongs to none
+    // Worlds are numbered from one so that a default handle or layer — world zero — belongs to none
     // of them. Deterministic for a game, which builds its worlds in order on the sim thread; the
     // interlock is for test hosts that build them on several.
     private static int WorldsCreated;
 
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
-    private readonly Dictionary<string, int> _tagIndices = new(StringComparer.Ordinal);
-    private readonly List<string> _tagNames = [];
+    private readonly Dictionary<string, int> _layerIndices = new(StringComparer.Ordinal);
+    private readonly List<string> _layerNames = [];
     private readonly List<GridCollider2D> _grids = [];
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree _tree = new();
@@ -53,83 +56,98 @@ public sealed partial class CollisionWorld2D
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
 
-    /// <summary>A world holding nothing, with only <see cref="UntaggedName"/> interned.</summary>
-    public CollisionWorld2D() => Tag(UntaggedName);
+    /// <summary>A world holding nothing, with only <see cref="DefaultLayerName"/> interned.</summary>
+    public CollisionWorld2D() => Layer(DefaultLayerName);
 
     /// <summary>How many colliders and grid colliders the world holds.</summary>
     public int ColliderCount { get; private set; }
 
-    /// <summary>How many distinct tags have been interned, <see cref="UntaggedName"/> included.</summary>
-    public int TagCount => _tagIndices.Count;
+    /// <summary>How many distinct layers have been interned, <see cref="DefaultLayerName"/> included.</summary>
+    public int LayerCount => _layerIndices.Count;
 
     /// <summary>The grid colliders the world holds, in the order they were added.</summary>
     public ReadOnlySpan<GridCollider2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     /// <summary>
-    /// The tag <paramref name="name"/> interns to, interning it if this is the first time it is
+    /// How many grid cells this world's traversals have handed to a narrowphase test since the
+    /// last <see cref="ResetDiagnostics"/>: one per cell a shape cast's swept band reaches and one
+    /// per cell a ray's grid walk enters, counted as the cell is reached and so including the
+    /// empty ones the test rejects at once. Cells no traversal reaches — a column pruned by the
+    /// band, or a walk that stopped at its limit — are not counted, and neither are the cells an
+    /// overlap probes.
+    /// <para>
+    /// Test-facing instrumentation for the shape of a traversal rather than its duration, and the
+    /// only per-cell cost a test can read deterministically. It is written by the traversals and
+    /// read by nothing else: no query result depends on it.
+    /// </para>
+    /// </summary>
+    internal long GridCellsTested { get; private set; }
+
+    /// <summary>
+    /// The layer <paramref name="name"/> interns to, interning it if this is the first time it is
     /// seen. Interning is deterministic: the same registration order always yields the same
     /// indices.
     /// </summary>
     /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world already holds <see cref="MaxTags"/> tags.</exception>
-    public CollisionTag Tag(string name)
+    /// <exception cref="InvalidOperationException">The world already holds <see cref="MaxLayers"/> layers.</exception>
+    public CollisionLayer Layer(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        if (_tagIndices.TryGetValue(name, out int index))
+        if (_layerIndices.TryGetValue(name, out int index))
         {
-            return new CollisionTag(_id, index);
+            return new CollisionLayer(_id, index);
         }
 
-        if (_tagNames.Count == MaxTags)
+        if (_layerNames.Count == MaxLayers)
         {
             throw new InvalidOperationException(
-                $"A collision world interns at most {MaxTags} tags and already holds that many, so '{name}' has nowhere to go; collision filtering is meant to name a handful of kinds, not every type in the game.");
+                $"A collision world interns at most {MaxLayers} layers and already holds that many, so '{name}' has nowhere to go; collision filtering is meant to name a handful of kinds, not every type in the game.");
         }
 
-        CollisionTag tag = new(_id, _tagNames.Count);
-        _tagIndices.Add(name, _tagNames.Count);
-        _tagNames.Add(name);
+        CollisionLayer layer = new(_id, _layerNames.Count);
+        _layerIndices.Add(name, _layerNames.Count);
+        _layerNames.Add(name);
 
-        return tag;
+        return layer;
     }
 
-    /// <summary>The tag <paramref name="name"/> was interned under, without interning it.</summary>
-    public bool TryFindTag(string name, out CollisionTag tag)
+    /// <summary>The layer <paramref name="name"/> was interned under, without interning it.</summary>
+    public bool TryFindLayer(string name, out CollisionLayer layer)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        if (_tagIndices.TryGetValue(name, out int index))
+        if (_layerIndices.TryGetValue(name, out int index))
         {
-            tag = new CollisionTag(_id, index);
+            layer = new CollisionLayer(_id, index);
             return true;
         }
 
-        tag = default;
+        layer = default;
 
         return false;
     }
 
-    /// <summary>The name <paramref name="tag"/> was interned under.</summary>
-    /// <exception cref="ArgumentException">The tag was interned by no world, or by another one.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The tag is past what this world has interned.</exception>
-    public string NameOf(CollisionTag tag)
+    /// <summary>The name <paramref name="layer"/> was interned under.</summary>
+    /// <exception cref="ArgumentException">The layer was interned by no world, or by another one.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The layer is past what this world has interned.</exception>
+    public string NameOf(CollisionLayer layer)
     {
-        RequireOwn(tag);
-        ArgumentOutOfRangeException.ThrowIfNegative(tag.Index, nameof(tag));
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(tag.Index, _tagNames.Count, nameof(tag));
+        RequireOwn(layer);
+        ArgumentOutOfRangeException.ThrowIfNegative(layer.Index, nameof(layer));
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(layer.Index, _layerNames.Count, nameof(layer));
 
-        return _tagNames[tag.Index];
+        return _layerNames[layer.Index];
     }
 
-    /// <summary>A filter matching every named tag, interning any that is new.</summary>
-    /// <exception cref="InvalidOperationException">Interning would exceed <see cref="MaxTags"/>.</exception>
+    /// <summary>A filter naming every layer in <paramref name="names"/>, interning any that is new.</summary>
+    /// <exception cref="InvalidOperationException">Interning would exceed <see cref="MaxLayers"/>.</exception>
     public CollisionFilter Filter(params ReadOnlySpan<string> names)
     {
         CollisionFilter filter = CollisionFilter.None;
         foreach (string name in names)
         {
-            filter = filter.With(Tag(name));
+            filter = filter.With(Layer(name));
         }
 
         return filter;
@@ -138,25 +156,25 @@ public sealed partial class CollisionWorld2D
     /// <summary>Adds a collider at <paramref name="position"/> and returns its handle.</summary>
     /// <param name="shape">The shape, in the collider's own space; <paramref name="position"/> places it.</param>
     /// <param name="position">Where the shape's origin sits in the world.</param>
-    /// <param name="tag">What this collider is, for other queries' filters to match.</param>
-    /// <param name="collidesWith">What this collider's own moves and contact queries may hit.</param>
+    /// <param name="layer">The layer this collider is on, for other queries' filters to match.</param>
+    /// <param name="detects">What this collider's own moves and contact queries may hit.</param>
     /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
     /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape2D"/>, the tag or filter came from another world, or
-    /// the shape placed at this position exceeds what a float box holds.
+    /// The shape is a default <see cref="Shape2D"/>, the layer or the filter came from another
+    /// world, or the shape placed at this position exceeds what a float box holds.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     public ColliderHandle Add(
         in Shape2D shape,
         Vector2 position,
-        CollisionTag tag,
-        CollisionFilter collidesWith,
+        CollisionLayer layer,
+        CollisionFilter detects,
         object? userData = null)
     {
         RequireShape(shape, nameof(shape));
         RequireFinite(position, nameof(position));
-        RequireOwn(tag);
-        RequireOwn(collidesWith, nameof(collidesWith));
+        RequireOwn(layer);
+        RequireOwn(detects, nameof(detects));
 
         // Placed before the slot is claimed, so a shape that cannot be positioned leaves the world
         // exactly as it was rather than half-registered.
@@ -167,8 +185,8 @@ public sealed partial class CollisionWorld2D
         slot.Local = shape;
         slot.Position = position;
         slot.World = placed;
-        slot.Tag = tag;
-        slot.CollidesWith = collidesWith;
+        slot.Layer = layer;
+        slot.Detects = detects;
         slot.UserData = userData;
         slot.Grid = null;
         slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index);
@@ -271,22 +289,22 @@ public sealed partial class CollisionWorld2D
         _tree.MoveProxy(slot.ProxyId, placed.Bounds, Vector2.Zero);
     }
 
-    /// <summary>Replaces what a collider is and what it may hit.</summary>
+    /// <summary>Replaces the layer a collider is on and what it may hit.</summary>
     /// <exception cref="ArgumentException">
     /// The handle names no live collider, names a grid, or was issued by another world; or the
-    /// tag or filter came from another world.
+    /// layer or the filter came from another world.
     /// </exception>
-    public void SetFilter(ColliderHandle handle, CollisionTag tag, CollisionFilter collidesWith)
+    public void SetFilter(ColliderHandle handle, CollisionLayer layer, CollisionFilter detects)
     {
-        RequireOwn(tag);
-        RequireOwn(collidesWith, nameof(collidesWith));
+        RequireOwn(layer);
+        RequireOwn(detects, nameof(detects));
 
-        // A grid has no one tag to set: its cells carry the tags their profiles were interned
-        // with, and every tile query reads those rather than the slot's. Writing here would look
-        // like it had done something.
+        // A grid has no one layer to write: its cells carry the layers their profiles named, and
+        // every tile query reads those rather than the slot's. Writing here would look like it had
+        // done something.
         int index = RequireShapeSlot(handle);
-        _slots[index].Tag = tag;
-        _slots[index].CollidesWith = collidesWith;
+        _slots[index].Layer = layer;
+        _slots[index].Detects = detects;
     }
 
     /// <summary>Where a collider's shape origin sits.</summary>
@@ -298,15 +316,15 @@ public sealed partial class CollisionWorld2D
     public Shape2D ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;
 
     /// <summary>
-    /// What a collider is. A grid collider is not one thing: its cells carry the tags of the
-    /// profiles they were painted from, which <see cref="GridCollider2D.TagAt"/> reads.
+    /// The layer a collider is on. A grid collider is not one thing: its cells carry the layers of
+    /// the profiles they were painted from, which <see cref="GridCollider2D.LayerAt"/> reads.
     /// </summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
-    public CollisionTag TagOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Tag;
+    public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
 
     /// <summary>What a collider may hit. A grid collider never moves and hits nothing.</summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
-    public CollisionFilter FilterOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].CollidesWith;
+    public CollisionFilter FilterOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Detects;
 
     /// <summary>Whatever the caller attached to a collider or grid when it was added.</summary>
     /// <exception cref="ArgumentException">The handle names no live collider of this world.</exception>
@@ -327,23 +345,22 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// Adds a grid of collidable cells anchored at the world origin. The cell array is held rather
-    /// than copied, and the collision kinds and boundary faces are derived from it once, so a
-    /// caller that repaints cells afterwards must build a new collider.
+    /// than copied, and the cell faces are derived from it once, so a caller that repaints cells
+    /// afterwards must build a new collider.
     /// </summary>
     /// <param name="cellSize">World units a cell spans on each axis.</param>
     /// <param name="width">Cells across.</param>
     /// <param name="height">Cells down.</param>
     /// <param name="cells">One <paramref name="profiles"/> index per cell, row-major.</param>
-    /// <param name="profiles">What each palette entry collides as, and the tag its cells carry.</param>
+    /// <param name="profiles">The layer each palette entry's cells are on, and which of their sides collide.</param>
     /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
     /// <exception cref="ArgumentException">Some invariant of the grid is broken; the message names the defect.</exception>
-    /// <exception cref="InvalidOperationException">Interning a profile's tag would exceed <see cref="MaxTags"/>.</exception>
     public GridCollider2D AddGrid(
         int cellSize,
         int width,
         int height,
         int[] cells,
-        ReadOnlySpan<CellProfile> profiles,
+        ReadOnlySpan<CellProfile2D> profiles,
         object? userData = null)
     {
         ArgumentNullException.ThrowIfNull(cells);
@@ -373,20 +390,36 @@ public sealed partial class CollisionWorld2D
             throw new ArgumentException("A grid collider needs at least one profile for its cells to index.", nameof(profiles));
         }
 
-        CellCollision[] kinds = new CellCollision[profiles.Length];
-        CollisionTag[] tags = new CollisionTag[profiles.Length];
+        CollisionLayer?[] layers = new CollisionLayer?[profiles.Length];
+        CellFaces2D[] faces = new CellFaces2D[profiles.Length];
         for (int index = 0; index < profiles.Length; index++)
         {
-            CellProfile profile = profiles[index];
-            if (!Enum.IsDefined(profile.Collision))
+            CellProfile2D profile = profiles[index];
+
+            if ((profile.Faces & ~CellFaces2D.All) != 0)
             {
                 throw new ArgumentException(
-                    $"profiles[{index}] declares collision kind {(int)profile.Collision}, which is not one of the shipped kinds.",
+                    $"profiles[{index}] declares faces {(int)profile.Faces}, which is not a combination of the four sides a cell has.",
                     nameof(profiles));
             }
 
-            kinds[index] = profile.Collision;
-            tags[index] = Tag(string.IsNullOrWhiteSpace(profile.Tag) ? UntaggedName : profile.Tag);
+            if (profile.Layer is { } layer)
+            {
+                RequireOwn(layer);
+
+                // A profile on a layer with no face would contribute a cell nothing can ever meet,
+                // which is a silent authoring mistake rather than a way to spell an empty cell.
+                if (profile.Faces == CellFaces2D.None)
+                {
+                    throw new ArgumentException(
+                        $"profiles[{index}] is on a layer but declares no faces; a cell that collides needs at least one side, and one that collides as nothing is written with no layer.",
+                        nameof(profiles));
+                }
+
+                layers[index] = layer;
+            }
+
+            faces[index] = profile.Faces;
         }
 
         for (int index = 0; index < cells.Length; index++)
@@ -402,7 +435,8 @@ public sealed partial class CollisionWorld2D
         int slotIndex = AllocateSlot();
         ref ColliderSlot slot = ref _slots[slotIndex];
         slot.ProxyId = DynamicTree.NullNode;
-        slot.CollidesWith = CollisionFilter.None;
+        slot.Detects = CollisionFilter.None;
+        slot.Layer = Layer(DefaultLayerName);
         slot.UserData = userData;
 
         GridCollider2D grid = new(
@@ -411,11 +445,10 @@ public sealed partial class CollisionWorld2D
             width,
             height,
             cells,
-            kinds,
-            tags);
+            layers,
+            faces);
 
         slot.Grid = grid;
-        slot.Tag = Tag(UntaggedName);
         _grids.Add(grid);
 
         return grid;
@@ -612,7 +645,7 @@ public sealed partial class CollisionWorld2D
     {
         int index = RequireShapeSlot(handle);
 
-        return Touching(_slots[index].World, _slots[index].CollidesWith, ContactSkin, handle, contacts);
+        return Touching(_slots[index].World, _slots[index].Detects, ContactSkin, handle, contacts);
     }
 
     /// <summary>
@@ -707,7 +740,7 @@ public sealed partial class CollisionWorld2D
             _slots[index].Local,
             _slots[index].Position,
             translation,
-            _slots[index].CollidesWith,
+            _slots[index].Detects,
             contacts,
             handle);
 
@@ -715,6 +748,9 @@ public sealed partial class CollisionWorld2D
 
         return result;
     }
+
+    /// <summary>Zeroes <see cref="GridCellsTested"/>, leaving everything the world holds alone.</summary>
+    internal void ResetDiagnostics() => GridCellsTested = 0;
 
     private static Vector2 RequireRay(Vector2 origin, Vector2 direction, float distance)
     {
@@ -799,24 +835,24 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    private void RequireOwn(CollisionTag tag)
+    private void RequireOwn(CollisionLayer layer)
     {
-        if (tag.World != _id)
+        if (layer.World != _id)
         {
             throw new ArgumentException(
-                "The tag was interned by another collision world, or by none; a tag is an index into one world's table and means nothing in another.",
-                nameof(tag));
+                "The layer was interned by another collision world, or by none; a layer is an index into one world's table and means nothing in another.",
+                nameof(layer));
         }
     }
 
     // CollisionFilter.None and CollisionFilter.Everything index no table, so they pass everywhere;
-    // anything built from tags is only meaningful where those tags were interned.
+    // anything built from layers is only meaningful where those layers were interned.
     private void RequireOwn(CollisionFilter filter, string parameterName)
     {
         if (filter.World != 0 && filter.World != _id)
         {
             throw new ArgumentException(
-                "The filter was built from another collision world's tags; its bits index that world's table, not this one's.",
+                "The filter was built from another collision world's layers; its bits index that world's table, not this one's.",
                 parameterName);
         }
     }
@@ -880,8 +916,8 @@ public sealed partial class CollisionWorld2D
         internal Shape2D Local;
         internal Shape2D World;
         internal Vector2 Position;
-        internal CollisionTag Tag;
-        internal CollisionFilter CollidesWith;
+        internal CollisionLayer Layer;
+        internal CollisionFilter Detects;
         internal object? UserData;
         internal GridCollider2D? Grid;
         internal int ProxyId;
