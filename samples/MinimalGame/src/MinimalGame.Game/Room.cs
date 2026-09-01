@@ -1,7 +1,7 @@
 using Capsule;
 using Capsule.Scenes;
 
-namespace PackageConsumer.Game;
+namespace MinimalGame.Game;
 
 [SceneDocument("room")]
 public sealed class Room : Scene

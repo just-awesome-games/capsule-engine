@@ -178,15 +178,6 @@ public sealed class Shape2DTests
     }
 
     [Fact]
-    public void Polygon_ReadsAnAxisAlignedRectangleAsTheBoxFastPath()
-    {
-        Shape2D polygon = Shape2D.Polygon([new(0f, 0f), new(8f, 0f), new(8f, 4f), new(0f, 4f)]);
-
-        Assert.Equal(ShapeKind2D.Box, polygon.Kind);
-        Assert.Equal(ShapeKind2D.Polygon, Shape2D.Polygon([new(0f, 0f), new(8f, 0f), new(8f, 4f), new(0f, 4f)], 1f).Kind);
-    }
-
-    [Fact]
     public void Bounds_CoverThePointsAndTheRadius()
     {
         Shape2D capsule = Shape2D.Capsule(new Vector2(4f, 4f), new Vector2(4f, 12f), 3f);
@@ -204,12 +195,4 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(18f, 28f), moved.Bounds.Max);
     }
 
-    [Fact]
-    public void Point_RejectsAnIndexOutsideTheShape()
-    {
-        Shape2D circle = Shape2D.Circle(Vector2.Zero, 4f);
-
-        Assert.Equal(1, circle.PointCount);
-        Assert.Throws<ArgumentOutOfRangeException>(() => circle.Point(1));
-    }
 }

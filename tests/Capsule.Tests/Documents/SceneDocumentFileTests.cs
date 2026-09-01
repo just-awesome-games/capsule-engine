@@ -20,24 +20,15 @@ public sealed class SceneDocumentFileTests
 
     private static readonly ColorRgba Slate = new(0x4A, 0x55, 0x68);
 
-    [Fact]
-    public void Parse_RejectsADocumentWithNoFormatVersion()
+    [Theory]
+    [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
+    [InlineData("""{"formatVersion": 3, "entities": [], "nextEntityId": 1}""", "formatVersion 3 is unsupported")]
+    public void Parse_RejectsADocumentWithBadFormatVersion(string json, string expectedMessage)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse("""{"entities": [], "nextEntityId": 1}"""));
+            () => SceneDocumentFile.Parse(json));
 
-        Assert.Contains("no formatVersion", error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 2", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsAnUnsupportedFormatVersion()
-    {
-        string json = DocumentText().Replace("\"formatVersion\": 2", "\"formatVersion\": 3", StringComparison.Ordinal);
-
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentFile.Parse(json));
-
-        Assert.Contains("formatVersion 3 is unsupported", error.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedMessage, error.Message, StringComparison.Ordinal);
         Assert.Contains("supports formatVersion 2", error.Message, StringComparison.Ordinal);
     }
 
@@ -154,24 +145,13 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("the type 'coin' has no properties contract", error.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Parse_RejectsATileMapEntryWithNoProperties()
+    [Theory]
+    [InlineData("""{"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
+    public void Parse_RejectsATileMapEntryWithMissingOrNullProperties(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse("""
-                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}
-                """));
-
-        Assert.Contains("declares no properties", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsATileMapEntryWhosePropertiesAreNull()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse("""
-                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}
-                """));
+            () => SceneDocumentFile.Parse(json));
 
         Assert.Contains("declares no properties", error.Message, StringComparison.Ordinal);
     }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
@@ -12,12 +13,8 @@ public static class CapsuleEngine
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
     /// </param>
-    public static SimulationEngineBuilder Configure(string gameName) => new(gameName);
-
-    /// <param name="gameName">
-    /// The game's display name: the window's title, and the crash log's folder as a slug of it.
-    /// </param>
     /// <param name="scenes">Every scene the game declares, plain and document-backed alike.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes) =>
         new(gameName, scenes);
 }

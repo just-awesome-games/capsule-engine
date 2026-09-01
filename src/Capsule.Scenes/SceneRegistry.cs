@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
@@ -17,6 +18,7 @@ public sealed class SceneRegistry
     /// <param name="entities">What each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <exception cref="ArgumentException">A registration names no class, or a class or a document is registered twice.</exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
     {
         ArgumentNullException.ThrowIfNull(entities);
@@ -46,11 +48,11 @@ public sealed class SceneRegistry
     /// The scene document backing <paramref name="sceneType"/>, or null when no document does.
     /// </summary>
     /// <exception cref="InvalidOperationException">Nothing registers that class.</exception>
-    public string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
+    internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 
     /// <summary>Builds the scene registered for <paramref name="sceneType"/>.</summary>
     /// <exception cref="InvalidOperationException">Nothing registers that class, or a document backs it.</exception>
-    public Scene Create(Type sceneType)
+    internal Scene Create(Type sceneType)
     {
         SceneRegistration registration = Registered(sceneType);
         if (registration.DocumentName is { } name)
@@ -70,7 +72,7 @@ public sealed class SceneRegistry
     /// <param name="name">The document's bare name, without the <c>.scene.json</c> suffix.</param>
     /// <param name="document">The parsed document to compose.</param>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public Scene CreateFromDocument(string name, SceneDocument document)
+    internal Scene CreateFromDocument(string name, SceneDocument document)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(document);

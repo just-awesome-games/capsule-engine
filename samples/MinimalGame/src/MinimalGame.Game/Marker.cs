@@ -4,7 +4,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 
-namespace PackageConsumer.Game;
+namespace MinimalGame.Game;
 
 public sealed class Marker : Entity
 {

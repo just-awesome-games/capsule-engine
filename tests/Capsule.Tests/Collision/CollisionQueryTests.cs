@@ -439,4 +439,69 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Raycast(Vector2.Zero, Vector2.UnitX, float.NaN, CollisionFilter.Everything, out _));
     }
+
+    [Fact]
+    public void Overlap_GridCellContactPrecedesColliderContact()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer item = world.Layer("item");
+
+        // Add a grid cell at (0,0)
+        CollisionFixtures.Paint(world, "#");
+
+        // Add a collider that overlaps the same cell
+        world.Add(Shape2D.Box(new Vector2(4f, 4f), new Vector2(4f, 4f)), Vector2.Zero, item, CollisionFilter.None);
+
+        Span<Contact2D> contacts = stackalloc Contact2D[4];
+        int count = world.Overlap(Shape2D.Box(new Vector2(4f, 4f), new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Everything, contacts);
+
+        Assert.True(count >= 2);
+        Assert.True(contacts[0].Target.IsGridCell, "First contact should target grid cell");
+        Assert.False(contacts[1].Target.IsGridCell, "Later contact should target collider");
+    }
+
+    [Fact]
+    public void RaycastAll_GridCellHitPrecedesColliderHitAtSameDistance()
+    {
+        CollisionWorld2D world = new();
+
+        // Add a grid with a solid cell at (0, 0) that is 8 units on each side
+        CollisionFixtures.Paint(world, "#");
+
+        // Add colliders at the exact same ray distance
+        // Grid cell at (0,0) has walls at distance 0 on left side
+        world.Add(
+            Shape2D.Box(new Vector2(0f, 4f), new Vector2(1f, 8f)),
+            Vector2.Zero,
+            world.Layer("item"),
+            CollisionFilter.None);
+        world.Add(
+            Shape2D.Box(new Vector2(1f, 4f), new Vector2(1f, 8f)),
+            Vector2.Zero,
+            world.Layer("item2"),
+            CollisionFilter.None);
+
+        Span<RayHit2D> hits = stackalloc RayHit2D[4];
+        int count = world.RaycastAll(new Vector2(-4f, 4f), Vector2.UnitX, 20f, CollisionFilter.Everything, hits);
+
+        Assert.True(count >= 2);
+
+        // Find grid cell hit and first collider hit
+        int gridIndex = -1;
+        int colliderIndex = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (hits[i].Target.IsGridCell && gridIndex == -1)
+            {
+                gridIndex = i;
+            }
+            else if (!hits[i].Target.IsGridCell && colliderIndex == -1)
+            {
+                colliderIndex = i;
+            }
+        }
+
+        Assert.True(gridIndex >= 0, "Should have grid cell hit");
+        Assert.True(colliderIndex > gridIndex, "Collider hit should come after grid cell hit");
+    }
 }

@@ -410,4 +410,22 @@ public sealed class MoverTests
         Assert.NotEmpty(firstContacts);
     }
 
+    [Fact]
+    public void MoveBox_WithAThinBoxDoesNotThrow()
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, "....", "####");
+
+        // A box with height 0.008f (less than 2 * PointTolerance).
+        Aabb2D thinBox = new(Vector2.Zero, new Vector2(4f, 0.008f));
+
+        MoveResult2D result = world.MoveBox(
+            thinBox,
+            new Vector2(10f, 5f),
+            CollisionFilter.Everything,
+            default);
+
+        Assert.False(result.BlockedX);
+    }
+
 }

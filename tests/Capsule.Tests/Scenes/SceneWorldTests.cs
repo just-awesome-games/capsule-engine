@@ -106,6 +106,6 @@ public sealed class SceneWorldTests
 
     private sealed class ThrowingRemovalEntity() : Entity(Vector2.Zero)
     {
-        protected override void OnRemovedFromScene() => throw new InvalidOperationException("entity cleanup failed");
+        protected internal override void OnRemovedFromScene() => throw new InvalidOperationException("entity cleanup failed");
     }
 }

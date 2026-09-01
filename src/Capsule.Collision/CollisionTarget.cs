@@ -32,10 +32,10 @@ public readonly record struct CollisionTarget
     public CollisionLayer Layer { get; }
 
     /// <summary>A target naming one collider.</summary>
-    public static CollisionTarget ForCollider(ColliderHandle collider, CollisionLayer layer) =>
+    internal static CollisionTarget ForCollider(ColliderHandle collider, CollisionLayer layer) =>
         new(collider, false, 0, 0, layer);
 
     /// <summary>A target naming one cell of a grid collider.</summary>
-    public static CollisionTarget ForGridCell(ColliderHandle grid, int x, int y, CollisionLayer layer) =>
+    internal static CollisionTarget ForGridCell(ColliderHandle grid, int x, int y, CollisionLayer layer) =>
         new(grid, true, x, y, layer);
 }

@@ -28,7 +28,7 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 2 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so an unchanged document re-derives byte for byte. A document is one uniform list of entries:
+`SceneDocumentFile` reads and writes format version 2 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
 
 ```json
 {
@@ -78,37 +78,23 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 ### Entries and composition
 
-`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin and file order determines draw order. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims its kebab-cased class name, and `[SpawnType("type")]` names another. A type no class claims fails the scene at load.
+`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin and file order determines draw order. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims its kebab-cased class name, and `[SpawnType("type")]` names another. The simple class name is used, so two nested types with the same name collide. A type no class claims fails the scene at load.
 
 ## From source to game
 
-Games author scene sources under `src/asset-sources/scenes/`, and a document reaches the runtime through either front door:
+Games author scene sources under `src/asset-sources/scenes/`, and the build derives them into the runtime's canonical `*.scene.json` format.
 
-| Source | Import |
-| --- | --- |
-| `*.scene.json` | Validated and canonicalized native scene JSON. |
-| `*.tmj` | Finite orthogonal Tiled maps translated at build time. |
+| Command | Consumes | Emits |
+| --- | --- | --- |
+| `import-tiled` | Tiled `*.tmj` maps and the `*.tsj` tilesets they reference | `<out>/<scene>.scene.json`, translated and stamped with its source |
+| `import-native` | `*.scene.json` already in Capsule's own format | the same document re-emitted canonically, so nothing ships unvalidated |
 
-Both derive the same canonical `*.scene.json`. The build writes it under `obj/`, stamps its provenance, and copies it to `assets/scenes/<name>.scene.json` beside the executable, which is the only place the runtime looks. Sources sharing a stem fail the build because that directory is flat, and derived documents are never committed.
+Run the tool with no arguments for its full contract. The build invokes it incrementally, and direct use is for diagnosing an import.
 
-The shell role imports scenes on its own; any other project that needs them opts in, and a game may declare the one tile size every scene must match. Both are project properties, named in [`consuming-capsule.md`](consuming-capsule.md).
-
-`Capsule.Cli` does the deriving, through `import-native` and `import-tiled`; run it with no arguments for its command-line contract. The build invokes it incrementally, and direct use is for diagnosing an import.
+The build writes derived documents under `obj/`, stamps their provenance, and copies them to `assets/scenes/<name>.scene.json` beside the executable. Sources sharing a stem fail the build because that directory is flat, and derived documents are never committed. The shell role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and a game may declare the one tile size every scene must match with `<CapsuleTileSize>` — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
 
 ## Tiled subset
 
-The runtime loads only the native scene document. The Tiled importer is a build-time translator into it, so dropping Tiled deletes no runtime code.
-
-Capsule imports `.tmj` files that are orthogonal, finite, square-tiled, CSV-encoded, and unflipped. Tile and object layers become document entries in authored order; a map may contain any number of either.
-
-- A tileset tile's Class becomes its semantic tile type. It is identity alone and is never a collision layer.
-- An optional Color property named `color` becomes its presentation color.
-- An optional String property named `layer` becomes the tile's collision layer, and an optional String property named `collidableFaces` is a comma-separated list of face names — both trimmed, with blank entries dropped. A property that is present but names nothing is refused rather than read as an absent one. More than one name in `layer`, an unknown face name, `collidableFaces` without `layer`, or either declared as any other property type fails the import, as does a tile still carrying a `collision` property.
-- Tile Classes are unique across all referenced tilesets; `empty` is reserved.
-- Object layers contain objects whose Class becomes the spawn type.
-- Tiled's object IDs are preserved. Tile layers take consecutive IDs beginning at the source's `nextobjectid`, and the document's `nextEntityId` follows them.
-- Referenced `.tsj` files must remain under the asset-source root.
-
-Unsupported input fails the build with the file and the violated constraint.
+Capsule imports `.tmj` maps that are orthogonal, finite, square-tiled, CSV-encoded and unflipped; a tileset tile's Class is the tile type, and its optional `color`, `layer` and `collidableFaces` properties map to the document fields above. Every other constraint is reported by the importer at the failing file.
 
 Tiled's Windows GUI executable writes no console output even on success. Use `tmxrasterizer` when a headless PNG preview is needed.

@@ -9,4 +9,12 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- ISimulation is the host's own seam, not a surface a game implements: the scene lane is the
+       only way in. These three are the assemblies on either side of that seam. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Scenes" />
+    <InternalsVisibleTo Include="Capsule.Runtime" />
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
 </Project>

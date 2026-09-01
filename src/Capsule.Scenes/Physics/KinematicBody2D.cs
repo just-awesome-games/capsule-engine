@@ -13,8 +13,12 @@ namespace Capsule.Scenes.Physics;
 /// beside the one body shape that sweeps, and the constructor argument names which. One body per
 /// entity — two would each write the entity's position from their own sweep.
 /// </para>
+/// <para>
+/// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/> and <see cref="IsOnCeiling"/> are state as of
+/// the last <see cref="Move(Vector2)"/> and nothing more — a move that pressed into nothing clears
+/// them, and so does a zero translation, which sweeps nothing at all.
+/// </para>
 /// </summary>
-[DisallowMultipleComponent]
 public sealed class KinematicBody2D : Component
 {
     // Y-down, so up is negative Y. A property only once a consumer flips gravity.
@@ -50,28 +54,16 @@ public sealed class KinematicBody2D : Component
     /// </summary>
     public CollisionFilter Filter { get; private set; }
 
-    /// <summary>The blocking surfaces encountered by the most recent <see cref="Move(Vector2)"/>.</summary>
+    /// <summary>The surfaces the most recent <see cref="Move(Vector2)"/> reached.</summary>
     public ReadOnlySpan<ColliderContact2D> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
 
-    /// <summary>
-    /// Whether the last <see cref="Move(Vector2)"/> was stopped by a floor: a blocking contact
-    /// whose normal points up. State as of that move and nothing more — a move that pressed into
-    /// nothing clears it, and so does a zero translation, which sweeps nothing at all.
-    /// </summary>
+    /// <summary>Whether the last move was stopped by a floor: a blocking contact whose normal points up.</summary>
     public bool IsOnFloor { get; private set; }
 
-    /// <summary>
-    /// Whether the last <see cref="Move(Vector2)"/> was stopped by a wall: a blocking contact whose
-    /// normal is neither floor nor ceiling. State as of that move and nothing more — a move that
-    /// pressed into nothing clears it, and so does a zero translation, which sweeps nothing at all.
-    /// </summary>
+    /// <summary>Whether the last move was stopped by a wall: a blocking contact whose normal is neither floor nor ceiling.</summary>
     public bool IsOnWall { get; private set; }
 
-    /// <summary>
-    /// Whether the last <see cref="Move(Vector2)"/> was stopped by a ceiling: a blocking contact
-    /// whose normal points down. State as of that move and nothing more — a move that pressed into
-    /// nothing clears it, and so does a zero translation, which sweeps nothing at all.
-    /// </summary>
+    /// <summary>Whether the last move was stopped by a ceiling: a blocking contact whose normal points down.</summary>
     public bool IsOnCeiling { get; private set; }
 
     /// <summary>The floor contact's normal, or zero when <see cref="IsOnFloor"/> is false.</summary>
@@ -194,26 +186,34 @@ public sealed class KinematicBody2D : Component
         return result;
     }
 
-    // Asked as the whole entity is judged, not as the body is attached: a constructor is free to
-    // add the body before the collider it sweeps, and only by the time the entity joins a scene
-    // does the pair have to be on the same entity. Refusing here leaves the entity outside the
-    // scene with nothing registered, which is what OnAddingTo already promises.
-    internal override void OnAddingTo(Scene scene, Entity entity, List<string> layers)
+    // The body holds the entity's one write on its position, so a second one is a mistake the
+    // attach refuses.
+    internal override void OnAttachedTo(Entity entity)
     {
-        if (!ReferenceEquals(_collider.Entity, entity))
+        foreach (Component held in entity.Components)
+        {
+            if (!ReferenceEquals(held, this) && held is KinematicBody2D)
+            {
+                throw new InvalidOperationException(
+                    $"A {entity.GetType().Name} already holds a KinematicBody2D; two would each write the entity's position from their own sweep.");
+            }
+        }
+    }
+
+    // Asked as the whole entity joins, not as the body is attached: a constructor is free to add
+    // the body before the collider it sweeps, and only by the time the entity joins a scene does
+    // the pair have to be on the same entity.
+    /// <inheritdoc/>
+    protected internal override void OnAddedToScene()
+    {
+        if (!ReferenceEquals(_collider.Entity, Entity))
         {
             throw new InvalidOperationException(
                 "A KinematicBody2D's collider must be attached to the same entity before that entity joins a scene.");
         }
 
-        for (int index = 0; index < _blocksOn.Count; index++)
-        {
-            Want(scene.Collision, layers, _blocksOn[index]);
-        }
+        Filter = Collider2D.ResolveFilter(Entity!.Scene!.Collision, _blocksOn);
     }
-
-    /// <inheritdoc/>
-    protected internal override void OnAddedToScene() => Filter = ResolveFilter(Entity!.Scene!.Collision);
 
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
@@ -229,9 +229,9 @@ public sealed class KinematicBody2D : Component
 
     // Every recorded contact sits at its axis's nearest sweep fraction, and a surface the sweep
     // moved away from is never recorded at all — but a hit landing exactly at the end of a
-    // translation is, and that one stopped nothing. The axis's blocked flag separates the two, and
-    // a normal's dominant component names the axis it opposes, which is the same split the floor
-    // threshold makes.
+    // translation is, and that one stopped nothing. Only the sweep a contact belongs to says
+    // whether it did: the span is the X sweep's contacts followed by the Y sweep's, and each range
+    // is judged by its own axis's blocked flag.
     private void Classify(in MoveResult2D result)
     {
         IsOnFloor = false;
@@ -242,12 +242,18 @@ public sealed class KinematicBody2D : Component
 
         for (int index = 0; index < _moveContactCount; index++)
         {
+            bool blocked = index < result.XContactCount ? result.BlockedX : result.BlockedY;
+            if (!blocked)
+            {
+                continue;
+            }
+
             Vector2 normal = _moveContacts[index].Normal;
             float upwards = Vector2.Dot(normal, Up);
 
             if (upwards > FloorDot)
             {
-                if (result.BlockedY && !IsOnFloor)
+                if (!IsOnFloor)
                 {
                     IsOnFloor = true;
                     FloorNormal = normal;
@@ -255,32 +261,13 @@ public sealed class KinematicBody2D : Component
             }
             else if (upwards < -FloorDot)
             {
-                IsOnCeiling |= result.BlockedY;
+                IsOnCeiling = true;
             }
-            else if (result.BlockedX && !IsOnWall)
+            else if (!IsOnWall)
             {
                 IsOnWall = true;
                 WallNormal = normal;
             }
-        }
-    }
-
-    private CollisionFilter ResolveFilter(CollisionWorld2D world)
-    {
-        CollisionFilter filter = CollisionFilter.None;
-        foreach (string name in _blocksOn)
-        {
-            filter = filter.With(world.Layer(name));
-        }
-
-        return filter;
-    }
-
-    private static void Want(CollisionWorld2D world, List<string> layers, string name)
-    {
-        if (!world.TryFindLayer(name, out _) && !layers.Contains(name))
-        {
-            layers.Add(name);
         }
     }
 }

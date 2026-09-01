@@ -6,7 +6,6 @@
   </Configurations>
   <Folder Name="/src/">
     <Project Path="src/Capsule/Capsule.csproj" />
-    <Project Path="src/Capsule.Analyzers/Capsule.Analyzers.csproj" />
     <Project Path="src/Capsule.Build/Capsule.Build.csproj" />
     <Project Path="src/Capsule.Cli/Capsule.Cli.csproj" />
     <Project Path="src/Capsule.Collision/Capsule.Collision.csproj" />

@@ -1,7 +1,9 @@
 using System.Numerics;
+using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Performance;
 
 namespace Capsule.Tests.Scenes;
 
@@ -234,6 +236,29 @@ public sealed class SceneStepTests
         Assert.Equal(new Vector2(10, 9), grandchild.Position);
     }
 
+    // Spawn and despawn in one step: the drain attaches it and then detaches it, so its hooks run
+    // in pairs rather than the remove being refused for an entity the scene does not yet hold.
+    [Fact]
+    public void AnEntityAddedAndRemovedInOneStep_AttachesThenDetachesInTheSameDrain()
+    {
+        List<string> log = [];
+        SceneFixtures.Recorder fleeting = new("fleeting", log);
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            scene.Add(fleeting);
+            scene.Remove(fleeting);
+        }
+
+        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook));
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(["fleeting+", "fleeting-"], log);
+        Assert.Empty(simulation.Scene.Entities.ToArray());
+        Assert.Null(fleeting.Scene);
+    }
+
     [Fact]
     public void AStartedScene_CannotBeGivenToASecondSimulation()
     {
@@ -329,6 +354,48 @@ public sealed class SceneStepTests
         Assert.Same(simulation.Scene, kept.Scene);
         Assert.Null(removed.Scene);
         Assert.Equal(["removed-"], log);
+    }
+
+    [Fact]
+    public void DeterministicSteps_ProduceDeterministicResults()
+    {
+        using SceneSimulation first = new(StageWorkload.Compose(StageWorkload.Build()));
+        using SceneSimulation second = new(StageWorkload.Compose(StageWorkload.Build()));
+
+        InputState input1 = new(new ActionBindings());
+        InputState input2 = new(new ActionBindings());
+
+        const int Steps = 120;
+        for (int step = 0; step < Steps; step++)
+        {
+            input1.Advance(DeviceSnapshot.Empty);
+            input2.Advance(DeviceSnapshot.Empty);
+
+            StepContext context = new(StageWorkload.StepSeconds, input1, step);
+            first.Step(context);
+            context = new(StageWorkload.StepSeconds, input2, step);
+            second.Step(context);
+
+            Entity[] entities1 = first.Scene.Entities.ToArray();
+            Entity[] entities2 = second.Scene.Entities.ToArray();
+
+            Assert.Equal(entities1.Length, entities2.Length);
+
+            for (int i = 0; i < entities1.Length; i++)
+            {
+                Assert.Equal(entities1[i].Position, entities2[i].Position);
+                Assert.Equal(entities1[i].PreviousPosition, entities2[i].PreviousPosition);
+            }
+
+            ReadOnlySpan<QuadIntent> quads1 = first.View.Quads;
+            ReadOnlySpan<QuadIntent> quads2 = second.View.Quads;
+
+            Assert.Equal(quads1.Length, quads2.Length);
+            for (int i = 0; i < quads1.Length; i++)
+            {
+                Assert.Equal(quads1[i], quads2[i]);
+            }
+        }
     }
 
     private static SceneSimulation Simulation(Scene scene, params Entity[] entities)

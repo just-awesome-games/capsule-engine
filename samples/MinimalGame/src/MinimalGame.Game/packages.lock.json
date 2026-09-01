@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "JAG.Capsule": {
+        "type": "Direct",
+        "requested": "[0.4.0, 0.4.0]",
+        "resolved": "0.4.0",
+        "contentHash": "mFxsU8c/W6eYiXAgAZIsU34+i4MGMv2tSEev5wnnL24Z38GrNVdkXiTDVYk2W25US6zZKI91P404f6/WjlovUw=="
+      },
+      "JAG.Capsule.Build": {
+        "type": "Direct",
+        "requested": "[0.4.0, 0.4.0]",
+        "resolved": "0.4.0",
+        "contentHash": "OtQ8RujVW+vJWgD3vvo+Xy/RtG7KoRrJO25UiBffp2SpKYQQMvFgkLDL6YB58n4Po5jIx6MY/0T2MrH1sjpmGA=="
+      }
+    }
+  }
+}

@@ -43,8 +43,11 @@
   </Target>
 
   <Target Name="IncludeCapsulePureModules" DependsOnTargets="_CapsuleCollectPureModuleAssets">
-    <Error Condition="'@(_CapsulePureModuleAssembly)' == ''"
-           Text="JAG.Capsule admits no module." />
+    <ItemGroup>
+      <_CapsuleMissingModuleAssembly Include="@(_CapsulePureModuleAssembly)" Condition="!Exists('%(FullPath)')" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleMissingModuleAssembly)' != ''"
+           Text="JAG.Capsule packs every admitted module or none; not built: @(_CapsuleMissingModuleAssembly)." />
     <ItemGroup>
       <TfmSpecificPackageFile Include="@(_CapsulePureModuleAssembly);@(_CapsulePureModuleApiReference)"
                               PackagePath="lib/$(TargetFramework)/" />

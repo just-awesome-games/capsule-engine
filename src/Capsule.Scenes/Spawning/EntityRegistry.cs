@@ -1,8 +1,10 @@
+using System.ComponentModel;
 using Capsule.Scenes.Documents;
 
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>Constructs one entity from its spawn data.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public delegate Entity EntitySpawner(EntitySpawn spawn);
 
 /// <summary>
@@ -14,6 +16,7 @@ public sealed class EntityRegistry
     private readonly Dictionary<string, EntitySpawner> _spawners;
 
     /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry(IEnumerable<KeyValuePair<string, EntitySpawner>> entities)
     {
         ArgumentNullException.ThrowIfNull(entities);

@@ -7,9 +7,9 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
-using PackageConsumer.Game;
+using MinimalGame.Game;
 
-namespace PackageConsumer.Smoke;
+namespace MinimalGame.Smoke;
 
 internal static class Program
 {

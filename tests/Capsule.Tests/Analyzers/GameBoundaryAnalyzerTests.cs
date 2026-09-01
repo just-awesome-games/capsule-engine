@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
-using Capsule.Analyzers;
 using Capsule.Diagnostics;
+using Capsule.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;

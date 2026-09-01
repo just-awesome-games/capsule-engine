@@ -21,9 +21,11 @@ public sealed partial class CollisionWorld2D
         Vector2 origin,
         Vector2 unit)
     {
+        RayHit2D candidate = new(target, origin + (unit * distance), normal, distance);
+
         if (all)
         {
-            Insert(hits, ref count, new RayHit2D(target, origin + (unit * distance), normal, distance));
+            Insert(hits, ref count, candidate);
 
             // A full span is also the limit: nothing past its farthest entry can join the result,
             // so the grid walk and the tree walk both stop looking beyond it from here on.
@@ -35,7 +37,8 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
-        if (accumulator.Hit && distance >= accumulator.Distance)
+        if (accumulator.Hit
+            && !Precedes(candidate, new RayHit2D(accumulator.Target, default, accumulator.Normal, accumulator.Distance)))
         {
             return;
         }
@@ -72,6 +75,24 @@ public sealed partial class CollisionWorld2D
         count++;
     }
 
+    // Tiles before colliders, then by slot, then by cell.
+    private static bool TargetPrecedes(in CollisionTarget left, in CollisionTarget right)
+    {
+        if (left.IsGridCell != right.IsGridCell)
+        {
+            return left.IsGridCell;
+        }
+
+        if (left.Collider.Index != right.Collider.Index)
+        {
+            return left.Collider.Index < right.Collider.Index;
+        }
+
+        return left.CellY != right.CellY
+            ? left.CellY < right.CellY
+            : left.CellX < right.CellX;
+    }
+
     // Nearest first, and then a tie-break that reads nothing from the tree's current arrangement:
     // tiles before colliders, then by slot, then by cell. Two runs over the same world must fill
     // the same span with the same hits in the same order.
@@ -82,19 +103,7 @@ public sealed partial class CollisionWorld2D
             return left.Distance < right.Distance;
         }
 
-        if (left.Target.IsGridCell != right.Target.IsGridCell)
-        {
-            return left.Target.IsGridCell;
-        }
-
-        if (left.Target.Collider.Index != right.Target.Collider.Index)
-        {
-            return left.Target.Collider.Index < right.Target.Collider.Index;
-        }
-
-        return left.Target.CellY != right.Target.CellY
-            ? left.Target.CellY < right.Target.CellY
-            : left.Target.CellX < right.Target.CellX;
+        return TargetPrecedes(left.Target, right.Target);
     }
 
     private static void Consider(
@@ -113,18 +122,29 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
-        if (!accumulator.Hit || fraction < accumulator.Fraction - FractionBand)
+        if (!accumulator.Hit || fraction < accumulator.Band - FractionBand)
         {
             accumulator.Hit = true;
+            accumulator.Band = fraction;
             accumulator.Fraction = fraction;
             accumulator.Normal = normal;
             accumulator.Point = point;
             accumulator.Target = target;
             accumulator.Count = 0;
         }
-        else if (fraction > accumulator.Fraction + FractionBand)
+        else if (fraction > accumulator.Band + FractionBand)
         {
             return;
+        }
+        else if (fraction < accumulator.Fraction
+            || (fraction == accumulator.Fraction && TargetPrecedes(target, accumulator.Target)))
+        {
+            // The band is anchored where it opened; within it the nearest hit is the primary and
+            // an exact tie goes to the preceding target, so the primary never widens the band.
+            accumulator.Fraction = fraction;
+            accumulator.Normal = normal;
+            accumulator.Point = point;
+            accumulator.Target = target;
         }
 
         if (accumulator.Count < contacts.Length)
@@ -843,8 +863,8 @@ public sealed partial class CollisionWorld2D
             Aabb2D bounds = moving.Bounds;
             Vector2 size = bounds.Size;
             float inset = horizontal
-                ? MathF.Min(LinearSlop, size.Y * 0.25f)
-                : MathF.Min(LinearSlop, size.X * 0.25f);
+                ? MathF.Max(0f, MathF.Min(LinearSlop, (size.Y - (2f * Shape2D.PointTolerance)) * 0.5f))
+                : MathF.Max(0f, MathF.Min(LinearSlop, (size.X - (2f * Shape2D.PointTolerance)) * 0.5f));
             Vector2 shrink = horizontal ? new Vector2(0f, inset) : new Vector2(inset, 0f);
             moving = Shape2D.Box(new Aabb2D(bounds.Min + shrink, bounds.Max - shrink));
         }

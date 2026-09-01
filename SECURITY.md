@@ -2,18 +2,8 @@
 
 ## Reporting a vulnerability
 
-Report suspected vulnerabilities privately to **jagstudiosdev@gmail.com**. Do not open a public
-issue for one.
-
-Include what you have: the affected package and version, what an attacker can do, and the
-smallest reproduction you can manage. A proof of concept helps; a stack trace and a description
-are enough to start.
-
-Capsule is a pre-1.0 engine maintained by a small studio alongside its own games, and this policy
-promises no acknowledgement, no response time and no disposition. Reports are read and handled on
-a best-effort basis, and a serious one affecting a shipped package is what gets attention first.
-If a report does lead to a fix, credit is offered to the reporter unless you would rather stay
-anonymous.
+- Report suspected vulnerabilities privately to **jagstudiosdev@gmail.com** — do not open a public issue.
+- Include the affected package and version, what an attacker can do, and a minimal reproduction; a proof of concept or stack trace helps.
 
 ## Scope
 
@@ -39,6 +29,5 @@ data.
 
 ## Supported versions
 
-Capsule is pre-1.0. Only the latest published version is supported, and a fix ships as a new
-version rather than as a patch to an older one. There are no long-term support branches, and a
-security fix may arrive alongside a breaking change if that is what fixing it takes.
+- Only the latest published version is supported.
+- Fixes ship as new versions, never as patches to older ones; breaking changes may accompany a security fix if that is what fixing it takes.

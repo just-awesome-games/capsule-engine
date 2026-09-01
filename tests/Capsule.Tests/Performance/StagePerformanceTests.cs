@@ -128,6 +128,8 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     [Fact]
     public void ARestart_ComposesTheStageAgainWithoutReadingItsDocumentFromDisk()
     {
+        // Beside the executable, where SceneComposer looks; SceneComposerTests writes here too.
+        // StagePerformanceCollection disables parallelization, so the delete below cannot race it.
         string directory = Path.Combine(AppContext.BaseDirectory, "assets", "scenes");
         string path = Path.Combine(directory, StageWorkload.DocumentName + ".scene.json");
         Directory.CreateDirectory(directory);
@@ -135,39 +137,21 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
         try
         {
             SceneDocumentFile.Save(StageWorkload.Build(), path);
-            output.WriteLine(FormattableString.Invariant($"scene document: {new FileInfo(path).Length} bytes"));
 
             SceneComposer composer = new(StageWorkload.Scenes());
-
-            long coldBytes = GC.GetAllocatedBytesForCurrentThread();
-            long coldStart = Stopwatch.GetTimestamp();
             using SceneHost host = new(
                 SceneTarget.ForName(StageWorkload.DocumentName),
                 composer.Resolve,
                 StageWorkload.Defaults);
-            ReportTransition("boot", coldStart, coldBytes);
 
             Scene opened = host.Scene;
             File.Delete(path);
 
-            const int Restarts = 15;
-            double[] elapsed = new double[Restarts];
-            long restartBytes = 0;
-            for (int index = 0; index < Restarts; index++)
+            for (int index = 0; index < 15; index++)
             {
                 host.Scene.RequestRestart();
-
-                long bytes = GC.GetAllocatedBytesForCurrentThread();
-                long start = Stopwatch.GetTimestamp();
                 host.Step(Scenes.SceneFixtures.Step(index));
-                elapsed[index] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
-                restartBytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
             }
-
-            double first = elapsed[0];
-            Array.Sort(elapsed);
-            output.WriteLine(FormattableString.Invariant(
-                $"restart: first {first:0.000} ms, median {elapsed[Restarts / 2]:0.000} ms, {restartBytes} bytes"));
 
             Assert.IsType<StageWorkload.StageScene>(host.Scene);
             Assert.NotSame(opened, host.Scene);
@@ -190,14 +174,6 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
             MeasuredSteps);
 
         return (samples, simulation.Scene.Entities.Length);
-    }
-
-    private void ReportTransition(string label, long startTimestamp, long startBytes)
-    {
-        double elapsed = (Stopwatch.GetTimestamp() - startTimestamp) * 1000.0 / Stopwatch.Frequency;
-
-        output.WriteLine(FormattableString.Invariant(
-            $"{label}: {elapsed:0.000} ms, {GC.GetAllocatedBytesForCurrentThread() - startBytes} bytes"));
     }
 
     private void Report(string label, (StepSample[] Samples, int Entities) measured, long maxPerRun)

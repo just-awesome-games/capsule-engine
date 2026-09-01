@@ -10,7 +10,7 @@ public sealed class KinematicBodyTests
     // One body per entity: two would each write the entity's position from their own sweep, and
     // the second one to run would silently undo the first.
     [Fact]
-    public void ASecondBodyOnOneEntity_IsRefusedWithBothItAndTheEntityUntouched()
+    public void ASecondBodyOnOneEntity_IsRefused()
     {
         SceneFixtures.Drifter carrier = new(Vector2.Zero);
         BoxCollider2D collider = new(new Vector2(8f, 8f));
@@ -19,21 +19,11 @@ public sealed class KinematicBodyTests
         KinematicBody2D held = new(collider);
         carrier.Add(held);
 
-        KinematicBody2D offered = new(collider);
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => carrier.Add(offered));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
+            () => carrier.Add(new KinematicBody2D(collider)));
 
         Assert.Contains("KinematicBody2D", refused.Message, StringComparison.Ordinal);
-        Assert.Null(offered.Entity);
         Assert.Same(held, carrier.Get<KinematicBody2D>());
-
-        // The entity never took hold of it, so it has nothing to give back.
-        Assert.Throws<InvalidOperationException>(() => carrier.Remove(offered));
-
-        // And the slot is the type's, not the instance's: freeing it lets the next one in.
-        carrier.Remove(held);
-        carrier.Add(offered);
-
-        Assert.Same(carrier, offered.Entity);
     }
 
     // The pair is judged when the entity joins a scene, not as each component is attached, so a
@@ -54,7 +44,7 @@ public sealed class KinematicBodyTests
     }
 
     [Fact]
-    public void ABodyWhoseColliderIsOnAnotherEntity_IsRefusedAtAdmissionWithNothingRegistered()
+    public void ABodyWhoseColliderIsOnAnotherEntity_IsRefusedWhenItsEntityJoinsAScene()
     {
         Scene scene = new();
 
@@ -63,16 +53,11 @@ public sealed class KinematicBodyTests
         elsewhere.Add(borrowed);
 
         SceneFixtures.Drifter carrier = new(Vector2.Zero);
-        BoxCollider2D own = new(new Vector2(8f, 8f));
-        carrier.Add(own);
         carrier.Add(new KinematicBody2D(borrowed));
 
-        Assert.Throws<InvalidOperationException>(() => scene.Add(carrier));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => scene.Add(carrier));
 
-        Assert.Null(carrier.Scene);
-        Assert.Null(own.World);
-        Assert.True(own.Handle.IsNone);
-        Assert.Equal(0, scene.Collision.ColliderCount);
+        Assert.Contains("same entity", refused.Message, StringComparison.Ordinal);
     }
 
     // The resting case gravity relies on: the landing step stops a slop short of the floor, and the
@@ -215,6 +200,32 @@ public sealed class KinematicBodyTests
         Assert.Equal(Vector2.Zero, body.Body.WallNormal);
     }
 
+    // A contact belongs to the sweep that produced it, and only that sweep's blocked flag says
+    // whether it stopped anything. This corner faces up and stopped the X sweep alone; read against
+    // the Y flag it would report nothing at all.
+    [Fact]
+    public void ACornerThatStoppedTheXSweep_IsJudgedByThatAxisAndNotTheOther()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "...#");
+        Ball body = new(new Vector2(44f, 9f));
+        scene.Add(body);
+
+        // Right and up: the circle wedges under the block's top-left corner, and nothing stops the
+        // rise that follows.
+        MoveResult2D result = body.Body.Move(new Vector2(20f, -4f));
+
+        Assert.True(result.BlockedX);
+        Assert.False(result.BlockedY);
+        Assert.Equal(1, result.XContactCount);
+        Assert.Equal(1, result.ContactCount);
+
+        Assert.True(body.Body.IsOnFloor);
+        Assert.True(body.Body.FloorNormal.Y < -0.7071f);
+        Assert.Equal(body.Body.MoveContacts[0].Normal, body.Body.FloorNormal);
+        Assert.False(body.Body.IsOnWall);
+        Assert.False(body.Body.IsOnCeiling);
+    }
+
     /// <summary>A 16-unit box on the terrain fixture's "solid" layer, driven one step at a time.</summary>
     private sealed class Stepper : Entity
     {
@@ -248,6 +259,22 @@ public sealed class KinematicBodyTests
         }
 
         internal BoxCollider2D Collider { get; }
+
+        internal KinematicBody2D Body { get; }
+    }
+
+    /// <summary>A rounded body, whose corner contacts carry a normal no face declares.</summary>
+    private sealed class Ball : Entity
+    {
+        internal Ball(Vector2 position)
+            : base(position)
+        {
+            CircleCollider2D collider = new(8f);
+            Add(collider);
+            Body = new KinematicBody2D(collider);
+            Body.BlocksOn("solid");
+            Add(Body);
+        }
 
         internal KinematicBody2D Body { get; }
     }

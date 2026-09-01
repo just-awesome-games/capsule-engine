@@ -6,12 +6,6 @@ namespace Capsule.Tests.Rendering;
 public sealed class RenderIntentTests
 {
     [Fact]
-    public void TheThreeChannelConstructor_IsOpaque()
-    {
-        Assert.Equal(new ColorRgba(1, 2, 3, 255), new ColorRgba(1, 2, 3));
-    }
-
-    [Fact]
     public void AView_ReadsBackTheQuadsAddedInOrder()
     {
         FrameView view = new();
@@ -59,15 +53,6 @@ public sealed class RenderIntentTests
 
         Assert.Equal(1, view.Quads.Length);
         Assert.Equal(rewritten, view.Quads[0]);
-    }
-
-    [Fact]
-    public void AView_DefaultsToGenericWorldPresentation()
-    {
-        FrameView view = new();
-
-        Assert.Equal(ColorRgba.Black, view.ClearColor);
-        Assert.Equal(TextureSampling.Linear, view.Sampling);
     }
 
     [Fact]

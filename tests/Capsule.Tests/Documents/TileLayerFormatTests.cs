@@ -55,22 +55,6 @@ public sealed class TileLayerFormatTests
         Assert.Contains("formatVersion 1 is unsupported", error.Message, StringComparison.Ordinal);
     }
 
-    // The field layer and faces replaced. An unmapped member would fail as a JSON shape error,
-    // which would tell an author nothing about where their collision went.
-    [Fact]
-    public void ADocumentStillCarryingCollision_IsRefusedWithAPointerToLayer()
-    {
-        string written = SceneDocumentFile.ToJson(Document("solid", CellFaces2D.All))
-            .Replace("\"layer\": \"solid\"", "\"collision\": \"box\"", StringComparison.Ordinal);
-
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(written));
-
-        Assert.Contains("tileTypes[1] declares collision", error.Message, StringComparison.Ordinal);
-        Assert.Contains("layer", error.Message, StringComparison.Ordinal);
-        Assert.Contains("collidableFaces", error.Message, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void AnUnknownFaceSpelling_FailsTheDocument()
     {

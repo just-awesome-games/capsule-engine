@@ -8,30 +8,26 @@ public sealed class AssetGeneratorTests
     [Fact]
     public void AnAsset_BecomesATypedHandleUnderItsDomain()
     {
-        string generated = GeneratorHarness.Emitted(
-            GeneratorHarness.CompileWithAssets(logic: true, "audio/footstep-stone.ogg", "textures/hero.png").Updated,
-            GeneratorHarness.GameAssetsFile);
+        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "audio/footstep-stone.ogg", "textures/hero.png").Updated;
 
-        Assert.Contains(
-            "public static global::Capsule.Assets.AudioHandle FootstepStone => new global::Capsule.Assets.AudioHandle(\"footstep-stone\", \".ogg\");",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "public static global::Capsule.Assets.TextureHandle Hero => new global::Capsule.Assets.TextureHandle(\"hero\", \".png\");",
-            generated,
-            StringComparison.Ordinal);
+        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
+        Assert.NotNull(gameAssets);
+        INamedTypeSymbol audio = gameAssets.GetTypeMembers().First(t => t.Name == "Audio");
+        INamedTypeSymbol textures = gameAssets.GetTypeMembers().First(t => t.Name == "Textures");
+        Assert.NotNull(audio.GetMembers("FootstepStone").FirstOrDefault());
+        Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
     [Fact]
     public void EveryDomain_IsDeclaredWhateverTheGameAuthored()
     {
-        string generated = GeneratorHarness.Emitted(
-            GeneratorHarness.CompileWithAssets(logic: true).Updated,
-            GeneratorHarness.GameAssetsFile);
+        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true).Updated;
 
-        Assert.Contains("public static class Textures", generated, StringComparison.Ordinal);
-        Assert.Contains("public static class Audio", generated, StringComparison.Ordinal);
-        Assert.Contains("public static class Fonts", generated, StringComparison.Ordinal);
+        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
+        Assert.NotNull(gameAssets);
+        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Textures"));
+        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Audio"));
+        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Fonts"));
     }
 
     [Fact]
@@ -46,13 +42,16 @@ public sealed class AssetGeneratorTests
     [Fact]
     public void OneNameInTwoDomains_IsTwoAssets()
     {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) =
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
             GeneratorHarness.CompileWithAssets(logic: true, "audio/hero.ogg", "textures/hero.png");
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.GameAssetsFile);
-        Assert.Contains("AudioHandle Hero", generated, StringComparison.Ordinal);
-        Assert.Contains("TextureHandle Hero", generated, StringComparison.Ordinal);
+        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
+        Assert.NotNull(gameAssets);
+        INamedTypeSymbol audio = gameAssets.GetTypeMembers().First(t => t.Name == "Audio");
+        INamedTypeSymbol textures = gameAssets.GetTypeMembers().First(t => t.Name == "Textures");
+        Assert.NotNull(audio.GetMembers("Hero").FirstOrDefault());
+        Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
     [Fact]

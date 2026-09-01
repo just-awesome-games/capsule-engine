@@ -51,25 +51,21 @@ public sealed class ActionBindingsTests
         Assert.Equal(expected, bindings.ButtonsFor(Jump).ToArray());
     }
 
-    [Fact]
-    public void Bind_RejectsAnUnnamedAction()
+    [Theory]
+    [MemberData(nameof(BadBindings))]
+    public void Bind_RejectsBadConfigurations(Action<ActionBindings> badBind)
     {
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(default, Key.Space));
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(new InputAction("  "), Key.Space));
+        Assert.Throws<ArgumentException>(() => badBind(new ActionBindings()));
     }
 
-    [Fact]
-    public void Bind_RejectsNoButtons()
+    public static IEnumerable<object[]> BadBindings()
     {
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(Jump));
-    }
-
-    [Fact]
-    public void Bind_RejectsAButtonThatNamesNothing()
-    {
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(Jump, Key.Space, Key.None));
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(Jump, PadButton.None));
-        Assert.Throws<ArgumentException>(() => new ActionBindings().Bind(Jump, InputButton.None));
+        yield return [new Action<ActionBindings>(b => b.Bind(default, Key.Space))];
+        yield return [new Action<ActionBindings>(b => b.Bind(new InputAction("  "), Key.Space))];
+        yield return [new Action<ActionBindings>(b => b.Bind(Jump))];
+        yield return [new Action<ActionBindings>(b => b.Bind(Jump, Key.Space, Key.None))];
+        yield return [new Action<ActionBindings>(b => b.Bind(Jump, PadButton.None))];
+        yield return [new Action<ActionBindings>(b => b.Bind(Jump, InputButton.None))];
     }
 
     [Fact]

@@ -8,7 +8,7 @@ public sealed class SceneGeneratorTests
     [Fact]
     public void ASceneContentConstructor_ComposesTheSceneFromItsKebabCasedName()
     {
-        string generated = Generated($$"""
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
             public sealed class Room01(SceneContent content) : Scene(content);
@@ -16,21 +16,42 @@ public sealed class SceneGeneratorTests
             public sealed class BossArena(SceneContent content) : Scene(content);
             """);
 
-        Assert.Contains("FromDocument(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
-        Assert.Contains("FromDocument(typeof(global::Game.BossArena), \"boss-arena\"", generated, StringComparison.Ordinal);
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.GameScenes"));
+
+        // The document names are the registry's contract with scene sources; each class registers
+        // under its own kebab-cased name.
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        AssertClaimedBy(generated, "room-01", "Game.Room01");
+        AssertClaimedBy(generated, "boss-arena", "Game.BossArena");
+    }
+
+    // Every emitted line that claims the document names the type beside it, so the pairing is
+    // asserted without pinning how a line is spelled.
+    private static void AssertClaimedBy(string generated, string documentName, string type)
+    {
+        string[] claims = generated.Split((char)10)
+            .Where(line => line.Contains($"\"{documentName}\"", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(claims);
+        Assert.All(claims, line => Assert.Contains(type, line, StringComparison.Ordinal));
     }
 
     [Fact]
     public void SceneDocument_FixesTheAuthoredIdentityAcrossAClassRename()
     {
-        string generated = Generated($$"""
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
             [SceneDocument("room-01")]
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """);
 
-        Assert.Contains("FromDocument(typeof(global::Game.OpeningRoom), \"room-01\"", generated, StringComparison.Ordinal);
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Game.OpeningRoom"));
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        AssertClaimedBy(generated, "room-01", "Game.OpeningRoom");
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
 
@@ -98,13 +119,16 @@ public sealed class SceneGeneratorTests
     [Fact]
     public void AParameterlessConstructor_RegistersASceneNoDocumentBacks()
     {
-        string generated = Generated($$"""
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
             public sealed class MainMenu : Scene;
             """);
 
-        Assert.Contains("Plain(typeof(global::Game.MainMenu)", generated, StringComparison.Ordinal);
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        Assert.Contains("Game.MainMenu", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"main-menu\"", generated, StringComparison.Ordinal);
     }
 
     [Theory]

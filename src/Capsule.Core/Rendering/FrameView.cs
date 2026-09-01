@@ -18,7 +18,7 @@ public sealed class FrameView
     public CameraView Camera
     {
         get => _camera;
-        set
+        internal set
         {
             _camera = value;
             _cullBounds = value.SweptBounds;
@@ -30,13 +30,13 @@ public sealed class FrameView
     }
 
     /// <summary>The colour behind world render intent. Black by default.</summary>
-    public ColorRgba ClearColor { get; set; } = ColorRgba.Black;
+    public ColorRgba ClearColor { get; internal set; } = ColorRgba.Black;
 
     /// <summary>How world textures are filtered. Linear by default.</summary>
     public TextureSampling Sampling
     {
         get => _sampling;
-        set
+        internal set
         {
             if (value is not TextureSampling.Linear and not TextureSampling.Point)
             {
@@ -54,7 +54,7 @@ public sealed class FrameView
     public RenderMetrics Metrics => new(_totalQuads, _quads.Count);
 
     /// <summary>Drops every quad and resets <see cref="Metrics"/>, retaining capacity.</summary>
-    public void Clear()
+    internal void Clear()
     {
         _quads.Clear();
         _totalQuads = 0;

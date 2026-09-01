@@ -78,6 +78,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // The exit already tore the current scene down; there is nothing left to step.
+        if (ExitRequested)
+        {
+            return;
+        }
+
         _current.Step(context);
         if (!_current.TryTakeTransition(out SceneTransition transition))
         {

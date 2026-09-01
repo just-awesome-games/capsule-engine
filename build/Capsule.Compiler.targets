@@ -1,22 +1,10 @@
 <Project>
 
-  <!-- Wires Capsule's source generators into the game. A project declares its role once:
-
-         <CapsuleGameLogic>true</CapsuleGameLogic>   the assembly holding the game's own classes
-         <CapsuleGameShell>true</CapsuleGameShell>   the executable that boots them
-
-       Every generator Capsule ships, present and future, arrives through this file, so a new one
-       is never new wiring in the game.
-
-       The roles are not a formality, and they are what each half of the generator is gated on
-       rather than what a compilation can see. Each logic assembly publishes a generated provider;
-       the shell aggregates every referenced provider into one registry and diagnoses duplicate
-       claims across assembly boundaries. The shell therefore reaches all game modules without
-       hand registration, runtime reflection, or a second empty registry of its own.
-
-       Paths are composed with forward slashes and left for MSBuild to canonicalise, matching
-       Capsule.SceneDocuments.targets: a literal backslash is an ordinary filename character on
-       Linux. -->
+  <!-- Loads Capsule's compiler plug-ins (registry generators and game-boundary analyzer, one assembly)
+       into any project declaring a Capsule role. A project declares CapsuleGameLogic or CapsuleGameShell
+       once; every generator and analyzer arrives through here. The Exists() condition selects the source
+       clone; a package consumer receives the same assembly from analyzers/dotnet/cs/ without this reference.
+       Paths use forward slashes for Linux. -->
 
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
     <!-- The generator rides the game's own restore and build graph, the way the scene importer

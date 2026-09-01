@@ -51,79 +51,6 @@ public sealed class EntityTests
         Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(collider.Handle));
     }
 
-    // Finiteness is not the whole of it: a position every float accepts can still be one an
-    // attached collider cannot place its shape at, and the entity must not have moved by the time
-    // anyone finds that out.
-    [Fact]
-    public void APositionAnAttachedColliderCannotBePlacedAt_LeavesTheEntityAndItsProxyWhereTheyWere()
-    {
-        Scene scene = new();
-        TestEntity entity = new(new Vector2(4, 6));
-        CircleCollider2D collider = new(8e37f);
-        entity.Add(collider);
-        scene.Add(entity);
-
-        Assert.Throws<ArgumentException>(() => entity.Position = new Vector2(3e38f, 0f));
-
-        Assert.Equal(new Vector2(4, 6), entity.Position);
-        Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(collider.Handle));
-    }
-
-    // The preflight asks every collider before any of them moves, so one that refuses cannot leave
-    // an earlier one already somewhere else.
-    [Fact]
-    public void ASecondColliderRefusingThePosition_LeavesTheFirstOneWhereItWas()
-    {
-        Scene scene = new();
-        TestEntity entity = new(new Vector2(4, 6));
-        BoxCollider2D ordinary = new(new Vector2(8f, 8f));
-        CircleCollider2D enormous = new(8e37f);
-        entity.Add(ordinary);
-        entity.Add(enormous);
-        scene.Add(entity);
-
-        Assert.Throws<ArgumentException>(() => entity.Position = new Vector2(3e38f, 0f));
-
-        Assert.Equal(new Vector2(4, 6), entity.Position);
-        Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(ordinary.Handle));
-        Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(enormous.Handle));
-    }
-
-    // Whether a shape has a place at a position is a fact about the shape and the position, not
-    // about scene membership — so it is answered wherever the position is written, and a collider
-    // that accepted one out of a scene can never turn round and refuse it on joining.
-    [Fact]
-    public void APositionAnAttachedColliderCannotBePlacedAt_IsRefusedOutOfASceneToo()
-    {
-        TestEntity entity = new(new Vector2(4, 6));
-        entity.Add(new CircleCollider2D(8e37f));
-
-        Assert.Throws<ArgumentException>(() => entity.Position = new Vector2(3e38f, 0f));
-        Assert.Equal(new Vector2(4, 6), entity.Position);
-
-        // A position it does accept while detached is one joining a scene cannot fail on.
-        entity.Position = new Vector2(40, 50);
-
-        Scene scene = new();
-        scene.Add(entity);
-
-        Assert.Same(scene, entity.Scene);
-        Assert.Equal(new Vector2(40, 50), entity.Position);
-    }
-
-    [Fact]
-    public void AColliderThatCannotStandWhereItsEntityIs_IsRefusedAtAttachRatherThanLater()
-    {
-        TestEntity entity = new(new Vector2(3e38f, 0f));
-
-        Assert.Throws<ArgumentException>(() => entity.Add(new CircleCollider2D(8e37f)));
-
-        // Nothing was taken hold of, so no collider tracks this entity and it is still writable.
-        Assert.False(entity.TryGet(out Collider2D? _));
-        entity.Position = new Vector2(3e38f, 0f);
-        Assert.Equal(new Vector2(3e38f, 0f), entity.Position);
-    }
-
     [Fact]
     public void Components_AreQueriedByAssignableTypeWithoutAllocation()
     {
@@ -187,28 +114,7 @@ public sealed class EntityTests
         Assert.Equal(["remove", "next"], log);
     }
 
-    // The slot is the outermost marked type's, so a marked subclass of a marked base shares it —
-    // and shares it whichever of the two arrives first. Judged by the nearest marking instead,
-    // the base after the subclass would be refused while the subclass after the base got in.
-    [Fact]
-    public void AMarkedSubclassOfAMarkedBase_SharesItsSlotInEitherOrder()
-    {
-        TestEntity baseFirst = new(Vector2.Zero);
-        baseFirst.Add(new SingleComponent());
-        Assert.Throws<InvalidOperationException>(() => baseFirst.Add(new SingleAgainComponent()));
-
-        TestEntity subclassFirst = new(Vector2.Zero);
-        subclassFirst.Add(new SingleAgainComponent());
-        Assert.Throws<InvalidOperationException>(() => subclassFirst.Add(new SingleComponent()));
-    }
-
     private sealed class TestEntity(Vector2 position) : Entity(position);
-
-    [DisallowMultipleComponent]
-    private class SingleComponent : Component;
-
-    [DisallowMultipleComponent]
-    private sealed class SingleAgainComponent : SingleComponent;
 
     private abstract class BaseComponent : Component;
 

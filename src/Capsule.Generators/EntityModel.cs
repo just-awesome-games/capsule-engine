@@ -37,11 +37,12 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
 
     public static bool operator !=(EntityModel left, EntityModel right) => !left.Equals(right);
 
+    // Location participates in equality only for faulted models, so an unrelated edit does not re-emit the registry.
     public bool Equals(EntityModel other) =>
         Fault == other.Fault
         && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
         && string.Equals(SpawnType, other.SpawnType, StringComparison.Ordinal)
-        && Location.Equals(other.Location);
+        && (Fault == EntityFault.None || Location.Equals(other.Location));
 
     public override bool Equals(object? obj) => obj is EntityModel other && Equals(other);
 

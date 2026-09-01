@@ -321,10 +321,27 @@ public sealed class ColliderTests
         Assert.Equal(3, body.Collider.Touching.Length);
     }
 
-    // A handler is allowed to tear its own collider down. What it must never see is the rest of a
-    // set that no longer describes anything, and an exit for a contact it was never told began.
+    // What a handler is being told about must not change underneath it, so the setters that would
+    // change it refuse for as long as the dispatch runs.
     [Fact]
-    public void AContactHandlerThatDetachesTheCollider_EndsThatStepsEventsThere()
+    public void AContactHandlerThatReconfiguresItsOwnCollider_IsRefused()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+        body.Collider.ContactEntered += _ => body.Collider.Enabled = false;
+
+        using SceneSimulation simulation = new(scene);
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
+            () => simulation.Step(SceneFixtures.Step(0)));
+
+        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
+        Assert.True(body.Collider.Enabled);
+    }
+
+    [Fact]
+    public void AContactHandlerThatRemovesTheCollider_IsRefused()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Straddler body = new(new Vector2(0f, 8f));
@@ -332,111 +349,13 @@ public sealed class ColliderTests
         body.Collider.ContactEntered += _ => body.Remove(body.Collider);
 
         using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
 
-        Assert.Equal(["+(0,1)", "-(0,1)"], body.Log);
-        Assert.Null(body.Collider.World);
-        Assert.True(body.Collider.Handle.IsNone);
-        Assert.Empty(body.Collider.Touching.ToArray());
-        Assert.Equal(0, scene.Collision.ColliderCount - scene.Collision.Grids.Length);
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+            () => simulation.Step(SceneFixtures.Step(0)));
     }
 
-    [Fact]
-    public void AContactHandlerThatStopsReporting_EndsThatStepsEventsThere()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Straddler body = new(new Vector2(0f, 8f));
-        scene.Add(body);
-        body.Collider.ContactEntered += _ => body.Collider.ReportsContacts = false;
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        // Reporting stopped, so nothing is owed — not even an exit for what it was standing on.
-        Assert.Equal(["+(0,1)"], body.Log);
-        Assert.NotNull(body.Collider.World);
-        Assert.Empty(body.Collider.Touching.ToArray());
-
-        // And a later step raises nothing while it stays off.
-        simulation.Step(SceneFixtures.Step(1));
-        Assert.Equal(["+(0,1)"], body.Log);
-    }
-
-    // Standing the collider back up mid-dispatch leaves it live again, but registered afresh. The
-    // interrupted loop belongs to the registration that ended and must not resume into the new one.
-    [Fact]
-    public void AContactHandlerThatReAttachesTheCollider_NeverResumesTheDepartedRegistration()
-    {
-        Scene scene = SceneFixtures.Terrain(new string('.', 16), new string('#', 16));
-        Straddler body = new(new Vector2(0f, 8f));
-        // Off the cell boundary, so the new set is three cells the way the old one was.
-        Body host = new(new Vector2(164f, 8f));
-        scene.Add(body);
-        scene.Add(host);
-
-        bool moved = false;
-        body.Collider.ContactEntered += _ =>
-        {
-            if (moved)
-            {
-                return;
-            }
-
-            moved = true;
-            body.Remove(body.Collider);
-            host.Add(body.Collider);
-        };
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        // Cells 1 and 2 belonged to the registration that ended, and are never announced.
-        Assert.Equal(["+(0,1)", "-(0,1)"], body.Log);
-
-        // The new one settles on its own next step, over the cells it actually stands on.
-        simulation.Step(SceneFixtures.Step(1));
-
-        Assert.Equal(["+(0,1)", "-(0,1)", "+(10,1)", "+(11,1)", "+(12,1)"], body.Log);
-        Assert.Equal(3, body.Collider.Touching.Length);
-        Assert.All(body.Collider.Touching.ToArray(), contact => Assert.InRange(contact.Cell!.Value.X, 10, 12));
-    }
-
-    [Fact]
-    public void AContactHandlerThatTogglesReportingOffAndOn_NeverResumesTheDepartedRegistration()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Straddler body = new(new Vector2(0f, 8f));
-        scene.Add(body);
-
-        bool toggled = false;
-        body.Collider.ContactEntered += _ =>
-        {
-            if (toggled)
-            {
-                return;
-            }
-
-            toggled = true;
-            body.Collider.ReportsContacts = false;
-            body.Collider.ReportsContacts = true;
-        };
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        // The registration that ended announced one contact and no more, though reporting was live
-        // again by the time the loop looked.
-        Assert.Equal(["+(0,1)"], body.Log);
-
-        simulation.Step(SceneFixtures.Step(1));
-
-        // The fresh one starts from nothing, so all three are new to it.
-        Assert.Equal(["+(0,1)", "+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
-        Assert.Equal(3, body.Collider.Touching.Length);
-    }
-
-    // Removing the entity is deferred to the end of the step, so unlike detaching the component it
-    // does not cut the dispatch short: the whole set is delivered, then the detach ends all of it.
+    // Removing the entity is deferred to the end of the step, so it does not cut the dispatch
+    // short: the whole set is delivered, then the detach ends all of it.
     [Fact]
     public void AContactHandlerThatRemovesTheEntity_FinishesTheStepThenExitsEverything()
     {
@@ -553,215 +472,29 @@ public sealed class ColliderTests
         Assert.True(body.Mover.Move(new Vector2(0f, 60f)).BlockedY);
     }
 
-    // Registration needs room in the world's layer table, and finding that out halfway through would
-    // leave a collider holding a world it never got a handle from.
+    // Layer names are interned where they are first needed, and the world's table is the whole of
+    // the contract: the sixty-fifth name has nowhere to go, whoever asks for it.
     [Fact]
-    public void AColliderNeedingALayerTheWorldHasNoRoomFor_IsRefusedAtAttachWithNothingCommitted()
+    public void AColliderNeedingALayerTheWorldHasNoRoomFor_IsRefusedWhereTheNameIsInterned()
     {
         Scene scene = new();
         Body host = new(Vector2.Zero);
         scene.Add(host);
         Saturate(scene.Collision);
 
-        int layers = scene.Collision.LayerCount;
-        int colliders = scene.Collision.ColliderCount;
-
         BoxCollider2D late = new(new Vector2(8f, 8f));
         late.Detects("a name this world has never seen");
 
-        Assert.Throws<InvalidOperationException>(() => host.Add(late));
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => host.Add(late));
 
-        Assert.Null(late.Entity);
+        Assert.Contains($"{CollisionWorld2D.MaxLayers} layers", refused.Message, StringComparison.Ordinal);
         Assert.Null(late.World);
         Assert.True(late.Handle.IsNone);
-        Assert.Equal(layers, scene.Collision.LayerCount);
-        Assert.Equal(colliders, scene.Collision.ColliderCount);
-    }
-
-    [Fact]
-    public void AnEntityWhoseColliderCannotRegister_StaysOutOfTheSceneWithNoSiblingRegistered()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision);
-
-        int colliders = scene.Collision.ColliderCount;
-
-        Entity carrier = new Body(Vector2.Zero);
-        BoxCollider2D first = new(new Vector2(8f, 8f));
-        BoxCollider2D second = new(new Vector2(8f, 8f));
-        second.Detects("a name this world has never seen");
-        carrier.Add(first);
-        carrier.Add(second);
-
-        Assert.Throws<InvalidOperationException>(() => scene.Add(carrier));
-
-        Assert.Null(carrier.Scene);
-        Assert.Null(first.World);
-        Assert.True(first.Handle.IsNone);
-        Assert.Null(second.World);
-        Assert.Equal(colliders, scene.Collision.ColliderCount);
-    }
-
-    // Asked one at a time, two siblings each wanting the last free slot are both told yes and the
-    // second finds out at commit — after its entity is published and its sibling registered.
-    [Fact]
-    public void TwoSiblingCollidersWantingTheLastLayerBetweenThem_AreRefusedTogether()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision, spare: 1);
-
-        int layers = scene.Collision.LayerCount;
-        int colliders = scene.Collision.ColliderCount;
-
-        Entity carrier = new Body(Vector2.Zero);
-        carrier.Add(Named("first new name"));
-        carrier.Add(Named("second new name"));
-
-        Assert.Throws<InvalidOperationException>(() => scene.Add(carrier));
-
-        Assert.Null(carrier.Scene);
-        Assert.Equal(layers, scene.Collision.LayerCount);
-        Assert.Equal(colliders, scene.Collision.ColliderCount);
-    }
-
-    // The same two wanting the same name need one slot between them, not two.
-    [Fact]
-    public void TwoSiblingCollidersWantingTheSameNewLayer_CountItOnceAndBothRegister()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision, spare: 1);
-
-        Entity carrier = new Body(Vector2.Zero);
-        BoxCollider2D first = Named("the one name they share");
-        BoxCollider2D second = Named("the one name they share");
-        carrier.Add(first);
-        carrier.Add(second);
-
-        scene.Add(carrier);
-
-        Assert.Same(scene, carrier.Scene);
-        Assert.True(scene.Collision.Contains(first.Handle));
-        Assert.True(scene.Collision.Contains(second.Handle));
         Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
     [Fact]
-    public void TwoSiblingCollidersWithRoomForBothTheirNames_Register()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision, spare: 2);
-
-        Entity carrier = new Body(Vector2.Zero);
-        BoxCollider2D first = Named("first new name");
-        BoxCollider2D second = Named("second new name");
-        carrier.Add(first);
-        carrier.Add(second);
-
-        scene.Add(carrier);
-
-        Assert.True(scene.Collision.Contains(first.Handle));
-        Assert.True(scene.Collision.Contains(second.Handle));
-        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
-    }
-
-    // Entry hooks run in attachment order, and one ahead of a preflighted collider may legitimately
-    // want a layer of its own. Counting capacity without claiming it would let that hook take the slot
-    // the collider was promised, and the collider would fail after the entity was published.
-    [Fact]
-    public void AnEarlierHookInterningALayer_CannotTakeTheSlotALaterColliderWasPromised()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision, spare: 1);
-
-        Greedy greedy = new();
-        BoxCollider2D late = Named("the name that was reserved");
-        Entity carrier = new Body(Vector2.Zero);
-        carrier.Add(greedy);
-        carrier.Add(late);
-
-        scene.Add(carrier);
-
-        // The collider registered on the name reserved for it; the hook's opportunistic one is what
-        // found the table full.
-        Assert.Same(scene, carrier.Scene);
-        Assert.True(scene.Collision.Contains(late.Handle));
-        Assert.True(late.Filter.Matches(scene.Collision.Layer("the name that was reserved")));
-        Assert.NotNull(greedy.Refused);
-        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
-    }
-
-    // The other way a hook can spend capacity: attaching a collider of its own mid-entry. That goes
-    // through Add, which preflights against what is actually left, so it is refused on its own and
-    // the admission around it still completes.
-    [Fact]
-    public void AnEarlierHookAttachingACollider_IsRefusedAtomicallyWithoutBreakingTheAdmission()
-    {
-        Scene scene = new();
-        Saturate(scene.Collision, spare: 1);
-
-        BoxCollider2D late = Named("the name that was reserved");
-        Grasping grasping = new();
-        Entity carrier = new Body(Vector2.Zero);
-        carrier.Add(grasping);
-        carrier.Add(late);
-
-        scene.Add(carrier);
-
-        Assert.Same(scene, carrier.Scene);
-        Assert.True(scene.Collision.Contains(late.Handle));
-        Assert.NotNull(grasping.Refused);
-        Assert.Null(grasping.Rejected.Entity);
-        Assert.Null(grasping.Rejected.World);
-        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
-    }
-
-    private sealed class Greedy : Component
-    {
-        internal Exception? Refused { get; private set; }
-
-        protected override void OnAddedToScene()
-        {
-            try
-            {
-                Entity!.Scene!.Collision.Layer("a name nobody reserved");
-            }
-            catch (InvalidOperationException refused)
-            {
-                Refused = refused;
-            }
-        }
-    }
-
-    private sealed class Grasping : Component
-    {
-        internal BoxCollider2D Rejected { get; } = Named("another name nobody reserved");
-
-        internal Exception? Refused { get; private set; }
-
-        protected override void OnAddedToScene()
-        {
-            try
-            {
-                Entity!.Add(Rejected);
-            }
-            catch (InvalidOperationException refused)
-            {
-                Refused = refused;
-            }
-        }
-    }
-
-    private static BoxCollider2D Named(string detects)
-    {
-        BoxCollider2D collider = new(new Vector2(8f, 8f));
-        collider.Detects(detects);
-
-        return collider;
-    }
-
-    // The preflight is a promise, not a guess: a collider it passes registers.
-    [Fact]
-    public void AColliderTakingTheLastLayerTheWorldHasRoomFor_PassesPreflightAndRegisters()
+    public void AColliderTakingTheLastLayerTheWorldHasRoomFor_Registers()
     {
         Scene scene = new();
         Body host = new(Vector2.Zero);

@@ -31,17 +31,16 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(8, 9), simulation.View.Quads[1].Position);
     }
 
+    // The quads are world coordinates, so a position write would move nothing and mean nothing.
     [Fact]
-    public void ATilemapsPositionIsNotConsulted_ItsQuadsAreWorldCoordinates()
+    public void ATilemapRefusesAPositionWrite()
     {
         Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
-        OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
-        SceneSimulation simulation = new(scene);
+        TileMap terrain = SceneFixtures.TerrainOf(scene);
 
-        SceneFixtures.TerrainOf(scene).Position = new Vector2(1000, 1000);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), simulation.View.Quads[0].Position);
+        Assert.Throws<InvalidOperationException>(() => terrain.Position = new Vector2(1000, 1000));
+        Assert.Throws<InvalidOperationException>(() => terrain.Teleport(new Vector2(1000, 1000)));
+        Assert.Equal(Vector2.Zero, terrain.Position);
     }
 
     [Fact]

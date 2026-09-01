@@ -21,7 +21,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     // Points closer together than this, and polygon corners flatter than its square, are read as
     // authoring mistakes rather than geometry: neither has a well-defined outward direction.
-    private const float PointTolerance = CollisionWorld2D.LinearSlop;
+    internal const float PointTolerance = CollisionWorld2D.LinearSlop;
 
     private readonly PointBuffer _points;
     private readonly int _count;
@@ -239,11 +239,6 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         Aabb2D bounds = Finite(Bounds.Translated(offset), nameof(offset));
         RequireExtentSurvives(Bounds.Size, bounds.Size);
 
-        if (Kind is ShapeKind2D.Capsule or ShapeKind2D.Polygon)
-        {
-            RequireDistinctSurvives(_points, moved, _count);
-        }
-
         return new Shape2D(Kind, moved, _count, Radius, bounds);
     }
 
@@ -257,25 +252,6 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             throw new ArgumentException(
                 "The shape has no extent left once it is placed there; the coordinate is coarser than the shape is wide, so its bounds collapse to a line.",
                 "offset");
-        }
-    }
-
-    // The same rounding seen from the hull's side. A box's corners are distinct exactly when its
-    // bounds have extent, and a circle has one point, so only the shapes carrying a hull of their
-    // own are walked — and only pairs that were distinct before are held to being distinct after.
-    private static void RequireDistinctSurvives(in PointBuffer was, in PointBuffer now, int count)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            for (int j = i + 1; j < count; j++)
-            {
-                if (was[i] != was[j] && now[i] == now[j])
-                {
-                    throw new ArgumentException(
-                        $"Points {i} and {j} land on the same coordinate once the shape is placed there; the hull it is built from would have an edge with no direction.",
-                        "offset");
-                }
-            }
         }
     }
 

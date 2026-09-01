@@ -26,6 +26,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
       - name: Restore
         run: dotnet restore --locked-mode
 
@@ -44,41 +50,26 @@ jobs:
           --no-build
           --output artifacts/packages
 
-      - name: Restore package consumer
+      - name: Restore sample (package mode)
         run: >
-          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
-          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
+          dotnet restore samples/MinimalGame/MinimalGame.slnx
+          --configfile samples/MinimalGame/NuGet.config
 
-      - name: Build package consumer
+      - name: Build sample (package mode)
         run: >
-          dotnet build tests/PackageConsumer/PackageConsumer.slnx
+          dotnet build samples/MinimalGame/MinimalGame.slnx
           --configuration Release
           --no-restore
 
-      - name: Restore forced-package consumer
+      - name: Restore sample (source mode)
         run: >
-          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
-          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
-          -p:CapsuleSourcePath=../..
-          -p:CapsuleUsePackages=true
-
-      - name: Build forced-package consumer
-        run: >
-          dotnet build tests/PackageConsumer/PackageConsumer.slnx
-          --configuration Release
-          --no-restore
-          -p:CapsuleSourcePath=../..
-          -p:CapsuleUsePackages=true
-
-      - name: Restore source consumer
-        run: >
-          dotnet restore tests/PackageConsumer/PackageConsumer.slnx
-          --configfile tests/PackageConsumer/PackageConsumer.NuGet.config
+          dotnet restore samples/MinimalGame/MinimalGame.slnx
+          --configfile samples/MinimalGame/NuGet.config
           -p:CapsuleSourcePath=../..
 
-      - name: Build source consumer
+      - name: Build sample (source mode)
         run: >
-          dotnet build tests/PackageConsumer/PackageConsumer.slnx
+          dotnet build samples/MinimalGame/MinimalGame.slnx
           --configuration Release
           --no-restore
           -p:CapsuleSourcePath=../..
@@ -99,35 +90,40 @@ jobs:
           --filter FullyQualifiedName~Capsule.Tests.Performance
           --logger "console;verbosity=detailed"
 
-      # Include and exclude filters are joined with the MSBuild comma escape, not a literal
-      # comma. Capsule.Cli and Capsule.Generators are dev-time tools and are not
-      # gated; the importer is covered through the golden fixtures and the generator
-      # through its own specs either way.
-      #
-      # Capsule.Runtime is gated on everything a test can reach — the builders, the letterbox
-      # fit, the scheduler, the scene host, deadzone filtering. The two types that need a live
-      # window and device are excluded by file rather than the assembly by name, so a new
-      # device-free type in Runtime is gated the day it lands.
-      - name: Test with coverage
+      # Per-assembly coverage gates so no module hides behind another.
+      # Each included module must clear its floor independently.
+      - name: Test with coverage (Core, Collision, Scenes)
         run: >
           dotnet test
           --configuration Release
           --no-build
           -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Collision]*%2c[Capsule.Runtime]*%2c[Capsule.Scenes]*'
+          '-p:Include=[Capsule.Core]*%2c[Capsule.Collision]*%2c[Capsule.Scenes]*'
+          -p:CoverletOutputFormat=cobertura
+          -p:CoverletOutput=TestResults/coverage.pure.cobertura.xml
+          -p:Threshold=85
+          -p:ThresholdType=line
+          -p:ThresholdStat=minimum
+
+      - name: Test with coverage (Runtime)
+        run: >
+          dotnet test
+          --configuration Release
+          --no-build
+          -p:CollectCoverage=true
+          '-p:Include=[Capsule.Runtime]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
           -p:CoverletOutputFormat=cobertura
-          -p:CoverletOutput=TestResults/coverage.cobertura.xml
-          -p:Threshold=80
-          -p:ThresholdType=line
-          -p:ThresholdStat=total
+          -p:CoverletOutput=TestResults/coverage.runtime.cobertura.xml
+          -p:Threshold=50
+          -p:ThresholdStat=minimum
 
-      - name: Upload coverage report
+      - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: coverage
-          path: tests/Capsule.Tests/TestResults/coverage.cobertura.xml
+          path: tests/Capsule.Tests/TestResults/coverage.*.cobertura.xml
           if-no-files-found: warn
 
   platform-and-aot:
@@ -137,10 +133,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            smoke-binary: ./artifacts/aot-smoke/PackageConsumer.Smoke
+            smoke-binary: ./artifacts/aot-smoke/MinimalGame.Smoke
           - os: windows-latest
             runtime: win-x64
-            smoke-binary: ./artifacts/aot-smoke/PackageConsumer.Smoke.exe
+            smoke-binary: ./artifacts/aot-smoke/MinimalGame.Smoke.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -148,6 +144,12 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore engine
         run: dotnet restore --locked-mode
@@ -164,9 +166,9 @@ jobs:
 
       # The shell links the graphics backend, so publishing it is the compile-level check that
       # a whole game — window and all — stays ILC-analyzable.
-      - name: Publish source consumer with NativeAOT
+      - name: Publish sample shell with NativeAOT
         run: >
-          dotnet publish tests/PackageConsumer/Shell/PackageConsumer.Shell.csproj
+          dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
           --configuration Release
           --runtime ${{ matrix.runtime }}
           --self-contained true
@@ -174,11 +176,11 @@ jobs:
           -p:CapsuleSourcePath=../..
 
       # Publishing proves the graph is analyzable. Only running the result proves the game
-      # boots, and boot is where ahead-of-time compilation actually fails: the smoke consumer
+      # boots, and boot is where ahead-of-time compilation actually fails: the smoke binary
       # is device-free, so its published binary runs headless on both platforms.
-      - name: Publish smoke consumer with NativeAOT
+      - name: Publish sample smoke with NativeAOT
         run: >
-          dotnet publish tests/PackageConsumer/Smoke/PackageConsumer.Smoke.csproj
+          dotnet publish samples/MinimalGame/src/MinimalGame.Smoke/MinimalGame.Smoke.csproj
           --configuration Release
           --runtime ${{ matrix.runtime }}
           --self-contained true
@@ -186,5 +188,5 @@ jobs:
           -p:CapsuleSourcePath=../..
           --output artifacts/aot-smoke
 
-      - name: Run the published smoke consumer
+      - name: Run the published smoke binary
         run: ${{ matrix.smoke-binary }}

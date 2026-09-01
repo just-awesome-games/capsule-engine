@@ -24,15 +24,19 @@ my-game/
   MyGame.slnx
 ```
 
-Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override.
-Commit `src/asset-sources/`. The build derives `assets/` beside each executable; do not commit or author files there. Scene sources live under `scenes/`; their format and pipeline are in [`scenes.md`](scenes.md).
+Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override. The build derives `assets/` beside the executable; author under `src/asset-sources/`.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
 ```text
-dotnet new sln --name MyGame
+dotnet new sln --name MyGame --format slnx
+dotnet new classlib -o src/MyGame.Game
+dotnet new console -o src/MyGame.Shell
+dotnet new xunit -o tests/MyGame.Tests
 dotnet sln MyGame.slnx add src/MyGame.Game src/MyGame.Shell tests/MyGame.Tests
 ```
+
+Replace each generated project file's body with the wiring below.
 
 ## Shared configuration
 
@@ -41,13 +45,17 @@ Pin one exact Capsule version and give every project the build package:
 ```xml
 <!-- Directory.Build.props -->
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <CapsuleVersion>0.4.0</CapsuleVersion>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <CapsuleVersion>0.4.0</CapsuleVersion><!-- the released version you pin -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
+    <NuGetLockFilePath Condition="'$(CapsuleSourceRoot)' != ''">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
@@ -125,32 +133,29 @@ Exactly one project takes the shell role:
 </Project>
 ```
 
-The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons:
-
-```csharp
-using Capsule.Runtime.Generated;
-using MyGame.Game;
-
-CapsuleBoot.Configure("My Game").RunScene<MainMenu>();
-```
+The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons.
 
 A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>` and `<CapsuleShipAssets>` independently.
+
+## A minimal game
+
+The complete minimal game is [`samples/MinimalGame/`](../samples/MinimalGame/): a logic project, a shell, an authoring tree, and a headless smoke binary CI publishes under NativeAOT. Copy it to start a game. The scene document format, including a tile palette with a `solid` layer and a `player` entry, is in [`scenes.md`](scenes.md).
 
 ## Package and source modes
 
 Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`.
 
-For one source build against a sibling engine clone:
+For persistent local development, create an ignored `Directory.Build.local.props`:
 
-```text
-dotnet build -p:CapsuleSourcePath=../capsule-engine
+```xml
+<Project>
+  <PropertyGroup>
+    <CapsuleSourcePath>../capsule-engine</CapsuleSourcePath>
+  </PropertyGroup>
+</Project>
 ```
 
-For persistent local development, place the same property in an ignored `Directory.Build.local.props`. Set `CapsuleUsePackages=true` to force the committed package graph.
-
-`dotnet format` accepts no MSBuild properties, so `-p:CapsuleSourcePath=...` never reaches it. A format gate selects source mode through the `CapsuleSourcePath` environment variable or `Directory.Build.local.props`, both of which MSBuild evaluation picks up.
-
-The source and package branches expose the same assemblies: game logic sees only `JAG.Capsule`; the shell alone sees `JAG.Capsule.Runtime`.
+It is git-ignored. The source-mode lock file lands under `obj/` so the committed lock file is untouched.
 
 ### The API reference
 
@@ -167,6 +172,10 @@ dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self
 ```
 
 Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule and its reason are in [`architecture.md`](architecture.md#nativeaot-floor).
+
+## Model and rendering
+
+Rendering draws coloured quads; `TextureHandle` names a shipped file, and nothing draws one yet.
 
 ## Seeing your game's output
 
@@ -188,8 +197,6 @@ The shell installs a console sink at boot, and every level goes to standard outp
 
 Run the shell with `dotnet run --project src/MyGame.Shell` and the lines appear in that terminal. A shell launched by double-clicking its executable has no terminal attached and shows nothing; run it from a terminal when you want to read the log.
 
-`Log` is write-only telemetry and reads nothing back, so it does not weaken the determinism contract: a run with a sink installed and a run without one produce the same state transitions.
-
 Nothing is installed until the host runs, so a headless test harness supplies its own. `CollectingLogSink` keeps what it is given:
 
 ```csharp
@@ -203,6 +210,54 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 
 `WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
 
-## Build configuration
+## Build configuration reference
 
-Capsule's role, content, scene-import, local-development, and icon options are collected in the [build configuration reference](build-configuration.md). Set shared defaults in `Directory.Build.props`; set a role-specific option such as `CapsuleTileSize` or `ApplicationIcon` in the project that owns it.
+Capsule is configured with ordinary MSBuild properties. Put a value in the narrowest project that owns it; use the repository's `Directory.Build.props` only when every project should share the value. Paths may be absolute or relative to the project whose build imports Capsule unless a row says otherwise.
+
+### Project roles
+
+| Property | Value | Effect |
+| --- | --- | --- |
+| `CapsuleGameLogic` | `true` | Enables game-boundary analysis and generates the game's scene, entity, and asset registries. Set it only on the substrate-free logic library. |
+| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and defaults scene import and asset shipping on. Set it only on the executable shell. |
+
+### Authoring sources and output
+
+| Property | Default | Effect |
+| --- | --- | --- |
+| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist. |
+| `CapsuleImportScenes` | `true` for the shell; otherwise `false` | Validates and derives `*.scene.json` and `*.tmj` sources, then ships native scene documents under `assets/scenes/`. A role-free test or tool can opt in independently. |
+| `CapsuleShipAssets` | `true` for the shell; otherwise `false` | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently. |
+| `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size. |
+
+### Application icons
+
+A shell with no icon configuration receives Capsule's executable and window icons. Override either or both beside the shell project:
+
+| Input | Effect |
+| --- | --- |
+| `Icon.ico` | Becomes the executable icon through the standard .NET `ApplicationIcon` property. |
+| `Icon.bmp` | Becomes the window and taskbar icon. It must be a 128x128, 32-bit uncompressed BMP. |
+| `ApplicationIcon` | Overrides the executable icon with any path accepted by the .NET SDK. |
+| `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap is not beside the shell project. |
+
+```xml
+<PropertyGroup>
+  <ApplicationIcon>branding/MyGame.ico</ApplicationIcon>
+</PropertyGroup>
+
+<ItemGroup>
+  <EmbeddedResource Include="branding/MyGame.bmp" LogicalName="Icon.bmp" />
+</ItemGroup>
+```
+
+Defining only one half is allowed, but the build warns because the other half retains Capsule branding.
+
+### Package and source properties
+
+| Property | Default | Effect |
+| --- | --- | --- |
+| `CapsuleVersion` | consumer-defined | Pins `JAG.Capsule`, `JAG.Capsule.Runtime`, and `JAG.Capsule.Build` to one release. |
+| `CapsuleSourcePath` | unset | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory. |
+| `CapsuleUsePackages` | `false` | Set to `true` to ignore a source override and verify the pinned NuGet graph. |
+| `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |

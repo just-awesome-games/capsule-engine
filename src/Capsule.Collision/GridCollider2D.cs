@@ -95,9 +95,6 @@ public sealed class GridCollider2D
         return CellBox(x, y);
     }
 
-    /// <summary>The cell holding <paramref name="world"/>, whether or not the grid has such a cell.</summary>
-    public (int X, int Y) CellAt(Vector2 world) => (FloorDiv(world.X, CellSize), FloorDiv(world.Y, CellSize));
-
     internal CellState StateAt(int x, int y) =>
         (uint)x < (uint)Width && (uint)y < (uint)Height ? _state[(y * Width) + x] : CellState.None;
 

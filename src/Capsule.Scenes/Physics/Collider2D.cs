@@ -19,15 +19,11 @@ namespace Capsule.Scenes.Physics;
 /// </summary>
 public abstract class Collider2D : Component
 {
-    private const int NotDispatching = int.MaxValue;
-
     private readonly List<string> _detects = [];
 
     private Shape2D _shape;
 
-    // The shape as the world holds it: this shape at this offset. Kept rather than recomputed,
-    // because the placement preflight runs on every write to a tracking entity's position and has
-    // to compose exactly the translations the commit does — from here, that is one of them.
+    // The shape as the world holds it: this shape at this offset.
     private Shape2D _local;
     private Vector2 _offset;
     private string _layer = CollisionWorld2D.DefaultLayerName;
@@ -44,17 +40,9 @@ public abstract class Collider2D : Component
     private int _touchingCount;
     private int _wasTouchingCount;
 
-    // How far the enter dispatch has got through _touching. Teardown reads it to tell an entry
-    // whose beginning has been announced from one further down the list that has not: the second
-    // kind must not be reported as having ended. Outside a dispatch every entry counts as
-    // announced, which is what NotDispatching means.
-    private int _entersDispatched = NotDispatching;
-
-    // Which registration the contacts being dispatched belong to. Bumped whenever this collider
-    // stops reporting for whatever reason, so a handler that tears it down and stands it back up —
-    // re-attaching it, or toggling reporting off and on — cannot make an interrupted dispatch look
-    // live again and resume delivering a set that described the registration before it.
-    private int _reportingEpoch;
+    // True while this collider's own enter and exit handlers are running. What they are being told
+    // about must not change underneath them, so the setters that would change it throw.
+    private bool _dispatching;
 
     /// <summary>The shape this collider starts out holding, expressed relative to the entity's position.</summary>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, which is no shape at all.</exception>
@@ -67,19 +55,15 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Raised for each thing this collider began touching since the previous step. No event is
-    /// delivered once the collider has left its scene or <see cref="ReportsContacts"/> has been
-    /// turned off — including for the step in which a handler is what caused either, so a handler
-    /// may tear its own collider down and be sure nothing further arrives.
+    /// Raised for each thing this collider began touching since the previous step. A handler may
+    /// not reconfigure the collider it is being raised for; see <see cref="Enabled"/>.
     /// </summary>
     public event Action<ColliderContact2D>? ContactEntered;
 
     /// <summary>
     /// Raised for each thing this collider stopped touching since the previous step, and for
-    /// everything it was still touching when it left its scene. Every one of them pairs with a
-    /// <see cref="ContactEntered"/> that was delivered: a contact whose beginning was never
-    /// announced is never announced as ending. Silent under the same conditions as
-    /// <see cref="ContactEntered"/>.
+    /// everything it was still touching when it left its scene or was disabled. Handlers are bound
+    /// by the same rule as <see cref="ContactEntered"/>.
     /// </summary>
     public event Action<ColliderContact2D>? ContactExited;
 
@@ -89,11 +73,14 @@ public abstract class Collider2D : Component
     /// <summary>Added to the entity's position to place the shape; zero by default.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>
     /// <exception cref="ArgumentException">The shape cannot be placed at this offset.</exception>
+    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public Vector2 Offset
     {
         get => _offset;
         set
         {
+            RequireNotDispatching();
+
             if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value, "A collider's offset must be finite.");
@@ -111,6 +98,10 @@ public abstract class Collider2D : Component
     /// Whether this collider participates in its scene's collision world. A disabled collider
     /// remains attached to its entity but cannot be hit, queried, or report contacts.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The collider's contacts are being dispatched: a <see cref="ContactEntered"/> or
+    /// <see cref="ContactExited"/> handler cannot reconfigure the collider it was raised for.
+    /// </exception>
     public bool Enabled
     {
         get => _enabled;
@@ -121,6 +112,7 @@ public abstract class Collider2D : Component
                 return;
             }
 
+            RequireNotDispatching();
             _enabled = value;
             if (_scene is null)
             {
@@ -143,6 +135,7 @@ public abstract class Collider2D : Component
     /// <see cref="ContactEntered"/> and <see cref="ContactExited"/> for the difference. Off by
     /// default: a collider that nobody is listening to costs nothing.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public bool ReportsContacts
     {
         get => _reportsContacts;
@@ -153,8 +146,8 @@ public abstract class Collider2D : Component
                 return;
             }
 
+            RequireNotDispatching();
             _reportsContacts = value;
-            _reportingEpoch++;
 
             if (_world is null)
             {
@@ -174,7 +167,7 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>The world this collider is registered with, or null while disabled or in no scene.</summary>
-    public CollisionWorld2D? World => _world;
+    internal CollisionWorld2D? World => _world;
 
     /// <summary>This collider's identity in <see cref="World"/>; <see cref="ColliderHandle.None"/> while it is in no scene.</summary>
     public ColliderHandle Handle => _handle;
@@ -192,13 +185,16 @@ public abstract class Collider2D : Component
     /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The world has no room left to intern the name, or the collider's contacts are being dispatched.
+    /// </exception>
     public string Layer
     {
         get => _layer;
         set
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            RequireNotDispatching();
 
             if (_scene?.Collision is { } world)
             {
@@ -235,15 +231,6 @@ public abstract class Collider2D : Component
             ? entity.Position + _offset
             : throw new InvalidOperationException("A Collider2D that is attached to no entity has no place in the world.");
 
-    // Whether this collider is still owed contact events. A handler is free to detach the collider,
-    // detach its entity, or turn reporting off; each makes this false.
-    private bool IsReporting => _world is not null && _reportsContacts;
-
-    // Whether a dispatch that began in <paramref name="epoch"/> may still deliver. Reporting has to
-    // be live and it has to be the same stretch of reporting: standing the collider back up gives
-    // it a new one, and the interrupted dispatch belongs to the old.
-    private bool IsDispatching(int epoch) => _reportingEpoch == epoch && IsReporting;
-
     /// <summary>
     /// Replaces what this collider's contact queries detect. Detection does not block movement;
     /// <see cref="KinematicBody2D.BlocksOn"/> owns that independent filter. Layer names are
@@ -251,9 +238,13 @@ public abstract class Collider2D : Component
     /// </summary>
     /// <param name="names">The layer names to hit; an empty list hits nothing.</param>
     /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The world has no room left to intern a name, or the collider's contacts are being dispatched.
+    /// </exception>
     public void Detects(params ReadOnlySpan<string> names)
     {
+        RequireNotDispatching();
+
         // Every name is checked, and every one interned, before the list this collider filters by
         // is touched: a bad name half way along used to leave the old list already cleared.
         foreach (string name in names)
@@ -302,8 +293,10 @@ public abstract class Collider2D : Component
     /// The shape is a default <see cref="Shape2D"/>, which is no shape at all, or it cannot be
     /// placed at this collider's offset and position.
     /// </exception>
+    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     protected void SetShape(in Shape2D shape)
     {
+        RequireNotDispatching();
         RequireShape(shape);
         RequirePlaceable(shape, _offset);
 
@@ -312,34 +305,12 @@ public abstract class Collider2D : Component
         Resync();
     }
 
-    // Movement is tracked from the moment this collider joins an entity, not from the moment that
-    // entity joins a scene: whether a shape can be placed where the entity stands is a fact about
-    // the two of them, and a position that would have no place for it is refused wherever it is
-    // written. Registering after the check means a refused attach leaves no interest behind.
-    internal override void OnAttachingTo(Entity entity) => RequirePlaceableAt(_local, entity.Position);
-
     internal override void OnAttachedTo(Entity entity) => entity.TrackMovement(1);
 
-    internal override void OnDetachingFrom(Entity entity) => entity.TrackMovement(-1);
-
-    // Everything registration needs, asked of a world this collider has not touched yet: that its
-    // shape has a place where the entity stands, and that the world's layer table has room for
-    // every name it will have to intern. The names are counted rather than interned — a preflight
-    // that reserved table entries would be changing the world it is only supposed to be asking
-    // about.
-    internal override void OnAddingTo(Scene scene, Entity entity, List<string> layers)
+    internal override void OnDetachingFrom(Entity entity)
     {
-        CollisionWorld2D world = scene.Collision;
-
-        RequirePlaceableAt(_local, entity.Position);
-
-        // Named, not counted: the room for them is judged against everything else being admitted
-        // alongside this collider, and interning here would spend the very capacity being tested.
-        Want(world, layers, _layer);
-        for (int index = 0; index < _detects.Count; index++)
-        {
-            Want(world, layers, _detects[index]);
-        }
+        RequireNotDispatching();
+        entity.TrackMovement(-1);
     }
 
     /// <inheritdoc/>
@@ -363,7 +334,7 @@ public abstract class Collider2D : Component
     {
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
-        CollisionFilter filter = ResolveFilter(world);
+        CollisionFilter filter = ResolveFilter(world, _detects);
         ColliderHandle handle = world.Add(_local, Entity!.Position, world.Layer(_layer), filter, this);
 
         _world = world;
@@ -385,11 +356,7 @@ public abstract class Collider2D : Component
 
         ColliderContact2D[] touching = _touching;
         int touchingCount = _touchingCount;
-        int announced = _entersDispatched;
-        ColliderContact2D[] previous = _wasTouching;
-        int previousCount = _wasTouchingCount;
 
-        _reportingEpoch++;
         _scene?.UntrackContacts(this);
         world.Remove(_handle);
 
@@ -399,37 +366,18 @@ public abstract class Collider2D : Component
         _touchingCount = 0;
         _wasTouchingCount = 0;
 
-        for (int index = 0; index < touchingCount; index++)
+        // Everything it was standing on gets its end, so no contact is left half-reported.
+        _dispatching = true;
+        try
         {
-            if (index < announced || Holds(previous, previousCount, touching[index].Target))
+            for (int index = 0; index < touchingCount; index++)
             {
                 ContactExited?.Invoke(touching[index]);
             }
         }
-    }
-    // The two things CollisionWorld2D.SetPosition derives and can refuse, checked here while
-    // nothing has moved: the shape placed at the new position, and the step taken to reach it. What
-    // the world holds for this collider is exactly the shape at this offset, standing at the
-    // entity's current position, so this preflight sees the same values the commit will — which is
-    // what lets OnEntityMoved be a write that cannot fail.
-    internal override void OnEntityMoving(Vector2 position)
-    {
-        // Whether the shape has a place at all is world-independent, so it is asked wherever the
-        // position is written — in a scene or out of one. Only the step between two positions is
-        // the world's business, and only a registered collider takes one.
-        RequirePlaceableAt(_local, position);
-
-        if (_world is null)
+        finally
         {
-            return;
-        }
-
-        if (!IsFinite(position - Entity!.Position))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(position),
-                position,
-                "A collider on this entity cannot step from where it is to there; the two positions are each finite but the distance between them is not.");
+            _dispatching = false;
         }
     }
 
@@ -455,27 +403,16 @@ public abstract class Collider2D : Component
         _wasTouchingCount = _touchingCount;
         _touchingCount = Describe(world, _found.AsSpan(0, count), ref _touching);
 
-        // Local copies, because a handler may detach this collider and clear the fields.
         ColliderContact2D[] entered = _touching;
         int enteredCount = _touchingCount;
         ColliderContact2D[] left = _wasTouching;
         int leftCount = _wasTouchingCount;
 
-        // The registration these contacts describe. Liveness alone would not do: a handler can
-        // detach this collider and immediately re-attach it, or toggle reporting off and back on,
-        // and leave it live again but registered afresh — with this set describing nobody.
-        int epoch = _reportingEpoch;
-
+        _dispatching = true;
         try
         {
-            // None of the new set has been announced yet.
-            _entersDispatched = 0;
-
             // Exits before enters, so a handler reading Touching sees the settled set either way.
-            // Both loops stop the moment a handler ends this registration, whether by taking the
-            // collider out of the scene or by turning reporting off: past that point the rest of
-            // the set describes something nobody is reporting on any more.
-            for (int index = 0; index < leftCount && IsDispatching(epoch); index++)
+            for (int index = 0; index < leftCount; index++)
             {
                 if (!Holds(entered, enteredCount, left[index].Target))
                 {
@@ -483,10 +420,8 @@ public abstract class Collider2D : Component
                 }
             }
 
-            for (int index = 0; index < enteredCount && IsDispatching(epoch); index++)
+            for (int index = 0; index < enteredCount; index++)
             {
-                _entersDispatched = index + 1;
-
                 if (!Holds(left, leftCount, entered[index].Target))
                 {
                     ContactEntered?.Invoke(entered[index]);
@@ -495,7 +430,7 @@ public abstract class Collider2D : Component
         }
         finally
         {
-            _entersDispatched = NotDispatching;
+            _dispatching = false;
         }
     }
 
@@ -513,34 +448,14 @@ public abstract class Collider2D : Component
         }
     }
 
-    // The bounds a shape at this offset would cover standing at a position, read off the shape's
-    // own bounds rather than by building the placed shapes: this runs on every write to every
-    // tracking entity's position, and the point sets are not what is in question. The world holds
-    // exactly this shape at this offset, so its bounds are the first translation's result — the
-    // same float values, composed the same way, that CollisionWorld2D would check.
-    // The commit's own arithmetic, run for its refusals. The world holds this shape at this offset
-    // and translates that by the position, so composing the two translations the same way is what
-    // makes the preflight exact rather than an approximation of it: bounds off the end of the float
-    // range, an extent that rounding collapses, a hull whose points land on each other — whatever
-    // the commit would refuse is refused here, which is the whole of the promise that a preflight
-    // once passed cannot fail.
-    private static void RequirePlaceableAt(in Shape2D local, Vector2 position)
+    private void RequireNotDispatching()
     {
-        _ = local.Translated(position);
-    }
-
-    // Notes a name the world would have to intern. One it already holds costs nothing, and one
-    // already on the list — whether this collider asked for it twice or a sibling asked first —
-    // costs nothing more.
-    private static void Want(CollisionWorld2D world, List<string> layers, string name)
-    {
-        if (!world.TryFindLayer(name, out _) && !layers.Contains(name))
+        if (_dispatching)
         {
-            layers.Add(name);
+            throw new InvalidOperationException(
+                $"A {GetType().Name} cannot change while its contacts are being dispatched.");
         }
     }
-
-    private static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 
     private static void RequireShape(in Shape2D shape, [CallerArgumentExpression(nameof(shape))] string? parameterName = null)
     {
@@ -600,10 +515,11 @@ public abstract class Collider2D : Component
         return found.Length;
     }
 
-    private CollisionFilter ResolveFilter(CollisionWorld2D world)
+    // Interning as it goes: a name the world has no room for is refused here.
+    internal static CollisionFilter ResolveFilter(CollisionWorld2D world, List<string> names)
     {
         CollisionFilter filter = CollisionFilter.None;
-        foreach (string name in _detects)
+        foreach (string name in names)
         {
             filter = filter.With(world.Layer(name));
         }

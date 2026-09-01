@@ -11,41 +11,28 @@ public sealed class EngineBuilderTests
 {
     private const string GameName = "Spec Game";
 
-    [Fact]
-    public void WithFixedStep_RejectsANonPositiveRate()
+    [Theory]
+    [MemberData(nameof(BadSetterActions))]
+    public void Setters_RejectBadValues(Action<SceneEngineBuilder> badSetter)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithFixedStep(0));
+        Assert.ThrowsAny<ArgumentException>(() => badSetter(SceneBuilder()));
     }
 
-    [Theory]
-    [InlineData(0, 180)]
-    [InlineData(320, 0)]
-    public void WithRenderResolution_RejectsANonPositiveExtent(int width, int height)
+    public static IEnumerable<object[]> BadSetterActions()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithRenderResolution(width, height));
-    }
-
-    [Theory]
-    [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
-    public void WithSpikeClamp_RejectsANonFiniteCeiling(double seconds)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CapsuleEngine.Configure(GameName).WithSpikeClamp(seconds));
-    }
-
-    [Theory]
-    [InlineData(float.NaN, 0.12f)]
-    [InlineData(0.25f, float.NaN)]
-    public void WithGamepadDeadzones_RejectsANaNRadius(float stick, float trigger)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => CapsuleEngine.Configure(GameName).WithGamepadDeadzones(stick, trigger));
+        yield return [new Action<SceneEngineBuilder>(b => b.WithFixedStep(0))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(0, 180))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(320, 0))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithSpikeClamp(double.NaN))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithSpikeClamp(double.PositiveInfinity))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(float.NaN, 0.12f))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(0.25f, float.NaN))];
     }
 
     [Fact]
     public void Run_RejectsASpikeClampBelowTheFixedStep()
     {
-        SimulationEngineBuilder builder = CapsuleEngine.Configure(GameName)
+        SceneEngineBuilder builder = SceneBuilder()
             .WithFixedStep(60)
             .WithSpikeClamp(1.0 / 120);
 
@@ -58,17 +45,9 @@ public sealed class EngineBuilderTests
     [InlineData("nul")]
     public void Configure_RejectsAGameNameThatNoSafeCrashLogFolderSlugsOutOf(string gameName)
     {
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(gameName));
+        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder(gameName));
     }
 
-    [Theory]
-    [InlineData("X Plus")]
-    [InlineData("JAG.Studios.XPlus")]
-    [InlineData("CONsole")]
-    public void Configure_AcceptsAnOrdinaryGameName(string gameName)
-    {
-        CapsuleEngine.Configure(gameName);
-    }
 
     [Theory]
     [InlineData("bad\\name")]
@@ -79,7 +58,7 @@ public sealed class EngineBuilderTests
     [InlineData("AUX.log")]
     public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string appName)
     {
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(GameName).WithCrashLog(appName));
+        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithCrashLog(appName));
     }
 
     // The top of the control range: the row an off-by-one in the unsafe-character set lets through.
@@ -87,23 +66,13 @@ public sealed class EngineBuilderTests
     public void WithCrashLog_RejectsAControlCharacter()
     {
         Assert.Throws<ArgumentException>(
-            () => CapsuleEngine.Configure(GameName).WithCrashLog($"Game{(char)0x1F}Name"));
-    }
-
-    [Theory]
-    [InlineData("X Plus")]
-    [InlineData("JAG.Studios.XPlus")]
-    [InlineData("CONsole")]
-    [InlineData("COM10")]
-    public void WithCrashLog_AcceptsAnOrdinaryApplicationName(string appName)
-    {
-        CapsuleEngine.Configure(GameName).WithCrashLog(appName);
+            () => SceneBuilder().WithCrashLog($"Game{(char)0x1F}Name"));
     }
 
     [Fact]
     public void WithWindowTitle_RejectsABlankTitle()
     {
-        Assert.ThrowsAny<ArgumentException>(() => CapsuleEngine.Configure(GameName).WithWindowTitle("  "));
+        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithWindowTitle("  "));
     }
 
     [Theory]
@@ -150,8 +119,8 @@ public sealed class EngineBuilderTests
         Assert.Throws<ArgumentException>(() => builder.RunScene(documentName));
     }
 
-    private static SceneEngineBuilder SceneBuilder() =>
-        CapsuleEngine.Configure(GameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
+    private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>
+        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());

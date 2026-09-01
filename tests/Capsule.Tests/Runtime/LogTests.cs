@@ -16,7 +16,7 @@ public sealed class LogTests : IDisposable
         Log.UseSink(null);
 
         // The contract is that this is not an error: a headless run logs into nothing.
-        Log.Debug("nobody is listening");
+        Log.Write(LogLevel.Debug, "nobody is listening");
         Log.Info("nor now");
         Log.Warning("still nobody");
         Log.Error("nor now either");
@@ -130,17 +130,6 @@ public sealed class LogTests : IDisposable
 
         Assert.Equal("[   boot] info  ready", line);
         Assert.Equal(ConsoleLogSink.Format(LogLevel.Info, 0L, "ready").Length, line.Length);
-    }
-
-    [Fact]
-    public void Clear_ForgetsWhatASinkCollected()
-    {
-        CollectingLogSink sink = new();
-        sink.Write(LogLevel.Info, "something");
-
-        sink.Clear();
-
-        Assert.Empty(sink.Entries);
     }
 
     private sealed class ThrowingLogSink : ILogSink

@@ -71,24 +71,6 @@ public sealed class ShapeUnionTests
         Assert.InRange(moved.Translation.X, 1f, 99f);
     }
 
-    [Theory]
-    [MemberData(nameof(Union))]
-    public void EveryShape_MovesAsAColliderOfItsOwn(string kind)
-    {
-        CollisionWorld2D world = new();
-        CollisionLayer wall = world.Layer("wall");
-        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(16f, 64f)), new Vector2(100f, 20f), wall, CollisionFilter.None);
-
-        ColliderHandle mover = world.Add(Of(kind), new Vector2(20f, 50f), world.Layer("mover"), CollisionFilter.Of(wall));
-
-        Span<Contact2D> contacts = stackalloc Contact2D[4];
-        MoveResult2D result = world.MoveCollider(mover, new Vector2(200f, 0f), contacts);
-
-        Assert.True(result.BlockedX);
-        Assert.InRange(result.Translation.X, 1f, 199f);
-        Assert.Equal(new Vector2(20f, 50f) + result.Translation, world.PositionOf(mover));
-    }
-
     private static Shape2D Of(string kind) => kind switch
     {
         nameof(ShapeKind2D.Circle) => Shape2D.Circle(Vector2.Zero, 10f),

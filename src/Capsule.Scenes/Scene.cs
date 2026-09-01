@@ -12,7 +12,7 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// An ordered world of entities and a camera. Mutations requested during a step are deferred
-/// until it ends; the first pending transition wins.
+/// until it ends; the first pending transition wins, except an exit request, which pre-empts one.
 /// </summary>
 public class Scene
 {
@@ -30,10 +30,6 @@ public class Scene
     private readonly HashSet<Entity> _pendingAddSet = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Entity> _pendingRemoveSet = new(ReferenceEqualityComparer.Instance);
 
-    // Scratch for the layer names one admission would have to intern. Reused rather than allocated
-    // per attach, because spawning is common and the names are nearly always interned already.
-    // Never nested: a component's OnAddingTo only asks questions, and cannot admit anything itself.
-    private readonly List<string> _admissionLayers = [];
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
@@ -123,20 +119,17 @@ public class Scene
     /// <summary>
     /// Adds an unowned entity, deferred to the end of the current step when necessary.
     /// <para>
-    /// Its components are asked first, and any of them may refuse — a collider needing more
-    /// collision layer names than the world has room left to intern, one whose shape has no place
-    /// where the entity stands, or a <see cref="KinematicBody2D"/> whose collider is attached to
-    /// some other entity. A refusal leaves the entity out of the scene with none of its components
-    /// registered. Added during a step, that refusal surfaces where the queue is drained at the end
-    /// of the step rather than from this call.
+    /// A component may refuse the scene from its entry hook — a collider needing a layer name the
+    /// world has no room left to intern, or a <see cref="KinematicBody2D"/> whose collider is
+    /// attached to some other entity. That is a programmer error, and the entity is left in the
+    /// scene with the components ahead of the refusal registered and the rest not. Added during a
+    /// step, the refusal surfaces where the queue is drained at the end of the step rather than
+    /// from this call.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// The entity is already in a scene or already queued; or, when the add is not deferred, a
     /// component refused the scene.
-    /// </exception>
-    /// <exception cref="ArgumentException">
-    /// When the add is not deferred, a collider on the entity has no place at its position.
     /// </exception>
     public void Add(Entity entity)
     {
@@ -159,14 +152,17 @@ public class Scene
         Attach(entity);
     }
 
-    /// <summary>Removes an entity, deferred and idempotent within the current step.</summary>
-    /// <exception cref="InvalidOperationException">The entity is not in this scene.</exception>
+    /// <summary>
+    /// Removes an entity, deferred and idempotent within the current step. One queued to join this
+    /// step is accepted too: it attaches and detaches in the same drain, with symmetric hooks.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The entity is neither in this scene nor queued to join it.</exception>
     public void Remove(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
         ThrowIfStopped();
 
-        if (!ReferenceEquals(entity.Scene, this))
+        if (!ReferenceEquals(entity.Scene, this) && !_pendingAddSet.Contains(entity))
         {
             throw new InvalidOperationException($"A {entity.GetType().Name} that this scene does not hold cannot be removed from it.");
         }
@@ -226,13 +222,16 @@ public class Scene
             $"A {GetType().Name} holds no entity assignable to {typeof(T).Name}.");
     }
 
-    /// <summary>Asks the host to shut down once the current step finishes.</summary>
+    /// <summary>
+    /// Asks the host to shut down once the current step finishes, replacing whatever transition
+    /// was already pending.
+    /// </summary>
     public void RequestExit()
     {
-        if (TryRequest(SceneTransition.Exit()))
-        {
-            _exitRequested = true;
-        }
+        ThrowIfStopped();
+
+        _transition = SceneTransition.Exit();
+        _exitRequested = true;
     }
 
     /// <summary>Asks the host to reconstruct this scene once the current step finishes.</summary>
@@ -284,18 +283,6 @@ public class Scene
     /// <summary>Runs after entities update and before the frame is built; use it for camera policy.</summary>
     protected virtual void OnLateStep(in StepContext context)
     {
-    }
-
-    /// <summary>Adds one entity per spawn, in source order.</summary>
-    /// <exception cref="SpawnException">A spawn's type is claimed by no entity.</exception>
-    protected void Spawn(ReadOnlySpan<EntitySpawn> spawns, EntityRegistry entities)
-    {
-        ArgumentNullException.ThrowIfNull(entities);
-
-        foreach (EntitySpawn spawn in spawns)
-        {
-            Add(entities.Create(spawn));
-        }
     }
 
     internal void Start(object? entryPayload, in SceneDefaults defaults)
@@ -439,47 +426,31 @@ public class Scene
         }
     }
 
-    internal List<string> BeginAdmission()
-    {
-        _admissionLayers.Clear();
-
-        return _admissionLayers;
-    }
-
-    // Judged once over everything being admitted together — a collider asked on its own would
-    // compare its one wanted name against a capacity its sibling is about to take — and then taken.
-    //
-    // Interning is the reservation. Checking capacity without claiming it leaves a gap: entry hooks
-    // run in attachment order, and one ahead of a preflighted collider may legitimately intern a
-    // layer of its own, or attach another collider, and spend the slot that collider was counting
-    // on. Claiming here closes it, which is what lets the commit be a step that cannot fail:
-    // interning is idempotent and permanent, so a collider that passed finds its name already in
-    // the table. An admission refused above this line interns nothing.
-    internal void ReserveLayers(List<string> wanted)
-    {
-        int room = CollisionWorld2D.MaxLayers - Collision.LayerCount;
-
-        if (wanted.Count > room)
-        {
-            throw new InvalidOperationException(
-                $"Joining this scene would need {wanted.Count} more of the collision world's {CollisionWorld2D.MaxLayers} layer names and only {room} are left; collision filtering is meant to name a handful of kinds, not every type in the game.");
-        }
-
-        for (int index = 0; index < wanted.Count; index++)
-        {
-            Collision.Layer(wanted[index]);
-        }
-    }
-
+    // By reference, never by Equals: two distinct colliders that compare equal must both report.
     internal void TrackContacts(Collider2D collider)
     {
-        if (!_contactReporters.Contains(collider))
+        for (int index = 0; index < _contactReporters.Count; index++)
         {
-            _contactReporters.Add(collider);
+            if (ReferenceEquals(_contactReporters[index], collider))
+            {
+                return;
+            }
         }
+
+        _contactReporters.Add(collider);
     }
 
-    internal void UntrackContacts(Collider2D collider) => _contactReporters.Remove(collider);
+    internal void UntrackContacts(Collider2D collider)
+    {
+        for (int index = 0; index < _contactReporters.Count; index++)
+        {
+            if (ReferenceEquals(_contactReporters[index], collider))
+            {
+                _contactReporters.RemoveAt(index);
+                return;
+            }
+        }
+    }
 
     internal void RunLateStep(in StepContext context) => OnLateStep(context);
 
@@ -554,10 +525,6 @@ public class Scene
         {
             return;
         }
-
-        // Asked before anything is published, so a component that cannot register with this scene
-        // leaves the entity outside it rather than half in.
-        entity.PreflightScene(this);
 
         _entities.Add(entity);
         _renderersStale = true;

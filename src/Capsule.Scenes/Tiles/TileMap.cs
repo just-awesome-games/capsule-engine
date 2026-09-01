@@ -5,9 +5,10 @@ using Capsule.Rendering;
 namespace Capsule.Scenes.Tiles;
 
 /// <summary>
-/// A stationary, world-origin tile grid that draws colored palette entries as quads and, where its
-/// palette says any tile type collides, registers one <see cref="GridCollider2D"/> with the
-/// scene's world for the whole layer.
+/// A tile grid anchored at the world origin — its cells are world coordinates, so its
+/// <see cref="Entity.Position"/> cannot be written. It draws colored palette entries as quads and,
+/// where its palette says any tile type collides, registers one <see cref="GridCollider2D"/> with
+/// the scene's world for the whole layer.
 /// </summary>
 public sealed class TileMap : Entity
 {
@@ -21,6 +22,7 @@ public sealed class TileMap : Entity
     {
         ArgumentNullException.ThrowIfNull(grid);
 
+        Anchored = true;
         _grid = grid;
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 

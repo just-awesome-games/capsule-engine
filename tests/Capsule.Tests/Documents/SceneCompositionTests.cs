@@ -86,9 +86,4 @@ public sealed class SceneCompositionTests
         Assert.IsType<SceneFixtures.Placed>(scene.Entities[3]);
     }
 
-    [Fact]
-    public void ContentWithNoDocument_IsRejected()
-    {
-        Assert.Throws<ArgumentNullException>(() => new Scene(default));
-    }
 }

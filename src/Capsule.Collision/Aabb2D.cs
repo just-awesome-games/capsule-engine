@@ -47,7 +47,7 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
     /// Half the box's outline length. The surface-area heuristic the dynamic tree balances by is
     /// this quantity in two dimensions.
     /// </summary>
-    public float Perimeter
+    internal float Perimeter
     {
         get
         {
@@ -71,14 +71,17 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
         Min.X <= point.X && point.X <= Max.X && Min.Y <= point.Y && point.Y <= Max.Y;
 
     /// <summary>This box grown by <paramref name="margin"/> world units on every side.</summary>
-    public Aabb2D Expanded(float margin) => new(Min - new Vector2(margin), Max + new Vector2(margin));
+    internal Aabb2D Expanded(float margin) => new(Min - new Vector2(margin), Max + new Vector2(margin));
 
     /// <summary>This box moved by <paramref name="offset"/> world units.</summary>
     public Aabb2D Translated(Vector2 offset) => new(Min + offset, Max + offset);
 
     /// <summary>The smallest box holding both.</summary>
-    public Aabb2D Union(in Aabb2D other) => new(Vector2.Min(Min, other.Min), Vector2.Max(Max, other.Max));
+    internal Aabb2D Union(in Aabb2D other) => new(Vector2.Min(Min, other.Min), Vector2.Max(Max, other.Max));
 
     /// <summary>The smallest box holding this one before and after a translation of <paramref name="translation"/>.</summary>
-    public Aabb2D Swept(Vector2 translation) => Union(Translated(translation));
+    internal Aabb2D Swept(Vector2 translation) => Union(Translated(translation));
+
+    /// <summary>Whether a point is finite on both axes.</summary>
+    internal static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 }

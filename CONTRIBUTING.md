@@ -16,15 +16,7 @@ This is not optional: Git ignores `.githooks/` until it is configured, and an un
 
 ## Build
 
-```text
-dotnet restore --locked-mode
-dotnet build
-dotnet test
-dotnet format --verify-no-changes
-dotnet pack --configuration Release --output artifacts/packages
-```
-
-CI also verifies Release builds, 80% aggregate line coverage over the runtime modules, locked restores, package and project-reference consumers, NativeAOT execution on Linux and Windows, package contents, and performance workloads. The workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the executable authority.
+The gates are the four commands in `.githooks/pre-commit`; CI in `.github/workflows/ci.yml` adds Release, pack, consumer, NativeAOT and coverage lanes.
 
 ## Expectations
 

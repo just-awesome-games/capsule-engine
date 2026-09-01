@@ -8,7 +8,7 @@ public sealed class EntityGeneratorTests
     [Fact]
     public void ASpawnConstructor_IsTheWholeOptIn_AndTheNameIsKebabCased()
     {
-        string generated = Generated($$"""
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
             public sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
@@ -20,10 +20,13 @@ public sealed class EntityGeneratorTests
             public sealed class Enemy2(EntitySpawn spawn) : Entity(spawn.Position);
             """);
 
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+
+        // The spawn-type strings are the registry's contract with scene documents.
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
         Assert.Contains("\"player\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"health-pickup\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"http-probe\"", generated, StringComparison.Ordinal);
-
         Assert.Contains("\"enemy-2\"", generated, StringComparison.Ordinal);
     }
 
@@ -48,14 +51,21 @@ public sealed class EntityGeneratorTests
     [Fact]
     public void AnExplicitSpawnType_ReplacesTheConvention()
     {
-        string generated = Generated($$"""
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
             [SpawnType("player-spawn")]
             public sealed class Protagonist(EntitySpawn spawn) : Entity(spawn.Position);
             """);
 
-        Assert.Contains("\"player-spawn\"", generated, StringComparison.Ordinal);
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Game.Protagonist"));
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+        string[] claims = generated.Split((char)10)
+            .Where(line => line.Contains("\"player-spawn\"", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(claims);
+        Assert.All(claims, line => Assert.Contains("Game.Protagonist", line, StringComparison.Ordinal));
         Assert.DoesNotContain("\"protagonist\"", generated, StringComparison.Ordinal);
     }
 

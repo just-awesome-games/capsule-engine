@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="Game/PackageConsumer.Game.csproj" />
-  <Project Path="Shell/PackageConsumer.Shell.csproj" />
-  <Project Path="Smoke/PackageConsumer.Smoke.csproj" />
-</Solution>

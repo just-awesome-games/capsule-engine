@@ -36,7 +36,6 @@
     <!-- Referenced as an ordinary library, not as an analyzer: these specs drive the generator
          directly so that a rejected input is an assertion here rather than a broken build. -->
     <ProjectReference Include="..\..\src\Capsule.Generators\Capsule.Generators.csproj" />
-    <ProjectReference Include="..\..\src\Capsule.Analyzers\Capsule.Analyzers.csproj" />
   </ItemGroup>
 
   <!-- The importer and the CLI resolve paths relative to their inputs, so the Tiled fixtures

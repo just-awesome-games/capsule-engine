@@ -95,7 +95,22 @@ internal static class SceneFixtures
 
     internal sealed class SpawnScene : Scene
     {
-        internal SpawnScene(EntityRegistry entities, params EntitySpawn[] spawns) => Spawn(spawns, entities);
+        internal SpawnScene(EntityRegistry entities, params EntitySpawn[] spawns)
+            : base(Content(Placements(spawns), entities))
+        {
+        }
+
+        private static SceneDocument Placements(EntitySpawn[] spawns)
+        {
+            EntityPlacement[] placements = new EntityPlacement[spawns.Length];
+            for (int index = 0; index < spawns.Length; index++)
+            {
+                EntitySpawn spawn = spawns[index];
+                placements[index] = new EntityPlacement(spawn.Id, spawn.Type, spawn.Position.X, spawn.Position.Y);
+            }
+
+            return RoomWithoutTerrain(placements);
+        }
     }
 
     internal sealed class Room01(SceneContent content) : Scene(content)
@@ -115,7 +130,7 @@ internal static class SceneFixtures
 
     internal sealed class Meddler(Action<Scene> onAdded) : Entity(Vector2.Zero)
     {
-        protected override void OnAddedToScene() => onAdded(Scene!);
+        protected internal override void OnAddedToScene() => onAdded(Scene!);
     }
 
     internal sealed class Watcher(Action<Scene> observe) : Entity(Vector2.Zero)
@@ -132,11 +147,9 @@ internal static class SceneFixtures
     {
         public override void Update(in StepContext context) => log.Add(name);
 
-        // protected, not protected internal: that is what an override outside the engine's own
-        // assembly must be, and every game entity is outside it.
-        protected override void OnAddedToScene() => log.Add($"{name}+");
+        protected internal override void OnAddedToScene() => log.Add($"{name}+");
 
-        protected override void OnRemovedFromScene() => log.Add($"{name}-");
+        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
     }
 
     internal sealed class RecordingComponent(string name, List<string> log) : Component
@@ -161,6 +174,6 @@ internal static class SceneFixtures
 
         public override int GetHashCode() => 0;
 
-        protected override void OnRemovedFromScene() => log.Add($"{Name}-");
+        protected internal override void OnRemovedFromScene() => log.Add($"{Name}-");
     }
 }

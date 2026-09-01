@@ -6,7 +6,7 @@ namespace Capsule;
 /// A game, as the engine sees it: it owns all game state, advances it one fixed step at
 /// a time, and never draws — what it wants on screen is exposed through <see cref="View"/>.
 /// </summary>
-public interface ISimulation
+internal interface ISimulation
 {
     /// <summary>Advances the simulation by exactly one fixed step.</summary>
     void Step(in StepContext context);

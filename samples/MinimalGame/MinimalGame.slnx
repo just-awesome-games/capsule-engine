@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/MinimalGame.Game/MinimalGame.Game.csproj" />
+  <Project Path="src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
+  <Project Path="src/MinimalGame.Smoke/MinimalGame.Smoke.csproj" />
+</Solution>

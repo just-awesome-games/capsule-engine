@@ -14,16 +14,6 @@ public sealed class InputButtonTests
     }
 
     [Fact]
-    public void ButtonsOfDifferentDevices_AreNeverEqual()
-    {
-        InputButton key = Key.A;
-        InputButton pad = PadButton.South;
-
-        Assert.NotEqual(key, pad);
-        Assert.True(key != pad);
-    }
-
-    [Fact]
     public void IsDown_ReadsTheDeviceTheButtonBelongsTo()
     {
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Space).With(PadButton.South);

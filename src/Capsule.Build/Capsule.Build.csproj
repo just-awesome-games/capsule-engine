@@ -11,60 +11,28 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Cli/Capsule.Cli.csproj"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
-    <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
-    <ProjectReference Include="../Capsule.Analyzers/Capsule.Analyzers.csproj"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
+    <ProjectReference Include="../Capsule.Cli/Capsule.Cli.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../build/Capsule.Build.targets"
-          Pack="true"
-          PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
-    <None Include="../../build/Capsule.SceneDocuments.targets"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Assets.targets"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Scenes.targets"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Icon.targets"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.ApiReference.targets"
-          Pack="true"
-          PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
+    <None Include="../../build/Capsule.SceneDocuments.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Assets.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />
     <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
          pair whether a game builds against the packages or an engine clone. -->
-    <None Include="../../build/Icon.ico"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Icon.bmp"
-          Pack="true"
-          PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Analyzers.targets"
-          Pack="true"
-          PackagePath="buildTransitive/"
-          Condition="Exists('../../build/Capsule.Analyzers.targets')" />
+    <None Include="../../build/Icon.ico" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Icon.bmp" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 
   <Target Name="IncludeCapsuleBuildAssets">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.dll"
-                              PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.json"
-                              PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Generators/bin/$(Configuration)/netstandard2.0/Capsule.Generators.dll"
-                              PackagePath="analyzers/dotnet/cs/" />
-      <TfmSpecificPackageFile Include="../Capsule.Analyzers/bin/$(Configuration)/netstandard2.0/Capsule.Analyzers.dll"
-                              PackagePath="analyzers/dotnet/cs/" />
+      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.dll" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="../Capsule.Cli/bin/$(Configuration)/net10.0/*.json" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="../Capsule.Generators/bin/$(Configuration)/netstandard2.0/Capsule.Generators.dll" PackagePath="analyzers/dotnet/cs/" />
     </ItemGroup>
   </Target>
 

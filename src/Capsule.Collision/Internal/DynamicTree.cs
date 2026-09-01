@@ -91,13 +91,11 @@ internal sealed class DynamicTree
         // the end of the float range is dropped rather than stored: the tight box is what the
         // proxy has to cover, and an infinite bound here would union its way up the ancestors and
         // lose colliders that have nothing to do with this one.
-        _nodes[proxyId].Box = IsFinite(min) && IsFinite(max) ? new Aabb2D(min, max) : fat;
+        _nodes[proxyId].Box = Aabb2D.IsFinite(min) && Aabb2D.IsFinite(max) ? new Aabb2D(min, max) : fat;
         InsertLeaf(proxyId);
 
         return true;
     }
-
-    private static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 
     internal void Query<TVisitor>(in Aabb2D box, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor, allows ref struct

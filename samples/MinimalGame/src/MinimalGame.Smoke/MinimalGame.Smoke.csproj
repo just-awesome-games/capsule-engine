@@ -10,7 +10,7 @@
        so the binary CI publishes and runs is the one that reads it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>PackageConsumer.Smoke</RootNamespace>
+    <RootNamespace>MinimalGame.Smoke</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <CapsuleImportScenes>true</CapsuleImportScenes>
     <CapsuleShipAssets>true</CapsuleShipAssets>
@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Game/PackageConsumer.Game.csproj" />
+    <ProjectReference Include="../MinimalGame.Game/MinimalGame.Game.csproj" />
   </ItemGroup>
 
 </Project>

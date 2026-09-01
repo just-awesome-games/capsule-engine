@@ -1,9 +1,13 @@
+using System.ComponentModel;
+
 namespace Capsule.Scenes;
 
 /// <summary>Constructs one scene from the scene document that backs it.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public delegate Scene DocumentSceneFactory(SceneContent content);
 
 /// <summary>Constructs one scene that no document backs.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public delegate Scene SceneFactory();
 
 /// <summary>
@@ -37,6 +41,7 @@ public readonly record struct SceneRegistration
     /// <summary>A scene composed from the scene document named.</summary>
     /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
     /// <exception cref="ArgumentException">The document name is blank.</exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration FromDocument(Type sceneType, string name, DocumentSceneFactory factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
@@ -48,6 +53,7 @@ public readonly record struct SceneRegistration
 
     /// <summary>A scene no document backs.</summary>
     /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration Plain(Type sceneType, SceneFactory factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);

@@ -12,7 +12,7 @@ public sealed class SceneDocument
     /// The entry type the engine reserves for tile maps. Any number may appear; each composes at
     /// its position in the document's entry list.
     /// </summary>
-    public const string TileMapType = "tile-map";
+    internal const string TileMapType = "tile-map";
 
     private const int Sha256HexLength = 64;
 

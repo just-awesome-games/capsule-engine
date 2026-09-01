@@ -17,11 +17,10 @@ Install the .NET SDK selected by [`global.json`](global.json), then run the repo
 ```text
 git clone https://github.com/just-awesome-games/capsule-engine.git
 cd capsule-engine
+git config core.hooksPath .githooks
 dotnet restore --locked-mode
-dotnet run --project tests/PackageConsumer/Shell -p:CapsuleSourcePath=../..
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -p:CapsuleSourcePath=../..
 ```
-
-A Capsule game has a substrate-free logic project and a small executable shell. Keep both, and the committed authoring sources, together under `src/` — `src/MyGame.Game/`, `src/MyGame.Shell/`, and `src/asset-sources/` — with tests under `tests/`; that layout matches Capsule's asset conventions without extra path configuration.
 
 The shell's entry point is generated, and it starts a scene:
 
@@ -44,25 +43,19 @@ public sealed class MainMenu : Scene;
 
 ## Model
 
-- `JAG.Capsule` is the substrate-free API used by game logic: fixed-step contracts, input actions, render intents, tile grids, collision shapes and queries, scene documents, scenes, entities, components, and cameras.
-- `JAG.Capsule.Runtime` is the executable host. Only the shell references it.
-- `JAG.Capsule.Build` supplies analyzers, source generators, asset hooks, and scene import. It does not ship in the game.
+Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); see [`PACKAGE.md`](PACKAGE.md) for their contents.
 
-Logic projects cannot reference the runtime, backend, file IO, ambient clocks, randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation. Publishing is slower; the game starts without JIT warm-up and needs no installed runtime.
+Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation.
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-A scene is data, behaviour, or both, and Capsule composes all three combinations:
-
-- a `*.scene.json` **scene document** alone — `RunScene("test")` boots a plain scene composed from it;
-- a document and a `Scene` subclass taking one `SceneContent` — that constructor is the opt-in, and the class names the document it claims;
-- a `Scene` subclass alone, built entirely in code.
-
-A document is written by hand or by an agent, or drawn in Tiled and derived by the build into the identical file; the runtime loads only the native one. The authoring model and the format are in [`docs/scenes.md`](docs/scenes.md).
+A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 
 Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Consumer-facing MSBuild properties and icon conventions are collected in [`docs/build-configuration.md`](docs/build-configuration.md).
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
+
+Rendering draws coloured quads today; texture handles ship files that nothing draws yet.
 
 ## Contributing
 

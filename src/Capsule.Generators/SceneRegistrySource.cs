@@ -85,9 +85,35 @@ internal static class SceneRegistrySource
             return;
         }
 
-        List<SceneModel> sound = new(models.Length);
+        // Partial declarations are visited in path order so the fault's location is stable.
+        List<SceneModel> ordered = new(models);
+        ordered.Sort(static (left, right) =>
+        {
+            int byName = string.CompareOrdinal(left.QualifiedName, right.QualifiedName);
+            if (byName != 0)
+            {
+                return byName;
+            }
+
+            string? leftPath = left.Location.SourceTree?.FilePath;
+            string? rightPath = right.Location.SourceTree?.FilePath;
+            int byPath = string.CompareOrdinal(leftPath ?? string.Empty, rightPath ?? string.Empty);
+            if (byPath != 0)
+            {
+                return byPath;
+            }
+
+            if ((leftPath is null) != (rightPath is null))
+            {
+                return leftPath is null ? 1 : -1;
+            }
+
+            return left.Location.SourceSpan.Start.CompareTo(right.Location.SourceSpan.Start);
+        });
+
+        List<SceneModel> sound = new(ordered.Count);
         HashSet<string> described = new(StringComparer.Ordinal);
-        foreach (SceneModel model in models)
+        foreach (SceneModel model in ordered)
         {
             // The parts of a partial class are separate declarations of one type.
             if (described.Add(model.QualifiedName))

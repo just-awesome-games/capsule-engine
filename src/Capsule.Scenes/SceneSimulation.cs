@@ -48,13 +48,16 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>The scene being advanced, for the lifetime of this simulation.</summary>
     public Scene Scene { get; }
 
-    /// <inheritdoc/>
+    /// <summary>Whether the scene has asked the host to shut down; never cleared.</summary>
     public bool ExitRequested => Scene.ExitRequested;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// What to draw for the current state: one held instance, rewritten once per step rather than
+    /// built per read.
+    /// </summary>
     public FrameView View => _view;
 
-    /// <inheritdoc/>
+    /// <summary>Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>.</summary>
     /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
     public void Step(in StepContext context)
     {

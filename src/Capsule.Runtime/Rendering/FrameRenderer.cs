@@ -51,11 +51,15 @@ internal sealed class FrameRenderer : IDisposable
 
     /// <param name="view">What the simulation wants drawn.</param>
     /// <param name="alpha">
-    /// Fraction of a fixed step not yet simulated, in [0, 1). Each quad, and the camera
+    /// Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each quad, and the camera
     /// looking at it, is drawn that far from its previous position towards its current one.
     /// </param>
     internal void Draw(FrameView view, float alpha)
     {
+        // The scheduler leaves the accumulator holding a whole step when a game exits mid-catch-up,
+        // and an alpha past 1 would throw every quad beyond where it actually is.
+        alpha = Math.Clamp(alpha, 0f, 1f);
+
         if (_target is null)
         {
             PresentationParameters backBuffer = _device.PresentationParameters;

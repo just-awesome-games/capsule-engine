@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Game/PackageConsumer.Game.csproj" />
+    <ProjectReference Include="../MinimalGame.Game/MinimalGame.Game.csproj" />
   </ItemGroup>
 
   <Target Name="CapsuleRejectBackendCompileAsset" AfterTargets="ResolveReferences">

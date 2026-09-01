@@ -1,5 +1,5 @@
 using Capsule.Scenes;
 
-namespace PackageConsumer.Game;
+namespace MinimalGame.Game;
 
 public sealed class MainMenu : Scene;

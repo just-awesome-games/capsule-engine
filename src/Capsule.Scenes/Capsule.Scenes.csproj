@@ -16,4 +16,10 @@
     <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Runtime and tests access the scene registry and document composition. -->
+    <InternalsVisibleTo Include="Capsule.Runtime" />
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -13,4 +13,13 @@ namespace Capsule.Collision;
 /// How many contacts were written into the caller's span; never more than that span holds, even
 /// when more were touched.
 /// </param>
-public readonly record struct MoveResult2D(Vector2 Translation, bool BlockedX, bool BlockedY, int ContactCount);
+/// <param name="XContactCount">
+/// How many of those contacts the X sweep wrote. They come first, so the rest are the Y sweep's:
+/// this is what says which axis's blocked flag judges a given contact.
+/// </param>
+public readonly record struct MoveResult2D(
+    Vector2 Translation,
+    bool BlockedX,
+    bool BlockedY,
+    int ContactCount,
+    int XContactCount);

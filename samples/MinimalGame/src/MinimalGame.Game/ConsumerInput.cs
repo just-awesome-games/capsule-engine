@@ -1,6 +1,6 @@
 using Capsule.Input;
 
-namespace PackageConsumer.Game;
+namespace MinimalGame.Game;
 
 public static class ConsumerInput
 {

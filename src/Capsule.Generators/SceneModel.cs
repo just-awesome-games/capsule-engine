@@ -36,11 +36,12 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
 
     public static bool operator !=(SceneModel left, SceneModel right) => !left.Equals(right);
 
+    // Location participates in equality only for faulted models, so an unrelated edit does not re-emit the registry.
     public bool Equals(SceneModel other) =>
         Fault == other.Fault
         && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
         && string.Equals(DocumentName, other.DocumentName, StringComparison.Ordinal)
-        && Location.Equals(other.Location);
+        && (Fault == SceneFault.None || Location.Equals(other.Location));
 
     public override bool Equals(object? obj) => obj is SceneModel other && Equals(other);
 
