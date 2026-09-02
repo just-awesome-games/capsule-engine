@@ -274,6 +274,51 @@ public sealed class ColliderTests
         Assert.Equal(["-solid"], log);
     }
 
+    // Turning reporting off is the other way to stop reporting contacts, and owes the same exits as
+    // disabling: a handler holding "I am standing on this" is told it no longer is, rather than
+    // being left permanently wrong. Turning it back on resumes from an empty set at the next
+    // settle, not at the setter.
+    [Fact]
+    public void AColliderThatStopsAndResumesReportingContacts_EndsWhatItAnnouncedThenReannouncesAfresh()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler settled = new(new Vector2(0f, 8f));
+        scene.Add(settled);
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        // Overlapping the same floor, but never settled, so it has announced nothing to end.
+        Straddler unannounced = new(new Vector2(0f, 8f));
+        scene.Add(unannounced);
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], settled.Log);
+        Assert.NotNull(unannounced.Collider.World);
+
+        settled.Collider.ReportsContacts = false;
+        unannounced.Collider.ReportsContacts = false;
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"], settled.Log);
+        Assert.Empty(unannounced.Log);
+
+        // Still in the world: it stopped reporting, it did not leave.
+        Assert.NotNull(settled.Collider.World);
+        Assert.Empty(settled.Collider.Touching.ToArray());
+
+        // Nothing raised by the on setter, and the next settle announces all three afresh rather
+        // than carrying them over as already announced.
+        settled.Collider.ReportsContacts = true;
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"], settled.Log);
+
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(
+            ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)", "+(0,1)", "+(1,1)", "+(2,1)"],
+            settled.Log);
+        Assert.Equal(3, settled.Collider.Touching.Length);
+    }
+
     // A collider keeps layer names, not bits, so the scene it lands in is the one it filters against.
     [Fact]
     public void AColliderCarriedToAnotherScene_RebuildsItsFilterAgainstTheNewWorld()
@@ -340,8 +385,11 @@ public sealed class ColliderTests
         Assert.True(body.Collider.Enabled);
     }
 
+    // The enemy that dies on contact. Detaching the collider from inside its own enter handler ends
+    // the dispatch: what it announced is exited, and the rest of the settled set — which it never
+    // announced — is dropped without an exit rather than entered on a collider out of the world.
     [Fact]
-    public void AContactHandlerThatRemovesTheCollider_IsRefused()
+    public void AContactEnteredHandlerThatDetachesItsCollider_ExitsWhatItAnnouncedAndNothingElse()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Straddler body = new(new Vector2(0f, 8f));
@@ -349,9 +397,197 @@ public sealed class ColliderTests
         body.Collider.ContactEntered += _ => body.Remove(body.Collider);
 
         using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
 
-        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+        Assert.Equal(["+(0,1)", "-(0,1)"], body.Log);
+        Assert.Null(body.Collider.Entity);
+        Assert.Null(body.Collider.World);
+        Assert.Empty(body.Collider.Touching.ToArray());
+    }
+
+    // The stale-locals defect: an exit handler that detaches the collider used to leave the enter
+    // loop running against the set captured before the dispatch, entering contacts on a collider
+    // that had already left the world and would never exit them.
+    [Fact]
+    public void AContactExitedHandlerThatDetachesItsCollider_RaisesNoFurtherEnters()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
+
+        // Sliding along leaves (0,1) and would enter (3,1) in the same dispatch. The detach is
+        // guarded because the unregister it triggers raises the remaining exits into this same
+        // handler.
+        body.Collider.ContactExited += _ =>
+        {
+            if (body.Collider.Entity is not null)
+            {
+                body.Remove(body.Collider);
+            }
+        };
+
+        body.Teleport(new Vector2(24f, 8f));
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(
+            ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
+            body.Log);
+        Assert.Null(body.Collider.World);
+    }
+
+    // The guard is armed for the whole outer dispatch, so the nested one a detach runs must restore
+    // it rather than clear it on the way out.
+    [Fact]
+    public void AContactHandlerThatDetachesThenReconfiguresItsCollider_IsStillRefused()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+        body.Collider.ContactEntered += _ =>
+        {
+            body.Remove(body.Collider);
+            body.Collider.Enabled = false;
+        };
+
+        using SceneSimulation simulation = new(scene);
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
             () => simulation.Step(SceneFixtures.Step(0)));
+
+        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
+        Assert.True(body.Collider.Enabled);
+    }
+
+    // A step holding both groups is the only place the deviation from the world's order is
+    // observable, so Touching is read there and the set is left from there, which is the order the
+    // exits come in.
+    [Fact]
+    public void ContactEvents_PutCarriedContactsAheadOfNewOnesAndHoldTheWorldsOrderWithinEach()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "###.");
+        Straddler body = new(new Vector2(36f, 8f));
+        scene.Add(body);
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        // Clear of the first two cells of the row: only the third is under it.
+        Assert.Equal(["+(2,1)"], body.Log);
+
+        // Sliding left picks up two cells the world reports ahead of the carried one, and they are
+        // announced in that order rather than reversed by the partition.
+        body.Teleport(new Vector2(0f, 8f));
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(["+(2,1)", "+(0,1)", "+(1,1)"], body.Log);
+
+        // The world would report these three as (0,1), (1,1), (2,1); the carried one is held ahead
+        // of the two new ones instead, each group in that world order.
+        Assert.Equal(
+            ["(2,1)", "(0,1)", "(1,1)"],
+            body.Collider.Touching.ToArray().Select(contact => $"({contact.Cell!.Value.X},{contact.Cell.Value.Y})"));
+
+        // Leaving from that mixed set rather than from a settled one, so the exits are ordered by a
+        // Touching that still deviates from the world's order.
+        body.Teleport(new Vector2(0f, -100f));
+        simulation.Step(SceneFixtures.Step(2));
+
+        Assert.Equal(
+            ["+(2,1)", "+(0,1)", "+(1,1)", "-(2,1)", "-(0,1)", "-(1,1)"],
+            body.Log);
+    }
+
+    // Detaching is the one reconfiguration a handler may make, and it is one-way: putting the
+    // collider back would register it in the world the dispatch is reporting on.
+    [Fact]
+    public void AContactHandlerThatReattachesItsCollider_IsRefused()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+        body.Collider.ContactEntered += _ =>
+        {
+            body.Remove(body.Collider);
+            body.Add(body.Collider);
+        };
+
+        using SceneSimulation simulation = new(scene);
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
+            () => simulation.Step(SceneFixtures.Step(0)));
+
+        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
+        Assert.Null(body.Collider.World);
+    }
+
+    // The refusal is about this collider's own dispatch: another one attached from inside a handler
+    // is nothing the dispatch is reporting on, and joins the world as any other add would.
+    [Fact]
+    public void AContactHandlerThatAttachesAnotherCollider_IsAllowed()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+
+        BoxCollider2D second = new(new Vector2(8f, 8f));
+        body.Collider.ContactEntered += _ =>
+        {
+            if (second.Entity is null)
+            {
+                body.Add(second);
+            }
+        };
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
+        Assert.Same(body, second.Entity);
+        Assert.NotNull(second.World);
+    }
+
+    // A throwing handler is a programmer error the engine does not unwind, but it must not corrupt
+    // a later step: what the loop never announced is forgotten rather than carried, so the next
+    // settle announces it instead of one day exiting a contact that never entered.
+    [Fact]
+    public void AContactEnteredHandlerThatThrows_ReannouncesWhatItNeverReachedRatherThanExitingIt()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler body = new(new Vector2(0f, 8f));
+        scene.Add(body);
+
+        bool throwing = true;
+        body.Collider.ContactEntered += _ =>
+        {
+            if (!throwing)
+            {
+                return;
+            }
+
+            throwing = false;
+            throw new InvalidOperationException("a handler of the consuming game's own.");
+        };
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
+        Assert.Equal(["+(0,1)"], body.Log);
+
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
+
+        body.Teleport(new Vector2(0f, -100f));
+        simulation.Step(SceneFixtures.Step(2));
+
+        Assert.Equal(
+            ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
+            body.Log);
     }
 
     // Removing the entity is deferred to the end of the step, so it does not cut the dispatch

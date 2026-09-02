@@ -43,11 +43,6 @@ public class Scene
     private bool _starting;
     private bool _started;
 
-    // Whether the current camera has been told it is the scene's. Distinct from _started, which is
-    // set as the scene begins starting: entities start before the camera is installed, and one of
-    // them may install the camera itself. Structural hooks pair off this flag alone, so no camera
-    // is released that was never added.
-    private bool _cameraInstalled;
     private bool _stopped;
     private bool _renderersStale = true;
     private bool _exitRequested;
@@ -106,13 +101,9 @@ public class Scene
     /// </para>
     /// <para>
     /// A camera installed from within one of those hooks supersedes the handover that ran it, and
-    /// the scene ends up holding the innermost camera. What the displaced camera is told depends
-    /// on how far its own handover had got: installed from the outgoing camera's
-    /// <see cref="Scenes.Camera.OnRemovedFromScene"/>, it displaces a camera still pending, which
-    /// is notified of nothing and left framing no scene, never having been the scene's; installed
-    /// from the incoming camera's own <see cref="Scenes.Camera.OnAddedToScene"/>, it displaces one
-    /// that had arrived, which is told it was removed again — a paired arrival and departure with
-    /// only <see cref="Scenes.Camera.OnStart"/> omitted.
+    /// the scene ends up holding the innermost camera. A displaced camera is told only as much of
+    /// its own handover as had already run: nothing at all if it was still pending, a paired
+    /// arrival and departure if it had arrived.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentNullException">The camera is null; a scene always has one.</exception>
@@ -130,11 +121,10 @@ public class Scene
 
             // Installing the camera already installed is a cut and nothing else; running the
             // hooks would release a camera that never left.
-            if (_cameraInstalled && !ReferenceEquals(outgoing, value))
+            if (ReferenceEquals(outgoing.Scene, this) && !ReferenceEquals(outgoing, value))
             {
                 // Cleared before the hook, so an outgoing camera reaching back cannot find the
                 // scene still claiming it, and so a failed handover releases nothing twice.
-                _cameraInstalled = false;
                 outgoing.Scene = null;
                 outgoing.OnRemovedFromScene();
 
@@ -413,12 +403,11 @@ public class Scene
         // The camera goes first, in reverse of the order Start installed it, so it is released
         // while the entities it framed are still here — and only if it was ever installed, since a
         // scene whose entities failed to start never reached its camera.
-        if (_cameraInstalled)
+        if (ReferenceEquals(_camera.Scene, this))
         {
             try
             {
                 Camera outgoing = _camera;
-                _cameraInstalled = false;
                 outgoing.Scene = null;
                 outgoing.OnRemovedFromScene();
             }
@@ -509,8 +498,7 @@ public class Scene
     {
         foreach (Entity entity in Entities)
         {
-            entity.OnStep(context);
-            entity.StepComponents(context);
+            entity.RunStep(context);
         }
     }
 
@@ -708,11 +696,9 @@ public class Scene
     {
         RequireUnowned(camera);
 
-        camera.Scene = this;
-
         // Set before the hook, not after: a camera whose OnAddedToScene throws has entered the
         // scene, and Stop must still release it.
-        _cameraInstalled = true;
+        camera.Scene = this;
         camera.OnAddedToScene();
 
         // The hook may have installed another camera, which released this one and installed that

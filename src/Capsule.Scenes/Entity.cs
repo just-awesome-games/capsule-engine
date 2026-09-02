@@ -75,6 +75,12 @@ public class Entity
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
+    // Every walk of the component list goes through this. A hook may detach the component being
+    // visited or one before it, which shifts the rest left; the cursor holds its index when the
+    // occupant changed, so the component shifted into it is visited rather than skipped. A collider
+    // once entered a scene unregistered because one such walk advanced unconditionally.
+    private ComponentWalk LiveComponents => new(_components);
+
     /// <summary>Moves immediately, with no interpolation from the old position.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     /// <exception cref="InvalidOperationException">The entity is anchored to the world origin.</exception>
@@ -174,7 +180,11 @@ public class Entity
             : throw new InvalidOperationException(
                 $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
 
-    /// <summary>Advances this entity by one fixed step, before its components step.</summary>
+    /// <summary>
+    /// Advances this entity by one fixed step, before its components step. Never reached before
+    /// <see cref="OnStart"/>: an entity the scene holds but has not started takes no step, and
+    /// neither do the components it holds.
+    /// </summary>
     protected internal virtual void OnStep(in StepContext context)
     {
     }
@@ -231,70 +241,51 @@ public class Entity
             return;
         }
 
-        // Indexed against a live Count, and each component's own flag makes a second call a no-op,
-        // so one attached from inside OnStart is started once whichever path reaches it first.
-        for (int index = 0; index < _components.Count;)
+        // Each component's own flag makes a second call a no-op, so one attached from inside
+        // OnStart is started once whichever path reaches it first.
+        foreach (Component component in LiveComponents)
         {
-            Component component = _components[index];
             component.RunStart();
-
-            // A component may detach itself or one before it. Stay at this index when the occupant
-            // changed, so the component shifted into it still starts before it ever steps.
-            if (index < _components.Count && ReferenceEquals(_components[index], component))
-            {
-                index++;
-            }
         }
     }
 
     internal void EnterScene()
     {
-        // Indexed against a live Count: a component may attach another from its own hook, and
-        // EnterScene is idempotent, so reaching it twice is a no-op rather than a double
-        // registration.
-        for (int index = 0; index < _components.Count;)
+        // EnterScene is idempotent, so a component attached from another's hook and reached twice
+        // registers once.
+        foreach (Component component in LiveComponents)
         {
-            Component component = _components[index];
             component.EnterScene();
-
-            // A hook may have detached this component or one before it. Stay at this index when the
-            // occupant changed, so the component shifted into it still registers with the scene.
-            if (index < _components.Count && ReferenceEquals(_components[index], component))
-            {
-                index++;
-            }
         }
     }
 
     internal void LeaveScene()
     {
-        for (int index = 0; index < _components.Count;)
+        foreach (Component component in LiveComponents)
         {
-            Component component = _components[index];
             component.LeaveScene();
-
-            // A hook may have detached this component or one before it. Stay at this index when
-            // the occupant changed, so the component shifted into it is still told.
-            if (index < _components.Count && ReferenceEquals(_components[index], component))
-            {
-                index++;
-            }
         }
     }
 
-    internal void StepComponents(in StepContext context)
+    // Nothing steps before it has started. An entity the scene still holds but never started —
+    // one whose batch start was cut short — has no time begun for it, so neither it nor anything
+    // it holds may be advanced.
+    internal void RunStep(in StepContext context)
     {
-        for (int index = 0; index < _components.Count;)
+        if (!_started)
         {
-            Component component = _components[index];
-            component.OnStep(context);
+            return;
+        }
 
-            // A component may remove itself or one before it. Stay at this index when the
-            // occupant changed so the component shifted into it still receives this step.
-            if (index < _components.Count && ReferenceEquals(_components[index], component))
-            {
-                index++;
-            }
+        OnStep(context);
+        StepComponents(context);
+    }
+
+    private void StepComponents(in StepContext context)
+    {
+        foreach (Component component in LiveComponents)
+        {
+            component.RunStep(context);
         }
     }
 
@@ -311,17 +302,9 @@ public class Entity
 
     private void NotifyMoved()
     {
-        for (int index = 0; index < _components.Count;)
+        foreach (Component component in LiveComponents)
         {
-            Component component = _components[index];
             component.OnEntityMoved();
-
-            // A handler may have detached this component or one before it. Stay at this index when
-            // the occupant changed, so the component shifted into it is still told of the move.
-            if (index < _components.Count && ReferenceEquals(_components[index], component))
-            {
-                index++;
-            }
         }
     }
 
@@ -336,5 +319,34 @@ public class Entity
         }
 
         return -1;
+    }
+
+    private struct ComponentWalk(List<Component> components)
+    {
+        private Component? _visited;
+        private int _index;
+
+        // Public because the foreach pattern only binds to public members, on a type nothing
+        // outside this class can name.
+        public readonly Component Current => components[_index];
+
+        public readonly ComponentWalk GetEnumerator() => this;
+
+        public bool MoveNext()
+        {
+            if (_visited is not null && _index < components.Count &&
+                ReferenceEquals(components[_index], _visited))
+            {
+                _index++;
+            }
+
+            if (_index >= components.Count)
+            {
+                return false;
+            }
+
+            _visited = components[_index];
+            return true;
+        }
     }
 }

@@ -22,9 +22,9 @@ public sealed class OpeningRoom(SceneContent content) : Scene(content)
 }
 ```
 
-Every scene sets its own camera span; there is no game-wide default, and a camera spanning nothing draws nothing. A scene installs a `Camera` subclass that owns its span, its subject and its framing: it finds its subject in its own `OnStart` — where the scene is composed and searchable through the camera's `Scene` — and settles its framing in `OnLateStep`, which runs after every entity has stepped and after the scene's own late step, so the view never trails the step it is drawing. Installing a camera cuts to it rather than sweeping from where the previous one sat; a scene with nothing to follow spans the plain camera it is given instead.
+A scene installs a `Camera` subclass that owns its span, its subject and its framing: it finds its subject in its own `OnStart` — where the scene is composed and searchable through the camera's `Scene` — and settles its framing in `OnLateStep`. Installing a camera cuts to it rather than sweeping from where the previous one sat; a scene with nothing to follow spans the plain camera it is given instead.
 
-A scene composes one entry at a time, so an entity's `OnAddedToScene` sees only the entries ahead of it — it is where an entity registers, not where it looks around. `OnStart` runs once the whole document has been composed, and mid-step spawns start once the entire batch has attached, so an entity, a component or a camera discovers the rest of the scene there.
+Register in `OnAddedToScene`, discover in `OnStart`; the two lifecycle axes are in [`architecture.md`](architecture.md#determinism-contract).
 
 `Scene(SceneContent)` composes one `TileMap` or game entity per entry in file order. Its `Size` spans the largest tile map it carries. The document is construction data and is not retained; a subclass queries the composed entities when it needs them.
 

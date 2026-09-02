@@ -142,11 +142,6 @@ internal static class SceneFixtures
         protected internal override void OnStart() => onStart(Scene!);
     }
 
-    internal sealed class StartingComponent(string name, List<string> log) : Component
-    {
-        protected internal override void OnStart() => log.Add($"{name}!");
-    }
-
     internal sealed class Watcher(Action<Scene> observe) : Entity(Vector2.Zero)
     {
         protected internal override void OnStep(in StepContext context) => observe(Scene!);

@@ -105,9 +105,20 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
-        foreach (Renderer renderer in Scene.RenderersInDrawOrder())
+        // Drawing runs past EndStep, so a Draw that detaches a renderer or removes an entity
+        // reaches the scene directly rather than queueing. The set is re-read each turn against a
+        // cursor: a renderer detached here is no longer part of this frame and must not draw, and
+        // staying at an index whose occupant changed keeps the renderer shifted into it drawing.
+        for (int index = 0; index < Scene.RenderersInDrawOrder().Length;)
         {
+            Renderer renderer = Scene.RenderersInDrawOrder()[index];
             renderer.Draw(_view);
+
+            ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
+            if (index < renderers.Length && ReferenceEquals(renderers[index], renderer))
+            {
+                index++;
+            }
         }
     }
 }

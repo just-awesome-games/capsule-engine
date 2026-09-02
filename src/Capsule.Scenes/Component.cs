@@ -14,7 +14,10 @@ public abstract class Component
     /// <summary>Whether the entity holding this component is currently in a scene.</summary>
     protected bool InScene { get; private set; }
 
-    /// <summary>Advances this component by one fixed step, after its entity has stepped.</summary>
+    /// <summary>
+    /// Advances this component by one fixed step, after its entity has stepped. Never reached
+    /// before <see cref="OnStart"/>: a component that has not started takes no step.
+    /// </summary>
     protected internal virtual void OnStep(in StepContext context)
     {
     }
@@ -95,6 +98,18 @@ public abstract class Component
 
         _started = true;
         OnStart();
+    }
+
+    // Nothing steps before it has started. A component taken on by an entity that could not start
+    // it — one queued to leave the scene — is held and stepped over until the add that starts it.
+    internal void RunStep(in StepContext context)
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        OnStep(context);
     }
 
     internal void LeaveScene()

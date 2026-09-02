@@ -19,7 +19,7 @@ The assembly root holds the game's declarations — its collision layer names, i
 
 ```text
 src/MinimalGame.Game/
-  GameInput.cs
+  GameInput.cs  World.cs
   Scenes/    MainMenu.cs  Room.cs
   Entities/  Player.cs  Sensor.cs
   Cameras/   GameCamera.cs
@@ -27,8 +27,8 @@ src/MinimalGame.Shell/
   Program.cs
 ```
 
-`GameInput.cs` is the game's action vocabulary, which is why it is at the root rather than under a folder. `Components/` is absent because that game has no standalone component file yet. That is the rule holding, not an omission.
+`GameInput.cs` is the game's action vocabulary and `World.cs` its world units, which is why both are at the root rather than under a folder. `Components/` is absent because that game has no standalone component file yet. That is the rule holding, not an omission.
 
 ## Logic and shell
 
-The convention above describes the logic assembly. The logic assembly cannot reference the runtime, the backend, file IO, ambient clocks, ambient randomness or asynchronous execution — the analyzer fails the build — so anything needing those lives in the shell, which otherwise holds only the generated entry point. The diagnostics are listed in [`architecture.md`](architecture.md#logic-boundary); the project wiring and the surrounding repository shape are in [`consuming-capsule.md`](consuming-capsule.md).
+The convention above describes the logic assembly; anything it may not reference — the runtime, the backend, file IO, ambient clocks, ambient randomness, asynchronous execution — lives in the shell, which otherwise holds only the generated entry point. The diagnostics are in [`architecture.md`](architecture.md#logic-boundary); the project wiring and the surrounding repository shape are in [`consuming-capsule.md`](consuming-capsule.md).

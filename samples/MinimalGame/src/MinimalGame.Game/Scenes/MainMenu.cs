@@ -1,4 +1,3 @@
-using System.Numerics;
 using Capsule;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
@@ -18,7 +17,7 @@ public sealed class MainMenu : Scene
     {
         // The other half of the camera model: a scene with nothing to follow spans the plain
         // camera it is given rather than installing one of its own.
-        Camera.ViewportSize = new Vector2(320f, 180f);
+        Camera.ViewportSize = World.ViewportSize;
         Log.Info("Main menu: press Confirm to enter the room, Quit to leave.");
     }
 

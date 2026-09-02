@@ -457,7 +457,7 @@ public sealed class SceneStepTests
 
         using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), host);
 
-        host.Add(new SceneFixtures.StartingComponent("late", log));
+        host.Add(new Tracker("late", log));
 
         Assert.Equal(["late!"], log);
     }
@@ -571,6 +571,70 @@ public sealed class SceneStepTests
         Assert.Equal(["component!", "component"], log);
     }
 
+    // The scene's own step runs before the entity pass, so an entity queued to leave there is
+    // still walked for the rest of the step. A component taken on in that window cannot start —
+    // its entity has no step left to give it — so it must take no step either.
+    [Fact]
+    public void AComponentAttachedMidStepToAnEntityQueuedForRemoval_TakesNoStepBeforeItStarts()
+    {
+        List<string> log = [];
+        SceneFixtures.Drifter host = new();
+        Tracker late = new("late", log);
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                scene.Remove(host);
+                host.Add(late);
+            }
+        }
+
+        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), host);
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Empty(log);
+        Assert.Null(host.Scene);
+
+        simulation.Scene.Add(host);
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(["late!", "late"], log);
+    }
+
+    // A start that throws leaves the entities queued behind it stranded: the scene holds them and
+    // the next step would otherwise walk them. Nothing steps before it has started, so they wait
+    // for the drain that starts them.
+    [Fact]
+    public void AnEntityStrandedByAPeersFailedStart_TakesNoStepUntilItHasStarted()
+    {
+        List<string> log = [];
+        Lifecycle stranded = new("stranded", log);
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                scene.Add(new Thrower());
+                scene.Add(stranded);
+            }
+        }
+
+        using SceneSimulation simulation = new(new SceneFixtures.HookScene(step: Hook));
+
+        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step()));
+        Assert.Equal(["stranded+"], log);
+
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(["stranded+", "stranded!"], log);
+
+        simulation.Step(SceneFixtures.Step(2));
+
+        Assert.Equal(["stranded+", "stranded!", "stranded"], log);
+    }
+
     // A component's start may detach a sibling, which shifts the rest of the list left. The one
     // shifted into the vacated slot still steps, so it must still start.
     [Fact]
@@ -618,6 +682,12 @@ public sealed class SceneStepTests
         protected internal override void OnStep(in StepContext context) => log.Add(name);
 
         protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
+    }
+
+    private sealed class Thrower() : Entity(Vector2.Zero)
+    {
+        protected internal override void OnStart() =>
+            throw new InvalidOperationException("This entity refuses to start.");
     }
 
     private sealed class Tracker(string name, List<string> log) : Component

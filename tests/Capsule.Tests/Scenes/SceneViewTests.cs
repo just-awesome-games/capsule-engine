@@ -92,6 +92,32 @@ public sealed class SceneViewTests
         Assert.Equal(0, simulation.View.Quads.Length);
     }
 
+    // Drawing runs past the end of the step, so a detach from inside Draw takes effect at once.
+    // The detached renderer has left the scene and must not draw; the one behind it still must.
+    [Fact]
+    public void ARendererDetachingALaterRenderer_DrawsTheRestAndNotTheDetachedOne()
+    {
+        SceneFixtures.Drifter first = new(new Vector2(1, 1));
+        SceneFixtures.Drifter second = new(new Vector2(2, 2));
+
+        QuadRenderer detached = new(Vector2.One, ColorRgba.Black);
+        second.Add(detached);
+        second.Add(new QuadRenderer(Vector2.One, ColorRgba.White));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(first);
+        scene.Add(second);
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal(2, simulation.View.Quads.Length);
+
+        first.Add(new Detacher(detached));
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Null(detached.Entity);
+        Assert.Equal(ColorRgba.White, Assert.Single(simulation.View.Quads.ToArray()).Color);
+    }
+
     [Fact]
     public void ARenderersOffset_MovesTheQuadAndNotTheEntity()
     {
@@ -108,5 +134,11 @@ public sealed class SceneViewTests
         Assert.Equal(new Vector2(16, 12), body.PreviousPosition);
         Assert.Equal(new Vector2(17, 12), body.Position);
         Assert.Equal(new Vector2(21, 20), drifter.Position);
+    }
+
+    // Draws nothing itself; takes the renderer it was given off its entity as it goes.
+    private sealed class Detacher(Renderer doomed) : Renderer
+    {
+        public override void Draw(FrameView view) => doomed.Entity?.Remove(doomed);
     }
 }
