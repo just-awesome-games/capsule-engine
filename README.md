@@ -19,7 +19,7 @@ git clone https://github.com/just-awesome-games/capsule-engine.git
 cd capsule-engine
 git config core.hooksPath .githooks
 dotnet restore --locked-mode
-dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -p:CapsuleSourcePath=../..
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
 The shell's entry point is generated, and it starts a scene:

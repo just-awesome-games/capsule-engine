@@ -7,7 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <CapsuleVersion>0.4.0</CapsuleVersion>
+    <!-- Inside the engine repository the sample is the consumer proof, so it builds from engine
+         source by default; a copy of this tree anywhere else finds no clone above it and resolves
+         the pinned packages instead. CapsuleUsePackages forces the package lane either way. -->
+    <CapsuleSourcePath Condition="'$(CapsuleSourcePath)' == '' and Exists('$(MSBuildThisFileDirectory)../../build/Capsule.Build.targets')">../..</CapsuleSourcePath>
     <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
+    <!-- The engine's own dotnet pack walks its solution, which the sample is a member of. -->
+    <IsPackable>false</IsPackable>
     <!-- Source mode resolves the engine through project references and must restore without the
          local feed in NuGet.config: NuGet rejects a missing local source (NU1301) even when nothing
          resolves from it, and the feed exists only after a pack. -->

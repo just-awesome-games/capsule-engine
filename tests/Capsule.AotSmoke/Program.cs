@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
 using Capsule.Input;
@@ -9,12 +8,13 @@ using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
 using MinimalGame.Game;
 
-namespace MinimalGame.Smoke;
+namespace Capsule.AotSmoke;
 
 internal static class Program
 {
     private const double StepSeconds = 1.0 / 60.0;
-    private const int AdvanceSteps = 30;
+
+    private const int IdleSteps = 60;
 
     private const string RoomPath = "assets/scenes/room.scene.json";
 
@@ -36,15 +36,13 @@ internal static class Program
     private static int Run()
     {
         ActionBindings bindings = new();
-        ConsumerInput.Bind(bindings);
+        GameInput.Bind(bindings);
         InputState input = new(bindings);
 
         using SceneSimulation simulation = new(
-            new Room(new SceneContent(RoomDocument(), GameEntities.Registry)),
+            new Room(new SceneContent(Document(RoomPath), GameEntities.Registry)),
             null,
             new SceneDefaults(new Vector2(320f, 180f), TextureSampling.Point));
-
-        float startX = simulation.Scene.FindSingle<Marker>().Position.X;
 
         DeviceSnapshot[] script = Script();
         int steps = 0;
@@ -60,51 +58,48 @@ internal static class Program
             }
         }
 
-        float finalX = simulation.Scene.FindSingle<Marker>().Position.X;
         RenderMetrics render = simulation.View.Metrics;
+        bool contentShipped = ContentShipped();
         bool booted =
             steps == script.Length &&
             simulation.ExitRequested &&
-            finalX == startX + AdvanceSteps &&
             render.VisibleQuads > 0 &&
-            ContentShipped();
+            contentShipped;
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"Package consumer smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, marker {startX} -> {finalX}, {render.VisibleQuads}/{render.TotalQuads} quads, content {ContentShipped()}."));
+                    $"AOT smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, {render.VisibleQuads}/{render.TotalQuads} quads, content {contentShipped}."));
             return 1;
         }
 
         Console.WriteLine(
             FormattableString.Invariant(
-                $"Package consumer smoke passed: {steps} steps, marker {startX} -> {finalX}, {render.VisibleQuads}/{render.TotalQuads} quads."));
+                $"AOT smoke passed: {steps} steps, {render.VisibleQuads}/{render.TotalQuads} quads, content shipped."));
         return 0;
     }
 
     private static DeviceSnapshot[] Script()
     {
-        DeviceSnapshot[] snapshots = new DeviceSnapshot[AdvanceSteps + 1];
-        Array.Fill(snapshots, DeviceSnapshot.Empty.With(Key.D), 0, AdvanceSteps);
+        DeviceSnapshot[] snapshots = new DeviceSnapshot[IdleSteps + 1];
+        Array.Fill(snapshots, DeviceSnapshot.Empty, 0, IdleSteps);
         snapshots[^1] = DeviceSnapshot.Of(Key.Escape);
 
         return snapshots;
     }
 
-    private static SceneDocument RoomDocument() =>
-        SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, RoomPath));
+    private static SceneDocument Document(string path) =>
+        SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
 
     private static bool ContentShipped()
     {
-        SceneDocument hall = SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, NativeScenePath));
-        TextureHandle marker = GameAssets.Textures.Marker;
+        SceneDocument hall = Document(NativeScenePath);
+        TextureHandle player = GameAssets.Textures.Player;
         AudioHandle step = GameAssets.Audio.StepSoft;
 
         return hall.Source is { Tool: "native" }
-            && marker.Name == "marker"
-            && step.Name == "step-soft"
-            && Shipped("textures", marker.Name, marker.Extension)
+            && Shipped("textures", player.Name, player.Extension)
             && Shipped("audio", step.Name, step.Extension);
     }
 

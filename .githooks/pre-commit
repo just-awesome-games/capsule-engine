@@ -1,7 +1,8 @@
 #!/bin/sh
 # The local gate: a locked restore, the build, the format check and the tests on every commit.
-# NativeAOT verification is CI's — ci.yml's platform-and-aot job publishes the shell and smoke
-# consumers with ILC on every push, and two local ILC publishes would cost minutes per commit.
+# NativeAOT verification is CI's — ci.yml's platform-and-aot job publishes the sample shell and
+# tests/Capsule.AotSmoke with ILC on every push, and two local ILC publishes would cost minutes
+# per commit.
 # Release, pack, the consumer lanes, coverage and the performance gates stay in CI too.
 # Activate once with: git config core.hooksPath .githooks
 set -u

@@ -122,19 +122,31 @@ public sealed class FixedStepSchedulerTests
             () => scheduler.Advance(elapsedSeconds, DeviceSnapshot.Empty, new RecordingSimulation()));
     }
 
+    [Fact]
+    public void StepContext_DerivesTotalSecondsFromTheDoublePrecisionStep()
+    {
+        const double Sixty = 1.0 / 60.0;
+        const long AnHourOfTicks = 216_000;
+
+        StepContext context = new(Sixty, new InputState(new ActionBindings()), AnHourOfTicks);
+
+        Assert.Equal(AnHourOfTicks * Sixty, context.TotalSeconds);
+        Assert.NotEqual(AnHourOfTicks * (double)(float)Sixty, context.TotalSeconds);
+    }
+
     private static FixedStepScheduler CreateScheduler(double maxFrameSeconds = 0.5) =>
         new(StepSeconds, maxFrameSeconds, new ActionBindings().Bind(Jump, Key.Space));
 
     private static void AssertStep(in RecordedStep step, long tick)
     {
         Assert.Equal(tick, step.Tick);
-        Assert.Equal(StepSeconds, step.DeltaSeconds);
+        Assert.Equal((float)StepSeconds, step.DeltaSeconds);
         Assert.Equal(tick * StepSeconds, step.TotalSeconds);
     }
 
     private readonly record struct RecordedStep(
         long Tick,
-        double DeltaSeconds,
+        float DeltaSeconds,
         double TotalSeconds,
         bool JumpPressed,
         bool JumpReleased,

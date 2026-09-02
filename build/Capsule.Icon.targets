@@ -14,6 +14,13 @@
        silently iconless window — so the default here is exactly that and a game's own file has
        to be too.
 
+       The fourth byte is alpha and reaches the window: the loader reads a 32-bit BI_RGB bitmap
+       as ARGB, and forces the surface opaque only when every alpha byte is zero — so a tool
+       that zeroes the byte it thinks is padding yields a visible icon, not an invisible one.
+       BI_RGB declares that byte unused, so most viewers discard it and show the file on black.
+       That is the viewer, not the icon; flattening the bitmap onto a plate to make a viewer
+       agree is how a transparent window icon gets a background back.
+
        ApplicationIcon is Windows-only by construction; on another platform the compiler is
        given it and the resulting PE resource is simply never read. -->
 

@@ -12,7 +12,7 @@ git config core.hooksPath .githooks
 
 This is not optional: Git ignores `.githooks/` until it is configured, and an unconfigured clone commits straight past the hook without reporting anything.
 
-[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit on a locked restore, a build, the format check, and the tests. NativeAOT verification is CI's gate: the `platform-and-aot` job publishes the shell and smoke consumers with ILC on every push.
+[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit on a locked restore, a build, the format check, and the tests. NativeAOT verification is CI's gate: the `platform-and-aot` job publishes the sample shell and `tests/Capsule.AotSmoke` with ILC on every push, and runs the smoke.
 
 ## Build
 

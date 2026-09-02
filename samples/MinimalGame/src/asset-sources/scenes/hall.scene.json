@@ -12,12 +12,12 @@
         "height": 2,
         "tileTypes": [
           { "type": "empty" },
-          { "type": "ground", "color": "#4a5568ff" }
+          { "type": "ground", "color": "#4a5568ff", "layer": "solid" }
         ],
         "tiles": [0, 0, 0, 0, 1, 1, 1, 1]
       }
     },
-    { "id": 2, "type": "marker", "x": 16, "y": 16 }
+    { "id": 2, "type": "player", "x": 16, "y": 8 }
   ],
   "nextEntityId": 3
 }

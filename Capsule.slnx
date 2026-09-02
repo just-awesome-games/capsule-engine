@@ -14,6 +14,10 @@
     <Project Path="src/Capsule.Runtime/Capsule.Runtime.csproj" />
     <Project Path="src/Capsule.Scenes/Capsule.Scenes.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
+    <Project Path="samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
   </Folder>

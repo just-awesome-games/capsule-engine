@@ -50,29 +50,20 @@ jobs:
           --no-build
           --output artifacts/packages
 
+      # Source mode is covered by the root builds above, which the sample is a solution member of.
+      # This lane is the packaged one: the same sample resolved from the packages just produced.
       - name: Restore sample (package mode)
         run: >
           dotnet restore samples/MinimalGame/MinimalGame.slnx
           --configfile samples/MinimalGame/NuGet.config
+          -p:CapsuleUsePackages=true
 
       - name: Build sample (package mode)
         run: >
           dotnet build samples/MinimalGame/MinimalGame.slnx
           --configuration Release
           --no-restore
-
-      - name: Restore sample (source mode)
-        run: >
-          dotnet restore samples/MinimalGame/MinimalGame.slnx
-          --configfile samples/MinimalGame/NuGet.config
-          -p:CapsuleSourcePath=../..
-
-      - name: Build sample (source mode)
-        run: >
-          dotnet build samples/MinimalGame/MinimalGame.slnx
-          --configuration Release
-          --no-restore
-          -p:CapsuleSourcePath=../..
+          -p:CapsuleUsePackages=true
 
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
@@ -134,10 +125,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            smoke-binary: ./artifacts/aot-smoke/MinimalGame.Smoke
+            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
           - os: windows-latest
             runtime: win-x64
-            smoke-binary: ./artifacts/aot-smoke/MinimalGame.Smoke.exe
+            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -174,19 +165,18 @@ jobs:
           --runtime ${{ matrix.runtime }}
           --self-contained true
           -p:PublishAot=true
-          -p:CapsuleSourcePath=../..
 
       # Publishing proves the graph is analyzable. Only running the result proves the game
       # boots, and boot is where ahead-of-time compilation actually fails: the smoke binary
-      # is device-free, so its published binary runs headless on both platforms.
-      - name: Publish sample smoke with NativeAOT
+      # drives the sample's logic without a device, so its published binary runs headless on
+      # both platforms.
+      - name: Publish the AOT smoke
         run: >
-          dotnet publish samples/MinimalGame/src/MinimalGame.Smoke/MinimalGame.Smoke.csproj
+          dotnet publish tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
           --configuration Release
           --runtime ${{ matrix.runtime }}
           --self-contained true
           -p:PublishAot=true
-          -p:CapsuleSourcePath=../..
           --output artifacts/aot-smoke
 
       - name: Run the published smoke binary

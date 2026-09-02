@@ -2,6 +2,8 @@
 
 Capsule games use two projects: a substrate-free logic library and a small executable shell. This file contains the MSBuild wiring that cannot live in API comments.
 
+> A complete minimal game is available at [`samples/MinimalGame/`](../samples/MinimalGame/): a logic project, a shell, an authoring tree, and a headless smoke binary CI publishes under NativeAOT. Copy it to start a game. The scene document format, including a tile palette with a `solid` layer and a `player` entry, is in [`scenes.md`](scenes.md).
+
 ## Repository shape
 
 ```text
@@ -137,15 +139,11 @@ The shell role generates `CapsuleBoot`, imports scene documents, ships assets, a
 
 A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>` and `<CapsuleShipAssets>` independently.
 
-## A minimal game
-
-The complete minimal game is [`samples/MinimalGame/`](../samples/MinimalGame/): a logic project, a shell, an authoring tree, and a headless smoke binary CI publishes under NativeAOT. Copy it to start a game. The scene document format, including a tile palette with a `solid` layer and a `player` entry, is in [`scenes.md`](scenes.md).
-
 ## Package and source modes
 
 Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`. The in-repo sample is the one consumer that commits no lock file: its feed is repacked from source on every run, and a repacked `.nupkg` never reproduces its content hash, so a committed hash could only ever fail restore.
 
-For persistent local development, create an ignored `Directory.Build.local.props`:
+> For persistent local development, create an ignored `Directory.Build.local.props`:
 
 ```xml
 <Project>
@@ -216,30 +214,30 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 
 ### Project roles
 
-| Property | Value | Effect |
-| --- | --- | --- |
+| Property           | Value  | Effect                                                                                                                                        |
+| ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CapsuleGameLogic` | `true` | Enables game-boundary analysis and generates the game's scene, entity, and asset registries. Set it only on the substrate-free logic library. |
-| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and defaults scene import and asset shipping on. Set it only on the executable shell. |
+| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and defaults scene import and asset shipping on. Set it only on the executable shell.                                 |
 
 ### Authoring sources and output
 
-| Property | Default | Effect |
-| --- | --- | --- |
-| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist. |
-| `CapsuleImportScenes` | `true` for the shell; otherwise `false` | Validates and derives `*.scene.json` and `*.tmj` sources, then ships native scene documents under `assets/scenes/`. A role-free test or tool can opt in independently. |
-| `CapsuleShipAssets` | `true` for the shell; otherwise `false` | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently. |
-| `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size. |
+| Property                 | Default                                       | Effect                                                                                                                                                                 |
+| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist.                                                   |
+| `CapsuleImportScenes`    | `true` for the shell; otherwise `false`       | Validates and derives `*.scene.json` and `*.tmj` sources, then ships native scene documents under `assets/scenes/`. A role-free test or tool can opt in independently. |
+| `CapsuleShipAssets`      | `true` for the shell; otherwise `false`       | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                          |
+| `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size.                   |
 
 ### Application icons
 
 A shell with no icon configuration receives Capsule's executable and window icons. Override either or both beside the shell project:
 
-| Input | Effect |
-| --- | --- |
-| `Icon.ico` | Becomes the executable icon through the standard .NET `ApplicationIcon` property. |
-| `Icon.bmp` | Becomes the window and taskbar icon. It must be a 128x128, 32-bit uncompressed BMP. |
-| `ApplicationIcon` | Overrides the executable icon with any path accepted by the .NET SDK. |
-| `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap is not beside the shell project. |
+| Input                                            | Effect                                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `Icon.ico`                                       | Becomes the executable icon through the standard .NET `ApplicationIcon` property.        |
+| `Icon.bmp`                                       | Becomes the window and taskbar icon: a 128x128, 32-bit uncompressed BMP, alpha honoured. |
+| `ApplicationIcon`                                | Overrides the executable icon with any path accepted by the .NET SDK.                    |
+| `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap is not beside the shell project.               |
 
 ```xml
 <PropertyGroup>
@@ -253,11 +251,13 @@ A shell with no icon configuration receives Capsule's executable and window icon
 
 Defining only one half is allowed, but the build warns because the other half retains Capsule branding.
 
+The window icon is transparent where its alpha says so, and Capsule's own default is. Two things about that byte surprise people: a bitmap whose alpha is entirely zero is read as fully opaque rather than fully invisible, so zeroing the byte a tool calls padding still ships a visible icon; and `BI_RGB` formally declares the byte unused, so most image viewers discard it and draw the file on black. A transparent `Icon.bmp` therefore looks like it has a black background in almost any viewer — that is the viewer, and flattening the bitmap to make it agree puts a real background back on the window.
+
 ### Package and source properties
 
-| Property | Default | Effect |
-| --- | --- | --- |
-| `CapsuleVersion` | consumer-defined | Pins `JAG.Capsule`, `JAG.Capsule.Runtime`, and `JAG.Capsule.Build` to one release. |
-| `CapsuleSourcePath` | unset | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory. |
-| `CapsuleUsePackages` | `false` | Set to `true` to ignore a source override and verify the pinned NuGet graph. |
+| Property                       | Default                                           | Effect                                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CapsuleVersion`               | consumer-defined                                  | Pins `JAG.Capsule`, `JAG.Capsule.Runtime`, and `JAG.Capsule.Build` to one release.                                                                                                            |
+| `CapsuleSourcePath`            | unset                                             | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory.                    |
+| `CapsuleUsePackages`           | `false`                                           | Set to `true` to ignore a source override and verify the pinned NuGet graph.                                                                                                                  |
 | `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |

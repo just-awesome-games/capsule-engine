@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- An executable published under NativeAOT and *run* in CI: publishing proves the graph is
+       ILC-analysable, and only booting proves the trimmed JSON context, the generated registries
+       and the shipped content survive the trim. It declares no Capsule role and never references
+       Capsule.Runtime, so the published binary opens no window and runs headless on any runner. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.AotSmoke</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- An AOT publish restores a runtime-specific ILC compiler pack per CI matrix leg, so no one
+         lock file describes this project's restore. -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <CapsuleImportScenes>true</CapsuleImportScenes>
+    <CapsuleShipAssets>true</CapsuleShipAssets>
+    <CapsuleAssetSourcesDir>../../samples/MinimalGame/src/asset-sources</CapsuleAssetSourcesDir>
+    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
+  </PropertyGroup>
+
+  <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
+
+  <ItemGroup>
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
+  </ItemGroup>
+
+</Project>
