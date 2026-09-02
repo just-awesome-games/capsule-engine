@@ -10,7 +10,11 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <VersionPrefix>0.4.0</VersionPrefix>
+    <!-- A constant, never the current release: nothing inside this repository should care what the
+         last published version was. packages.yml supplies the real number from the release tag at
+         pack time. Holding it fixed keeps release numbers out of packages.lock.json, whose
+         ProjectReference entries record it. Must equal the sample's CapsuleVersion. -->
+    <VersionPrefix>0.0.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
     <PackageTags>game-engine;2d;monogame;deterministic</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

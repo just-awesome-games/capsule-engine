@@ -54,7 +54,7 @@ Pin one exact Capsule version and give every project the build package:
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <CapsuleVersion>0.4.0</CapsuleVersion><!-- the released version you pin -->
+    <CapsuleVersion>{YOUR_PINNED_VERSION}</CapsuleVersion>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
     <NuGetLockFilePath Condition="'$(CapsuleSourceRoot)' != ''">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>

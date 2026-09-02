@@ -5,7 +5,7 @@
       "capsule.collision": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.4.0, )"
+          "Capsule.Core": "[0.0.0, )"
         }
       },
       "capsule.core": {
@@ -14,8 +14,8 @@
       "capsule.scenes": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Collision": "[0.4.0, )",
-          "Capsule.Core": "[0.4.0, )"
+          "Capsule.Collision": "[0.0.0, )",
+          "Capsule.Core": "[0.0.0, )"
         }
       }
     }

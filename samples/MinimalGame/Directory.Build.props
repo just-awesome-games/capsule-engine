@@ -6,10 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <CapsuleVersion>0.4.0</CapsuleVersion>
+    <!-- Matches the engine's VersionPrefix rather than a release: package mode here always means
+         the packages this tree just packed into artifacts/packages, never nuget.org. A copy of the
+         sample outside this repository must set a real pin; see docs/consuming-capsule.md. -->
+    <CapsuleVersion>0.0.0</CapsuleVersion>
     <!-- Inside the engine repository the sample is the consumer proof, so it builds from engine
-         source by default; a copy of this tree anywhere else finds no clone above it and resolves
-         the pinned packages instead. CapsuleUsePackages forces the package lane either way. -->
+         source by default. CapsuleUsePackages forces the package lane. -->
     <CapsuleSourcePath Condition="'$(CapsuleSourcePath)' == '' and Exists('$(MSBuildThisFileDirectory)../../build/Capsule.Build.targets')">../..</CapsuleSourcePath>
     <CapsuleSourceRoot Condition="'$(CapsuleUsePackages)' != 'true' and '$(CapsuleSourcePath)' != ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '$(CapsuleSourcePath)'))</CapsuleSourceRoot>
     <!-- The engine's own dotnet pack walks its solution, which the sample is a member of. -->
