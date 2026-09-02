@@ -82,6 +82,9 @@ internal static class SceneFixtures
     {
         internal int Starts { get; private set; }
 
+        /// <summary>Reaches the protected camera setter, which only a scene can call.</summary>
+        internal void Install(Camera camera) => Camera = camera;
+
         protected override void OnStart()
         {
             Starts++;
@@ -125,7 +128,7 @@ internal static class SceneFixtures
         {
         }
 
-        public override void Update(in StepContext context) => Position += Vector2.UnitX;
+        protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }
 
     internal sealed class Meddler(Action<Scene> onAdded) : Entity(Vector2.Zero)
@@ -133,9 +136,20 @@ internal static class SceneFixtures
         protected internal override void OnAddedToScene() => onAdded(Scene!);
     }
 
+    /// <summary>Runs a hook the moment time begins for it, when the scene is fully composed.</summary>
+    internal sealed class Starter(Action<Scene> onStart) : Entity(Vector2.Zero)
+    {
+        protected internal override void OnStart() => onStart(Scene!);
+    }
+
+    internal sealed class StartingComponent(string name, List<string> log) : Component
+    {
+        protected internal override void OnStart() => log.Add($"{name}!");
+    }
+
     internal sealed class Watcher(Action<Scene> observe) : Entity(Vector2.Zero)
     {
-        public override void Update(in StepContext context) => observe(Scene!);
+        protected internal override void OnStep(in StepContext context) => observe(Scene!);
     }
 
     internal sealed class Placed(EntitySpawn spawn) : Entity(spawn.Position)
@@ -145,7 +159,7 @@ internal static class SceneFixtures
 
     internal sealed class Recorder(string name, List<string> log) : Entity(Vector2.Zero)
     {
-        public override void Update(in StepContext context) => log.Add(name);
+        protected internal override void OnStep(in StepContext context) => log.Add(name);
 
         protected internal override void OnAddedToScene() => log.Add($"{name}+");
 
@@ -154,7 +168,7 @@ internal static class SceneFixtures
 
     internal sealed class RecordingComponent(string name, List<string> log) : Component
     {
-        public override void Update(in StepContext context) => log.Add(name);
+        protected internal override void OnStep(in StepContext context) => log.Add(name);
     }
 
     internal sealed class StripeRenderer(ColorRgba color) : Renderer

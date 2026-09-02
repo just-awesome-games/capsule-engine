@@ -1,4 +1,3 @@
-using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
@@ -37,7 +36,6 @@ public sealed class SceneEngineBuilder
     private ILogSink? _logSink;
     private ConsoleLogSink? _consoleSink;
     private bool _loggingSilenced;
-    private Vector2 _cameraViewport;
     private TextureSampling _sampling = TextureSampling.Linear;
 
     /// <param name="gameName">
@@ -227,31 +225,6 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
-    /// The world units every scene's camera opens spanning, unless the scene sets its own. These
-    /// are world units and stay independent of <see cref="WithRenderResolution"/>'s pixels; left
-    /// unset, a camera spans nothing and draws nothing.
-    /// </summary>
-    /// <param name="viewport">Width and height in world units, neither negative nor NaN.</param>
-    public SceneEngineBuilder WithCameraViewport(Vector2 viewport)
-    {
-        // NaN compares false to everything, so the range guard below cannot reject it, and a
-        // NaN span would reach the renderer as a projection that maps every quad off-screen.
-        if (!float.IsFinite(viewport.X) || !float.IsFinite(viewport.Y))
-        {
-            throw new ArgumentOutOfRangeException(nameof(viewport), viewport, "A camera viewport must span a finite number of world units.");
-        }
-
-        if (viewport.X < 0f || viewport.Y < 0f)
-        {
-            throw new ArgumentOutOfRangeException(nameof(viewport), viewport, "A camera viewport cannot span a negative number of world units.");
-        }
-
-        _cameraViewport = viewport;
-
-        return this;
-    }
-
-    /// <summary>
     /// How every scene filters world-space textures unless it sets its own; a pixel-art game
     /// declares <see cref="TextureSampling.Point"/> once here. Defaults to
     /// <see cref="TextureSampling.Linear"/>.
@@ -363,7 +336,7 @@ public sealed class SceneEngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_cameraViewport, _sampling));
+        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling));
         Run(host);
     }
 

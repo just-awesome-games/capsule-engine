@@ -121,7 +121,7 @@ internal static class CollisionWorkload
 
         internal int Contacts { get; private set; }
 
-        public override void Update(in StepContext context)
+        protected internal override void OnStep(in StepContext context)
         {
             MoveResult2D result = _mover.Move(new Vector2(_direction * 2f, 4f));
 

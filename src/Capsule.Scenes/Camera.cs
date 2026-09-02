@@ -4,11 +4,13 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// A scene's world-space viewport. Movement interpolates; deliberate cuts use
-/// <see cref="Teleport"/>. A non-positive <see cref="ViewportSize"/> draws nothing.
+/// <see cref="Teleport"/>. A non-positive <see cref="ViewportSize"/> draws nothing. A scene
+/// installs a subclass to give framing a home of its own: it finds its subject in
+/// <see cref="OnStart"/> and settles its framing in <see cref="OnLateStep"/>.
 /// </summary>
-public sealed class Camera
+public class Camera
 {
-    private Vector2? _viewportSize;
+    private bool _started;
 
     /// <summary>The world point the viewport is centred on.</summary>
     public Vector2 Center { get; set; }
@@ -16,12 +18,18 @@ public sealed class Camera
     /// <summary><see cref="Center"/> at the previous fixed step, retained by the engine.</summary>
     public Vector2 PreviousCenter { get; internal set; }
 
-    /// <summary>World units the viewport spans; zero until the game or the scene sets it.</summary>
-    public Vector2 ViewportSize
-    {
-        get => _viewportSize.GetValueOrDefault();
-        set => _viewportSize = value;
-    }
+    /// <summary>
+    /// World units the viewport spans; zero until the scene or its camera sets it, and a
+    /// non-positive span draws nothing.
+    /// </summary>
+    public Vector2 ViewportSize { get; set; }
+
+    /// <summary>
+    /// The scene this camera frames; null before <see cref="OnAddedToScene"/> and after
+    /// <see cref="OnRemovedFromScene"/>. A camera installed in a scene that has not opened its
+    /// camera yet takes the handle when that scene does.
+    /// </summary>
+    public Scene? Scene { get; internal set; }
 
     /// <summary>Cuts to <paramref name="center"/>, with no interpolation from the old centre.</summary>
     public void Teleport(Vector2 center)
@@ -30,9 +38,57 @@ public sealed class Camera
         PreviousCenter = center;
     }
 
-    // Null is "no scene has spoken", which is what separates a game default from a scene that
-    // deliberately spans nothing.
-    internal void OpenAt(Vector2 viewportSize) => _viewportSize ??= viewportSize;
+    /// <summary>
+    /// Settles this camera's framing for the step. Runs after every entity and component has
+    /// stepped, after contacts settle, and after the scene's own
+    /// <see cref="Scene.OnLateStep"/>, before the step's deferred adds and removes land and before
+    /// the frame view is rewritten — which is what lets a follow camera frame the current step
+    /// rather than the previous one.
+    /// </summary>
+    protected internal virtual void OnLateStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
+    /// Runs once for this camera's lifetime — not again when it is reinstalled — before its first
+    /// late step and after everything installed alongside it: the scene has started and every
+    /// entity it holds has started too, so the subject to follow is found here. A camera installed
+    /// in a scene that has already opened its camera runs it as it is installed — unless its own
+    /// <see cref="OnAddedToScene"/> installs another camera, which displaces it before it starts.
+    /// </summary>
+    protected internal virtual void OnStart()
+    {
+    }
+
+    /// <summary>
+    /// Runs once this camera is the scene's, with <see cref="Scene"/> set — never before that
+    /// scene and every entity it holds have started, so the scene may be searched from here.
+    /// Registration belongs here: this pairs with <see cref="OnRemovedFromScene"/> and runs again
+    /// on every reinstall, where <see cref="OnStart"/> runs once for the camera's lifetime.
+    /// </summary>
+    protected internal virtual void OnAddedToScene()
+    {
+    }
+
+    /// <summary>
+    /// Runs once this camera is no longer the scene's, with <see cref="Scene"/> cleared — when
+    /// another camera is installed, and when the scene stops. Anything
+    /// <see cref="OnAddedToScene"/> registered is released here.
+    /// </summary>
+    protected internal virtual void OnRemovedFromScene()
+    {
+    }
 
     internal void Retain() => PreviousCenter = Center;
+
+    internal void RunStart()
+    {
+        if (_started)
+        {
+            return;
+        }
+
+        _started = true;
+        OnStart();
+    }
 }

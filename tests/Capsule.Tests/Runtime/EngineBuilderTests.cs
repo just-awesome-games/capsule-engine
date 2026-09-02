@@ -1,4 +1,3 @@
-using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -75,17 +74,6 @@ public sealed class EngineBuilderTests
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithWindowTitle("  "));
     }
 
-    [Theory]
-    [InlineData(float.NaN, 180f)]
-    [InlineData(320f, float.PositiveInfinity)]
-    [InlineData(-320f, 180f)]
-    [InlineData(320f, -180f)]
-    public void WithCameraViewport_RejectsASpanThatIsNotFiniteAndNonNegative(float width, float height)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => SceneBuilder().WithCameraViewport(new Vector2(width, height)));
-    }
-
     [Fact]
     public void WithSampling_RejectsAModeThatIsNotDeclared()
     {
@@ -110,7 +98,6 @@ public sealed class EngineBuilderTests
     {
         SceneEngineBuilder builder = SceneBuilder()
             .WithRenderResolution(320, 180)
-            .WithCameraViewport(new Vector2(320, 180))
             .WithSampling(TextureSampling.Point)
             .WithWindow(1280, 720)
             .WithoutCrashLog()

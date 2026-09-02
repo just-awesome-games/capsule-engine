@@ -4,7 +4,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Physics;
 using Capsule.Scenes.Spawning;
 
-namespace MinimalGame.Game;
+namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// An entity that collides without blocking. It sits on the <c>sensor</c> collision layer, which

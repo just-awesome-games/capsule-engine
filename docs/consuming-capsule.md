@@ -26,6 +26,8 @@ my-game/
   MyGame.slnx
 ```
 
+The directory convention inside `src/MyGame.Game/` is in [`project-layout.md`](project-layout.md); this file stops at the project boundary.
+
 Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override. The build derives `assets/` beside the executable; author under `src/asset-sources/`.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:

@@ -1,7 +1,8 @@
 using Capsule;
 using Capsule.Scenes;
+using MinimalGame.Game.Cameras;
 
-namespace MinimalGame.Game;
+namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// The playable room: a scene that is a document and a class at once. The document is
@@ -12,7 +13,8 @@ namespace MinimalGame.Game;
 /// document, entry by entry in file order: the tile map first, then the <c>player</c> and
 /// <c>sensor</c> placements.
 /// <para>
-/// This class is the code half of that scene: what the camera does, and what quitting means.
+/// This class is the code half of that scene: which camera it installs, and what quitting means.
+/// The camera's own framing lives in <see cref="GameCamera"/>, not here.
 /// <c>hall.scene.json</c> is the contrasting case — a document claimed by no class at all, which
 /// still loads and plays as a plain <see cref="Scene"/>.
 /// </para>
@@ -26,7 +28,7 @@ public sealed class Room : Scene
     }
 
     /// <inheritdoc/>
-    protected override void OnStart() => Camera.Teleport(FindSingle<Player>().Position);
+    protected override void OnStart() => Camera = new GameCamera();
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
@@ -36,7 +38,4 @@ public sealed class Room : Scene
             RequestExit();
         }
     }
-
-    /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context) => Camera.Center = FindSingle<Player>().Position;
 }

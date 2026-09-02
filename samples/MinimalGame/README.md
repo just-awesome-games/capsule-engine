@@ -2,18 +2,19 @@
 
 A complete Capsule game and the engine's consumer proof. It teaches the shapes a game is made of: a class-only scene with no document behind it, a Tiled-authored room with a class on top of it, a Capsule-native scene document claimed by no class at all, a player that walks and jumps against tile collision, and the two independent collision filters — what stops a body, and what a collider merely reports.
 
-The layout is the one prescribed in [`docs/consuming-capsule.md`](../../docs/consuming-capsule.md) § Repository shape: logic and shell projects under `src/`, asset sources under `src/asset-sources/`, configuration in shared `Directory.Build.*` files.
+The repository shape is the one prescribed in [`docs/consuming-capsule.md`](../../docs/consuming-capsule.md) § Repository shape: logic and shell projects under `src/`, asset sources under `src/asset-sources/`, configuration in shared `Directory.Build.*` files. Inside the logic project the folders follow [`docs/project-layout.md`](../../docs/project-layout.md).
 
 ## Files
 
 | File | What it shows |
 | --- | --- |
-| `src/MinimalGame.Game/MainMenu.cs` | A class-only scene: a public parameterless constructor, backed by no document, built as it is. The boot scene. |
-| `src/MinimalGame.Game/Room.cs` | A scene that is a document and a class: `[SceneDocument("room")]` names the document, and the `SceneContent` constructor is the claim. Camera follow and quit live here. |
-| `src/MinimalGame.Game/Player.cs` | A spawnable entity, claimed by kebab-cased class name. Walks, falls and jumps through a `KinematicBody2D`; blocks on `solid` and `platform` while detecting `sensor`. |
-| `src/MinimalGame.Game/Sensor.cs` | An entity that collides without blocking: a collider on the `sensor` layer and nothing else. |
-| `src/MinimalGame.Game/GameInput.cs` | The actions the game has, and the one place keys and pad buttons are named. |
-| `src/MinimalGame.Shell/Program.cs` | The shell: window title, camera viewport, bindings, and the scene to boot into. Its `CapsuleBoot` entry point is generated. |
+| `src/MinimalGame.Game/Scenes/MainMenu.cs` | A class-only scene: a public parameterless constructor, backed by no document, built as it is. The boot scene, and the scene that installs no camera of its own — it spans the plain one it is given. |
+| `src/MinimalGame.Game/Scenes/Room.cs` | A scene that is a document and a class: `[SceneDocument("room")]` names the document, and the `SceneContent` constructor is the claim. It installs the camera and handles quitting. |
+| `src/MinimalGame.Game/Cameras/GameCamera.cs` | A `Camera` subclass: the game's viewport span, the subject it finds for itself in `OnStart`, and the follow it settles in `OnLateStep`. Scenes install it and touch it no further. |
+| `src/MinimalGame.Game/Entities/Player.cs` | A spawnable entity, claimed by kebab-cased class name. Walks, falls and jumps through a `KinematicBody2D`; blocks on `solid` and `platform` while detecting `sensor`. |
+| `src/MinimalGame.Game/Entities/Sensor.cs` | An entity that collides without blocking: a collider on the `sensor` layer and nothing else. |
+| `src/MinimalGame.Game/GameInput.cs` | The actions the game has, and the one place keys and pad buttons are named. At the assembly root because it is a declaration, not a content of the game. |
+| `src/MinimalGame.Shell/Program.cs` | The shell: window title, bindings, and the scene to boot into. Its `CapsuleBoot` entry point is generated. |
 | `src/asset-sources/scenes/room.tmj` + `tiles.tsj` | The Tiled room. The tileset's tile properties carry the collision layer each tile type is on and which of its faces collide — the ledges declare `top` alone, which makes them one-way platforms. |
 | `src/asset-sources/scenes/hall.scene.json` | The Capsule-native scene document, hand-authored and claimed by no class: it loads by name and plays as a plain `Scene`. The format is read strictly and admits no comment or description field, so a native document explains itself only through this table. |
 | `src/asset-sources/textures/` | Texture sources. Each becomes a `GameAssets.Textures.<Name>` handle and ships to `assets/textures/`. |

@@ -122,7 +122,7 @@ public sealed class EntityTests
 
     private sealed class SelfRemovingComponent(List<string> log) : Component
     {
-        public override void Update(in StepContext context)
+        protected internal override void OnStep(in StepContext context)
         {
             log.Add("remove");
             Entity!.Remove(this);
@@ -131,6 +131,6 @@ public sealed class EntityTests
 
     private sealed class RecordingComponent(List<string> log) : Component
     {
-        public override void Update(in StepContext context) => log.Add("next");
+        protected internal override void OnStep(in StepContext context) => log.Add("next");
     }
 }

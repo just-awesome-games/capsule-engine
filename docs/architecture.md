@@ -37,7 +37,9 @@ Given the same initial state, fixed-step duration, and sequence of `DeviceSnapsh
 
 - Gameplay reads `StepContext`; it cannot access wall-clock time, external IO, ambient randomness, asynchronous execution, or the graphics backend.
 - Input edges are differences between snapshots. The host preserves input edges when render and simulation rates differ.
-- Simulation is single-threaded. Scene entities update and draw in insertion order, and mutations requested during a step apply after iteration.
+- Simulation is single-threaded, and scene entities update and draw in insertion order.
+- A step runs in one order: previous positions are retained, the scene's step runs, entities and their components step, contacts settle, the scene's late step runs, the scene's camera settles its own framing, the adds and removes requested during the step apply and everything newly attached then starts, and the frame view is rewritten. The camera is a scene-installed object rather than an entity for exactly that reason — settling after the entity pass is what lets it frame the step that just finished rather than the previous one.
+- Lifecycle runs on two axes. Structural: `OnAddedToScene` and `OnRemovedFromScene` fire as an object is attached and detached, one at a time, so peers added alongside it may not exist yet — registration belongs here. Temporal: `OnStart` runs once, before the object's first step — its first late step, for a camera, which has no step of its own — and after everything added alongside it has attached, so the scene may be searched from there. A scene opens by starting its entities and their components, then its camera, then running its own `OnStart`; a camera installed after that starts as it is installed. Removal is teardown, so there is no separate stop hook below the scene.
 - Collision is deterministic for a given sequence of operations: layers intern in registration order, casts report the nearest hit, and overlaps report tilemap cells before colliders — tilemaps in registration order and row-major within each, colliders by handle. `RaycastAll` fills its span with the nearest hits ordered by distance, ties broken by tiles before colliders and then by collider slot and cell, so the result never depends on the broadphase's current shape. Contacts settle after entities update and before the scene's late step, in the order colliders began reporting them.
 - Handles, layers and filters belong to the world that issued them and are rejected by any other, so two worlds' identities are never confused for one another. `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted anywhere.
 - `TotalSeconds` is derived from the tick count rather than accumulated.
@@ -49,7 +51,7 @@ The Capsule.Generators analyzer enforces the logic boundary. Tests hold the sche
 
 Simulation emits backend-free render intents. The host draws them at display rate, interpolating entities and camera from the previous settled step to the current one with a shared fraction. Rendering never feeds state back into simulation.
 
-The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region.
+The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region. A scene sets its own span; there is no game-wide default.
 
 ## Package boundary
 

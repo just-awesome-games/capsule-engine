@@ -14,6 +14,7 @@ public class Entity
     private readonly List<Component> _components = [];
 
     private int _movementTrackers;
+    private bool _started;
 
     /// <param name="position">
     /// Where the entity starts. <see cref="PreviousPosition"/> starts equal to it, so a spawn
@@ -111,6 +112,17 @@ public class Entity
         {
             component.EnterScene();
         }
+
+        // Time has already begun for this entity, so it has begun for whatever it takes on: the
+        // component would otherwise step without ever having started. Both conditions are re-read
+        // after the hooks above, either of which may have detached it or taken this entity out of
+        // the scene. Kept, not merely held: an entity queued for removal mid-step still names its
+        // scene but never steps again, so a component taken on now must wait for the next add,
+        // which RunStart hands it.
+        if (_started && Scene?.Keeps(this) == true && ReferenceEquals(component.Entity, this))
+        {
+            component.RunStart();
+        }
     }
 
     /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
@@ -162,17 +174,37 @@ public class Entity
             : throw new InvalidOperationException(
                 $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
 
-    /// <summary>Advances this entity by one fixed step, before its components update.</summary>
-    public virtual void Update(in StepContext context)
+    /// <summary>Advances this entity by one fixed step, before its components step.</summary>
+    protected internal virtual void OnStep(in StepContext context)
     {
     }
 
-    /// <summary>Runs once the scene holds this entity, with <see cref="Scene"/> set.</summary>
+    /// <summary>
+    /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
+    /// before its first step and after everything added alongside it, so the scene may be searched
+    /// from here: an entity a scene document composed sees every other entry, and one of a batch
+    /// spawned during a step sees the whole batch. Runs before the components held at that moment
+    /// start; an entity that leaves the scene from here never steps, and so starts none of them,
+    /// which leaves them to start if it is added again.
+    /// </summary>
+    protected internal virtual void OnStart()
+    {
+    }
+
+    /// <summary>
+    /// Runs once the scene holds this entity, with <see cref="Scene"/> set. Peers added alongside
+    /// it may not exist yet: register with the scene here and discover it in
+    /// <see cref="OnStart"/>.
+    /// </summary>
     protected internal virtual void OnAddedToScene()
     {
     }
 
-    /// <summary>Runs once the scene has let go of this entity, with <see cref="Scene"/> cleared.</summary>
+    /// <summary>
+    /// Runs once the scene has let go of this entity, with <see cref="Scene"/> cleared — when the
+    /// entity is removed, and when the scene stops. Anything <see cref="OnAddedToScene"/>
+    /// registered is released here.
+    /// </summary>
     protected internal virtual void OnRemovedFromScene()
     {
     }
@@ -180,14 +212,57 @@ public class Entity
     /// <summary>Counts the components that want telling when this entity moves.</summary>
     internal void TrackMovement(int delta) => _movementTrackers += delta;
 
+    // The entity's own start is once for its lifetime; the component sweep is not. An entity
+    // removed and added again reaches this a second time holding components that never started —
+    // because it left before they could — and it is about to step them.
+    internal void RunStart()
+    {
+        if (!_started)
+        {
+            _started = true;
+            OnStart();
+        }
+
+        // OnStart may have taken this entity out of the scene, or queued it to leave at the end of
+        // the drain. Either way it never steps, so its components must not start: they have been
+        // told they left, and a component's OnStart is promised a scene to search.
+        if (Scene?.Keeps(this) != true)
+        {
+            return;
+        }
+
+        // Indexed against a live Count, and each component's own flag makes a second call a no-op,
+        // so one attached from inside OnStart is started once whichever path reaches it first.
+        for (int index = 0; index < _components.Count;)
+        {
+            Component component = _components[index];
+            component.RunStart();
+
+            // A component may detach itself or one before it. Stay at this index when the occupant
+            // changed, so the component shifted into it still starts before it ever steps.
+            if (index < _components.Count && ReferenceEquals(_components[index], component))
+            {
+                index++;
+            }
+        }
+    }
+
     internal void EnterScene()
     {
         // Indexed against a live Count: a component may attach another from its own hook, and
         // EnterScene is idempotent, so reaching it twice is a no-op rather than a double
         // registration.
-        for (int index = 0; index < _components.Count; index++)
+        for (int index = 0; index < _components.Count;)
         {
-            _components[index].EnterScene();
+            Component component = _components[index];
+            component.EnterScene();
+
+            // A hook may have detached this component or one before it. Stay at this index when the
+            // occupant changed, so the component shifted into it still registers with the scene.
+            if (index < _components.Count && ReferenceEquals(_components[index], component))
+            {
+                index++;
+            }
         }
     }
 
@@ -207,12 +282,12 @@ public class Entity
         }
     }
 
-    internal void UpdateComponents(in StepContext context)
+    internal void StepComponents(in StepContext context)
     {
         for (int index = 0; index < _components.Count;)
         {
             Component component = _components[index];
-            component.Update(context);
+            component.OnStep(context);
 
             // A component may remove itself or one before it. Stay at this index when the
             // occupant changed so the component shifted into it still receives this step.
@@ -236,9 +311,17 @@ public class Entity
 
     private void NotifyMoved()
     {
-        for (int index = 0; index < _components.Count; index++)
+        for (int index = 0; index < _components.Count;)
         {
-            _components[index].OnEntityMoved();
+            Component component = _components[index];
+            component.OnEntityMoved();
+
+            // A handler may have detached this component or one before it. Stay at this index when
+            // the occupant changed, so the component shifted into it is still told of the move.
+            if (index < _components.Count && ReferenceEquals(_components[index], component))
+            {
+                index++;
+            }
         }
     }
 

@@ -7,6 +7,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
 using MinimalGame.Game;
+using MinimalGame.Game.Scenes;
 
 namespace Capsule.AotSmoke;
 
@@ -42,7 +43,7 @@ internal static class Program
         using SceneSimulation simulation = new(
             new Room(new SceneContent(Document(RoomPath), GameEntities.Registry)),
             null,
-            new SceneDefaults(new Vector2(320f, 180f), TextureSampling.Point));
+            new SceneDefaults(TextureSampling.Point));
 
         DeviceSnapshot[] script = Script();
         int steps = 0;

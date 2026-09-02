@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Performance;
 
@@ -398,6 +399,200 @@ public sealed class SceneStepTests
         }
     }
 
+    // The whole reason the structural and temporal hooks are separate: composition adds one entry
+    // at a time, so an entry notified as it attaches cannot see the ones after it.
+    [Fact]
+    public void AnEntityStarting_SeesEveryEntryTheDocumentComposedAlongsideIt()
+    {
+        List<string> found = [];
+
+        EntityRegistry registry = SceneFixtures.Registry(
+            ("seeker", spawn => new Seeker(spawn, found)),
+            ("placed", spawn => new SceneFixtures.Placed(spawn)));
+
+        Scene scene = SceneFixtures.RoomScene(
+            SceneFixtures.RoomWithoutTerrain(
+                new EntityPlacement(1, "seeker", 0, 0),
+                new EntityPlacement(2, "placed", 16, 0)),
+            registry);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal(["placed"], found);
+    }
+
+    // A wave spawned together is one batch: the drain attaches all of it before any of it starts,
+    // so no member of the wave sees a half-built scene.
+    [Fact]
+    public void ABatchSpawnedInOneStep_StartsOnlyOnceAllOfItHasAttached()
+    {
+        List<int> peers = [];
+
+        void Count(Scene scene) => peers.Add(scene.Entities.Length);
+
+        SceneFixtures.Starter first = new(Count);
+        SceneFixtures.Starter second = new(Count);
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                scene.Add(first);
+                scene.Add(second);
+            }
+        }
+
+        using SceneSimulation simulation = new(new SceneFixtures.HookScene(step: Hook));
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([2, 2], peers);
+    }
+
+    [Fact]
+    public void AComponentAttachedToAStartedEntity_StartsAsItIsAttached()
+    {
+        List<string> log = [];
+        SceneFixtures.Drifter host = new();
+
+        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), host);
+
+        host.Add(new SceneFixtures.StartingComponent("late", log));
+
+        Assert.Equal(["late!"], log);
+    }
+
+    // Removal is deferred, so an entity queued to leave still names its scene while the drain runs.
+    // It has no step left in it, and starting is once for a component's lifetime, so one taken on
+    // here must wait: started now it would have searched a scene it never steps, and could never
+    // start again on the add that does step it.
+    [Fact]
+    public void AComponentAttachedToAnEntityQueuedForRemoval_WaitsForTheNextAddToStart()
+    {
+        List<string> log = [];
+        SceneFixtures.Drifter host = new();
+        Tracker late = new("late", log);
+
+        SceneFixtures.Starter remover = new(scene =>
+        {
+            scene.Remove(host);
+            host.Add(late);
+        });
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                scene.Add(remover);
+            }
+        }
+
+        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), host);
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Empty(log);
+        Assert.Null(host.Scene);
+
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Empty(log);
+
+        simulation.Scene.Add(host);
+        simulation.Step(SceneFixtures.Step(2));
+
+        Assert.Equal(["late!", "late"], log);
+    }
+
+    // The drain starts a batch after the removes, so a peer that started first may already have
+    // queued one of them to leave. It never steps, so time must never begin for it either.
+    [Fact]
+    public void AnEntityQueuedForRemovalByAPeersStart_NeverStarts()
+    {
+        List<string> log = [];
+        Lifecycle doomed = new("doomed", log);
+        SceneFixtures.Starter remover = new(scene => scene.Remove(doomed));
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                scene.Add(remover);
+                scene.Add(doomed);
+            }
+        }
+
+        using SceneSimulation simulation = new(new SceneFixtures.HookScene(step: Hook));
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(["doomed+", "doomed-"], log);
+        Assert.Same(remover, Assert.Single(simulation.Scene.Entities.ToArray()));
+        Assert.Null(doomed.Scene);
+    }
+
+    [Fact]
+    public void AnEntityLeavingTheSceneFromItsOwnStart_StartsNoneOfItsComponents()
+    {
+        List<string> log = [];
+        SceneFixtures.Starter? host = null;
+        host = new SceneFixtures.Starter(scene => scene.Remove(host!));
+        host.Add(new Tracker("component", log));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(host);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Empty(log);
+        Assert.Empty(simulation.Scene.Entities.ToArray());
+    }
+
+    // An entity that left from its own start holds components that never started, and its own
+    // start does not run twice. Added again it steps them, so the second start must reach them.
+    [Fact]
+    public void AComponentOnAnEntityAddedBackToTheScene_StartsBeforeItSteps()
+    {
+        List<string> log = [];
+        SceneFixtures.Starter? host = null;
+        host = new SceneFixtures.Starter(scene => scene.Remove(host!));
+        host.Add(new Tracker("component", log));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(host);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Empty(log);
+
+        scene.Add(host);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(["component!", "component"], log);
+    }
+
+    // A component's start may detach a sibling, which shifts the rest of the list left. The one
+    // shifted into the vacated slot still steps, so it must still start.
+    [Fact]
+    public void AComponentDetachingASiblingFromItsStart_LeavesNoLaterSiblingUnstarted()
+    {
+        List<string> log = [];
+        SceneFixtures.Drifter host = new();
+        Tracker first = new("first", log);
+        host.Add(first);
+        host.Add(new SiblingRemover(first, log));
+        host.Add(new Tracker("third", log));
+
+        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), host);
+
+        Assert.Equal(["first!", "remover!", "third!"], log);
+
+        log.Clear();
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(["remover", "third"], log);
+    }
+
     private static SceneSimulation Simulation(Scene scene, params Entity[] entities)
     {
         foreach (Entity entity in entities)
@@ -406,5 +601,40 @@ public sealed class SceneStepTests
         }
 
         return new SceneSimulation(scene);
+    }
+
+    private sealed class Seeker(EntitySpawn spawn, List<string> found) : Entity(spawn.Position)
+    {
+        protected internal override void OnStart() =>
+            found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type);
+    }
+
+    private sealed class Lifecycle(string name, List<string> log) : Entity(Vector2.Zero)
+    {
+        protected internal override void OnAddedToScene() => log.Add($"{name}+");
+
+        protected internal override void OnStart() => log.Add($"{name}!");
+
+        protected internal override void OnStep(in StepContext context) => log.Add(name);
+
+        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
+    }
+
+    private sealed class Tracker(string name, List<string> log) : Component
+    {
+        protected internal override void OnStart() => log.Add($"{name}!");
+
+        protected internal override void OnStep(in StepContext context) => log.Add(name);
+    }
+
+    private sealed class SiblingRemover(Component sibling, List<string> log) : Component
+    {
+        protected internal override void OnStart()
+        {
+            log.Add("remover!");
+            Entity!.Remove(sibling);
+        }
+
+        protected internal override void OnStep(in StepContext context) => log.Add("remover");
     }
 }

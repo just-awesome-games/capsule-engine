@@ -30,11 +30,24 @@ public class Scene
     private readonly HashSet<Entity> _pendingAddSet = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Entity> _pendingRemoveSet = new(ReferenceEqualityComparer.Instance);
 
+    // Attached but not started. Starting is what lets an entity see its peers, so it waits until
+    // everything arriving with it has attached — the whole document at open, the whole drain
+    // mid-step — rather than running per attach.
+    private readonly List<Entity> _pendingStarts = [];
+
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
+    private Camera _camera = new();
     private bool _stepping;
+    private bool _starting;
     private bool _started;
+
+    // Whether the current camera has been told it is the scene's. Distinct from _started, which is
+    // set as the scene begins starting: entities start before the camera is installed, and one of
+    // them may install the camera itself. Structural hooks pair off this flag alone, so no camera
+    // is released that was never added.
+    private bool _cameraInstalled;
     private bool _stopped;
     private bool _renderersStale = true;
     private bool _exitRequested;
@@ -76,10 +89,68 @@ public class Scene
     }
 
     /// <summary>
-    /// The camera, always present. Game code moves it; it opens at the game's default span, or
-    /// spanning nothing where there is none.
+    /// The camera, always present. A scene installs its own — a <see cref="Scenes.Camera"/>
+    /// subclass that frames itself in <see cref="Scenes.Camera.OnLateStep"/> — or moves the plain
+    /// one it is given. It opens spanning nothing unless the scene or its camera sets a span.
+    /// <para>
+    /// Installing a camera cuts to it: the incoming camera opens where it is placed rather than
+    /// sweeping in from wherever the previous one sat.
+    /// </para>
+    /// <para>
+    /// Installed in a scene that has opened its camera, the incoming camera is notified at once —
+    /// <see cref="Scenes.Camera.OnAddedToScene"/> then <see cref="Scenes.Camera.OnStart"/>, after
+    /// the outgoing camera's <see cref="Scenes.Camera.OnRemovedFromScene"/>. Installed before that
+    /// — from the scene's construction, or from an entity or component starting as the scene opens
+    /// — it becomes the camera the scene opens with, and is notified then; the camera it replaces
+    /// is notified of nothing, having never been the scene's.
+    /// </para>
+    /// <para>
+    /// A camera installed from within one of those hooks supersedes the handover that ran it, and
+    /// the scene ends up holding the innermost camera. What the displaced camera is told depends
+    /// on how far its own handover had got: installed from the outgoing camera's
+    /// <see cref="Scenes.Camera.OnRemovedFromScene"/>, it displaces a camera still pending, which
+    /// is notified of nothing and left framing no scene, never having been the scene's; installed
+    /// from the incoming camera's own <see cref="Scenes.Camera.OnAddedToScene"/>, it displaces one
+    /// that had arrived, which is told it was removed again — a paired arrival and departure with
+    /// only <see cref="Scenes.Camera.OnStart"/> omitted.
+    /// </para>
     /// </summary>
-    public Camera Camera { get; } = new();
+    /// <exception cref="ArgumentNullException">The camera is null; a scene always has one.</exception>
+    /// <exception cref="InvalidOperationException">The camera already frames another scene.</exception>
+    public Camera Camera
+    {
+        get => _camera;
+        protected set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            RequireUnowned(value);
+
+            Camera outgoing = _camera;
+            _camera = value;
+
+            // Installing the camera already installed is a cut and nothing else; running the
+            // hooks would release a camera that never left.
+            if (_cameraInstalled && !ReferenceEquals(outgoing, value))
+            {
+                // Cleared before the hook, so an outgoing camera reaching back cannot find the
+                // scene still claiming it, and so a failed handover releases nothing twice.
+                _cameraInstalled = false;
+                outgoing.Scene = null;
+                outgoing.OnRemovedFromScene();
+
+                // Whichever camera is current now, not the one this call arrived with: the hook
+                // may have installed another, and with no camera installed at that moment that
+                // nested write only took the handle. Installing the stale one would leave the
+                // scene naming one camera while another held the handle to it.
+                Install(_camera);
+            }
+
+            // The incoming camera opens where it was placed: without this it would interpolate
+            // from wherever the outgoing one had left PreviousCenter, and the swap would read as
+            // a sweep across the world.
+            _camera.Retain();
+        }
+    }
 
     /// <summary>
     /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> registers here
@@ -275,12 +346,16 @@ public class Scene
     {
     }
 
-    /// <summary>Runs after positions are retained and before entities update.</summary>
+    /// <summary>Runs after positions are retained and before entities step.</summary>
     protected virtual void OnStep(in StepContext context)
     {
     }
 
-    /// <summary>Runs after entities update and before the frame is built; use it for camera policy.</summary>
+    /// <summary>
+    /// Runs after entities step and before the frame is built; use it for the scene's camera
+    /// policy — choosing a subject, ordering a cut — which the camera's own
+    /// <see cref="Scenes.Camera.OnLateStep"/> then frames.
+    /// </summary>
     protected virtual void OnLateStep(in StepContext context)
     {
     }
@@ -296,10 +371,17 @@ public class Scene
         _started = true;
         EntryPayload = entryPayload;
 
-        // Whatever the scene's own construction set stands; the game default fills the rest, and
-        // OnStart runs after both, so a camera opened there still wins.
+        // Whatever the scene's own construction set stands; the game default fills in behind it.
         _sampling ??= defaults.Sampling;
-        Camera.OpenAt(defaults.CameraViewport);
+
+        // Everything the scene was composed from is attached by now, so an entity starting here
+        // can search the scene and find every other entry.
+        StartPending();
+
+        // Then the camera it opens with — whichever camera those starts left in place, so one an
+        // entity installed as it started is the one notified here, and a camera that discovers its
+        // subject finds an entity that has already started.
+        Install(_camera);
 
         OnStart();
 
@@ -328,6 +410,24 @@ public class Scene
             (failures ??= []).Add(exception);
         }
 
+        // The camera goes first, in reverse of the order Start installed it, so it is released
+        // while the entities it framed are still here — and only if it was ever installed, since a
+        // scene whose entities failed to start never reached its camera.
+        if (_cameraInstalled)
+        {
+            try
+            {
+                Camera outgoing = _camera;
+                _cameraInstalled = false;
+                outgoing.Scene = null;
+                outgoing.OnRemovedFromScene();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
         for (int index = _entities.Count - 1; index >= 0; index--)
         {
             try
@@ -340,6 +440,7 @@ public class Scene
             }
         }
 
+        _pendingStarts.Clear();
         _pendingAdds.Clear();
         _pendingAddSet.Clear();
         _pendingRemoves.Clear();
@@ -385,6 +486,11 @@ public class Scene
 
     internal void InvalidateRenderers() => _renderersStale = true;
 
+    // Held and not on its way out. Starting is what begins time for an entity, and an entity queued
+    // for removal never steps, so it must never start either — nor start the components it holds.
+    internal bool Keeps(Entity entity) =>
+        ReferenceEquals(entity.Scene, this) && !_pendingRemoveSet.Contains(entity);
+
     internal void BeginStep()
     {
         _stepping = true;
@@ -399,16 +505,16 @@ public class Scene
 
     internal void RunStep(in StepContext context) => OnStep(context);
 
-    internal void UpdateEntities(in StepContext context)
+    internal void StepEntities(in StepContext context)
     {
         foreach (Entity entity in Entities)
         {
-            entity.Update(context);
-            entity.UpdateComponents(context);
+            entity.OnStep(context);
+            entity.StepComponents(context);
         }
     }
 
-    // Between the entity update and the late step: every position this step is going to produce
+    // Between the entity pass and the late step: every position this step is going to produce
     // has been produced, and a scene's own late-step policy already sees the settled contact set.
     internal void SettleContacts()
     {
@@ -452,7 +558,13 @@ public class Scene
         }
     }
 
-    internal void RunLateStep(in StepContext context) => OnLateStep(context);
+    // Scene policy before the camera settles: choosing a subject or ordering a cut is what the
+    // camera then frames, so a scene that decides both in one step never lags a step behind.
+    internal void RunLateStep(in StepContext context)
+    {
+        OnLateStep(context);
+        Camera.OnLateStep(context);
+    }
 
     // Keep deferral active while lifecycle hooks grow either queue.
     internal void EndStep()
@@ -463,7 +575,7 @@ public class Scene
         // tried again next step, and the ones attached before it from attaching twice.
         try
         {
-            while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0)
+            while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
             {
                 int processed = 0;
                 try
@@ -496,6 +608,10 @@ public class Scene
                 {
                     Forget(_pendingRemoves, _pendingRemoveSet, processed);
                 }
+
+                // After both queues, so a batch spawned together starts once all of it has
+                // attached; whatever an OnStart queues is drained by the next turn of this loop.
+                StartPending();
             }
         }
         finally
@@ -534,6 +650,89 @@ public class Scene
         // notified by Entity.Add instead, so nothing is reached twice and nothing is missed.
         entity.EnterScene();
         entity.OnAddedToScene();
+
+        _pendingStarts.Add(entity);
+
+        // Attached outside a step and outside a drain, this entity arrived alone, so its moment
+        // to start is now. During a step or a drain, EndStep starts the whole batch at once.
+        if (_started && !_stepping)
+        {
+            StartPending();
+        }
+    }
+
+    // Re-entrant by design: an OnStart may attach another entity, whose own Attach reaches here
+    // and returns to let this loop take it — the queue is one drain, however deeply it is fed.
+    private void StartPending()
+    {
+        if (_starting)
+        {
+            return;
+        }
+
+        _starting = true;
+
+        try
+        {
+            // A cursor over a live Count, with the processed prefix dropped however the drain
+            // ended, so an entity whose OnStart throws is not started again next drain.
+            int processed = 0;
+            try
+            {
+                while (processed < _pendingStarts.Count)
+                {
+                    Entity pending = _pendingStarts[processed];
+                    processed++;
+
+                    // Attached and detached within the same drain, or queued for removal by a peer
+                    // that started ahead of it: it never reaches a step, so time never begins for
+                    // it.
+                    if (Keeps(pending))
+                    {
+                        pending.RunStart();
+                    }
+                }
+            }
+            finally
+            {
+                _pendingStarts.RemoveRange(0, processed);
+            }
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    private void Install(Camera camera)
+    {
+        RequireUnowned(camera);
+
+        camera.Scene = this;
+
+        // Set before the hook, not after: a camera whose OnAddedToScene throws has entered the
+        // scene, and Stop must still release it.
+        _cameraInstalled = true;
+        camera.OnAddedToScene();
+
+        // The hook may have installed another camera, which released this one and installed that
+        // one in full. Starting a camera the scene has let go of would begin time for something
+        // already removed.
+        if (!ReferenceEquals(_camera, camera))
+        {
+            return;
+        }
+
+        camera.RunStart();
+    }
+
+    private void RequireUnowned(Camera camera)
+    {
+        if (camera.Scene is not null && !ReferenceEquals(camera.Scene, this))
+        {
+            throw new InvalidOperationException(
+                $"A {camera.GetType().Name} is already framing a scene; a camera belongs to one scene at a time.");
+        }
     }
 
     private void Detach(Entity entity)

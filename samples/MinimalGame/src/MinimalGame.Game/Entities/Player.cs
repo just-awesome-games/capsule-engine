@@ -6,7 +6,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Physics;
 using Capsule.Scenes.Spawning;
 
-namespace MinimalGame.Game;
+namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// The walking, falling, jumping body spawned by the <c>player</c> entries of
@@ -68,7 +68,7 @@ public sealed class Player : Entity
     }
 
     /// <inheritdoc/>
-    public override void Update(in StepContext context)
+    protected override void OnStep(in StepContext context)
     {
         float delta = context.DeltaSeconds;
 

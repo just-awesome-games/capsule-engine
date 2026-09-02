@@ -65,7 +65,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
         Scene.BeginStep();
         Scene.RunStep(in context);
-        Scene.UpdateEntities(in context);
+        Scene.StepEntities(in context);
 
         // Contacts settle where every position this step will produce has been produced, so an
         // enter or exit is never raised against a position something is about to leave.

@@ -33,7 +33,7 @@ internal static class StageWorkload
     private static readonly TileDefinition Solid = new("solid", new ColorRgba(0x44, 0x53, 0x6B));
     private static readonly TileDefinition Platform = new("platform", new ColorRgba(0x6B, 0x53, 0x44));
 
-    internal static SceneDefaults Defaults => new(CameraViewport, TextureSampling.Point);
+    internal static SceneDefaults Defaults => new(TextureSampling.Point);
 
     internal static SceneDocument Build()
     {
@@ -107,7 +107,7 @@ internal static class StageWorkload
             : base(spawn.Position) =>
             Add(new QuadRenderer(new Vector2(16f, 24f), new ColorRgba(0x3C, 0xA6, 0xE8)));
 
-        public override void Update(in StepContext context) => Position += Vector2.UnitX;
+        protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }
 
     internal sealed class Actor : Entity
@@ -125,7 +125,7 @@ internal static class StageWorkload
             }
         }
 
-        public override void Update(in StepContext context) => Position += _drift;
+        protected internal override void OnStep(in StepContext context) => Position += _drift;
     }
 
     internal sealed class Spark : Entity
@@ -140,7 +140,7 @@ internal static class StageWorkload
             Add(new QuadRenderer(new Vector2(4f, 4f), new ColorRgba(0xFF, 0xD0, 0x40)));
         }
 
-        public override void Update(in StepContext context)
+        protected internal override void OnStep(in StepContext context)
         {
             Position += _velocity;
 
@@ -166,7 +166,11 @@ internal static class StageWorkload
             _flicker = Entities[^1];
         }
 
-        protected override void OnStart() => Camera.Teleport(_hero.Position);
+        protected override void OnStart()
+        {
+            Camera.ViewportSize = CameraViewport;
+            Camera.Teleport(_hero.Position);
+        }
 
         protected override void OnStep(in StepContext context)
         {

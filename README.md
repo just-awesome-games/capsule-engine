@@ -39,7 +39,7 @@ namespace MyGame.Game;
 public sealed class MainMenu : Scene;
 ```
 
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains a ready-to-copy repository layout and the minimal project wiring needed to start a game.
+[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains a ready-to-copy repository layout and the minimal project wiring needed to start a game; [`docs/project-layout.md`](docs/project-layout.md) is the directory convention for the game's own source inside it.
 
 ## Model
 

@@ -106,7 +106,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     {
         private bool _spawned;
 
-        public override void Update(in StepContext context)
+        protected internal override void OnStep(in StepContext context)
         {
             if (_spawned)
             {

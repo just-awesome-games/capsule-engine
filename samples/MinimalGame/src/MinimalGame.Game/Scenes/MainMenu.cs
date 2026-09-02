@@ -1,8 +1,9 @@
+using System.Numerics;
 using Capsule;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
 
-namespace MinimalGame.Game;
+namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// The boot scene, and the one backed by no <c>*.scene.json</c> and no <c>*.tmj</c>. Its public
@@ -13,7 +14,13 @@ namespace MinimalGame.Game;
 public sealed class MainMenu : Scene
 {
     /// <inheritdoc/>
-    protected override void OnStart() => Log.Info("Main menu: press Confirm to enter the room, Quit to leave.");
+    protected override void OnStart()
+    {
+        // The other half of the camera model: a scene with nothing to follow spans the plain
+        // camera it is given rather than installing one of its own.
+        Camera.ViewportSize = new Vector2(320f, 180f);
+        Log.Info("Main menu: press Confirm to enter the room, Quit to leave.");
+    }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)

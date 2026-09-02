@@ -1,26 +1,40 @@
 namespace Capsule.Scenes;
 
 /// <summary>
-/// A slot of behaviour or appearance on one <see cref="Scenes.Entity"/>. Updated after its
+/// A slot of behaviour or appearance on one <see cref="Scenes.Entity"/>. Stepped after its
 /// entity, in the order it was attached.
 /// </summary>
 public abstract class Component
 {
+    private bool _started;
+
     /// <summary>The entity this component is attached to; null until it is attached.</summary>
     public Entity? Entity { get; internal set; }
 
     /// <summary>Whether the entity holding this component is currently in a scene.</summary>
     protected bool InScene { get; private set; }
 
-    /// <summary>Advances this component by one fixed step.</summary>
-    public virtual void Update(in StepContext context)
+    /// <summary>Advances this component by one fixed step, after its entity has stepped.</summary>
+    protected internal virtual void OnStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
+    /// Runs once, before this component's first step and after everything added alongside it: its
+    /// entity has started and is in a scene, so that scene may be searched from here. Attaching to
+    /// an entity that has already started and is in a scene runs it immediately; attaching to one
+    /// out of a scene, or to one queued to leave the scene it is in, waits until that entity is in
+    /// a scene again.
+    /// </summary>
+    protected internal virtual void OnStart()
     {
     }
 
     /// <summary>
     /// Runs once the component's entity is in a scene, with <see cref="Entity"/> and its
     /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity a scene already holds
-    /// runs it immediately. Whatever the component registers with that scene is registered here.
+    /// runs it immediately. Whatever the component registers with that scene is registered here;
+    /// the scene's other contents may not exist yet, so discover them in <see cref="OnStart"/>.
     /// </summary>
     protected internal virtual void OnAddedToScene()
     {
@@ -67,6 +81,20 @@ public abstract class Component
 
         InScene = true;
         OnAddedToScene();
+    }
+
+    // Idempotent for the same reason EnterScene is: an entity starts the components it holds, and
+    // Entity.Add starts one taken on by an entity that has already started, so a component
+    // attached from inside another's OnStart must not start twice.
+    internal void RunStart()
+    {
+        if (_started)
+        {
+            return;
+        }
+
+        _started = true;
+        OnStart();
     }
 
     internal void LeaveScene()

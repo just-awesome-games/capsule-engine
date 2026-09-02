@@ -95,7 +95,7 @@ public sealed class SceneHostTests
     [Fact]
     public void TheGamesSceneDefaults_ReachEverySceneTheHostOpens()
     {
-        SceneDefaults defaults = new(new Vector2(320, 180), TextureSampling.Point);
+        SceneDefaults defaults = new(TextureSampling.Point);
 
         Scene Resolve(in SceneTarget target) => target.SceneType == typeof(NameRequestingScene)
             ? new NameRequestingScene()
@@ -105,7 +105,6 @@ public sealed class SceneHostTests
         host.Step(SceneStep(0));
 
         Assert.IsType<PassiveScene>(host.Scene);
-        Assert.Equal(new Vector2(320, 180), host.View.Camera.Size);
         Assert.Equal(TextureSampling.Point, host.View.Sampling);
     }
 
