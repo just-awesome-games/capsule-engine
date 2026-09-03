@@ -29,8 +29,8 @@
        Left unset, no size is imposed and each scene keeps its own. -->
 
   <PropertyGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build.Tool/Capsule.Build.Tool.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build.Tool/Capsule.Build.Tool.csproj</CapsuleBuildToolProject>
-    <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.Tool.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.Tool.dll</CapsuleBuildToolAssembly>
+    <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
+    <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
     <CapsuleCollectSceneDocumentsDependsOn Condition="'$(CapsuleCollectSceneDocumentsDependsOn)' == ''"></CapsuleCollectSceneDocumentsDependsOn>

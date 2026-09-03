@@ -147,12 +147,6 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "capsule.build.tool": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Scenes": "[0.0.0, )"
-        }
-      },
       "capsule.collision": {
         "type": "Project",
         "dependencies": {
@@ -177,6 +171,12 @@
         "dependencies": {
           "Capsule.Collision": "[0.0.0, )",
           "Capsule.Core": "[0.0.0, )",
+          "Capsule.Scenes": "[0.0.0, )"
+        }
+      },
+      "JAG.Capsule.Build": {
+        "type": "Project",
+        "dependencies": {
           "Capsule.Scenes": "[0.0.0, )"
         }
       },

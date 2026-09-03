@@ -1,4 +1,4 @@
-using Capsule.Build.Tool;
+using Capsule.Build;
 using Capsule.Scenes.Documents;
 
 namespace Capsule.Tests.Documents;

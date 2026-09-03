@@ -1,11 +1,11 @@
 using System.Globalization;
 
-namespace Capsule.Build.Tool;
+namespace Capsule.Build;
 
 internal static class Program
 {
     private const string Usage = """
-        Capsule.Build.Tool --out <dir> [--tile-size <px>] --scenes-from <list.txt>
+        Capsule.Build --out <dir> [--tile-size <px>] --scenes-from <list.txt>
 
           Validates every scene document named in <list.txt> (one path per line, relative to the
           working directory) and writes it canonically as <dir>/<scene>.scene.json, creating <dir>

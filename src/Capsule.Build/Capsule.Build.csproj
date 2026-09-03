@@ -1,17 +1,30 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
+  <!-- The package and the process at once. JAG.Capsule.Build ships the build targets, the
+       generators and this assembly, which is the scene-document process those targets run out of
+       process: it validates and canonically re-emits every *.scene.json a game ships. No game
+       references it and nothing invokes it by hand, so it packs unlisted under tools/ with no
+       reference assembly. -->
   <PropertyGroup>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Build</RootNamespace>
+    <AssemblyName>Capsule.Build</AssemblyName>
     <PackageId>JAG.Capsule.Build</PackageId>
     <Description>Build integration, source generators, analyzers, and scene-document tooling for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier></RuntimeIdentifier>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsuleBuildAssets</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Build.Tool/Capsule.Build.Tool.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
     <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
@@ -28,10 +41,12 @@
     <None Include="../../build/Icon.bmp" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 
+  <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and
+       its spine, and those ship beside it so it resolves without a game's package graph. -->
   <Target Name="IncludeCapsuleBuildAssets">
     <ItemGroup>
-      <TfmSpecificPackageFile Include="../Capsule.Build.Tool/bin/$(Configuration)/net10.0/*.dll" PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Build.Tool/bin/$(Configuration)/net10.0/*.json" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="$(OutDir)*.dll" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="$(OutDir)*.json" PackagePath="tools/net10.0/any/" />
       <TfmSpecificPackageFile Include="../Capsule.Generators/bin/$(Configuration)/netstandard2.0/Capsule.Generators.dll" PackagePath="analyzers/dotnet/cs/" />
     </ItemGroup>
   </Target>

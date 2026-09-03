@@ -7,7 +7,6 @@
   <Folder Name="/src/">
     <Project Path="src/Capsule/Capsule.csproj" />
     <Project Path="src/Capsule.Build/Capsule.Build.csproj" />
-    <Project Path="src/Capsule.Build.Tool/Capsule.Build.Tool.csproj" />
     <Project Path="src/Capsule.Collision/Capsule.Collision.csproj" />
     <Project Path="src/Capsule.Core/Capsule.Core.csproj" />
     <Project Path="src/Capsule.Generators/Capsule.Generators.csproj" />

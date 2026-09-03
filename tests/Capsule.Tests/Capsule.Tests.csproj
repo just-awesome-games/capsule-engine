@@ -28,7 +28,7 @@
        MonoGame-hiding contract: these specs compile without any Microsoft.Xna
        reference being available. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Capsule.Build.Tool\Capsule.Build.Tool.csproj" />
+    <ProjectReference Include="..\..\src\Capsule.Build\Capsule.Build.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Collision\Capsule.Collision.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Core\Capsule.Core.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Runtime\Capsule.Runtime.csproj" />

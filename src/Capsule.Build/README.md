@@ -1,8 +1,8 @@
 # Capsule.Build
 
-Build-time integration, generators, analyzers and the scene-document process — collected into one package a game references and never ships.
+Build-time integration, generators, analyzers and the scene-document process — one package a game references and never ships, and one project that is both the package and the process.
 
-Contains: `Capsule.Build.Tool` (packed unlisted under `tools/`, run by the scene-document targets), `Capsule.Generators` (including the analyzer), and build targets.
+Contains: the build targets, `Capsule.Generators` (including the analyzer), and this assembly — the scene-document process the targets run, packed unlisted under `tools/`.
 
 Referenced by: all game projects.
 

@@ -95,7 +95,7 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 Games author scene documents under `src/asset-sources/scenes/`, and the build validates each one, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<name>.scene.json` beside the executable. Two sources sharing a stem fail the build because that directory is flat, and derived documents are never committed. The shell role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and a game may declare the one tile size every scene must match with `<CapsuleTileSize>` — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
 
-The process behind the hook is `Capsule.Build.Tool`, packed unlisted inside `JAG.Capsule.Build`. It takes `--out <dir> [--tile-size <px>] --scenes-from <list.txt>`, attempts every source named in the list, and exits 0 when all succeeded, 1 when any failed, 2 on a usage error. The build is its only caller.
+The process behind the hook is `Capsule.Build` itself, packed unlisted under the package's `tools/`. It takes `--out <dir> [--tile-size <px>] --scenes-from <list.txt>`, attempts every source named in the list, and exits 0 when all succeeded, 1 when any failed, 2 on a usage error. The build is its only caller.
 
 ## Authoring tools
 

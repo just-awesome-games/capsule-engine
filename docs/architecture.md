@@ -11,8 +11,7 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | `Capsule.Scenes` | The world a game plays in: a scene, the entities on it, their components, the camera, and the scene document a scene is composed from. Substrate-free — Capsule.Core and Capsule.Collision only — so a scene is constructible and assertable headlessly. | Core, Collision |
 | `Capsule.Runtime` | The host: window, device, clock, sampling, renderer, crash log. | the pure modules |
 | `Capsule.Generators` | Capsule's source generators and the compile-time enforcement of Capsule's game-logic boundary. Generators read a compilation and emit the registries a game would otherwise hand-maintain, so a game keeps no registration table and uses no reflection to boot. The analyzer enforces the logic boundary; determinism is a property the engine promises, and a logic assembly that reached a device, the filesystem, an ambient clock or ambient randomness would break it silently — so the compiler refuses instead. | unconstrained |
-| `Capsule.Build.Tool` | The build's scene-document process, packed unlisted inside `JAG.Capsule.Build`. No game references it and nothing runs it by hand. | unconstrained |
-| `Capsule.Build` | Build-time tooling; ships in no game. | unconstrained |
+| `Capsule.Build` | Build-time tooling; ships in no game. The package and the scene-document process at once: the targets run this assembly, packed unlisted under `tools/`, and nothing else references or invokes it. | unconstrained |
 
 `Capsule.Architecture.targets` enforces the reference column for the substrate-free modules, and that they take no package dependency at all.
 
