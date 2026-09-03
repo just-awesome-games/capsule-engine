@@ -51,12 +51,36 @@ internal sealed class SceneEntryJson
     [JsonPropertyOrder(3)]
     public float? Y { get; set; }
 
+    private float[]? _scale;
+
+    // Absent on an entry at the authored size, which is most of them, so the canonical form stays
+    // lean; WhenWritingNull keeps it out. An array rather than two members because it is one
+    // quantity per axis, and nullable so a wrong arity is the reader's error to name.
+    [JsonPropertyName("scale")]
+    [JsonPropertyOrder(4)]
+    public float[]? Scale
+    {
+        get => _scale;
+        set
+        {
+            _scale = value;
+            HasScale = true;
+        }
+    }
+
+    // Whether the field was written at all, which the deserializer answers by calling the setter
+    // only for a field the document carries. The tile-map entry is refused a scale on presence
+    // rather than on value: an explicit null deserializes to the same absent array, and the reader
+    // would accept it and then write the entry back without it.
+    [JsonIgnore]
+    public bool HasScale { get; private set; }
+
     // Held as raw JSON, not as a member of this shape: properties are a contract per entry type,
     // and exactly one type declares one today. The reader deserializes the tile-map's against
     // TileGridJson and rejects properties on any other type, so nothing here is set by name.
     // WhenWritingNull keeps the member out of an entry that carries none.
     [JsonPropertyName("properties")]
-    [JsonPropertyOrder(4)]
+    [JsonPropertyOrder(5)]
     public JsonElement? Properties { get; set; }
 }
 

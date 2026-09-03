@@ -8,6 +8,8 @@ namespace Capsule.Scenes.Documents;
 public readonly record struct SceneDocumentEntry
 {
     private readonly EntryKind _kind;
+    private readonly float _scaleX;
+    private readonly float _scaleY;
     private readonly string? _type;
     private readonly TileGrid? _grid;
 
@@ -17,6 +19,8 @@ public readonly record struct SceneDocumentEntry
         Id = entity.Id;
         X = entity.X;
         Y = entity.Y;
+        _scaleX = entity.ScaleX;
+        _scaleY = entity.ScaleY;
         _type = entity.Type;
         _grid = null;
     }
@@ -27,6 +31,11 @@ public readonly record struct SceneDocumentEntry
         Id = tileMap.Id;
         X = 0f;
         Y = 0f;
+
+        // A tile map is anchored and unscaled, so the fields exist only to be handed back
+        // unchanged; identity keeps a tile-map entry out of every scale check.
+        _scaleX = 1f;
+        _scaleY = 1f;
         _type = null;
         _grid = tileMap.Grid;
     }
@@ -42,7 +51,7 @@ public readonly record struct SceneDocumentEntry
 
     /// <summary>The game-defined entity placement, or null when this is a tile map.</summary>
     public EntityPlacement? Entity =>
-        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y) : null;
+        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY) : null;
 
     /// <summary>The engine-native tile-map placement, or null when this is a game entity.</summary>
     public TileMapPlacement? TileMap =>

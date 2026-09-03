@@ -290,6 +290,63 @@ public sealed class TiledImportTests
         Assert.All(document.Entries.ToArray(), entry => Assert.NotNull(entry.Entity));
     }
 
+    // A tile object is authored by dragging a tileset tile out and resizing it, so its box against
+    // the cell it came from is the scale. A point carries a width and height of 0 and no gid, and
+    // those mean nothing to Capsule, so it still imports as a position alone.
+    [Fact]
+    public void Import_ScalesATileObjectByItsBoxOverTheTilesetCell()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+
+        SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", TileObject("\"gid\":1,")));
+
+        EntityPlacement placed = document.Entries.ToArray()[^1].Entity!.Value;
+
+        Assert.Equal("crate", placed.Type);
+        Assert.Equal(2f, placed.ScaleX);
+        Assert.Equal(0.5f, placed.ScaleY);
+
+        // The points beside it keep the identity scale, which the canonical form leaves out.
+        Assert.Equal(1f, document.Entries.ToArray()[1].Entity!.Value.ScaleX);
+        Assert.Equal(1, SceneDocumentFile.ToJson(document).Split("\"scale\"").Length - 1);
+    }
+
+    [Fact]
+    public void Import_RefusesAFlippedTileObject()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        workspace.Write("room.tmj", TileObject("\"gid\":2147483649,"));
+
+        TiledImportException error = Assert.Throws<TiledImportException>(() => TiledImporter.Import("room.tmj"));
+
+        Assert.Contains("flipped or rotated tile object", error.Message, StringComparison.Ordinal);
+        Assert.Contains("unflipped tiles only", error.Message, StringComparison.Ordinal);
+    }
+
+    // One 32x8 tile object of the 16px tileset, appended to the object layer.
+    private static string TileObject(string gid) => Mutate(
+        SceneDocumentFixtures.Read("room.tmj").ReplaceLineEndings("\n"),
+        "                 \"x\":40.5,\n                 \"y\":24\n                }],",
+        $$"""
+                         "x":40.5,
+                         "y":24
+                        },
+                        {
+                         "height":8,
+                         "id":4,
+                         {{gid}}
+                         "name":"",
+                         "rotation":0,
+                         "type":"crate",
+                         "visible":true,
+                         "width":32,
+                         "x":64,
+                         "y":48
+                        }],
+        """);
+
     [Fact]
     public void Import_RejectsAClassDefinedByTwoTiles()
     {

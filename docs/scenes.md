@@ -32,11 +32,11 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 3 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
+`SceneDocumentFile` reads and writes format version 4 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
 
 ```json
 {
-  "formatVersion": 3,
+  "formatVersion": 4,
   "entities": [
     {
       "id": 1,
@@ -57,14 +57,16 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
         "tiles": [0, 1]
       }
     },
-    { "id": 2, "type": "coin", "x": 8, "y": 0 }
+    { "id": 2, "type": "coin", "x": 8, "y": 0 },
+    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3] }
   ],
-  "nextEntityId": 3
+  "nextEntityId": 4
 }
 ```
 
 - `formatVersion` is required and must be supported.
-- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `properties` follows when the type declares a contract.
+- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `scale` and then `properties` follow where the entry carries them.
+- `scale` is `[x, y]`, both components finite and greater than zero. Absent is identity, which is what the writer emits for an entry at its authored size. It is the raw authored factor: what it scales — a sprite, a collider through `Shape2D.Scaled`, or nothing — is the entity's constructor's decision. A `scale` on the `tile-map` entry is rejected, since terrain is anchored and unscaled.
 - IDs are unique, positive, and lower than `nextEntityId`, across every entry. Deleted IDs are not reused.
 - `entities` may be empty: that is a valid empty scene.
 - A `source` block records tool, relative source path, and SHA-256 of the source closure. Its presence marks a derived file, so an authoring source omits it.
@@ -105,6 +107,8 @@ The build writes derived documents under `obj/`, stamps their provenance, and co
 ## Tiled subset
 
 Capsule imports `.tmj` maps that are orthogonal, finite, square-tiled, CSV-encoded and unflipped. A tileset tile's Class is the tile type, its local tile id is the type's `cell`, and its optional `layer` and `collidableFaces` properties map to the document fields above.
+
+An object's Class is its entry `type` and its position is its `x` and `y`. A tile object — one dragged out of a tileset, so it carries a gid — also imports a `scale`: its width and height over the tile size of the tileset its gid resolves to, written only when that is not identity. A flipped or rotated tile object is refused. Points and rectangles carry no gid and import as position alone; their size means nothing to Capsule.
 
 Tilesets are image tilesets only — a collection of separate images is refused. A tileset's image is resolved against the `.tsj`, must sit under the game's `asset-sources/textures/`, and its file name is the layer's `texture`; its `columns` are copied, and its tile size must be square and equal to the map's. One tile layer paints from one tileset, because a grid cuts its cells from one texture; a layer spanning two is refused naming both, and a layer painting nothing imports as an entry with no texture and the `empty` type alone. Every other constraint is reported by the importer at the failing file.
 

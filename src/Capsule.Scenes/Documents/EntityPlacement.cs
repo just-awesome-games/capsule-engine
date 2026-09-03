@@ -8,4 +8,12 @@ namespace Capsule.Scenes.Documents;
 /// <param name="Type">The spawn type claimed by a game entity.</param>
 /// <param name="X">The authored world-space X coordinate.</param>
 /// <param name="Y">The authored world-space Y coordinate.</param>
-public readonly record struct EntityPlacement(int Id, string Type, float X, float Y);
+/// <param name="ScaleX">The authored X scale factor; 1 is the authored size unscaled.</param>
+/// <param name="ScaleY">The authored Y scale factor; 1 is the authored size unscaled.</param>
+public readonly record struct EntityPlacement(
+    int Id,
+    string Type,
+    float X,
+    float Y,
+    float ScaleX = 1f,
+    float ScaleY = 1f);

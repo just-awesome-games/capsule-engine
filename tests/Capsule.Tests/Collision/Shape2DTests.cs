@@ -195,4 +195,92 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(18f, 28f), moved.Bounds.Max);
     }
 
+    // About the shape's own origin, so a box offset from it moves with its corners rather than
+    // growing in place; where the collider then sits is applied elsewhere and is untouched.
+    [Fact]
+    public void Scaled_MultipliesEveryPointAboutTheShapesOwnOrigin()
+    {
+        Shape2D scaled = Shape2D.Box(new Vector2(2f, 4f), new Vector2(8f, 8f)).Scaled(new Vector2(2f, 0.5f));
+
+        Assert.Equal(new Vector2(4f, 2f), scaled.Bounds.Min);
+        Assert.Equal(new Vector2(20f, 6f), scaled.Bounds.Max);
+        Assert.Equal(ShapeKind2D.Box, scaled.Kind);
+    }
+
+    [Fact]
+    public void Scaled_TakesAPolygonsPointsAndAxesIndependently()
+    {
+        Shape2D scaled = Shape2D.Polygon([new Vector2(0f, -4f), new Vector2(8f, 0f), new Vector2(0f, 4f)])
+            .Scaled(new Vector2(0.5f, 3f));
+
+        Assert.Equal(ShapeKind2D.Polygon, scaled.Kind);
+        Assert.Equal(new Vector2(0f, -12f), scaled.Point(0));
+        Assert.Equal(new Vector2(4f, 0f), scaled.Point(1));
+        Assert.Equal(new Vector2(0f, 12f), scaled.Point(2));
+    }
+
+    // A radius is one distance: scaled unevenly it would name a shape the narrowphase has no
+    // representation for, so the two rounded kinds take a uniform factor only.
+    [Fact]
+    public void Scaled_ScalesARoundedShapesRadiusWithItsPoints()
+    {
+        Shape2D circle = Shape2D.Circle(new Vector2(4f, 0f), 2f).Scaled(new Vector2(3f, 3f));
+        Shape2D capsule = Shape2D.Capsule(new Vector2(0f, -4f), new Vector2(0f, 4f), 1f).Scaled(new Vector2(2f, 2f));
+
+        Assert.Equal(6f, circle.Radius);
+        Assert.Equal(new Vector2(12f, 0f), circle.Point(0));
+        Assert.Equal(2f, capsule.Radius);
+        Assert.Equal(new Vector2(0f, -8f), capsule.Point(0));
+        Assert.Equal(new Vector2(0f, 8f), capsule.Point(1));
+    }
+
+    [Fact]
+    public void Scaled_RefusesANonUniformScaleOnARoundedShape()
+    {
+        ArgumentException circle = Assert.Throws<ArgumentException>(
+            () => Shape2D.Circle(Vector2.Zero, 2f).Scaled(new Vector2(2f, 1f)));
+        ArgumentException capsule = Assert.Throws<ArgumentException>(
+            () => Shape2D.Capsule(new Vector2(0f, -4f), new Vector2(0f, 4f), 1f).Scaled(new Vector2(1f, 2f)));
+        ArgumentException rounded = Assert.Throws<ArgumentException>(
+            () => Shape2D.Polygon([new Vector2(0f, -4f), new Vector2(8f, 0f), new Vector2(0f, 4f)], 1f)
+                .Scaled(new Vector2(2f, 1f)));
+
+        Assert.Contains("A Circle is rounded by a radius", circle.Message, StringComparison.Ordinal);
+        Assert.Contains("A Capsule is rounded by a radius", capsule.Message, StringComparison.Ordinal);
+        Assert.Contains("A Polygon is rounded by a radius", rounded.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0f, 1f)]
+    [InlineData(1f, -2f)]
+    [InlineData(float.NaN, 1f)]
+    [InlineData(1f, float.PositiveInfinity)]
+    public void Scaled_RefusesAFactorThatIsNotPositiveAndFinite(float x, float y)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Scaled(new Vector2(x, y)));
+    }
+
+    // The result is held to what construction holds a shape to: scaled far enough down, a box's
+    // corners land on each other and there is no region left to collide with.
+    [Fact]
+    public void Scaled_RefusesAShapeItWouldCollapse()
+    {
+        ArgumentException error = Assert.Throws<ArgumentException>(
+            () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Scaled(new Vector2(1e-6f, 1e-6f)));
+
+        Assert.Contains("closer together than the linear slop", error.Message, StringComparison.Ordinal);
+    }
+
+    // Scaled far enough up, a capsule's endpoints and radius are each still a float while the
+    // segment the narrowphase measures along is not; construction refuses that shape, so scaling
+    // does too.
+    [Fact]
+    public void Scaled_RefusesACapsuleWhoseSegmentOverflows()
+    {
+        ArgumentException error = Assert.Throws<ArgumentException>(
+            () => Shape2D.Capsule(Vector2.Zero, new Vector2(1f, 0f), 1e-6f).Scaled(new Vector2(3e19f, 3e19f)));
+
+        Assert.Contains("The edge leaving point 0 spans more than a float can measure", error.Message, StringComparison.Ordinal);
+    }
 }

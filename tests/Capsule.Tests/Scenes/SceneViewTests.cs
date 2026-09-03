@@ -136,6 +136,60 @@ public sealed class SceneViewTests
         Assert.Equal(new Vector2(21, 20), drifter.Position);
     }
 
+    // The pivot is in region texels and the corner math scales it with the region, so a frame
+    // anchored at its centre stays centred on the entity however large it is drawn.
+    [Fact]
+    public void AScaledSprite_KeepsItsPivotOnTheEntitysPosition()
+    {
+        SceneFixtures.Drifter drifter = new(new Vector2(50, 50));
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8) with { Pivot = new Vector2(4, 4) })
+        {
+            Scale = new Vector2(2, 2),
+        });
+
+        SceneFixtures.HookScene scene = new(start: Open(new Vector2(50, 50)));
+        scene.Add(drifter);
+        SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+
+        SpriteIntent body = simulation.View.Sprites[0];
+
+        Assert.Equal(new Vector2(16, 16), body.Size);
+        Assert.Equal(new Vector2(51, 50), body.Position);
+
+        // Twice the frame, still hung from its middle: the rect straddles the swept position by
+        // eight world units on every side rather than hanging off one corner of it.
+        Assert.True(body.TryGetSweptBounds(out ViewBounds swept));
+        Assert.Equal(new ViewBounds(42f, 42f, 59f, 58f), swept);
+    }
+
+    // No validation on the setter: a scale that is not a size makes an extent the frame view
+    // already refuses, so the sprite is culled rather than drawn inside out.
+    [Theory]
+    [InlineData(0f, 1f)]
+    [InlineData(-1f, 1f)]
+    [InlineData(1f, float.NaN)]
+    public void ASpriteScaledToNothing_DrawsNothing(float x, float y)
+    {
+        SceneFixtures.Drifter drifter = new(new Vector2(50, 50));
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)) { Scale = new Vector2(x, y) });
+
+        SceneFixtures.HookScene scene = new(start: Open(new Vector2(50, 50)));
+        scene.Add(drifter);
+        SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Empty(simulation.View.Sprites.ToArray());
+    }
+
+    private static Action<Scene> Open(Vector2 center) => scene =>
+    {
+        scene.Camera.Center = center;
+        scene.Camera.ViewportSize = new Vector2(320, 180);
+    };
+
     // Draws nothing itself; takes the renderer it was given off its entity as it goes.
     private sealed class Detacher(Renderer doomed) : Renderer
     {

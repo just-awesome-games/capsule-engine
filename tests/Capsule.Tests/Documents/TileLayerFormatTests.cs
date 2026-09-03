@@ -49,7 +49,7 @@ public sealed class TileLayerFormatTests
     public void AVersionOneDocument_IsRefused()
     {
         string written = SceneDocumentFile.ToJson(Document("solid", CellFaces2D.All))
-            .Replace("\"formatVersion\": 3", "\"formatVersion\": 1", StringComparison.Ordinal);
+            .Replace("\"formatVersion\": 4", "\"formatVersion\": 1", StringComparison.Ordinal);
 
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(written));

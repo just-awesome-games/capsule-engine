@@ -210,6 +210,7 @@ public static class TiledImporter
             tileset.FirstGid,
             TextureOf(tileset, name, tilesetDirectory, dependencyRoot),
             tileset.Columns,
+            tileset.TileWidth,
             BuildPalette(tileset, name, tilesetByClass, out Dictionary<int, int> indexByGid),
             indexByGid);
     }
@@ -452,7 +453,7 @@ public static class TiledImporter
                                 $"object {placed.Id} on layer '{layer.Name}' has no Class; every object is typed by its Class.");
                         }
 
-                        entries.Add(new EntityPlacement(placed.Id, objectClass, (float)placed.X, (float)placed.Y));
+                        entries.Add(Placement(placed, objectClass, layer, tilesets));
                     }
 
                     break;
@@ -464,6 +465,40 @@ public static class TiledImporter
         }
 
         return entries;
+    }
+
+    // A tile object is authored by dragging a tileset tile out and resizing it, so its width and
+    // height are the scale the author asked for, read against the cell they came from. Every other
+    // object is a point or a rectangle: those carry a size Capsule has no meaning for, so only
+    // their position imports.
+    private static EntityPlacement Placement(
+        TiledObject placed,
+        string objectClass,
+        TiledLayer layer,
+        Tileset[] tilesets)
+    {
+        if (placed.Gid is not { } gid)
+        {
+            return new EntityPlacement(placed.Id, objectClass, (float)placed.X, (float)placed.Y);
+        }
+
+        if ((gid & OrientationFlags) != 0)
+        {
+            throw new TiledImportException(
+                $"object {placed.Id} on layer '{layer.Name}' is a flipped or rotated tile object; Capsule imports unflipped tiles only.");
+        }
+
+        Tileset drawn = OwnerOf(gid, tilesets)
+            ?? throw new TiledImportException(
+                $"object {placed.Id} on layer '{layer.Name}' has tile gid {gid}, which belongs to no tileset in the map.");
+
+        return new EntityPlacement(
+            placed.Id,
+            objectClass,
+            (float)placed.X,
+            (float)placed.Y,
+            (float)(placed.Width / drawn.TileSize),
+            (float)(placed.Height / drawn.TileSize));
     }
 
     // One layer paints from one tileset, because a grid cuts its cells from one texture. A layer
@@ -643,6 +678,7 @@ public static class TiledImporter
         int FirstGid,
         TextureHandle Texture,
         int Columns,
+        int TileSize,
         TileDefinition[] Palette,
         Dictionary<int, int> IndexByGid);
 }

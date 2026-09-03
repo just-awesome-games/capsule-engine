@@ -20,15 +20,23 @@ namespace MinimalGame.Game.Entities;
 /// </para>
 /// <para>
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body: the box collider is
-/// corner-anchored, and the sprite anchors its frame's top-centre at that same pivot offset from
-/// the corner, so the frame covers the body facing either way and a Tiled point object's
+/// corner-anchored, and the sprite anchors its frame's bottom-centre at that same pivot offset
+/// from the corner, so the frame covers the body facing either way and a Tiled point object's
 /// coordinate is taken as that corner here. Anchoring an authored coordinate is each entity's own
 /// convention.
 /// </para>
 /// <para>
 /// The frame is drawn by a <see cref="SpriteRenderer"/> whose <see cref="SpriteRenderer.FlipX"/>
-/// the walk direction sets, so one texture faces both ways: a flip mirrors the frame about its
-/// pivot, and the pivot is the point <see cref="SpriteRenderer.Offset"/> puts on the body.
+/// the walk direction sets, so one texture faces both ways. Flip and
+/// <see cref="SpriteRenderer.Scale"/> both work about the frame's pivot, and the pivot is the
+/// point <see cref="SpriteRenderer.Offset"/> puts on the body: at the feet, so a mirror is about
+/// the body's horizontal centre and a squash-and-stretch keeps the feet planted — the squash
+/// spreads into the floor instead of sinking through it, and the stretch grows upward.
+/// </para>
+/// <para>
+/// That squash-and-stretch is presentation and nothing more. Jumping and landing each throw the
+/// sprite's scale off <see cref="Vector2.One"/> and it eases back; the collider keeps its 8x8 box
+/// throughout, so a stretched player is no taller to the physics than a resting one.
 /// </para>
 /// <para>
 /// The two collision filters are independent. <see cref="KinematicBody2D.BlocksOn"/> names what
@@ -53,15 +61,32 @@ public sealed class Player : Entity
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
+    /// <summary>
+    /// The scale the sprite snaps to on take-off: tall and thin, the classic platformer stretch.
+    /// Tune the pair together — the product is what reads as volume, and nothing enforces it.
+    /// </summary>
+    private static readonly Vector2 JumpStretch = new(0.6f, 1.4f);
+
+    /// <summary>The scale the sprite snaps to on landing: wide and flat, the stretch inverted.</summary>
+    private static readonly Vector2 LandSquash = new(1.4f, 0.6f);
+
+    /// <summary>
+    /// Scale units per second each axis walks back towards 1 after an impulse. At 1.6 the 0.4 of
+    /// either impulse is spent in a quarter second; raise it for a snappier recovery, lower it to
+    /// let the deformation linger.
+    /// </summary>
+    private const float ScaleRecovery = 1.6f;
+
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
 
     /// <summary>
     /// The frame's pivot, in texels from its top-left corner, and the same vector from the body's
-    /// corner to the point it anchors. Halfway across the region on purpose: a flip mirrors the
-    /// frame about its pivot, so anchoring the horizontal centre keeps the drawn frame over the
-    /// corner-anchored collider in both facings. Both derive from the region's own width.
+    /// corner to the point it anchors. Bottom-centre on purpose: a flip and a scale both work
+    /// about the pivot, so the horizontal centre keeps the drawn frame over the corner-anchored
+    /// collider in both facings, and the bottom edge keeps a squashed or stretched frame standing
+    /// on the floor the body stands on. Both derive from the region's own extent.
     /// </summary>
-    private static readonly Vector2 Pivot = new(BodyPixels / 2f, 0f);
+    private static readonly Vector2 Pivot = new(BodyPixels / 2f, BodyPixels);
 
     /// <summary>The whole of <c>textures/player.png</c>.</summary>
     private static readonly Sprite Idle =
@@ -97,6 +122,12 @@ public sealed class Player : Entity
     {
         float delta = context.DeltaSeconds;
 
+        // Recovery runs before this step's impulses, so an impulse set below is drawn whole.
+        // On the fixed step, so the deformation is identical on every machine and frame rate.
+        _sprite.Scale = new Vector2(
+            Approach(_sprite.Scale.X, 1f, ScaleRecovery * delta),
+            Approach(_sprite.Scale.Y, 1f, ScaleRecovery * delta));
+
         // The body applies no forces: velocity is the game's, every step.
         _velocity.X = context.Input.Axis(GameInput.Move) * WalkSpeed;
         _velocity.Y += Gravity * delta;
@@ -112,6 +143,10 @@ public sealed class Player : Entity
         if (wasOnFloor && context.Input.WasPressed(GameInput.Jump))
         {
             _velocity.Y = -JumpSpeed;
+
+            // Scale is presentation alone: the 8x8 box collider does not follow the frame, so
+            // this taller player is exactly as tall to the sweep below as a resting one.
+            _sprite.Scale = JumpStretch;
             Log.Info("jumped");
         }
 
@@ -129,6 +164,7 @@ public sealed class Player : Entity
                 {
                     if (contact.Normal.Y < 0f)
                     {
+                        _sprite.Scale = LandSquash;
                         Log.Info("landed on " + contact.LayerName);
                         break;
                     }
@@ -141,4 +177,11 @@ public sealed class Player : Entity
             _velocity.Y = 0f;
         }
     }
+
+    /// <summary>
+    /// Moves <paramref name="value"/> towards <paramref name="target"/> by at most
+    /// <paramref name="maxDelta"/>, landing exactly on it rather than overshooting.
+    /// </summary>
+    private static float Approach(float value, float target, float maxDelta) =>
+        value > target ? MathF.Max(value - maxDelta, target) : MathF.Min(value + maxDelta, target);
 }

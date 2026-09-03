@@ -14,7 +14,7 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 3;
+    private const int FormatVersion = 4;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -65,6 +65,12 @@ public static class SceneDocumentFile
 
             if (IsTileMap(entry))
             {
+                if (entry.HasScale)
+                {
+                    throw new SceneDocumentFormatException(
+                        $"the '{SceneDocument.TileMapType}' entry declares a scale; terrain is anchored and unscaled, and a tile's size is its grid's tileSize.");
+                }
+
                 documentEntries[i] = ReadTileMap(entry, x, y);
                 continue;
             }
@@ -75,7 +81,8 @@ public static class SceneDocumentFile
                     $"entities[{i}] declares properties, but the type '{type}' has no properties contract; only '{SceneDocument.TileMapType}' declares one.");
             }
 
-            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y);
+            Scale(entry, i, out float scaleX, out float scaleY);
+            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY);
         }
 
         return new SceneDocument(documentEntries, file.NextEntityId, ToSource(file.Source));
@@ -113,6 +120,12 @@ public static class SceneDocumentFile
                     Type = placed.Type,
                     X = placed.X,
                     Y = placed.Y,
+
+                    // Written only where it says something: identity is what an absent scale means,
+                    // so emitting it would put a field in every entry the format already covers.
+                    Scale = placed.ScaleX == 1f && placed.ScaleY == 1f
+                        ? null
+                        : [placed.ScaleX, placed.ScaleY],
                 };
             }
             else
@@ -165,6 +178,28 @@ public static class SceneDocumentFile
         y = entryY;
 
         return entry;
+    }
+
+    // An absent scale is identity, which is what the writer leaves out. Only the arity is decided
+    // here; whether the components are a scale at all is the document's own invariant, checked
+    // wherever a document is built.
+    private static void Scale(SceneEntryJson entry, int index, out float x, out float y)
+    {
+        if (entry.Scale is not { } scale)
+        {
+            x = 1f;
+            y = 1f;
+            return;
+        }
+
+        if (scale.Length != 2)
+        {
+            throw new SceneDocumentFormatException(
+                $"entities[{index}] has a scale of {scale.Length} components; a scale is written [x, y], and an entry at the authored size leaves it out.");
+        }
+
+        x = scale[0];
+        y = scale[1];
     }
 
     private static TileMapPlacement ReadTileMap(SceneEntryJson entry, float x, float y)

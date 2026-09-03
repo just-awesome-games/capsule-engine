@@ -29,14 +29,14 @@ public sealed class SceneDocumentFileTests
             () => SceneDocumentFile.Parse(json));
 
         Assert.Contains(expectedMessage, error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 3", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 4", error.Message, StringComparison.Ordinal);
     }
 
     // An explicit null arrives as a null the property's own initializer never answers for, so an
     // omitted list passing says nothing about this one.
     [Theory]
-    [InlineData("""{"formatVersion": 3, "nextEntityId": 1}""")]
-    [InlineData("""{"formatVersion": 3, "entities": null, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 4, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 4, "entities": null, "nextEntityId": 1}""")]
     public void Parse_RejectsADocumentWithNoEntities(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -52,7 +52,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 3,
+              "formatVersion": 4,
               "entities": [
                 {
                   "id": 1,
@@ -75,7 +75,7 @@ public sealed class SceneDocumentFileTests
     [Fact]
     public void ADocumentWithNoEntries_IsAnEmptyScene()
     {
-        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 3, "entities": [], "nextEntityId": 1}""");
+        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 4, "entities": [], "nextEntityId": 1}""");
 
         Assert.Empty(document.Entries.ToArray());
     }
@@ -85,7 +85,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 3,
+              "formatVersion": 4,
               "entities": [
                 { "id": 1, "type": "coin", "x": 0, "y": 0 },
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
@@ -146,8 +146,8 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("""{"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
-    [InlineData("""{"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
     public void Parse_RejectsATileMapEntryWithMissingOrNullProperties(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -163,7 +163,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
+                {"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -319,7 +319,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$$"""
-                {"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1, "columns": {{{columns}}},
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -389,7 +389,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 3, "entities": [{"type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 4, "entities": [{"type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -493,7 +493,7 @@ public sealed class SceneDocumentFileTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 3,",
+            "  \"formatVersion\": 4,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -608,6 +608,84 @@ public sealed class SceneDocumentFileTests
         Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
     }
 
+    // Identity is what an absent scale means, so the canonical form carries the field only where
+    // it says something — and a document that writes it must read it back the same way.
+    [Fact]
+    public void AScaledEntry_RoundTripsAndAnUnscaledOneWritesNoScale()
+    {
+        SceneDocument document = new(
+            [new EntityPlacement(1, "banner", 8f, 0f, 2f, 3f), new EntityPlacement(2, "coin", 16f, 0f)],
+            3);
+
+        string json = SceneDocumentFile.ToJson(document);
+        SceneDocument round = SceneDocumentFile.Parse(json);
+
+        Assert.Contains("\"scale\": [\n        2,\n        3\n      ]", json, StringComparison.Ordinal);
+        Assert.Equal(1, CountOf(json, "\"scale\""));
+        Assert.Equal(document.Entries[0].Entity, round.Entries[0].Entity);
+        Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleX);
+        Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleY);
+        Assert.Equal(json, SceneDocumentFile.ToJson(round));
+    }
+
+    [Theory]
+    [InlineData("[2]", "scale of 1 components")]
+    [InlineData("[1, 2, 3]", "scale of 3 components")]
+    [InlineData("[0, 1]", "which is not a scale")]
+    [InlineData("[1, -2]", "which is not a scale")]
+    public void Parse_RejectsAScaleThatIsNotTwoPositiveFactors(string scale, string expected)
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.Parse(DocumentText(
+                entities: $$"""
+                    ,
+                        {
+                          "id": 2,
+                          "type": "coin",
+                          "x": 8,
+                          "y": 0,
+                          "scale": {{scale}}
+                        }
+                    """,
+                nextEntityId: 3)));
+
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale here
+    // would be a factor the engine writes back and then ignores.
+    [Fact]
+    public void Parse_RejectsAScaleOnTheTileMapEntry()
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.Parse(DocumentText(extra: "", scale: "\"scale\": [2, 2],")));
+
+        Assert.Contains("anchored and unscaled", error.Message, StringComparison.Ordinal);
+    }
+
+    // Asked of the field's presence rather than its value: a null scale reads as the absent one, so
+    // on value alone the entry would parse and then be written back without the field it declared.
+    [Fact]
+    public void Parse_RejectsANullScaleOnTheTileMapEntry()
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.Parse(DocumentText(extra: "", scale: "\"scale\": null,")));
+
+        Assert.Contains("anchored and unscaled", error.Message, StringComparison.Ordinal);
+    }
+
+    private static int CountOf(string json, string needle)
+    {
+        int count = 0;
+        for (int at = json.IndexOf(needle, StringComparison.Ordinal); at >= 0;
+            at = json.IndexOf(needle, at + needle.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
     private static TileMapPlacement Terrain() =>
         new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4));
 
@@ -625,16 +703,18 @@ public sealed class SceneDocumentFileTests
         string entities = "",
         int nextEntityId = 2,
         string extra = "",
-        string texture = "\"terrain.png\"") =>
+        string texture = "\"terrain.png\"",
+        string scale = "") =>
         $$"""
         {
-          "formatVersion": 3,
+          "formatVersion": 4,
           "entities": [
             {
               "id": 1,
               "type": "tile-map",
               "x": 0,
               "y": 0,
+              {{scale}}
               "properties": {
                 "tileSize": 16,
                 "width": 2,

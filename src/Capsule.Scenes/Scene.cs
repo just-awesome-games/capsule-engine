@@ -78,7 +78,8 @@ public class Scene
                 Add(content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
-                    new Vector2(placed.X, placed.Y))));
+                    new Vector2(placed.X, placed.Y),
+                    new Vector2(placed.ScaleX, placed.ScaleY))));
             }
         }
     }

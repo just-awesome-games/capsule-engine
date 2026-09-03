@@ -165,5 +165,16 @@ internal sealed class TiledObject
     [JsonPropertyName("y")]
     public double Y { get; set; }
 
+    [JsonPropertyName("width")]
+    public double Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public double Height { get; set; }
+
+    // Present only on a tile object — one placed from a tileset — and carrying Tiled's flip bits in
+    // its top nibble. Its absence is what tells a point or a rectangle from a tile.
+    [JsonPropertyName("gid")]
+    public uint? Gid { get; set; }
+
     public string? ResolvedClass => string.IsNullOrWhiteSpace(Class) ? Type : Class;
 }

@@ -77,16 +77,11 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         RequireFinite(start, nameof(start));
         RequireFinite(end, nameof(end));
 
-        if (Vector2.DistanceSquared(start, end) <= PointTolerance * PointTolerance)
-        {
-            throw new ArgumentException(
-                "A capsule's endpoints must be further apart than the linear slop; a capsule of no length is a circle.",
-                nameof(end));
-        }
-
         PointBuffer points = default;
         points[0] = start;
         points[1] = end;
+
+        RequireApart(points, nameof(end));
 
         // The segment between the endpoints is what the narrowphase measures along, so its length
         // has to be a number even when both ends are.
@@ -175,7 +170,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             buffer[index] = points[index];
         }
 
-        RequireDistinct(buffer, points.Length);
+        RequireDistinct(buffer, points.Length, nameof(points));
 
         // Before the winding is normalised and the corners are tested, because both compute the
         // very products this refuses; reversing the winding only negates them, so the answer here
@@ -183,7 +178,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         RequireFiniteGeometry(buffer, points.Length, nameof(points));
 
         NormaliseWinding(ref buffer, points.Length);
-        RequireConvex(buffer, points.Length);
+        RequireConvex(buffer, points.Length, nameof(points));
 
         Aabb2D bounds = Bounded(buffer, points.Length, radius, nameof(radius));
         ShapeKind2D kind = radius == 0f && points.Length == 4 && IsCornersOf(buffer, bounds)
@@ -240,6 +235,69 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         RequireExtentSurvives(Bounds.Size, bounds.Size);
 
         return new Shape2D(Kind, moved, _count, Radius, bounds);
+    }
+
+    /// <summary>
+    /// This shape with every point multiplied by <paramref name="scale"/>, about the origin of the
+    /// space its points are expressed in — the collider's own local space, so where the collider
+    /// then sits is unaffected.
+    /// <para>
+    /// A rounded shape — a circle, a capsule, or a polygon built with a radius — takes a uniform
+    /// scale only: its radius is one distance and has no per-axis form.
+    /// </para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">A component of the scale is not finite and greater than zero.</exception>
+    /// <exception cref="ArgumentException">
+    /// The scale is non-uniform on a rounded shape, or the shape it produces is one construction
+    /// would refuse: a radius that has overflowed or vanished, points that have collapsed onto each
+    /// other, or bounds and derived geometry that are no longer finite.
+    /// </exception>
+    public Shape2D Scaled(Vector2 scale)
+    {
+        if (!float.IsFinite(scale.X) || !float.IsFinite(scale.Y) || scale.X <= 0f || scale.Y <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(scale), scale, "A shape's scale must be finite and greater than zero on both axes.");
+        }
+
+        if (Radius > 0f && scale.X != scale.Y)
+        {
+            throw new ArgumentException(
+                $"A {Kind} is rounded by a radius, which is one distance and has no per-axis form; scale it by the same factor on both axes.",
+                nameof(scale));
+        }
+
+        PointBuffer scaled = _points;
+        for (int index = 0; index < _count; index++)
+        {
+            scaled[index] *= scale;
+        }
+
+        // Uniform wherever it is non-zero, so either component is the factor.
+        float radius = Radius * scale.X;
+        if (Radius > 0f && !(float.IsFinite(radius) && radius > 0f))
+        {
+            throw new ArgumentException(
+                "The scaled shape's radius is no longer a distance the narrowphase can measure with.",
+                nameof(scale));
+        }
+
+        // A positive scale preserves winding and convexity in exact arithmetic; in floats it can
+        // still fold two corners onto one coordinate or push an edge past what a float measures,
+        // so the shape is validated the way construction validates one.
+        if (_count == 2)
+        {
+            RequireApart(scaled, nameof(scale));
+            RequireFiniteGeometry(scaled, 2, nameof(scale));
+        }
+        else if (_count >= 3)
+        {
+            RequireDistinct(scaled, _count, nameof(scale));
+            RequireFiniteGeometry(scaled, _count, nameof(scale));
+            RequireConvex(scaled, _count, nameof(scale));
+        }
+
+        return new Shape2D(Kind, scaled, _count, radius, Bounded(scaled, _count, radius, nameof(scale)));
     }
 
     // Far enough out, the floats either side of a small shape are the same float. The narrowphase
@@ -336,7 +394,17 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
     }
 
-    private static void RequireDistinct(in PointBuffer points, int count)
+    private static void RequireApart(in PointBuffer points, string parameterName)
+    {
+        if (Vector2.DistanceSquared(points[0], points[1]) <= PointTolerance * PointTolerance)
+        {
+            throw new ArgumentException(
+                "A capsule's endpoints must be further apart than the linear slop; a capsule of no length is a circle.",
+                parameterName);
+        }
+    }
+
+    private static void RequireDistinct(in PointBuffer points, int count, string parameterName)
     {
         for (int i = 0; i < count; i++)
         {
@@ -346,7 +414,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
                 {
                     throw new ArgumentException(
                         $"A polygon's points {i} and {j} are closer together than the linear slop; every corner must be its own.",
-                        "points");
+                        parameterName);
                 }
             }
         }
@@ -375,7 +443,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
     }
 
-    private static void RequireConvex(in PointBuffer points, int count)
+    private static void RequireConvex(in PointBuffer points, int count, string parameterName)
     {
         for (int index = 0; index < count; index++)
         {
@@ -389,7 +457,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             {
                 throw new ArgumentException(
                     $"A polygon's corner {(index + 1) % count} is collinear or reflex; only strictly convex polygons are shapes.",
-                    "points");
+                    parameterName);
             }
         }
     }

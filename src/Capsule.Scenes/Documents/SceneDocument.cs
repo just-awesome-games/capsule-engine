@@ -108,6 +108,15 @@ public sealed class SceneDocument
                     $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position."));
             }
 
+            // A scale of zero or less is no size, and a non-finite one has no JSON number, so
+            // either would build a document that cannot be written back out.
+            if (entity is { } sized && (!IsScale(sized.ScaleX) || !IsScale(sized.ScaleY)))
+            {
+                throw Malformed(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale; both factors are finite and greater than zero."));
+            }
+
             if (entry.Id >= NextEntityId)
             {
                 throw Malformed($"entity id {entry.Id} is not below nextEntityId {NextEntityId}.");
@@ -148,6 +157,8 @@ public sealed class SceneDocument
             throw Malformed($"source.hash must be 64 lowercase hex characters, not '{source.Hash}'.");
         }
     }
+
+    private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
 
     // Deliberately not Path.IsPathRooted: what counts as rooted differs between Windows and
     // Linux, and a scene document must mean the same thing on both.
