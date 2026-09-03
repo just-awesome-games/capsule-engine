@@ -116,6 +116,15 @@ internal sealed class FrameRenderer : IDisposable
         // per step, which is the one artefact interpolation exists to remove.
         Vector2 center = Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
         Vector2 topLeft = center - (camera.Size / 2f);
+
+        // Interpolation is quantised to the grid it is sampled on, camera and sprites alike, so the
+        // two never disagree by a pixel. The simulation keeps its fractional positions.
+        bool snap = view.Sampling == TextureSampling.Point;
+        if (snap)
+        {
+            topLeft = PixelGrid.Snap(topLeft, fit.Scale);
+        }
+
         Matrix worldToScreen =
             Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
             Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
@@ -146,7 +155,7 @@ internal sealed class FrameRenderer : IDisposable
             switch (command.Kind)
             {
                 case RenderKind.Sprite:
-                    DrawSprite(sprites[command.Index], alpha, ref resolved, ref texture);
+                    DrawSprite(sprites[command.Index], alpha, snap, fit.Scale, ref resolved, ref texture);
                     break;
 
                 default:
@@ -159,7 +168,13 @@ internal sealed class FrameRenderer : IDisposable
 
     // resolved is the handle texture was fetched for; both are carried across the whole stream so
     // a run drawing from one atlas resolves it once.
-    private void DrawSprite(in SpriteIntent sprite, float alpha, ref TextureHandle resolved, ref Texture2D? texture)
+    private void DrawSprite(
+        in SpriteIntent sprite,
+        float alpha,
+        bool snap,
+        float surfaceScale,
+        ref TextureHandle resolved,
+        ref Texture2D? texture)
     {
         if (texture is null || sprite.Sprite.Texture != resolved)
         {
@@ -168,6 +183,11 @@ internal sealed class FrameRenderer : IDisposable
         }
 
         Vector2 position = Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha);
+        if (snap)
+        {
+            position = PixelGrid.Snap(position, surfaceScale);
+        }
+
         TextureRegion region = sprite.Sprite.Region;
         Vector2 origin = sprite.DrawOrigin;
 
