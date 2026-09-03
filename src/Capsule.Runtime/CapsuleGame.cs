@@ -18,6 +18,7 @@ internal sealed class CapsuleGame : Game
     private readonly PadFilter _padFilter;
     private readonly FixedStepScheduler _scheduler;
 
+    private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
@@ -49,7 +50,10 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution);
+        // Every texture the build registered, once, before the first frame: residency is the
+        // host's policy and nothing is fetched while the game is running.
+        _textures = new TextureStore(GraphicsDevice, _options.Textures);
+        _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
 
         base.LoadContent();
     }
@@ -88,8 +92,10 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
-            // Null when construction failed before LoadContent ran.
+            // Null when construction failed before LoadContent ran, and the store alone when it
+            // failed between the two.
             _renderer?.Dispose();
+            _textures?.Dispose();
         }
 
         base.Dispose(disposing);

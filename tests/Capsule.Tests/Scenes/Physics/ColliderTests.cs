@@ -62,7 +62,7 @@ public sealed class ColliderTests
     }
 
     [Fact]
-    public void AColliderIsPlacedByItsOffsetTheWayAQuadRendererIs()
+    public void AColliderIsPlacedByItsOffsetTheWayASpriteRendererIs()
     {
         Scene scene = new();
         Body body = new(new Vector2(100f, 100f));

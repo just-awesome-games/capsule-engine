@@ -20,8 +20,8 @@
        AdditionalFiles, so a handle is a compile-time name for a file the build has seen, and a
        misspelt asset is a compile error rather than a missing file on somebody else's machine.
 
-       Nothing here transforms bytes. An asset is copied verbatim, and what reads it back is a
-       runtime concern Capsule does not have yet. -->
+       Nothing here transforms bytes: an asset is copied verbatim, and the host reads it back —
+       every texture the generated registry holds is decoded onto the device at boot. -->
 
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png">

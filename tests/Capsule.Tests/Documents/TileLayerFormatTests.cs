@@ -1,6 +1,6 @@
+using Capsule.Assets;
 using Capsule.Cli.Tiled;
 using Capsule.Collision;
-using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Tiles;
 
@@ -9,6 +9,8 @@ namespace Capsule.Tests.Documents;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class TileLayerFormatTests
 {
+    private static readonly TextureHandle Atlas = new("terrain", ".png");
+
     [Fact]
     public void ATileTypesLayerAndCollidableFaces_SurviveTheirOwnRoundTrip()
     {
@@ -47,7 +49,7 @@ public sealed class TileLayerFormatTests
     public void AVersionOneDocument_IsRefused()
     {
         string written = SceneDocumentFile.ToJson(Document("solid", CellFaces2D.All))
-            .Replace("\"formatVersion\": 2", "\"formatVersion\": 1", StringComparison.Ordinal);
+            .Replace("\"formatVersion\": 3", "\"formatVersion\": 1", StringComparison.Ordinal);
 
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(written));
@@ -89,9 +91,11 @@ public sealed class TileLayerFormatTests
             2,
             1,
             [new TileDefinition("empty", null, "solid"), Ground("solid", CellFaces2D.All)],
-            [0, 1]));
+            [0, 1],
+            Atlas,
+            4));
 
-        Assert.Contains("no colour and no layer", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no cell and no layer", error.Message, StringComparison.Ordinal);
     }
 
     // A tile on a layer with no face collides with nothing at all, so it is a mistake rather than a
@@ -104,7 +108,9 @@ public sealed class TileLayerFormatTests
             2,
             1,
             [TileGrid.EmptyTile, Ground("solid", CellFaces2D.None)],
-            [0, 1]));
+            [0, 1],
+            Atlas,
+            4));
 
         Assert.Contains("no collidableFaces", error.Message, StringComparison.Ordinal);
     }
@@ -117,7 +123,9 @@ public sealed class TileLayerFormatTests
             2,
             1,
             [TileGrid.EmptyTile, Ground(null, CellFaces2D.Top)],
-            [0, 1]));
+            [0, 1],
+            Atlas,
+            4));
 
         Assert.Contains("collidableFaces but no layer", error.Message, StringComparison.Ordinal);
     }
@@ -269,10 +277,10 @@ public sealed class TileLayerFormatTests
 
     private static SceneDocument ImportWithTileProperty(string property)
     {
-        // Injected into the first tile's property list, ahead of its colour.
+        // The fixture's first tile carries no properties of its own, so this becomes its whole list.
         string tileset = SceneDocumentFixtures.Read("tiles.tsj").Replace(
-            "\"properties\":[\n                {\n                 \"name\":\"color\",\n                 \"type\":\"color\",\n                 \"value\":\"#ff4a5568\"\n                }]",
-            $"\"properties\":[{property}\n                {{\n                 \"name\":\"color\",\n                 \"type\":\"color\",\n                 \"value\":\"#ff4a5568\"\n                }}]",
+            "\"id\":0,\n         \"type\":\"ground\"",
+            $"\"id\":0,\n         \"properties\":[{property.TrimEnd(',')}],\n         \"type\":\"ground\"",
             StringComparison.Ordinal);
 
         Assert.NotEqual(SceneDocumentFixtures.Read("tiles.tsj"), tileset);
@@ -287,14 +295,14 @@ public sealed class TileLayerFormatTests
         document.Entries[0].TileMap!.Value.Grid.TileTypes;
 
     private static TileDefinition Ground(string? layer, CellFaces2D collidableFaces) =>
-        new("ground", new ColorRgba(0x4A, 0x55, 0x68), layer, collidableFaces);
+        new("ground", 0, layer, collidableFaces);
 
     private static SceneDocument Document(string? layer, CellFaces2D collidableFaces) =>
         new(
             [
                 new TileMapPlacement(
                     1,
-                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(layer, collidableFaces)], [0, 1])),
+                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(layer, collidableFaces)], [0, 1], Atlas, 4)),
             ],
             2);
 }

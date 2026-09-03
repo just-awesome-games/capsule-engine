@@ -13,11 +13,15 @@ internal static class AssetRegistrySource
     private const string FileName = "CapsuleGameAssets.g.cs";
     private const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
 
-    private static readonly (string Domain, string ClassName, string Handle)[] Domains =
+    // The whole-domain member the boot registry reads. Only textures has one: the host makes the
+    // texture set resident at boot, and nothing aggregates the other domains.
+    private const string TextureListMember = "All";
+
+    private static readonly (string Domain, string ClassName, string Handle, string? ListMember)[] Domains =
     [
-        ("textures", "Textures", "global::Capsule.Assets.TextureHandle"),
-        ("audio", "Audio", "global::Capsule.Assets.AudioHandle"),
-        ("fonts", "Fonts", "global::Capsule.Assets.FontHandle"),
+        ("textures", "Textures", "global::Capsule.Assets.TextureHandle", TextureListMember),
+        ("audio", "Audio", "global::Capsule.Assets.AudioHandle", null),
+        ("fonts", "Fonts", "global::Capsule.Assets.FontHandle", null),
     ];
 
     internal static AssetModel? Describe(AdditionalText text, AnalyzerConfigOptionsProvider options)
@@ -112,7 +116,8 @@ internal static class AssetRegistrySource
 
     // A member may not carry the name of the class it is declared on (CS0542), and a domain's
     // class is the one every asset in it lands on — so 'audio/audio.wav' is a name no registry
-    // can hold, whatever else is authored beside it.
+    // can hold, whatever else is authored beside it. A domain's own list member is reserved for
+    // the same reason: two members of one name do not compile.
     private static AssetFault FaultIn(string domain, string? identifier)
     {
         if (identifier is null)
@@ -125,8 +130,9 @@ internal static class AssetRegistrySource
             if (string.Equals(Domains[i].Domain, domain, StringComparison.Ordinal))
             {
                 return string.Equals(Domains[i].ClassName, identifier, StringComparison.Ordinal)
-                    ? AssetFault.DomainCollision
-                    : AssetFault.None;
+                    || string.Equals(Domains[i].ListMember, identifier, StringComparison.Ordinal)
+                        ? AssetFault.DomainCollision
+                        : AssetFault.None;
             }
         }
 
@@ -168,7 +174,7 @@ internal static class AssetRegistrySource
     private static void AppendDomain(
         StringBuilder source,
         List<AssetModel> registered,
-        (string Domain, string ClassName, string Handle) domain)
+        (string Domain, string ClassName, string Handle, string? ListMember) domain)
     {
         source.Append("        /// <summary>Everything shipped at <c>assets/").Append(domain.Domain).AppendLine("</c>.</summary>");
         source.Append("        public static class ").AppendLine(domain.ClassName);
@@ -190,6 +196,38 @@ internal static class AssetRegistrySource
             source.AppendLine(");");
         }
 
+        if (domain.ListMember is { } listMember)
+        {
+            AppendDomainList(source, registered, domain, listMember);
+        }
+
         source.AppendLine("        }");
+    }
+
+    // Internal, not public: the only caller is the registry provider emitted beside it, and a game
+    // names the asset it wants rather than the set.
+    private static void AppendDomainList(
+        StringBuilder source,
+        List<AssetModel> registered,
+        (string Domain, string ClassName, string Handle, string? ListMember) domain,
+        string listMember)
+    {
+        source.AppendLine();
+        source.Append("            internal static ").Append(domain.Handle).Append("[] ").Append(listMember);
+        source.AppendLine(" { get; } =");
+        source.Append("                new ").Append(domain.Handle).AppendLine("[]");
+        source.AppendLine("                {");
+
+        foreach (AssetModel model in registered)
+        {
+            if (!string.Equals(model.Domain, domain.Domain, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            source.Append("                    ").Append(model.Identifier).AppendLine(",");
+        }
+
+        source.AppendLine("                };");
     }
 }

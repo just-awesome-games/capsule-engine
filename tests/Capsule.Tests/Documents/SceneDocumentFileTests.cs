@@ -1,4 +1,4 @@
-using Capsule.Rendering;
+using Capsule.Assets;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Tiles;
 
@@ -18,25 +18,25 @@ public sealed class SceneDocumentFileTests
             }
         """;
 
-    private static readonly ColorRgba Slate = new(0x4A, 0x55, 0x68);
+    private static readonly TextureHandle Atlas = new("terrain", ".png");
 
     [Theory]
     [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
-    [InlineData("""{"formatVersion": 3, "entities": [], "nextEntityId": 1}""", "formatVersion 3 is unsupported")]
+    [InlineData("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""", "formatVersion 2 is unsupported")]
     public void Parse_RejectsADocumentWithBadFormatVersion(string json, string expectedMessage)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(json));
 
         Assert.Contains(expectedMessage, error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 2", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 3", error.Message, StringComparison.Ordinal);
     }
 
     // An explicit null arrives as a null the property's own initializer never answers for, so an
     // omitted list passing says nothing about this one.
     [Theory]
-    [InlineData("""{"formatVersion": 2, "nextEntityId": 1}""")]
-    [InlineData("""{"formatVersion": 2, "entities": null, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 3, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 3, "entities": null, "nextEntityId": 1}""")]
     public void Parse_RejectsADocumentWithNoEntities(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -52,7 +52,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 2,
+              "formatVersion": 3,
               "entities": [
                 {
                   "id": 1,
@@ -75,7 +75,7 @@ public sealed class SceneDocumentFileTests
     [Fact]
     public void ADocumentWithNoEntries_IsAnEmptyScene()
     {
-        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""");
+        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 3, "entities": [], "nextEntityId": 1}""");
 
         Assert.Empty(document.Entries.ToArray());
     }
@@ -85,7 +85,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 2,
+              "formatVersion": 3,
               "entities": [
                 { "id": 1, "type": "coin", "x": 0, "y": 0 },
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
@@ -146,8 +146,8 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("""{"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
-    [InlineData("""{"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
     public void Parse_RejectsATileMapEntryWithMissingOrNullProperties(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -163,7 +163,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 2, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
+                {"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -218,40 +218,131 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("#00000000", 0x00, 0x00, 0x00, 0x00)]
-    [InlineData("#1122ffee", 0x11, 0x22, 0xFF, 0xEE)]
-    public void ColoursAreReadAndWrittenChannelByChannel(string color, int r, int g, int b, int a)
+    [InlineData(0)]
+    [InlineData(9)]
+    public void ATilesCellIsReadAndWrittenAsItStands(int cell)
     {
-        SceneDocument document = SceneDocumentFile.Parse(DocumentText(tileTypes: Palette(color)));
+        SceneDocument document = SceneDocumentFile.Parse(DocumentText(tileTypes: Palette(cell)));
 
-        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), TileMapOf(document).Grid.TileTypes[1].Color);
-        Assert.Contains($"\"color\": \"{color}\"", SceneDocumentFile.ToJson(document), StringComparison.Ordinal);
+        Assert.Equal(cell, TileMapOf(document).Grid.TileTypes[1].Cell);
+        Assert.Contains($"\"cell\": {cell}", SceneDocumentFile.ToJson(document), StringComparison.Ordinal);
     }
 
+    // The texture is written as the whole file name, so the document names exactly what ships.
     [Fact]
-    public void PaletteEntryWithoutAColourRoundTripsCanonically()
+    public void AGridsTextureAndColumnsSurviveTheirOwnRoundTrip()
+    {
+        SceneDocument document = SceneDocumentFile.Parse(DocumentText());
+        string json = SceneDocumentFile.ToJson(document);
+
+        Assert.Equal(new TextureHandle("terrain", ".png"), TileMapOf(document).Grid.Texture);
+        Assert.Equal(4, TileMapOf(document).Grid.Columns);
+        Assert.Contains("\"texture\": \"terrain.png\",", json, StringComparison.Ordinal);
+        Assert.Contains("\"columns\": 4,", json, StringComparison.Ordinal);
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json)));
+    }
+
+    // Which extensions ship is the build's allow-list to decide, so any of them writes.
+    [Fact]
+    public void ToJson_WritesWhateverExtensionTheHandleCarries()
+    {
+        Assert.Contains(
+            "\"texture\": \"terrain.bmp\"",
+            SceneDocumentFile.ToJson(Drawing(new TextureHandle("terrain", ".bmp"))),
+            StringComparison.Ordinal);
+    }
+
+    // The reader splits a written name on its last dot, so a handle has a written form only when
+    // that split hands it back unchanged. Each of these would come back as some other handle.
+    [Theory]
+    [InlineData("terrain.png", "")]
+    [InlineData("a", ".b.png")]
+    [InlineData("", ".png")]
+    [InlineData("a", "png")]
+    public void ToJson_RefusesATextureHandleTheWrittenNameWouldNotSplitBackInto(string name, string extension)
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.ToJson(Drawing(new TextureHandle(name, extension))));
+
+        Assert.Contains("does not split back out of one file name", error.Message, StringComparison.Ordinal);
+    }
+
+    // A struct's default has null parts, which is a handle with no written form, not a crash.
+    [Fact]
+    public void ToJson_RefusesTheDefaultTextureHandle()
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.ToJson(Drawing(default)));
+
+        Assert.Contains("does not split back out of one file name", error.Message, StringComparison.Ordinal);
+    }
+
+    // Dots inside the name are not the separator: only the last one is.
+    [Fact]
+    public void ATextureWhoseNameCarriesDots_RoundTripsWhole()
+    {
+        string json = SceneDocumentFile.ToJson(Drawing(new TextureHandle("x.atlas", ".png")));
+
+        Assert.Contains("\"texture\": \"x.atlas.png\"", json, StringComparison.Ordinal);
+        Assert.Equal(
+            new TextureHandle("x.atlas", ".png"),
+            TileMapOf(SceneDocumentFile.Parse(json)).Grid.Texture);
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json)));
+    }
+
+    private static SceneDocument Drawing(TextureHandle texture) =>
+        new([new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], texture, 4))], 2);
+
+    [Fact]
+    public void AGridThatDrawsNothingWritesNeitherTextureNorCell()
     {
         SceneDocument document = new(
-            [new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("ground", null)], [1]))],
+            [new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [1]))],
             2);
 
         string json = SceneDocumentFile.ToJson(document);
         SceneDocument round = SceneDocumentFile.Parse(json);
 
-        Assert.DoesNotContain("\"color\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"texture\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"columns\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"cell\"", json, StringComparison.Ordinal);
         Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
         Assert.Equal(json, SceneDocumentFile.ToJson(round));
     }
 
+    // Asked of the field's presence: a 0 read as an absent columns would parse and then be written
+    // back without the field, so the document would not survive its own round trip.
     [Theory]
-    [InlineData("#4A5568FF")]
-    [InlineData("#4a5568")]
-    public void Parse_RejectsAColourThatIsNotTheCanonicalForm(string color)
+    [InlineData(0)]
+    [InlineData(4)]
+    public void Parse_RejectsColumnsOnAGridWithNoTexture(int columns)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileTypes: Palette(color))));
+            () => SceneDocumentFile.Parse($$$"""
+                {"formatVersion": 3, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
+                  "properties": {"tileSize": 16, "width": 1, "height": 1, "columns": {{{columns}}},
+                                 "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
+                """));
 
-        Assert.Contains("lowercase #rrggbbaa", error.Message, StringComparison.Ordinal);
+        Assert.Contains("declares columns but no texture", error.Message, StringComparison.Ordinal);
+    }
+
+    // The name is one file in a flat directory: a stem, an extension, and no way out of it. The
+    // two spellings differ only for the separator JSON itself escapes.
+    [Theory]
+    [InlineData("tiles", "tiles")]
+    [InlineData("tiles.", "tiles.")]
+    [InlineData(".png", ".png")]
+    [InlineData("a/tiles.png", "a/tiles.png")]
+    [InlineData("a\\\\tiles.png", "a\\tiles.png")]
+    [InlineData(" ", " ")]
+    public void Parse_RejectsATextureThatIsNotOneFileName(string authored, string texture)
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.Parse(DocumentText(texture: $"\"{authored}\"")));
+
+        Assert.Contains($"grid has texture \"{texture}\"", error.Message, StringComparison.Ordinal);
+        Assert.Contains("extension included", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -298,7 +389,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 2, "entities": [{"type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 3, "entities": [{"type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -394,7 +485,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = new(
             [
-                new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [0, 1])),
+                new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4)),
                 new EntityPlacement(2, "coin", 8f, 0f),
             ],
             3);
@@ -402,7 +493,7 @@ public sealed class SceneDocumentFileTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 2,",
+            "  \"formatVersion\": 3,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -413,13 +504,15 @@ public sealed class SceneDocumentFileTests
             "        \"tileSize\": 16,",
             "        \"width\": 2,",
             "        \"height\": 1,",
+            "        \"texture\": \"terrain.png\",",
+            "        \"columns\": 4,",
             "        \"tileTypes\": [",
             "          {",
             "            \"type\": \"empty\"",
             "          },",
             "          {",
             "            \"type\": \"ground\",",
-            "            \"color\": \"#4a5568ff\"",
+            "            \"cell\": 0",
             "          }",
             "        ],",
             "        \"tiles\": [",
@@ -500,7 +593,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = new(
             [
-                new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [1, 0])),
+                new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, Ground(0)], [1, 0], Atlas, 4)),
                 new EntityPlacement(3, "player", 40.5f, 24f),
             ],
             4,
@@ -516,23 +609,26 @@ public sealed class SceneDocumentFileTests
     }
 
     private static TileMapPlacement Terrain() =>
-        new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", Slate)], [0, 1]));
+        new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4));
 
     private static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
         document.Entries[index].TileMap!.Value;
 
-    private static string Palette(string color) =>
-        $$"""[{"type": "empty"}, {"type": "ground", "color": "{{color}}"}]""";
+    private static TileDefinition Ground(int cell) => new("ground", cell);
+
+    private static string Palette(int cell) =>
+        $$"""[{"type": "empty"}, {"type": "ground", "cell": {{cell}}}]""";
 
     private static string DocumentText(
         string? tileTypes = null,
         string tiles = "[0, 1]",
         string entities = "",
         int nextEntityId = 2,
-        string extra = "") =>
+        string extra = "",
+        string texture = "\"terrain.png\"") =>
         $$"""
         {
-          "formatVersion": 2,
+          "formatVersion": 3,
           "entities": [
             {
               "id": 1,
@@ -543,7 +639,9 @@ public sealed class SceneDocumentFileTests
                 "tileSize": 16,
                 "width": 2,
                 "height": 1,
-                "tileTypes": {{tileTypes ?? Palette("#4a5568ff")}},
+                "texture": {{texture}},
+                "columns": 4,
+                "tileTypes": {{tileTypes ?? Palette(0)}},
                 "tiles": {{tiles}}
               }
             }{{entities}}

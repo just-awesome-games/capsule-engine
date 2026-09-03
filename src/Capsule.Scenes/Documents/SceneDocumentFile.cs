@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Capsule.Assets;
 using Capsule.Collision;
-using Capsule.Rendering;
 using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes.Documents;
@@ -14,7 +14,8 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
+
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>Reads and validates the scene document at <paramref name="path"/>.</summary>
@@ -180,7 +181,7 @@ public static class SceneDocumentFile
         if (entry.Properties is not { } properties)
         {
             throw new SceneDocumentFormatException(
-                $"the '{SceneDocument.TileMapType}' entry declares no properties; its grid — tileSize, width, height, tileTypes, tiles — is written there.");
+                $"the '{SceneDocument.TileMapType}' entry declares no properties; its grid — tileSize, width, height, tileTypes, tiles, and the texture and columns a drawn grid adds — is written there.");
         }
 
         return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)));
@@ -212,7 +213,7 @@ public static class SceneDocumentFile
             tileTypes[i] = new TileTypeJson
             {
                 Type = palette[i].Type,
-                Color = palette[i].Color is { } color ? FormatColor(color) : null,
+                Cell = palette[i].Cell,
                 Layer = palette[i].Layer,
                 CollidableFaces = palette[i].Layer is null
                     ? null
@@ -225,10 +226,38 @@ public static class SceneDocumentFile
             TileSize = grid.TileSize,
             Width = grid.Width,
             Height = grid.Height,
+            Texture = TextureName(grid.Texture),
+            Columns = grid.Texture is null ? null : grid.Columns,
             TileTypes = tileTypes,
             Tiles = [.. grid.Tiles],
         };
     }
+
+    // The whole file name, extension included: which extensions a textures domain admits is the
+    // build's allow-list to hold, so the format asks only that the name it writes reads back.
+    private static string? TextureName(TextureHandle? texture)
+    {
+        if (texture is not { } handle)
+        {
+            return null;
+        }
+
+        return SplitsBackInto(handle)
+            ? handle.Name + handle.Extension
+            : throw new SceneDocumentFormatException(
+                $"the '{SceneDocument.TileMapType}' entry's grid draws from texture handle (\"{handle.Name}\", \"{handle.Extension}\"), which does not split back out of one file name: a name is non-empty and an extension is a dot followed by at least one character and no second dot, and neither carries a path segment.");
+    }
+
+    // The exact inverse of the reader's split on the last dot, which is what makes a written name
+    // give its handle back unchanged. A name carrying dots of its own is fine: "x.atlas" and
+    // ".png" write "x.atlas.png" and split apart again at the last one.
+    private static bool SplitsBackInto(TextureHandle handle) =>
+        !string.IsNullOrEmpty(handle.Name)
+        && handle.Extension is { Length: > 1 }
+        && handle.Extension[0] == '.'
+        && handle.Extension.IndexOf('.', 1) < 0
+        && !HasPathSegment(handle.Name)
+        && !HasPathSegment(handle.Extension);
 
     // A grid rejects its own malformed input as an argument fault, which is what a caller building
     // one in code has broken. Read out of a file it is the file that is malformed, so the defect
@@ -245,6 +274,15 @@ public static class SceneDocumentFile
         {
             throw new SceneDocumentFormatException(
                 $"the '{SceneDocument.TileMapType}' entry's grid has no tiles; its width x height palette indices are written there.");
+        }
+
+        // Asked of the field's presence rather than its value: read as an absent 0, a columns on a
+        // grid with no texture would be accepted and then written back without it, so the document
+        // would not survive its own round trip.
+        if (grid.Columns is not null && grid.Texture is null)
+        {
+            throw new SceneDocumentFormatException(
+                $"the '{SceneDocument.TileMapType}' entry's grid declares columns but no texture; columns counts the cells across the texture a grid draws from, and a grid that draws nothing leaves both out.");
         }
 
         TileDefinition[] tileTypes = new TileDefinition[palette.Length];
@@ -265,14 +303,21 @@ public static class SceneDocumentFile
             string? layer = ParseLayer(tileType.Layer, i);
             tileTypes[i] = new TileDefinition(
                 tileType.Type ?? string.Empty,
-                tileType.Color is { } color ? ParseColor(color, i) : null,
+                tileType.Cell,
                 layer,
                 ParseFaces(tileType.CollidableFaces, layer, i));
         }
 
         try
         {
-            return new TileGrid(grid.TileSize, grid.Width, grid.Height, tileTypes, tiles);
+            return new TileGrid(
+                grid.TileSize,
+                grid.Width,
+                grid.Height,
+                tileTypes,
+                tiles,
+                ParseTexture(grid.Texture),
+                grid.Columns ?? 0);
         }
         catch (ArgumentException ex)
         {
@@ -280,23 +325,40 @@ public static class SceneDocumentFile
         }
     }
 
-    // Lowercase is part of the canonical form, so an uppercase spelling is rejected rather than
-    // accepted and written back differently: a document must survive its own round trip byte for
-    // byte.
-    private static ColorRgba ParseColor(string color, int index)
+    // Split on the last dot rather than matched against a known extension: the handle carries
+    // whatever the build shipped, and the format only has to name one file in a flat directory.
+    private static TextureHandle? ParseTexture(string? texture)
     {
-        if (color.Length == 9 && color[0] == '#'
-            && TryHexByte(color.AsSpan(1, 2), out byte r)
-            && TryHexByte(color.AsSpan(3, 2), out byte g)
-            && TryHexByte(color.AsSpan(5, 2), out byte b)
-            && TryHexByte(color.AsSpan(7, 2), out byte a))
+        if (texture is null)
         {
-            return new ColorRgba(r, g, b, a);
+            return null;
         }
 
-        throw new SceneDocumentFormatException(
-            $"tileTypes[{index}].color must be lowercase #rrggbbaa, not \"{color}\".");
+        if (!IsOneFileName(texture))
+        {
+            throw new SceneDocumentFormatException(
+                $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\"; a texture is the file name of one asset under assets/textures, extension included — \"tiles.png\" — and that directory is flat, so the name carries no path segments.");
+        }
+
+        int dot = texture.LastIndexOf('.');
+
+        return new TextureHandle(texture[..dot], texture[dot..]);
     }
+
+    // One file name with a stem and an extension, and nothing that would reach out of the flat
+    // directory the build ships into.
+    private static bool IsOneFileName(string name)
+    {
+        int dot = name.LastIndexOf('.');
+
+        return !string.IsNullOrWhiteSpace(name)
+            && dot > 0
+            && dot < name.Length - 1
+            && !HasPathSegment(name);
+    }
+
+    private static bool HasPathSegment(string value) =>
+        value.Contains('/', StringComparison.Ordinal) || value.Contains('\\', StringComparison.Ordinal);
 
     private static string? ParseLayer(string? layer, int index)
     {
@@ -343,18 +405,6 @@ public static class SceneDocumentFile
 
         return parsed;
     }
-
-    private static bool TryHexByte(ReadOnlySpan<char> hex, out byte value)
-    {
-        value = 0;
-
-        return char.IsAsciiHexDigitLower(hex[0])
-            && char.IsAsciiHexDigitLower(hex[1])
-            && byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
-    }
-
-    private static string FormatColor(ColorRgba color) =>
-        string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}{color.A:x2}");
 
     private static SceneDocumentJson Deserialize(string json)
     {

@@ -51,6 +51,8 @@ The Capsule.Generators analyzer enforces the logic boundary. Tests hold the sche
 
 Simulation emits backend-free render intents. The host draws them at display rate, interpolating entities and camera from the previous settled step to the current one with a shared fraction. Rendering never feeds state back into simulation.
 
+A frame is an ordered stream of render commands, drawn in submission order; each command names the kind of thing it draws and its place in that kind's typed pool. A sprite — a texel region of a texture, anchored at a pivot the interpolated world position lands on and mirrored about that pivot on either axis when flipped — is the first kind. Drawing needs a texture, so the host loads every handle the build registered into device textures once at boot — alpha premultiplied at decode — and a draw naming a handle it does not hold is a wiring fault, not a fallback.
+
 The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region. A scene sets its own span; there is no game-wide default.
 
 ## Package boundary

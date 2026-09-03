@@ -75,14 +75,26 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(2)]
     public int Height { get; set; }
 
+    // The file name, extension included, of one asset under assets/textures, which is flat.
+    // Absent on a grid that draws nothing; WhenWritingNull keeps both out of that grid's written
+    // form, and columns is nullable so a texture with no columns fails as the grid's error rather
+    // than reading as 0.
+    [JsonPropertyName("texture")]
+    [JsonPropertyOrder(3)]
+    public string? Texture { get; set; }
+
+    [JsonPropertyName("columns")]
+    [JsonPropertyOrder(4)]
+    public int? Columns { get; set; }
+
     // Nullable for the entry list's reason: an absent palette or map is the format's fault to
     // name, and a null where a palette entry belongs is not an entry.
     [JsonPropertyName("tileTypes")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(5)]
     public TileTypeJson?[]? TileTypes { get; set; }
 
     [JsonPropertyName("tiles")]
-    [JsonPropertyOrder(4)]
+    [JsonPropertyOrder(6)]
     public int[]? Tiles { get; set; }
 }
 
@@ -93,11 +105,11 @@ internal sealed class TileTypeJson
     [JsonPropertyOrder(0)]
     public string? Type { get; set; }
 
-    // Absent for the reserved empty entry alone; WhenWritingNull keeps it out of that entry's
-    // written form.
-    [JsonPropertyName("color")]
+    // Absent for the reserved empty entry and for any tile type that draws nothing;
+    // WhenWritingNull keeps it out of those entries' written form.
+    [JsonPropertyName("cell")]
     [JsonPropertyOrder(1)]
-    public string? Color { get; set; }
+    public int? Cell { get; set; }
 
     // Absent for every tile type that collides as nothing, which is the default.
     [JsonPropertyName("layer")]

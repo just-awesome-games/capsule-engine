@@ -132,7 +132,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     /// <summary>
     /// An axis-aligned rectangle of <paramref name="size"/> whose lower corner is
-    /// <paramref name="corner"/> — the anchor a <c>QuadRenderer</c> draws from.
+    /// <paramref name="corner"/>.
     /// </summary>
     /// <exception cref="ArgumentException">
     /// The size spans nothing on an axis, or the box it describes spans more than a float can

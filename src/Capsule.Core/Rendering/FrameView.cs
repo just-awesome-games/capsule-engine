@@ -2,11 +2,18 @@ using System.Runtime.InteropServices;
 
 namespace Capsule.Rendering;
 
-/// <summary>Mutable render intent, rewritten once per fixed step and read on draw frames.</summary>
+/// <summary>
+/// Mutable render intent, rewritten once per fixed step and read on draw frames. A frame is an
+/// ordered stream of render commands over one typed pool per kind of thing that draws, so a kind
+/// is added by one pool, one <c>Add</c> overload and one backend case, and nothing about draw
+/// order changes.
+/// </summary>
 public sealed class FrameView
 {
-    private readonly List<QuadIntent> _quads = [];
-    private int _totalQuads;
+    private readonly List<RenderCommand> _commands = [];
+    private readonly List<SpriteIntent> _sprites = [];
+
+    private int _submitted;
 
     private CameraView _camera;
     private ViewBounds _cullBounds;
@@ -47,47 +54,41 @@ public sealed class FrameView
         }
     }
 
-    /// <summary>The quads to draw, in the order added. Invalidated by the next mutation.</summary>
-    public ReadOnlySpan<QuadIntent> Quads => CollectionsMarshal.AsSpan(_quads);
+    /// <summary>The sprites to draw, in the order added. Invalidated by the next mutation.</summary>
+    public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_sprites);
 
-    /// <summary>Quad counts from the current rewrite.</summary>
-    public RenderMetrics Metrics => new(_totalQuads, _quads.Count);
+    /// <summary>Render-command counts from the current rewrite.</summary>
+    public RenderMetrics Metrics => new(_submitted, _commands.Count);
 
-    /// <summary>Drops every quad and resets <see cref="Metrics"/>, retaining capacity.</summary>
+    /// <summary>What to draw and in what order, each naming its kind's pool and its place in it.</summary>
+    internal ReadOnlySpan<RenderCommand> Commands => CollectionsMarshal.AsSpan(_commands);
+
+    /// <summary>Drops every pool and the stream, and resets <see cref="Metrics"/>, retaining capacity.</summary>
     internal void Clear()
     {
-        _quads.Clear();
-        _totalQuads = 0;
+        _commands.Clear();
+        _sprites.Clear();
+        _submitted = 0;
     }
 
-    /// <summary>Adds a quad when its swept bounds cross the camera; an unset camera disables culling.</summary>
-    public void AddQuad(in QuadIntent quad)
+    /// <summary>Adds a sprite when its swept bounds cross the camera; an unset camera disables culling.</summary>
+    public void Add(in SpriteIntent sprite)
     {
-        _totalQuads++;
+        _submitted++;
 
-        if (!_hasCullBounds || IsVisible(quad))
+        if (Culled(sprite))
         {
-            _quads.Add(quad);
-        }
-    }
-
-    private bool IsVisible(in QuadIntent quad)
-    {
-        // Tested on the size itself, never left to the swept rect: travel widens that rect, so a
-        // quad moving further than a negative extent still measures positive area there and would
-        // reach the renderer to be drawn inverted. NaN fails this comparison too.
-        if (!(quad.Size.X > 0f) || !(quad.Size.Y > 0f))
-        {
-            return false;
+            return;
         }
 
-        ViewBounds swept = new(
-            MathF.Min(quad.PreviousPosition.X, quad.Position.X),
-            MathF.Min(quad.PreviousPosition.Y, quad.Position.Y),
-            MathF.Max(quad.PreviousPosition.X, quad.Position.X) + quad.Size.X,
-            MathF.Max(quad.PreviousPosition.Y, quad.Position.Y) + quad.Size.Y);
-
-        // What remains for IsEmpty is a corner or an extent that is not finite.
-        return !swept.IsEmpty && swept.Intersects(_cullBounds);
+        _commands.Add(new RenderCommand(RenderKind.Sprite, _sprites.Count));
+        _sprites.Add(sprite);
     }
+
+    // Each kind measures the world rect it sweeps; what the camera does with that rect is the same
+    // question for all of them.
+    private bool Culled(in SpriteIntent sprite) =>
+        _hasCullBounds && !(sprite.TryGetSweptBounds(out ViewBounds swept) && Accept(swept));
+
+    private bool Accept(in ViewBounds swept) => swept.Intersects(_cullBounds);
 }

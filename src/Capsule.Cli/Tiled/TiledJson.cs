@@ -78,6 +78,23 @@ internal sealed class TiledTileset
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    // An image tileset's atlas, relative to the tileset document. A collection tileset has none
+    // and writes columns 0, which is how the two are told apart.
+    [JsonPropertyName("image")]
+    public string? Image { get; set; }
+
+    [JsonPropertyName("imagewidth")]
+    public int ImageWidth { get; set; }
+
+    [JsonPropertyName("columns")]
+    public int Columns { get; set; }
+
+    [JsonPropertyName("tilewidth")]
+    public int TileWidth { get; set; }
+
+    [JsonPropertyName("tileheight")]
+    public int TileHeight { get; set; }
+
     [JsonPropertyName("tiles")]
     public TiledTile[]? Tiles { get; set; }
 }

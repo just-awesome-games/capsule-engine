@@ -7,10 +7,10 @@ namespace Capsule.Tests.Scenes;
 public sealed class SceneCameraTests
 {
     [Fact]
-    public void AQuadMovingWithTheCamera_HoldsOneScreenPositionAtEveryAlpha()
+    public void ASpriteMovingWithTheCamera_HoldsOneScreenPositionAtEveryAlpha()
     {
         SceneFixtures.Drifter drifter = new(new Vector2(40, 10));
-        drifter.Add(new QuadRenderer(Vector2.One, ColorRgba.White));
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
 
         static void Track(Scene scene, in StepContext context) => scene.Camera.Center += Vector2.UnitX;
 
@@ -21,12 +21,12 @@ public sealed class SceneCameraTests
         simulation.Step(SceneFixtures.Step());
 
         CameraView camera = simulation.View.Camera;
-        QuadIntent quad = simulation.View.Quads[0];
+        SpriteIntent sprite = simulation.View.Sprites[0];
 
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, quad, 0f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, quad, 0.25f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, quad, 0.5f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, quad, 0.75f));
+        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0f));
+        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.25f));
+        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.5f));
+        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.75f));
     }
 
     [Fact]
@@ -75,10 +75,10 @@ public sealed class SceneCameraTests
     }
 
     [Fact]
-    public void AQuadTheCameraOnlySweepsOver_SurvivesCulling()
+    public void ASpriteTheCameraOnlySweepsOver_SurvivesCulling()
     {
         SceneFixtures.Drifter standing = new(new Vector2(50, 0));
-        standing.Add(new QuadRenderer(Vector2.One, ColorRgba.White));
+        standing.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
 
         static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(60, 0);
 
@@ -88,7 +88,7 @@ public sealed class SceneCameraTests
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(new Vector2(51, 0), Assert.Single(simulation.View.Quads.ToArray()).Position);
+        Assert.Equal(new Vector2(51, 0), Assert.Single(simulation.View.Sprites.ToArray()).Position);
     }
 
     // The ordering the camera's own late hook exists for: the subject moves in the entity pass and
@@ -289,8 +289,8 @@ public sealed class SceneCameraTests
         scene.Camera.ViewportSize = viewportSize;
     };
 
-    private static Vector2 ScreenOffset(in CameraView camera, in QuadIntent quad, float alpha) =>
-        Vector2.Lerp(quad.PreviousPosition, quad.Position, alpha) -
+    private static Vector2 ScreenOffset(in CameraView camera, in SpriteIntent sprite, float alpha) =>
+        Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha) -
         Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
 
     private sealed class FollowCamera(Entity subject) : Camera

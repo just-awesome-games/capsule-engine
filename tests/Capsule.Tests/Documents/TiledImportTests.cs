@@ -1,5 +1,5 @@
+using Capsule.Assets;
 using Capsule.Cli.Tiled;
-using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 
 namespace Capsule.Tests.Documents;
@@ -29,54 +29,88 @@ public sealed class TiledImportTests
         Assert.Equal(["empty", "ground", "wall", "ledge", "hazard"], types);
     }
 
-    [Theory]
-    [InlineData("#cc718096", 0x71, 0x80, 0x96, 0xCC)]
-    [InlineData("#CC718096", 0x71, 0x80, 0x96, 0xCC)]
-    [InlineData("#718096", 0x71, 0x80, 0x96, 0xFF)]
-    public void Import_ReordersTiledsAlphaFirstColourIntoRgba(string authored, int r, int g, int b, int a)
+    // A tile's own id is the cell it draws, so a palette carries the atlas layout its layer's
+    // tileset declares and nothing else decides what a tile looks like.
+    [Fact]
+    public void Import_TakesEachTilesCellFromItsTiledTileId()
     {
-        string tileset = Mutate(SceneDocumentFixtures.Read("tiles.tsj"), "\"#cc718096\"", $"\"{authored}\"");
+        using SceneDocumentFixtures.Workspace workspace = SceneDocumentFixtures.CopyTiledSources("room");
 
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("tiles.tsj", tileset);
-        string mapPath = workspace.Write("room.tmj", SceneDocumentFixtures.Read("room.tmj"));
+        SceneDocument document = TiledImporter.Import("room.tmj");
 
-        SceneDocument document = TiledImporter.Import(mapPath);
+        Assert.Equal(new TextureHandle("tiles", ".png"), TileMapOf(document).Grid.Texture);
+        Assert.Equal(4, TileMapOf(document).Grid.Columns);
 
-        Assert.Equal(new ColorRgba((byte)r, (byte)g, (byte)b, (byte)a), TileMapOf(document).Grid.TileTypes[3].Color);
+        // The document names the file the build ships, extension and all.
+        Assert.Contains(
+            "\"texture\": \"tiles.png\"",
+            SceneDocumentFile.ToJson(document),
+            StringComparison.Ordinal);
+        Assert.Equal(
+            [null, 0, 1, 2, 3],
+            TileMapOf(document).Grid.TileTypes.ToArray().Select(static definition => definition.Cell));
     }
 
+    // A colour property is a second presentation lane the importer does not have, and reading it
+    // as an unknown custom property would import the tileset as if the author had asked for
+    // nothing.
     [Fact]
-    public void Import_AcceptsATileClassWithNoColourProperty()
+    public void Import_RejectsATileStillCarryingAColourProperty()
     {
-        string tileset = Mutate(SceneDocumentFixtures.Read("tiles.tsj"), "\"name\":\"color\"", "\"name\":\"colour\"");
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("tiles.tsj", tileset);
+        TiledImportException error = ImportMutated("\"name\":\"solid\"", "\"name\":\"color\"", mutateTileset: true);
 
-        SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", SceneDocumentFixtures.Read("room.tmj")));
-
-        Assert.Null(TileMapOf(document).Grid.TileTypes[1].Color);
-        Assert.Equal("ground", TileMapOf(document).Grid.TileTypes[1].Type);
-    }
-
-    [Fact]
-    public void Import_RejectsAColourPropertyTiledCouldNotHaveWritten()
-    {
-        TiledImportException error = ImportMutated("\"#ff2d3748\"", "\"slate\"", mutateTileset: true);
-
-        Assert.Contains("not a Tiled colour", error.Message, StringComparison.Ordinal);
+        Assert.Contains("tileset 'terrain' tile 2", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no longer reads", error.Message, StringComparison.Ordinal);
+        Assert.Contains("paint the tile itself", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("\"type\":\"string\",")]
-    [InlineData("")]
-    public void Import_RejectsAColourPropertyNotDeclaredAsAColour(string declaredType)
+    [InlineData("\"image\":\"textures\\/tiles.png\",", "\"image\":\"\",", "is a collection of images")]
+    [InlineData("\"columns\":4,", "\"columns\":0,", "declares 0 columns")]
+    public void Import_RefusesATilesetThatIsNotOneImage(string from, string to, string expected)
     {
-        TiledImportException error = ImportMutated("\"type\":\"color\",", declaredType, mutateTileset: true);
+        TiledImportException error = ImportMutated(from, to, mutateTileset: true);
 
-        Assert.Contains("tileset 'terrain' tile 0", error.Message, StringComparison.Ordinal);
-        Assert.Contains("Class 'ground'", error.Message, StringComparison.Ordinal);
-        Assert.Contains("as a 'string' property", error.Message, StringComparison.Ordinal);
+        Assert.Contains("tileset 'terrain'", error.Message, StringComparison.Ordinal);
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Import_RefusesATilesetWhoseColumnsDoNotSpanItsImage()
+    {
+        TiledImportException error = ImportMutated("\"columns\":4,", "\"columns\":3,", mutateTileset: true);
+
+        Assert.Contains("3 columns of 16px over a 64px image", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Import_RefusesATilesetWhoseTilesAreNotTheMapsSize()
+    {
+        TiledImportException error = ImportMutated("\"tileheight\":16,", "\"tileheight\":8,", mutateTileset: true);
+
+        Assert.Contains("tileset 'terrain' has 16x8 tiles", error.Message, StringComparison.Ordinal);
+    }
+
+    // The build ships assets/textures/<stem>.png from asset-sources/textures alone, so an atlas
+    // filed anywhere else names a handle nothing would ship.
+    [Fact]
+    public void Import_RefusesAnImageOutsideTheTexturesDomain()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        Directory.CreateDirectory("assets/scenes");
+        workspace.Write("assets/tiles.tsj", Mutate(
+            SceneDocumentFixtures.Read("tiles.tsj"),
+            "\"image\":\"textures\\/tiles.png\"",
+            "\"image\":\"art\\/tiles.png\""));
+        workspace.Write(
+            "assets/scenes/room.tmj",
+            Mutate(SceneDocumentFixtures.Read("room.tmj"), "\"source\":\"tiles.tsj\"", "\"source\":\"../tiles.tsj\""));
+
+        TiledImportException error = Assert.Throws<TiledImportException>(
+            () => TiledImporter.Import("assets/scenes/room.tmj", dependencyRoot: "assets"));
+
+        Assert.Contains("would ship as texture 'tiles'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("textures", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,8 +131,14 @@ public sealed class TiledImportTests
         string map = Mutate(SceneDocumentFixtures.Read("room.tmj"), "\"tileheight\":16", "\"tileheight\":8");
         map = Mutate(map, "\"tilewidth\":16", "\"tilewidth\":8");
 
+        // The tileset is cut at the map's size too, so its cells stay one grid cell each.
+        string tileset = Mutate(SceneDocumentFixtures.Read("tiles.tsj"), "\"imageheight\":16", "\"imageheight\":8");
+        tileset = Mutate(tileset, "\"imagewidth\":64", "\"imagewidth\":32");
+        tileset = Mutate(tileset, "\"tileheight\":16", "\"tileheight\":8");
+        tileset = Mutate(tileset, "\"tilewidth\":16", "\"tilewidth\":8");
+
         using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        workspace.Write("tiles.tsj", tileset);
 
         Assert.Equal(8, TileMapOf(TiledImporter.Import(workspace.Write("room.tmj", map))).Grid.TileSize);
     }
@@ -139,7 +179,7 @@ public sealed class TiledImportTests
         workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
         string first = TiledImporter.Import("room.tmj").Source!.Value.Hash;
 
-        string changed = Mutate(SceneDocumentFixtures.Read("tiles.tsj"), "#ff4a5568", "#ff4a5569");
+        string changed = Mutate(SceneDocumentFixtures.Read("tiles.tsj"), "\"tilecount\":4", "\"tilecount\":8");
         workspace.Write("tiles.tsj", changed);
         string second = TiledImporter.Import("room.tmj").Source!.Value.Hash;
 
@@ -275,6 +315,81 @@ public sealed class TiledImportTests
         TiledImportException error = Import(map, SceneDocumentFixtures.Read("tiles.tsj"));
 
         Assert.Contains("65536x65536", error.Message, StringComparison.Ordinal);
+    }
+
+    // A grid cuts its cells from one texture, so a layer painted from two tilesets has no single
+    // atlas to name and is a split the author has to make in Tiled.
+    [Fact]
+    public void Import_RejectsALayerPaintedFromTwoTilesets()
+    {
+        using SceneDocumentFixtures.Workspace workspace = TwoTilesets("1, 1, 1, 5]");
+
+        TiledImportException error = Assert.Throws<TiledImportException>(() => TiledImporter.Import("room.tmj"));
+
+        Assert.Contains("tile layer 'terrain'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("'terrain' and 'props'", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Import_TakesEachLayersPaletteFromTheOneTilesetItPaints()
+    {
+        using SceneDocumentFixtures.Workspace workspace = TwoTilesets("1, 1, 1, 4]");
+
+        SceneDocument document = TiledImporter.Import("room.tmj");
+
+        Assert.Equal(new TextureHandle("tiles", ".png"), TileMapOf(document).Grid.Texture);
+        Assert.Equal(
+            ["empty", "ground", "wall", "ledge", "hazard"],
+            TileMapOf(document).Grid.TileTypes.ToArray().Select(static definition => definition.Type));
+    }
+
+    [Fact]
+    public void Import_GivesAnEmptyLayerNoTextureAndNothingButTheEmptyTileType()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        string map = Mutate(
+            SceneDocumentFixtures.Read("room.tmj"),
+            "\"data\":[0, 0, 0, 0, 1, 1, 2, 0, 1, 1, 1, 4],",
+            "\"data\":[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],");
+
+        SceneDocument document = TiledImporter.Import(workspace.Write("room.tmj", map));
+
+        Assert.Null(TileMapOf(document).Grid.Texture);
+        Assert.Equal(0, TileMapOf(document).Grid.Columns);
+        Assert.Equal("empty", Assert.Single(TileMapOf(document).Grid.TileTypes.ToArray()).Type);
+    }
+
+    private static SceneDocumentFixtures.Workspace TwoTilesets(string lastRow)
+    {
+        const string oneTileset = "\"tilesets\":[\n        {\n         \"firstgid\":1,\n         \"source\":\"tiles.tsj\"\n        }],";
+        const string twoTilesets = "\"tilesets\":[\n        {\n         \"firstgid\":1,\n         \"source\":\"tiles.tsj\"\n        },\n        {\n         \"firstgid\":5,\n         \"source\":\"props.tsj\"\n        }],";
+        const string props = """
+            { "columns":1,
+             "image":"textures\/props.png",
+             "imageheight":16,
+             "imagewidth":16,
+             "name":"props",
+             "tilecount":1,
+             "tileheight":16,
+             "tiles":[
+                    {
+                     "id":0,
+                     "type":"crate"
+                    }],
+             "tilewidth":16,
+             "type":"tileset"
+            }
+            """;
+
+        SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("tiles.tsj", SceneDocumentFixtures.Read("tiles.tsj"));
+        workspace.Write("props.tsj", props);
+        workspace.Write(
+            "room.tmj",
+            Mutate(Mutate(SceneDocumentFixtures.Read("room.tmj"), oneTileset, twoTilesets), "1, 1, 1, 4]", lastRow));
+
+        return workspace;
     }
 
     private static TiledImportException ImportMutated(string from, string to, bool mutateTileset)

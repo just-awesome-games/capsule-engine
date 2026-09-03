@@ -1,3 +1,4 @@
+using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -107,7 +108,7 @@ public sealed class EngineBuilderTests
     }
 
     private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>
-        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
+        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]), []);
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());

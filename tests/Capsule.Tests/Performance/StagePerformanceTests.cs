@@ -192,8 +192,8 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
             peakAllocated = Math.Max(peakAllocated, sample.AllocatedBytes);
             measuredDuration += sample.Duration;
             peakDuration = sample.Duration > peakDuration ? sample.Duration : peakDuration;
-            total += sample.Render.TotalQuads;
-            visible += sample.Render.VisibleQuads;
+            total += sample.Render.Submitted;
+            visible += sample.Render.Visible;
         }
 
         TimeSpan mean = measuredDuration / samples.Length;
@@ -203,7 +203,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
             $"{label}: {entities} entities, {allocated / (double)samples.Length:0.0} bytes/step "
             + $"(peak {peakAllocated}, run {allocated} of {maxPerRun}), "
             + $"mean {mean.TotalMilliseconds * 1000.0:0.00} us, peak {peakDuration.TotalMilliseconds * 1000.0:0.00} us, "
-            + $"quads {total / (double)samples.Length:0.0} total / {visible / (double)samples.Length:0.0} visible / "
+            + $"commands {total / (double)samples.Length:0.0} total / {visible / (double)samples.Length:0.0} visible / "
             + $"{(total - visible) / (double)samples.Length:0.0} culled"));
 
         Assert.True(

@@ -1,5 +1,5 @@
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "entities": [
     {
       "id": 6,
@@ -10,25 +10,27 @@
         "tileSize": 16,
         "width": 4,
         "height": 3,
+        "texture": "tiles.png",
+        "columns": 4,
         "tileTypes": [
           {
             "type": "empty"
           },
           {
             "type": "ground",
-            "color": "#4a5568ff"
+            "cell": 0
           },
           {
             "type": "wall",
-            "color": "#2d3748ff"
+            "cell": 1
           },
           {
             "type": "ledge",
-            "color": "#718096cc"
+            "cell": 2
           },
           {
             "type": "hazard",
-            "color": "#e53e3eff"
+            "cell": 3
           }
         ],
         "tiles": [
@@ -64,6 +66,6 @@
   "source": {
     "tool": "tiled",
     "path": "room.tmj",
-    "hash": "12074f123cbbc9ef7ff1a9280818a100934a7993206f23a60bd4eacee58a0fc0"
+    "hash": "0f45791c186fc074a9702381c518573a421d4de983f029ce5318a012a7629afb"
   }
 }

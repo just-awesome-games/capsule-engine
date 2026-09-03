@@ -55,7 +55,7 @@ Game logic says things out loud through `Capsule.Diagnostics.Log`; the host inst
 
 Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
 
-Rendering draws coloured quads today; texture handles ship files that nothing draws yet.
+Rendering is an ordered stream of render commands; a textured sprite — a texel region of a shipped texture anchored at a pivot — is the first kind, and the host makes every registered texture resident at boot.
 
 ## Contributing
 

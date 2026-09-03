@@ -1,10 +1,7 @@
-{ "columns":0,
- "grid":
-        {
-         "height":16,
-         "orientation":"orthogonal",
-         "width":16
-        },
+{ "columns":2,
+ "image":"..\/textures\/tiles.png",
+ "imageheight":16,
+ "imagewidth":32,
  "margin":0,
  "name":"tiles",
  "spacing":0,
@@ -15,11 +12,6 @@
         {
          "id":0,
          "properties":[
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#ff4a5568"
-                },
                 {
                  "name":"layer",
                  "type":"string",
@@ -34,11 +26,6 @@
                  "name":"collidableFaces",
                  "type":"string",
                  "value":"top"
-                },
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#ff718096"
                 },
                 {
                  "name":"layer",

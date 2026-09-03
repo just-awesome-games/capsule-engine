@@ -4,9 +4,9 @@ using Capsule.Collision;
 namespace Capsule.Scenes.Physics;
 
 /// <summary>
-/// An axis-aligned box collider. Anchored the way a <see cref="QuadRenderer"/> is: the box's corner
-/// is the entity's position plus <see cref="Collider2D.Offset"/>, so a collider matching a drawn
-/// quad is the same two values.
+/// An axis-aligned box collider. Corner-anchored: the box's corner is the entity's position plus
+/// <see cref="Collider2D.Offset"/>, so a body drawn from a sprite whose pivot is its top-left
+/// corner takes the same offset here.
 /// </summary>
 public sealed class BoxCollider2D : Collider2D
 {

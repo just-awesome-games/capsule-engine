@@ -145,8 +145,8 @@ internal static class RegistryDiagnostics
 
     internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = new(
         "CAP018",
-        "An asset cannot be named after its domain",
-        "'{0}' names asset '{1}', which is the class its domain is declared as; rename the file so the member and the class it sits on differ",
+        "An asset cannot take a name its domain reserves",
+        "'{0}' names asset '{1}', which is the class its domain is declared as or a member the generated registry already declares on it; rename the file",
         AssetCategory,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

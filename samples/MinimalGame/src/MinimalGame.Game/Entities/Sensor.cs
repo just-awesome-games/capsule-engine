@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets.Generated;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Physics;
@@ -16,10 +17,13 @@ public sealed class Sensor : Entity
 {
     private static readonly Vector2 Body = new(16f, 24f);
 
+    /// <summary>The whole of <c>textures/sensor.png</c>, anchored at its top-left corner; it never flips, so the pivot stays there.</summary>
+    private static readonly Sprite Field = new(GameAssets.Textures.Sensor, new TextureRegion(0, 0, 16, 24));
+
     public Sensor(EntitySpawn spawn)
         : base(spawn.Position)
     {
-        Add(new QuadRenderer(Body, new ColorRgba(0x38, 0xA1, 0x69, 0x80)));
+        Add(new SpriteRenderer(Field));
         Add(new BoxCollider2D(Body) { Layer = "sensor" });
     }
 }

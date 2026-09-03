@@ -61,7 +61,7 @@ public sealed class EntityTests
         Assert.True(entity.TryGet(out BaseComponent? found));
         Assert.Same(component, found);
         Assert.Same(component, entity.Get<DerivedComponent>());
-        Assert.Throws<InvalidOperationException>(() => entity.Get<QuadRenderer>());
+        Assert.Throws<InvalidOperationException>(() => entity.Get<SpriteRenderer>());
     }
 
     [Fact]
@@ -85,16 +85,16 @@ public sealed class EntityTests
     {
         Scene scene = new();
         TestEntity entity = new(Vector2.Zero);
-        QuadRenderer renderer = new(Vector2.One, ColorRgba.White);
+        SpriteRenderer renderer = new(SceneFixtures.Frame(1, 1));
         entity.Add(renderer);
         scene.Add(entity);
         SceneSimulation simulation = new(scene);
-        Assert.Single(simulation.View.Quads.ToArray());
+        Assert.Single(simulation.View.Sprites.ToArray());
 
         entity.Remove(renderer);
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Empty(simulation.View.Quads.ToArray());
+        Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
     [Fact]

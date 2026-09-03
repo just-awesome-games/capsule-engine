@@ -1,3 +1,4 @@
+using Capsule.Assets;
 using Capsule.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -10,8 +11,8 @@ using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 namespace Capsule.Runtime.Rendering;
 
 /// <summary>
-/// Draws a <see cref="FrameView"/>. Holds no scene state of its own: what a quad
-/// interpolates from travels in the quad.
+/// Draws a <see cref="FrameView"/>. Holds no scene state of its own: what a sprite
+/// interpolates from travels in the sprite.
 /// </summary>
 internal sealed class FrameRenderer : IDisposable
 {
@@ -24,19 +25,24 @@ internal sealed class FrameRenderer : IDisposable
 
     private readonly GraphicsDevice _device;
     private readonly SpriteBatch _batch;
+    private readonly TextureStore _textures;
 
-    // One white texel, tinted and stretched per quad: an untextured rectangle needs no
-    // asset, and keeps every quad in the same batch.
+    // One white texel, tinted and stretched across the camera: the clear colour is world intent
+    // and needs no asset of the game's to be drawn as one.
     private readonly Texture2D _white;
 
     // Null when no render resolution is declared: the world then rasterises straight into
     // the back buffer at whatever size the window is.
     private readonly RenderTarget2D? _target;
 
-    internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution)
+    /// <param name="device">The device to rasterise on.</param>
+    /// <param name="renderResolution">A fixed render surface, or null to draw into the back buffer.</param>
+    /// <param name="textures">The resident textures to draw from; owned by the caller.</param>
+    internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
     {
         _device = device;
         _batch = new SpriteBatch(device);
+        _textures = textures;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
 
@@ -51,13 +57,13 @@ internal sealed class FrameRenderer : IDisposable
 
     /// <param name="view">What the simulation wants drawn.</param>
     /// <param name="alpha">
-    /// Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each quad, and the camera
+    /// Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the camera
     /// looking at it, is drawn that far from its previous position towards its current one.
     /// </param>
     internal void Draw(FrameView view, float alpha)
     {
         // The scheduler leaves the accumulator holding a whole step when a game exits mid-catch-up,
-        // and an alpha past 1 would throw every quad beyond where it actually is.
+        // and an alpha past 1 would throw every sprite beyond where it actually is.
         alpha = Math.Clamp(alpha, 0f, 1f);
 
         if (_target is null)
@@ -106,7 +112,7 @@ internal sealed class FrameRenderer : IDisposable
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
         // The camera moves on the same clock as what it looks at. Snapping it to the step's end
-        // while the quads interpolate would slide the whole world back and let it catch up once
+        // while the sprites interpolate would slide the whole world back and let it catch up once
         // per step, which is the one artefact interpolation exists to remove.
         Vector2 center = Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
         Vector2 topLeft = center - (camera.Size / 2f);
@@ -129,24 +135,59 @@ internal sealed class FrameRenderer : IDisposable
             effects: SpriteEffects.None,
             layerDepth: 0f);
 
-        foreach (QuadIntent quad in view.Quads)
-        {
-            Vector2 position = Vector2.Lerp(quad.PreviousPosition, quad.Position, alpha);
+        // A run of tiles shares one atlas, so the handle is compared before the dictionary is
+        // asked: the lookup is once per texture change rather than once per sprite.
+        TextureHandle resolved = default;
+        Texture2D? texture = null;
 
-            _batch.Draw(
-                _white,
-                new XnaVector2(position.X, position.Y),
-                sourceRectangle: null,
-                ToBackendColor(quad.Color),
-                rotation: 0f,
-                origin: XnaVector2.Zero,
-                scale: new XnaVector2(quad.Size.X, quad.Size.Y),
-                effects: SpriteEffects.None,
-                layerDepth: 0f);
+        ReadOnlySpan<SpriteIntent> sprites = view.Sprites;
+        foreach (RenderCommand command in view.Commands)
+        {
+            switch (command.Kind)
+            {
+                case RenderKind.Sprite:
+                    DrawSprite(sprites[command.Index], alpha, ref resolved, ref texture);
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown render kind '{command.Kind}'.");
+            }
         }
 
         _batch.End();
     }
+
+    // resolved is the handle texture was fetched for; both are carried across the whole stream so
+    // a run drawing from one atlas resolves it once.
+    private void DrawSprite(in SpriteIntent sprite, float alpha, ref TextureHandle resolved, ref Texture2D? texture)
+    {
+        if (texture is null || sprite.Sprite.Texture != resolved)
+        {
+            resolved = sprite.Sprite.Texture;
+            texture = _textures.Get(resolved);
+        }
+
+        Vector2 position = Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha);
+        TextureRegion region = sprite.Sprite.Region;
+        Vector2 origin = sprite.DrawOrigin;
+
+        _batch.Draw(
+            texture,
+            new XnaVector2(position.X, position.Y),
+            new Rectangle(region.X, region.Y, region.Width, region.Height),
+            ToBackendColor(sprite.Color),
+            rotation: 0f,
+            origin: new XnaVector2(origin.X, origin.Y),
+            scale: new XnaVector2(sprite.Size.X / region.Width, sprite.Size.Y / region.Height),
+            effects: Mirroring(sprite),
+            layerDepth: 0f);
+    }
+
+    // The drawn rect is already placed by the mirrored origin; these only swap the texture
+    // coordinates that fill it.
+    private static SpriteEffects Mirroring(in SpriteIntent sprite) =>
+        (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
+        | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
     /// <summary>Blits <paramref name="target"/> into the back buffer, letterboxed a second time.</summary>
     private void Present(RenderTarget2D target)

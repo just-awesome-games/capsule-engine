@@ -1,3 +1,4 @@
+using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
@@ -21,6 +22,7 @@ public sealed class SceneEngineBuilder
 
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
+    private readonly IReadOnlyList<TextureHandle> _textures;
 
     private string _windowTitle;
     private int _windowWidth = DefaultWindowWidth;
@@ -42,13 +44,16 @@ public sealed class SceneEngineBuilder
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
     /// </param>
     /// <param name="scenes">Every scene the game declares, plain and document-backed alike.</param>
+    /// <param name="textures">Every texture the game ships, made resident before the first frame.</param>
     /// <exception cref="ArgumentException">The name is blank, or no safe directory name slugs out of it.</exception>
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
+    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
+        ArgumentNullException.ThrowIfNull(textures);
 
         _scenes = scenes;
+        _textures = textures;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -296,7 +301,8 @@ public sealed class SceneEngineBuilder
             _maxFrameSeconds,
             _stickDeadzone,
             _triggerDeadzone,
-            _bindings);
+            _bindings,
+            _textures);
 
         if (_crashLogAppName is null)
         {

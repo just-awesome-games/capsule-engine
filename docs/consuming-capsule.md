@@ -175,7 +175,7 @@ Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and runn
 
 ## Model and rendering
 
-Rendering draws coloured quads; `TextureHandle` names a shipped file, and nothing draws one yet.
+Rendering draws sprites: a `SpriteRenderer` holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A sprite is the first kind of thing a frame carries, not the only kind it can. A texture is required to draw. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
 
 ## Seeing your game's output
 

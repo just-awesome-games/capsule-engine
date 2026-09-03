@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -15,9 +16,13 @@ internal static class SceneFixtures
     // Above every placement id the fixtures mint, so the tile-map entry never collides with one.
     internal const int TerrainId = 100;
 
-    internal static readonly ColorRgba Solid = new(0x44, 0x53, 0x6B);
+    /// <summary>The one texture every fixture draws from; a column of <see cref="TileSize"/> cells.</summary>
+    internal static readonly TextureHandle Atlas = new("atlas", ".png");
 
     internal delegate void StepHook(Scene scene, in StepContext context);
+
+    /// <summary>A frame of <see cref="Atlas"/> cut from its top-left corner.</summary>
+    internal static Sprite Frame(int width, int height) => new(Atlas, new TextureRegion(0, 0, width, height));
 
     internal static SceneDocument Room(params EntityPlacement[] entities) =>
         new([new TileMapPlacement(TerrainId, RoomGrid()), .. entities], TerrainId + 1);
@@ -27,7 +32,7 @@ internal static class SceneFixtures
         new([.. entities], TerrainId + 1);
 
     internal static TileGrid RoomGrid() =>
-        new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", Solid)], [0, 1, 0, 0, 0, 0]);
+        new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", 0)], [0, 1, 0, 0, 0, 0], Atlas, 1);
 
     /// <summary>A scene of one tile map drawn as rows of '#' for solid terrain and '.' for empty.</summary>
     internal static Scene Terrain(params string[] rows) =>
@@ -52,8 +57,10 @@ internal static class SceneFixtures
             TileSize,
             width,
             rows.Length,
-            [TileGrid.EmptyTile, new TileDefinition("solid", Solid, "solid")],
-            cells);
+            [TileGrid.EmptyTile, new TileDefinition("solid", 0, "solid")],
+            cells,
+            Atlas,
+            1);
     }
 
     internal static EntityRegistry Registry(params (string Type, EntitySpawner Spawner)[] entities)
@@ -171,7 +178,14 @@ internal static class SceneFixtures
         public override void Draw(FrameView view)
         {
             Entity entity = Entity!;
-            view.AddQuad(new QuadIntent(entity.PreviousPosition, entity.Position, new Vector2(1f, 64f), color));
+            view.Add(new SpriteIntent(
+                Frame(1, 64),
+                entity.PreviousPosition,
+                entity.Position,
+                new Vector2(1f, 64f),
+                FlipX: false,
+                FlipY: false,
+                color));
         }
     }
 

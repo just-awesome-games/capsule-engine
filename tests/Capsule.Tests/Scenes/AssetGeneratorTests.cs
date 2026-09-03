@@ -54,13 +54,37 @@ public sealed class AssetGeneratorTests
         Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
-    [Fact]
-    public void AnAssetNamedAfterItsDomain_FailsTheBuild()
+    [Theory]
+    [InlineData("audio/audio.wav")]
+    [InlineData("textures/all.png")]
+    public void AnAssetTakingANameItsDomainReserves_FailsTheBuild(string asset)
     {
         ImmutableArray<Diagnostic> diagnostics =
-            GeneratorHarness.CompileWithAssets(logic: true, "audio/audio.wav").Diagnostics;
+            GeneratorHarness.CompileWithAssets(logic: true, asset).Diagnostics;
 
         Assert.Equal("CAP018", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    // Boot loads exactly the textures the build registered, so the whole domain has to be
+    // nameable in one place the generated registry provider can read.
+    [Fact]
+    public void EveryTexture_ReachesTheBootRegistryThroughOneList()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
+            GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png", "audio/hit.wav");
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
+
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameAssetsFile);
+        Assert.Contains("TextureHandle[] All", generated, StringComparison.Ordinal);
+        Assert.Contains("Hero,", generated, StringComparison.Ordinal);
+        Assert.Contains("Tiles,", generated, StringComparison.Ordinal);
+
+        Assert.Contains(
+            "GameAssets.Textures.All",
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.RegistryProviderFile),
+            StringComparison.Ordinal);
     }
 
     [Fact]

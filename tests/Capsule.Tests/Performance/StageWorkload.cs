@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
@@ -30,8 +31,14 @@ internal static class StageWorkload
     private const int CorridorTilesHigh = 9;
     private const int HeroTileY = 55;
 
-    private static readonly TileDefinition Solid = new("solid", new ColorRgba(0x44, 0x53, 0x6B));
-    private static readonly TileDefinition Platform = new("platform", new ColorRgba(0x6B, 0x53, 0x44));
+    // One atlas of two cells across, the shape a real terrain tileset takes.
+    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TileDefinition Solid = new("solid", 0);
+    private static readonly TileDefinition Platform = new("platform", 1);
+
+    private static readonly Sprite HeroFrame = new(Atlas, new TextureRegion(0, 0, 16, 24));
+    private static readonly Sprite ActorFrame = new(Atlas, new TextureRegion(0, 0, 16, 16));
+    private static readonly Sprite SparkFrame = new(Atlas, new TextureRegion(0, 0, 4, 4));
 
     internal static SceneDefaults Defaults => new(TextureSampling.Point);
 
@@ -59,7 +66,7 @@ internal static class StageWorkload
             }
         }
 
-        TileGrid grid = new(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles);
+        TileGrid grid = new(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles, Atlas, 2);
 
         EntityPlacement[] placements = new EntityPlacement[PlacedEntities];
         placements[0] = new EntityPlacement(1, "hero", 4f * TileSize, HeroTileY * TileSize);
@@ -105,7 +112,7 @@ internal static class StageWorkload
     {
         internal Hero(EntitySpawn spawn)
             : base(spawn.Position) =>
-            Add(new QuadRenderer(new Vector2(16f, 24f), new ColorRgba(0x3C, 0xA6, 0xE8)));
+            Add(new SpriteRenderer(HeroFrame));
 
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }
@@ -121,7 +128,7 @@ internal static class StageWorkload
 
             if (spawn.Id % 3 == 0)
             {
-                Add(new QuadRenderer(new Vector2(16f, 16f), new ColorRgba(0xC8, 0x4A, 0x4A)));
+                Add(new SpriteRenderer(ActorFrame));
             }
         }
 
@@ -137,7 +144,7 @@ internal static class StageWorkload
             : base(origin)
         {
             _velocity = velocity;
-            Add(new QuadRenderer(new Vector2(4f, 4f), new ColorRgba(0xFF, 0xD0, 0x40)));
+            Add(new SpriteRenderer(SparkFrame));
         }
 
         protected internal override void OnStep(in StepContext context)

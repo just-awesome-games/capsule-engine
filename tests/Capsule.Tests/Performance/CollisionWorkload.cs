@@ -1,6 +1,6 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Collision;
-using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Physics;
@@ -27,11 +27,13 @@ internal static class CollisionWorkload
     private const int FloorRow = 40;
     private const int RoofRow = 30;
 
+    private static readonly TextureHandle Atlas = new("terrain", ".png");
+
     private static readonly TileDefinition[] Palette =
     [
         TileGrid.EmptyTile,
-        new(Solid, new ColorRgba(0x44, 0x53, 0x6B), Solid),
-        new(Platform, new ColorRgba(0x6B, 0x53, 0x44), Platform, CellFaces2D.Top),
+        new(Solid, 0, Solid),
+        new(Platform, 1, Platform, CellFaces2D.Top),
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
@@ -91,7 +93,7 @@ internal static class CollisionWorkload
 
     internal static Scene Room()
     {
-        TileGrid grid = new(TileSize, TilesWide, TilesHigh, Palette, Cells());
+        TileGrid grid = new(TileSize, TilesWide, TilesHigh, Palette, Cells(), Atlas, 2);
 
         return new Scene(new SceneContent(
             new SceneDocument([new TileMapPlacement(1, grid)], 2),

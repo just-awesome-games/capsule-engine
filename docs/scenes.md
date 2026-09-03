@@ -32,11 +32,11 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 2 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
+`SceneDocumentFile` reads and writes format version 3 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
 
 ```json
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "entities": [
     {
       "id": 1,
@@ -47,10 +47,12 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
         "tileSize": 16,
         "width": 2,
         "height": 1,
+        "texture": "terrain.png",
+        "columns": 4,
         "tileTypes": [
           { "type": "empty" },
-          { "type": "ground", "color": "#4a5568ff", "layer": "solid" },
-          { "type": "ledge", "color": "#718096ff", "layer": "ledge", "collidableFaces": ["top"] }
+          { "type": "ground", "cell": 0, "layer": "solid" },
+          { "type": "ledge", "cell": 2, "layer": "ledge", "collidableFaces": ["top"] }
         ],
         "tiles": [0, 1]
       }
@@ -67,16 +69,19 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 - `entities` may be empty: that is a valid empty scene.
 - A `source` block records tool, relative source path, and SHA-256 of the source closure. Its presence marks a derived file, so an authoring source omits it.
 
-`properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Its properties are `tileSize`, `width`, `height`, `tileTypes`, and `tiles`; palette index 0 is `empty`, `tiles` contains exactly `width * height` palette indices, and colors use lowercase `#rrggbbaa`. Properties on any other type are rejected at parse.
+`properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Its properties are `tileSize`, `width`, `height`, `texture`, `columns`, `tileTypes`, and `tiles`; palette index 0 is `empty`, and `tiles` contains exactly `width * height` palette indices. Properties on any other type are rejected at parse.
 
-A palette entry may also carry `layer` and `collidableFaces`, which are what a tile of that type collides as. Face names are grid directions in a Y-down world, so `top` is the tile's -Y side.
+A palette entry may also carry `cell`, `layer` and `collidableFaces`: what a tile of that type draws, and what it collides as. Face names are grid directions in a Y-down world, so `top` is the tile's -Y side.
 
 | Field | Meaning |
 | --- | --- |
+| `texture` | The file name, extension included, of the texture every drawn tile is cut from — `"terrain.png"` is authored at `asset-sources/textures/terrain.png` and loads from `assets/textures/terrain.png`. That directory is flat, so the name carries no path segments, and which extensions it admits is the build's to decide. Absent on a grid that draws nothing. |
+| `columns` | How many cells wide that texture is. Required with `texture` and at least 1; absent without one. |
+| `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` and then down from cell 0, square at `tileSize`. Absent is a semantic tile: it is queryable, it may collide, and it draws nothing. |
 | `layer` | The collision layer every tile of this type is on, as one name. Absent is decoration: the tile collides as nothing. The name is the game's own — the engine reserves none — and a query or a mover meets the tile when its own filter names that layer. The tile type is identity and is never a layer, so several types may share one. |
 | `collidableFaces` | Which sides collide, as an array of `"left"`, `"right"`, `"top"` or `"bottom"`. Absent is all four: the whole tile, with sides shared with an adjacent four-sided tile generating no contact, so a flat run of them is one surface with no seams to catch on. A smaller set is that many one-directional edges — each stops only what crosses it into the tile, never motion along it and never something that started on the far side. |
 
-Any other face name fails the document, as does `collidableFaces` on a tile with no `layer`, an empty `collidableFaces`, and the `collision` field the two of them replaced. The reserved `empty` entry carries neither a colour nor a layer. A tile map whose palette collides with nothing registers no collider at all.
+Texture and cell are strict in both directions: a `cell` on a grid naming no `texture` fails the document, and so does a `texture` no palette entry draws a cell of. Any other face name fails the document, as does `collidableFaces` on a tile with no `layer`, an empty `collidableFaces`, and the `collision` field the two of them replaced. The reserved `empty` entry carries neither a cell nor a layer. A tile map whose palette collides with nothing registers no collider at all.
 
 Invalid documents throw `SceneDocumentFormatException`.
 
@@ -99,6 +104,8 @@ The build writes derived documents under `obj/`, stamps their provenance, and co
 
 ## Tiled subset
 
-Capsule imports `.tmj` maps that are orthogonal, finite, square-tiled, CSV-encoded and unflipped; a tileset tile's Class is the tile type, and its optional `color`, `layer` and `collidableFaces` properties map to the document fields above. Every other constraint is reported by the importer at the failing file.
+Capsule imports `.tmj` maps that are orthogonal, finite, square-tiled, CSV-encoded and unflipped. A tileset tile's Class is the tile type, its local tile id is the type's `cell`, and its optional `layer` and `collidableFaces` properties map to the document fields above.
+
+Tilesets are image tilesets only — a collection of separate images is refused. A tileset's image is resolved against the `.tsj`, must sit under the game's `asset-sources/textures/`, and its file name is the layer's `texture`; its `columns` are copied, and its tile size must be square and equal to the map's. One tile layer paints from one tileset, because a grid cuts its cells from one texture; a layer spanning two is refused naming both, and a layer painting nothing imports as an entry with no texture and the `empty` type alone. Every other constraint is reported by the importer at the failing file.
 
 Tiled's Windows GUI executable writes no console output even on success. Use `tmxrasterizer` when a headless PNG preview is needed.

@@ -1,5 +1,5 @@
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "entities": [
     {
       "id": 1,
@@ -10,9 +10,11 @@
         "tileSize": 16,
         "width": 4,
         "height": 2,
+        "texture": "tiles.png",
+        "columns": 2,
         "tileTypes": [
           { "type": "empty" },
-          { "type": "ground", "color": "#4a5568ff", "layer": "solid" }
+          { "type": "ground", "cell": 0, "layer": "solid" }
         ],
         "tiles": [0, 0, 0, 0, 1, 1, 1, 1]
       }

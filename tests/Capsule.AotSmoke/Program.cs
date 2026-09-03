@@ -64,20 +64,20 @@ internal static class Program
         bool booted =
             steps == script.Length &&
             simulation.ExitRequested &&
-            render.VisibleQuads > 0 &&
+            render.Visible > 0 &&
             contentShipped;
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, {render.VisibleQuads}/{render.TotalQuads} quads, content {contentShipped}."));
+                    $"AOT smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, {render.Visible}/{render.Submitted} commands, content {contentShipped}."));
             return 1;
         }
 
         Console.WriteLine(
             FormattableString.Invariant(
-                $"AOT smoke passed: {steps} steps, {render.VisibleQuads}/{render.TotalQuads} quads, content shipped."));
+                $"AOT smoke passed: {steps} steps, {render.Visible}/{render.Submitted} commands, content shipped."));
         return 0;
     }
 
@@ -93,16 +93,21 @@ internal static class Program
     private static SceneDocument Document(string path) =>
         SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
 
+    // Every texture the shell would make resident at boot, so a handle the build registered with
+    // no file behind it fails here rather than in front of a window.
     private static bool ContentShipped()
     {
         SceneDocument hall = Document(NativeScenePath);
-        TextureHandle player = GameAssets.Textures.Player;
         AudioHandle step = GameAssets.Audio.StepSoft;
 
         return hall.Source is { Tool: "native" }
-            && Shipped("textures", player.Name, player.Extension)
+            && Shipped(GameAssets.Textures.Player)
+            && Shipped(GameAssets.Textures.Tiles)
+            && Shipped(GameAssets.Textures.Sensor)
             && Shipped("audio", step.Name, step.Extension);
     }
+
+    private static bool Shipped(TextureHandle texture) => Shipped("textures", texture.Name, texture.Extension);
 
     private static bool Shipped(string domain, string name, string extension) =>
         File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", domain, name + extension));

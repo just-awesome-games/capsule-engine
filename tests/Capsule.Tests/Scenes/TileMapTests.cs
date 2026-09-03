@@ -11,7 +11,7 @@ public sealed class TileMapTests
     public void TerrainIsBakedFromTheGrid_AndDrawsAheadOfWhatWasAddedAfterIt()
     {
         SceneFixtures.Drifter drifter = new(new Vector2(7, 9));
-        drifter.Add(new QuadRenderer(new Vector2(4, 8), ColorRgba.White));
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(4, 8)));
 
         Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         scene.Add(drifter);
@@ -20,18 +20,21 @@ public sealed class TileMapTests
 
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(2, simulation.View.Quads.Length);
+        Assert.Equal(2, simulation.View.Sprites.Length);
 
-        QuadIntent terrain = simulation.View.Quads[0];
+        SpriteIntent terrain = simulation.View.Sprites[0];
         Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), terrain.Position);
         Assert.Equal(terrain.Position, terrain.PreviousPosition);
         Assert.Equal(new Vector2(SceneFixtures.TileSize, SceneFixtures.TileSize), terrain.Size);
-        Assert.Equal(SceneFixtures.Solid, terrain.Color);
+        Assert.Equal(SceneFixtures.Atlas, terrain.Sprite.Texture);
+        Assert.Equal(ColorRgba.White, terrain.Color);
+        Assert.False(terrain.FlipX);
+        Assert.False(terrain.FlipY);
 
-        Assert.Equal(new Vector2(8, 9), simulation.View.Quads[1].Position);
+        Assert.Equal(new Vector2(8, 9), simulation.View.Sprites[1].Position);
     }
 
-    // The quads are world coordinates, so a position write would move nothing and mean nothing.
+    // The sprites are world coordinates, so a position write would move nothing and mean nothing.
     [Fact]
     public void ATilemapRefusesAPositionWrite()
     {
@@ -46,8 +49,14 @@ public sealed class TileMapTests
     [Fact]
     public void ATilemapIsBuiltFromAGridAlone_WithNoDocumentAnywhere()
     {
-        ColorRgba amber = new(0xD6, 0x9E, 0x2E, 0x80);
-        TileGrid grid = new(8, 2, 1, [TileGrid.EmptyTile, new TileDefinition("solid", amber)], [0, 1]);
+        TileGrid grid = new(
+            8,
+            2,
+            1,
+            [TileGrid.EmptyTile, new TileDefinition("solid", 3)],
+            [0, 1],
+            SceneFixtures.Atlas,
+            2);
 
         TileMap tiles = new(grid);
         Scene scene = new();
@@ -59,50 +68,39 @@ public sealed class TileMapTests
         Assert.Equal(8, tiles.TileSize);
         Assert.Equal(new Vector2(16, 8), tiles.Size);
         Assert.Equal("solid", tiles.TileTypeAt(1, 0));
-        Assert.Equal(amber, Assert.Single(simulation.View.Quads.ToArray()).Color);
+        Assert.Equal(
+            new TextureRegion(8, 8, 8, 8),
+            Assert.Single(simulation.View.Sprites.ToArray()).Sprite.Region);
     }
 
     [Fact]
     public void TerrainEmitsOnlyTilesCrossingTheCamera()
     {
-        TileGrid grid = new(
-            tileSize: 8,
-            width: 4,
-            height: 1,
-            [TileGrid.EmptyTile, new TileDefinition("solid", SceneFixtures.Solid)],
-            [1, 1, 1, 1]);
         Scene scene = new();
         scene.Camera.Center = new Vector2(12, 4);
         scene.Camera.ViewportSize = new Vector2(8, 8);
-        scene.Add(new TileMap(grid));
+        scene.Add(new TileMap(Run()));
 
         SceneSimulation simulation = new(scene);
 
-        QuadIntent tile = Assert.Single(simulation.View.Quads.ToArray());
+        SpriteIntent tile = Assert.Single(simulation.View.Sprites.ToArray());
         Assert.Equal(new Vector2(8, 0), tile.Position);
     }
 
     [Fact]
     public void TerrainEmitsTheTilesTheCameraSweepsAcross()
     {
-        TileGrid grid = new(
-            tileSize: 8,
-            width: 4,
-            height: 1,
-            [TileGrid.EmptyTile, new TileDefinition("solid", SceneFixtures.Solid)],
-            [1, 1, 1, 1]);
-
         static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(28, 4);
 
         SceneFixtures.HookScene scene = new(step: Sweep);
         scene.Camera.Center = new Vector2(4, 4);
         scene.Camera.ViewportSize = new Vector2(8, 8);
-        scene.Add(new TileMap(grid));
+        scene.Add(new TileMap(Run()));
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(4, simulation.View.Quads.Length);
+        Assert.Equal(4, simulation.View.Sprites.Length);
     }
 
     [Fact]
@@ -113,11 +111,11 @@ public sealed class TileMapTests
 
         SceneSimulation simulation = new(scene);
 
-        Assert.Empty(simulation.View.Quads.ToArray());
+        Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
     [Fact]
-    public void AColorlessSemanticTile_RemainsQueryableWithoutEmittingAQuad()
+    public void ACelllessSemanticTile_RemainsQueryableWithoutEmittingASprite()
     {
         TileGrid grid = new(
             tileSize: 8,
@@ -132,8 +130,18 @@ public sealed class TileMapTests
         SceneSimulation simulation = new(scene);
 
         Assert.Equal("hazard", tiles.TileTypeAt(0, 0));
-        Assert.Empty(simulation.View.Quads.ToArray());
+        Assert.Empty(simulation.View.Sprites.ToArray());
     }
+
+    private static TileGrid Run() =>
+        new(
+            tileSize: 8,
+            width: 4,
+            height: 1,
+            [TileGrid.EmptyTile, new TileDefinition("solid", 0)],
+            [1, 1, 1, 1],
+            SceneFixtures.Atlas,
+            1);
 
     private static void OpenOver(Scene scene, Vector2 size)
     {

@@ -1,5 +1,5 @@
 { "columns":4,
- "image":"tiles.png",
+ "image":"textures\/tiles.png",
  "imageheight":16,
  "imagewidth":64,
  "margin":0,
@@ -11,22 +11,10 @@
  "tiles":[
         {
          "id":0,
-         "properties":[
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#ff4a5568"
-                }],
          "type":"ground"
         },
         {
          "id":1,
-         "properties":[
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#ff2d3748"
-                }],
          "type":"wall"
         },
         {
@@ -36,22 +24,11 @@
                  "name":"solid",
                  "type":"bool",
                  "value":false
-                },
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#cc718096"
                 }],
          "type":"ledge"
         },
         {
          "id":3,
-         "properties":[
-                {
-                 "name":"color",
-                 "type":"color",
-                 "value":"#ffe53e3e"
-                }],
          "type":"hazard"
         }],
  "tilewidth":16,

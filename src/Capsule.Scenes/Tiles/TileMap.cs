@@ -6,9 +6,9 @@ namespace Capsule.Scenes.Tiles;
 
 /// <summary>
 /// A tile grid anchored at the world origin — its cells are world coordinates, so its
-/// <see cref="Entity.Position"/> cannot be written. It draws colored palette entries as quads and,
-/// where its palette says any tile type collides, registers one <see cref="GridCollider2D"/> with
-/// the scene's world for the whole layer.
+/// <see cref="Entity.Position"/> cannot be written. It draws every palette entry that names a cell
+/// of the grid's texture and, where its palette says any tile type collides, registers one
+/// <see cref="GridCollider2D"/> with the scene's world for the whole layer.
 /// </summary>
 public sealed class TileMap : Entity
 {
@@ -98,7 +98,7 @@ public sealed class TileMap : Entity
 
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
             ReadOnlySpan<int> tiles = grid.Tiles;
-            ReadOnlySpan<TileDefinition> palette = grid.TileTypes;
+            ReadOnlySpan<Sprite?> sprites = grid.Sprites;
             Vector2 size = new(grid.TileSize, grid.TileSize);
 
             for (int y = minY; y < maxY; y++)
@@ -106,15 +106,16 @@ public sealed class TileMap : Entity
                 int row = y * grid.Width;
                 for (int x = minX; x < maxX; x++)
                 {
-                    int tile = tiles[row + x];
-                    ColorRgba? color = palette[tile].Color;
-                    if (color is null)
+                    if (sprites[tiles[row + x]] is not { } sprite)
                     {
                         continue;
                     }
 
+                    // Terrain never moves and never flips, and its frames are anchored at their
+                    // own corner, so the cell's corner is both endpoints of the interpolation.
                     Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
-                    view.AddQuad(new QuadIntent(corner, corner, size, color.Value));
+                    view.Add(new SpriteIntent(
+                        sprite, corner, corner, size, FlipX: false, FlipY: false, ColorRgba.White));
                 }
             }
         }

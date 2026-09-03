@@ -275,7 +275,7 @@ public sealed class SceneStepTests
     public void AnEntitySpawnedDuringAStep_DrawsWhereItIsRatherThanSlidingIn()
     {
         SceneFixtures.Drifter joining = new(new Vector2(40, 40));
-        joining.Add(new QuadRenderer(Vector2.One, SceneFixtures.Solid));
+        joining.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
 
         void Hook(Scene scene, in StepContext context) => scene.Add(joining);
 
@@ -283,9 +283,9 @@ public sealed class SceneStepTests
 
         simulation.Step(SceneFixtures.Step());
 
-        QuadIntent quad = simulation.View.Quads[^1];
-        Assert.Equal(new Vector2(40, 40), quad.PreviousPosition);
-        Assert.Equal(quad.PreviousPosition, quad.Position);
+        SpriteIntent sprite = simulation.View.Sprites[^1];
+        Assert.Equal(new Vector2(40, 40), sprite.PreviousPosition);
+        Assert.Equal(sprite.PreviousPosition, sprite.Position);
     }
 
     [Fact]
@@ -388,13 +388,13 @@ public sealed class SceneStepTests
                 Assert.Equal(entities1[i].PreviousPosition, entities2[i].PreviousPosition);
             }
 
-            ReadOnlySpan<QuadIntent> quads1 = first.View.Quads;
-            ReadOnlySpan<QuadIntent> quads2 = second.View.Quads;
+            ReadOnlySpan<SpriteIntent> sprites1 = first.View.Sprites;
+            ReadOnlySpan<SpriteIntent> sprites2 = second.View.Sprites;
 
-            Assert.Equal(quads1.Length, quads2.Length);
-            for (int i = 0; i < quads1.Length; i++)
+            Assert.Equal(sprites1.Length, sprites2.Length);
+            for (int i = 0; i < sprites1.Length; i++)
             {
-                Assert.Equal(quads1[i], quads2[i]);
+                Assert.Equal(sprites1[i], sprites2[i]);
             }
         }
     }
