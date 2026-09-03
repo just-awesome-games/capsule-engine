@@ -15,11 +15,17 @@
 
        The engine wires one format: *.scene.json, found by convention under
        $(CapsuleAssetSourcesDir)/scenes. An editor's own format enters through an authoring module —
-       a package whose targets derive a *.scene.json per source into their own obj space, append a
-       target of theirs to $(CapsuleCollectSceneDocumentsDependsOn), and add each derived document
-       to the CapsuleSceneDocument item. Those documents then take the same path as hand-authored
-       ones: validated, re-emitted, checked for a clashing name, and shipped. A document that
-       arrives with a source block keeps it.
+       a package whose targets derive a *.scene.json per source into their own obj space and add
+       each derived document to the CapsuleSceneDocument item from a target that runs
+       BeforeTargets="CapsuleCollectSceneDocuments". Those documents then take the same path as
+       hand-authored ones: validated, re-emitted, checked for a clashing name, and shipped. A
+       document that arrives with a source block keeps it.
+
+       A module reads Capsule's properties only inside its targets: NuGet imports a package's
+       targets in no promised order, so at evaluation time CapsuleImportScenes may not yet be what
+       the shell role makes it, while every target runs after evaluation has settled. The
+       BeforeTargets hook is resolved at execution for the same reason; a module that is imported
+       after this file may append to $(CapsuleCollectSceneDocumentsDependsOn) instead.
 
        An importing project may declare the one tile size every scene is authored at, and a scene
        whose grid differs then fails the build:
