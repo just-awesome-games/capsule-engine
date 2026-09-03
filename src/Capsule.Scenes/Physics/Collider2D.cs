@@ -201,7 +201,7 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>The world this collider is registered with, or null while disabled or in no scene.</summary>
-    internal CollisionWorld2D? World => _world;
+    public CollisionWorld2D? World => _world;
 
     /// <summary>This collider's identity in <see cref="World"/>; <see cref="ColliderHandle.None"/> while it is in no scene.</summary>
     public ColliderHandle Handle => _handle;
@@ -324,6 +324,43 @@ public abstract class Collider2D : Component
     /// </summary>
     /// <exception cref="InvalidOperationException">The collider is in no scene.</exception>
     public int Overlap(Span<Contact2D> contacts) => RequireWorld().OverlapCollider(_handle, contacts);
+
+    /// <summary>
+    /// Sweeps this collider's own shape from where it stands along <paramref name="translation"/>
+    /// and reports the first thing it meets, under <see cref="Filter"/> and never itself. Nothing
+    /// moves: the collider, its entity and the world are exactly as they were.
+    /// <para>
+    /// A surface already being touched is reported at fraction 0 when the sweep drives into it, and
+    /// passed by when the sweep runs along it or away from it — so a body resting on a floor and
+    /// cast sideways meets the floor not at all.
+    /// </para>
+    /// </summary>
+    /// <param name="translation">How far and which way to sweep, in world units.</param>
+    /// <param name="hit">The nearest thing met, when there is one.</param>
+    /// <returns>Whether the sweep met anything.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The translation is not finite, or the box the sweep covers is not.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    public bool Cast(Vector2 translation, out ShapeCastHit2D hit) => Cast(translation, Filter, out hit);
+
+    /// <summary>
+    /// Sweeps this collider's own shape against <paramref name="filter"/> instead of
+    /// <see cref="Filter"/>, for this call alone; <see cref="Detects"/> is untouched. Self-exclusion,
+    /// the touching rule and the promise that nothing moves are those of
+    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
+    /// </summary>
+    /// <param name="translation">How far and which way to sweep, in world units.</param>
+    /// <param name="filter">What the sweep may hit; <see cref="CollisionFilter.None"/> hits nothing.</param>
+    /// <param name="hit">The nearest thing met, when there is one.</param>
+    /// <returns>Whether the sweep met anything.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The translation is not finite, or the box the sweep covers is not.
+    /// </exception>
+    /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
+    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
+        RequireWorld().ShapeCast(_local, Entity!.Position, translation, filter, out hit, _handle);
 
     /// <summary>
     /// Takes <paramref name="shape"/> as the collider's shape and resyncs whatever world holds it,

@@ -39,6 +39,12 @@ internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
     internal float Trigger(float value) =>
         value <= _triggerDeadzone ? 0f : Remap(value, _triggerDeadzone);
 
+    /// <summary>
+    /// Whether a pull already through <see cref="Trigger"/> counts as a button press. The
+    /// deadzone is the press threshold: anything the filter did not zero is a press.
+    /// </summary>
+    internal static bool TriggerHeld(float filteredPull) => filteredPull > 0f;
+
     private static float Remap(float value, float deadzone) =>
         MathF.Min((value - deadzone) / (1f - deadzone), 1f);
 }

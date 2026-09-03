@@ -9,15 +9,15 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public const int Capacity = 128;
 
     /// <summary>Buttons whose <see cref="PadButton"/> value must remain below this to be representable.</summary>
-    public const int PadCapacity = 16;
+    public const int PadCapacity = 32;
 
     private const int AxisCount = 6;
 
     private readonly UInt128 _down;
-    private readonly ushort _padDown;
+    private readonly uint _padDown;
     private readonly AxisSet _axes;
 
-    private DeviceSnapshot(UInt128 down, ushort padDown, AxisSet axes)
+    private DeviceSnapshot(UInt128 down, uint padDown, AxisSet axes)
     {
         _down = down;
         _padDown = padDown;
@@ -58,13 +58,13 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(PadButton button) => new(_down, (ushort)(_padDown | PadBit(button)), _axes);
+    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _axes);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
     public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(PadButton button) => new(_down, (ushort)(_padDown & ~PadBit(button)), _axes);
+    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _axes);
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place; never <see cref="PadAxis.None"/>.</param>
@@ -89,7 +89,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     /// <summary>Unions held buttons with a newer sample and takes its axis values.</summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
-        new(_down | newer._down, (ushort)(_padDown | newer._padDown), newer._axes);
+        new(_down | newer._down, _padDown | newer._padDown, newer._axes);
 
     /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
     public bool Equals(DeviceSnapshot other)
@@ -143,14 +143,14 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return key == Key.None ? UInt128.Zero : UInt128.One << index;
     }
 
-    private static ushort PadBit(PadButton button)
+    private static uint PadBit(PadButton button)
     {
         int index = (int)button;
         ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, PadCapacity, nameof(button));
 
         // PadButton.None is the empty set, never a member, so bit 0 is deliberately unused.
-        return button == PadButton.None ? (ushort)0 : (ushort)(1 << index);
+        return button == PadButton.None ? 0u : 1u << index;
     }
 
     private static int AxisIndex(PadAxis axis)

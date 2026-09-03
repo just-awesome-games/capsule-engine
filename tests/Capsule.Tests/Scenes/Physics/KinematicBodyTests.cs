@@ -226,6 +226,71 @@ public sealed class KinematicBodyTests
         Assert.False(body.Body.IsOnCeiling);
     }
 
+    // The three answers the query exists to give, from one resting position: into the floor,
+    // away from it, and along it. The sideways case is the one a wall probe rests on — a body
+    // standing on solid tiles is not blocked by them when it moves parallel to their faces.
+    [Theory]
+    [InlineData(0f, 4f, true)]
+    [InlineData(0f, -4f, false)]
+    [InlineData(4f, 0f, false)]
+    [InlineData(-4f, 0f, false)]
+    public void TestMove_AnswersForABodyRestingOnAFloor(float x, float y, bool expected)
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Stepper body = new(new Vector2(24f, 24f));
+        scene.Add(body);
+
+        Assert.Equal(expected, body.Body.TestMove(new Vector2(x, y)));
+    }
+
+    // Axis-separated, as a move is: one blocked axis is a blocked test even though the other is free.
+    [Fact]
+    public void TestMove_OfADiagonalBlockedOnOneAxis_IsBlocked()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Stepper body = new(new Vector2(24f, 24f));
+        scene.Add(body);
+
+        Assert.True(body.Body.TestMove(new Vector2(-4f, 4f)));
+        Assert.True(body.Body.TestMove(new Vector2(4f, 4f)));
+        Assert.False(body.Body.TestMove(new Vector2(-4f, -4f)));
+    }
+
+    [Fact]
+    public void TestMove_LeavesThePositionAndTheLastMovesFlagsAlone()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Stepper body = new(new Vector2(24f, 8f));
+        scene.Add(body);
+
+        body.Body.Move(new Vector2(0f, 60f));
+        Vector2 landed = body.Position;
+        Assert.True(body.Body.IsOnFloor);
+
+        Assert.True(body.Body.TestMove(new Vector2(0f, 40f)));
+        Assert.False(body.Body.TestMove(new Vector2(0f, -40f)));
+
+        Assert.Equal(landed, body.Position);
+        Assert.True(body.Body.IsOnFloor);
+        Assert.Equal(new Vector2(0f, -1f), body.Body.FloorNormal);
+        Assert.False(body.Body.IsOnWall);
+        Assert.False(body.Body.IsOnCeiling);
+    }
+
+    // The corner-correction question: the rise is blocked where the body stands and free four units
+    // over, and nothing is moved to find that out.
+    [Fact]
+    public void TestMove_FromAnOffsetOrigin_AnswersForThatOriginWithoutMovingTheBody()
+    {
+        Scene scene = SceneFixtures.Terrain("##.#", "....", "####");
+        Stepper body = new(new Vector2(28f, 24f));
+        scene.Add(body);
+
+        Assert.True(body.Body.TestMove(new Vector2(0f, -12f)));
+        Assert.False(body.Body.TestMove(new Vector2(0f, -12f), new Vector2(4f, 0f)));
+        Assert.Equal(new Vector2(28f, 24f), body.Position);
+    }
+
     /// <summary>A 16-unit box on the terrain fixture's "solid" layer, driven one step at a time.</summary>
     private sealed class Stepper : Entity
     {

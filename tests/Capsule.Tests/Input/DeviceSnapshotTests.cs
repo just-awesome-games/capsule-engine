@@ -177,6 +177,14 @@ public sealed class DeviceSnapshotTests
 
     [Theory]
     [InlineData(-1)]
+    [InlineData(DeviceSnapshot.PadCapacity)]
+    public void AnUnrepresentablePadButton_Throws(int value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((PadButton)value));
+    }
+
+    [Theory]
+    [InlineData(-1)]
     [InlineData(99)]
     public void AnUnrepresentableAxis_Throws(int value)
     {

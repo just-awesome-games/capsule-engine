@@ -140,20 +140,66 @@ public sealed class KinematicBody2D : Component
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     public MoveResult2D Move(Vector2 translation, CollisionFilter blocking) => MoveWith(translation, blocking);
 
+    /// <summary>
+    /// Whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be stopped short
+    /// — the body's own collider swept from where it stands, under <see cref="Filter"/> and never
+    /// against itself. Nothing moves: neither the entity's position nor
+    /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/>, <see cref="IsOnCeiling"/> or
+    /// <see cref="MoveContacts"/> is touched.
+    /// <para>
+    /// The axes are swept independently, as a move is, so a translation with both components
+    /// non-zero is blocked when either axis is. An axis the translation does not travel along
+    /// blocks nothing, and a surface reached exactly at the end of the translation stopped nothing.
+    /// </para>
+    /// </summary>
+    /// <param name="translation">The move to test, in world units.</param>
+    /// <returns>Whether something would stop it short.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The translation is not finite, or the box the sweep covers is not.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// The body is not in a scene, its collider is disabled or detached, or the collider no
+    /// longer belongs to the body's entity.
+    /// </exception>
+    public bool TestMove(Vector2 translation) => TestMove(translation, Vector2.Zero);
+
+    /// <summary>
+    /// Whether <paramref name="translation"/> would be stopped short if the body stood
+    /// <paramref name="from"/> away from where it stands now — "would this move be free if I were
+    /// one pixel over". Bound by everything
+    /// <see cref="TestMove(Vector2)"/> is; the offset is where the sweep starts and nothing is
+    /// moved there.
+    /// </summary>
+    /// <param name="translation">The move to test, in world units.</param>
+    /// <param name="from">Where to sweep from, relative to the entity's current position.</param>
+    /// <returns>Whether something would stop it short.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The offset origin or the translation is not finite, or the box the sweep covers is not.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// The body is not in a scene, its collider is disabled or detached, or the collider no
+    /// longer belongs to the body's entity.
+    /// </exception>
+    public bool TestMove(Vector2 translation, Vector2 from)
+    {
+        CollisionWorld2D world = RequireSweepable(out Entity entity);
+
+        // An empty contact span: the sweep's accumulator decides the blocked flags, and what it
+        // touched on the way is not this query's answer.
+        MoveResult2D result = world.Move(
+            world.ShapeOf(_collider.Handle),
+            entity.Position + from,
+            translation,
+            Filter,
+            default,
+            _collider.Handle);
+
+        return result.BlockedX || result.BlockedY;
+    }
+
     private MoveResult2D MoveWith(Vector2 translation, CollisionFilter blocking)
     {
-        Entity entity = Entity
-            ?? throw new InvalidOperationException("A KinematicBody2D attached to no entity cannot move one.");
-
-        if (!ReferenceEquals(_collider.Entity, entity))
-        {
-            throw new InvalidOperationException(
-                "A KinematicBody2D cannot move after its collider has left the body's entity.");
-        }
-
-        CollisionWorld2D world = _collider.World
-            ?? throw new InvalidOperationException(
-                "A KinematicBody2D needs its collider enabled and registered in a scene before it can move.");
+        CollisionWorld2D world = RequireSweepable(out Entity entity);
 
         MoveResult2D result = world.Move(
             world.ShapeOf(_collider.Handle),
@@ -184,6 +230,22 @@ public sealed class KinematicBody2D : Component
         Classify(result);
 
         return result;
+    }
+
+    private CollisionWorld2D RequireSweepable(out Entity entity)
+    {
+        entity = Entity
+            ?? throw new InvalidOperationException("A KinematicBody2D attached to no entity has nothing to sweep.");
+
+        if (!ReferenceEquals(_collider.Entity, entity))
+        {
+            throw new InvalidOperationException(
+                "A KinematicBody2D cannot sweep after its collider has left the body's entity.");
+        }
+
+        return _collider.World
+            ?? throw new InvalidOperationException(
+                "A KinematicBody2D needs its collider enabled and registered in a scene before it can sweep.");
     }
 
     // The body holds the entity's one write on its position, so a second one is a mistake the

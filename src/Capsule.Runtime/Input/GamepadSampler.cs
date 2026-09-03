@@ -7,7 +7,7 @@ namespace Capsule.Runtime.Input;
 /// <summary>Folds the first connected gamepad into a <see cref="DeviceSnapshot"/>. The only place pad hardware enters the engine.</summary>
 internal static class GamepadSampler
 {
-    private static readonly Buttons[] XnaByPadButton = BuildLookup();
+    private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
 
     /// <summary>
     /// <paramref name="snapshot"/> with this frame's pad buttons additionally held and its
@@ -24,25 +24,37 @@ internal static class GamepadSampler
 
         DeviceSnapshot sampled = snapshot;
 
-        // From 1: index 0 is PadButton.None, which is never a snapshot member.
-        for (int index = 1; index < XnaByPadButton.Length; index++)
+        foreach ((PadButton button, Buttons xna) in XnaMappings)
         {
-            if (pad.IsButtonDown(XnaByPadButton[index]))
+            if (pad.IsButtonDown(xna))
             {
-                sampled = sampled.With((PadButton)index);
+                sampled = sampled.With(button);
             }
         }
 
         (float leftX, float leftY) = filter.Stick(pad.ThumbSticks.Left.X, pad.ThumbSticks.Left.Y);
         (float rightX, float rightY) = filter.Stick(pad.ThumbSticks.Right.X, pad.ThumbSticks.Right.Y);
 
+        float leftPull = filter.Trigger(pad.Triggers.Left);
+        float rightPull = filter.Trigger(pad.Triggers.Right);
+
+        if (PadFilter.TriggerHeld(leftPull))
+        {
+            sampled = sampled.With(PadButton.LeftTrigger);
+        }
+
+        if (PadFilter.TriggerHeld(rightPull))
+        {
+            sampled = sampled.With(PadButton.RightTrigger);
+        }
+
         return sampled
             .WithAxis(PadAxis.LeftStickX, leftX)
             .WithAxis(PadAxis.LeftStickY, leftY)
             .WithAxis(PadAxis.RightStickX, rightX)
             .WithAxis(PadAxis.RightStickY, rightY)
-            .WithAxis(PadAxis.LeftTrigger, filter.Trigger(pad.Triggers.Left))
-            .WithAxis(PadAxis.RightTrigger, filter.Trigger(pad.Triggers.Right));
+            .WithAxis(PadAxis.LeftTrigger, leftPull)
+            .WithAxis(PadAxis.RightTrigger, rightPull);
     }
 
     // GamePadDeadZone.None: the backend's own filtering would apply a second, differently
@@ -61,31 +73,31 @@ internal static class GamepadSampler
         return default;
     }
 
-    private static Buttons[] BuildLookup()
+    // Buttons without an XNA constant are absent from the lookup, so IsButtonDown is never
+    // handed an empty flag set — which every state reports as down.
+    private static (PadButton, Buttons)[] BuildLookup()
     {
-        PadButton[] buttons = Enum.GetValues<PadButton>();
-
-        int length = 0;
-        foreach (PadButton button in buttons)
+        List<(PadButton, Buttons)> mappings = [];
+        foreach (PadButton button in Enum.GetValues<PadButton>())
         {
-            length = Math.Max(length, (int)button + 1);
+            if (ToXna(button) is { } xna)
+            {
+                mappings.Add((button, xna));
+            }
         }
 
-        Buttons[] lookup = new Buttons[length];
-        foreach (PadButton button in buttons)
-        {
-            lookup[(int)button] = ToXna(button);
-        }
-
-        return lookup;
+        return [.. mappings];
     }
 
     // No discard arm: adding a PadButton without a mapping must fail the build (CS8509).
 #pragma warning disable CS8524 // PadButton has no unnamed values; only a cast can produce one.
-    private static Buttons ToXna(PadButton button) => button switch
+    private static Buttons? ToXna(PadButton button) => button switch
     {
-        // Buttons is a flag set with no zero member, so nothing maps to None.
-        PadButton.None => default,
+        // None is never a snapshot member; the triggers are derived from the filtered pull,
+        // whose deadzone is Capsule's press threshold rather than the backend's.
+        PadButton.None => null,
+        PadButton.LeftTrigger => null,
+        PadButton.RightTrigger => null,
 
         PadButton.DPadUp => Buttons.DPadUp,
         PadButton.DPadDown => Buttons.DPadDown,

@@ -996,6 +996,77 @@ public sealed class ColliderTests
         Assert.Empty(scene.Collision.Grids.ToArray());
     }
 
+    // The whole value of the sweep as a probe: a surface it runs along is not in its way. The body
+    // rests on the floor and stands flush against the wall, so the two cases differ only in which
+    // way the sweep goes.
+    [Fact]
+    public void Cast_MeetsTheSurfaceItDrivesIntoAndNotTheOnesItRunsAlong()
+    {
+        Scene scene = SceneFixtures.Terrain("..#.", "..#.", "####");
+        Prober prober = new(new Vector2(24f, 24f), new Vector2(8f, 8f), "solid");
+        scene.Add(prober);
+
+        Assert.True(prober.Collider.Cast(new Vector2(6f, 0f), out ShapeCastHit2D wall));
+        Assert.Equal(0f, wall.Fraction);
+        Assert.Equal(new Vector2(-1f, 0f), wall.Normal);
+
+        Assert.True(prober.Collider.Cast(new Vector2(0f, 6f), out ShapeCastHit2D floor));
+        Assert.Equal(0f, floor.Fraction);
+        Assert.Equal(new Vector2(0f, -1f), floor.Normal);
+
+        // Away from the wall and along the floor: nothing is met, and the floor the body stands on
+        // is not reported for having been beside the sweep.
+        Assert.False(prober.Collider.Cast(new Vector2(-6f, 0f), out _));
+    }
+
+    // The rounded shapes go through the iterated narrowphase rather than the closed-form box path,
+    // and the tangential rule has to read the same there.
+    [Fact]
+    public void Cast_OfARoundedColliderAlongAFloorItRestsOn_MeetsNothing()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        RoundProber prober = new(new Vector2(24f, 24f), 8f, "solid");
+        scene.Add(prober);
+
+        Assert.False(prober.Collider.Cast(new Vector2(6f, 0f), out _));
+        Assert.False(prober.Collider.Cast(new Vector2(-6f, 0f), out _));
+        Assert.True(prober.Collider.Cast(new Vector2(0f, 6f), out _));
+    }
+
+    // The sweep starts on top of the collider's own shape, so without the exclusion every cast would
+    // report itself at fraction 0 and never reach anything beyond.
+    [Fact]
+    public void Cast_MeetsAnotherColliderAndNeverItself()
+    {
+        Scene scene = new();
+        Prober prober = new(Vector2.Zero, new Vector2(8f, 8f), CollisionWorld2D.DefaultLayerName);
+        Prober other = new(new Vector2(20f, 0f), new Vector2(8f, 8f), CollisionWorld2D.DefaultLayerName);
+        scene.Add(prober);
+        scene.Add(other);
+
+        Assert.True(prober.Collider.Cast(new Vector2(40f, 0f), out ShapeCastHit2D hit));
+        Assert.Equal(other.Collider.Handle, hit.Target.Collider);
+        Assert.Equal(0.3f, hit.Fraction, 1e-4f);
+
+        Assert.False(prober.Collider.Cast(new Vector2(-40f, 0f), out _));
+    }
+
+    // Detects is the default filter, so a collider that detects nothing sweeps through everything;
+    // the overload is how a caller asks a different question without changing the collider.
+    [Fact]
+    public void Cast_UsesTheCollidersOwnFilterUnlessGivenAnother()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Prober prober = new(new Vector2(24f, 8f), new Vector2(8f, 8f));
+        scene.Add(prober);
+
+        Assert.Equal(CollisionFilter.None, prober.Collider.Filter);
+        Assert.False(prober.Collider.Cast(new Vector2(0f, 40f), out _));
+
+        Assert.True(prober.Collider.Cast(new Vector2(0f, 40f), scene.Collision.Filter("solid"), out ShapeCastHit2D hit));
+        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
+    }
+
     private sealed class Body : Entity
     {
         internal Body(Vector2 position)
@@ -1028,6 +1099,34 @@ public sealed class ColliderTests
         internal BoxCollider2D Collider { get; }
 
         internal List<string> Log { get; } = [];
+    }
+
+    /// <summary>A bare collider that queries the world for itself; no body, so nothing ever moves it.</summary>
+    private sealed class Prober : Entity
+    {
+        internal Prober(Vector2 position, Vector2 size, params string[] detects)
+            : base(position)
+        {
+            Collider = new BoxCollider2D(size);
+            Collider.Detects(detects);
+            Add(Collider);
+        }
+
+        internal BoxCollider2D Collider { get; }
+    }
+
+    /// <summary>The rounded <see cref="Prober"/>: its sweeps take the iterated narrowphase.</summary>
+    private sealed class RoundProber : Entity
+    {
+        internal RoundProber(Vector2 position, float radius, params string[] detects)
+            : base(position)
+        {
+            Collider = new CircleCollider2D(radius);
+            Collider.Detects(detects);
+            Add(Collider);
+        }
+
+        internal CircleCollider2D Collider { get; }
     }
 
     /// <summary>A body long enough to touch far more cells than a contact buffer starts out holding.</summary>

@@ -102,6 +102,16 @@ public sealed class PadFilterTests
         Assert.Equal(0.5f, filter.Trigger(halfway), Tolerance);
     }
 
+    [Theory]
+    [InlineData(0f, false)]
+    [InlineData(PadFilter.DefaultTriggerDeadzone, false)]
+    [InlineData(PadFilter.DefaultTriggerDeadzone + 0.001f, true)]
+    [InlineData(1f, true)]
+    public void TheTriggerButton_IsHeldExactlyPastTheDeadzone(float raw, bool held)
+    {
+        Assert.Equal(held, PadFilter.TriggerHeld(Default.Trigger(raw)));
+    }
+
     [Fact]
     public void ATriggerPastTheEndOfItsRange_Clamps()
     {
