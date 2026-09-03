@@ -22,7 +22,7 @@ Comments explain invariants and hazards the code cannot state. Delete walkthroug
 
 ## Boundaries
 
-The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats belong in `Capsule.Cli`, never in a runtime-linked assembly.
+The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats do not live in this repository; they are external modules feeding `*.scene.json` to the build.
 
 Warnings are fixed or suppressed with the reason at the suppression site. Every commit must remain publishable without studio-only context.
 

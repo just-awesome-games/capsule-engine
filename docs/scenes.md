@@ -93,23 +93,12 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 ## From source to game
 
-Games author scene sources under `src/asset-sources/scenes/`, and the build derives them into the runtime's canonical `*.scene.json` format.
+Games author scene documents under `src/asset-sources/scenes/`, and the build validates each one, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<name>.scene.json` beside the executable. Two sources sharing a stem fail the build because that directory is flat, and derived documents are never committed. The shell role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and a game may declare the one tile size every scene must match with `<CapsuleTileSize>` — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
 
-| Command | Consumes | Emits |
-| --- | --- | --- |
-| `import-tiled` | Tiled `*.tmj` maps and the `*.tsj` tilesets they reference | `<out>/<scene>.scene.json`, translated and stamped with its source |
-| `import-native` | `*.scene.json` already in Capsule's own format | the same document re-emitted canonically, so nothing ships unvalidated |
+The process behind the hook is `Capsule.Build.Tool`, packed unlisted inside `JAG.Capsule.Build`. It takes `--out <dir> [--tile-size <px>] --scenes-from <list.txt>`, attempts every source named in the list, and exits 0 when all succeeded, 1 when any failed, 2 on a usage error. The build is its only caller.
 
-Run the tool with no arguments for its full contract. The build invokes it incrementally, and direct use is for diagnosing an import.
+## Authoring tools
 
-The build writes derived documents under `obj/`, stamps their provenance, and copies them to `assets/scenes/<name>.scene.json` beside the executable. Sources sharing a stem fail the build because that directory is flat, and derived documents are never committed. The shell role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and a game may declare the one tile size every scene must match with `<CapsuleTileSize>` — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
+The engine's build wires one format: `*.scene.json`. An editor's own format enters through an authoring module — a package whose `buildTransitive` targets derive a document per source into their own `obj/` space, append a target of theirs to the `CapsuleCollectSceneDocumentsDependsOn` property, and add each derived document to the `CapsuleSceneDocument` item. The engine then validates, canonicalizes, and ships those documents exactly as hand-authored ones, preserving the module's `source` block so the shipped document names the file a person edited. A module may read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize`, and `CapsuleDotNetHost`.
 
-## Tiled subset
-
-Capsule imports `.tmj` maps that are orthogonal, finite, square-tiled, CSV-encoded and unflipped. A tileset tile's Class is the tile type, its local tile id is the type's `cell`, and its optional `layer` and `collidableFaces` properties map to the document fields above.
-
-An object's Class is its entry `type` and its position is its `x` and `y`. A tile object — one dragged out of a tileset, so it carries a gid — also imports a `scale`: its width and height over the tile size of the tileset its gid resolves to, written only when that is not identity. A flipped or rotated tile object is refused. Points and rectangles carry no gid and import as position alone; their size means nothing to Capsule.
-
-Tilesets are image tilesets only — a collection of separate images is refused. A tileset's image is resolved against the `.tsj`, must sit under the game's `asset-sources/textures/`, and its file name is the layer's `texture`; its `columns` are copied, and its tile size must be square and equal to the map's. One tile layer paints from one tileset, because a grid cuts its cells from one texture; a layer spanning two is refused naming both, and a layer painting nothing imports as an entry with no texture and the `empty` type alone. Every other constraint is reported by the importer at the failing file.
-
-Tiled's Windows GUI executable writes no console output even on success. Use `tmxrasterizer` when a headless PNG preview is needed.
+JAG Studios publishes the Tiled module as `JAG.Capsule.Tiled` from [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

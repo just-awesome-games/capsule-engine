@@ -1,4 +1,4 @@
-using Capsule.Cli;
+using Capsule.Build.Tool;
 using Capsule.Scenes.Documents;
 
 namespace Capsule.Tests.Documents;
@@ -19,16 +19,17 @@ public sealed class NativeSceneToolTests
         """;
 
     [Fact]
-    public void ImportNative_ReEmitsCanonicallyUnderTheSourceStem()
+    public void Import_ReEmitsCanonicallyUnderTheSourceStemIntoAnOutputDirectoryItCreates()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("hall.scene.json", Authored);
+        const string Output = "obj/capsule/scenes";
 
-        int exitCode = SceneDocumentTool.ImportNative("scenes", ["hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import(Output, ["hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
-        string emitted = File.ReadAllText("scenes/hall.scene.json");
-        SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
+        string emitted = File.ReadAllText(Path.Combine(Output, "hall.scene.json"));
+        SceneDocument derived = SceneDocumentFile.Load(Path.Combine(Output, "hall.scene.json"));
         Assert.Equal(SceneDocumentFile.ToJson(derived), emitted);
         Assert.NotEqual(Authored, emitted);
         Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
@@ -36,17 +37,27 @@ public sealed class NativeSceneToolTests
     }
 
     [Fact]
-    public void ImportNative_StampsTheSourcePathItWasHanded()
+    public void ImportFromList_ImportsTheSourcesNamedOnePerLine()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("room.scene.json", Authored);
+        workspace.Write("hall.scene.json", Authored);
+        string list = workspace.Write("scenes.txt", "room.scene.json\n\nhall.scene.json\n");
+
+        int exitCode = SceneDocumentTool.ImportFromList("scenes", list, tileSize: null, TextWriter.Null, TextWriter.Null);
+
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists("scenes/room.scene.json"));
+        Assert.True(File.Exists("scenes/hall.scene.json"));
+    }
+
+    [Fact]
+    public void Import_StampsAnUnstampedDocumentWithTheSourcePathItWasHanded()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("rooms/hall.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.ImportNative(
-            "scenes",
-            ["rooms/hall.scene.json"],
-            tileSize: null,
-            TextWriter.Null,
-            TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", ["rooms/hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
@@ -54,20 +65,33 @@ public sealed class NativeSceneToolTests
         Assert.Equal("rooms/hall.scene.json", derived.Source?.Path);
     }
 
+    // An authoring module's document arrives already stamped with the file a person edited, and
+    // that is the provenance a shipped document must keep.
     [Fact]
-    public void ImportNative_FailsAMalformedDocumentByNameAndStillImportsTheOthers()
+    public void Import_PreservesTheSourceBlockOfADocumentAModuleDerived()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        SceneDocument stamped = new(
+            SceneDocumentFile.Parse(Authored).Entries.ToArray(),
+            3,
+            new SceneDocumentSource("editor", "../asset-sources/scenes/hall.editor", new string('a', 64)));
+        workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
+
+        int exitCode = SceneDocumentTool.Import("scenes", ["obj/editor/hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(stamped.Source, SceneDocumentFile.Load("scenes/hall.scene.json").Source);
+    }
+
+    [Fact]
+    public void Import_FailsAMalformedDocumentByNameAndStillImportsTheOthers()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("hall.scene.json", Authored);
         workspace.Write("broken.scene.json", """{ "formatVersion": 4, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.ImportNative(
-            "scenes",
-            ["broken.scene.json", "hall.scene.json"],
-            tileSize: null,
-            TextWriter.Null,
-            error);
+        int exitCode = SceneDocumentTool.Import("scenes", ["broken.scene.json", "hall.scene.json"], tileSize: null, TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("broken.scene.json", error.ToString(), StringComparison.Ordinal);
@@ -76,41 +100,30 @@ public sealed class NativeSceneToolTests
     }
 
     [Fact]
-    public void ImportNative_FailsADocumentWhoseTileSizeIsNotTheDeclaredOne()
+    public void Import_FailsADocumentWhoseTileSizeIsNotTheDeclaredOne()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("hall.scene.json", Authored);
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.ImportNative("scenes", ["hall.scene.json"], tileSize: 8, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", ["hall.scene.json"], tileSize: 8, TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("hall.scene.json", error.ToString(), StringComparison.Ordinal);
         Assert.False(File.Exists("scenes/hall.scene.json"));
     }
 
-    // The shipped plane is a valid authoring source: lifting a derived document back in and
-    // re-importing it must produce the same scene, provenance aside.
     [Fact]
-    public void ImportNative_RoundTripsADocumentTheTiledImporterWrote()
+    public void Import_RefusesTwoSourcesThatWouldClaimTheSameDocument()
     {
-        using SceneDocumentFixtures.Workspace workspace = SceneDocumentFixtures.CopyTiledSources("room");
-        Assert.Equal(0, SceneDocumentTool.ImportTiled("tiled", ["room.tmj"], tileSize: null, TextWriter.Null, TextWriter.Null));
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("a/room.scene.json", Authored);
+        workspace.Write("b/room.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.ImportNative(
-            "scenes",
-            ["tiled/room.scene.json"],
-            tileSize: null,
-            TextWriter.Null,
-            TextWriter.Null);
+        StringWriter error = new();
+        int exitCode = SceneDocumentTool.Import("scenes", ["a/room.scene.json", "b/room.scene.json"], tileSize: null, TextWriter.Null, error);
 
-        Assert.Equal(0, exitCode);
-        SceneDocument imported = SceneDocumentFile.Load("tiled/room.scene.json");
-        SceneDocument reimported = SceneDocumentFile.Load("scenes/room.scene.json");
-        Assert.Equal(Unstamped(imported), Unstamped(reimported));
+        Assert.Equal(1, exitCode);
+        Assert.Contains("would overwrite", error.ToString(), StringComparison.Ordinal);
     }
-
-    private static string Unstamped(SceneDocument document) =>
-        SceneDocumentFile.ToJson(
-            new SceneDocument(document.Entries.ToArray(), document.NextEntityId));
 }

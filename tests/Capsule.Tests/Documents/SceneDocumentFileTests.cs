@@ -556,9 +556,9 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("", "room.tmj", Sha256)]
-    [InlineData("tiled", "", Sha256)]
-    [InlineData("tiled", "room.tmj", "")]
+    [InlineData("", "room.map", Sha256)]
+    [InlineData("editor", "", Sha256)]
+    [InlineData("editor", "room.map", "")]
     public void Constructor_RejectsAnIncompleteSourceBlock(string tool, string path, string hash)
     {
         Assert.Throws<SceneDocumentFormatException>(
@@ -566,13 +566,13 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("scenes\\room.tmj")]
-    [InlineData("/scenes/room.tmj")]
-    [InlineData("C:/scenes/room.tmj")]
+    [InlineData("scenes\\room.map")]
+    [InlineData("/scenes/room.map")]
+    [InlineData("C:/scenes/room.map")]
     public void Constructor_RejectsASourcePathThatIsNotRelativeAndPortable(string path)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("tiled", path, Sha256)));
+            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("editor", path, Sha256)));
 
         Assert.Contains("must be relative", error.Message, StringComparison.Ordinal);
     }
@@ -583,7 +583,7 @@ public sealed class SceneDocumentFileTests
     public void Constructor_RejectsAHashThatIsNotALowercaseSha256(string hash)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("tiled", "room.tmj", hash)));
+            () => new SceneDocument([Terrain()], 2, new SceneDocumentSource("editor", "room.map", hash)));
 
         Assert.Contains("64 lowercase hex", error.Message, StringComparison.Ordinal);
     }
@@ -597,7 +597,7 @@ public sealed class SceneDocumentFileTests
                 new EntityPlacement(3, "player", 40.5f, 24f),
             ],
             4,
-            new SceneDocumentSource("tiled", "../scenes/room.tmj", Sha256));
+            new SceneDocumentSource("editor", "../scenes/room.map", Sha256));
 
         SceneDocument round = SceneDocumentFile.Parse(SceneDocumentFile.ToJson(document));
 

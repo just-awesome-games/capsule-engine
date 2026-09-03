@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Capsule.Scenes.Documents;
 
-namespace Capsule.Cli;
+namespace Capsule.Build.Tool;
 
 public static class NativeSceneImporter
 {
@@ -27,7 +27,9 @@ public static class NativeSceneImporter
             }
         }
 
-        SceneDocumentSource source = new(
+        // A document that arrives stamped was derived by an authoring module, and its block names
+        // the file a person edited; re-stamping it would name the intermediate instead.
+        SceneDocumentSource source = authored.Source ?? new(
             ToolName,
             documentPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(sourceBytes)));

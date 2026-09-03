@@ -5,7 +5,7 @@ using Capsule.Scenes;
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// The boot scene, and the one backed by no <c>*.scene.json</c> and no <c>*.tmj</c>. Its public
+/// The boot scene, and the one backed by no <c>*.scene.json</c>. Its public
 /// parameterless constructor is what marks it class-only: <c>RunScene&lt;MainMenu&gt;()</c> builds it
 /// as it is, with no document composed into it. It draws nothing on purpose — it holds no entities,
 /// and says what it wants through the log.

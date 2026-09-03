@@ -2,35 +2,6 @@ namespace Capsule.Tests.Documents;
 
 internal static class SceneDocumentFixtures
 {
-    internal static string Path(string name) =>
-        System.IO.Path.Combine(AppContext.BaseDirectory, "Documents", "Fixtures", name);
-
-    internal static string Read(string name) => File.ReadAllText(Path(name));
-
-    internal static Workspace CopyTiledSources(params string[] names)
-    {
-        Workspace workspace = new();
-        foreach (string name in names)
-        {
-            string source = name + ".tmj";
-            string directory = System.IO.Path.GetDirectoryName(source)!;
-            if (directory.Length > 0)
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            File.Copy(Path("room.tmj"), source);
-
-            string tileset = System.IO.Path.Combine(directory, "tiles.tsj");
-            if (!File.Exists(tileset))
-            {
-                File.Copy(Path("tiles.tsj"), tileset);
-            }
-        }
-
-        return workspace;
-    }
-
     internal sealed class Workspace : IDisposable
     {
         private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("capsule-scenes-");
@@ -40,8 +11,8 @@ internal static class SceneDocumentFixtures
 
         internal string Write(string name, string text)
         {
-            string path = System.IO.Path.Combine(_directory.FullName, name);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            string path = Path.Combine(_directory.FullName, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, text);
 
             return name;

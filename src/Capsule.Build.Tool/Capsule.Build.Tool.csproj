@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
-  <!-- The drawer of Capsule's dev-time command-line utilities. No game references it, which is why
-       every line of Tiled parsing lives here rather than in Capsule.Scenes: a game runtime never
-       links an authoring format. -->
+  <!-- The build's scene-document process: validates and canonically re-emits every *.scene.json a
+       game ships. Packed unlisted inside JAG.Capsule.Build and run out of process by
+       build/Capsule.SceneDocuments.targets; no game references it and nothing invokes it by hand. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Capsule.Cli</RootNamespace>
-    <AssemblyName>Capsule.Cli</AssemblyName>
+    <RootNamespace>Capsule.Build.Tool</RootNamespace>
+    <AssemblyName>Capsule.Build.Tool</AssemblyName>
     <IsPackable>false</IsPackable>
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

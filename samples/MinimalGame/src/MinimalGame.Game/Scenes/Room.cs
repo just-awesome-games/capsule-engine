@@ -6,7 +6,7 @@ namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// The playable room: a scene that is a document and a class at once. The document is
-/// <c>src/asset-sources/scenes/room.tmj</c>, which the build derives to
+/// <c>src/asset-sources/scenes/room.scene.json</c>, which the build validates and re-emits to
 /// <c>assets/scenes/room.scene.json</c> beside the executable; <c>[SceneDocument("room")]</c> names
 /// it, and without the attribute the kebab-cased class name would be the document name anyway. The
 /// <see cref="SceneContent"/> constructor is the claim — a scene with one is composed from its

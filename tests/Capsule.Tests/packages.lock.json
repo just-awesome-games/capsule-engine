@@ -147,7 +147,7 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "capsule.cli": {
+      "capsule.build.tool": {
         "type": "Project",
         "dependencies": {
           "Capsule.Scenes": "[0.0.0, )"

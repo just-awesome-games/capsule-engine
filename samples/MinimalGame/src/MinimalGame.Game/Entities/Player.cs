@@ -11,7 +11,7 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// The walking, falling, jumping body spawned by the <c>player</c> entries of
-/// <c>scenes/room.tmj</c> and <c>scenes/hall.scene.json</c>.
+/// <c>scenes/room.scene.json</c> and <c>scenes/hall.scene.json</c>.
 /// <para>
 /// A concrete entity with one public constructor taking an <see cref="EntitySpawn"/> claims its
 /// kebab-cased class name as the document entry type it spawns from, so <c>Player</c> answers to
@@ -21,7 +21,7 @@ namespace MinimalGame.Game.Entities;
 /// <para>
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body: the box collider is
 /// corner-anchored, and the sprite anchors its frame's bottom-centre at that same pivot offset
-/// from the corner, so the frame covers the body facing either way and a Tiled point object's
+/// from the corner, so the frame covers the body facing either way and an authored entry's
 /// coordinate is taken as that corner here. Anchoring an authored coordinate is each entity's own
 /// convention.
 /// </para>

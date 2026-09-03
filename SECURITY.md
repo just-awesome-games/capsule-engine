@@ -10,9 +10,8 @@
 Capsule is a game engine library. It has no network stack, no authentication, no persistence layer
 and no privileged installer. What is in scope is what it does touch:
 
-- **Scene and asset parsing.** `Capsule.Scenes` reads scene documents and `Capsule.Cli` reads Tiled
-  authoring files. Malformed input must fail with a `SceneDocumentFormatException` from the scene
-  document reader and a `TiledImportException` from the Tiled importer, never with memory
+- **Scene and asset parsing.** `Capsule.Scenes` reads scene documents. Malformed input must fail
+  with a `SceneDocumentFormatException` from the scene document reader, never with memory
   corruption, an unbounded allocation, or code execution.
 - **Paths written on a player's machine.** The crash log resolves a folder under the OS-local
   application data directory from a game-supplied name. A name that escapes that directory, or

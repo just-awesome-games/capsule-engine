@@ -3,7 +3,7 @@
   <!-- The world: a scene, the entities on it and their components, the tile grid its terrain is,
        and the scene document a scene is composed from. Substrate-free — Core only — so it passes
        the purity admission test and a game's logic and its headless tests reference it directly.
-       Parsers for authoring formats belong in Capsule.Cli, never here. -->
+       Parsers for authoring formats live outside this repository, never here. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Scenes</RootNamespace>

@@ -28,7 +28,7 @@
        MonoGame-hiding contract: these specs compile without any Microsoft.Xna
        reference being available. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Capsule.Cli\Capsule.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Capsule.Build.Tool\Capsule.Build.Tool.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Collision\Capsule.Collision.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Core\Capsule.Core.csproj" />
     <ProjectReference Include="..\..\src\Capsule.Runtime\Capsule.Runtime.csproj" />
@@ -36,12 +36,6 @@
     <!-- Referenced as an ordinary library, not as an analyzer: these specs drive the generator
          directly so that a rejected input is an assertion here rather than a broken build. -->
     <ProjectReference Include="..\..\src\Capsule.Generators\Capsule.Generators.csproj" />
-  </ItemGroup>
-
-  <!-- The importer and the CLI resolve paths relative to their inputs, so the Tiled fixtures
-       and the golden scene document must sit beside each other in the test output. -->
-  <ItemGroup>
-    <None Include="Documents\Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
