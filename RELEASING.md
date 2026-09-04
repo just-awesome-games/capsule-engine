@@ -18,15 +18,14 @@ If CI on `HEAD` is red or still running, stop: a tag publishes whatever it point
 
 ## 2. Run the gates locally
 
-The pre-commit hook runs the first four. The last two build and run the NativeAOT smoke, which
-lives outside `Capsule.slnx` and is otherwise only compiled by CI.
+The pre-commit hook runs the first four; the build compiles the NativeAOT smoke with the rest of
+the solution. The last one boots that smoke, which the build alone does not do.
 
 ```bash
 dotnet restore --locked-mode
 dotnet build --no-restore
 dotnet format --verify-no-changes --no-restore
 dotnet test --no-build
-dotnet build tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
 dotnet run --no-build --project tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
 ```
 

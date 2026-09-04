@@ -18,6 +18,7 @@
     <Project Path="samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj" />
     <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
   </Folder>
 </Solution>

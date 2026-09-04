@@ -4,7 +4,7 @@ These rules cover judgments the build cannot enforce. Read diagnostics before ad
 
 ## Building a game
 
-Consuming Capsule is documented in [`docs/consuming-capsule.md`](docs/consuming-capsule.md); the runnable minimal game is [`samples/MinimalGame/`](samples/MinimalGame/).
+Consuming Capsule is documented in [`docs/consuming-capsule.md`](docs/consuming-capsule.md); the runnable minimal game is [`samples/MinimalGame/`](samples/MinimalGame/), which is frozen: it changes only to migrate a break an engine change caused in it, or when the Creative Director asks for it, and never to demonstrate a new engine feature.
 
 ## Scope
 
