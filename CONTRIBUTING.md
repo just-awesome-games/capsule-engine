@@ -16,7 +16,7 @@ This is not optional: Git ignores `.githooks/` until it is configured, and an un
 
 ## Build
 
-The gates are the four commands in `.githooks/pre-commit`; CI in `.github/workflows/ci.yml` adds Release, pack, consumer, NativeAOT and coverage lanes.
+The gates are the four commands in `.githooks/pre-commit`; CI in `.github/workflows/ci.yml` adds Release, pack, consumer, NativeAOT and coverage lanes. Releases are cut by hand per [RELEASING.md](RELEASING.md), or unattended by the studio's `jag capsule promote`.
 
 ## Expectations
 
