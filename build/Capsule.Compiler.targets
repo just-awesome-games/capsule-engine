@@ -14,7 +14,6 @@
                       Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      AdditionalProperties="PublishAot=false;PublishTrimmed=false;SelfContained=false"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all" />
 

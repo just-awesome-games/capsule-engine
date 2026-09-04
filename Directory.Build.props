@@ -10,6 +10,12 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Built as an external project under a consumer's solution, an engine project hands its
+         Configuration and Platform on to the modules it references. MSBuild's default unsets them
+         there, so a Release game build also built every module in Debug, and a Debug one built each
+         module twice into one obj/ — the CS2012 "cannot open for writing" races seen from the game
+         repo. Capsule.Build.targets sets the same for the consumer's own projects. -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
     <!-- A constant, never the current release: nothing inside this repository should care what the
          last published version was. packages.yml supplies the real number from the release tag at
          pack time. Holding it fixed keeps release numbers out of packages.lock.json, whose

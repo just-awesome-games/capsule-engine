@@ -41,10 +41,6 @@
 
        Left unset, no size is imposed and each scene keeps its own. -->
 
-  <PropertyGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleCollectSceneDocumentsDependsOn Condition="'$(CapsuleCollectSceneDocumentsDependsOn)' == ''"></CapsuleCollectSceneDocumentsDependsOn>
-  </PropertyGroup>
-
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
     <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>

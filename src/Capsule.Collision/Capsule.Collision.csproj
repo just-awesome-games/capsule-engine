@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+    <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

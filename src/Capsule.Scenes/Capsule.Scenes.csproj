@@ -12,8 +12,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Capsule.Collision\Capsule.Collision.csproj" />
-    <ProjectReference Include="..\Capsule.Core\Capsule.Core.csproj" />
+    <ProjectReference Include="../Capsule.Collision/Capsule.Collision.csproj" />
+    <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

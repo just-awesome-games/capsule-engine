@@ -22,7 +22,7 @@
        packed JAG.Capsule.Runtime declare its dependency on JAG.Capsule. Referencing the modules
        directly would emit no dependency at all, because none of them is a package. -->
   <ItemGroup>
-    <ProjectReference Include="..\Capsule\Capsule.csproj" />
+    <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
 
   <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one

@@ -143,15 +143,19 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      # Windows only. The Linux leg's restore, build and tests are already build-and-test's on the
+      # same runner image, and each publish below restores and compiles for its own runtime. The
+      # Windows leg keeps them because the specs are platform-agnostic while what some of them
+      # assert is not: the crash log's reserved device names and its application-data path are
+      # Windows rules the Linux job never executes.
       - name: Restore engine
+        if: matrix.os == 'windows-latest'
         run: dotnet restore --locked-mode
 
       - name: Build engine (Release)
+        if: matrix.os == 'windows-latest'
         run: dotnet build --configuration Release --no-restore
 
-      # The specs are platform-agnostic; what they assert is not. The crash log's reserved
-      # device names and its application-data path are Windows rules, and the Linux leg above
-      # never executes them.
       - name: Test
         if: matrix.os == 'windows-latest'
         run: dotnet test --configuration Release --no-build

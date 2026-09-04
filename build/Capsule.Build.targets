@@ -3,9 +3,11 @@
   <!-- The one entry point for Capsule's build hooks. Capsule.Build brings it to package
        consumers through buildTransitive; a source consumer imports it from the engine clone. -->
 
-  <!-- MSBuild unsets Configuration/Platform on a ProjectReference pointing outside the solution
-       being built, leaving it to fall back to Debug. Preserve the parent configuration for direct
-       project builds; an external-project solution traversal may still evaluate both variants. -->
+  <!-- MSBuild unsets Configuration and Platform on a ProjectReference to a project outside the
+       solution being built, which would leave the engine's projects falling back to Debug, so a
+       consumer's projects hand theirs on. The engine's own Directory.Build.props does the same for
+       the modules' references to each other, so every route into a module carries one
+       global-property set. -->
   <PropertyGroup>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>

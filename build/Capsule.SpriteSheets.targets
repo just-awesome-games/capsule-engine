@@ -32,10 +32,6 @@
        BeforeTargets hook is resolved at execution for the same reason; a module that is imported
        after this file may append to $(CapsuleCollectSheetDocumentsDependsOn) instead. -->
 
-  <PropertyGroup Condition="'$(CapsuleImportSprites)' == 'true'">
-    <CapsuleCollectSheetDocumentsDependsOn Condition="'$(CapsuleCollectSheetDocumentsDependsOn)' == ''"></CapsuleCollectSheetDocumentsDependsOn>
-  </PropertyGroup>
-
   <ItemGroup Condition="'$(CapsuleImportSprites)' == 'true'">
     <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>

@@ -12,7 +12,7 @@ Capsule is a good fit for a 2D game that values headless-testable gameplay, expl
 
 ## Quick start
 
-Install the .NET SDK selected by [`global.json`](global.json), then run the repository's package-consumer game:
+Install the .NET SDK selected by [`global.json`](global.json), then run the sample game:
 
 ```text
 git clone https://github.com/just-awesome-games/capsule-engine.git

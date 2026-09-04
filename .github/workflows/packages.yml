@@ -67,7 +67,7 @@ jobs:
           --configuration Release
           --no-build
           --output artifacts/packages
-          -p:PackageVersion=$CAPSULE_PACKAGE_VERSION
+          -p:Version=$CAPSULE_PACKAGE_VERSION
 
       - name: Report package storage
         shell: bash

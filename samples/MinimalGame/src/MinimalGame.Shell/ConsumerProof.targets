@@ -1,0 +1,50 @@
+<Project>
+
+  <!-- CI's proofs over the shipped package, run by this sample because it is the one consumer CI
+       builds in package mode: the backend never reaches a game's compile references, and the
+       packed buildTransitive/ layout embeds the window icon. None of this is part of a game's
+       wiring — a copy of this sample drops the import. -->
+
+  <Target Name="CapsuleRejectBackendCompileAsset" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <_CapsuleBackendCompileReference Include="@(ReferencePath)"
+                                       Condition="'%(Filename)' == 'MonoGame.Framework'" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleBackendCompileReference)' != ''"
+           Text="Capsule package leaked MonoGame as a compile reference." />
+  </Target>
+
+  <!-- The window icon's whole contract is one string in the built shell: the backend looks the
+       resource up by name, so a manifest name the compiler derived from this project's root
+       namespace would leave the window wearing the backend's icon with nothing to read. Asserted
+       against the assembly rather than the item, in every consumption mode, so the packaged
+       buildTransitive layout is what proves it as much as the source clone is. -->
+  <UsingTask TaskName="CapsuleAssertWindowIcon"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Reflection" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        // From bytes, so the build never holds the shell it just produced open. Reading the
+        // manifest names walks no reference, so nothing this assembly depends on has to be
+        // loadable inside MSBuild.
+        string[] names = Assembly.Load(File.ReadAllBytes(AssemblyPath)).GetManifestResourceNames();
+        if (Array.IndexOf(names, "Icon.bmp") < 0)
+        {
+            Log.LogError(
+                "'" + AssemblyPath + "' embeds no manifest resource named exactly 'Icon.bmp'; it has: "
+                + string.Join(", ", names) + ".");
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="CapsuleAssertWindowIconEmbedded" AfterTargets="Build">
+    <CapsuleAssertWindowIcon AssemblyPath="$(TargetPath)" />
+  </Target>
+
+</Project>
