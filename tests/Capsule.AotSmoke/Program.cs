@@ -19,7 +19,7 @@ internal static class Program
 
     private const string RoomPath = "assets/scenes/room.scene.json";
 
-    private const string NativeScenePath = "assets/scenes/hall.scene.json";
+    private const string NativeScenePath = "assets/scenes/halls/hall.scene.json";
 
     public static int Main()
     {
@@ -101,7 +101,7 @@ internal static class Program
         AudioHandle step = GameAssets.Audio.StepSoft;
 
         return hall.Source is { Tool: "native" }
-            && Shipped(GameAssets.Textures.Player)
+            && Shipped(GameAssets.Textures.Actors.Player)
             && Shipped(GameAssets.Textures.Tiles)
             && Shipped(GameAssets.Textures.Sensor)
             && Shipped("audio", step.Name, step.Extension);
