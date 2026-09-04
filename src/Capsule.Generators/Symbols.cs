@@ -8,6 +8,7 @@ internal static class Symbols
 {
     internal const string LogicRole = "build_property.CapsuleGameLogic";
     internal const string ShellRole = "build_property.CapsuleGameShell";
+    internal const string RootNamespace = "build_property.RootNamespace";
 
     internal const string Entity = "Capsule.Scenes.Entity";
     internal const string EntitySpawn = "Capsule.Scenes.Spawning.EntitySpawn";

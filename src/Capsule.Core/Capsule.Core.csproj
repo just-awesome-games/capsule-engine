@@ -15,6 +15,10 @@
     <InternalsVisibleTo Include="Capsule.Scenes" />
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
+
+    <!-- AssetPaths is the grammar both document formats name a texture by, and the sheet format
+         lives in the build tool. One copy of the rule, or the two formats drift apart. -->
+    <InternalsVisibleTo Include="Capsule.Build" />
   </ItemGroup>
 
 </Project>

@@ -12,6 +12,9 @@ internal static class EntityRegistrySource
 {
     private const string FileName = "CapsuleGameEntities.g.cs";
 
+    // The namespace segment an entity is filed under says nothing its key has to repeat.
+    private const string DomainSegment = "Entities";
+
     internal static EntityModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
     {
         TypeDeclarationSyntax declaration = (TypeDeclarationSyntax)context.Node;
@@ -42,7 +45,7 @@ internal static class EntityRegistrySource
                     ? EntityFault.None
                     : EntityFault.InaccessibleType;
 
-            return Model(type, declaration, TypeNaming.FromTypeName(type.Name), discoveredFault);
+            return Model(type, declaration, null, discoveredFault);
         }
 
         // The attribute has one form; any other call is the compiler's error to report, not this.
@@ -54,7 +57,7 @@ internal static class EntityRegistrySource
         string? spawnType = annotation.ConstructorArguments[0].Value as string;
         if (string.IsNullOrWhiteSpace(spawnType))
         {
-            return Model(type, declaration, string.Empty, EntityFault.BlankSpawnType);
+            return Model(type, declaration, null, EntityFault.BlankSpawnType);
         }
 
         EntityFault fault = EntityFault.None;
@@ -78,7 +81,11 @@ internal static class EntityRegistrySource
         return Model(type, declaration, spawnType!, fault);
     }
 
-    internal static void Emit(SourceProductionContext context, ImmutableArray<EntityModel> models, bool enginePresent)
+    internal static void Emit(
+        SourceProductionContext context,
+        ImmutableArray<EntityModel> models,
+        bool enginePresent,
+        string rootNamespace)
     {
         if (!enginePresent)
         {
@@ -111,7 +118,7 @@ internal static class EntityRegistrySource
             return left.Location.SourceSpan.Start.CompareTo(right.Location.SourceSpan.Start);
         });
 
-        List<EntityModel> sound = new(ordered.Count);
+        List<Registration> sound = new(ordered.Count);
         HashSet<string> described = new(StringComparer.Ordinal);
         foreach (EntityModel model in ordered)
         {
@@ -145,7 +152,9 @@ internal static class EntityRegistrySource
                         RegistryDiagnostics.AmbiguousEntityConstructors, model.Location, model.DisplayName));
                     break;
                 default:
-                    sound.Add(model);
+                    // Where the type is declared is the key it claims, so the key — and whether it
+                    // is a key at all — is not settled until the assembly's root namespace is.
+                    Resolve(context, sound, model, rootNamespace);
                     break;
             }
         }
@@ -157,38 +166,62 @@ internal static class EntityRegistrySource
         {
             int byType = string.CompareOrdinal(left.SpawnType, right.SpawnType);
 
-            return byType != 0 ? byType : string.CompareOrdinal(left.QualifiedName, right.QualifiedName);
+            return byType != 0 ? byType : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
         });
 
-        List<EntityModel> registered = new(sound.Count);
-        foreach (EntityModel model in sound)
+        List<Registration> registered = new(sound.Count);
+        foreach (Registration entry in sound)
         {
-            if (registered.Count > 0 && string.Equals(registered[registered.Count - 1].SpawnType, model.SpawnType, StringComparison.Ordinal))
+            if (registered.Count > 0 && string.Equals(registered[registered.Count - 1].SpawnType, entry.SpawnType, StringComparison.Ordinal))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.DuplicateSpawnType,
-                    model.Location,
-                    registered[registered.Count - 1].DisplayName,
-                    model.DisplayName,
-                    model.SpawnType));
+                    entry.Model.Location,
+                    registered[registered.Count - 1].Model.DisplayName,
+                    entry.Model.DisplayName,
+                    entry.SpawnType));
                 continue;
             }
 
-            registered.Add(model);
+            registered.Add(entry);
         }
 
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }
 
-    private static EntityModel Model(INamedTypeSymbol type, TypeDeclarationSyntax declaration, string spawnType, EntityFault fault) =>
+    // A key names the document entry a scene spawns from, and an override names it whole, so it is
+    // held to the same grammar as the key the namespace would have named.
+    private static void Resolve(
+        SourceProductionContext context,
+        List<Registration> sound,
+        EntityModel model,
+        string rootNamespace)
+    {
+        string spawnType = model.Declared
+            ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+
+        if (TypeNaming.IsKey(spawnType))
+        {
+            sound.Add(new Registration(spawnType, model));
+
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            RegistryDiagnostics.UnsafeSpawnType, model.Location, model.DisplayName, spawnType));
+    }
+
+    private static EntityModel Model(INamedTypeSymbol type, TypeDeclarationSyntax declaration, string? declared, EntityFault fault) =>
         new(
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             type.ToDisplayString(),
-            spawnType,
+            type.ContainingNamespace is { IsGlobalNamespace: false } space ? space.ToDisplayString() : string.Empty,
+            type.Name,
+            declared,
             fault,
             declaration.Identifier.GetLocation());
 
-    private static string Render(List<EntityModel> registered)
+    private static string Render(List<Registration> registered)
     {
         StringBuilder source = new();
 
@@ -196,12 +229,12 @@ internal static class EntityRegistrySource
         source.AppendLine("#nullable enable");
         source.AppendLine();
 
-        foreach (EntityModel model in registered)
+        foreach (Registration entry in registered)
         {
             source.Append("[assembly: global::Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute(0, ");
-            source.Append(SymbolDisplay.FormatLiteral(model.SpawnType, quote: true));
+            source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
             source.Append(", typeof(");
-            source.Append(model.QualifiedName);
+            source.Append(entry.Model.QualifiedName);
             source.AppendLine("))]");
         }
 
@@ -220,12 +253,12 @@ internal static class EntityRegistrySource
         source.AppendLine("            new global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>[]");
         source.AppendLine("            {");
 
-        foreach (EntityModel model in registered)
+        foreach (Registration entry in registered)
         {
             source.Append("                new global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>(");
-            source.Append(SymbolDisplay.FormatLiteral(model.SpawnType, quote: true));
+            source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
             source.Append(", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new ");
-            source.Append(model.QualifiedName);
+            source.Append(entry.Model.QualifiedName);
             source.AppendLine("(spawn)),");
         }
 
@@ -238,5 +271,12 @@ internal static class EntityRegistrySource
         source.AppendLine("}");
 
         return source.ToString();
+    }
+
+    private readonly struct Registration(string spawnType, EntityModel model)
+    {
+        internal string SpawnType { get; } = spawnType;
+
+        internal EntityModel Model { get; } = model;
     }
 }

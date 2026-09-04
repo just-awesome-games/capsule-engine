@@ -22,6 +22,9 @@
          is loaded at all. -->
     <CompilerVisibleProperty Include="CapsuleGameLogic" />
     <CompilerVisibleProperty Include="CapsuleGameShell" />
+
+    <!-- The root a type's namespace is measured against when it claims its registry key. -->
+    <CompilerVisibleProperty Include="RootNamespace" />
   </ItemGroup>
 
 </Project>

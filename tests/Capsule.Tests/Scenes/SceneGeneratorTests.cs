@@ -58,8 +58,11 @@ public sealed class SceneGeneratorTests
     [Theory]
     [InlineData("")]
     [InlineData("../room")]
-    [InlineData("rooms/opening")]
+    [InlineData("rooms//opening")]
+    [InlineData("/opening")]
     [InlineData("opening room")]
+    [InlineData("rooms/opening.json")]
+    [InlineData("rooms/nul")]
     public void AnUnsafeExplicitDocumentName_FailsTheBuild(string documentName)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""

@@ -8,9 +8,12 @@ internal static class TextureFiles
 {
     private const string DomainDirectory = "textures";
 
-    /// <summary>The handle's file, relative to the directory the executable ships its assets in.</summary>
+    /// <summary>
+    /// The handle's file, relative to the directory the executable ships its assets in. The name is
+    /// the source's path under the textures root, so a nested asset resolves to a nested file.
+    /// </summary>
     internal static string RelativePathOf(in TextureHandle handle) =>
-        Path.Combine("assets", DomainDirectory, handle.Name + handle.Extension).Replace('\\', '/');
+        "assets/" + DomainDirectory + "/" + handle.Name + handle.Extension;
 
     /// <summary>
     /// Every handle's file under <paramref name="baseDirectory"/>, in first-appearance order, with

@@ -1,10 +1,14 @@
 namespace Capsule.Scenes.Spawning;
 
-/// <summary>Overrides the kebab-cased <see cref="EntitySpawn.Type"/> claimed by an entity class.</summary>
+/// <summary>
+/// Overrides the <see cref="EntitySpawn.Type"/> an entity class derives from where it is declared.
+/// The value is a whole key — one or more '/'-joined segments of ASCII letters, digits, hyphens and
+/// underscores, none of them a reserved Windows device name (<c>nul</c>, <c>con</c>, ...).
+/// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class SpawnTypeAttribute : Attribute
 {
-    /// <param name="type">The spawn type this class claims, in place of its kebab-cased name.</param>
+    /// <param name="type">The spawn type this class claims, in place of the key its namespace names.</param>
     public SpawnTypeAttribute(string type) => Type = type;
 
     /// <summary>The spawn type this class claims.</summary>

@@ -12,6 +12,9 @@ internal static class SceneRegistrySource
 {
     private const string FileName = "CapsuleGameScenes.g.cs";
 
+    // The namespace segment a scene is filed under says nothing its key has to repeat.
+    private const string DomainSegment = "Scenes";
+
     internal static SceneModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
     {
         TypeDeclarationSyntax declaration = (TypeDeclarationSyntax)context.Node;
@@ -31,16 +34,20 @@ internal static class SceneRegistrySource
         bool parameterless = concreteScene && Symbols.HasPublicParameterlessConstructor(type);
         AttributeData? annotation = Symbols.Attribute(type, compilation, Symbols.SceneDocumentAttribute);
 
+        string space = type.ContainingNamespace is { IsGlobalNamespace: false } containing
+            ? containing.ToDisplayString()
+            : string.Empty;
+
         if (annotation is not null)
         {
             if (!concreteScene || contentConstructors == 0)
             {
-                return new SceneModel(qualifiedName, displayName, null, SceneFault.SceneDocumentRequiresContentConstructor, location);
+                return Model(SceneFault.SceneDocumentRequiresContentConstructor);
             }
 
             if (contentConstructors > 1 || parameterless)
             {
-                return new SceneModel(qualifiedName, displayName, null, SceneFault.AmbiguousConstructors, location);
+                return Model(SceneFault.AmbiguousConstructors);
             }
 
             if (annotation.ConstructorArguments.Length != 1)
@@ -49,13 +56,8 @@ internal static class SceneRegistrySource
             }
 
             string documentName = annotation.ConstructorArguments[0].Value as string ?? string.Empty;
-            SceneFault fault = !TypeNaming.IsSafeDocumentName(documentName)
-                ? SceneFault.UnsafeDocumentName
-                : Symbols.IsAccessibleFromGeneratedCode(type)
-                    ? SceneFault.None
-                    : SceneFault.InaccessibleType;
 
-            return new SceneModel(qualifiedName, displayName, documentName, fault, location);
+            return Model(Accessibility(), documented: true, documentName);
         }
 
         if (!concreteScene || (contentConstructors == 0 && !parameterless))
@@ -65,20 +67,23 @@ internal static class SceneRegistrySource
 
         if (contentConstructors > 1 || (contentConstructors == 1 && parameterless))
         {
-            return new SceneModel(qualifiedName, displayName, null, SceneFault.AmbiguousConstructors, location);
+            return Model(SceneFault.AmbiguousConstructors);
         }
 
-        string? conventionalName = contentConstructors == 1 ? TypeNaming.FromTypeName(type.Name) : null;
-        SceneFault discoveredFault = conventionalName is not null && !TypeNaming.IsSafeDocumentName(conventionalName)
-            ? SceneFault.UnsafeDocumentName
-            : Symbols.IsAccessibleFromGeneratedCode(type)
-                ? SceneFault.None
-                : SceneFault.InaccessibleType;
+        return Model(Accessibility(), documented: contentConstructors == 1);
 
-        return new SceneModel(qualifiedName, displayName, conventionalName, discoveredFault, location);
+        SceneFault Accessibility() =>
+            Symbols.IsAccessibleFromGeneratedCode(type) ? SceneFault.None : SceneFault.InaccessibleType;
+
+        SceneModel Model(SceneFault fault, bool documented = false, string? declared = null) =>
+            new(qualifiedName, displayName, space, type.Name, documented, declared, fault, location);
     }
 
-    internal static void Emit(SourceProductionContext context, ImmutableArray<SceneModel> models, bool enginePresent)
+    internal static void Emit(
+        SourceProductionContext context,
+        ImmutableArray<SceneModel> models,
+        bool enginePresent,
+        string rootNamespace)
     {
         if (!enginePresent)
         {
@@ -111,35 +116,33 @@ internal static class SceneRegistrySource
             return left.Location.SourceSpan.Start.CompareTo(right.Location.SourceSpan.Start);
         });
 
-        List<SceneModel> sound = new(ordered.Count);
+        List<Registration> sound = new(ordered.Count);
         HashSet<string> described = new(StringComparer.Ordinal);
         foreach (SceneModel model in ordered)
         {
             // The parts of a partial class are separate declarations of one type.
-            if (described.Add(model.QualifiedName))
+            if (!described.Add(model.QualifiedName))
             {
-                switch (model.Fault)
-                {
-                    case SceneFault.SceneDocumentRequiresContentConstructor:
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            RegistryDiagnostics.SceneDocumentRequiresContentConstructor, model.Location, model.DisplayName));
-                        break;
-                    case SceneFault.UnsafeDocumentName:
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            RegistryDiagnostics.UnsafeSceneDocumentName, model.Location, model.DisplayName, model.DocumentName ?? string.Empty));
-                        break;
-                    case SceneFault.InaccessibleType:
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
-                        break;
-                    case SceneFault.AmbiguousConstructors:
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            RegistryDiagnostics.AmbiguousSceneConstructors, model.Location, model.DisplayName));
-                        break;
-                    default:
-                        sound.Add(model);
-                        break;
-                }
+                continue;
+            }
+
+            switch (model.Fault)
+            {
+                case SceneFault.SceneDocumentRequiresContentConstructor:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        RegistryDiagnostics.SceneDocumentRequiresContentConstructor, model.Location, model.DisplayName));
+                    break;
+                case SceneFault.InaccessibleType:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
+                    break;
+                case SceneFault.AmbiguousConstructors:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        RegistryDiagnostics.AmbiguousSceneConstructors, model.Location, model.DisplayName));
+                    break;
+                default:
+                    Resolve(context, sound, model, rootNamespace);
+                    break;
             }
         }
 
@@ -150,32 +153,61 @@ internal static class SceneRegistrySource
         {
             int byDocument = string.CompareOrdinal(left.DocumentName ?? string.Empty, right.DocumentName ?? string.Empty);
 
-            return byDocument != 0 ? byDocument : string.CompareOrdinal(left.QualifiedName, right.QualifiedName);
+            return byDocument != 0 ? byDocument : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
         });
 
-        List<SceneModel> registered = new(sound.Count);
-        foreach (SceneModel model in sound)
+        List<Registration> registered = new(sound.Count);
+        foreach (Registration entry in sound)
         {
-            if (model.DocumentName is not null
+            if (entry.DocumentName is not null
                 && registered.Count > 0
-                && string.Equals(registered[registered.Count - 1].DocumentName, model.DocumentName, StringComparison.Ordinal))
+                && string.Equals(registered[registered.Count - 1].DocumentName, entry.DocumentName, StringComparison.Ordinal))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.DuplicateSceneDocumentName,
-                    model.Location,
-                    registered[registered.Count - 1].DisplayName,
-                    model.DisplayName,
-                    model.DocumentName));
+                    entry.Model.Location,
+                    registered[registered.Count - 1].Model.DisplayName,
+                    entry.Model.DisplayName,
+                    entry.DocumentName));
                 continue;
             }
 
-            registered.Add(model);
+            registered.Add(entry);
         }
 
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }
 
-    private static string Render(List<SceneModel> registered)
+    // Where the type is declared is the key it claims, so the key — and whether it is a name a file
+    // can carry — is not settled until the assembly's root namespace is.
+    private static void Resolve(
+        SourceProductionContext context,
+        List<Registration> sound,
+        SceneModel model,
+        string rootNamespace)
+    {
+        if (!model.Documented)
+        {
+            sound.Add(new Registration(null, model));
+
+            return;
+        }
+
+        string documentName = model.Declared
+            ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+
+        if (TypeNaming.IsKey(documentName))
+        {
+            sound.Add(new Registration(documentName, model));
+
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            RegistryDiagnostics.UnsafeSceneDocumentName, model.Location, model.DisplayName, documentName));
+    }
+
+    private static string Render(List<Registration> registered)
     {
         StringBuilder source = new();
 
@@ -183,21 +215,21 @@ internal static class SceneRegistrySource
         source.AppendLine("#nullable enable");
         source.AppendLine();
 
-        foreach (SceneModel model in registered)
+        foreach (Registration entry in registered)
         {
-            if (model.DocumentName is null)
+            if (entry.DocumentName is null)
             {
                 continue;
             }
 
             source.Append("[assembly: global::Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute(1, ");
-            source.Append(SymbolDisplay.FormatLiteral(model.DocumentName, quote: true));
+            source.Append(SymbolDisplay.FormatLiteral(entry.DocumentName, quote: true));
             source.Append(", typeof(");
-            source.Append(model.QualifiedName);
+            source.Append(entry.Model.QualifiedName);
             source.AppendLine("))]");
         }
 
-        if (registered.Exists(static model => model.DocumentName is not null))
+        if (registered.Exists(static entry => entry.DocumentName is not null))
         {
             source.AppendLine();
         }
@@ -227,29 +259,36 @@ internal static class SceneRegistrySource
         return source.ToString();
     }
 
-    private static void AppendRegistrations(StringBuilder source, List<SceneModel> registered, string indent)
+    private static void AppendRegistrations(StringBuilder source, List<Registration> registered, string indent)
     {
-        foreach (SceneModel model in registered)
+        foreach (Registration entry in registered)
         {
             source.Append(indent);
 
-            if (model.DocumentName is null)
+            if (entry.DocumentName is null)
             {
                 source.Append("global::Capsule.Scenes.SceneRegistration.Plain(typeof(");
-                source.Append(model.QualifiedName);
+                source.Append(entry.Model.QualifiedName);
                 source.Append("), static () => new ");
-                source.Append(model.QualifiedName);
+                source.Append(entry.Model.QualifiedName);
                 source.AppendLine("()),");
                 continue;
             }
 
             source.Append("global::Capsule.Scenes.SceneRegistration.FromDocument(typeof(");
-            source.Append(model.QualifiedName);
+            source.Append(entry.Model.QualifiedName);
             source.Append("), ");
-            source.Append(SymbolDisplay.FormatLiteral(model.DocumentName, quote: true));
+            source.Append(SymbolDisplay.FormatLiteral(entry.DocumentName, quote: true));
             source.Append(", static (global::Capsule.Scenes.SceneContent content) => new ");
-            source.Append(model.QualifiedName);
+            source.Append(entry.Model.QualifiedName);
             source.AppendLine("(content)),");
         }
+    }
+
+    private readonly struct Registration(string? documentName, SceneModel model)
+    {
+        internal string? DocumentName { get; } = documentName;
+
+        internal SceneModel Model { get; } = model;
     }
 }

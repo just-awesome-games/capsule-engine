@@ -91,11 +91,15 @@ public sealed class EngineBuilderTests
     }
 
     [Theory]
-    [InlineData("scenes/room-01")]
+    [InlineData("scenes\\room-01")]
     [InlineData("../room-01")]
     [InlineData("nul")]
     [InlineData("room-01 ")]
-    public void RunScene_RejectsADocumentNameThatIsNotOneSafeFileName(string documentName)
+    [InlineData("stage-1//room-01")]
+    [InlineData("stage-1/../room-01")]
+    [InlineData("rooms/room.one")]
+    [InlineData("rooms/room one")]
+    public void RunScene_RejectsADocumentNameThatIsNoSafePath(string documentName)
     {
         SceneEngineBuilder builder = SceneBuilder()
             .WithRenderResolution(320, 180)

@@ -1,15 +1,17 @@
 namespace Capsule.Scenes;
 
 /// <summary>
-/// Overrides the document name a scene derives from its class name. The value must be a portable
-/// file stem and is unique across the game's logic assemblies.
+/// Overrides the document key a scene derives from where its class is declared. The value is a whole
+/// key — one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of
+/// them a reserved Windows device name (<c>nul</c>, <c>con</c>, ...), carrying no extension — and is
+/// unique across the game's logic assemblies.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class SceneDocumentAttribute : Attribute
 {
-    /// <param name="name">The portable document file stem, without the <c>.scene.json</c> suffix.</param>
+    /// <param name="name">The document's key under the scenes root, without the <c>.scene.json</c> suffix.</param>
     public SceneDocumentAttribute(string name) => Name = name;
 
-    /// <summary>The portable document file stem, without the <c>.scene.json</c> suffix.</summary>
+    /// <summary>The document's key under the scenes root, without the <c>.scene.json</c> suffix.</summary>
     public string Name { get; }
 }

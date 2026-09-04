@@ -25,7 +25,7 @@ public sealed class NativeSceneToolTests
         workspace.Write("hall.scene.json", Authored);
         const string Output = "obj/capsule/scenes";
 
-        int exitCode = SceneDocumentTool.Import(Output, ["hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import(Output, Sources("hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         string emitted = File.ReadAllText(Path.Combine(Output, "hall.scene.json"));
@@ -57,7 +57,7 @@ public sealed class NativeSceneToolTests
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("rooms/hall.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.Import("scenes", ["rooms/hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("rooms/hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
@@ -77,7 +77,7 @@ public sealed class NativeSceneToolTests
             new SceneDocumentSource("editor", "../asset-sources/scenes/hall.editor", new string('a', 64)));
         workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
 
-        int exitCode = SceneDocumentTool.Import("scenes", ["obj/editor/hall.scene.json"], tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("obj/editor/hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         Assert.Equal(stamped.Source, SceneDocumentFile.Load("scenes/hall.scene.json").Source);
@@ -91,7 +91,7 @@ public sealed class NativeSceneToolTests
         workspace.Write("broken.scene.json", """{ "formatVersion": 4, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", ["broken.scene.json", "hall.scene.json"], tileSize: null, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("broken.scene.json", "hall.scene.json"), tileSize: null, TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("broken.scene.json", error.ToString(), StringComparison.Ordinal);
@@ -106,11 +106,49 @@ public sealed class NativeSceneToolTests
         workspace.Write("hall.scene.json", Authored);
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", ["hall.scene.json"], tileSize: 8, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: 8, TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("hall.scene.json", error.ToString(), StringComparison.Ordinal);
         Assert.False(File.Exists("scenes/hall.scene.json"));
+    }
+
+    // A key nests, so a document filed under a directory ships under it and the class that claims
+    // it is the one keyed the same way.
+    [Fact]
+    public void Import_WritesANestedKeyAtItsPath()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("stage-1/room-01.scene.json", Authored);
+
+        int exitCode = SceneDocumentTool.Import(
+            "scenes",
+            [new DocumentSource("stage-1/room-01", "stage-1/room-01.scene.json")],
+            tileSize: null,
+            TextWriter.Null,
+            TextWriter.Null);
+
+        Assert.Equal(0, exitCode);
+        Assert.True(File.Exists("scenes/stage-1/room-01.scene.json"));
+    }
+
+    // A key reaches the tool from an authoring module as well as from the file system, and one that
+    // is not a key would write outside the directory the build owns.
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("")]
+    [InlineData("a//b")]
+    public void Import_RefusesAKeyThatIsNoKey(string key)
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("hall.scene.json", Authored);
+
+        StringWriter error = new();
+        int exitCode = SceneDocumentTool.Import(
+            "scenes", [new DocumentSource(key, "hall.scene.json")], tileSize: null, TextWriter.Null, error);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("scene key", error.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -121,9 +159,15 @@ public sealed class NativeSceneToolTests
         workspace.Write("b/room.scene.json", Authored);
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", ["a/room.scene.json", "b/room.scene.json"], tileSize: null, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("a/room.scene.json", "b/room.scene.json"), tileSize: null, TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("would overwrite", error.ToString(), StringComparison.Ordinal);
     }
+
+    // The stem at the root is the key a source carries when nothing states one, which is what the
+    // build hands the tool for a document authored directly under scenes/.
+    private static DocumentSource[] Sources(params string[] paths) =>
+        [.. paths.Select(static path => new DocumentSource(
+            Path.GetFileName(path)[..^SceneDocumentTool.DocumentExtension.Length], path))];
 }

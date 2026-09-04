@@ -23,6 +23,12 @@
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsuleBuildAssets</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
+  <!-- The keyed import overloads and the source list they take are the process's own shape, which
+       only the batch entry point and its specs use. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
     <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />

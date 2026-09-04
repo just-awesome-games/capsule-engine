@@ -1,11 +1,12 @@
 using System.Buffers;
 using System.Text;
+using Capsule.Assets;
 
 namespace Capsule.Runtime;
 
 /// <summary>
-/// The one place a name that will become a directory or a file is judged portable, for the crash
-/// log's folder and for a scene document's file alike.
+/// Whether a name that will become a directory is portable, which the crash log's folder is the one
+/// caller of.
 /// </summary>
 internal static class SafeName
 {
@@ -13,15 +14,6 @@ internal static class SafeName
     // and '/', so a name accepted on a Linux build machine would fail on a player's
     // Windows box. The safe-name contract must not depend on where the game was built.
     private static readonly SearchValues<char> UnsafeNameChars = SearchValues.Create(UnsafeNameCharSet());
-
-    // Windows resolves these as devices from any directory, matching on the stem before
-    // the first dot, so "CON" and "CON.log" both fail rather than creating a directory.
-    private static readonly string[] ReservedDeviceNames =
-    [
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    ];
 
     internal static bool IsOneSafeDirectoryName(string name)
     {
@@ -37,22 +29,12 @@ internal static class SafeName
             return false;
         }
 
+        // Windows matches a device name on the stem before the first dot, so "CON" and "CON.log"
+        // both fail rather than creating a directory.
         ReadOnlySpan<char> stem = name.AsSpan();
         int dot = stem.IndexOf('.');
-        if (dot >= 0)
-        {
-            stem = stem[..dot];
-        }
 
-        foreach (string reserved in ReservedDeviceNames)
-        {
-            if (stem.Equals(reserved, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return !AssetPaths.IsReservedDeviceName(dot >= 0 ? stem[..dot] : stem);
     }
 
     /// <summary>

@@ -14,11 +14,20 @@ internal enum EntityFault
 
 internal readonly struct EntityModel : IEquatable<EntityModel>
 {
-    internal EntityModel(string qualifiedName, string displayName, string spawnType, EntityFault fault, Location location)
+    internal EntityModel(
+        string qualifiedName,
+        string displayName,
+        string containingNamespace,
+        string typeName,
+        string? declared,
+        EntityFault fault,
+        Location location)
     {
         QualifiedName = qualifiedName;
         DisplayName = displayName;
-        SpawnType = spawnType;
+        ContainingNamespace = containingNamespace;
+        TypeName = typeName;
+        Declared = declared;
         Fault = fault;
         Location = location;
     }
@@ -27,7 +36,12 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
 
     internal string DisplayName { get; }
 
-    internal string SpawnType { get; }
+    internal string ContainingNamespace { get; }
+
+    internal string TypeName { get; }
+
+    /// <summary>The key <c>[SpawnType]</c> names, or null when the type claims one by convention.</summary>
+    internal string? Declared { get; }
 
     internal EntityFault Fault { get; }
 
@@ -41,7 +55,9 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
     public bool Equals(EntityModel other) =>
         Fault == other.Fault
         && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
-        && string.Equals(SpawnType, other.SpawnType, StringComparison.Ordinal)
+        && string.Equals(ContainingNamespace, other.ContainingNamespace, StringComparison.Ordinal)
+        && string.Equals(TypeName, other.TypeName, StringComparison.Ordinal)
+        && string.Equals(Declared, other.Declared, StringComparison.Ordinal)
         && (Fault == EntityFault.None || Location.Equals(other.Location));
 
     public override bool Equals(object? obj) => obj is EntityModel other && Equals(other);
@@ -50,7 +66,9 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
     {
         int hash = 17;
         hash = (hash * 31) + QualifiedName.GetHashCode();
-        hash = (hash * 31) + SpawnType.GetHashCode();
+        hash = (hash * 31) + ContainingNamespace.GetHashCode();
+        hash = (hash * 31) + TypeName.GetHashCode();
+        hash = (hash * 31) + (Declared is null ? 0 : Declared.GetHashCode());
         hash = (hash * 31) + (int)Fault;
 
         return hash;

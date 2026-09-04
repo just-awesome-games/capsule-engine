@@ -14,12 +14,19 @@
        or a role.
 
        The engine wires one format: *.scene.json, found by convention under
-       $(CapsuleAssetSourcesDir)/scenes. An editor's own format enters through an authoring module —
-       a package whose targets derive a *.scene.json per source into their own obj space and add
-       each derived document to the CapsuleSceneDocument item from a target that runs
+       $(CapsuleAssetSourcesDir)/scenes. A scene's key is its path under that root without either
+       extension, so scenes/stage-1/room-01.scene.json is keyed 'stage-1/room-01' and ships at
+       assets/scenes/stage-1/room-01.scene.json; the class claiming it is the one whose own key
+       matches.
+
+       An editor's own format enters through an authoring module — a package whose targets derive a
+       *.scene.json per source into their own obj space and add each derived document to the
+       CapsuleSceneDocument item from a target that runs
        BeforeTargets="CapsuleCollectSceneDocuments". Those documents then take the same path as
-       hand-authored ones: validated, re-emitted, checked for a clashing name, and shipped. A
-       document that arrives with a source block keeps it.
+       hand-authored ones: validated, re-emitted, checked for a clashing key, and shipped. A
+       document that arrives with a source block keeps it. A module states the key its document
+       claims as %(CapsuleDocumentKey) — the root-relative path, forward slashes, no extensions; a
+       document that names none is keyed by its stem at the root.
 
        A module reads Capsule's properties only inside its targets: NuGet imports a package's
        targets in no promised order, so at evaluation time CapsuleImportScenes may not yet be what
@@ -39,7 +46,9 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json" />
+    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json">
+      <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
+    </CapsuleNativeScene>
   </ItemGroup>
 
   <!-- The seam an authoring module hooks: its derivation targets run here, before the engine
@@ -57,20 +66,28 @@
     <Error Condition="('@(CapsuleNativeScene)' != '' or '@(CapsuleSceneDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the scene importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- A source's %(Filename) is '<stem>.scene', so the extension comes off it a second time. -->
+    <!-- A source's %(Filename) is '<stem>.scene', so the extension comes off it a second time. A
+         module's document states its own key; a hand-authored one is keyed by where it sits under
+         the scenes root. -->
     <ItemGroup>
-      <_CapsuleSceneSource Include="@(CapsuleNativeScene);@(CapsuleSceneDocument)">
-        <Stem>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</Stem>
+      <_CapsuleSceneSource Include="@(CapsuleNativeScene)">
+        <Key>$([System.String]::Copy('%(CapsuleNativeScene.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeScene.Filename)'))</Key>
       </_CapsuleSceneSource>
-      <_CapsuleSceneName Include="@(_CapsuleSceneSource->'%(Stem)')" />
+      <!-- Qualified: a module states %(CapsuleDocumentKey) on the documents it wants keyed, and
+           unqualified metadata some items in a list do not carry is an MSBuild error. -->
+      <_CapsuleSceneSource Include="@(CapsuleSceneDocument)">
+        <Key Condition="'%(CapsuleSceneDocument.CapsuleDocumentKey)' != ''">%(CapsuleSceneDocument.CapsuleDocumentKey)</Key>
+        <Key Condition="'%(CapsuleSceneDocument.CapsuleDocumentKey)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleSceneDocument.Filename)'))</Key>
+      </_CapsuleSceneSource>
+      <_CapsuleSceneName Include="@(_CapsuleSceneSource->'%(Key)')" />
       <_CapsuleSceneNameDistinct Include="@(_CapsuleSceneName->Distinct())" />
     </ItemGroup>
 
-    <!-- A scene document is named after its source and the output tree is flat, so a repeated
-         name would leave one document silently overwriting the other — across a hand-authored
-         document and a module's as much as within one origin. -->
+    <!-- A scene document ships at its key, so a repeated key would leave one document silently
+         overwriting the other — across a hand-authored document and a module's as much as within
+         one origin. Two scenes of one stem in different directories are two keys. -->
     <Error Condition="'@(_CapsuleSceneName->Count())' != '@(_CapsuleSceneNameDistinct->Count())'"
-           Text="Capsule: two scene sources share a name, and a scene document is named after its source. Rename one of: @(_CapsuleSceneSource, ' ')" />
+           Text="Capsule: two scene sources share a path under the scenes root, and a scene document ships at that path. Rename one of: @(_CapsuleSceneSource, ' ')" />
 
     <!-- The importer runs from the importing project's directory, so the derived paths are made
          absolute rather than left relative to wherever MSBuild was launched. The out directory
@@ -102,7 +119,7 @@
          document leaves a derived file no newer source claims, and this stamp is what puts it out
          of date so it is validated and stamped with its new provenance rather than skipped. -->
     <WriteLinesToFile File="$(CapsuleSceneDocumentsSourceStamp)"
-                      Lines="@(_CapsuleSceneSource->'%(Stem)=%(FullPath)')"
+                      Lines="@(_CapsuleSceneSource->'%(Key)=%(FullPath)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
   </Target>
@@ -121,7 +138,7 @@
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleSceneDocumentsInit;ResolveProjectReferences"
           Inputs="@(_CapsuleSceneSource);$(CapsuleSceneDocumentsSourceStamp);$(CapsuleSceneDocumentsTileSizeStamp);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
-          Outputs="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).json')">
+          Outputs="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Key).scene.json')">
 
     <Error Condition="!Exists('@(_CapsuleBuildTool)')"
            Text="Capsule: the scene importer was not built (expected '@(_CapsuleBuildTool)')." />
@@ -132,17 +149,24 @@
 
          Sources are named relative to the importing project, and the tool runs from there. A
          hand-authored document is stamped with that path verbatim, so this is what decides that
-         provenance reads '../asset-sources/scenes/room.scene.json' rather than a walk out of obj/. -->
+         provenance reads '../asset-sources/scenes/room.scene.json' rather than a walk out of obj/.
 
-    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text. -->
-    <ItemGroup>
+         Each line is the key the scene claims, then '|', then that path; a key is safe path
+         segments and a path carries no '|' on any platform Capsule targets. -->
+
+    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
+
+         Conditioned on the list rather than left to batching: unqualified metadata on an empty item
+         list still evaluates the element once, with %(FullPath) empty, and MakeRelative refuses an
+         empty path. A game that authors no scenes must reach the end of this target. -->
+    <ItemGroup Condition="'@(_CapsuleSceneSource)' != ''">
       <_CapsuleSceneSourceArg Include="@(_CapsuleSceneSource)">
         <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
       </_CapsuleSceneSourceArg>
     </ItemGroup>
 
     <WriteLinesToFile File="$(CapsuleSceneDocumentsBatchFile)"
-                      Lines="@(_CapsuleSceneSourceArg->'%(ProjectRelativePath)')"
+                      Lines="@(_CapsuleSceneSourceArg->'%(Key)|%(ProjectRelativePath)')"
                       Overwrite="true" />
 
     <!-- LogStandardErrorAsError surfaces the tool's own per-source messages verbatim as build
@@ -161,14 +185,15 @@
           BeforeTargets="AssignTargetPaths">
 
     <!-- Named in two steps on purpose: %() in the Content metadata below batches over the item
-         the Include names, so a transform there would resolve %(Filename) against the source. -->
+         the Include names, so a transform there would resolve %(Key) against the source. A
+         transform carries the source's own metadata across, which is how the key survives it. -->
     <ItemGroup>
-      <_CapsuleDerivedScene Include="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Filename).json')" />
+      <_CapsuleDerivedScene Include="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Key).scene.json')" />
     </ItemGroup>
 
     <ItemGroup>
       <Content Include="@(_CapsuleDerivedScene)">
-        <Link>assets/scenes/%(Filename)%(Extension)</Link>
+        <Link>assets/scenes/%(_CapsuleDerivedScene.Key).scene.json</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>

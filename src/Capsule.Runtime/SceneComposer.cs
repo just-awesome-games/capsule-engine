@@ -1,3 +1,4 @@
+using Capsule.Assets;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
@@ -22,28 +23,17 @@ internal sealed class SceneComposer(SceneRegistry scenes)
         _ => throw new InvalidOperationException($"Unknown scene target kind '{target.Kind}'."),
     };
 
-    // Scene documents ship into one flat directory, so a name that is a path would either escape
-    // it or point at a file the hook never wrote, and one Windows resolves as a device would not
-    // be a file at all. A document-backed scene's name comes from its class, so this guards both
-    // boot verbs.
-    private static string DocumentFileName(string name)
-    {
-        if (!string.Equals(Path.GetFileName(name), name, StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                $"A scene document name is the bare name of its authoring source, not a path: '{name}'.",
+    // A scene document's name is its key: the path the build shipped it at under assets/scenes.
+    // Judged by the build's own key grammar, so a name that is no key — one climbing out of that
+    // directory, or one the hook could never have written a file for — is refused here rather than
+    // reaching the file system. A document-backed scene's key comes from its class, so this guards
+    // both boot verbs.
+    private static string DocumentFileName(string name) =>
+        AssetPaths.IsKey(name)
+            ? name + DocumentExtension
+            : throw new ArgumentException(
+                $"A scene document name is '/'-joined key segments of ASCII letters, digits, '-' and '_', none of them a reserved Windows device name (nul, con, ...), with no extension: '{name}'.",
                 nameof(name));
-        }
-
-        if (!SafeName.IsOneSafeDirectoryName(name))
-        {
-            throw new ArgumentException(
-                $"A scene document name must be a single safe file name: no separators, no reserved device name, and no trailing dot or space: '{name}'.",
-                nameof(name));
-        }
-
-        return name + DocumentExtension;
-    }
 
     // A class the registry backs with a document is composed from it; one it registers plainly is
     // built as it is, and one it does not hold at all is named as missing by the registry.

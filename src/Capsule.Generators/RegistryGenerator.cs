@@ -59,13 +59,25 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value);
 
-        context.RegisterSourceOutput(
-            entities.Collect().Combine(registries),
-            static (production, input) => EntityRegistrySource.Emit(production, input.Left, input.Right));
+        // What a key is measured against: the declared root namespace, or the assembly's name when
+        // a project leaves it to MSBuild's own default.
+        IncrementalValueProvider<string> rootNamespace = context.AnalyzerConfigOptionsProvider
+            .Select(static (options, _) =>
+                options.GlobalOptions.TryGetValue(Symbols.RootNamespace, out string? declared) && declared.Length > 0
+                    ? declared
+                    : null)
+            .Combine(context.CompilationProvider.Select(static (compilation, _) => compilation.AssemblyName ?? string.Empty))
+            .Select(static (input, _) => input.Left ?? input.Right);
 
         context.RegisterSourceOutput(
-            scenes.Collect().Combine(registries),
-            static (production, input) => SceneRegistrySource.Emit(production, input.Left, input.Right));
+            entities.Collect().Combine(registries).Combine(rootNamespace),
+            static (production, input) =>
+                EntityRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
+
+        context.RegisterSourceOutput(
+            scenes.Collect().Combine(registries).Combine(rootNamespace),
+            static (production, input) =>
+                SceneRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(provider, static (production, providerName) => RegistryProviderSource.Emit(production, providerName));
         context.RegisterSourceOutput(boot, static (production, wiring) => CapsuleBootSource.Emit(production, wiring));

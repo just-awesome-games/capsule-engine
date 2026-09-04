@@ -73,7 +73,11 @@ internal static class RegistryProviderSource
         source.AppendLine("        public static void AddTextures(global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle> textures)");
         source.AppendLine("        {");
         source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(textures);");
-        source.AppendLine("            textures.AddRange(global::Capsule.Assets.Generated.GameAssets.Textures.All);");
+        source.AppendLine("            global::System.ReadOnlySpan<global::Capsule.Assets.TextureHandle> all = global::Capsule.Assets.Generated.GameAssets.Textures.All;");
+        source.AppendLine("            for (int i = 0; i < all.Length; i++)");
+        source.AppendLine("            {");
+        source.AppendLine("                textures.Add(all[i]);");
+        source.AppendLine("            }");
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");

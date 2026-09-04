@@ -8,14 +8,16 @@ namespace MinimalGame.Game.Scenes;
 /// The playable room: a scene that is a document and a class at once. The document is
 /// <c>src/asset-sources/scenes/room.scene.json</c>, which the build validates and re-emits to
 /// <c>assets/scenes/room.scene.json</c> beside the executable; <c>[SceneDocument("room")]</c> names
-/// it, and without the attribute the kebab-cased class name would be the document name anyway. The
+/// it, and without the attribute the key this class's namespace names would be the same: it sits
+/// directly under <c>MinimalGame.Game.Scenes</c>, so the <c>Scenes</c> segment falls away and
+/// <c>Room</c> claims <c>room</c>. The
 /// <see cref="SceneContent"/> constructor is the claim — a scene with one is composed from its
 /// document, entry by entry in file order: the tile map first, then the <c>player</c> and
 /// <c>sensor</c> placements.
 /// <para>
 /// This class is the code half of that scene: which camera it installs, and what quitting means.
 /// The camera's own framing lives in <see cref="GameCamera"/>, not here.
-/// <c>hall.scene.json</c> is the contrasting case — a document claimed by no class at all, which
+/// <c>halls/hall.scene.json</c> is the contrasting case — a document claimed by no class at all, which
 /// still loads and plays as a plain <see cref="Scene"/>.
 /// </para>
 /// </summary>

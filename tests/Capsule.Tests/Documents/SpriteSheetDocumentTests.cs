@@ -68,10 +68,11 @@ public sealed class SpriteSheetDocumentTests
     // The version gate.
     [InlineData("""{ "texture": "p.png", "frames": [], "clips": [] }""", "formatVersion")]
     [InlineData("""{ "formatVersion": 2, "texture": "p.png", "frames": [], "clips": [] }""", "unsupported")]
-    // A texture that is not one flat file name.
+    // A texture that is not one asset path under the textures root.
     [InlineData("""{ "formatVersion": 1, "frames": [], "clips": [] }""", "names no texture")]
-    [InlineData("""{ "formatVersion": 1, "texture": "sub/p.png", "frames": [], "clips": [] }""", "no path segments")]
-    [InlineData("""{ "formatVersion": 1, "texture": "player", "frames": [], "clips": [] }""", "no path segments")]
+    [InlineData("""{ "formatVersion": 1, "texture": "sub//p.png", "frames": [], "clips": [] }""", "extension included")]
+    [InlineData("""{ "formatVersion": 1, "texture": "../p.png", "frames": [], "clips": [] }""", "extension included")]
+    [InlineData("""{ "formatVersion": 1, "texture": "player", "frames": [], "clips": [] }""", "extension included")]
     // Empty lists.
     [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [], "clips": [] }""", "empty frames list")]
     [InlineData("""

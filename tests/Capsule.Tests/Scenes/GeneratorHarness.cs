@@ -110,15 +110,21 @@ internal static class GeneratorHarness
         return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
+    // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
+    // generator as metadata beside the file.
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
         bool logic,
         params string[] assetPaths)
     {
-        Dictionary<string, string> domains = new(StringComparer.Ordinal);
+        Dictionary<string, (string Domain, string Path)> assets = new(StringComparer.Ordinal);
         ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
         foreach (string path in assetPaths)
         {
-            domains[path] = path.Split('/')[0];
+            int separator = path.IndexOf('/', StringComparison.Ordinal);
+            string relative = path[(separator + 1)..];
+            int dot = relative.LastIndexOf('.');
+
+            assets[path] = (path[..separator], dot < 0 ? relative : relative[..dot]);
             texts.Add(new AssetFile(path));
         }
 
@@ -127,8 +133,19 @@ internal static class GeneratorHarness
             logic,
             shell: !logic,
             texts.ToImmutable(),
-            domains);
+            assets);
     }
+
+    /// <summary>Compiles <paramref name="source"/> in an assembly declaring that root namespace.</summary>
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileIn(
+        string rootNamespace,
+        string source) =>
+        Run(
+            Compiled("KeySpecs", source, References),
+            logic: true,
+            shell: false,
+            assets: null,
+            rootNamespace: rootNamespace);
 
     private enum Role
     {
@@ -162,16 +179,17 @@ internal static class GeneratorHarness
         CSharpCompilation compilation,
         bool logic,
         bool shell,
-        ImmutableArray<AdditionalText>? assets = null,
-        IReadOnlyDictionary<string, string>? domains = null)
+        ImmutableArray<AdditionalText>? texts = null,
+        IReadOnlyDictionary<string, (string Domain, string Path)>? assets = null,
+        string? rootNamespace = null)
     {
         // Both generators, as the compiler loads them: they ship in one assembly, so a spec over
         // either runs against what the other emits into the same compilation.
         CSharpGeneratorDriver.Create(
                 [new RegistryGenerator().AsSourceGenerator(), new AssetRegistryGenerator().AsSourceGenerator()],
-                additionalTexts: assets,
+                additionalTexts: texts,
                 parseOptions: null,
-                optionsProvider: new DeclaredRole(logic, shell, domains))
+                optionsProvider: new DeclaredRole(logic, shell, assets, rootNamespace))
             .RunGeneratorsAndUpdateCompilation(compilation, out Compilation updated, out ImmutableArray<Diagnostic> diagnostics);
 
         return (diagnostics, updated);
@@ -214,14 +232,18 @@ internal static class GeneratorHarness
 
     private sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
-        private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false);
+        private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false, rootNamespace: null);
 
-        private readonly IReadOnlyDictionary<string, string> _domains;
+        private readonly IReadOnlyDictionary<string, (string Domain, string Path)> _assets;
 
-        internal DeclaredRole(bool logic, bool shell, IReadOnlyDictionary<string, string>? domains = null)
+        internal DeclaredRole(
+            bool logic,
+            bool shell,
+            IReadOnlyDictionary<string, (string Domain, string Path)>? assets = null,
+            string? rootNamespace = null)
         {
-            GlobalOptions = new Properties(logic, shell);
-            _domains = domains ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            GlobalOptions = new Properties(logic, shell, rootNamespace);
+            _assets = assets ?? new Dictionary<string, (string, string)>(StringComparer.Ordinal);
         }
 
         public override AnalyzerConfigOptions GlobalOptions { get; }
@@ -229,9 +251,11 @@ internal static class GeneratorHarness
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
 
         public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) =>
-            _domains.TryGetValue(textFile.Path, out string? domain) ? new AssetMetadata(domain) : None;
+            _assets.TryGetValue(textFile.Path, out (string Domain, string Path) asset)
+                ? new AssetMetadata(asset.Domain, asset.Path)
+                : None;
 
-        private sealed class Properties(bool logic, bool shell) : AnalyzerConfigOptions
+        private sealed class Properties(bool logic, bool shell, string? rootNamespace) : AnalyzerConfigOptions
         {
             public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
             {
@@ -244,19 +268,33 @@ internal static class GeneratorHarness
                     return true;
                 }
 
+                if (rootNamespace is not null && string.Equals(key, "build_property.RootNamespace", StringComparison.Ordinal))
+                {
+                    value = rootNamespace;
+
+                    return true;
+                }
+
                 value = null;
 
                 return false;
             }
         }
 
-        private sealed class AssetMetadata(string domain) : AnalyzerConfigOptions
+        private sealed class AssetMetadata(string domain, string path) : AnalyzerConfigOptions
         {
             public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
             {
                 if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetDomain", StringComparison.Ordinal))
                 {
                     value = domain;
+
+                    return true;
+                }
+
+                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetPath", StringComparison.Ordinal))
+                {
+                    value = path;
 
                     return true;
                 }

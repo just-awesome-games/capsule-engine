@@ -268,8 +268,9 @@ public static class SceneDocumentFile
         };
     }
 
-    // The whole file name, extension included: which extensions a textures domain admits is the
-    // build's allow-list to hold, so the format asks only that the name it writes reads back.
+    // The whole path under the textures root, extension included: which extensions that domain
+    // admits is the build's allow-list to hold, so the format asks only that the path it writes
+    // reads back.
     private static string? TextureName(TextureHandle? texture)
     {
         if (texture is not { } handle)
@@ -277,22 +278,11 @@ public static class SceneDocumentFile
             return null;
         }
 
-        return SplitsBackInto(handle)
+        return AssetPaths.Joins(handle.Name, handle.Extension)
             ? handle.Name + handle.Extension
             : throw new SceneDocumentFormatException(
-                $"the '{SceneDocument.TileMapType}' entry's grid draws from texture handle (\"{handle.Name}\", \"{handle.Extension}\"), which does not split back out of one file name: a name is non-empty and an extension is a dot followed by at least one character and no second dot, and neither carries a path segment.");
+                $"the '{SceneDocument.TileMapType}' entry's grid draws from texture handle (\"{handle.Name}\", \"{handle.Extension}\"), which does not split back out of one texture path: a name is one or more '/'-joined segments, none of them empty, \".\" or \"..\", and an extension is a dot followed by at least one character and no second dot.");
     }
-
-    // The exact inverse of the reader's split on the last dot, which is what makes a written name
-    // give its handle back unchanged. A name carrying dots of its own is fine: "x.atlas" and
-    // ".png" write "x.atlas.png" and split apart again at the last one.
-    private static bool SplitsBackInto(TextureHandle handle) =>
-        !string.IsNullOrEmpty(handle.Name)
-        && handle.Extension is { Length: > 1 }
-        && handle.Extension[0] == '.'
-        && handle.Extension.IndexOf('.', 1) < 0
-        && !HasPathSegment(handle.Name)
-        && !HasPathSegment(handle.Extension);
 
     // A grid rejects its own malformed input as an argument fault, which is what a caller building
     // one in code has broken. Read out of a file it is the file that is malformed, so the defect
@@ -360,8 +350,6 @@ public static class SceneDocumentFile
         }
     }
 
-    // Split on the last dot rather than matched against a known extension: the handle carries
-    // whatever the build shipped, and the format only has to name one file in a flat directory.
     private static TextureHandle? ParseTexture(string? texture)
     {
         if (texture is null)
@@ -369,31 +357,11 @@ public static class SceneDocumentFile
             return null;
         }
 
-        if (!IsOneFileName(texture))
-        {
-            throw new SceneDocumentFormatException(
-                $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\"; a texture is the file name of one asset under assets/textures, extension included — \"tiles.png\" — and that directory is flat, so the name carries no path segments.");
-        }
-
-        int dot = texture.LastIndexOf('.');
-
-        return new TextureHandle(texture[..dot], texture[dot..]);
+        return AssetPaths.TrySplit(texture, out string name, out string extension)
+            ? new TextureHandle(name, extension)
+            : throw new SceneDocumentFormatException(
+                $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\"; a texture is one asset's path under assets/textures, extension included — \"tiles.png\" at the root, \"terrain/cave.png\" below it — with forward slashes and no empty, \".\" or \"..\" segment.");
     }
-
-    // One file name with a stem and an extension, and nothing that would reach out of the flat
-    // directory the build ships into.
-    private static bool IsOneFileName(string name)
-    {
-        int dot = name.LastIndexOf('.');
-
-        return !string.IsNullOrWhiteSpace(name)
-            && dot > 0
-            && dot < name.Length - 1
-            && !HasPathSegment(name);
-    }
-
-    private static bool HasPathSegment(string value) =>
-        value.Contains('/', StringComparison.Ordinal) || value.Contains('\\', StringComparison.Ordinal);
 
     private static string? ParseLayer(string? layer, int index)
     {

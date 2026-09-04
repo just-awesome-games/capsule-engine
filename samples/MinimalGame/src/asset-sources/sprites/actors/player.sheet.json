@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "texture": "player.png",
+  "texture": "actors/player.png",
   "frames": [
     {
       "name": "idle-0",

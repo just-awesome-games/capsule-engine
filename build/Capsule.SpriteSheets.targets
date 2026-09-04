@@ -14,11 +14,17 @@
        that property.
 
        The engine wires one format: *.sheet.json, found by convention under
-       $(CapsuleAssetSourcesDir)/sprites. A packer's output or an editor's file enters through an
-       authoring module — a package whose targets derive a *.sheet.json per source into their own
-       obj space and add each derived document to the CapsuleSheetDocument item from a target that
-       runs BeforeTargets="CapsuleCollectSheetDocuments". Those documents then take the same path
-       as hand-authored ones. A document that arrives with a source block keeps it.
+       $(CapsuleAssetSourcesDir)/sprites. A sheet's key is its path under that root without either
+       extension, so sprites/enemies/bat.sheet.json is keyed 'enemies/bat' and declared as
+       GameSprites.Enemies.Bat.
+
+       A packer's output or an editor's file enters through an authoring module — a package whose
+       targets derive a *.sheet.json per source into their own obj space and add each derived
+       document to the CapsuleSheetDocument item from a target that runs
+       BeforeTargets="CapsuleCollectSheetDocuments". Those documents then take the same path as
+       hand-authored ones. A document that arrives with a source block keeps it. A module states
+       the key its document claims as %(CapsuleDocumentKey) — the root-relative path, forward
+       slashes, no extensions; a document that names none is keyed by its stem at the root.
 
        A module reads Capsule's properties only inside its targets: NuGet imports a package's
        targets in no promised order, so at evaluation time CapsuleImportSprites may not yet be what
@@ -31,7 +37,9 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleImportSprites)' == 'true'">
-    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json" />
+    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json">
+      <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
+    </CapsuleNativeSheet>
   </ItemGroup>
 
   <!-- The seam an authoring module hooks: its derivation targets run here, before the engine reads
@@ -51,26 +59,36 @@
     <Error Condition="('@(CapsuleNativeSheet)' != '' or '@(CapsuleSheetDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the sprite sheet importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- A source's %(Filename) is '<stem>.sheet', so the extension comes off it a second time. -->
+    <!-- A source's %(Filename) is '<stem>.sheet', so the extension comes off it a second time. A
+         module's document states its own key; a hand-authored one is keyed by where it sits under
+         the sprites root. -->
     <ItemGroup>
-      <_CapsuleSheetSource Include="@(CapsuleNativeSheet);@(CapsuleSheetDocument)">
-        <Stem>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</Stem>
+      <_CapsuleSheetSource Include="@(CapsuleNativeSheet)">
+        <Key>$([System.String]::Copy('%(CapsuleNativeSheet.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeSheet.Filename)'))</Key>
       </_CapsuleSheetSource>
-      <_CapsuleSheetName Include="@(_CapsuleSheetSource->'%(Stem)')" />
+      <!-- Qualified: a module states %(CapsuleDocumentKey) on the documents it wants keyed, and
+           unqualified metadata some items in a list do not carry is an MSBuild error. -->
+      <_CapsuleSheetSource Include="@(CapsuleSheetDocument)">
+        <Key Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' != ''">%(CapsuleSheetDocument.CapsuleDocumentKey)</Key>
+        <Key Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleSheetDocument.Filename)'))</Key>
+      </_CapsuleSheetSource>
+      <_CapsuleSheetName Include="@(_CapsuleSheetSource->'%(Key)')" />
       <_CapsuleSheetNameDistinct Include="@(_CapsuleSheetName->Distinct())" />
     </ItemGroup>
 
-    <!-- A sheet is named after its source and its generated class is named after the sheet, so a
-         repeated name would be two classes of one name — across a hand-authored document and a
-         module's as much as within one origin. -->
+    <!-- A sheet's generated class is named after its key and its derived document is written at
+         that path, so a repeated key would be two classes of one name — across a hand-authored
+         document and a module's as much as within one origin. Two sheets of one stem in different
+         directories are two keys. -->
     <Error Condition="'@(_CapsuleSheetName->Count())' != '@(_CapsuleSheetNameDistinct->Count())'"
-           Text="Capsule: two sprite sheet sources share a name, and a sheet's generated class is named after its source. Rename one of: @(_CapsuleSheetSource, ' ')" />
+           Text="Capsule: two sprite sheet sources share a path under the sprites root, and a sheet's generated class is named after that path. Rename one of: @(_CapsuleSheetSource, ' ')" />
 
     <!-- The textures a sheet may cut from are exactly the ones this game ships, so the list is the
-         asset hook's own texture domain rather than a second enumeration. -->
+         asset hook's own texture domain rather than a second enumeration. Named by their path under
+         the textures root, which is what a document names a texture by. -->
     <ItemGroup>
       <_CapsuleSheetTextureAsset Include="@(CapsuleAsset)" Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'textures'" />
-      <_CapsuleSheetTextureName Include="@(_CapsuleSheetTextureAsset->'%(Filename)%(Extension)')" />
+      <_CapsuleSheetTextureName Include="@(_CapsuleSheetTextureAsset->'%(CapsuleAssetPath)%(Extension)')" />
     </ItemGroup>
 
     <!-- The importer runs from the importing project's directory, so the derived paths are made
@@ -99,7 +117,7 @@
                       Condition="'@(_CapsuleSheetSource)' != ''" />
 
     <WriteLinesToFile File="$(CapsuleSheetSourceStamp)"
-                      Lines="@(_CapsuleSheetSource->'%(Stem)=%(FullPath)')"
+                      Lines="@(_CapsuleSheetSource->'%(Key)=%(FullPath)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true"
                       Condition="'@(_CapsuleSheetSource)' != ''" />
@@ -122,17 +140,23 @@
          names neither the limit nor a sheet.
 
          Sources are named relative to the importing project, and the tool runs from there, so a
-         failure names a path a person can open. -->
+         failure names a path a person can open. Each line is the key the sheet claims, then '|',
+         then that path; a key is safe path segments and a path carries no '|' on any platform
+         Capsule targets. -->
 
-    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text. -->
-    <ItemGroup>
+    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
+
+         Conditioned on the list rather than left to batching: unqualified metadata on an empty item
+         list still evaluates the element once, with %(FullPath) empty, and MakeRelative refuses an
+         empty path. A game that authors no sheets must reach the end of this target. -->
+    <ItemGroup Condition="'@(_CapsuleSheetSource)' != ''">
       <_CapsuleSheetSourceArg Include="@(_CapsuleSheetSource)">
         <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleSheetProjectDir), %(FullPath)))</ProjectRelativePath>
       </_CapsuleSheetSourceArg>
     </ItemGroup>
 
     <WriteLinesToFile File="$(CapsuleSheetDocumentsBatchFile)"
-                      Lines="@(_CapsuleSheetSourceArg->'%(ProjectRelativePath)')"
+                      Lines="@(_CapsuleSheetSourceArg->'%(Key)|%(ProjectRelativePath)')"
                       Overwrite="true"
                       Condition="'@(_CapsuleSheetSource)' != ''" />
 

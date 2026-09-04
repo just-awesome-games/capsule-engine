@@ -12,16 +12,19 @@ internal static class AssetRegistrySource
 {
     private const string FileName = "CapsuleGameAssets.g.cs";
     private const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
+    private const string PathMetadata = "build_metadata.AdditionalFiles.CapsuleAssetPath";
 
-    // The whole-domain member the boot registry reads. Only textures has one: the host makes the
-    // texture set resident at boot, and nothing aggregates the other domains.
-    private const string TextureListMember = "All";
+    // The set member every class carries — the domain root's is what the boot registry reads — and
+    // therefore a name no directory or file may take.
+    private const string ListMember = "All";
 
-    private static readonly (string Domain, string ClassName, string Handle, string? ListMember)[] Domains =
+    private const string BackingField = "_all";
+
+    private static readonly (string Domain, string ClassName, string Handle)[] Domains =
     [
-        ("textures", "Textures", "global::Capsule.Assets.TextureHandle", TextureListMember),
-        ("audio", "Audio", "global::Capsule.Assets.AudioHandle", null),
-        ("fonts", "Fonts", "global::Capsule.Assets.FontHandle", null),
+        ("textures", "Textures", "global::Capsule.Assets.TextureHandle"),
+        ("audio", "Audio", "global::Capsule.Assets.AudioHandle"),
+        ("fonts", "Fonts", "global::Capsule.Assets.FontHandle"),
     ];
 
     internal static AssetModel? Describe(AdditionalText text, AnalyzerConfigOptionsProvider options)
@@ -34,16 +37,13 @@ internal static class AssetRegistrySource
             return null;
         }
 
-        string name = Path.GetFileNameWithoutExtension(text.Path);
-        string? identifier = TypeNaming.ToIdentifier(name);
+        // MSBuild's %(RecursiveDir) carries the platform's separator; the registry and the handle
+        // carry one spelling on every machine.
+        string path = options.GetOptions(text).TryGetValue(PathMetadata, out string? authored) && !string.IsNullOrEmpty(authored)
+            ? authored!.Replace('\\', '/')
+            : Path.GetFileNameWithoutExtension(text.Path);
 
-        return new AssetModel(
-            domain,
-            name,
-            Path.GetExtension(text.Path),
-            Path.GetFileName(text.Path),
-            identifier ?? string.Empty,
-            FaultIn(domain, identifier));
+        return new AssetModel(domain, path, Path.GetExtension(text.Path), FaultIn(path));
     }
 
     internal static void Emit(SourceProductionContext context, ImmutableArray<AssetModel> models, bool emitting)
@@ -59,23 +59,16 @@ internal static class AssetRegistrySource
             if (model.Fault == AssetFault.UnsafeName)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.UnsafeAssetName, Location.None, model.FileName));
-                continue;
-            }
-
-            if (model.Fault == AssetFault.DomainCollision)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.AssetNamedAfterItsDomain, Location.None, model.FileName, model.Identifier));
+                    RegistryDiagnostics.UnsafeAssetName, Location.None, model.Display));
                 continue;
             }
 
             sound.Add(model);
         }
 
-        // Sorted before the duplicate check reads off it, and before anything is rendered: the
-        // additional files arrive in whatever order MSBuild collected them, and generated source
-        // that reorders itself between machines is a diff nobody made.
+        // Sorted before the tree is built off it, and before anything is rendered: the additional
+        // files arrive in whatever order MSBuild collected them, and generated source that reorders
+        // itself between machines is a diff nobody made.
         sound.Sort(static (left, right) =>
         {
             int byDomain = string.CompareOrdinal(left.Domain, right.Domain);
@@ -84,62 +77,125 @@ internal static class AssetRegistrySource
                 return byDomain;
             }
 
-            int byIdentifier = string.CompareOrdinal(left.Identifier, right.Identifier);
+            int byPath = string.CompareOrdinal(left.Path, right.Path);
 
-            return byIdentifier != 0 ? byIdentifier : string.CompareOrdinal(left.FileName, right.FileName);
+            return byPath != 0 ? byPath : string.CompareOrdinal(left.Extension, right.Extension);
         });
 
-        List<AssetModel> registered = new(sound.Count);
+        Node[] roots = new Node[Domains.Length];
+        for (int i = 0; i < roots.Length; i++)
+        {
+            roots[i] = new Node(Domains[i].ClassName, Domains[i].Domain + "/");
+        }
+
         foreach (AssetModel model in sound)
         {
-            // Two names the build kept apart can still meet here: the shipped tree separates
-            // 'a-b' from 'a_b', and one identifier does not.
-            if (registered.Count > 0
-                && string.Equals(registered[registered.Count - 1].Domain, model.Domain, StringComparison.Ordinal)
-                && string.Equals(registered[registered.Count - 1].Identifier, model.Identifier, StringComparison.Ordinal))
+            for (int i = 0; i < Domains.Length; i++)
             {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateAssetIdentifier,
-                    Location.None,
-                    registered[registered.Count - 1].FileName,
-                    model.FileName,
-                    model.Identifier,
-                    model.Domain));
-                continue;
+                if (string.Equals(Domains[i].Domain, model.Domain, StringComparison.Ordinal))
+                {
+                    Place(context, roots[i], model);
+                    break;
+                }
             }
-
-            registered.Add(model);
         }
 
-        context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
+        context.AddSource(FileName, SourceText.From(Render(roots), Encoding.UTF8));
     }
 
-    // A member may not carry the name of the class it is declared on (CS0542), and a domain's
-    // class is the one every asset in it lands on — so 'audio/audio.wav' is a name no registry
-    // can hold, whatever else is authored beside it. A domain's own list member is reserved for
-    // the same reason: two members of one name do not compile.
-    private static AssetFault FaultIn(string domain, string? identifier)
+    // Every segment of the path is an identifier in its own right, so a directory no C# name can
+    // spell is the same defect as a file no C# name can spell.
+    private static AssetFault FaultIn(string path)
     {
-        if (identifier is null)
+        foreach (string segment in path.Split('/'))
         {
-            return AssetFault.UnsafeName;
-        }
-
-        for (int i = 0; i < Domains.Length; i++)
-        {
-            if (string.Equals(Domains[i].Domain, domain, StringComparison.Ordinal))
+            if (TypeNaming.ToIdentifier(segment) is null)
             {
-                return string.Equals(Domains[i].ClassName, identifier, StringComparison.Ordinal)
-                    || string.Equals(Domains[i].ListMember, identifier, StringComparison.Ordinal)
-                        ? AssetFault.DomainCollision
-                        : AssetFault.None;
+                return AssetFault.UnsafeName;
             }
         }
 
         return AssetFault.None;
     }
 
-    private static string Render(List<AssetModel> registered)
+    // Walks the model's directories into the tree, declaring the classes they name on the way, and
+    // hangs the handle off the last one. Every collision the C# the tree renders could not compile
+    // is reported here, against both parties.
+    private static void Place(SourceProductionContext context, Node root, AssetModel model)
+    {
+        string[] segments = model.Path.Split('/');
+        List<Node> walked = new(segments.Length) { root };
+        Node node = root;
+
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            string identifier = TypeNaming.ToIdentifier(segments[i])!;
+            string display = node.Display + segments[i] + "/";
+
+            if (!Claimable(context, node, identifier, display))
+            {
+                return;
+            }
+
+            if (!node.Directories.TryGetValue(identifier, out Node? child))
+            {
+                child = new Node(identifier, display);
+                node.Directories.Add(identifier, child);
+                node.ClaimedBy.Add(identifier, display);
+            }
+
+            node = child;
+            walked.Add(child);
+        }
+
+        string leaf = TypeNaming.ToIdentifier(segments[segments.Length - 1])!;
+        if (!Claimable(context, node, leaf, model.Display))
+        {
+            return;
+        }
+
+        node.Leaves.Add(leaf, model);
+        node.ClaimedBy.Add(leaf, model.Display);
+
+        // A directory is a set, and its subdirectories are in it.
+        foreach (Node held in walked)
+        {
+            held.All.Add(model);
+        }
+    }
+
+    // Whether an identifier may be declared on this class: a member may not carry the name of the
+    // class it is declared on (CS0542), the set member is declared on every class, and two members
+    // of one name do not compile whatever the file system kept apart.
+    private static bool Claimable(SourceProductionContext context, Node node, string identifier, string display)
+    {
+        if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal)
+            || string.Equals(identifier, ListMember, StringComparison.Ordinal))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                RegistryDiagnostics.AssetNamedAfterItsDomain, Location.None, display, identifier, node.Display));
+
+            return false;
+        }
+
+        if (node.ClaimedBy.TryGetValue(identifier, out string? claimed))
+        {
+            // A directory declared twice is one class, not a collision.
+            if (node.Directories.ContainsKey(identifier) && string.Equals(claimed, display, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                RegistryDiagnostics.DuplicateAssetIdentifier, Location.None, claimed, display, identifier, node.Display));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string Render(Node[] roots)
     {
         StringBuilder source = new();
 
@@ -155,14 +211,14 @@ internal static class AssetRegistrySource
 
         // Every domain is emitted whatever the game authored, so a call site naming one always
         // compiles and only the asset it names can be missing.
-        for (int i = 0; i < Domains.Length; i++)
+        for (int i = 0; i < roots.Length; i++)
         {
             if (i > 0)
             {
                 source.AppendLine();
             }
 
-            AppendDomain(source, registered, Domains[i]);
+            AppendClass(source, roots[i], Domains[i].Handle, "        ");
         }
 
         source.AppendLine("    }");
@@ -171,63 +227,126 @@ internal static class AssetRegistrySource
         return source.ToString();
     }
 
-    private static void AppendDomain(
-        StringBuilder source,
-        List<AssetModel> registered,
-        (string Domain, string ClassName, string Handle, string? ListMember) domain)
+    private static void AppendClass(StringBuilder source, Node node, string handle, string indent)
     {
-        source.Append("        /// <summary>Everything shipped at <c>assets/").Append(domain.Domain).AppendLine("</c>.</summary>");
-        source.Append("        public static class ").AppendLine(domain.ClassName);
-        source.AppendLine("        {");
+        string shipped = "assets/" + node.Display.Substring(0, node.Display.Length - 1);
 
-        foreach (AssetModel model in registered)
+        source.Append(indent).Append("/// <summary>Everything shipped at <c>").Append(shipped).AppendLine("</c>.</summary>");
+        source.Append(indent).Append("public static class ").AppendLine(node.Identifier);
+        source.Append(indent).AppendLine("{");
+
+        string inner = indent + "    ";
+        bool first = true;
+
+        foreach (KeyValuePair<string, AssetModel> leaf in node.Leaves)
         {
-            if (!string.Equals(model.Domain, domain.Domain, StringComparison.Ordinal))
+            if (!first)
             {
-                continue;
+                source.AppendLine();
             }
 
-            source.Append("            /// <summary><c>").Append(model.FileName).AppendLine("</c>.</summary>");
-            source.Append("            public static ").Append(domain.Handle).Append(' ').Append(model.Identifier);
-            source.Append(" => new ").Append(domain.Handle).Append('(');
-            source.Append(SymbolDisplay.FormatLiteral(model.Name, quote: true));
+            first = false;
+
+            source.Append(inner).Append("/// <summary><c>").Append(leaf.Value.Display).AppendLine("</c>.</summary>");
+            source.Append(inner).Append("public static ").Append(handle).Append(' ').Append(leaf.Key);
+            source.Append(" => new ").Append(handle).Append('(');
+            source.Append(SymbolDisplay.FormatLiteral(leaf.Value.Path, quote: true));
             source.Append(", ");
-            source.Append(SymbolDisplay.FormatLiteral(model.Extension, quote: true));
+            source.Append(SymbolDisplay.FormatLiteral(leaf.Value.Extension, quote: true));
             source.AppendLine(");");
         }
 
-        if (domain.ListMember is { } listMember)
+        foreach (KeyValuePair<string, Node> directory in node.Directories)
         {
-            AppendDomainList(source, registered, domain, listMember);
-        }
-
-        source.AppendLine("        }");
-    }
-
-    // Internal, not public: the only caller is the registry provider emitted beside it, and a game
-    // names the asset it wants rather than the set.
-    private static void AppendDomainList(
-        StringBuilder source,
-        List<AssetModel> registered,
-        (string Domain, string ClassName, string Handle, string? ListMember) domain,
-        string listMember)
-    {
-        source.AppendLine();
-        source.Append("            internal static ").Append(domain.Handle).Append("[] ").Append(listMember);
-        source.AppendLine(" { get; } =");
-        source.Append("                new ").Append(domain.Handle).AppendLine("[]");
-        source.AppendLine("                {");
-
-        foreach (AssetModel model in registered)
-        {
-            if (!string.Equals(model.Domain, domain.Domain, StringComparison.Ordinal))
+            if (!first)
             {
-                continue;
+                source.AppendLine();
             }
 
-            source.Append("                    ").Append(model.Identifier).AppendLine(",");
+            first = false;
+
+            AppendClass(source, directory.Value, handle, inner);
         }
 
-        source.AppendLine("                };");
+        AppendList(source, node, handle, shipped, inner, first);
+
+        source.Append(indent).AppendLine("}");
+    }
+
+    // Backed by a field and handed out as a span: the set is constant data a game may enumerate
+    // without allocating and cannot write through.
+    private static void AppendList(StringBuilder source, Node node, string handle, string shipped, string indent, bool first)
+    {
+        if (!first)
+        {
+            source.AppendLine();
+        }
+
+        source.Append(indent).Append("private static readonly ").Append(handle).Append("[] ").Append(BackingField);
+        source.AppendLine(" =");
+        source.Append(indent).Append("    new ").Append(handle).AppendLine("[]");
+        source.Append(indent).AppendLine("    {");
+
+        foreach (AssetModel model in node.All)
+        {
+            source.Append(indent).Append("        ").Append(Reference(node, model)).AppendLine(",");
+        }
+
+        source.Append(indent).AppendLine("    };");
+        source.AppendLine();
+        source.Append(indent).Append("/// <summary>Every asset shipped under <c>").Append(shipped)
+            .AppendLine("</c>, its subdirectories included.</summary>");
+        source.Append(indent).Append("public static global::System.ReadOnlySpan<").Append(handle).Append("> ")
+            .Append(ListMember).Append(" => ").Append(BackingField).AppendLine(";");
+    }
+
+    // How the handle is named from inside this class: the directories between it and the leaf,
+    // then the leaf's own member.
+    private static string Reference(Node node, AssetModel model)
+    {
+        string relative = model.Path.Substring(node.Depth);
+        StringBuilder reference = new();
+
+        foreach (string segment in relative.Split('/'))
+        {
+            if (reference.Length > 0)
+            {
+                reference.Append('.');
+            }
+
+            reference.Append(TypeNaming.ToIdentifier(segment)!);
+        }
+
+        return reference.ToString();
+    }
+
+    private sealed class Node
+    {
+        internal Node(string identifier, string display)
+        {
+            Identifier = identifier;
+            Display = display;
+
+            // The domain root's display is '<domain>/', which is no part of a model's path; every
+            // nested class adds one segment and its separator.
+            Depth = display.Length - display.IndexOf('/') - 1;
+        }
+
+        internal string Identifier { get; }
+
+        /// <summary>The source directory this class stands for, ending in a separator.</summary>
+        internal string Display { get; }
+
+        /// <summary>How much of a model's path this class has already spelled.</summary>
+        internal int Depth { get; }
+
+        internal SortedDictionary<string, AssetModel> Leaves { get; } = new(StringComparer.Ordinal);
+
+        internal SortedDictionary<string, Node> Directories { get; } = new(StringComparer.Ordinal);
+
+        internal Dictionary<string, string> ClaimedBy { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Every asset beneath this class, transitively, in ordinal path order.</summary>
+        internal List<AssetModel> All { get; } = [];
     }
 }

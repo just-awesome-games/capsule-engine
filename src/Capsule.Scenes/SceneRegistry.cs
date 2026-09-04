@@ -94,7 +94,7 @@ public sealed class SceneRegistry
                 $"No scene is registered for '{sceneType}'. A scene registers by being a non-abstract "
                 + "Capsule.Scenes.Scene with either a public parameterless constructor, or a public constructor "
                 + "taking one Capsule.Scenes.SceneContent — which composes it from the scene document it names, "
-                + "its class name kebab-cased unless [SceneDocument(\"name\")] overrides that. "
+                + "the key its namespace names unless [SceneDocument(\"key\")] overrides that. "
                 + $"Registered: {RegisteredTypes()}.");
         }
 

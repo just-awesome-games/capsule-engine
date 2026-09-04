@@ -57,7 +57,7 @@ public sealed class EntityRegistry
             throw new SpawnException(
                 $"spawn type '{spawn.Type}' (entity id {spawn.Id}) is claimed by no entity. A class claims "
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
-                + "Capsule.Scenes.Spawning.EntitySpawn; the type is its kebab-cased class name unless "
+                + "Capsule.Scenes.Spawning.EntitySpawn; the type is the key its namespace names unless "
                 + $"[SpawnType] gives one. Claimed: {KnownTypes()}.");
         }
 

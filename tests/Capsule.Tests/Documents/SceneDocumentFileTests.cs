@@ -264,7 +264,7 @@ public sealed class SceneDocumentFileTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.ToJson(Drawing(new TextureHandle(name, extension))));
 
-        Assert.Contains("does not split back out of one file name", error.Message, StringComparison.Ordinal);
+        Assert.Contains("does not split back out of one texture path", error.Message, StringComparison.Ordinal);
     }
 
     // A struct's default has null parts, which is a handle with no written form, not a crash.
@@ -274,7 +274,7 @@ public sealed class SceneDocumentFileTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.ToJson(Drawing(default)));
 
-        Assert.Contains("does not split back out of one file name", error.Message, StringComparison.Ordinal);
+        Assert.Contains("does not split back out of one texture path", error.Message, StringComparison.Ordinal);
     }
 
     // Dots inside the name are not the separator: only the last one is.
@@ -327,22 +327,40 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("declares columns but no texture", error.Message, StringComparison.Ordinal);
     }
 
-    // The name is one file in a flat directory: a stem, an extension, and no way out of it. The
-    // two spellings differ only for the separator JSON itself escapes.
+    // The name is one asset's path under the textures root: '/'-joined segments, none of them empty
+    // or relative, ending in a stem and an extension. The two spellings differ only for the
+    // separator JSON itself escapes.
     [Theory]
     [InlineData("tiles", "tiles")]
     [InlineData("tiles.", "tiles.")]
     [InlineData(".png", ".png")]
-    [InlineData("a/tiles.png", "a/tiles.png")]
+    [InlineData("a//tiles.png", "a//tiles.png")]
+    [InlineData("../tiles.png", "../tiles.png")]
+    [InlineData("./tiles.png", "./tiles.png")]
+    [InlineData("a/tiles", "a/tiles")]
+    [InlineData("a/", "a/")]
     [InlineData("a\\\\tiles.png", "a\\tiles.png")]
     [InlineData(" ", " ")]
-    public void Parse_RejectsATextureThatIsNotOneFileName(string authored, string texture)
+    public void Parse_RejectsATextureThatIsNotOneAssetPath(string authored, string texture)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(DocumentText(texture: $"\"{authored}\"")));
 
         Assert.Contains($"grid has texture \"{texture}\"", error.Message, StringComparison.Ordinal);
         Assert.Contains("extension included", error.Message, StringComparison.Ordinal);
+    }
+
+    // A texture under a directory of the textures root is named by that path, and the handle it
+    // parses to carries it whole.
+    [Fact]
+    public void ANestedTexturePath_RoundTripsWhole()
+    {
+        string json = SceneDocumentFile.ToJson(Drawing(new TextureHandle("terrain/cave", ".png")));
+
+        Assert.Contains("\"texture\": \"terrain/cave.png\"", json, StringComparison.Ordinal);
+        Assert.Equal(
+            new TextureHandle("terrain/cave", ".png"),
+            SceneDocumentFile.Parse(json).Entries[0].TileMap!.Value.Grid.Texture);
     }
 
     [Fact]

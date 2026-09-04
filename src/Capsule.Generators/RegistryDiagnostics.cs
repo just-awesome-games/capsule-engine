@@ -34,7 +34,7 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor BlankSpawnType = new(
         "CAP004",
         "A spawn type cannot be blank",
-        "'{0}' declares a blank [SpawnType]; drop the attribute to claim its kebab-cased class name",
+        "'{0}' declares a blank [SpawnType]; drop the attribute to claim the key its namespace names",
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -49,8 +49,8 @@ internal static class RegistryDiagnostics
 
     internal static readonly DiagnosticDescriptor UnsafeSceneDocumentName = new(
         "CAP006",
-        "A scene document name must be a portable file stem",
-        "'{0}' claims unsafe scene document name '{1}'; use only ASCII letters, digits, hyphens, and underscores",
+        "A scene document key must be a portable path",
+        "'{0}' claims unsafe scene document key '{1}'; a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension",
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -129,8 +129,8 @@ internal static class RegistryDiagnostics
 
     internal static readonly DiagnosticDescriptor DuplicateAssetIdentifier = new(
         "CAP016",
-        "Two assets claim one name",
-        "'{0}' and '{1}' both name asset '{2}' in the '{3}' domain; rename one so each asset has a name of its own",
+        "Two sources in one directory claim one name",
+        "'{0}' and '{1}' both declare '{2}' in '{3}'; two names that differ only in their separators are one C# name, so rename one",
         AssetCategory,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -138,16 +138,24 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor UnsafeAssetName = new(
         "CAP017",
         "An asset name must become an identifier",
-        "'{0}' cannot be named in code; use ASCII letters, digits, hyphens and underscores, starting with a letter",
+        "'{0}' cannot be named in code; every directory and file name under a domain root is ASCII letters, digits, hyphens and underscores, starting with a letter",
         AssetCategory,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = new(
         "CAP018",
-        "An asset cannot take a name its domain reserves",
-        "'{0}' names asset '{1}', which is the class its domain is declared as or a member the generated registry already declares on it; rename the file",
+        "A source cannot take a name its enclosing class reserves",
+        "'{0}' declares '{1}' in '{2}', which is the name of the class that directory is declared as or of the 'All' member the generated registry declares on it; rename the file or its directory",
         AssetCategory,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    internal static readonly DiagnosticDescriptor UnsafeSpawnType = new(
+        "CAP019",
+        "A spawn type must be a portable key",
+        "'{0}' claims unsafe spawn type '{1}'; a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension",
+        Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 }

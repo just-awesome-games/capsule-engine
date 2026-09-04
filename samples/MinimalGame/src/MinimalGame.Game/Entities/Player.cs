@@ -12,12 +12,13 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// The walking, falling, jumping body spawned by the <c>player</c> entries of
-/// <c>scenes/room.scene.json</c> and <c>scenes/hall.scene.json</c>.
+/// <c>scenes/room.scene.json</c> and <c>scenes/halls/hall.scene.json</c>.
 /// <para>
-/// A concrete entity with one public constructor taking an <see cref="EntitySpawn"/> claims its
-/// kebab-cased class name as the document entry type it spawns from, so <c>Player</c> answers to
-/// <c>"player"</c> with nothing registered by hand; <c>[SpawnType("...")]</c> renames the claim
-/// without renaming the class.
+/// A concrete entity with one public constructor taking an <see cref="EntitySpawn"/> claims the
+/// key its namespace names as the document entry type it spawns from: this class sits directly under
+/// <c>MinimalGame.Game.Entities</c>, so the <c>Entities</c> segment falls away and <c>Player</c> answers
+/// to <c>"player"</c> with nothing registered by hand. One filed at <c>Entities/Enemies/Bat.cs</c> would
+/// answer to <c>"enemies/bat"</c>; <c>[SpawnType("...")]</c> names a whole key in place of either.
 /// </para>
 /// <para>
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body: the box collider is
@@ -36,7 +37,7 @@ namespace MinimalGame.Game.Entities;
 /// </para>
 /// <para>
 /// Which frame that is comes from a <see cref="SpriteAnimator"/> playing the clips of
-/// <c>sprites/player.sheet.json</c>: it walks while the walk axis is held and idles otherwise, and
+/// <c>sprites/actors/player.sheet.json</c>: it walks while the walk axis is held and idles otherwise, and
 /// the clip asked for every step is ignored while it is already the one playing. Frames advance on
 /// ticks, so the frame the player is on is simulation state like its position.
 /// </para>
@@ -93,7 +94,7 @@ public sealed class Player : Entity
     /// corner-anchored collider in both facings, and the bottom edge keeps a squashed or stretched
     /// frame standing on the floor the body stands on. Every frame of the sheet shares it.
     /// </summary>
-    private static readonly Vector2 Pivot = GameSprites.Player.Frames.Idle0.Pivot;
+    private static readonly Vector2 Pivot = GameSprites.Actors.Player.Frames.Idle0.Pivot;
 
     private readonly SpriteRenderer _sprite;
     private readonly SpriteAnimator _animator;
@@ -104,7 +105,7 @@ public sealed class Player : Entity
     public Player(EntitySpawn spawn)
         : base(spawn.Position)
     {
-        _sprite = new SpriteRenderer(GameSprites.Player.Frames.Idle0) { Offset = Pivot };
+        _sprite = new SpriteRenderer(GameSprites.Actors.Player.Frames.Idle0) { Offset = Pivot };
         Add(_sprite);
 
         // Named rather than found: an entity drawing itself as several sprites animates the one
@@ -149,7 +150,7 @@ public sealed class Player : Entity
 
         // Asked every step: the animator ignores the clip already playing, so the cycle runs
         // instead of restarting on frame 0.
-        _animator.Play(_velocity.X != 0f ? GameSprites.Player.Clips.Walk : GameSprites.Player.Clips.Idle);
+        _animator.Play(_velocity.X != 0f ? GameSprites.Actors.Player.Clips.Walk : GameSprites.Actors.Player.Clips.Idle);
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
         bool wasOnFloor = _body.IsOnFloor;

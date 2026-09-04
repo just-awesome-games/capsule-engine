@@ -5,11 +5,16 @@
        nothing under it is committed and what ships is exactly what is authored.
 
        Three domain roots under $(CapsuleAssetSourcesDir), each admitting the extensions listed
-       below: textures/ (.png), audio/ (.ogg, .wav) and fonts/ (.ttf, .otf). Sources nest freely
-       within a root and the shipped tree is flat per domain, so an asset lands at
-       assets/<domain>/<stem>.<ext> whatever it was filed under. A domain gained here is a domain
+       below: textures/ (.png), audio/ (.ogg, .wav) and fonts/ (.ttf, .otf). A source's directory
+       under its domain root is kept: an asset filed at textures/enemies/bat.png ships at
+       assets/textures/enemies/bat.png, its handle is named 'enemies/bat', and the generated
+       registry declares it as GameAssets.Textures.Enemies.Bat. A domain gained here is a domain
        gained everywhere, and the handle it hands out is paired with it in
        Capsule.Generators' asset registry — the one other place the domains are named.
+
+       %(CapsuleAssetPath) is that domain-relative path with the extension off. It carries the
+       platform's separator, since %(RecursiveDir) does; every consumer that compares it against
+       authored text normalises to '/' first.
 
        A project ships them by declaring:
 
@@ -26,12 +31,15 @@
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png">
       <CapsuleAssetDomain>textures</CapsuleAssetDomain>
+      <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/audio/**/*.ogg;$(CapsuleAssetSourcesDir)/audio/**/*.wav">
       <CapsuleAssetDomain>audio</CapsuleAssetDomain>
+      <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/fonts/**/*.ttf;$(CapsuleAssetSourcesDir)/fonts/**/*.otf">
       <CapsuleAssetDomain>fonts</CapsuleAssetDomain>
+      <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
 
     <!-- Everything under a domain root, so whatever the lists above did not admit is caught as a
@@ -44,6 +52,7 @@
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
     <AdditionalFiles Include="@(CapsuleAsset)" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetDomain" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetPath" />
   </ItemGroup>
 
   <!-- Hooked into the build in its own right, not only through the copy: the checks below must
@@ -57,14 +66,15 @@
            Text="Capsule: a file under an asset domain root has an extension that domain does not admit — textures/ takes .png, audio/ takes .ogg and .wav, fonts/ takes .ttf and .otf. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)': @(_CapsuleUnknownAsset, ' ')" />
 
     <ItemGroup>
-      <_CapsuleAssetName Include="@(CapsuleAsset->'%(CapsuleAssetDomain)/%(Filename)')" />
+      <_CapsuleAssetName Include="@(CapsuleAsset->'%(CapsuleAssetDomain)/%(CapsuleAssetPath)')" />
       <_CapsuleAssetNameDistinct Include="@(_CapsuleAssetName->Distinct())" />
     </ItemGroup>
 
-    <!-- An asset is named after its source and the shipped tree is flat per domain, so a repeated
-         name within a domain would leave one asset silently overwriting the other. -->
+    <!-- An asset is named after its path under its domain root, and ships at that path, so a
+         repeated path would leave one asset silently overwriting the other. A repeated stem in two
+         directories is two assets. -->
     <Error Condition="'@(_CapsuleAssetName->Count())' != '@(_CapsuleAssetNameDistinct->Count())'"
-           Text="Capsule: two assets in one domain under '$(CapsuleAssetSourcesDir)' share a file name, and an asset ships flat under its domain. Rename one of: @(CapsuleAsset, ' ')" />
+           Text="Capsule: two assets under '$(CapsuleAssetSourcesDir)' share a path within their domain, differing only in extension. Rename one of: @(CapsuleAsset, ' ')" />
   </Target>
 
   <Target Name="CapsuleAddAssetsToOutput"
@@ -75,7 +85,7 @@
          Content, which already carries a game's own files and the derived scene documents. -->
     <ItemGroup>
       <Content Include="@(CapsuleAsset)">
-        <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.Filename)%(CapsuleAsset.Extension)</Link>
+        <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.CapsuleAssetPath)%(CapsuleAsset.Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>

@@ -126,18 +126,6 @@ public static class SpriteSheetDocumentFile
     public static void Save(SpriteSheetDocument document, string path) =>
         File.WriteAllText(path, ToJson(document), Utf8NoBom);
 
-    /// <summary>The sheet name a source path declares: its file name without either extension.</summary>
-    public static string Stem(string sourcePath)
-    {
-        ArgumentNullException.ThrowIfNull(sourcePath);
-
-        string name = Path.GetFileName(sourcePath);
-
-        return name.EndsWith(DocumentExtension, StringComparison.OrdinalIgnoreCase)
-            ? name[..^DocumentExtension.Length]
-            : Path.GetFileNameWithoutExtension(name);
-    }
-
     private static SpriteSheetFrame[] Frames(SpriteSheetFrameJson?[]? authored)
     {
         if (authored is not { } entries)
@@ -338,30 +326,25 @@ public static class SpriteSheetDocumentFile
         return new Vector2(pivot[0], pivot[1]);
     }
 
-    // Split on the last dot rather than matched against a known extension: the handle carries
-    // whatever the build shipped, and the format only has to name one file in a flat directory.
     private static TextureHandle Texture(string? texture)
     {
-        if (texture is not { Length: > 0 } name)
+        if (texture is not { Length: > 0 } path)
         {
             throw new SpriteSheetFormatException(
                 "the sheet document names no texture; a sheet cuts its frames from one texture under assets/textures.");
         }
 
-        int dot = name.LastIndexOf('.');
-        bool oneFileName = dot > 0
-            && dot < name.Length - 1
-            && !name.Contains('/', StringComparison.Ordinal)
-            && !name.Contains('\\', StringComparison.Ordinal);
-
-        return oneFileName
-            ? new TextureHandle(name[..dot], name[dot..])
+        return AssetPaths.TrySplit(path, out string name, out string extension)
+            ? new TextureHandle(name, extension)
             : throw new SpriteSheetFormatException(
-                $"the sheet document has texture \"{name}\"; a texture is the file name of one asset under assets/textures, extension included — \"player.png\" — and that directory is flat, so the name carries no path segments.");
+                $"the sheet document has texture \"{path}\"; a texture is one asset's path under assets/textures, extension included — \"player.png\" at the root, \"actors/player.png\" below it — with forward slashes and no empty, \".\" or \"..\" segment.");
     }
 
     private static string TextureName(TextureHandle texture) =>
-        texture.Name + texture.Extension;
+        AssetPaths.Joins(texture.Name, texture.Extension)
+            ? texture.Name + texture.Extension
+            : throw new SpriteSheetFormatException(
+                $"the sheet document cuts from texture handle (\"{texture.Name}\", \"{texture.Extension}\"), which does not split back out of one texture path: a name is one or more '/'-joined segments, none of them empty, \".\" or \"..\", and an extension is a dot followed by at least one character and no second dot.");
 
     private static SpriteSheetSource? ToSource(SpriteSheetSourceJson? source) =>
         source is null

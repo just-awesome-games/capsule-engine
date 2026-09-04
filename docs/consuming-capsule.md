@@ -178,6 +178,18 @@ Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and runn
 
 Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A sprite is the first kind of thing a frame carries, not the only kind it can. A texture is required to draw. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
 
+## Named assets
+
+Shipped assets are authored under `src/asset-sources/<domain>/` — `textures/`, `audio/`, `fonts/` — and a source's path under its domain root is its name everywhere. Directories nest freely and are kept: `asset-sources/textures/enemies/bat.png` ships at `assets/textures/enemies/bat.png`, hands out the handle named `enemies/bat`, and is declared as `GameAssets.Textures.Enemies.Bat`. A file at the domain root stays at the root, so a flat tree is declared flat.
+
+`asset-sources/sprites/` follows the same rule: `sprites/enemies/bat.sheet.json` is compiled into `GameSprites.Enemies.Bat`, whose `Frames` and `Clips` are the sheet's own.
+
+A document names a texture by that same path, extension included — `"enemies/bat.png"`, or `"tiles.png"` for a file at the root. Forward slashes only, and no empty, `.` or `..` segment.
+
+Every generated class, each domain root and each nested class, exposes a public read-only `All` holding every handle beneath it, its subdirectories included: `GameAssets.Textures.All` is the whole domain, `GameAssets.Textures.Enemies.All` is that directory. It is a `ReadOnlySpan<T>` over generated constant data, so enumerating it allocates nothing.
+
+Two sources may share a stem in different directories. Names collide only within one directory, where two spellings that become one C# identifier — `a-b.png` beside `a_b.png`, or a `bat/` directory beside `bat.png` — fail the build naming both. So does a name that would shadow the class it is declared on: `textures/enemies/enemies.png`, a `textures/textures/` directory, or anything named `all`.
+
 ## Seeing your game's output
 
 Game logic cannot reach `System.Console` — the analyzer stops it — so it says things out loud through `Capsule.Diagnostics.Log`:

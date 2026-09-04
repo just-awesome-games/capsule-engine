@@ -99,7 +99,7 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(2)]
     public int Height { get; set; }
 
-    // The file name, extension included, of one asset under assets/textures, which is flat.
+    // One asset's path under assets/textures, extension included, forward slashes only.
     // Absent on a grid that draws nothing; WhenWritingNull keeps both out of that grid's written
     // form, and columns is nullable so a texture with no columns fails as the grid's error rather
     // than reading as 0.

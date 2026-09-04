@@ -17,6 +17,18 @@ public sealed class TextureResidencyTests
         Assert.Equal("assets/textures/hero.png", TextureFiles.RelativePathOf(Hero));
     }
 
+    // A handle's name is the source's path under the textures root, so a nested asset resolves to a
+    // nested file — with the format's separator, whatever the platform's is.
+    [Fact]
+    public void ANestedHandle_NamesItsFileUnderTheDirectoryItWasAuthoredIn()
+    {
+        TextureHandle bat = new("enemies/bat", ".png");
+        using Shipped shipped = new(bat);
+
+        Assert.Equal("assets/textures/enemies/bat.png", TextureFiles.RelativePathOf(bat));
+        Assert.Equal(shipped.Path, TextureFiles.Locate(shipped.BaseDirectory, bat));
+    }
+
     [Fact]
     public void Locate_FindsAShippedTexture()
     {

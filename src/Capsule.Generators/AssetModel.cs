@@ -4,38 +4,29 @@ internal enum AssetFault
 {
     None,
     UnsafeName,
-    DomainCollision,
 }
 
 internal readonly struct AssetModel : IEquatable<AssetModel>
 {
-    internal AssetModel(
-        string domain,
-        string name,
-        string extension,
-        string fileName,
-        string identifier,
-        AssetFault fault)
+    internal AssetModel(string domain, string path, string extension, AssetFault fault)
     {
         Domain = domain;
-        Name = name;
+        Path = path;
         Extension = extension;
-        FileName = fileName;
-        Identifier = identifier;
         Fault = fault;
     }
 
     internal string Domain { get; }
 
-    internal string Name { get; }
+    /// <summary>The source's path under its domain root, extension stripped, forward slashes only.</summary>
+    internal string Path { get; }
 
     internal string Extension { get; }
 
-    internal string FileName { get; }
-
-    internal string Identifier { get; }
-
     internal AssetFault Fault { get; }
+
+    /// <summary>What a diagnostic names the asset by: its path under the source tree.</summary>
+    internal string Display => Domain + "/" + Path + Extension;
 
     public static bool operator ==(AssetModel left, AssetModel right) => left.Equals(right);
 
@@ -44,8 +35,8 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
     public bool Equals(AssetModel other) =>
         Fault == other.Fault
         && string.Equals(Domain, other.Domain, StringComparison.Ordinal)
-        && string.Equals(FileName, other.FileName, StringComparison.Ordinal)
-        && string.Equals(Identifier, other.Identifier, StringComparison.Ordinal);
+        && string.Equals(Path, other.Path, StringComparison.Ordinal)
+        && string.Equals(Extension, other.Extension, StringComparison.Ordinal);
 
     public override bool Equals(object? obj) => obj is AssetModel other && Equals(other);
 
@@ -53,8 +44,8 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
     {
         int hash = 17;
         hash = (hash * 31) + Domain.GetHashCode();
-        hash = (hash * 31) + FileName.GetHashCode();
-        hash = (hash * 31) + Identifier.GetHashCode();
+        hash = (hash * 31) + Path.GetHashCode();
+        hash = (hash * 31) + Extension.GetHashCode();
         hash = (hash * 31) + (int)Fault;
 
         return hash;
