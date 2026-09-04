@@ -34,7 +34,7 @@ public sealed class EngineBuilderTests
     [Fact]
     public void Run_RejectsASpikeClampBelowTheFixedStep()
     {
-        SceneEngineBuilder builder = SceneBuilder()
+        SceneEngineBuilder builder = ConfiguredBuilder()
             .WithFixedStep(60)
             .WithSpikeClamp(1.0 / 120);
 
@@ -67,7 +67,7 @@ public sealed class EngineBuilderTests
     [Fact]
     public void RunScene_ForAClassTheRegistryDoesNotHold_NamesWhatItDoesHold()
     {
-        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => SceneBuilder().RunScene<Room01>());
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => ConfiguredBuilder().RunScene<Room01>());
 
         Assert.Contains("Room01", failure.Message, StringComparison.Ordinal);
         Assert.Contains("Menu", failure.Message, StringComparison.Ordinal);
@@ -84,11 +84,26 @@ public sealed class EngineBuilderTests
     [InlineData("rooms/room one")]
     public void RunScene_RejectsADocumentNameThatIsNoSafePath(string documentName)
     {
-        Assert.Throws<ArgumentException>(() => SceneBuilder().RunScene(documentName));
+        Assert.Throws<ArgumentException>(() => ConfiguredBuilder().RunScene(documentName));
     }
 
     private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>
         CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]), []);
+
+    // Every setter a game reaches for, so a rejection above is the run's and not a half-built
+    // builder's; silent logging is where a headless run starts.
+    private static SceneEngineBuilder ConfiguredBuilder() =>
+        SceneBuilder()
+            .WithWindowTitle("Spec")
+            .WithWindow(1280, 720, resizable: false)
+            .WithFullscreen()
+            .WithRenderResolution(320, 180)
+            .WithSampling(TextureSampling.Point)
+            .WithGamepadDeadzones(0.25f, 0.12f)
+            .WithRandomSeed(7)
+            .WithoutCrashLog()
+            .WithoutLogging()
+            .WithBindings(static _ => { });
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());
