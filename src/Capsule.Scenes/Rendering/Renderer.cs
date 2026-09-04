@@ -1,6 +1,6 @@
 using Capsule.Rendering;
 
-namespace Capsule.Scenes;
+namespace Capsule.Scenes.Rendering;
 
 /// <summary>
 /// A component that draws. A scene walks its renderers in entity order and, within an entity, in

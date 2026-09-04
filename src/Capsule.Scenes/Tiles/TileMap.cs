@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Collision;
 using Capsule.Rendering;
+using Capsule.Scenes.Rendering;
 
 namespace Capsule.Scenes.Tiles;
 

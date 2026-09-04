@@ -122,6 +122,45 @@ public sealed class SceneHostTests
         Assert.Equal(host.View.Camera.Center, host.View.Camera.PreviousCenter);
     }
 
+    // The run's source outlives its scenes: one instance, seeded once at boot, handed to every
+    // scene the host opens, so a transition neither reseeds nor rewinds the sequence.
+    [Fact]
+    public void OneSeededSourceServesEveryScene_AcrossATransition()
+    {
+        List<string> log = [];
+        RandomSource run = new(0xC0FFEE);
+
+        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(FirstScene)
+            ? new FirstScene(log)
+            : new SecondScene(log);
+
+        using SceneHost host = new(SceneTarget.ForScene(typeof(FirstScene)), Resolve, default, run);
+
+        Assert.Same(run, host.Scene.Random);
+
+        float before = host.Scene.Random.NextFloat();
+        host.Step(SceneStep(0));
+
+        Assert.IsType<SecondScene>(host.Scene);
+        Assert.Same(run, host.Scene.Random);
+
+        // The second scene continues the sequence rather than starting it again.
+        RandomSource expected = new(0xC0FFEE);
+        Assert.Equal(before, expected.NextFloat());
+        Assert.Equal(expected.NextFloat(), host.Scene.Random.NextFloat());
+    }
+
+    [Fact]
+    public void AHostGivenNoSourceSeedsTheSceneFromTheDefault()
+    {
+        List<string> log = [];
+
+        using SceneHost host = new(SceneTarget.ForScene(typeof(FirstScene)), (in SceneTarget _) => new FirstScene(log));
+
+        Assert.Equal(RandomSource.DefaultSeed, host.Scene.Random.Seed);
+        Assert.Equal(0ul, host.Scene.Random.Stream);
+    }
+
     private static StepContext SceneStep(long tick) => Capsule.Tests.Scenes.SceneFixtures.Step(tick);
 
     private sealed class FirstScene(List<string> log) : Scene

@@ -11,7 +11,7 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | `Capsule.Scenes` | The world a game plays in: a scene, the entities on it, their components, the camera, and the scene document a scene is composed from. Substrate-free — Capsule.Core and Capsule.Collision only — so a scene is constructible and assertable headlessly. | Core, Collision |
 | `Capsule.Runtime` | The host: window, device, clock, sampling, renderer, crash log. | the pure modules |
 | `Capsule.Generators` | Capsule's source generators and the compile-time enforcement of Capsule's game-logic boundary. Generators read a compilation and emit the registries a game would otherwise hand-maintain, so a game keeps no registration table and uses no reflection to boot. The analyzer enforces the logic boundary; determinism is a property the engine promises, and a logic assembly that reached a device, the filesystem, an ambient clock or ambient randomness would break it silently — so the compiler refuses instead. | unconstrained |
-| `Capsule.Build` | Build-time tooling; ships in no game. The package and the scene-document process at once: the targets run this assembly, packed unlisted under `tools/`, and nothing else references or invokes it. | unconstrained |
+| `Capsule.Build` | Build-time tooling; ships in no game. The package and the document process at once: the targets run this assembly, packed unlisted under `tools/`, and nothing else references or invokes it. It validates and canonicalizes scene and sprite sheet documents, and renders the sheets as the game's generated sprite registry. | unconstrained |
 
 `Capsule.Architecture.targets` enforces the reference column for the substrate-free modules, and that they take no package dependency at all.
 
@@ -28,7 +28,7 @@ The compiler enforces the game-logic boundary with these diagnostics:
 | `CAP102` | external I/O |
 | `CAP103` | ambient concurrency and asynchronous execution |
 | `CAP104` | process or wall-clock time |
-| `CAP105` | ambient randomness |
+| `CAP105` | randomness outside the seeded source a scene holds, including `System.Random` |
 
 ## Determinism contract
 
@@ -42,6 +42,7 @@ Given the same initial state, fixed-step duration, and sequence of `DeviceSnapsh
 - Collision is deterministic for a given sequence of operations: layers intern in registration order, casts report the nearest hit, and overlaps report tilemap cells before colliders — tilemaps in registration order and row-major within each, colliders by handle. `RaycastAll` fills its span with the nearest hits ordered by distance, ties broken by tiles before colliders and then by collider slot and cell, so the result never depends on the broadphase's current shape. Contacts settle after entities update and before the scene's late step, in the order colliders began reporting them, and a collider's own `Touching` set and contact events depart from that query order in one way — the contacts carried over from the previous step come before the newly entered ones, with query order holding within each group.
 - Handles, layers and filters belong to the world that issued them and are rejected by any other, so two worlds' identities are never confused for one another. `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted anywhere.
 - `TotalSeconds` is derived from the tick count rather than accumulated.
+- Randomness is a seeded seam on the scene: `Scene.Random` is one `RandomSource` (xoshiro256**, seeded at boot from `WithRandomSeed` and defaulting to `RandomSource.DefaultSeed`), created above the scene host and handed to every scene it opens, so a transition neither reseeds nor rewinds it and a run replays from its seed and its sequence of draws alone. An entity and a component reach it rather than being passed it, and only once the scene has started: randomness is discovered in `OnStart`, never registered from a constructor or from an `OnAddedToScene` that runs while the scene is still composing. The seed is run configuration, not a per-step fact, so it is not on `StepContext`. A seed carries independent streams, each a domain's own source and all of them decorrelated, so one system's draws never move another's; a source's position is its seed, stream and draw count, which is what a game persists and restores.
 - The runtime clamps frame spikes before scheduling fixed steps.
 
 The Capsule.Generators analyzer enforces the logic boundary. Tests hold the scheduling, input-latching, scene-ordering, and mutation contracts.

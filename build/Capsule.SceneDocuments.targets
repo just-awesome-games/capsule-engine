@@ -35,26 +35,11 @@
        Left unset, no size is imposed and each scene keeps its own. -->
 
   <PropertyGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
-    <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
-    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
-    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
     <CapsuleCollectSceneDocumentsDependsOn Condition="'$(CapsuleCollectSceneDocumentsDependsOn)' == ''"></CapsuleCollectSceneDocumentsDependsOn>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
     <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json" />
-
-    <!-- The tool rides the game's own restore and build graph, so it restores under the game's
-         locked mode and contributes nothing to the game's output or publish set. -->
-    <ProjectReference Include="$(CapsuleBuildToolProject)"
-                      Condition="'$(CapsuleBuildToolProject)' != ''"
-                      ReferenceOutputAssembly="false"
-                      SkipGetTargetFrameworkProperties="true"
-                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
-                      ExcludeAssets="all"
-                      PrivateAssets="all"
-                      Private="false" />
   </ItemGroup>
 
   <!-- The seam an authoring module hooks: its derivation targets run here, before the engine
@@ -67,7 +52,7 @@
        must run whether or not there is anything to import. -->
   <Target Name="CapsuleSceneDocumentsInit"
           Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleCollectSceneDocuments"
+          DependsOnTargets="CapsuleCollectSceneDocuments;CapsuleResolveBuildTool"
           BeforeTargets="AssignTargetPaths">
     <Error Condition="('@(CapsuleNativeScene)' != '' or '@(CapsuleSceneDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the scene importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
@@ -120,42 +105,6 @@
                       Lines="@(_CapsuleSceneSource->'%(Stem)=%(FullPath)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
-
-    <!-- Resolved here rather than where it is used: the importer is an input to every derived
-         scene document, and a target's Inputs are evaluated after its DependsOnTargets have run
-         but before its own tasks. Asked from inside the import target, the path would arrive after
-         the up-to-date check that needs it, and a rebuilt importer would leave every document
-         untouched.
-
-         The removed properties are the same set the ProjectReference above drops, and they must
-         be: the tool is built without them, so asking with them would name an output directory
-         nothing wrote — a runtime identifier alone moves it under a RID folder. -->
-    <MSBuild Projects="$(CapsuleBuildToolProject)"
-             Condition="'$(CapsuleBuildToolProject)' != ''"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)"
-             RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
-      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
-    </MSBuild>
-
-    <ItemGroup Condition="'$(CapsuleBuildToolAssembly)' != ''">
-      <_CapsuleBuildTool Include="$(CapsuleBuildToolAssembly)" />
-    </ItemGroup>
-
-    <!-- The importer is the assembly graph it loads, not its entry point. Reference assemblies
-         are on, so an implementation-only change in Capsule.Scenes rebuilds Capsule.Scenes.dll and
-         never recompiles the tool — the entry point's timestamp would call every derived document
-         current while the tool now writes them differently. The tool's own output directory is
-         that graph, so globbing it derives the closure instead of listing it and a dependency added
-         later needs no line here.
-
-         The names are read now, before this build rebuilds the tool; the timestamps behind them
-         at the up-to-date check, after. A dependency added since the last build therefore joins
-         the list one build late, which changes nothing: adding it also rebuilt an assembly the
-         list already holds. -->
-    <ItemGroup>
-      <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
-    </ItemGroup>
   </Target>
 
   <!-- Inputs/Outputs make this partially incremental: sources correlate one-to-one with the derived

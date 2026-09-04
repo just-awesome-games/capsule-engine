@@ -15,6 +15,20 @@ public abstract class Component
     protected bool InScene { get; private set; }
 
     /// <summary>
+    /// The run's deterministic random source, reached through the scene rather than passed in.
+    /// This is the default stream; a domain whose draws must not move another's takes its own —
+    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// This component is on no entity, is on one in no scene, or its scene has not started.
+    /// Randomness is discovered in <see cref="OnStart"/>; <see cref="OnAddedToScene"/> reaches it
+    /// only for a component added after the scene has started.
+    /// </exception>
+    public RandomSource Random => Entity?.Scene is { } scene
+        ? scene.Random
+        : throw new InvalidOperationException($"{GetType().Name} is on no entity in a scene, so {Scenes.Scene.NoSourceYet}");
+
+    /// <summary>
     /// Advances this component by one fixed step, after its entity has stepped. Never reached
     /// before <see cref="OnStart"/>: a component that has not started takes no step.
     /// </summary>

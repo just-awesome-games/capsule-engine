@@ -8,7 +8,7 @@ That is the whole list. A consumer derives it from the engine's API rather than 
 
 - A concept gets its folder as soon as it has one file. There is no file-count threshold and no promotion judgement to get wrong, because the vocabulary is closed and small.
 - A concept with no files gets no folder. An empty folder is an instruction to fill it.
-- Nest inside a concept folder only when it becomes genuinely crowded, and nest by game domain — `Entities/Enemies/` — never one folder per class: a Capsule entity is code alone, with its assets under `src/asset-sources/`, so a folder per entity would hold one file indefinitely.
+- Nest inside a concept folder only when it becomes genuinely crowded, and nest by game domain — `Entities/Enemies/` — never one folder per class: a Capsule entity is code alone, with its assets under `src/asset-sources/` — its art in `textures/`, its animation in `sprites/` — so a folder per entity would hold one file indefinitely.
 - Folders map to namespaces: `Entities/Player.cs` declares `MyGame.Game.Entities`.
 
 The assembly root holds the game's declarations — its collision layer names, input actions, world units and similar. Those are the vocabulary everything else references and sit at the top of the dependency graph; they are not contents of the game the way a scene or an entity is. Root is what the game *is*; folders are what it *contains*.

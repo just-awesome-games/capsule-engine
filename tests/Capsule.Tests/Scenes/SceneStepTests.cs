@@ -3,6 +3,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Performance;
 

@@ -45,11 +45,13 @@ public sealed class MainMenu : Scene;
 
 Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); see [`PACKAGE.md`](PACKAGE.md) for their contents.
 
-Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation.
+Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution; the randomness they may reach is the seeded `RandomSource` their scene holds. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation.
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
+
+Sprite animation is authored as a sheet document and compiled into the game as typed frames and clips, played on the fixed step; see [`docs/sprite-animation.md`](docs/sprite-animation.md).
 
 Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 

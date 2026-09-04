@@ -15,6 +15,7 @@ my-game/
       MyGame.Shell.csproj
     asset-sources/
       scenes/
+      sprites/
       textures/
       audio/
       fonts/
@@ -88,7 +89,7 @@ The matching source-development import is:
 
 ## Logic project
 
-The logic role activates source generation and purity analysis:
+The logic role activates source generation and purity analysis, and compiles the game's sprite sheets into typed frames and clips:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -139,7 +140,7 @@ Exactly one project takes the shell role:
 
 The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons.
 
-A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>` and `<CapsuleShipAssets>` independently.
+A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportSprites>` independently.
 
 ## Package and source modes
 
@@ -175,7 +176,7 @@ Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and runn
 
 ## Model and rendering
 
-Rendering draws sprites: a `SpriteRenderer` holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A sprite is the first kind of thing a frame carries, not the only kind it can. A texture is required to draw. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
+Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A sprite is the first kind of thing a frame carries, not the only kind it can. A texture is required to draw. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
 
 ## Seeing your game's output
 
@@ -218,16 +219,17 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 
 | Property           | Value  | Effect                                                                                                                                        |
 | ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleGameLogic` | `true` | Enables game-boundary analysis and generates the game's scene, entity, and asset registries. Set it only on the substrate-free logic library. |
+| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the game's scene, entity, and asset registries, and compiles its sprite sheets. Set it only on the substrate-free logic library. |
 | `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and defaults scene import and asset shipping on. Set it only on the executable shell.                                 |
 
 ### Authoring sources and output
 
 | Property                 | Default                                       | Effect                                                                                                                                                                 |
 | ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist.                                                   |
+| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `sprites/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist.                                       |
 | `CapsuleImportScenes`    | `true` for the shell; otherwise `false`       | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.            A role-free test or tool can opt in independently. |
 | `CapsuleShipAssets`      | `true` for the shell; otherwise `false`       | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                          |
+| `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `GameSprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size.                   |
 
 ### Application icons

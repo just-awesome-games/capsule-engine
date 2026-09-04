@@ -1,0 +1,110 @@
+{
+  "formatVersion": 1,
+  "texture": "player.png",
+  "frames": [
+    {
+      "name": "idle-0",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "idle-1",
+      "x": 8,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "walk-0",
+      "x": 16,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "walk-1",
+      "x": 24,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "walk-2",
+      "x": 32,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "walk-3",
+      "x": 40,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    }
+  ],
+  "clips": [
+    {
+      "name": "idle",
+      "loop": true,
+      "frames": [
+        {
+          "frame": "idle-0",
+          "ticks": 30
+        },
+        {
+          "frame": "idle-1",
+          "ticks": 30
+        }
+      ]
+    },
+    {
+      "name": "walk",
+      "loop": true,
+      "frames": [
+        {
+          "frame": "walk-0",
+          "ticks": 6
+        },
+        {
+          "frame": "walk-1",
+          "ticks": 6
+        },
+        {
+          "frame": "walk-2",
+          "ticks": 6
+        },
+        {
+          "frame": "walk-3",
+          "ticks": 6
+        }
+      ]
+    }
+  ]
+}

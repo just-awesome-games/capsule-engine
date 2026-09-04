@@ -2,9 +2,10 @@ using System.Numerics;
 using Capsule;
 using Capsule.Assets.Generated;
 using Capsule.Diagnostics;
-using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Animation;
 using Capsule.Scenes.Physics;
+using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 
 namespace MinimalGame.Game.Entities;
@@ -32,6 +33,12 @@ namespace MinimalGame.Game.Entities;
 /// point <see cref="SpriteRenderer.Offset"/> puts on the body: at the feet, so a mirror is about
 /// the body's horizontal centre and a squash-and-stretch keeps the feet planted — the squash
 /// spreads into the floor instead of sinking through it, and the stretch grows upward.
+/// </para>
+/// <para>
+/// Which frame that is comes from a <see cref="SpriteAnimator"/> playing the clips of
+/// <c>sprites/player.sheet.json</c>: it walks while the walk axis is held and idles otherwise, and
+/// the clip asked for every step is ignored while it is already the one playing. Frames advance on
+/// ticks, so the frame the player is on is simulation state like its position.
 /// </para>
 /// <para>
 /// That squash-and-stretch is presentation and nothing more. Jumping and landing each throw the
@@ -81,18 +88,15 @@ public sealed class Player : Entity
 
     /// <summary>
     /// The frame's pivot, in texels from its top-left corner, and the same vector from the body's
-    /// corner to the point it anchors. Bottom-centre on purpose: a flip and a scale both work
-    /// about the pivot, so the horizontal centre keeps the drawn frame over the corner-anchored
-    /// collider in both facings, and the bottom edge keeps a squashed or stretched frame standing
-    /// on the floor the body stands on. Both derive from the region's own extent.
+    /// corner to the point it anchors. Authored bottom-centre in the sheet on purpose: a flip and a
+    /// scale both work about the pivot, so the horizontal centre keeps the drawn frame over the
+    /// corner-anchored collider in both facings, and the bottom edge keeps a squashed or stretched
+    /// frame standing on the floor the body stands on. Every frame of the sheet shares it.
     /// </summary>
-    private static readonly Vector2 Pivot = new(BodyPixels / 2f, BodyPixels);
-
-    /// <summary>The whole of <c>textures/player.png</c>.</summary>
-    private static readonly Sprite Idle =
-        new(GameAssets.Textures.Player, new TextureRegion(0, 0, BodyPixels, BodyPixels), Pivot);
+    private static readonly Vector2 Pivot = GameSprites.Player.Frames.Idle0.Pivot;
 
     private readonly SpriteRenderer _sprite;
+    private readonly SpriteAnimator _animator;
     private readonly KinematicBody2D _body;
 
     private Vector2 _velocity;
@@ -100,8 +104,13 @@ public sealed class Player : Entity
     public Player(EntitySpawn spawn)
         : base(spawn.Position)
     {
-        _sprite = new SpriteRenderer(Idle) { Offset = Pivot };
+        _sprite = new SpriteRenderer(GameSprites.Player.Frames.Idle0) { Offset = Pivot };
         Add(_sprite);
+
+        // Named rather than found: an entity drawing itself as several sprites animates the one
+        // it says.
+        _animator = new SpriteAnimator(_sprite);
+        Add(_animator);
 
         BoxCollider2D collider = new(Body);
         collider.Detects("sensor");
@@ -137,6 +146,10 @@ public sealed class Player : Entity
         {
             _sprite.FlipX = _velocity.X < 0f;
         }
+
+        // Asked every step: the animator ignores the clip already playing, so the cycle runs
+        // instead of restarting on frame 0.
+        _animator.Play(_velocity.X != 0f ? GameSprites.Player.Clips.Walk : GameSprites.Player.Clips.Idle);
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
         bool wasOnFloor = _body.IsOnFloor;

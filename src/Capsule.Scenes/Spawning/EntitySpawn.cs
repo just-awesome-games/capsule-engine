@@ -12,7 +12,7 @@ namespace Capsule.Scenes.Spawning;
 /// <param name="Position">The raw authored coordinate.</param>
 /// <param name="Scale">
 /// The raw authored scale factors, positive and finite on both axes. What they mean is the
-/// entity's constructor's decision — a <see cref="SpriteRenderer.Scale"/>, a collider shape run
+/// entity's constructor's decision — a <see cref="Rendering.SpriteRenderer.Scale"/>, a collider shape run
 /// through <see cref="Collision.Shape2D.Scaled"/>, or nothing at all.
 /// </param>
 public readonly record struct EntitySpawn(int Id, string Type, Vector2 Position, Vector2 Scale)

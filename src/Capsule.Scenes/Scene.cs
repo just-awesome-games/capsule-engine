@@ -5,6 +5,7 @@ using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Physics;
+using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 using Capsule.Scenes.Tiles;
 
@@ -16,6 +17,11 @@ namespace Capsule.Scenes;
 /// </summary>
 public class Scene
 {
+    // One message for the scene, its entities and their components: the hazard is the same, and a
+    // game reads whichever of the three it happened to ask.
+    internal const string NoSourceYet =
+        "the run's random source is not available yet; it is installed before the scene starts, so draw from OnStart on — an OnAddedToScene reached while the scene is still composing runs before it exists.";
+
     private readonly List<Entity> _entities = [];
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
@@ -39,6 +45,8 @@ public class Scene
     private readonly List<Collider2D> _contactReporters = [];
 
     private Camera _camera = new();
+    private RandomSource? _random;
+
     private bool _stepping;
     private bool _starting;
     private bool _started;
@@ -149,6 +157,28 @@ public class Scene
     /// draws; game code queries it directly for rays, sweeps and overlaps.
     /// </summary>
     public CollisionWorld2D Collision { get; } = new();
+
+    /// <summary>
+    /// The run's deterministic random source: stream 0 of the seed the shell configured, the same
+    /// instance for the whole run, so a scene transition neither reseeds nor rewinds it.
+    /// Engine-owned, and installed before the scene starts — randomness is discovered in
+    /// <see cref="OnStart"/>, never registered from a constructor or from an
+    /// <c>OnAddedToScene</c> that runs while the scene is still composing.
+    /// <para>
+    /// This is the default stream. A game whose domains must not move one another gives each its
+    /// own — <c>new RandomSource(Random.Seed, MyStreams.Map)</c> — so a map's draws cannot shift a
+    /// shuffle's.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The scene has not started. The source is available from <see cref="OnStart"/> on, and in
+    /// <c>OnAddedToScene</c> only for what is added after the scene has started.
+    /// </exception>
+    public RandomSource Random
+    {
+        get => _random ?? throw new InvalidOperationException(NoSourceYet);
+        internal set => _random = value;
+    }
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.

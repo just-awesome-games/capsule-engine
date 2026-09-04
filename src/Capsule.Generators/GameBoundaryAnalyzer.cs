@@ -42,8 +42,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static readonly DiagnosticDescriptor AmbientRandom = Rule(
         AmbientRandomId,
-        "Game logic cannot use ambient randomness",
-        "'{0}' is not reproducible; use an explicitly seeded random source owned by game state");
+        "Game logic cannot use randomness outside the scene's seeded source",
+        "'{0}' is not reproducible across runs or runtime versions; draw from the seeded source the scene holds, which an entity or component reaches as Random");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [RuntimeBoundary, PlatformBoundary, ExternalIo, Concurrency, AmbientTime, AmbientRandom];
@@ -74,6 +74,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         context.RegisterOperationAction(AnalyzeObjectCreation, OperationKind.ObjectCreation);
         context.RegisterOperationAction(AnalyzeProperty, OperationKind.PropertyReference);
         context.RegisterOperationAction(AnalyzeAwait, OperationKind.Await);
+        context.RegisterOperationAction(AnalyzeMethodReference, OperationKind.MethodReference);
+        context.RegisterSymbolAction(AnalyzeStoredRandom, SymbolKind.Field, SymbolKind.Property);
     }
 
     private static void AnalyzeReferences(CompilationAnalysisContext context, bool logic)
@@ -145,9 +147,24 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         {
             Report(context, AmbientTime, operation.Syntax.GetLocation(), display);
         }
-        else if (IsSystemType(constructor.ContainingType, "Random") && constructor.Parameters.Length == 0)
+        else if (IsSystemType(constructor.ContainingType, "Random"))
         {
             Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
+        }
+    }
+
+    // A method group is a use with no invocation to catch: `Func<int> draw = random.Next;` reads
+    // here and nowhere else. Delegate creation wraps this operation, so both forms arrive.
+    private static void AnalyzeMethodReference(OperationAnalysisContext context)
+    {
+        IMethodReferenceOperation operation = (IMethodReferenceOperation)context.Operation;
+        if (IsAmbientRandom(operation.Method))
+        {
+            Report(
+                context,
+                AmbientRandom,
+                operation.Syntax.GetLocation(),
+                operation.Method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
         }
     }
 
@@ -155,6 +172,26 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     {
         IAwaitOperation operation = (IAwaitOperation)context.Operation;
         Report(context, Concurrency, operation.Syntax.GetLocation(), "await");
+    }
+
+    // Construction is caught at its own site, but a seeded instance can also arrive from
+    // outside the assembly; the field or property that keeps it is where holding one is visible.
+    private static void AnalyzeStoredRandom(SymbolAnalysisContext context)
+    {
+        ITypeSymbol stored = context.Symbol switch
+        {
+            IFieldSymbol field => field.Type,
+            IPropertySymbol property => property.Type,
+            _ => throw new InvalidOperationException($"Unexpected symbol kind '{context.Symbol.Kind}'."),
+        };
+
+        if (stored is INamedTypeSymbol named && IsSystemType(named, "Random"))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                AmbientRandom,
+                context.Symbol.Locations.FirstOrDefault() ?? Location.None,
+                context.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)));
+        }
     }
 
     private static void AnalyzeProperty(OperationAnalysisContext context)
@@ -167,7 +204,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         {
             Report(context, AmbientTime, operation.Syntax.GetLocation(), display);
         }
-        else if (IsSystemType(property.ContainingType, "Random") && property.Name == "Shared")
+        else if (IsSystemType(property.ContainingType, "Random"))
         {
             Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
         }
@@ -222,7 +259,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     }
 
     private static bool IsAmbientRandom(ISymbol symbol) =>
-        (IsSystemType(symbol.ContainingType, "Guid") && symbol.Name == "NewGuid")
+        IsSystemType(symbol.ContainingType, "Random")
+        || (IsSystemType(symbol.ContainingType, "Guid") && symbol.Name == "NewGuid")
         || (symbol.ContainingType?.Name == "RandomNumberGenerator"
             && symbol.ContainingNamespace.ToDisplayString() == "System.Security.Cryptography");
 

@@ -53,19 +53,24 @@ internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
     private readonly SceneDefaults _defaults;
+    private readonly RandomSource _random;
 
     private SceneTarget _currentTarget;
     private SceneSimulation _current;
     private bool _disposed;
 
-    internal SceneHost(in SceneTarget initialTarget, SceneResolver resolve, SceneDefaults defaults = default)
+    internal SceneHost(in SceneTarget initialTarget, SceneResolver resolve, SceneDefaults defaults = default, RandomSource? random = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
 
         _resolve = resolve;
         _defaults = defaults;
+
+        // One source for the run: every scene the host opens draws from it, so a transition
+        // neither reseeds nor rewinds the sequence.
+        _random = random ?? new RandomSource();
         _currentTarget = initialTarget;
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults);
+        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random);
     }
 
     public bool ExitRequested { get; private set; }
@@ -132,7 +137,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Scene next = _resolve(target);
 
         _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload, _defaults);
+        _current = new SceneSimulation(next, target.Payload, _defaults, _random);
         _currentTarget = target;
     }
 }

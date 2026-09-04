@@ -2,9 +2,6 @@ using Capsule.Assets;
 using Capsule.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-
-// Both namespaces define Vector2. Render intent speaks the BCL one; the aliases keep
-// which is which visible at every use rather than resting on directive order.
 using Vector2 = System.Numerics.Vector2;
 using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 

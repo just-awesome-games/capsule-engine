@@ -69,6 +69,20 @@ public class Entity
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
 
+    /// <summary>
+    /// The run's deterministic random source, reached through the scene rather than passed in.
+    /// This is the default stream; a domain whose draws must not move another's takes its own —
+    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// This entity is in no scene, or its scene has not started. Randomness is discovered in
+    /// <see cref="OnStart"/>; <see cref="OnAddedToScene"/> reaches it only for an entity added
+    /// after the scene has started.
+    /// </exception>
+    public RandomSource Random => Scene is { } scene
+        ? scene.Random
+        : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoSourceYet}");
+
     // Set by a subclass whose contents are world coordinates, so a position write is a mistake
     // rather than a move.
     internal bool Anchored { get; init; }

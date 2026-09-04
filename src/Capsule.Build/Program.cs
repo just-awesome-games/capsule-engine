@@ -6,16 +6,21 @@ internal static class Program
 {
     private const string Usage = """
         Capsule.Build --out <dir> [--tile-size <px>] --scenes-from <list.txt>
+        Capsule.Build --out <dir> --sheets-from <list.txt> --textures <list.txt> --generated <file.cs>
 
-          Validates every scene document named in <list.txt> (one path per line, relative to the
-          working directory) and writes it canonically as <dir>/<scene>.scene.json, creating <dir>
-          if absent. Every source is attempted. Exit 0 when all succeeded, 1 when any failed, 2 on
-          a usage error.
+          Validates every document named in <list.txt> (one path per line, relative to the working
+          directory) and writes it canonically under <dir>, creating <dir> if absent. Every source
+          is attempted. Exit 0 when all succeeded, 1 when any failed, 2 on a usage error.
 
           --tile-size is the tile size the game declares, and a scene whose grid differs fails.
           Omit it and no size is imposed.
 
-          Capsule's build hook (build/Capsule.SceneDocuments.targets) is the only caller.
+          --textures names the game's texture files, one per line; a sheet cutting from anything
+          else fails. --generated is the C# file the whole sheet set is rendered as, which the game
+          compiles instead of reading any sheet at run time.
+
+          Capsule's build hooks (build/Capsule.SceneDocuments.targets and
+          build/Capsule.SpriteSheets.targets) are the only callers.
         """;
 
     private static int Main(string[] args)
@@ -23,6 +28,12 @@ internal static class Program
         if (args is not ["--out", string outputDirectory, .. string[] rest])
         {
             return UsageError();
+        }
+
+        if (rest is ["--sheets-from", string sheetList, "--textures", string textureList, "--generated", string generated])
+        {
+            return SpriteSheetTool.ImportFromList(
+                outputDirectory, sheetList, textureList, generated, Console.Out, Console.Error);
         }
 
         int? tileSize = null;

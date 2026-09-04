@@ -3,6 +3,7 @@ using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Physics;
+using Capsule.Scenes.Rendering;
 
 namespace Capsule.Tests.Scenes;
 

@@ -22,10 +22,75 @@
   <PropertyGroup>
     <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportScenes>
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
+    <!-- Sprite sheets default on for the logic role rather than the shell: a sheet ships nothing
+         beside the executable, and what the build makes of it is game code the logic assembly
+         compiles. -->
+    <CapsuleImportSprites Condition="'$(CapsuleImportSprites)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportSprites>
     <!-- A logic assembly ships nothing, but its generated asset registry is named after the same
          tree, so it reads the sources too. -->
-    <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
+    <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
+    <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
+
+  <!-- The out-of-process document tool, shared by every hook that runs it: one project reference,
+       one resolved path, whichever of scenes and sprite sheets a project imports. -->
+  <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+    <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
+    <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
+    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+    <!-- The tool rides the game's own restore and build graph, so it restores under the game's
+         locked mode and contributes nothing to the game's output or publish set. -->
+    <ProjectReference Include="$(CapsuleBuildToolProject)"
+                      Condition="'$(CapsuleBuildToolProject)' != ''"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
+                      ExcludeAssets="all"
+                      PrivateAssets="all"
+                      Private="false" />
+  </ItemGroup>
+
+  <!-- A dependency of every import target rather than a step inside one: the tool is an input to
+       every derived document, and a target's Inputs are evaluated after its DependsOnTargets have
+       run but before its own tasks. Asked from inside an import target, the path would arrive
+       after the up-to-date check that needs it, and a rebuilt tool would leave every document
+       untouched.
+
+       The removed properties are the same set the ProjectReference above drops, and they must be:
+       the tool is built without them, so asking with them would name an output directory nothing
+       wrote — a runtime identifier alone moves it under a RID folder. -->
+  <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+    <MSBuild Projects="$(CapsuleBuildToolProject)"
+             Condition="'$(CapsuleBuildToolProject)' != ''"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
+    </MSBuild>
+
+    <ItemGroup Condition="'$(CapsuleBuildToolAssembly)' != ''">
+      <_CapsuleBuildTool Include="$(CapsuleBuildToolAssembly)" />
+    </ItemGroup>
+
+    <!-- The tool is the assembly graph it loads, not its entry point. Reference assemblies are on,
+         so an implementation-only change in Capsule.Scenes rebuilds Capsule.Scenes.dll and never
+         recompiles the tool — the entry point's timestamp would call every derived document
+         current while the tool now writes them differently. The tool's own output directory is
+         that graph, so globbing it derives the closure instead of listing it and a dependency
+         added later needs no line here.
+
+         The names are read now, before this build rebuilds the tool; the timestamps behind them at
+         the up-to-date check, after. A dependency added since the last build therefore joins the
+         list one build late, which changes nothing: adding it also rebuilt an assembly the list
+         already holds. -->
+    <ItemGroup>
+      <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
+    </ItemGroup>
+  </Target>
 
   <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <!-- Read before the default below fills it in: the convention is where sources are looked
@@ -50,6 +115,7 @@
   </Target>
 
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SceneDocuments.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.SpriteSheets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />

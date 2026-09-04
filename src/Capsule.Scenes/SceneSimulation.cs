@@ -1,4 +1,5 @@
 using Capsule.Rendering;
+using Capsule.Scenes.Rendering;
 
 namespace Capsule.Scenes;
 
@@ -14,14 +15,19 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <param name="defaults">
     /// The game's scene defaults, which fill in whatever the scene set nothing for.
     /// </param>
+    /// <param name="random">
+    /// The run's random source, which becomes the scene's <see cref="Scenes.Scene.Random"/> before
+    /// it starts. A headless caller that omits it gets the default seed's stream 0.
+    /// </param>
     /// <exception cref="InvalidOperationException">
     /// The scene has already been started; a scene belongs to one simulation for its lifetime.
     /// </exception>
-    public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default)
+    public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default, RandomSource? random = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
         Scene = scene;
+        scene.Random = random ?? new RandomSource();
         try
         {
             scene.Start(entryPayload, defaults);

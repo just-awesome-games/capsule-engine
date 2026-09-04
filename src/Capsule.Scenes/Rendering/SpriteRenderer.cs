@@ -1,7 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 
-namespace Capsule.Scenes;
+namespace Capsule.Scenes.Rendering;
 
 /// <summary>
 /// Draws its entity as one sprite, one texel per world unit until <see cref="Scale"/> says

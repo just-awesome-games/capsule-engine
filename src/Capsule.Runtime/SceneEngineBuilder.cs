@@ -39,6 +39,7 @@ public sealed class SceneEngineBuilder
     private ConsoleLogSink? _consoleSink;
     private bool _loggingSilenced;
     private TextureSampling _sampling = TextureSampling.Linear;
+    private ulong _randomSeed = RandomSource.DefaultSeed;
 
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
@@ -247,6 +248,19 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
+    /// <see cref="Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
+    /// game that never calls this replays identically run to run; a game that wants a different
+    /// run each launch passes a seed it obtained in the shell, where entropy is legal.
+    /// </summary>
+    public SceneEngineBuilder WithRandomSeed(ulong seed)
+    {
+        _randomSeed = seed;
+
+        return this;
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit. A
     /// scene a document backs loads it first; one that is not runs as it is.
     /// </summary>
@@ -342,7 +356,7 @@ public sealed class SceneEngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling));
+        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
         Run(host);
     }
 
