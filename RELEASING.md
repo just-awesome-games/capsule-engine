@@ -2,9 +2,7 @@
 
 A release is an annotated `v<major>.<minor>.<patch>` tag on `main`. Pushing the tag runs
 `.github/workflows/packages.yml`, which builds, tests, packs every `JAG.Capsule.*` package at that
-version and pushes them to NuGet.org. Nothing else publishes. The studio's `jag capsule promote`
-(in `jag-studios-ops/shell/jag`) runs the steps below unattended; this page is the same release
-done by hand.
+version and pushes them to NuGet.org. Nothing else publishes.
 
 ## 1. Start from a green, pushed `main`
 
@@ -77,8 +75,9 @@ Each consumer pins an exact `CapsuleVersion`. After a release:
 
 - `capsule-engine-tiled`: follow its `RELEASING.md` (bump the pin, regenerate its lock files,
   release the module).
-- Each game: bump `CapsuleVersion` (and `CapsuleTiledVersion` once the module has released) in
-  its `Directory.Build.props`, then `dotnet restore --force-evaluate` to rewrite its lock files.
+- Each game consuming the packages: bump `CapsuleVersion` (and `CapsuleTiledVersion` once the
+  module has released) in its `Directory.Build.props`, then `dotnet restore --force-evaluate` to
+  rewrite its lock files.
 
 ## Undoing a mistake
 
