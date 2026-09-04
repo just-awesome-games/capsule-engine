@@ -29,7 +29,7 @@ my-game/
 
 The directory convention inside `src/MyGame.Game/` is in [`project-layout.md`](project-layout.md); this file stops at the project boundary.
 
-Keep `src/asset-sources/` as a sibling of the logic and shell projects. Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find the same source tree without a `CapsuleAssetSourcesDir` override. The build derives `assets/` beside the executable; author under `src/asset-sources/`.
+Keep `src/asset-sources/` as a sibling of the logic and shell projects: Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find one tree without a `CapsuleAssetSourcesDir` override. The build derives `assets/` beside the executable.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
@@ -144,7 +144,7 @@ A role-free project that needs derived content — a test project, a headless sm
 
 ## Package and source modes
 
-Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references instead of the locked package graph, so a source-mode restore runs without `--locked-mode`. The in-repo sample is the one consumer that commits no lock file: its feed is repacked from source on every run, and a repacked `.nupkg` never reproduces its content hash, so a committed hash could only ever fail restore.
+Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`. That pairing is package mode only: a source build resolves the engine through project references, so a source-mode restore runs without `--locked-mode`. The in-repo sample commits no lock file — its feed is repacked from source on every run, and a repacked `.nupkg` never reproduces its content hash.
 
 > For persistent local development, create an ignored `Directory.Build.local.props`:
 
@@ -156,13 +156,13 @@ Commit each package-consuming project's `packages.lock.json` and restore CI with
 </Project>
 ```
 
-It is git-ignored. The source-mode lock file lands under `obj/` so the committed lock file is untouched.
+It is git-ignored, and the source-mode lock file lands under `obj/`, so the committed lock file is untouched.
 
 ### The API reference
 
 Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
 
-A source consumer has no such directory, so the source build stages the same files at `artifacts/capsule-api/` under the repository root — one directory for the whole repository, holding the documentation of every Capsule assembly the repository references. It is written before each project compiles, so the reference is current even on the build that fails against a changed engine API. Set `CapsuleApiReferenceDirectory` to stage them somewhere else; a relative path is resolved against the repository root. The directory is derived and build-owned: ignore it rather than committing it.
+A source consumer has no such directory, so the source build stages the same files at `artifacts/capsule-api/` under the repository root — one directory holding the documentation of every Capsule assembly the repository references, written before each project compiles so the reference is current even on a build that fails against a changed engine API. `CapsuleApiReferenceDirectory` stages them somewhere else; a relative path resolves against the repository root. The directory is derived and build-owned: ignore it.
 
 ## Publishing
 
@@ -172,21 +172,21 @@ Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule and its reason are in [`architecture.md`](architecture.md#nativeaot-floor).
+Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule is in [`architecture.md`](architecture.md#nativeaot-floor).
 
 ## Model and rendering
 
-Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A sprite is the first kind of thing a frame carries, not the only kind it can. A texture is required to draw. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
+Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
 
 ## Named assets
 
-Shipped assets are authored under `src/asset-sources/<domain>/` — `textures/`, `audio/`, `fonts/` — and a source's path under its domain root is its name everywhere. Directories nest freely and are kept: `asset-sources/textures/enemies/bat.png` ships at `assets/textures/enemies/bat.png`, hands out the handle named `enemies/bat`, and is declared as `GameAssets.Textures.Enemies.Bat`. A file at the domain root stays at the root, so a flat tree is declared flat.
+Shipped assets are authored under `src/asset-sources/<domain>/` — `textures/`, `audio/`, `fonts/` — and a source's path under its domain root is its name everywhere. Directories nest freely and are kept: `asset-sources/textures/enemies/bat.png` ships at `assets/textures/enemies/bat.png`, hands out the handle named `enemies/bat`, and is declared as `GameAssets.Textures.Enemies.Bat`.
 
 `asset-sources/sprites/` follows the same rule: `sprites/enemies/bat.sheet.json` is compiled into `GameSprites.Enemies.Bat`, whose `Frames` and `Clips` are the sheet's own.
 
 A document names a texture by that same path, extension included — `"enemies/bat.png"`, or `"tiles.png"` for a file at the root. Forward slashes only, and no empty, `.` or `..` segment.
 
-Every generated class, each domain root and each nested class, exposes a public read-only `All` holding every handle beneath it, its subdirectories included: `GameAssets.Textures.All` is the whole domain, `GameAssets.Textures.Enemies.All` is that directory. It is a `ReadOnlySpan<T>` over generated constant data, so enumerating it allocates nothing.
+Every generated class, each domain root and each nested class, exposes a read-only `All` holding every handle beneath it, its subdirectories included: `GameAssets.Textures.All` is the whole domain, `GameAssets.Textures.Enemies.All` is that directory. It is a `ReadOnlySpan<T>` over generated constant data, so enumerating it allocates nothing.
 
 Two sources may share a stem in different directories. Names collide only within one directory, where two spellings that become one C# identifier — `a-b.png` beside `a_b.png`, or a `bat/` directory beside `bat.png` — fail the build naming both. So does a name that would shadow the class it is declared on: `textures/enemies/enemies.png`, a `textures/textures/` directory, or anything named `all`.
 
@@ -201,14 +201,14 @@ Log.Info($"picked up {tile}");
 Log.Warning("no spawn point on this map");
 ```
 
-The shell installs a console sink at boot, and every level goes to standard output in the order it was written, prefixed with the simulation tick:
+The shell installs a console sink at boot; every level goes to standard output in order, prefixed with the simulation tick:
 
 ```text
 [   boot] info  main menu started
 [     30] warn  no spawn point on this map
 ```
 
-Run the shell with `dotnet run --project src/MyGame.Shell` and the lines appear in that terminal. A shell launched by double-clicking its executable has no terminal attached and shows nothing; run it from a terminal when you want to read the log.
+Run the shell with `dotnet run --project src/MyGame.Shell` and the lines appear in that terminal. A shell launched by double-clicking its executable has no terminal attached and shows nothing.
 
 Nothing is installed until the host runs, so a headless test harness supplies its own. `CollectingLogSink` keeps what it is given:
 
@@ -225,7 +225,7 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 
 ## Build configuration reference
 
-Capsule is configured with ordinary MSBuild properties. Put a value in the narrowest project that owns it; use the repository's `Directory.Build.props` only when every project should share the value. Paths may be absolute or relative to the project whose build imports Capsule unless a row says otherwise.
+Capsule is configured with ordinary MSBuild properties. Put a value in the narrowest project that owns it. Paths may be absolute or relative to the project whose build imports Capsule unless a row says otherwise.
 
 ### Project roles
 
@@ -267,7 +267,7 @@ A shell with no icon configuration receives Capsule's executable and window icon
 
 Defining only one half is allowed, but the build warns because the other half retains Capsule branding.
 
-The window icon is transparent where its alpha says so, and Capsule's own default is. Two things about that byte surprise people: a bitmap whose alpha is entirely zero is read as fully opaque rather than fully invisible, so zeroing the byte a tool calls padding still ships a visible icon; and `BI_RGB` formally declares the byte unused, so most image viewers discard it and draw the file on black. A transparent `Icon.bmp` therefore looks like it has a black background in almost any viewer — that is the viewer, and flattening the bitmap to make it agree puts a real background back on the window.
+The window icon is transparent where its alpha says so, and Capsule's own default is. Two traps in that byte: a bitmap whose alpha is entirely zero is read as fully opaque rather than fully invisible, so zeroing the byte a tool calls padding still ships a visible icon; and `BI_RGB` formally declares the byte unused, so most image viewers discard it and draw the file on black. A transparent `Icon.bmp` therefore looks black-backed in almost any viewer — that is the viewer, and flattening the bitmap to make it agree puts a real background back on the window.
 
 ### Package and source properties
 

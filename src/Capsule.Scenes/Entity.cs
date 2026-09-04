@@ -17,8 +17,8 @@ public class Entity
     private bool _started;
 
     /// <param name="position">
-    /// Where the entity starts. <see cref="PreviousPosition"/> starts equal to it, so a spawn
-    /// does not slide in from wherever the renderer would otherwise interpolate from.
+    /// Where the entity starts. <see cref="PreviousPosition"/> starts equal to it, so a spawn does
+    /// not slide in from wherever the renderer would otherwise interpolate from.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     protected Entity(Vector2 position)
@@ -29,11 +29,10 @@ public class Entity
 
     /// <summary>
     /// Where the entity is now, in world units. Always finite: a NaN or infinite position is
-    /// refused rather than stored, because everything downstream reads it — the renderer
-    /// interpolates it against <see cref="PreviousPosition"/>, and a collider on this entity hands
-    /// it straight to the collision broadphase.
+    /// refused rather than stored.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
+    /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
     /// <exception cref="InvalidOperationException">The entity is anchored to the world origin.</exception>
     public Vector2 Position
     {
@@ -49,13 +48,25 @@ public class Entity
 
             RequireFinite(value);
 
+            Vector2 previous = field;
             field = value;
 
-            // The counter keeps the announcement free for an entity carrying no component that
-            // tracks its position.
-            if (_movementTrackers > 0)
+            if (_movementTrackers == 0)
+            {
+                return;
+            }
+
+            // A collider may refuse the placement (its shape overflows there). Every collider is
+            // then returned to the old position, which each already held, so nothing is left stale.
+            try
             {
                 NotifyMoved();
+            }
+            catch
+            {
+                field = previous;
+                NotifyMoved();
+                throw;
             }
         }
     }
@@ -70,14 +81,14 @@ public class Entity
     public Scene? Scene { get; internal set; }
 
     /// <summary>
-    /// The run's deterministic random source, reached through the scene rather than passed in.
-    /// This is the default stream; a domain whose draws must not move another's takes its own —
+    /// The run's deterministic random source, reached through the scene. This is the default
+    /// stream; a domain whose draws must not move another's takes its own —
     /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// This entity is in no scene, or its scene has not started. Randomness is discovered in
-    /// <see cref="OnStart"/>; <see cref="OnAddedToScene"/> reaches it only for an entity added
-    /// after the scene has started.
+    /// This entity is in no scene, or its scene has not started; randomness is discovered in
+    /// <see cref="OnStart"/>. <see cref="OnAddedToScene"/> reaches it only when the
+    /// scene had already started before this was added.
     /// </exception>
     public RandomSource Random => Scene is { } scene
         ? scene.Random
@@ -91,12 +102,12 @@ public class Entity
 
     // Every walk of the component list goes through this. A hook may detach the component being
     // visited or one before it, which shifts the rest left; the cursor holds its index when the
-    // occupant changed, so the component shifted into it is visited rather than skipped. A collider
-    // once entered a scene unregistered because one such walk advanced unconditionally.
+    // occupant changed, so the component shifted into it is visited rather than skipped.
     private ComponentWalk LiveComponents => new(_components);
 
     /// <summary>Moves immediately, with no interpolation from the old position.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
+    /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
     /// <exception cref="InvalidOperationException">The entity is anchored to the world origin.</exception>
     public void Teleport(Vector2 position)
     {
@@ -111,6 +122,7 @@ public class Entity
     /// The component is already attached to an entity, or it refuses this entity — a
     /// <see cref="Physics.KinematicBody2D"/> offered to one that already holds a body.
     /// </exception>
+    /// <exception cref="ArgumentNullException">The component is null.</exception>
     public void Add(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -133,12 +145,10 @@ public class Entity
             component.EnterScene();
         }
 
-        // Time has already begun for this entity, so it has begun for whatever it takes on: the
-        // component would otherwise step without ever having started. Both conditions are re-read
-        // after the hooks above, either of which may have detached it or taken this entity out of
-        // the scene. Kept, not merely held: an entity queued for removal mid-step still names its
-        // scene but never steps again, so a component taken on now must wait for the next add,
-        // which RunStart hands it.
+        // Time has begun for this entity, so it has begun for whatever it takes on. Both conditions
+        // are re-read after the hooks above, either of which may have detached the component or
+        // taken this entity out of the scene. Kept, not merely held: an entity queued for removal
+        // still names its scene but never steps again, so its new component waits for the next add.
         if (_started && Scene?.Keeps(this) == true && ReferenceEquals(component.Entity, this))
         {
             component.RunStart();
@@ -147,6 +157,7 @@ public class Entity
 
     /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
     /// <exception cref="InvalidOperationException">The component is not attached to this entity.</exception>
+    /// <exception cref="ArgumentNullException">The component is null.</exception>
     public void Remove(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -157,8 +168,7 @@ public class Entity
                 $"A {component.GetType().Name} that this entity does not hold cannot be removed from it.");
         }
 
-        int held = IndexOf(component);
-        _components.RemoveAt(held);
+        _components.RemoveAt(Scene.IndexOf(_components, component));
 
         // Cleared before the hooks, so a hook that reaches back through Entity cannot find this
         // entity still claiming a component it no longer holds.
@@ -206,10 +216,8 @@ public class Entity
     /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
-    /// from here: an entity a scene document composed sees every other entry, and one of a batch
-    /// spawned during a step sees the whole batch. Runs before the components held at that moment
-    /// start; an entity that leaves the scene from here never steps, and so starts none of them,
-    /// which leaves them to start if it is added again.
+    /// from here. Runs before the components held at that moment start; an entity that leaves the
+    /// scene from here never steps, and so starts none of them.
     /// </summary>
     protected internal virtual void OnStart()
     {
@@ -237,8 +245,7 @@ public class Entity
     internal void TrackMovement(int delta) => _movementTrackers += delta;
 
     // The entity's own start is once for its lifetime; the component sweep is not. An entity
-    // removed and added again reaches this a second time holding components that never started —
-    // because it left before they could — and it is about to step them.
+    // removed and added again reaches this holding components that never started.
     internal void RunStart()
     {
         if (!_started)
@@ -248,8 +255,8 @@ public class Entity
         }
 
         // OnStart may have taken this entity out of the scene, or queued it to leave at the end of
-        // the drain. Either way it never steps, so its components must not start: they have been
-        // told they left, and a component's OnStart is promised a scene to search.
+        // the drain. Either way it never steps, so its components must not start: a component's
+        // OnStart is promised a scene to search.
         if (Scene?.Keeps(this) != true)
         {
             return;
@@ -265,8 +272,6 @@ public class Entity
 
     internal void EnterScene()
     {
-        // EnterScene is idempotent, so a component attached from another's hook and reached twice
-        // registers once.
         foreach (Component component in LiveComponents)
         {
             component.EnterScene();
@@ -281,9 +286,8 @@ public class Entity
         }
     }
 
-    // Nothing steps before it has started. An entity the scene still holds but never started —
-    // one whose batch start was cut short — has no time begun for it, so neither it nor anything
-    // it holds may be advanced.
+    // Nothing steps before it has started: an entity the scene holds but never started has no time
+    // begun for it, so neither it nor anything it holds may be advanced.
     internal void RunStep(in StepContext context)
     {
         if (!_started)
@@ -292,11 +296,7 @@ public class Entity
         }
 
         OnStep(context);
-        StepComponents(context);
-    }
 
-    private void StepComponents(in StepContext context)
-    {
         foreach (Component component in LiveComponents)
         {
             component.RunStep(context);
@@ -320,19 +320,6 @@ public class Entity
         {
             component.OnEntityMoved();
         }
-    }
-
-    private int IndexOf(Component component)
-    {
-        for (int index = 0; index < _components.Count; index++)
-        {
-            if (ReferenceEquals(_components[index], component))
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private struct ComponentWalk(List<Component> components)

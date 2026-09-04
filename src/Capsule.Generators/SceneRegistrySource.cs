@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
+using Capsule.Assets;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -90,65 +91,31 @@ internal static class SceneRegistrySource
             return;
         }
 
-        // Partial declarations are visited in path order so the fault's location is stable.
         List<SceneModel> ordered = new(models);
         ordered.Sort(static (left, right) =>
-        {
-            int byName = string.CompareOrdinal(left.QualifiedName, right.QualifiedName);
-            if (byName != 0)
-            {
-                return byName;
-            }
-
-            string? leftPath = left.Location.SourceTree?.FilePath;
-            string? rightPath = right.Location.SourceTree?.FilePath;
-            int byPath = string.CompareOrdinal(leftPath ?? string.Empty, rightPath ?? string.Empty);
-            if (byPath != 0)
-            {
-                return byPath;
-            }
-
-            if ((leftPath is null) != (rightPath is null))
-            {
-                return leftPath is null ? 1 : -1;
-            }
-
-            return left.Location.SourceSpan.Start.CompareTo(right.Location.SourceSpan.Start);
-        });
+            DeclarationOrder.Compare(left.QualifiedName, left.Location, right.QualifiedName, right.Location));
 
         List<Registration> sound = new(ordered.Count);
         HashSet<string> described = new(StringComparer.Ordinal);
         foreach (SceneModel model in ordered)
         {
-            // The parts of a partial class are separate declarations of one type.
+            // The parts of a partial class are one type.
             if (!described.Add(model.QualifiedName))
             {
                 continue;
             }
 
-            switch (model.Fault)
+            if (Reported(model.Fault) is { } descriptor)
             {
-                case SceneFault.SceneDocumentRequiresContentConstructor:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.SceneDocumentRequiresContentConstructor, model.Location, model.DisplayName));
-                    break;
-                case SceneFault.InaccessibleType:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
-                    break;
-                case SceneFault.AmbiguousConstructors:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.AmbiguousSceneConstructors, model.Location, model.DisplayName));
-                    break;
-                default:
-                    Resolve(context, sound, model, rootNamespace);
-                    break;
+                context.ReportDiagnostic(Diagnostic.Create(descriptor, model.Location, model.DisplayName));
+                continue;
             }
+
+            Resolve(context, sound, model, rootNamespace);
         }
 
-        // Sorted before the duplicate check reads off it, for the same reason the entities are:
-        // the collected order is whichever syntax trees the compiler handed over. Scenes no
-        // document backs sort first, under the empty name, and never collide.
+        // Sorted before the duplicate check reads off it: the collected order is whichever syntax
+        // trees the compiler handed over. Scenes no document backs sort first and never collide.
         sound.Sort(static (left, right) =>
         {
             int byDocument = string.CompareOrdinal(left.DocumentName ?? string.Empty, right.DocumentName ?? string.Empty);
@@ -178,8 +145,16 @@ internal static class SceneRegistrySource
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }
 
-    // Where the type is declared is the key it claims, so the key — and whether it is a name a file
-    // can carry — is not settled until the assembly's root namespace is.
+    private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
+    {
+        SceneFault.SceneDocumentRequiresContentConstructor => RegistryDiagnostics.SceneDocumentRequiresContentConstructor,
+        SceneFault.InaccessibleType => RegistryDiagnostics.InaccessibleRegisteredType,
+        SceneFault.AmbiguousConstructors => RegistryDiagnostics.AmbiguousSceneConstructors,
+        _ => null,
+    };
+
+    // Where the type is declared is the key it claims, so the key is not settled until the
+    // assembly's root namespace is.
     private static void Resolve(
         SourceProductionContext context,
         List<Registration> sound,
@@ -196,7 +171,7 @@ internal static class SceneRegistrySource
         string documentName = model.Declared
             ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
 
-        if (TypeNaming.IsKey(documentName))
+        if (AssetPaths.IsKey(documentName))
         {
             sound.Add(new Registration(documentName, model));
 

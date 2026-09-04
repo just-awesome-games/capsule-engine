@@ -144,8 +144,8 @@ internal static class CapsuleBootSource
             context.ReportDiagnostic(Diagnostic.Create(RegistryDiagnostics.InvalidRegistryProvider, Location.None, assemblyName));
         }
 
-        // The entry point exists to hand the game's scenes over, so a shell with no logic assembly
-        // to take them from is a wiring mistake, caught here rather than at the first RunScene.
+        // A shell with no logic assembly to take scenes from is a wiring mistake, caught here
+        // rather than at the first RunScene.
         if (model.Providers.IsEmpty && model.InvalidAssemblies.IsEmpty)
         {
             context.ReportDiagnostic(Diagnostic.Create(RegistryDiagnostics.ShellRoleMissingLogic, Location.None));

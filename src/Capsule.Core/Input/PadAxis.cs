@@ -1,9 +1,6 @@
 namespace Capsule.Input;
 
-/// <summary>
-/// A continuous gamepad axis. Values in a <see cref="DeviceSnapshot"/> are already
-/// past the backend's deadzone filtering.
-/// </summary>
+/// <summary>A continuous gamepad axis, already past the backend's deadzone filtering.</summary>
 public enum PadAxis
 {
     /// <summary>No axis. The default, so an unassigned <see cref="PadAxis"/> never means a real axis.</summary>

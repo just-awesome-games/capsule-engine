@@ -8,10 +8,7 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public sealed class SceneDocument
 {
-    /// <summary>
-    /// The entry type the engine reserves for tile maps. Any number may appear; each composes at
-    /// its position in the document's entry list.
-    /// </summary>
+    /// <summary>The entry type the engine reserves for tile maps; any number may appear.</summary>
     internal const string TileMapType = "tile-map";
 
     private const int Sha256HexLength = 64;
@@ -22,6 +19,7 @@ public sealed class SceneDocument
     /// <param name="nextEntityId">The next id to hand out; at least 1 and above every entry's id.</param>
     /// <param name="source">Provenance when the document is derived, null when it is authored.</param>
     /// <exception cref="SceneDocumentFormatException">Some invariant of the document format is broken.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="entries"/> is null.</exception>
     public SceneDocument(
         IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,
@@ -40,8 +38,8 @@ public sealed class SceneDocument
     public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
     /// <summary>
-    /// The next id to hand out. Monotonic: ids are never reused, and deleting an entry never
-    /// rewinds it. Every entry's id is below it.
+    /// The next id to hand out. Monotonic: ids are never reused and deleting an entry never
+    /// rewinds it, so every entry's id is below this.
     /// </summary>
     public int NextEntityId { get; }
 
@@ -72,8 +70,7 @@ public sealed class SceneDocument
                 throw Malformed($"entries[{i}] has no entry type.");
             }
 
-            // Identity is minted where the document is authored — by the authoring tool, or from
-            // nextEntityId in the code that builds one — never by the reader.
+            // Identity is minted where the document is authored, never by the reader.
             if (entry.Id < 1)
             {
                 string identity = entity is { } unidentified
@@ -99,8 +96,7 @@ public sealed class SceneDocument
                 throw Malformed($"entity id {placedWithoutType.Id} has no type.");
             }
 
-            // NaN and the infinities have no JSON number, so one of them here would construct a
-            // document that cannot be written back out.
+            // NaN and the infinities have no JSON number, so the document could not be written out.
             if (!float.IsFinite(entry.X) || !float.IsFinite(entry.Y))
             {
                 throw Malformed(string.Create(
@@ -108,8 +104,7 @@ public sealed class SceneDocument
                     $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position."));
             }
 
-            // A scale of zero or less is no size, and a non-finite one has no JSON number, so
-            // either would build a document that cannot be written back out.
+            // A scale of zero or less is no size, and a non-finite one has no JSON number.
             if (entity is { } sized && (!IsScale(sized.ScaleX) || !IsScale(sized.ScaleY)))
             {
                 throw Malformed(string.Create(
@@ -129,10 +124,8 @@ public sealed class SceneDocument
         }
     }
 
-    // A half-filled block writes a source object that Parse then rejects, so the document would not
-    // survive its own round trip. The path and hash shapes are enforced here too: a document whose
-    // source block is unresolvable on another machine, or carries a hash no importer could have
-    // produced, records provenance that says nothing.
+    // A half-filled block writes a source object Parse then rejects, so the document would not
+    // survive its own round trip. Path and hash shapes are enforced here for the same reason.
     private void ValidateSource()
     {
         if (Source is not { } source)

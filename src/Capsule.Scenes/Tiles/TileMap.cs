@@ -8,8 +8,8 @@ namespace Capsule.Scenes.Tiles;
 /// <summary>
 /// A tile grid anchored at the world origin — its cells are world coordinates, so its
 /// <see cref="Entity.Position"/> cannot be written. It draws every palette entry that names a cell
-/// of the grid's texture and, where its palette says any tile type collides, registers one
-/// <see cref="GridCollider2D"/> with the scene's world for the whole layer.
+/// of the grid's texture and, where any tile type collides, registers one
+/// <see cref="GridCollider2D"/> with the scene's world.
 /// </summary>
 public sealed class TileMap : Entity
 {
@@ -18,6 +18,7 @@ public sealed class TileMap : Entity
     private CollisionWorld2D? _world;
 
     /// <param name="grid">The grid to hold and to draw; its palette decides what a tile looks like.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is null.</exception>
     public TileMap(TileGrid grid)
         : base(Vector2.Zero)
     {
@@ -43,9 +44,9 @@ public sealed class TileMap : Entity
     public Vector2 Size { get; }
 
     /// <summary>
-    /// This layer's collider in the scene's world, or null when it is in no scene or no tile type
+    /// This grid's collider in the scene's world, or null when it is in no scene or no tile type
     /// in its palette collides. Its cells carry the collision layer their tile type was authored
-    /// on; the tile type name is identity and is not a layer.
+    /// on; a tile type name is identity, never a layer.
     /// </summary>
     public GridCollider2D? Collision { get; private set; }
 

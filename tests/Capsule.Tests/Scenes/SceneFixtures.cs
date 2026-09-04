@@ -4,6 +4,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Physics;
 using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 using Capsule.Scenes.Tiles;
@@ -19,6 +20,9 @@ internal static class SceneFixtures
 
     /// <summary>The one texture every fixture draws from; a column of <see cref="TileSize"/> cells.</summary>
     internal static readonly TextureHandle Atlas = new("atlas", ".png");
+
+    /// <summary>The viewport span a scene opens at unless a test needs another.</summary>
+    internal static readonly Vector2 Viewport = new(320, 180);
 
     internal delegate void StepHook(Scene scene, in StepContext context);
 
@@ -85,6 +89,17 @@ internal static class SceneFixtures
     internal static StepContext Step(long tick = 0) =>
         new(1.0 / 60.0, new InputState(new ActionBindings()), tick);
 
+    /// <summary>Opens <paramref name="scene"/>'s camera on a centre, spanning <paramref name="size"/>.</summary>
+    internal static void Open(Scene scene, Vector2 center, Vector2 size)
+    {
+        scene.Camera.Center = center;
+        scene.Camera.ViewportSize = size;
+    }
+
+    /// <summary>The same as a scene hook, spanning <see cref="Viewport"/> unless given a size.</summary>
+    internal static Action<Scene> Opens(Vector2 center, Vector2? size = null) =>
+        scene => Open(scene, center, size ?? Viewport);
+
     internal sealed class HookScene(Action<Scene>? start = null, StepHook? step = null, StepHook? lateStep = null)
         : Scene
     {
@@ -127,6 +142,38 @@ internal static class SceneFixtures
     internal sealed class Room01(SceneContent content) : Scene(content)
     {
         internal TileMap Terrain => FindSingle<TileMap>();
+    }
+
+    /// <summary>An 8x8 box with the <see cref="KinematicBody2D"/> that sweeps it.</summary>
+    internal sealed class Body : Entity
+    {
+        /// <param name="position">Where the box's corner starts.</param>
+        /// <param name="blocksOn">The layer that stops the sweep, or null to be stopped by nothing.</param>
+        /// <param name="bodyFirst">Attach the body before its collider, which a whole entity may do.</param>
+        internal Body(Vector2 position, string? blocksOn = null, bool bodyFirst = false)
+            : base(position)
+        {
+            Collider = new BoxCollider2D(new Vector2(8f, 8f));
+            Mover = new KinematicBody2D(Collider);
+            if (blocksOn is not null)
+            {
+                Mover.BlocksOn(blocksOn);
+            }
+
+            if (bodyFirst)
+            {
+                Add(Mover);
+                Add(Collider);
+                return;
+            }
+
+            Add(Collider);
+            Add(Mover);
+        }
+
+        internal BoxCollider2D Collider { get; }
+
+        internal KinematicBody2D Mover { get; }
     }
 
     internal sealed class Drifter(Vector2 position) : Entity(position)

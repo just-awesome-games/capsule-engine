@@ -65,8 +65,7 @@ public sealed class NativeSceneToolTests
         Assert.Equal("rooms/hall.scene.json", derived.Source?.Path);
     }
 
-    // An authoring module's document arrives already stamped with the file a person edited, and
-    // that is the provenance a shipped document must keep.
+    // A module's document arrives stamped with the file a person edited; that provenance is kept.
     [Fact]
     public void Import_PreservesTheSourceBlockOfADocumentAModuleDerived()
     {
@@ -113,8 +112,7 @@ public sealed class NativeSceneToolTests
         Assert.False(File.Exists("scenes/hall.scene.json"));
     }
 
-    // A key nests, so a document filed under a directory ships under it and the class that claims
-    // it is the one keyed the same way.
+    // A key nests, so a document filed under a directory ships under it.
     [Fact]
     public void Import_WritesANestedKeyAtItsPath()
     {
@@ -132,8 +130,7 @@ public sealed class NativeSceneToolTests
         Assert.True(File.Exists("scenes/stage-1/room-01.scene.json"));
     }
 
-    // A key reaches the tool from an authoring module as well as from the file system, and one that
-    // is not a key would write outside the directory the build owns.
+    // A key that is no key would write outside the directory the build owns.
     [Theory]
     [InlineData("../escape")]
     [InlineData("")]
@@ -165,8 +162,7 @@ public sealed class NativeSceneToolTests
         Assert.Contains("would overwrite", error.ToString(), StringComparison.Ordinal);
     }
 
-    // The stem at the root is the key a source carries when nothing states one, which is what the
-    // build hands the tool for a document authored directly under scenes/.
+    // The stem at the root is the key a source carries when nothing states one.
     private static DocumentSource[] Sources(params string[] paths) =>
         [.. paths.Select(static path => new DocumentSource(
             Path.GetFileName(path)[..^SceneDocumentTool.DocumentExtension.Length], path))];

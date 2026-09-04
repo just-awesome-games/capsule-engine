@@ -28,10 +28,6 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
     /// <summary>What a diagnostic names the asset by: its path under the source tree.</summary>
     internal string Display => Domain + "/" + Path + Extension;
 
-    public static bool operator ==(AssetModel left, AssetModel right) => left.Equals(right);
-
-    public static bool operator !=(AssetModel left, AssetModel right) => !left.Equals(right);
-
     public bool Equals(AssetModel other) =>
         Fault == other.Fault
         && string.Equals(Domain, other.Domain, StringComparison.Ordinal)

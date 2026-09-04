@@ -140,7 +140,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
 
             SceneComposer composer = new(StageWorkload.Scenes());
             using SceneHost host = new(
-                SceneTarget.ForName(StageWorkload.DocumentName),
+                SceneTransition.ToName(StageWorkload.DocumentName, null),
                 composer.Resolve,
                 StageWorkload.Defaults);
 

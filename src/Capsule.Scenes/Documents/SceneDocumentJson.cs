@@ -53,9 +53,8 @@ internal sealed class SceneEntryJson
 
     private float[]? _scale;
 
-    // Absent on an entry at the authored size, which is most of them, so the canonical form stays
-    // lean; WhenWritingNull keeps it out. An array rather than two members because it is one
-    // quantity per axis, and nullable so a wrong arity is the reader's error to name.
+    // Absent on an entry at the authored size; WhenWritingNull keeps it out. Nullable so a wrong
+    // arity is the reader's error to name.
     [JsonPropertyName("scale")]
     [JsonPropertyOrder(4)]
     public float[]? Scale
@@ -68,17 +67,13 @@ internal sealed class SceneEntryJson
         }
     }
 
-    // Whether the field was written at all, which the deserializer answers by calling the setter
-    // only for a field the document carries. The tile-map entry is refused a scale on presence
-    // rather than on value: an explicit null deserializes to the same absent array, and the reader
-    // would accept it and then write the entry back without it.
+    // Whether the field was written at all: the deserializer calls the setter only for a field the
+    // document carries. The tile-map entry is refused a scale on presence, not value.
     [JsonIgnore]
     public bool HasScale { get; private set; }
 
-    // Held as raw JSON, not as a member of this shape: properties are a contract per entry type,
-    // and exactly one type declares one today. The reader deserializes the tile-map's against
-    // TileGridJson and rejects properties on any other type, so nothing here is set by name.
-    // WhenWritingNull keeps the member out of an entry that carries none.
+    // Raw JSON, not a member of this shape: properties are a contract per entry type. The reader
+    // deserializes the tile-map's against TileGridJson and rejects properties on any other type.
     [JsonPropertyName("properties")]
     [JsonPropertyOrder(5)]
     public JsonElement? Properties { get; set; }
@@ -99,10 +94,9 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(2)]
     public int Height { get; set; }
 
-    // One asset's path under assets/textures, extension included, forward slashes only.
-    // Absent on a grid that draws nothing; WhenWritingNull keeps both out of that grid's written
-    // form, and columns is nullable so a texture with no columns fails as the grid's error rather
-    // than reading as 0.
+    // One asset's path under assets/textures, extension included, forward slashes only. Absent on
+    // a grid that draws nothing; columns is nullable so a texture with no columns fails as the
+    // grid's error rather than reading as 0.
     [JsonPropertyName("texture")]
     [JsonPropertyOrder(3)]
     public string? Texture { get; set; }
@@ -111,8 +105,7 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(4)]
     public int? Columns { get; set; }
 
-    // Nullable for the entry list's reason: an absent palette or map is the format's fault to
-    // name, and a null where a palette entry belongs is not an entry.
+    // Nullable for the entry list's reason: an absent palette or map is the format's fault to name.
     [JsonPropertyName("tileTypes")]
     [JsonPropertyOrder(5)]
     public TileTypeJson?[]? TileTypes { get; set; }
@@ -145,10 +138,8 @@ internal sealed class TileTypeJson
     [JsonPropertyOrder(3)]
     public string?[]? CollidableFaces { get; set; }
 
-    // Mapped only so the reader can name what replaced it, and held as a raw element so presence is
-    // the question rather than shape: a string member would read an explicit null as an absent
-    // field and refuse a number or an object with a JSON shape error, and neither says anything
-    // about what took this field's place. An absent field leaves ValueKind Undefined.
+    // Mapped only so the reader can name what replaced it, as a raw element so presence rather
+    // than shape is the question. An absent field leaves ValueKind Undefined.
     [JsonPropertyName("collision")]
     [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

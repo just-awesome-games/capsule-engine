@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Pure engine contracts. Carries no package references at all, so a
-       MonoGame type cannot reach game logic: the absence is the enforcement. -->
+  <!-- Pure engine contracts. No package references at all, so no backend type can reach game
+       logic: the absence is the enforcement. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule</RootNamespace>
@@ -9,15 +9,14 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <!-- ISimulation is the host's own seam, not a surface a game implements: the scene lane is the
-       only way in. These three are the assemblies on either side of that seam. -->
+  <!-- ISimulation is the host's seam, not a surface a game implements. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 
     <!-- AssetPaths is the grammar both document formats name a texture by, and the sheet format
-         lives in the build tool. One copy of the rule, or the two formats drift apart. -->
+         lives in the build tool. -->
     <InternalsVisibleTo Include="Capsule.Build" />
   </ItemGroup>
 

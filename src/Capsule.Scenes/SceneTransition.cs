@@ -17,8 +17,8 @@ public enum SceneTransitionKind
 }
 
 /// <summary>
-/// A deferred scene operation. <see cref="SceneSimulation.TryTakeTransition"/> exposes it to a
-/// host after the step that requested it has finished.
+/// A deferred scene operation, exposed to a host by
+/// <see cref="SceneSimulation.TryTakeTransition"/> after the step that requested it has finished.
 /// </summary>
 public readonly record struct SceneTransition
 {
@@ -49,8 +49,8 @@ public readonly record struct SceneTransition
     public object? Payload { get; }
 
     /// <summary>
-    /// Whether a restart replaces the payload that opened the current scene. Other transition
-    /// kinds always carry their payload, which is null when none was supplied.
+    /// Whether a restart replaces the payload that opened the current scene; every other kind
+    /// always carries its payload.
     /// </summary>
     public bool HasPayload { get; }
 
@@ -65,4 +65,7 @@ public readonly record struct SceneTransition
 
     internal static SceneTransition ToName(string documentName, object? payload) =>
         new(SceneTransitionKind.Named, null, documentName, payload, true);
+
+    internal SceneTransition WithPayload(object? payload) =>
+        new(Kind, SceneType, DocumentName, payload, true);
 }

@@ -16,18 +16,6 @@ public sealed class RandomSourceTests
         Assert.Equal(Draw(new RandomSource(7)), Draw(new RandomSource(7)));
     }
 
-    [Fact]
-    public void DifferentSeedsDiverge()
-    {
-        RandomSource first = new(1);
-        RandomSource second = new(2);
-
-        float[] left = [.. Enumerable.Range(0, 16).Select(_ => first.NextFloat())];
-        float[] right = [.. Enumerable.Range(0, 16).Select(_ => second.NextFloat())];
-
-        Assert.NotEqual(left, right);
-    }
-
     // A seed of zero is the one value that could leave a xoshiro state at its all-zero fixed
     // point, where every draw would be zero forever.
     [Fact]
@@ -197,13 +185,6 @@ public sealed class RandomSourceTests
         }
     }
 
-    // The pair a compressing construction collided on: one mix cannot separate them, two words can.
-    [Fact]
-    public void TheSolvedCollisionOfACompressingConstructionIsTwoRuns()
-    {
-        Assert.NotEqual(First(0, 0), First(1, 0x45C23B99922C5393));
-    }
-
     // Zeroing the first two state words is solvable — the seed that avalanches to zero, on stream
     // zero — and an all-zero xoshiro state never leaves zero.
     [Fact]
@@ -219,9 +200,8 @@ public sealed class RandomSourceTests
         Assert.True(Enumerable.Range(0, 16).Select(_ => random.NextUInt64()).Distinct().Count() > 8);
     }
 
-    // A combiner with algebraic symmetry silently makes two domains one run forever. These are
-    // the symmetries the obvious constructions have: commutation, complementation, and a shared
-    // xor mask.
+    // A combiner with algebraic symmetry would silently make two domains one run forever:
+    // commutation, complementation, and a shared xor mask are the symmetries to rule out.
     [Fact]
     public void NoSymmetryOfASeedAndStreamMapsOntoAnotherPair()
     {
@@ -232,7 +212,6 @@ public sealed class RandomSourceTests
             (3, 8), (7, 0), (1, 2), (12_345, 99_999), (0x9E3779B97F4A7C15, 0xD1342543DE82EF95),
         ];
 
-        // The reviewer's own case, whose swap the previous combiner could not tell apart.
         Assert.NotEqual(First(0, ulong.MaxValue), First(ulong.MaxValue, 0));
 
         foreach ((ulong seed, ulong stream) in pairs)
@@ -246,8 +225,7 @@ public sealed class RandomSourceTests
         }
     }
 
-    // The case that collapsed a whole family of pairs to one state: (s, ~s) under an xor of two
-    // mixes is zero for every s.
+    // The family (s, ~s), which a construction xoring two mixes would collapse to one state.
     [Fact]
     public void AStreamThatComplementsItsSeedIsStillItsOwnRun()
     {

@@ -3,8 +3,7 @@ using System.Numerics;
 namespace Capsule.Collision;
 
 /// <summary>
-/// An axis-aligned box in world units, from <paramref name="Min"/> to <paramref name="Max"/> on
-/// each axis. Which way each axis points is the game's convention, not this module's: an
+/// An axis-aligned box in world units. Which way each axis points is the game's convention; an
 /// <c>Aabb2D</c> only requires that <paramref name="Min"/> is no greater than <paramref name="Max"/>
 /// component-wise.
 /// </summary>
@@ -44,8 +43,8 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
     public Vector2 Size => Max - Min;
 
     /// <summary>
-    /// Half the box's outline length. The surface-area heuristic the dynamic tree balances by is
-    /// this quantity in two dimensions.
+    /// Half the box's outline length: the two-dimensional form of the surface-area heuristic the
+    /// dynamic tree balances by.
     /// </summary>
     internal float Perimeter
     {

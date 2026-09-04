@@ -62,8 +62,7 @@ public sealed class GameBoundaryAnalyzerTests
         Assert.Empty(diagnostics);
     }
 
-    // CAP105 closes the ambient APIs, so the seam it leaves open has to stay open: game logic
-    // draws from the source its scene holds.
+    // CAP105 closes the ambient APIs, so the seam it leaves open has to stay open.
     [Fact]
     public async Task Logic_accepts_the_seeded_random_source_reached_through_the_scene()
     {
@@ -91,8 +90,7 @@ public sealed class GameBoundaryAnalyzerTests
         Assert.Empty(diagnostics);
     }
 
-    // A method group is a use the invocation hook never sees, and the delegate outlives the
-    // assignment: the draw it hides is as unreproducible as a direct call.
+    // A method group is a use the invocation hook never sees, and the delegate outlives it.
     [Fact]
     public async Task Logic_rejects_a_system_random_member_taken_as_a_method_group()
     {
@@ -113,8 +111,7 @@ public sealed class GameBoundaryAnalyzerTests
         Assert.Equal(4, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
     }
 
-    // System.Random's seeded sequence is not stable across runtime versions, so a seeded field
-    // is no more replayable than an unseeded one: the seam is the only sanctioned route.
+    // System.Random's seeded sequence is not stable across runtime versions.
     [Fact]
     public async Task Logic_rejects_a_seeded_system_random_it_constructs_holds_or_draws_from()
     {
@@ -133,8 +130,7 @@ public sealed class GameBoundaryAnalyzerTests
         Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
     }
 
-    // The console is closed to game logic, so the engine's own log is the way out; a rule change
-    // that closed that too would leave a game with nothing to say anything with.
+    // The console is closed to game logic, so the engine's own log must stay open.
     [Fact]
     public async Task Logic_accepts_the_engines_log_where_the_console_is_forbidden()
     {

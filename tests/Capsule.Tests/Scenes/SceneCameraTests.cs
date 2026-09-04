@@ -15,7 +15,7 @@ public sealed class SceneCameraTests
 
         static void Track(Scene scene, in StepContext context) => scene.Camera.Center += Vector2.UnitX;
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(32, 18)), step: Track);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(32, 18)), step: Track);
         scene.Add(drifter);
 
         SceneSimulation simulation = new(scene);
@@ -35,7 +35,7 @@ public sealed class SceneCameraTests
     {
         static void Warp(Scene scene, in StepContext context) => scene.Camera.Teleport(new Vector2(900, 900));
 
-        SceneFixtures.HookScene scene = new(start: Open(Vector2.Zero), step: Warp);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero), step: Warp);
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
@@ -49,7 +49,7 @@ public sealed class SceneCameraTests
     [Fact]
     public void AScenesFirstFrame_OpensWhereOnStartLeftTheCamera()
     {
-        SceneSimulation simulation = new(new SceneFixtures.HookScene(start: Open(new Vector2(120, 64))));
+        SceneSimulation simulation = new(new SceneFixtures.HookScene(start: SceneFixtures.Opens(new Vector2(120, 64))));
 
         CameraView camera = simulation.View.Camera;
 
@@ -65,7 +65,7 @@ public sealed class SceneCameraTests
         static void Follow(Scene scene, in StepContext context) =>
             scene.Camera.Center = scene.FindSingle<SceneFixtures.Drifter>().Position;
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(10, 0)), lateStep: Follow);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(10, 0)), lateStep: Follow);
         scene.Add(subject);
 
         SceneSimulation simulation = new(scene);
@@ -83,7 +83,7 @@ public sealed class SceneCameraTests
 
         static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(60, 0);
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(40, 0), new Vector2(10, 10)), step: Sweep);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(40, 0), new Vector2(10, 10)), step: Sweep);
         scene.Add(standing);
 
         SceneSimulation simulation = new(scene);
@@ -138,7 +138,7 @@ public sealed class SceneCameraTests
 
         void Swap(Scene scene, in StepContext context) => ((SceneFixtures.HookScene)scene).Install(arriving);
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(900, 900)), lateStep: Swap);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(900, 900)), lateStep: Swap);
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
@@ -159,7 +159,7 @@ public sealed class SceneCameraTests
 
         void Swap(Scene scene, in StepContext context) => ((SceneFixtures.HookScene)scene).Install(arriving);
 
-        SceneFixtures.HookScene scene = new(start: Open(Vector2.Zero), lateStep: Swap);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero), lateStep: Swap);
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
@@ -281,14 +281,6 @@ public sealed class SceneCameraTests
 
     private static Action<Scene> Install(Camera camera) =>
         scene => ((SceneFixtures.HookScene)scene).Install(camera);
-
-    private static Action<Scene> Open(Vector2 center) => Open(center, new Vector2(320, 180));
-
-    private static Action<Scene> Open(Vector2 center, Vector2 viewportSize) => scene =>
-    {
-        scene.Camera.Center = center;
-        scene.Camera.ViewportSize = viewportSize;
-    };
 
     private static Vector2 ScreenOffset(in CameraView camera, in SpriteIntent sprite, float alpha) =>
         Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha) -

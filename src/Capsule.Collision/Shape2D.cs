@@ -4,23 +4,19 @@ using System.Runtime.CompilerServices;
 namespace Capsule.Collision;
 
 /// <summary>
-/// One convex collision shape, stored the way the narrowphase reads it: a point set and a radius,
-/// so every shape is the region within <see cref="Radius"/> of the convex hull of its points. A
-/// shape carries no angle — rotation stays render-side — and is validated on construction, so a
-/// shape built by one of the factories is one every query accepts.
-/// <para>
-/// The struct's default value is the one exception: it holds no points and so is no region at all.
-/// Every seam that takes a shape rejects it with <see cref="ArgumentException"/> rather than
-/// answering about an empty point set.
-/// </para>
+/// One convex collision shape: the region within <see cref="Radius"/> of the convex hull of its
+/// points. A shape carries no angle — rotation stays render-side — and is validated on
+/// construction, so one built by a factory is one every query accepts. The default value holds no
+/// points and is no region; every seam that takes a shape rejects it with
+/// <see cref="ArgumentException"/>.
 /// </summary>
 public readonly struct Shape2D : IEquatable<Shape2D>
 {
     /// <summary>The most points a shape may hold.</summary>
     public const int MaxPoints = 8;
 
-    // Points closer together than this, and polygon corners flatter than its square, are read as
-    // authoring mistakes rather than geometry: neither has a well-defined outward direction.
+    // Points closer together than this, and corners flatter than its square, have no well-defined
+    // outward direction and are refused.
     internal const float PointTolerance = CollisionWorld2D.LinearSlop;
 
     private readonly PointBuffer _points;
@@ -67,9 +63,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <summary>Everything within <paramref name="radius"/> of the segment from <paramref name="start"/> to <paramref name="end"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The radius is not finite and positive, or an endpoint is not finite.</exception>
     /// <exception cref="ArgumentException">
-    /// The endpoints coincide — a capsule of no length is a circle — or something derived from
-    /// them is not a number: the segment between them, its squared length, or the bounds and
-    /// extent the endpoints and radius together describe.
+    /// The endpoints coincide, or something derived from them is not finite: the segment between
+    /// them, its squared length, or the bounds the endpoints and radius describe.
     /// </exception>
     public static Shape2D Capsule(Vector2 start, Vector2 end, float radius)
     {
@@ -83,14 +78,15 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
         RequireApart(points, nameof(end));
 
-        // The segment between the endpoints is what the narrowphase measures along, so its length
-        // has to be a number even when both ends are.
+        // The narrowphase measures along the segment, so its length must be finite even when both
+        // ends are.
         RequireFiniteGeometry(points, 2, nameof(end));
 
         return new Shape2D(ShapeKind2D.Capsule, points, 2, radius, Bounded(points, 2, radius, nameof(radius)));
     }
 
     /// <summary>An axis-aligned rectangle covering <paramref name="box"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A corner is not finite.</exception>
     /// <exception cref="ArgumentException">
     /// The box is inverted, spans nothing on an axis, or spans more than a float can measure.
     /// </exception>
@@ -99,11 +95,9 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         RequireFinite(box.Min, nameof(box));
         RequireFinite(box.Max, nameof(box));
 
-        // The span test is where the extent is already in hand, so it is also where an unmeasurable
-        // one is caught: a box reaching from one end of the float range to the other has corners
-        // that are real numbers and a width that is not, and an infinite width passes a
-        // greater-than test on its way into the mover's inset and the tree's area heuristic. The
-        // sum covers both axes and their total, and the negated comparisons refuse a NaN with them.
+        // A box reaching from one end of the float range to the other has finite corners and an
+        // infinite width, which would pass a greater-than test on its way into the mover's inset
+        // and the tree's area heuristic. Negated comparisons, so a NaN is refused with it.
         float width = box.Max.X - box.Min.X;
         float height = box.Max.Y - box.Min.Y;
 
@@ -120,8 +114,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         points[2] = box.Max;
         points[3] = new Vector2(box.Min.X, box.Max.Y);
 
-        // The box is its own bounds, already checked finite corner by corner and expanded by no
-        // radius, so there is nothing left to derive or to re-test.
+        // The box is its own bounds, already checked finite and expanded by no radius.
         return new Shape2D(ShapeKind2D.Box, points, 4, 0f, box);
     }
 
@@ -142,12 +135,12 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// </summary>
     /// <param name="points">The hull's corners, convex and in either winding order.</param>
     /// <param name="radius">How far the polygon extends beyond that hull; zero for a plain polygon.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The radius is negative or not finite.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The radius is negative or not finite, or a point is not finite.</exception>
     /// <exception cref="ArgumentException">
-    /// There are not three to eight points, a point is not finite, two points nearly coincide, the
-    /// points are not strictly convex, or something derived from them is not a number: an edge
-    /// vector or its squared length, the twice-signed area the winding is decided by, a corner's
-    /// cross product, or the bounds and extent the points and radius together describe.
+    /// There are not three to eight points, two points nearly coincide, the points are not strictly
+    /// convex, or something derived from them is not finite: an edge vector, the twice-signed area
+    /// the winding is decided by, a corner's cross product, or the bounds the points and radius
+    /// describe.
     /// </exception>
     public static Shape2D Polygon(ReadOnlySpan<Vector2> points, float radius = 0f)
     {
@@ -173,8 +166,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         RequireDistinct(buffer, points.Length, nameof(points));
 
         // Before the winding is normalised and the corners are tested, because both compute the
-        // very products this refuses; reversing the winding only negates them, so the answer here
-        // holds for either order.
+        // products this refuses; reversing the winding only negates them.
         RequireFiniteGeometry(buffer, points.Length, nameof(points));
 
         NormaliseWinding(ref buffer, points.Length);
@@ -188,9 +180,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(kind, buffer, points.Length, radius, bounds);
     }
 
-    // A bare segment: a hull of two points with no radius, which is what one face of a grid cell is.
-    // Never public — every shape a game can build has an interior — and never routed through the
-    // rounded-hull ray casts, which would read its zero radius as a polygon.
+    // A hull of two points with no radius: one face of a grid cell. Never public — every shape a
+    // game can build has an interior.
     internal static Shape2D Segment(Vector2 start, Vector2 end)
     {
         PointBuffer points = default;
@@ -213,10 +204,9 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <summary>This shape with every point moved by <paramref name="offset"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>
     /// <exception cref="ArgumentException">
-    /// The offset carries the shape's bounds past what a float box holds, or places the shape where
-    /// the coordinates are coarser than the shape is small: its bounds would collapse to a line on
-    /// an axis it has extent on, or two of the points its hull is built from would land on each
-    /// other.
+    /// The offset carries the shape's bounds past what a float box holds, or places it where the
+    /// coordinates are coarser than the shape is small, collapsing its bounds to a line on an axis
+    /// it has extent on.
     /// </exception>
     public Shape2D Translated(Vector2 offset)
     {
@@ -239,12 +229,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     /// <summary>
     /// This shape with every point multiplied by <paramref name="scale"/>, about the origin of the
-    /// space its points are expressed in — the collider's own local space, so where the collider
-    /// then sits is unaffected.
-    /// <para>
-    /// A rounded shape — a circle, a capsule, or a polygon built with a radius — takes a uniform
-    /// scale only: its radius is one distance and has no per-axis form.
-    /// </para>
+    /// collider's own local space, so where the collider sits is unaffected. A rounded shape takes
+    /// a uniform scale only: its radius is one distance and has no per-axis form.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">A component of the scale is not finite and greater than zero.</exception>
     /// <exception cref="ArgumentException">
@@ -283,8 +269,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
 
         // A positive scale preserves winding and convexity in exact arithmetic; in floats it can
-        // still fold two corners onto one coordinate or push an edge past what a float measures,
-        // so the shape is validated the way construction validates one.
+        // still fold two corners together or push an edge past what a float measures.
         if (_count == 2)
         {
             RequireApart(scaled, nameof(scale));
@@ -300,9 +285,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(Kind, scaled, _count, radius, Bounded(scaled, _count, radius, nameof(scale)));
     }
 
-    // Far enough out, the floats either side of a small shape are the same float. The narrowphase
-    // would still hold its radius and its hull, but the broadphase box it is pruned by has folded
-    // to a line, so the tree skips geometry the shape still represents and a query misses it.
+    // Far enough out, the floats either side of a small shape are the same float: the hull survives
+    // but the broadphase box folds to a line, and the tree skips geometry the shape still holds.
     private static void RequireExtentSurvives(Vector2 was, Vector2 now)
     {
         if ((was.X > 0f && !(now.X > 0f)) || (was.Y > 0f && !(now.Y > 0f)))
@@ -355,8 +339,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <summary>Whether two shapes differ in kind, radius or points.</summary>
     public static bool operator !=(Shape2D left, Shape2D right) => !left.Equals(right);
 
-    // The furthest point along a direction, ties going to the lowest index so a query over
-    // identical inputs walks the identical simplex.
+    // The furthest point along a direction, ties to the lowest index so identical inputs walk an
+    // identical simplex.
     internal Vector2 Support(Vector2 direction)
     {
         Vector2 best = _points[0];
@@ -421,7 +405,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     }
 
     // Cross-positive winding throughout, so the outward normal of the edge from p[i] to p[i+1] is
-    // always (e.Y, -e.X). Reversing here is what lets a caller author either order.
+    // always (e.Y, -e.X); reversing here is what lets a caller author either order.
     private static void NormaliseWinding(ref PointBuffer points, int count)
     {
         float twiceArea = 0f;
@@ -475,16 +459,10 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return Finite(new Aabb2D(min, max).Expanded(radius), parameterName);
     }
 
-    // Each input can be finite while the box they describe is not: a point out at the edge of the
-    // float range, widened by a radius, overflows. The broadphase unions boxes as it balances, so
-    // one infinite bound there spreads to nodes holding unrelated colliders and makes them
-    // unfindable — which is why a shape that cannot state its own extent never gets built.
-    //
-    // The corners are not the whole of it. A box spanning the range from one end to the other has
-    // finite corners and an infinite width, and that width is what the mover subtracts its inset
-    // from and what the tree's surface-area heuristic sums; both would go on to compute with an
-    // infinity. Every quantity derived from the bounds is checked here, not at the query that
-    // reads it.
+    // Each input can be finite while the box they describe is not, and one infinite bound unions
+    // its way up the broadphase and makes unrelated colliders unfindable. The width is checked as
+    // well as the corners: it is what the mover subtracts its inset from and what the tree's
+    // surface-area heuristic sums, and it overflows while the corners are still in range.
     private static Aabb2D Finite(in Aabb2D bounds, string parameterName)
     {
         if (!float.IsFinite(bounds.Min.X) || !float.IsFinite(bounds.Min.Y)
@@ -508,9 +486,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     // Everything the narrowphase and the winding rules derive from a hull's points: each edge
     // vector and its squared length, the twice-signed area the winding is normalised by, and the
-    // cross products the corner tests and the outward normals come from. Two corners can each be a
-    // real float with an infinity between them, and an infinity here does not stop the shape being
-    // built — it becomes a NaN normal and a wrong answer at query time instead.
+    // cross products the corner tests and outward normals come from. Two corners can each be a real
+    // float with an infinity between them, which becomes a NaN normal at query time.
     private static void RequireFiniteGeometry(in PointBuffer points, int count, string parameterName)
     {
         float twiceArea = 0f;

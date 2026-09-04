@@ -83,9 +83,8 @@ public sealed class CollisionFilterTests
         Assert.Equal(1, world.LayerCount);
     }
 
-    // A layer no world interned is the zero value of a type that is nothing but a table index.
-    // Read as world-agnostic it would build a filter every world accepts and every world resolves
-    // to its own index-0 entry, so it is refused everywhere a layer is taken instead.
+    // A layer no world interned is the zero value of a type that is nothing but a table index; read
+    // as agnostic it would build a filter every world resolves to its own index-0 entry.
     [Fact]
     public void ALayerNoWorldInterned_CannotBeTurnedIntoAFilterOrTestedAgainstOne()
     {
@@ -134,8 +133,8 @@ public sealed class CollisionFilterTests
         Assert.True(filter.Matches(hazard));
     }
 
-    // Two worlds hand the same bit to unrelated names, which is exactly what a filter must not
-    // paper over: one world's mask read against another's table is a silent mismatch.
+    // Two worlds hand the same bit to unrelated names, so one world's mask read against another's
+    // table is a silent mismatch.
     [Fact]
     public void AFilter_RefusesALayerFromAnotherWorldRatherThanMatchingItsBit()
     {

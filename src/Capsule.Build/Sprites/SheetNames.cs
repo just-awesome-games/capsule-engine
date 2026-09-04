@@ -1,10 +1,11 @@
+using Capsule.Generators;
+
 namespace Capsule.Build.Sprites;
 
 /// <summary>
 /// The names the generated sheet registry has already declared, directory by directory. A sheet's
-/// key becomes a path of nested classes, so every collision C# would refuse — a member carrying the
-/// name of the class it is declared on, two siblings of one name — is caught here against the
-/// source that would have caused it.
+/// key becomes a path of nested classes, so every collision C# would refuse is caught here against
+/// the source that would have caused it.
 /// </summary>
 internal sealed class SheetNames
 {
@@ -57,7 +58,7 @@ internal sealed class SheetNames
     }
 
     private static string Identifier(string segment, string key) =>
-        SpriteSheetNaming.ToIdentifier(segment)
+        TypeNaming.ToIdentifier(segment)
         ?? throw new SpriteSheetFormatException(
             $"is keyed \"{key}\", whose \"{segment}\" is no C# name; every segment is letters, digits, '-' and '_', and does not start with a digit.");
 

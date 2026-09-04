@@ -6,9 +6,8 @@ using Microsoft.Xna.Framework;
 namespace Capsule.Runtime;
 
 /// <summary>
-/// The MonoGame host. Owns the window, the device and the clock, and drives the
-/// simulation on its own fixed-step accumulator rather than MonoGame's, so a
-/// harness can reproduce a run frame for frame.
+/// The MonoGame host. Owns the window, the device and the clock, and drives the simulation on its
+/// own fixed-step accumulator rather than MonoGame's, so a run reproduces frame for frame.
 /// </summary>
 internal sealed class CapsuleGame : Game
 {
@@ -34,7 +33,7 @@ internal sealed class CapsuleGame : Game
         {
             PreferredBackBufferWidth = options.WindowWidth,
             PreferredBackBufferHeight = options.WindowHeight,
-            // Borderless. The preferred size is ignored while fullscreen, so leaving it
+            // Borderless; the preferred size is ignored while fullscreen, so leaving fullscreen
             // restores the configured window with no work here.
             HardwareModeSwitch = false,
             IsFullScreen = options.Fullscreen,
@@ -50,8 +49,8 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        // Every texture the build registered, once, before the first frame: residency is the
-        // host's policy and nothing is fetched while the game is running.
+        // Every registered texture, once, before the first frame: nothing is fetched while the
+        // game is running.
         _textures = new TextureStore(GraphicsDevice, _options.Textures);
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
 
@@ -60,13 +59,12 @@ internal sealed class CapsuleGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        // Sampled every frame including one that drains no step: the latch is what
-        // carries that frame's input to the step that eventually runs. Both devices
-        // land in one snapshot; they occupy disjoint parts of it.
+        // Sampled every frame including one that drains no step; the latch carries that frame's
+        // input to the step that eventually runs.
         DeviceSnapshot sampled = GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter);
 
-        // Alt+Enter is the host's, never a bindable action. Withheld from the snapshot for
-        // the whole gesture, or a game that binds Enter reads a press out of it.
+        // Alt+Enter is the host's, never a bindable action. Withheld for the whole gesture, or a
+        // game that binds Enter reads a press out of it.
         if (ConsumeFullscreenChord(sampled))
         {
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
@@ -92,8 +90,7 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
-            // Null when construction failed before LoadContent ran, and the store alone when it
-            // failed between the two.
+            // Null when construction failed before LoadContent ran.
             _renderer?.Dispose();
             _textures?.Dispose();
         }
@@ -102,8 +99,8 @@ internal sealed class CapsuleGame : Game
     }
 
     /// <summary>
-    /// Toggles the window on the chord's leading edge; returns whether Alt and Enter are
-    /// still quarantined from the simulation.
+    /// Toggles the window on the chord's leading edge; returns whether Alt and Enter are still
+    /// quarantined from the simulation.
     /// </summary>
     private bool ConsumeFullscreenChord(in DeviceSnapshot snapshot)
     {
@@ -119,8 +116,8 @@ internal sealed class CapsuleGame : Game
 
         _fullscreenChordHeld = held;
 
-        // The quarantine outlives the chord, ending only once both keys are up: releasing
-        // one first would otherwise hand the other to the simulation as a fresh press.
+        // The quarantine outlives the chord, ending only once both keys are up: releasing one
+        // first would otherwise hand the other to the simulation as a fresh press.
         _fullscreenChordQuarantined = held || (_fullscreenChordQuarantined && (alt || enter));
 
         return _fullscreenChordQuarantined;

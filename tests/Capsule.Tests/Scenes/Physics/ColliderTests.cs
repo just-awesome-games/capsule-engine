@@ -5,6 +5,8 @@ using Capsule.Scenes.Documents;
 using Capsule.Scenes.Physics;
 using Capsule.Scenes.Tiles;
 
+using Body = Capsule.Tests.Scenes.SceneFixtures.Body;
+
 namespace Capsule.Tests.Scenes.Physics;
 
 public sealed class ColliderTests
@@ -1065,22 +1067,6 @@ public sealed class ColliderTests
 
         Assert.True(prober.Collider.Cast(new Vector2(0f, 40f), scene.Collision.Filter("solid"), out ShapeCastHit2D hit));
         Assert.Equal(new Vector2(0f, -1f), hit.Normal);
-    }
-
-    private sealed class Body : Entity
-    {
-        internal Body(Vector2 position)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(8f, 8f));
-            Add(Collider);
-            Mover = new KinematicBody2D(Collider);
-            Add(Mover);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Mover { get; }
     }
 
     /// <summary>A body resting across three floor cells, so a dispatch cut short is visible.</summary>

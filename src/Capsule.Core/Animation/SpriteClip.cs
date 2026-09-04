@@ -5,14 +5,8 @@ namespace Capsule.Animation;
 /// <summary>
 /// One named animation as sprites: an ordered run of frames, each held for a whole number of fixed
 /// steps, played once or on a loop. Immutable and shareable — every entity playing a clip reads the
-/// same instance, and the cursor over it is each entity's own
-/// <see cref="AnimationPlayback"/>.
-/// <para>
-/// A frame carries its own region and pivot, so a clip cut from a packed sheet of trimmed,
-/// mixed-size frames plays exactly as one cut from a uniform grid. Games take clips from the
-/// generated sprite registry rather than building them by hand; this constructor is what a test or
-/// a tool composes one with.
-/// </para>
+/// same instance, and the cursor over it is each entity's own <see cref="AnimationPlayback"/>.
+/// Each frame carries its own region and pivot, so frames need not be uniform.
 /// </summary>
 public sealed class SpriteClip
 {

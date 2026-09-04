@@ -5,20 +5,11 @@ using Capsule.Scenes.Rendering;
 namespace Capsule.Scenes.Animation;
 
 /// <summary>
-/// Plays a <see cref="SpriteClip"/> on the fixed step and writes its current frame into a
-/// <see cref="SpriteRenderer"/>. The renderer is named at construction rather than looked up, so an
-/// entity drawing itself as several sprites animates whichever of them it says.
-/// <para>
-/// The animator owns the renderer's <see cref="SpriteRenderer.Sprite"/> — region and pivot together,
-/// since a pivot is per frame — and nothing else: <see cref="SpriteRenderer.Offset"/>,
-/// <see cref="SpriteRenderer.Scale"/>, the flips and the colour stay the renderer's, and stay
-/// whatever the game sets them to.
-/// </para>
-/// <para>
-/// Advance is ticks alone. Frames never move with the frame rate or the render clock, so the frame
-/// an entity is on is simulation state: deterministic, assertable headlessly, and readable by
-/// gameplay for an attack's active window or a landing's recovery.
-/// </para>
+/// Plays a <see cref="SpriteClip"/> on the fixed step and writes its current frame into the
+/// <see cref="SpriteRenderer"/> named at construction. It owns that renderer's
+/// <see cref="SpriteRenderer.Sprite"/> and nothing else; offset, scale, flips and colour stay the
+/// renderer's. Advance is ticks alone, never the frame rate, so the frame an entity is on is
+/// simulation state.
 /// </summary>
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
 public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
@@ -34,9 +25,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// <summary>The frame of <see cref="Clip"/> currently drawn, from 0; 0 while nothing plays.</summary>
     public int FrameIndex => _playback.FrameIndex;
 
-    /// <summary>
-    /// The frame written to the renderer, and the renderer's own sprite until a clip plays.
-    /// </summary>
+    /// <summary>The frame written to the renderer, and the renderer's own sprite until a clip plays.</summary>
     public Sprite Frame => Clip is { } clip ? clip.Frames[_playback.FrameIndex] : _renderer.Sprite;
 
     /// <summary>
@@ -46,23 +35,15 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     public bool IsFinished => _playback.IsFinished;
 
     /// <summary>
-    /// Plays <paramref name="clip"/> from its first frame, and draws that frame at once so the
-    /// change shows on this step rather than the next. The first frame is then held for exactly
-    /// its own ticks, counted from the frame drawn for the step this was called in: a one-tick
-    /// frame started from an entity's step is drawn for that step and gone by the next.
-    /// <para>
-    /// Called after this animator has already stepped — from a scene's late step, or from an
-    /// entity or component the scene steps later — the first frame is drawn for one tick longer,
-    /// since the step that spends no tick on it is then the following one.
-    /// </para>
-    /// <para>
-    /// Playing the clip already playing is ignored, so a walk cycle asked for every step keeps
-    /// running instead of freezing on frame 0. Pass <paramref name="restart"/> to replay it from
-    /// the start — the second swing of a two-hit attack.
-    /// </para>
+    /// Plays <paramref name="clip"/> from its first frame and draws that frame at once, so the
+    /// change shows on this step rather than the next. The first frame is then held for its own
+    /// ticks counted from the step this was called in; called after this animator has already
+    /// stepped, it is drawn one tick longer. Playing the clip already playing is ignored unless
+    /// <paramref name="restart"/> is passed.
     /// </summary>
     /// <param name="clip">The clip to play.</param>
     /// <param name="restart">Whether to restart the clip when it is already the one playing.</param>
+    /// <exception cref="ArgumentNullException">The clip is null.</exception>
     public void Play(SpriteClip clip, bool restart = false)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -86,9 +67,8 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             return;
         }
 
-        // The frame Play chose is the one drawn for the step Play ran in, so that step spends no
-        // tick on it — an entity's step runs before its components', and advancing here would
-        // retire a one-tick first frame before any frame view was built from it.
+        // The frame Play chose is drawn for the step Play ran in, so that step spends no tick on
+        // it: advancing here would retire a one-tick first frame before any frame view saw it.
         if (_startedSinceStep)
         {
             _startedSinceStep = false;

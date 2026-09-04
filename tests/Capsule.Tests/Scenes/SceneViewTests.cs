@@ -148,7 +148,7 @@ public sealed class SceneViewTests
             Scale = new Vector2(2, 2),
         });
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(50, 50)));
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
         scene.Add(drifter);
         SceneSimulation simulation = new(scene);
 
@@ -176,7 +176,7 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter drifter = new(new Vector2(50, 50));
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)) { Scale = new Vector2(x, y) });
 
-        SceneFixtures.HookScene scene = new(start: Open(new Vector2(50, 50)));
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
         scene.Add(drifter);
         SceneSimulation simulation = new(scene);
 
@@ -184,12 +184,6 @@ public sealed class SceneViewTests
 
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
-
-    private static Action<Scene> Open(Vector2 center) => scene =>
-    {
-        scene.Camera.Center = center;
-        scene.Camera.ViewportSize = new Vector2(320, 180);
-    };
 
     // Draws nothing itself; takes the renderer it was given off its entity as it goes.
     private sealed class Detacher(Renderer doomed) : Renderer

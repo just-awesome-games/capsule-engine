@@ -96,8 +96,7 @@ public sealed class RegistryKeyTests
             StringComparison.Ordinal);
     }
 
-    // An override names a whole key, and a key that is no key would name a document entry the
-    // build could never have written.
+    // An override names a whole key; one that is no key names a file the build cannot write.
     [Theory]
     [InlineData("bosses//wyrm")]
     [InlineData("../wyrm")]

@@ -40,10 +40,8 @@ public class Camera
 
     /// <summary>
     /// Settles this camera's framing for the step. Runs after every entity and component has
-    /// stepped, after contacts settle, and after the scene's own
-    /// <see cref="Scene.OnLateStep"/>, before the step's deferred adds and removes land and before
-    /// the frame view is rewritten — which is what lets a follow camera frame the current step
-    /// rather than the previous one.
+    /// stepped, after contacts settle and after the scene's own <see cref="Scene.OnLateStep"/>,
+    /// before the step's deferred adds and removes land and before the frame view is rewritten.
     /// </summary>
     protected internal virtual void OnLateStep(in StepContext context)
     {
@@ -51,10 +49,9 @@ public class Camera
 
     /// <summary>
     /// Runs once for this camera's lifetime — not again when it is reinstalled — before its first
-    /// late step and after everything installed alongside it: the scene has started and every
-    /// entity it holds has started too, so the subject to follow is found here. A camera installed
-    /// in a scene that has already opened its camera runs it as it is installed — unless its own
-    /// <see cref="OnAddedToScene"/> installs another camera, which displaces it before it starts.
+    /// late step: the scene and every entity it holds have started, so the subject to follow is
+    /// found here. A camera installed in a scene that has already opened its camera runs it as it
+    /// is installed, unless its own <see cref="OnAddedToScene"/> installs another camera.
     /// </summary>
     protected internal virtual void OnStart()
     {
@@ -63,8 +60,8 @@ public class Camera
     /// <summary>
     /// Runs once this camera is the scene's, with <see cref="Scene"/> set — never before that
     /// scene and every entity it holds have started, so the scene may be searched from here.
-    /// Registration belongs here: this pairs with <see cref="OnRemovedFromScene"/> and runs again
-    /// on every reinstall, where <see cref="OnStart"/> runs once for the camera's lifetime.
+    /// Registration belongs here: it pairs with <see cref="OnRemovedFromScene"/> and runs again on
+    /// every reinstall, where <see cref="OnStart"/> runs once for the camera's lifetime.
     /// </summary>
     protected internal virtual void OnAddedToScene()
     {

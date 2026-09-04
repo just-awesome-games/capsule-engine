@@ -1,9 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// One bindable digital input: a <see cref="Key"/> or a <see cref="PadButton"/>. Converts
-/// implicitly from either, so a call site names the device constant and nothing else. The
-/// default is <see cref="None"/>, which no snapshot ever holds down.
+/// One bindable digital input: a <see cref="Key"/> or a <see cref="PadButton"/>, converting
+/// implicitly from either. The default is <see cref="None"/>, which no snapshot holds down.
 /// </summary>
 public readonly struct InputButton : IEquatable<InputButton>
 {

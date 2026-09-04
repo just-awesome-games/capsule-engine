@@ -4,38 +4,31 @@
        consumers through buildTransitive; a source consumer imports it from the engine clone. -->
 
   <!-- MSBuild unsets Configuration and Platform on a ProjectReference to a project outside the
-       solution being built, which would leave the engine's projects falling back to Debug, so a
-       consumer's projects hand theirs on. The engine's own Directory.Build.props does the same for
-       the modules' references to each other, so every route into a module carries one
-       global-property set. -->
+       solution being built, which would leave the engine's projects falling back to Debug. The
+       engine's own Directory.Build.props does the same for the modules' references to each
+       other. -->
   <PropertyGroup>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
-  <!-- The authoring plane, resolved here because more than one hook reads it: scene sources and
-       general assets are two trees under one root, and a project that reads either has to agree
-       with the other on where it is. The shipped plane beside the executable is wholly derived
-       from it, and none of it is committed.
+  <!-- The authoring plane, resolved here because more than one hook reads it. The shipped plane
+       beside the executable is wholly derived from it, and none of it is committed.
 
        Every path in these hooks is composed with forward slashes and canonicalised through the
-       MSBuild path intrinsics. A literal backslash survives into property functions, Exec command
-       lines and Link metadata untouched, and on Linux it is an ordinary filename character rather
-       than a separator — so one would name a directory instead of pointing at it. -->
+       MSBuild path intrinsics: a literal backslash survives into property functions, Exec command
+       lines and Link metadata untouched, and on Linux it names no separator. -->
   <PropertyGroup>
     <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportScenes>
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
-    <!-- Sprite sheets default on for the logic role rather than the shell: a sheet ships nothing
-         beside the executable, and what the build makes of it is game code the logic assembly
-         compiles. -->
+    <!-- On for the logic role rather than the shell: a sheet ships nothing, and what the build
+         makes of it is game code the logic assembly compiles. -->
     <CapsuleImportSprites Condition="'$(CapsuleImportSprites)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportSprites>
-    <!-- A logic assembly ships nothing, but its generated asset registry is named after the same
-         tree, so it reads the sources too. -->
+    <!-- A logic assembly ships nothing, but its asset registry is named after the same tree. -->
     <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
     <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
 
-  <!-- The out-of-process document tool, shared by every hook that runs it: one project reference,
-       one resolved path, whichever of scenes and sprite sheets a project imports. -->
+  <!-- The out-of-process document tool, shared by every hook that runs it. -->
   <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
     <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
     <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
@@ -44,8 +37,8 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
-    <!-- The tool rides the game's own restore and build graph, so it restores under the game's
-         locked mode and contributes nothing to the game's output or publish set. -->
+    <!-- The tool rides the game's own restore and build graph, and contributes nothing to the
+         game's output or publish set. -->
     <ProjectReference Include="$(CapsuleBuildToolProject)"
                       Condition="'$(CapsuleBuildToolProject)' != ''"
                       ReferenceOutputAssembly="false"
@@ -56,15 +49,12 @@
                       Private="false" />
   </ItemGroup>
 
-  <!-- A dependency of every import target rather than a step inside one: the tool is an input to
-       every derived document, and a target's Inputs are evaluated after its DependsOnTargets have
-       run but before its own tasks. Asked from inside an import target, the path would arrive
-       after the up-to-date check that needs it, and a rebuilt tool would leave every document
-       untouched.
+  <!-- A dependency of every import target rather than a step inside one: a target's Inputs are
+       evaluated after its DependsOnTargets have run but before its own tasks, so asked from inside
+       an import target the tool's path would arrive after the up-to-date check that needs it.
 
-       The removed properties are the same set the ProjectReference above drops, and they must be:
-       the tool is built without them, so asking with them would name an output directory nothing
-       wrote — a runtime identifier alone moves it under a RID folder. -->
+       The removed properties must match the set the ProjectReference above drops: the tool is built
+       without them, so asking with them would name an output directory nothing wrote. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleUsesBuildTool)' == 'true'">
     <MSBuild Projects="$(CapsuleBuildToolProject)"
              Condition="'$(CapsuleBuildToolProject)' != ''"
@@ -78,37 +68,26 @@
       <_CapsuleBuildTool Include="$(CapsuleBuildToolAssembly)" />
     </ItemGroup>
 
-    <!-- The tool is the assembly graph it loads, not its entry point. Reference assemblies are on,
-         so an implementation-only change in Capsule.Scenes rebuilds Capsule.Scenes.dll and never
-         recompiles the tool — the entry point's timestamp would call every derived document
-         current while the tool now writes them differently. The tool's own output directory is
-         that graph, so globbing it derives the closure instead of listing it and a dependency
-         added later needs no line here.
-
-         The names are read now, before this build rebuilds the tool; the timestamps behind them at
-         the up-to-date check, after. A dependency added since the last build therefore joins the
-         list one build late, which changes nothing: adding it also rebuilt an assembly the list
-         already holds. -->
+    <!-- The tool is the assembly graph it loads, not its entry point: reference assemblies are
+         on, so an implementation-only change in Capsule.Scenes never recompiles the entry point,
+         whose timestamp would then call every derived document current. Globbing the tool's output
+         directory derives that closure, so a dependency added later needs no line here. -->
     <ItemGroup>
       <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
     </ItemGroup>
   </Target>
 
   <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
-    <!-- Read before the default below fills it in: the convention is where sources are looked
-         for, and an explicit path is a promise that they are there. -->
+    <!-- Read before the default below fills it in: an explicit path is a promise. -->
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
-    <!-- Rooted against the project, not the working directory, so an override may be relative
-         and every message names a path a person can open. NormalizePath rather than
-         Path.GetFullPath: it repairs the separators of an override too, and this value is read
-         back by Exists(), which is evaluated raw. -->
+    <!-- Rooted against the project, not the working directory. NormalizePath rather than
+         Path.GetFullPath: it repairs an override's separators too, and Exists() reads this raw. -->
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
   </PropertyGroup>
 
-  <!-- No sources at all is a game that has authored nothing yet, which is every game on its first
-       build: an absent root is a no-op, never an error. Only a path the consumer named itself has
-       to exist, because naming one that does not is a typo. -->
+  <!-- An absent root is a no-op, never an error: that is every game on its first build. Only a
+       path the consumer named itself has to exist. -->
   <Target Name="CapsuleAssetSourcesInit"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           BeforeTargets="AssignTargetPaths">

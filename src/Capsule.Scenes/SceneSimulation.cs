@@ -12,16 +12,14 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>Starts <paramref name="scene"/> under <paramref name="defaults"/> and builds its first frame.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
-    /// <param name="defaults">
-    /// The game's scene defaults, which fill in whatever the scene set nothing for.
-    /// </param>
+    /// <param name="defaults">The game's scene defaults, which fill in whatever the scene set nothing for.</param>
     /// <param name="random">
     /// The run's random source, which becomes the scene's <see cref="Scenes.Scene.Random"/> before
-    /// it starts. A headless caller that omits it gets the default seed's stream 0.
+    /// it starts; omitted, it is the default seed's stream 0.
     /// </param>
-    /// <exception cref="InvalidOperationException">
-    /// The scene has already been started; a scene belongs to one simulation for its lifetime.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
+    /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too; both are inner exceptions.</exception>
     public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default, RandomSource? random = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
@@ -57,10 +55,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>Whether the scene has asked the host to shut down; never cleared.</summary>
     public bool ExitRequested => Scene.ExitRequested;
 
-    /// <summary>
-    /// What to draw for the current state: one held instance, rewritten once per step rather than
-    /// built per read.
-    /// </summary>
+    /// <summary>What to draw: one held instance, rewritten once per step rather than built per read.</summary>
     public FrameView View => _view;
 
     /// <summary>Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>.</summary>
@@ -86,6 +81,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     }
 
     /// <summary>Takes the deferred transition requested by the last step, if one was requested.</summary>
+    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
     public bool TryTakeTransition(out SceneTransition transition)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -93,6 +89,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     }
 
     /// <summary>Stops the scene and releases every entity it holds.</summary>
+    /// <exception cref="Exception">One stop hook failed; teardown still completed for every entity.</exception>
+    /// <exception cref="AggregateException">More than one stop hook failed; each is an inner exception.</exception>
     public void Dispose()
     {
         if (_disposed)
@@ -115,12 +113,13 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         // reaches the scene directly rather than queueing. The set is re-read each turn against a
         // cursor: a renderer detached here is no longer part of this frame and must not draw, and
         // staying at an index whose occupant changed keeps the renderer shifted into it drawing.
-        for (int index = 0; index < Scene.RenderersInDrawOrder().Length;)
+        ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
+        for (int index = 0; index < renderers.Length;)
         {
-            Renderer renderer = Scene.RenderersInDrawOrder()[index];
+            Renderer renderer = renderers[index];
             renderer.Draw(_view);
 
-            ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
+            renderers = Scene.RenderersInDrawOrder();
             if (index < renderers.Length && ReferenceEquals(renderers[index], renderer))
             {
                 index++;

@@ -32,11 +32,11 @@ public sealed class KinematicBodyTests
     public void AnEntityAddingItsBodyBeforeItsCollider_JoinsASceneAndMoves()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        BodyFirst body = new(new Vector2(8f, 8f));
+        SceneFixtures.Body body = new(new Vector2(8f, 8f), blocksOn: "solid", bodyFirst: true);
 
         scene.Add(body);
 
-        MoveResult2D result = body.Body.Move(new Vector2(0f, 60f));
+        MoveResult2D result = body.Mover.Move(new Vector2(0f, 60f));
 
         Assert.Same(scene, body.Scene);
         Assert.True(result.BlockedY);
@@ -66,20 +66,20 @@ public sealed class KinematicBodyTests
     public void ABodySteppingDownOntoAFloor_ReportsItOnTheLandingStepAndOnTheFlushOneAfter()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 8f));
+        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(0f, 60f));
+        body.Mover.Move(new Vector2(0f, 60f));
 
-        Assert.True(body.Body.IsOnFloor);
-        Assert.Equal(new Vector2(0f, -1f), body.Body.FloorNormal);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Equal(new Vector2(0f, -1f), body.Mover.FloorNormal);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
 
-        body.Body.Move(new Vector2(0f, 60f));
+        body.Mover.Move(new Vector2(0f, 60f));
 
-        Assert.True(body.Body.IsOnFloor);
-        Assert.Equal(new Vector2(0f, -1f), body.Body.FloorNormal);
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Equal(new Vector2(0f, -1f), body.Mover.FloorNormal);
         Assert.Equal(24f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
     }
 
@@ -91,29 +91,29 @@ public sealed class KinematicBodyTests
     public void ABodyPushedSidewaysIntoAWall_ReportsAWallOnThatSide(float translation, float expectedNormalX)
     {
         Scene scene = SceneFixtures.Terrain("#..#", "#..#", "#..#");
-        Stepper body = new(new Vector2(32f, 24f));
+        SceneFixtures.Body body = new(new Vector2(32f, 24f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(translation, 0f));
+        body.Mover.Move(new Vector2(translation, 0f));
 
-        Assert.True(body.Body.IsOnWall);
-        Assert.Equal(expectedNormalX, body.Body.WallNormal.X);
-        Assert.False(body.Body.IsOnFloor);
-        Assert.Equal(Vector2.Zero, body.Body.FloorNormal);
+        Assert.True(body.Mover.IsOnWall);
+        Assert.Equal(expectedNormalX, body.Mover.WallNormal.X);
+        Assert.False(body.Mover.IsOnFloor);
+        Assert.Equal(Vector2.Zero, body.Mover.FloorNormal);
     }
 
     [Fact]
     public void ABodyRisingIntoACeiling_ReportsACeilingAndNothingElse()
     {
         Scene scene = SceneFixtures.Terrain("####", "....", "....");
-        Stepper body = new(new Vector2(24f, 40f));
+        SceneFixtures.Body body = new(new Vector2(24f, 40f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(0f, -30f));
+        body.Mover.Move(new Vector2(0f, -30f));
 
-        Assert.True(body.Body.IsOnCeiling);
-        Assert.False(body.Body.IsOnFloor);
-        Assert.False(body.Body.IsOnWall);
+        Assert.True(body.Mover.IsOnCeiling);
+        Assert.False(body.Mover.IsOnFloor);
+        Assert.False(body.Mover.IsOnWall);
     }
 
     // The axes are swept separately, so one diagonal step can be stopped by two different surfaces.
@@ -121,16 +121,16 @@ public sealed class KinematicBodyTests
     public void ABodySteppingDiagonallyIntoACorner_ReportsBothTheFloorAndTheWall()
     {
         Scene scene = SceneFixtures.Terrain("...#", "...#", "####");
-        Stepper body = new(new Vector2(32f, 16f));
+        SceneFixtures.Body body = new(new Vector2(32f, 16f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(20f, 20f));
+        body.Mover.Move(new Vector2(20f, 20f));
 
-        Assert.True(body.Body.IsOnFloor);
-        Assert.True(body.Body.IsOnWall);
-        Assert.Equal(new Vector2(0f, -1f), body.Body.FloorNormal);
-        Assert.Equal(-1f, body.Body.WallNormal.X);
-        Assert.False(body.Body.IsOnCeiling);
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.True(body.Mover.IsOnWall);
+        Assert.Equal(new Vector2(0f, -1f), body.Mover.FloorNormal);
+        Assert.Equal(-1f, body.Mover.WallNormal.X);
+        Assert.False(body.Mover.IsOnCeiling);
     }
 
     // A step that ends exactly flush against a surface records a contact at fraction 1 and is still
@@ -140,24 +140,24 @@ public sealed class KinematicBodyTests
     public void ABodyStepDownEndingFlushOnAFloor_RecordsTheContactWithoutReportingAFloor()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 8f));
+        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
         // The bottom sits exactly 16 above the floor's top face, and the step is exactly 16.
-        MoveResult2D result = body.Body.Move(new Vector2(0f, 16f));
+        MoveResult2D result = body.Mover.Move(new Vector2(0f, 16f));
 
-        ColliderContact2D[] flush = body.Body.MoveContacts.ToArray();
+        ColliderContact2D[] flush = body.Mover.MoveContacts.ToArray();
         Assert.NotEmpty(flush);
         Assert.All(flush, contact => Assert.Equal(new Vector2(0f, -1f), contact.Normal));
         Assert.False(result.BlockedY);
         Assert.Equal(new Vector2(0f, 16f), result.Translation);
         Assert.Equal(24f, body.Position.Y);
 
-        Assert.False(body.Body.IsOnFloor);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
-        Assert.Equal(Vector2.Zero, body.Body.FloorNormal);
-        Assert.Equal(Vector2.Zero, body.Body.WallNormal);
+        Assert.False(body.Mover.IsOnFloor);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
+        Assert.Equal(Vector2.Zero, body.Mover.FloorNormal);
+        Assert.Equal(Vector2.Zero, body.Mover.WallNormal);
     }
 
     // The flags are state as of the last move, not a standing description of where the body is: a
@@ -166,38 +166,38 @@ public sealed class KinematicBodyTests
     public void ABodyMovingIntoNothingAfterAMoveThatLanded_ClearsEveryFlag()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 8f));
+        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(0f, 60f));
-        Assert.True(body.Body.IsOnFloor);
+        body.Mover.Move(new Vector2(0f, 60f));
+        Assert.True(body.Mover.IsOnFloor);
 
-        body.Body.Move(new Vector2(0f, -4f));
+        body.Mover.Move(new Vector2(0f, -4f));
 
-        Assert.False(body.Body.IsOnFloor);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
-        Assert.Equal(Vector2.Zero, body.Body.FloorNormal);
-        Assert.Equal(Vector2.Zero, body.Body.WallNormal);
+        Assert.False(body.Mover.IsOnFloor);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
+        Assert.Equal(Vector2.Zero, body.Mover.FloorNormal);
+        Assert.Equal(Vector2.Zero, body.Mover.WallNormal);
     }
 
     [Fact]
     public void ABodyLeavingItsScene_ForgetsWhatStoppedItsLastMove()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 8f));
+        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(0f, 60f));
-        Assert.True(body.Body.IsOnFloor);
+        body.Mover.Move(new Vector2(0f, 60f));
+        Assert.True(body.Mover.IsOnFloor);
 
         scene.Remove(body);
 
-        Assert.False(body.Body.IsOnFloor);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
-        Assert.Equal(Vector2.Zero, body.Body.FloorNormal);
-        Assert.Equal(Vector2.Zero, body.Body.WallNormal);
+        Assert.False(body.Mover.IsOnFloor);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
+        Assert.Equal(Vector2.Zero, body.Mover.FloorNormal);
+        Assert.Equal(Vector2.Zero, body.Mover.WallNormal);
     }
 
     // A contact belongs to the sweep that produced it, and only that sweep's blocked flag says
@@ -212,18 +212,18 @@ public sealed class KinematicBodyTests
 
         // Right and up: the circle wedges under the block's top-left corner, and nothing stops the
         // rise that follows.
-        MoveResult2D result = body.Body.Move(new Vector2(20f, -4f));
+        MoveResult2D result = body.Mover.Move(new Vector2(20f, -4f));
 
         Assert.True(result.BlockedX);
         Assert.False(result.BlockedY);
         Assert.Equal(1, result.XContactCount);
         Assert.Equal(1, result.ContactCount);
 
-        Assert.True(body.Body.IsOnFloor);
-        Assert.True(body.Body.FloorNormal.Y < -0.7071f);
-        Assert.Equal(body.Body.MoveContacts[0].Normal, body.Body.FloorNormal);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.True(body.Mover.FloorNormal.Y < -0.7071f);
+        Assert.Equal(body.Mover.MoveContacts[0].Normal, body.Mover.FloorNormal);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
     }
 
     // The three answers the query exists to give, from one resting position: into the floor,
@@ -237,10 +237,10 @@ public sealed class KinematicBodyTests
     public void TestMove_AnswersForABodyRestingOnAFloor(float x, float y, bool expected)
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 24f));
+        SceneFixtures.Body body = new(new Vector2(24f, 24f), blocksOn: "solid");
         scene.Add(body);
 
-        Assert.Equal(expected, body.Body.TestMove(new Vector2(x, y)));
+        Assert.Equal(expected, body.Mover.TestMove(new Vector2(x, y)));
     }
 
     // Axis-separated, as a move is: one blocked axis is a blocked test even though the other is free.
@@ -248,33 +248,33 @@ public sealed class KinematicBodyTests
     public void TestMove_OfADiagonalBlockedOnOneAxis_IsBlocked()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 24f));
+        SceneFixtures.Body body = new(new Vector2(24f, 24f), blocksOn: "solid");
         scene.Add(body);
 
-        Assert.True(body.Body.TestMove(new Vector2(-4f, 4f)));
-        Assert.True(body.Body.TestMove(new Vector2(4f, 4f)));
-        Assert.False(body.Body.TestMove(new Vector2(-4f, -4f)));
+        Assert.True(body.Mover.TestMove(new Vector2(-4f, 4f)));
+        Assert.True(body.Mover.TestMove(new Vector2(4f, 4f)));
+        Assert.False(body.Mover.TestMove(new Vector2(-4f, -4f)));
     }
 
     [Fact]
     public void TestMove_LeavesThePositionAndTheLastMovesFlagsAlone()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        Stepper body = new(new Vector2(24f, 8f));
+        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
-        body.Body.Move(new Vector2(0f, 60f));
+        body.Mover.Move(new Vector2(0f, 60f));
         Vector2 landed = body.Position;
-        Assert.True(body.Body.IsOnFloor);
+        Assert.True(body.Mover.IsOnFloor);
 
-        Assert.True(body.Body.TestMove(new Vector2(0f, 40f)));
-        Assert.False(body.Body.TestMove(new Vector2(0f, -40f)));
+        Assert.True(body.Mover.TestMove(new Vector2(0f, 40f)));
+        Assert.False(body.Mover.TestMove(new Vector2(0f, -40f)));
 
         Assert.Equal(landed, body.Position);
-        Assert.True(body.Body.IsOnFloor);
-        Assert.Equal(new Vector2(0f, -1f), body.Body.FloorNormal);
-        Assert.False(body.Body.IsOnWall);
-        Assert.False(body.Body.IsOnCeiling);
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Equal(new Vector2(0f, -1f), body.Mover.FloorNormal);
+        Assert.False(body.Mover.IsOnWall);
+        Assert.False(body.Mover.IsOnCeiling);
     }
 
     // The corner-correction question: the rise is blocked where the body stands and free four units
@@ -283,49 +283,12 @@ public sealed class KinematicBodyTests
     public void TestMove_FromAnOffsetOrigin_AnswersForThatOriginWithoutMovingTheBody()
     {
         Scene scene = SceneFixtures.Terrain("##.#", "....", "####");
-        Stepper body = new(new Vector2(28f, 24f));
+        SceneFixtures.Body body = new(new Vector2(28f, 24f), blocksOn: "solid");
         scene.Add(body);
 
-        Assert.True(body.Body.TestMove(new Vector2(0f, -12f)));
-        Assert.False(body.Body.TestMove(new Vector2(0f, -12f), new Vector2(4f, 0f)));
+        Assert.True(body.Mover.TestMove(new Vector2(0f, -12f)));
+        Assert.False(body.Mover.TestMove(new Vector2(0f, -12f), new Vector2(4f, 0f)));
         Assert.Equal(new Vector2(28f, 24f), body.Position);
-    }
-
-    /// <summary>A 16-unit box on the terrain fixture's "solid" layer, driven one step at a time.</summary>
-    private sealed class Stepper : Entity
-    {
-        internal Stepper(Vector2 position)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(8f, 8f));
-            Add(Collider);
-            Body = new KinematicBody2D(Collider);
-            Body.BlocksOn("solid");
-            Add(Body);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Body { get; }
-    }
-
-    private sealed class BodyFirst : Entity
-    {
-        internal BodyFirst(Vector2 position)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(8f, 8f));
-            Body = new KinematicBody2D(Collider);
-            Body.BlocksOn("solid");
-
-            // The body first: the entity is judged whole when it joins a scene.
-            Add(Body);
-            Add(Collider);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Body { get; }
     }
 
     /// <summary>A rounded body, whose corner contacts carry a normal no face declares.</summary>
@@ -336,11 +299,11 @@ public sealed class KinematicBodyTests
         {
             CircleCollider2D collider = new(8f);
             Add(collider);
-            Body = new KinematicBody2D(collider);
-            Body.BlocksOn("solid");
-            Add(Body);
+            Mover = new KinematicBody2D(collider);
+            Mover.BlocksOn("solid");
+            Add(Mover);
         }
 
-        internal KinematicBody2D Body { get; }
+        internal KinematicBody2D Mover { get; }
     }
 }

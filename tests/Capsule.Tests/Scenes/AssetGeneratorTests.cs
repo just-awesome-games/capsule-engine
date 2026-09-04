@@ -65,8 +65,7 @@ public sealed class AssetGeneratorTests
         Assert.Equal("CAP018", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
-    // Boot loads exactly the textures the build registered, so the whole domain has to be
-    // nameable in one place the generated registry provider can read.
+    // Boot loads exactly the textures the build registered, from one place it can read.
     [Fact]
     public void EveryTexture_ReachesTheBootRegistryThroughOneList()
     {
@@ -110,8 +109,8 @@ public sealed class AssetGeneratorTests
         Assert.Equal("CAP017", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
-    // A source's directory under its domain root is the class path it is declared at, and the
-    // handle's name is that path — which is where the build ships the file.
+    // A source's directory under its domain root is its class path, its handle's name, and where
+    // the build ships it.
     [Fact]
     public void ADirectoryUnderADomainRoot_BecomesANestedClass()
     {
@@ -136,8 +135,8 @@ public sealed class AssetGeneratorTests
         Assert.Contains("TextureHandle(\"enemies/bat\", \".png\")", generated, StringComparison.Ordinal);
     }
 
-    // A directory is the set a scene will declare its residency by, so every class carries every
-    // handle beneath it — its subdirectories' included — and the root's is what boot reads.
+    // Every class carries every handle beneath it, its subdirectories' included; boot reads the
+    // root's.
     [Fact]
     public void EveryClass_CarriesEveryHandleBeneathItTransitively()
     {
@@ -158,8 +157,8 @@ public sealed class AssetGeneratorTests
         Assert.Contains("\nCave.Bat,\n", Normalized(generated), StringComparison.Ordinal);
     }
 
-    // A stem repeated in two directories is two assets; only a name repeated in one directory is a
-    // collision, and a directory collides with a file beside it just as a file does.
+    // A stem repeated in two directories is two assets; only one repeated in one collides, and a
+    // directory collides with a file beside it just as a file does.
     [Theory]
     [InlineData("textures/enemies/bat.png", "textures/player/bat.png", null, null)]
     [InlineData("textures/enemies/a-b.png", "textures/enemies/a_b.png", "textures/enemies/a-b.png", "textures/enemies/a_b.png")]

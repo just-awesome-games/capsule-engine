@@ -6,8 +6,8 @@ namespace Capsule.Diagnostics;
 public readonly record struct LogEntry(LogLevel Level, string Message);
 
 /// <summary>
-/// A sink that keeps what it is given, for a headless harness to assert on. Not a logger for a
-/// running game: it grows without bound until <see cref="Clear"/>.
+/// A sink that keeps what it is given, for a headless harness to assert on; it grows without
+/// bound until <see cref="Clear"/>.
 /// </summary>
 public sealed class CollectingLogSink : ILogSink
 {

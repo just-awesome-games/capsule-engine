@@ -10,7 +10,7 @@ namespace Capsule.Scenes.Documents;
 /// <summary>
 /// Reading and writing the scene document format. The written form is canonical — fixed field
 /// order, two-space indent, LF, UTF-8 without a BOM, one trailing newline — so re-generating an
-/// unchanged document reproduces its bytes exactly and a diff shows only real change.
+/// unchanged document reproduces its bytes exactly.
 /// </summary>
 public static class SceneDocumentFile
 {
@@ -20,6 +20,10 @@ public static class SceneDocumentFile
 
     /// <summary>Reads and validates the scene document at <paramref name="path"/>.</summary>
     /// <exception cref="SceneDocumentFormatException">The file is malformed; the message is prefixed with the path.</exception>
+    /// <exception cref="IOException">The file cannot be read.</exception>
+    /// <exception cref="ArgumentNullException">The path is null.</exception>
+    /// <exception cref="ArgumentException">The path is empty or malformed.</exception>
+    /// <exception cref="UnauthorizedAccessException">The file cannot be opened.</exception>
     public static SceneDocument Load(string path)
     {
         string json = File.ReadAllText(path);
@@ -36,6 +40,7 @@ public static class SceneDocumentFile
 
     /// <summary>Reads and validates scene document JSON that is already in hand.</summary>
     /// <exception cref="SceneDocumentFormatException">The JSON is malformed or the document breaks the format.</exception>
+    /// <exception cref="ArgumentNullException">The text is null.</exception>
     public static SceneDocument Parse(string json)
     {
         SceneDocumentJson file = Deserialize(json);
@@ -89,6 +94,8 @@ public static class SceneDocumentFile
     }
 
     /// <summary>The canonical text of <paramref name="document"/>.</summary>
+    /// <exception cref="ArgumentNullException">The document is null.</exception>
+    /// <exception cref="SceneDocumentFormatException">A grid names a texture that has no written form.</exception>
     public static string ToJson(SceneDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -151,6 +158,11 @@ public static class SceneDocumentFile
     }
 
     /// <summary>Writes <paramref name="document"/> to <paramref name="path"/> in canonical form.</summary>
+    /// <exception cref="ArgumentNullException">The document or the path is null.</exception>
+    /// <exception cref="ArgumentException">The path is empty or malformed.</exception>
+    /// <exception cref="SceneDocumentFormatException">A grid names a texture that has no written form.</exception>
+    /// <exception cref="IOException">The file cannot be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">The file cannot be written to.</exception>
     public static void Save(SceneDocument document, string path) =>
         File.WriteAllText(path, ToJson(document), Utf8NoBom);
 
@@ -158,8 +170,7 @@ public static class SceneDocumentFile
         string.Equals(entry.Type, SceneDocument.TileMapType, StringComparison.Ordinal);
 
     // Every entry's common half — the object itself and its position — read before any type reads
-    // its own. A hole here would otherwise surface as a null reference, or as a position the file
-    // never stated.
+    // its own, so a hole here does not surface later as a null reference.
     private static SceneEntryJson Entry(SceneEntryJson?[] entries, int index, out float x, out float y)
     {
         if (entries[index] is not { } entry)
@@ -181,8 +192,7 @@ public static class SceneDocumentFile
     }
 
     // An absent scale is identity, which is what the writer leaves out. Only the arity is decided
-    // here; whether the components are a scale at all is the document's own invariant, checked
-    // wherever a document is built.
+    // here; whether the components are a scale is the document's own invariant.
     private static void Scale(SceneEntryJson entry, int index, out float x, out float y)
     {
         if (entry.Scale is not { } scale)
@@ -204,8 +214,7 @@ public static class SceneDocumentFile
 
     private static TileMapPlacement ReadTileMap(SceneEntryJson entry, float x, float y)
     {
-        // Terrain is drawn in world coordinates whatever its entity's position says, so a
-        // position here would be a coordinate the engine then ignores.
+        // Terrain is drawn in world coordinates, so a position here would be ignored.
         if (x != 0f || y != 0f)
         {
             throw new SceneDocumentFormatException(string.Create(
@@ -268,9 +277,8 @@ public static class SceneDocumentFile
         };
     }
 
-    // The whole path under the textures root, extension included: which extensions that domain
-    // admits is the build's allow-list to hold, so the format asks only that the path it writes
-    // reads back.
+    // The whole path under the textures root, extension included. Which extensions are admitted is
+    // the build's allow-list; the format asks only that the path it writes reads back.
     private static string? TextureName(TextureHandle? texture)
     {
         if (texture is not { } handle)
@@ -284,9 +292,8 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry's grid draws from texture handle (\"{handle.Name}\", \"{handle.Extension}\"), which does not split back out of one texture path: a name is one or more '/'-joined segments, none of them empty, \".\" or \"..\", and an extension is a dot followed by at least one character and no second dot.");
     }
 
-    // A grid rejects its own malformed input as an argument fault, which is what a caller building
-    // one in code has broken. Read out of a file it is the file that is malformed, so the defect
-    // reaches the reader under the one exception type the format throws.
+    // A grid rejects malformed input as an argument fault; read out of a file it is the file that
+    // is malformed, so the defect is rethrown under the format's own exception type.
     private static TileGrid Grid(TileGridJson grid)
     {
         if (grid.TileTypes is not { } palette)
@@ -301,9 +308,8 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry's grid has no tiles; its width x height palette indices are written there.");
         }
 
-        // Asked of the field's presence rather than its value: read as an absent 0, a columns on a
-        // grid with no texture would be accepted and then written back without it, so the document
-        // would not survive its own round trip.
+        // Asked of presence, not value: read as an absent 0 it would be accepted and then written
+        // back without it, so the document would not survive its own round trip.
         if (grid.Columns is not null && grid.Texture is null)
         {
             throw new SceneDocumentFormatException(
@@ -383,8 +389,7 @@ public static class SceneDocumentFile
             return CellFaces2D.All;
         }
 
-        // A face list on a tile that is on no layer describes sides of a tile that never collides,
-        // so it would be written back and then ignored.
+        // Faces on a tile that is on no layer would be written back and then ignored.
         if (layer is null)
         {
             throw new SceneDocumentFormatException(
@@ -425,7 +430,7 @@ public static class SceneDocumentFile
     }
 
     // Completeness is the SceneDocument constructor's to enforce, so a source block is malformed
-    // the same way whether it arrived from a file or from code.
+    // the same way whether it came from a file or from code.
     private static SceneDocumentSource? ToSource(SceneDocumentSourceJson? source) =>
         source is null
             ? null

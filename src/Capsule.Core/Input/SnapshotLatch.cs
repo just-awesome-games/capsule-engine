@@ -2,7 +2,6 @@ namespace Capsule.Input;
 
 /// <summary>
 /// Preserves sampled input until a fixed step consumes it, including presses between steps.
-/// Per-tick harnesses may drive <see cref="InputState.Advance"/> directly.
 /// </summary>
 internal sealed class SnapshotLatch
 {

@@ -4,8 +4,8 @@ namespace Capsule.Scenes.Tiles;
 
 /// <summary>
 /// One entry of a grid's tile palette: its semantic type, which cell of the grid's texture it
-/// draws, and what it collides as. A tile type with no cell is semantic only — it draws nothing
-/// without weakening tile identity — and one collides as nothing until it names a layer.
+/// draws, and what it collides as. A tile type with no cell draws nothing; one collides as nothing
+/// until it names a layer.
 /// </summary>
 /// <param name="Type">The tile type's name, unique within the palette. Identity, never a layer.</param>
 /// <param name="Cell">

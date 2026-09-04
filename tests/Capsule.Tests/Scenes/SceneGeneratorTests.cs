@@ -19,15 +19,13 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.GameScenes"));
 
-        // The document names are the registry's contract with scene sources; each class registers
-        // under its own kebab-cased name.
+        // The document names are the registry's contract with scene sources.
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
         AssertClaimedBy(generated, "room-01", "Game.Room01");
         AssertClaimedBy(generated, "boss-arena", "Game.BossArena");
     }
 
-    // Every emitted line that claims the document names the type beside it, so the pairing is
-    // asserted without pinning how a line is spelled.
+    // Asserted as a pairing, so how the emitted line is spelled is not pinned.
     private static void AssertClaimedBy(string generated, string documentName, string type)
     {
         string[] claims = generated.Split((char)10)
@@ -209,6 +207,4 @@ public sealed class SceneGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
-
-    private static string Generated(string source) => GeneratorHarness.Generated(source, GeneratorHarness.GameScenesFile);
 }

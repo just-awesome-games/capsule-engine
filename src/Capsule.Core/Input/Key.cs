@@ -1,9 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// A physical key, named for what a US layout prints on it: what the player's own layout prints
-/// there may differ, and a binding follows the position rather than the character. Values must
-/// stay below <see cref="DeviceSnapshot.Capacity"/>; the backend maps each one.
+/// A physical key, named for what a US layout prints on it: a binding follows the position rather
+/// than the character. Values must stay below <see cref="DeviceSnapshot.Capacity"/>.
 /// </summary>
 public enum Key
 {

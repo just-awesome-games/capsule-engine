@@ -40,8 +40,6 @@ internal static class GeneratorHarness
         }
     }
 
-    internal static string Generated(string source, string fileName) => Emitted(Compile(source).Updated, fileName);
-
     internal static string Emitted(Compilation compiled, string fileName)
     {
         string? emitted = Emission(compiled, fileName);

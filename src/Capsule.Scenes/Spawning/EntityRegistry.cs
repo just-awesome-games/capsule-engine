@@ -9,13 +9,14 @@ public delegate Entity EntitySpawner(EntitySpawn spawn);
 
 /// <summary>
 /// What each spawn type constructs, fixed once built. A game passes the registry its source
-/// generator emits from the assembly's spawnable entities; hand-building one is the test path.
+/// generator emits; hand-building one is the test path.
 /// </summary>
 public sealed class EntityRegistry
 {
     private readonly Dictionary<string, EntitySpawner> _spawners;
 
     /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry(IEnumerable<KeyValuePair<string, EntitySpawner>> entities)
     {

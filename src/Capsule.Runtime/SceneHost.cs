@@ -3,51 +3,11 @@ using Capsule.Scenes;
 
 namespace Capsule.Runtime;
 
-internal enum SceneTargetKind
-{
-    Scene,
-    Named,
-}
-
-internal readonly record struct SceneTarget
-{
-    private SceneTarget(SceneTargetKind kind, Type? sceneType, string? documentName, object? payload)
-    {
-        Kind = kind;
-        SceneType = sceneType;
-        DocumentName = documentName;
-        Payload = payload;
-    }
-
-    internal SceneTargetKind Kind { get; }
-
-    internal Type? SceneType { get; }
-
-    internal string? DocumentName { get; }
-
-    internal object? Payload { get; }
-
-    internal static SceneTarget ForScene(Type sceneType, object? payload = null)
-    {
-        ArgumentNullException.ThrowIfNull(sceneType);
-        return new SceneTarget(SceneTargetKind.Scene, sceneType, null, payload);
-    }
-
-    internal static SceneTarget ForName(string documentName, object? payload = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
-        return new SceneTarget(SceneTargetKind.Named, null, documentName, payload);
-    }
-
-    internal SceneTarget WithPayload(object? payload) => new(Kind, SceneType, DocumentName, payload);
-}
-
-internal delegate Scene SceneResolver(in SceneTarget target);
+internal delegate Scene SceneResolver(in SceneTransition target);
 
 /// <summary>
-/// Keeps the runtime alive while scenes replace one another. It resolves requested targets at
-/// the host boundary so scene documents and other content never enter game logic as file
-/// operations.
+/// Keeps the runtime alive while scenes replace one another, resolving each requested target at
+/// the host boundary so content never enters game logic as a file operation.
 /// </summary>
 internal sealed class SceneHost : ISimulation, IDisposable
 {
@@ -55,21 +15,18 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private readonly SceneDefaults _defaults;
     private readonly RandomSource _random;
 
-    private SceneTarget _currentTarget;
+    private SceneTransition _target;
     private SceneSimulation _current;
     private bool _disposed;
 
-    internal SceneHost(in SceneTarget initialTarget, SceneResolver resolve, SceneDefaults defaults = default, RandomSource? random = null)
+    // random is one source for the whole run: every scene the host opens draws from it, so a
+    // transition neither reseeds nor rewinds the sequence.
+    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, SceneDefaults defaults = default, RandomSource? random = null)
     {
-        ArgumentNullException.ThrowIfNull(resolve);
-
         _resolve = resolve;
         _defaults = defaults;
-
-        // One source for the run: every scene the host opens draws from it, so a transition
-        // neither reseeds nor rewinds the sequence.
         _random = random ?? new RandomSource();
-        _currentTarget = initialTarget;
+        _target = initialTarget;
         _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random);
     }
 
@@ -103,17 +60,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 break;
 
             case SceneTransitionKind.Restart:
-                Replace(transition.HasPayload
-                    ? _currentTarget.WithPayload(transition.Payload)
-                    : _currentTarget);
+                Replace(transition.HasPayload ? _target.WithPayload(transition.Payload) : _target);
                 break;
 
             case SceneTransitionKind.Scene:
-                Replace(SceneTarget.ForScene(transition.SceneType!, transition.Payload));
-                break;
-
             case SceneTransitionKind.Named:
-                Replace(SceneTarget.ForName(transition.DocumentName!, transition.Payload));
+                Replace(transition);
                 break;
 
             default:
@@ -132,12 +84,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _current.Dispose();
     }
 
-    private void Replace(in SceneTarget target)
+    private void Replace(in SceneTransition target)
     {
         Scene next = _resolve(target);
 
         _current.Dispose();
         _current = new SceneSimulation(next, target.Payload, _defaults, _random);
-        _currentTarget = target;
+        _target = target;
     }
 }

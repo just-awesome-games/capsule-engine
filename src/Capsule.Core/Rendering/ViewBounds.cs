@@ -2,14 +2,13 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// An axis-aligned world rect. World units, Y-down: <see cref="Left"/> and <see cref="Top"/> are
-/// the low edges, <see cref="Right"/> and <see cref="Bottom"/> the high ones. It encloses an
-/// open region, so two rects sharing an edge do not intersect.
+/// the low edges. It encloses an open region, so two rects sharing an edge do not intersect.
 /// </summary>
 public readonly record struct ViewBounds(float Left, float Top, float Right, float Bottom)
 {
     /// <summary>
-    /// Whether this rect encloses nothing testable — no area on an axis, or an edge that is not
-    /// finite. NaN lands here too, since it compares false to everything.
+    /// Whether this rect encloses nothing testable: no area on an axis, or a non-finite edge. NaN
+    /// lands here too, since it compares false to everything.
     /// </summary>
     public bool IsEmpty =>
         !(Right > Left) ||

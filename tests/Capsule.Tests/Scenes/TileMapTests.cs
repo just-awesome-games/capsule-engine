@@ -16,7 +16,8 @@ public sealed class TileMapTests
 
         Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
         scene.Add(drifter);
-        OpenOver(scene, new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize));
+        Vector2 room = new(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize);
+        SceneFixtures.Open(scene, room / 2f, room);
         SceneSimulation simulation = new(scene);
 
         simulation.Step(SceneFixtures.Step());
@@ -62,7 +63,7 @@ public sealed class TileMapTests
         TileMap tiles = new(grid);
         Scene scene = new();
         scene.Add(tiles);
-        OpenOver(scene, tiles.Size);
+        SceneFixtures.Open(scene, tiles.Size / 2f, tiles.Size);
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
@@ -144,9 +145,4 @@ public sealed class TileMapTests
             SceneFixtures.Atlas,
             1);
 
-    private static void OpenOver(Scene scene, Vector2 size)
-    {
-        scene.Camera.Center = size / 2f;
-        scene.Camera.ViewportSize = size;
-    }
 }

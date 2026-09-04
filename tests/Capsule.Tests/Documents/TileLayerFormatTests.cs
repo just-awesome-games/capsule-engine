@@ -97,8 +97,7 @@ public sealed class TileLayerFormatTests
         Assert.Contains("no cell and no layer", error.Message, StringComparison.Ordinal);
     }
 
-    // A tile on a layer with no face collides with nothing at all, so it is a mistake rather than a
-    // second way to spell decoration.
+    // A tile on a layer with no face collides with nothing, which decoration already spells.
     [Fact]
     public void ATileOnALayerWithNoCollidableFaces_IsRefusedByTheGrid()
     {
@@ -147,8 +146,7 @@ public sealed class TileLayerFormatTests
         Assert.Contains("collidableFaces", error.Message, StringComparison.Ordinal);
     }
 
-    // Several of Tiled's property types carry a string value, and a well-formed one of the wrong
-    // type would otherwise import as a real layer name.
+    // Several property types carry a string value; one of the wrong type is not a layer name.
     private static ReadOnlySpan<TileDefinition> Palette(SceneDocument document) =>
         document.Entries[0].TileMap!.Value.Grid.TileTypes;
 

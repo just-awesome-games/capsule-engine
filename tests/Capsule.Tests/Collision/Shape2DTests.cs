@@ -5,9 +5,8 @@ namespace Capsule.Tests.Collision;
 
 public sealed class Shape2DTests
 {
-    // Corners within range are not enough. The width between them is what the mover subtracts its
-    // inset from and what the tree's surface-area heuristic sums, and an infinity there is computed
-    // with rather than complained about.
+    // Corners within range are not enough: the width between them is what the mover's inset and the
+    // tree's area heuristic compute with, and an infinity there is computed with silently.
     [Fact]
     public void AShapeWhoseExtentOverflows_IsRefusedThoughEveryCornerIsFinite()
     {
@@ -16,8 +15,8 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => Shape2D.Circle(Vector2.Zero, 2e38f));
     }
 
-    // A radius-0 polygon reaching from one end of the range to the other has finite points and
-    // infinite edges, and the normals derived from those edges come out NaN rather than refused.
+    // A polygon spanning the float range has finite points and infinite edges, whose normals come
+    // out NaN rather than refused.
     [Fact]
     public void APolygonWhoseEdgesOverflow_IsRefusedThoughEveryPointIsFinite()
     {
@@ -27,9 +26,8 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => Shape2D.Capsule(new Vector2(-3e38f, 0f), new Vector2(3e38f, 0f), 1f));
     }
 
-    // Far enough out and the floats either side of a small shape are the same float. The hull and
-    // the radius survive the translation; the box the broadphase prunes by does not, so the tree
-    // would skip geometry the narrowphase still holds.
+    // Far enough out, the floats either side of a small shape are the same float: the hull survives
+    // but the broadphase box collapses, and the tree skips geometry the narrowphase still holds.
     [Fact]
     public void AShapeWhoseExtentCollapsesUnderTranslation_IsRefusedWhereItIsPlaced()
     {
@@ -54,8 +52,8 @@ public sealed class Shape2DTests
         Assert.Equal(Vector2.Zero, world.PositionOf(handle));
     }
 
-    // The other side of that boundary: as far out as a unit box can go and still be a box, it is
-    // one — and the broadphase box is the only thing that can find it there.
+    // The other side of that boundary: as far out as a unit box can go and still have width, it is
+    // still found.
     [Fact]
     public void AShapeAtTheFurthestCoordinateItKeepsItsExtent_IsPlacedAndFound()
     {
@@ -82,8 +80,7 @@ public sealed class Shape2DTests
         Assert.True(float.IsFinite(hit.Distance));
     }
 
-    // The other side of the same boundary: the largest extent whose derived geometry all stays
-    // finite is a shape, and it answers queries with numbers.
+    // The largest extent whose derived geometry stays finite is a shape, and answers with numbers.
     [Fact]
     public void AShapeAtTheLargestExtentThatStaysFinite_IsBuiltAndAnsweredFinitely()
     {
@@ -155,8 +152,8 @@ public sealed class Shape2DTests
         Assert.Contains("closer together than the linear slop", error.Message, StringComparison.Ordinal);
     }
 
-    // Winding decides which way a polygon's edge normals point, so accepting either order means
-    // normalising it: the same outline authored backwards must still face its normals outward.
+    // Winding decides which way edge normals point, so the same outline authored backwards must
+    // still face them outward.
     [Fact]
     public void Polygon_AcceptsEitherWindingOrderAndStillFacesItsNormalsOutward()
     {
@@ -196,7 +193,7 @@ public sealed class Shape2DTests
     }
 
     // About the shape's own origin, so a box offset from it moves with its corners rather than
-    // growing in place; where the collider then sits is applied elsewhere and is untouched.
+    // growing in place.
     [Fact]
     public void Scaled_MultipliesEveryPointAboutTheShapesOwnOrigin()
     {
@@ -219,8 +216,8 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(0f, 12f), scaled.Point(2));
     }
 
-    // A radius is one distance: scaled unevenly it would name a shape the narrowphase has no
-    // representation for, so the two rounded kinds take a uniform factor only.
+    // A radius is one distance, so a non-uniform scale would name a shape the narrowphase has no
+    // representation for.
     [Fact]
     public void Scaled_ScalesARoundedShapesRadiusWithItsPoints()
     {
@@ -261,8 +258,7 @@ public sealed class Shape2DTests
             () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Scaled(new Vector2(x, y)));
     }
 
-    // The result is held to what construction holds a shape to: scaled far enough down, a box's
-    // corners land on each other and there is no region left to collide with.
+    // Scaled far enough down, a box's corners land on each other and there is no region left.
     [Fact]
     public void Scaled_RefusesAShapeItWouldCollapse()
     {
@@ -272,9 +268,8 @@ public sealed class Shape2DTests
         Assert.Contains("closer together than the linear slop", error.Message, StringComparison.Ordinal);
     }
 
-    // Scaled far enough up, a capsule's endpoints and radius are each still a float while the
-    // segment the narrowphase measures along is not; construction refuses that shape, so scaling
-    // does too.
+    // Scaled far enough up, a capsule's endpoints are still floats while the segment the
+    // narrowphase measures along is not.
     [Fact]
     public void Scaled_RefusesACapsuleWhoseSegmentOverflows()
     {

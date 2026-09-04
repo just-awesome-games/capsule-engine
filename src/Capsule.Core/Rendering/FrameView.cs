@@ -3,10 +3,8 @@ using System.Runtime.InteropServices;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Mutable render intent, rewritten once per fixed step and read on draw frames. A frame is an
-/// ordered stream of render commands over one typed pool per kind of thing that draws, so a kind
-/// is added by one pool, one <c>Add</c> overload and one backend case, and nothing about draw
-/// order changes.
+/// Mutable render intent, rewritten once per fixed step and read on draw frames: an ordered stream
+/// of render commands over one typed pool per kind of thing that draws.
 /// </summary>
 public sealed class FrameView
 {
@@ -76,7 +74,8 @@ public sealed class FrameView
     {
         _submitted++;
 
-        if (Culled(sprite))
+        if (_hasCullBounds &&
+            !(sprite.TryGetSweptBounds(out ViewBounds swept) && swept.Intersects(_cullBounds)))
         {
             return;
         }
@@ -84,11 +83,4 @@ public sealed class FrameView
         _commands.Add(new RenderCommand(RenderKind.Sprite, _sprites.Count));
         _sprites.Add(sprite);
     }
-
-    // Each kind measures the world rect it sweeps; what the camera does with that rect is the same
-    // question for all of them.
-    private bool Culled(in SpriteIntent sprite) =>
-        _hasCullBounds && !(sprite.TryGetSweptBounds(out ViewBounds swept) && Accept(swept));
-
-    private bool Accept(in ViewBounds swept) => swept.Intersects(_cullBounds);
 }

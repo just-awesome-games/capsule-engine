@@ -16,31 +16,26 @@ internal sealed class SceneComposer(SceneRegistry scenes)
     private string? _heldName;
     private SceneDocument? _held;
 
-    internal Scene Resolve(in SceneTarget target) => target.Kind switch
+    // A class the registry backs with a document is composed from it; one it registers plainly is
+    // built as it is, and one it does not hold at all is named as missing by the registry.
+    internal Scene Resolve(in SceneTransition target) => target.Kind switch
     {
-        SceneTargetKind.Scene => ComposeType(target.SceneType!),
-        SceneTargetKind.Named => ComposeDocument(target.DocumentName!),
-        _ => throw new InvalidOperationException($"Unknown scene target kind '{target.Kind}'."),
+        SceneTransitionKind.Scene => scenes.DocumentNameOf(target.SceneType!) is { } name
+            ? ComposeDocument(name)
+            : scenes.Create(target.SceneType!),
+        SceneTransitionKind.Named => ComposeDocument(target.DocumentName!),
+        _ => throw new InvalidOperationException($"'{target.Kind}' names no scene to compose."),
     };
 
     // A scene document's name is its key: the path the build shipped it at under assets/scenes.
-    // Judged by the build's own key grammar, so a name that is no key — one climbing out of that
-    // directory, or one the hook could never have written a file for — is refused here rather than
-    // reaching the file system. A document-backed scene's key comes from its class, so this guards
-    // both boot verbs.
+    // Judged by the build's own key grammar, so a name that is no key is refused here rather than
+    // reaching the file system.
     private static string DocumentFileName(string name) =>
         AssetPaths.IsKey(name)
             ? name + DocumentExtension
             : throw new ArgumentException(
                 $"A scene document name is '/'-joined key segments of ASCII letters, digits, '-' and '_', none of them a reserved Windows device name (nul, con, ...), with no extension: '{name}'.",
                 nameof(name));
-
-    // A class the registry backs with a document is composed from it; one it registers plainly is
-    // built as it is, and one it does not hold at all is named as missing by the registry.
-    private Scene ComposeType(Type sceneType) =>
-        scenes.DocumentNameOf(sceneType) is { } name
-            ? ComposeDocument(name)
-            : scenes.Create(sceneType);
 
     private Scene ComposeDocument(string name)
     {

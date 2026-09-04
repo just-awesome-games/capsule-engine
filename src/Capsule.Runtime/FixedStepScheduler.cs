@@ -38,8 +38,6 @@ internal sealed class FixedStepScheduler
 
     internal bool Advance(double elapsedSeconds, in DeviceSnapshot snapshot, ISimulation simulation)
     {
-        ArgumentNullException.ThrowIfNull(simulation);
-
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time must be finite and non-negative.");

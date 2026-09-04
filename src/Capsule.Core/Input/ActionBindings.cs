@@ -1,8 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// Which buttons and axes stand for which actions. Written once at configuration time and
-/// read every step thereafter, so reads allocate nothing.
+/// Which buttons and axes stand for which actions. Written once at configuration time and read
+/// every step thereafter; reads allocate nothing.
 /// </summary>
 public sealed class ActionBindings
 {
@@ -10,9 +10,8 @@ public sealed class ActionBindings
     private readonly Dictionary<AxisAction, AxisSource[]> _sourcesByAction = [];
 
     /// <summary>
-    /// Adds <paramref name="buttons"/> to <paramref name="action"/>; any of them then
-    /// stands for it. Keys and pad buttons mix freely, and binding an action twice unions
-    /// the buttons rather than replacing them.
+    /// Adds <paramref name="buttons"/> to <paramref name="action"/>; any of them then stands for
+    /// it. Keys and pad buttons mix freely, and binding twice unions rather than replaces.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed, or some button is <see cref="InputButton.None"/>.</exception>
     public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
@@ -44,9 +43,8 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds <paramref name="axis"/> to <paramref name="action"/>: its position contributes
-    /// to the action's value. Binding an action again accumulates contributions rather than
-    /// replacing them.
+    /// Adds <paramref name="axis"/> to <paramref name="action"/>: its position contributes to the
+    /// action's value. Binding again accumulates rather than replaces.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed, or the axis is <see cref="PadAxis.None"/>.</exception>
     public ActionBindings BindAxis(AxisAction action, PadAxis axis)
@@ -62,9 +60,8 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds a digital pair to <paramref name="action"/>: it contributes -1 while
-    /// <paramref name="negative"/> is held and +1 while <paramref name="positive"/> is, so
-    /// holding both contributes 0.
+    /// Adds a digital pair to <paramref name="action"/>: -1 while <paramref name="negative"/> is
+    /// held and +1 while <paramref name="positive"/> is, so holding both contributes 0.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed, or either button is <see cref="InputButton.None"/>.</exception>
     public ActionBindings BindAxis(AxisAction action, InputButton negative, InputButton positive)
@@ -101,7 +98,7 @@ public sealed class ActionBindings
 
     /// <summary>
     /// What <paramref name="action"/> reads in <paramref name="snapshot"/>: every bound
-    /// contribution summed, then clamped to [-1, 1]. An unbound action reads 0.
+    /// contribution summed, then clamped to [-1, 1]; an unbound action reads 0.
     /// </summary>
     public float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
     {

@@ -3,13 +3,13 @@ using Capsule.Scenes.Documents;
 
 namespace Capsule.Build;
 
-public static class SceneDocumentTool
+internal static class SceneDocumentTool
 {
-    public const string DocumentExtension = ".scene.json";
+    internal const string DocumentExtension = ".scene.json";
 
     private const string Name = "scene documents";
 
-    public static int ImportFromList(
+    internal static int ImportFromList(
         string outputDirectory,
         string listPath,
         int? tileSize,
@@ -50,59 +50,17 @@ public static class SceneDocumentTool
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
-        try
-        {
-            Directory.CreateDirectory(outputDirectory);
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{Name}: cannot create '{outputDirectory}' — {ex.Message}");
-            return 1;
-        }
-
-        Dictionary<string, string> claimedBy = new(StringComparer.OrdinalIgnoreCase);
-        int failures = 0;
-        foreach (DocumentSource source in sources)
-        {
-            if (!source.HasSafeKey())
-            {
-                error.WriteLine(
-                    $"{source.Path}: claims scene key \"{source.Key}\"; a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension.");
-                failures++;
-                continue;
-            }
-
-            string documentPath = Path.Combine(outputDirectory, source.Key + DocumentExtension);
-
-            if (!claimedBy.TryAdd(documentPath, source.Path))
-            {
-                error.WriteLine(
-                    $"{source.Path}: would overwrite the scene document of '{claimedBy[documentPath]}'; a document is written at the key its source claims, so keys must be unique.");
-                failures++;
-                continue;
-            }
-
-            try
-            {
-                // The key nests, so the directory the document lands in may not exist yet.
-                Directory.CreateDirectory(Path.GetDirectoryName(documentPath)!);
-                SceneDocumentFile.Save(NativeSceneImporter.Import(source.Path, tileSize), documentPath);
-                output.WriteLine($"{Name}: {source.Path} -> {documentPath}");
-            }
-            catch (Exception ex) when (IsReportable(ex))
-            {
-                error.WriteLine($"{source.Path}: {ex.Message}");
-                failures++;
-            }
-        }
-
-        if (failures > 0)
-        {
-            error.WriteLine($"{Name}: {failures} of {sources.Count} source(s) failed");
-            return 1;
-        }
-
-        return 0;
+        return DocumentImport.Run(
+            Name,
+            "scene",
+            outputDirectory,
+            sources,
+            DocumentExtension,
+            IsReportable,
+            (source, documentPath) =>
+                SceneDocumentFile.Save(NativeSceneImporter.Import(source.Path, tileSize), documentPath),
+            output,
+            error);
     }
 
     private static bool IsReportable(Exception exception) =>

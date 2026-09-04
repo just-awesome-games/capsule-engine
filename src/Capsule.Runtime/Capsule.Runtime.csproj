@@ -8,27 +8,23 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- PrivateAssets is the default set plus "compile", and the "compile" entry is
-         load-bearing: it stops MonoGame's reference assemblies flowing to consumers,
-         so a game cannot write a Microsoft.Xna.Framework using. Runtime and native
-         assets still flow, so MonoGame's managed and native libraries reach the
-         game's output. Dropping "compile" silently reopens the boundary. -->
+    <!-- "compile" in PrivateAssets is load-bearing: it keeps MonoGame's reference assemblies from
+         flowing to consumers, so a game cannot write a Microsoft.Xna.Framework using. Runtime and
+         native assets still flow. Dropping it silently reopens the boundary. -->
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
   </ItemGroup>
 
-  <!-- The pure modules arrive through their pack root, not one by one: that is what makes the
-       packed JAG.Capsule.Runtime declare its dependency on JAG.Capsule. Referencing the modules
-       directly would emit no dependency at all, because none of them is a package. -->
+  <!-- The pure modules arrive through their pack root, not one by one: referencing them directly
+       would emit no package dependency at all, because none of them is a package. -->
   <ItemGroup>
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
 
   <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
-       release are a matched set. Pin JAG.Capsule to the version this host was built against. The
-       item belongs to NuGet's own pack targets, so the Error is the tripwire that says so out
-       loud rather than silently reverting to the open range. -->
+       release are a matched set. The item belongs to NuGet's own pack targets, so the Error is the
+       tripwire for it going away rather than silently reverting to the open range. -->
   <Target Name="CapsulePinPureModuleDependency" AfterTargets="_GetProjectReferenceVersions">
     <Error Condition="'@(_ProjectReferencesWithVersions)' == ''"
            Text="Capsule.Runtime could not pin its JAG.Capsule dependency: NuGet no longer exposes _ProjectReferencesWithVersions." />
@@ -38,9 +34,8 @@
     </ItemGroup>
   </Target>
 
-  <!-- The specs assert the headless internals — deadzone filtering — without widening the
-       public surface to do it. Only BCL-typed internals are reachable this way: MonoGame's
-       compile assets do not flow to Capsule.Tests either. -->
+  <!-- The specs assert the headless internals — deadzone filtering, scheduling, letterboxing —
+       without widening the public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

@@ -47,10 +47,6 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
 
     internal Location Location { get; }
 
-    public static bool operator ==(EntityModel left, EntityModel right) => left.Equals(right);
-
-    public static bool operator !=(EntityModel left, EntityModel right) => !left.Equals(right);
-
     // Location participates in equality only for faulted models, so an unrelated edit does not re-emit the registry.
     public bool Equals(EntityModel other) =>
         Fault == other.Fault

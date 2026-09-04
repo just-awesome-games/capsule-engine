@@ -2,9 +2,8 @@ using System.Numerics;
 
 namespace Capsule.Runtime.Rendering;
 
-// Point sampling fetches one texel per pixel centre. A texel boundary landing exactly on a centre
-// leaves float error to decide which side is fetched, dropping a column and doubling its
-// neighbour; snapping keeps every boundary between centres.
+// Point sampling fetches one texel per pixel centre; snapping keeps every texel boundary between
+// centres, where float error cannot drop a column and double its neighbour.
 internal static class PixelGrid
 {
     // value is world units, scale surface pixels per world unit. Midpoints round away from zero so

@@ -1,9 +1,8 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// A physical gamepad button. Face buttons are named by position rather than by brand, so a
-/// binding means the same place on the pad whatever the player is holding. The triggers appear
-/// here as well as on <see cref="PadAxis"/>, pressed once pulled past the trigger deadzone.
+/// A physical gamepad button, face buttons named by position rather than by brand. The triggers
+/// appear here as well as on <see cref="PadAxis"/>, pressed once pulled past the trigger deadzone.
 /// Values must stay below <see cref="DeviceSnapshot.PadCapacity"/>.
 /// </summary>
 public enum PadButton
@@ -41,16 +40,10 @@ public enum PadButton
     /// <summary>The right shoulder button, above the right trigger.</summary>
     RightShoulder,
 
-    /// <summary>
-    /// The left trigger pulled far enough to count as a press: the digital view of
-    /// <see cref="PadAxis.LeftTrigger"/>, held whenever that axis reads above 0.
-    /// </summary>
+    /// <summary>The digital view of <see cref="PadAxis.LeftTrigger"/>, held whenever that axis reads above 0.</summary>
     LeftTrigger,
 
-    /// <summary>
-    /// The right trigger pulled far enough to count as a press: the digital view of
-    /// <see cref="PadAxis.RightTrigger"/>, held whenever that axis reads above 0.
-    /// </summary>
+    /// <summary>The digital view of <see cref="PadAxis.RightTrigger"/>, held whenever that axis reads above 0.</summary>
     RightTrigger,
 
     /// <summary>The left stick pressed in.</summary>

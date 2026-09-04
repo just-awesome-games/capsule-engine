@@ -31,10 +31,9 @@ internal static class SafeName
 
         // Windows matches a device name on the stem before the first dot, so "CON" and "CON.log"
         // both fail rather than creating a directory.
-        ReadOnlySpan<char> stem = name.AsSpan();
-        int dot = stem.IndexOf('.');
+        int dot = name.IndexOf('.', StringComparison.Ordinal);
 
-        return !AssetPaths.IsReservedDeviceName(dot >= 0 ? stem[..dot] : stem);
+        return !AssetPaths.IsReservedDeviceName(dot >= 0 ? name[..dot] : name);
     }
 
     /// <summary>

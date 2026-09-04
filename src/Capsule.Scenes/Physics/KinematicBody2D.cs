@@ -5,18 +5,13 @@ namespace Capsule.Scenes.Physics;
 
 /// <summary>
 /// Sweeps one selected <see cref="Collider2D"/> through the scene's collision world, stopping and
-/// sliding against the independently configured set of blocking layers, and reports which way it
-/// was stopped. The caller owns velocity, acceleration, and every gameplay response; this component
-/// applies no force and never touches a velocity.
-/// <para>
-/// The collider is a selection, not merely a requirement: an entity may carry hurt and hit boxes
-/// beside the one body shape that sweeps, and the constructor argument names which. One body per
-/// entity — two would each write the entity's position from their own sweep.
-/// </para>
+/// sliding against an independently configured set of blocking layers, and reports which way it was
+/// stopped. The caller owns velocity, acceleration and every gameplay response; this component
+/// applies no force. One body per entity — two would each write the entity's position.
 /// <para>
 /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/> and <see cref="IsOnCeiling"/> are state as of
-/// the last <see cref="Move(Vector2)"/> and nothing more — a move that pressed into nothing clears
-/// them, and so does a zero translation, which sweeps nothing at all.
+/// the last <see cref="Move(Vector2)"/> and nothing more: a move that pressed into nothing clears
+/// them, and so does a zero translation.
 /// </para>
 /// </summary>
 public sealed class KinematicBody2D : Component
@@ -39,13 +34,17 @@ public sealed class KinematicBody2D : Component
     /// The collider whose shape this body sweeps. It must be attached to the same entity as the
     /// body by the time that entity joins a scene; the two may be attached in either order.
     /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="collider"/> is null.</exception>
     public KinematicBody2D(Collider2D collider)
     {
         ArgumentNullException.ThrowIfNull(collider);
         _collider = collider;
     }
 
-    /// <summary>The collider whose shape this body sweeps.</summary>
+    /// <summary>
+    /// The collider whose shape this body sweeps. Sweeping needs it enabled, registered in a scene,
+    /// and still attached to this body's entity; otherwise every move and test throws.
+    /// </summary>
     public Collider2D Collider => _collider;
 
     /// <summary>
@@ -115,71 +114,44 @@ public sealed class KinematicBody2D : Component
     /// Attempts <paramref name="translation"/>, writes the collision-resolved translation to the
     /// entity, and returns what was applied. This performs no implicit velocity or force update.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// The body is not in a scene, its collider is disabled or detached, or the collider no
-    /// longer belongs to the body's entity.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The body cannot sweep: see <see cref="Collider"/>.</exception>
     public MoveResult2D Move(Vector2 translation) => MoveWith(translation, Filter);
 
     /// <summary>
     /// Attempts <paramref name="translation"/> against <paramref name="blocking"/> instead of
     /// <see cref="Filter"/>, for this call alone. <see cref="BlocksOn"/> is untouched, so the next
     /// plain <see cref="Move(Vector2)"/> resolves against it again.
-    /// <para>
-    /// For a body whose blocking set is a decision rather than a setting: where what stops it
-    /// depends on the state of the step — which way it is travelling, what it already overlaps,
-    /// what the game has just resolved — the caller composes the filter and passes it here.
-    /// </para>
     /// </summary>
     /// <param name="translation">The move to attempt.</param>
     /// <param name="blocking">What may stop it; <see cref="CollisionFilter.None"/> stops it on nothing.</param>
-    /// <exception cref="InvalidOperationException">
-    /// The body is not in a scene, its collider is disabled or detached, or the collider no
-    /// longer belongs to the body's entity.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The body cannot sweep: see <see cref="Collider"/>.</exception>
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     public MoveResult2D Move(Vector2 translation, CollisionFilter blocking) => MoveWith(translation, blocking);
 
     /// <summary>
     /// Whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be stopped short
     /// — the body's own collider swept from where it stands, under <see cref="Filter"/> and never
-    /// against itself. Nothing moves: neither the entity's position nor
-    /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/>, <see cref="IsOnCeiling"/> or
-    /// <see cref="MoveContacts"/> is touched.
-    /// <para>
-    /// The axes are swept independently, as a move is, so a translation with both components
-    /// non-zero is blocked when either axis is. An axis the translation does not travel along
-    /// blocks nothing, and a surface reached exactly at the end of the translation stopped nothing.
-    /// </para>
+    /// against itself. Nothing moves, <see cref="IsOnFloor"/> and its peers included. The axes are
+    /// swept independently, as a move is, so a translation is blocked when either axis is; an axis
+    /// it does not travel along blocks nothing, and a surface reached exactly at the end of the
+    /// translation stopped nothing.
     /// </summary>
     /// <param name="translation">The move to test, in world units.</param>
     /// <returns>Whether something would stop it short.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The translation is not finite, or the box the sweep covers is not.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// The body is not in a scene, its collider is disabled or detached, or the collider no
-    /// longer belongs to the body's entity.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The translation, or the box the sweep covers, is not finite.</exception>
+    /// <exception cref="InvalidOperationException">The body cannot sweep: see <see cref="Collider"/>.</exception>
     public bool TestMove(Vector2 translation) => TestMove(translation, Vector2.Zero);
 
     /// <summary>
     /// Whether <paramref name="translation"/> would be stopped short if the body stood
-    /// <paramref name="from"/> away from where it stands now — "would this move be free if I were
-    /// one pixel over". Bound by everything
-    /// <see cref="TestMove(Vector2)"/> is; the offset is where the sweep starts and nothing is
-    /// moved there.
+    /// <paramref name="from"/> away from where it stands now. Bound by everything
+    /// <see cref="TestMove(Vector2)"/> is; nothing is moved to the offset.
     /// </summary>
     /// <param name="translation">The move to test, in world units.</param>
     /// <param name="from">Where to sweep from, relative to the entity's current position.</param>
     /// <returns>Whether something would stop it short.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The offset origin or the translation is not finite, or the box the sweep covers is not.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// The body is not in a scene, its collider is disabled or detached, or the collider no
-    /// longer belongs to the body's entity.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">An argument, or the box the sweep covers, is not finite.</exception>
+    /// <exception cref="InvalidOperationException">The body cannot sweep: see <see cref="Collider"/>.</exception>
     public bool TestMove(Vector2 translation, Vector2 from)
     {
         CollisionWorld2D world = RequireSweepable(out Entity entity);
@@ -262,9 +234,8 @@ public sealed class KinematicBody2D : Component
         }
     }
 
-    // Asked as the whole entity joins, not as the body is attached: a constructor is free to add
-    // the body before the collider it sweeps, and only by the time the entity joins a scene does
-    // the pair have to be on the same entity.
+    // Asked as the whole entity joins, not as the body is attached: a constructor may add the body
+    // before the collider it sweeps.
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
@@ -289,11 +260,9 @@ public sealed class KinematicBody2D : Component
         WallNormal = Vector2.Zero;
     }
 
-    // Every recorded contact sits at its axis's nearest sweep fraction, and a surface the sweep
-    // moved away from is never recorded at all — but a hit landing exactly at the end of a
-    // translation is, and that one stopped nothing. Only the sweep a contact belongs to says
-    // whether it did: the span is the X sweep's contacts followed by the Y sweep's, and each range
-    // is judged by its own axis's blocked flag.
+    // A hit landing exactly at the end of a translation is recorded but stopped nothing, so only
+    // the sweep a contact belongs to says whether it blocked: the span is the X sweep's contacts
+    // followed by the Y sweep's, each range judged by its own axis's blocked flag.
     private void Classify(in MoveResult2D result)
     {
         IsOnFloor = false;

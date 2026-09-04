@@ -16,8 +16,8 @@ public sealed class GridCollider2DTests
         Assert.Throws<ArgumentOutOfRangeException>(() => world.AddGrid(0, 1, 1, [0], CollisionFixtures.Profiles(world)));
     }
 
-    // A cell on a layer with no face collides with nothing at all, which is a mistake rather than a
-    // way to spell an empty cell -- that is a profile on no layer.
+    // A cell on a layer with no face collides with nothing: a mistake rather than a way to spell
+    // an empty cell, which is a profile on no layer.
     [Fact]
     public void AddGrid_RefusesAProfileOnLayersWithNoFaces()
     {
@@ -69,9 +69,8 @@ public sealed class GridCollider2DTests
             out _));
     }
 
-    // A tilemap handle names a grid, not one shape standing somewhere on one layer. Every accessor
-    // that would describe it as if it were says so, rather than answering about the empty slot the
-    // grid happens to occupy.
+    // A tilemap handle names a grid, not one shape on one layer, so every per-collider accessor
+    // refuses it rather than answering about the empty slot the grid occupies.
     [Fact]
     public void ThePerColliderAccessors_RefuseAGridHandleRatherThanDescribingItsSlot()
     {
@@ -162,8 +161,8 @@ public sealed class GridCollider2DTests
         Assert.False(world.Raycast(new Vector2(0f, 20f), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
     }
 
-    // The same primitive the other way up, which is the whole point of naming faces by direction: a
-    // bottom face is what a body under reversed gravity lands on.
+    // The same primitive the other way up: a bottom face is what a body under reversed gravity
+    // lands on.
     [Fact]
     public void Raycast_CrossesABottomFaceOnlyFromBelow()
     {
@@ -206,9 +205,8 @@ public sealed class GridCollider2DTests
         Assert.Equal(new Vector2(1f, 0f), climbing.Normal);
     }
 
-    // A diagonal that reaches a cell corner dead on touches both cells that corner separates. The
-    // walk must not commit to one of them and report nothing because the face it happened to pick
-    // is the seam between the two.
+    // A diagonal reaching a cell corner dead on touches both cells it separates. The walk must not
+    // commit to one and report nothing because the face it picked is the seam between the two.
     [Theory]
     [InlineData(8f, 8f, 1f, 1f)]
     [InlineData(56f, 8f, -1f, 1f)]
@@ -248,8 +246,8 @@ public sealed class GridCollider2DTests
         Assert.Equal(0, hit.Target.CellY);
     }
 
-    // The corner probe must not invent a neighbour: with only one of the two cells solid, the
-    // answer is that cell's own exposed side.
+    // The corner probe must not invent a neighbour: with one cell solid, the answer is its own
+    // exposed side.
     [Fact]
     public void Raycast_AtACornerWithOnlyOneSolidCell_ReportsThatCellsOwnFace()
     {
@@ -262,8 +260,7 @@ public sealed class GridCollider2DTests
         Assert.Equal(new Vector2(16f, 16f), hit.Point);
     }
 
-    // A corner buried inside the terrain exposes nothing. The ray meets the outside of the block
-    // and never reports the seam beyond it.
+    // A corner buried inside the terrain exposes nothing: the ray meets the outside of the block.
     [Fact]
     public void Raycast_ReportsNothingAtACornerWhoseFacesAreAllInterior()
     {
@@ -277,9 +274,8 @@ public sealed class GridCollider2DTests
         Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
     }
 
-    // The sweep has no such blind spot to fix: it covers a band of cells rather than walking a
-    // single line through them, so the cell showing the exposed face is visited whatever the
-    // leading corner lands on. Held here so that stays true.
+    // The sweep covers a band rather than a single line, so the cell showing the exposed face is
+    // visited whatever the leading corner lands on.
     [Fact]
     public void ShapeCast_LandingItsLeadingCornerOnACellSeam_MeetsTheSurfaceRatherThanTheSeam()
     {
@@ -310,8 +306,7 @@ public sealed class GridCollider2DTests
         Assert.Equal(CollisionFixtures.Solid, world.NameOf(hit.Target.Layer));
     }
 
-    // A tilemap is a collider like any other as far as the ignore argument is concerned; the grid
-    // walks are the only broadphase that used not to consult it.
+    // A tilemap is a collider like any other as far as the ignore argument is concerned.
     [Fact]
     public void EveryVerb_PassesThroughATilemapGivenAsTheIgnoredCollider()
     {
@@ -400,9 +395,8 @@ public sealed class GridCollider2DTests
         Assert.Equal(1, world.OverlapBox(CollisionFixtures.Box(20f, 12f, 8f, 8f), CollisionFilter.Everything, contacts));
     }
 
-    // A face is a surface only from the side it faces. The contact skin is what makes the two cases
-    // separable: both boxes are within it of the plane, and only the one that has not passed through
-    // is touching anything.
+    // A face is a surface only from the side it faces. Both boxes are within the skin of the
+    // plane; only the one that has not passed through is touching anything.
     [Fact]
     public void OverlapCollider_ReportsATopFaceToAColliderAboveItAndNotToOneBelow()
     {
@@ -425,9 +419,9 @@ public sealed class GridCollider2DTests
         Assert.Equal(0, world.OverlapCollider(below, contacts));
     }
 
-    // Sidedness is read off the authored plane, so the four faces answer the same question the same
-    // way. Read off the narrowphase instead, an exact tie resolves towards -X and -Y and a box
-    // centred on the plane would be a contact for Top and Left and nothing for Bottom and Right.
+    // Sidedness is read off the authored plane, so all four faces answer alike. Read off the
+    // narrowphase, an exact tie resolves towards -X and -Y and a box centred on the plane would
+    // contact Top and Left and nothing for Bottom and Right.
     [Theory]
     [InlineData(CellFaces2D.Top, 24f, 16f, 0f, -1f)]
     [InlineData(CellFaces2D.Bottom, 24f, 32f, 0f, 1f)]
@@ -481,10 +475,9 @@ public sealed class GridCollider2DTests
                 contacts));
     }
 
-    // A face is a segment with extent, so meeting it at exactly one of its endpoints and nowhere
-    // along it is not crossing it, and the four faces have to say so alike. Each box is anchored by
-    // its lower corner flush against the plane and off the near end of the edge by its own width;
-    // the whole difference between passing through and landing is one slop of overlap along it.
+    // A face is a segment with extent, so meeting it at one endpoint and nowhere along it is not
+    // crossing it. Each box starts flush against the plane and off the near end of the edge by its
+    // own width; the difference between passing through and landing is one slop of overlap along it.
     [Theory]
     [InlineData(CellFaces2D.Top, 12f, 12f, 0f, 32f, 0f, -1f)]
     [InlineData(CellFaces2D.Bottom, 12f, 32f, 0f, -32f, 0f, 1f)]
@@ -536,9 +529,8 @@ public sealed class GridCollider2DTests
         return world;
     }
 
-    // The normal is the face's own, not the narrowphase's. A rounded shape resting past the end of
-    // a face is nearest to its endpoint, so GJK answers with the diagonal from that corner — the
-    // same divergence the sweep has, and the same answer.
+    // The normal is the face's own, not the narrowphase's: a rounded shape resting past the end of
+    // a face is nearest its endpoint, where GJK answers with the diagonal from that corner.
     [Fact]
     public void OverlapCollider_PastTheEndOfATopFace_ReportsTheFacesOwnNormal()
     {

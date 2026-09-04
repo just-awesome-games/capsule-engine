@@ -17,28 +17,20 @@ namespace Capsule.Scenes;
 /// </summary>
 public class Scene
 {
-    // One message for the scene, its entities and their components: the hazard is the same, and a
-    // game reads whichever of the three it happened to ask.
     internal const string NoSourceYet =
-        "the run's random source is not available yet; it is installed before the scene starts, so draw from OnStart on — an OnAddedToScene reached while the scene is still composing runs before it exists.";
+        "the run's random source is not available yet; it is installed before the scene starts, so draw from OnStart on.";
 
     private readonly List<Entity> _entities = [];
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
 
-    // Membership of the two queues above, which both guard against queueing the same entity twice.
-    // Scanning the queue for it made a step's worth of spawns cost the square of their number, and
-    // a game that spawns a wave at once pays that where it can least afford to.
-    //
-    // By reference, never by Equals: a scene holds entities, not values, and a game that gives two
-    // of them an equality of their own must still be able to have both. The rest of the scene
-    // already answers that way.
+    // Membership of the two queues above. By reference, never by Equals: a game may give two
+    // distinct entities an equality of their own and must still be able to hold both.
     private readonly HashSet<Entity> _pendingAddSet = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Entity> _pendingRemoveSet = new(ReferenceEqualityComparer.Instance);
 
     // Attached but not started. Starting is what lets an entity see its peers, so it waits until
-    // everything arriving with it has attached — the whole document at open, the whole drain
-    // mid-step — rather than running per attach.
+    // everything arriving with it has attached rather than running per attach.
     private readonly List<Entity> _pendingStarts = [];
 
     private readonly List<Renderer> _renderers = [];
@@ -93,26 +85,16 @@ public class Scene
     }
 
     /// <summary>
-    /// The camera, always present. A scene installs its own — a <see cref="Scenes.Camera"/>
-    /// subclass that frames itself in <see cref="Scenes.Camera.OnLateStep"/> — or moves the plain
-    /// one it is given. It opens spanning nothing unless the scene or its camera sets a span.
-    /// <para>
-    /// Installing a camera cuts to it: the incoming camera opens where it is placed rather than
-    /// sweeping in from wherever the previous one sat.
-    /// </para>
+    /// The camera, always present; it opens spanning nothing unless the scene or the camera sets a
+    /// span. Installing one cuts to it rather than sweeping from the previous centre.
     /// <para>
     /// Installed in a scene that has opened its camera, the incoming camera is notified at once —
     /// <see cref="Scenes.Camera.OnAddedToScene"/> then <see cref="Scenes.Camera.OnStart"/>, after
-    /// the outgoing camera's <see cref="Scenes.Camera.OnRemovedFromScene"/>. Installed before that
-    /// — from the scene's construction, or from an entity or component starting as the scene opens
-    /// — it becomes the camera the scene opens with, and is notified then; the camera it replaces
-    /// is notified of nothing, having never been the scene's.
-    /// </para>
-    /// <para>
-    /// A camera installed from within one of those hooks supersedes the handover that ran it, and
-    /// the scene ends up holding the innermost camera. A displaced camera is told only as much of
-    /// its own handover as had already run: nothing at all if it was still pending, a paired
-    /// arrival and departure if it had arrived.
+    /// the outgoing camera's <see cref="Scenes.Camera.OnRemovedFromScene"/>. Installed before that,
+    /// it becomes the camera the scene opens with and is notified then; the camera it replaces is
+    /// notified of nothing. A camera installed from within one of those hooks supersedes the
+    /// handover that ran it, and a displaced camera is told only as much of its own handover as had
+    /// already run.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentNullException">The camera is null; a scene always has one.</exception>
@@ -137,16 +119,11 @@ public class Scene
                 outgoing.Scene = null;
                 outgoing.OnRemovedFromScene();
 
-                // Whichever camera is current now, not the one this call arrived with: the hook
-                // may have installed another, and with no camera installed at that moment that
-                // nested write only took the handle. Installing the stale one would leave the
-                // scene naming one camera while another held the handle to it.
+                // Whichever camera is current now: the hook may have installed another, and
+                // installing the stale one would leave the scene naming a camera that has no handle.
                 Install(_camera);
             }
 
-            // The incoming camera opens where it was placed: without this it would interpolate
-            // from wherever the outgoing one had left PreviousCenter, and the swap would read as
-            // a sweep across the world.
             _camera.Retain();
         }
     }
@@ -161,19 +138,10 @@ public class Scene
     /// <summary>
     /// The run's deterministic random source: stream 0 of the seed the shell configured, the same
     /// instance for the whole run, so a scene transition neither reseeds nor rewinds it.
-    /// Engine-owned, and installed before the scene starts — randomness is discovered in
-    /// <see cref="OnStart"/>, never registered from a constructor or from an
-    /// <c>OnAddedToScene</c> that runs while the scene is still composing.
-    /// <para>
-    /// This is the default stream. A game whose domains must not move one another gives each its
-    /// own — <c>new RandomSource(Random.Seed, MyStreams.Map)</c> — so a map's draws cannot shift a
-    /// shuffle's.
-    /// </para>
+    /// Engine-owned. A domain whose draws must not move another's takes its own stream —
+    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// The scene has not started. The source is available from <see cref="OnStart"/> on, and in
-    /// <c>OnAddedToScene</c> only for what is added after the scene has started.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The scene has not started, so no source is installed yet.</exception>
     public RandomSource Random
     {
         get => _random ?? throw new InvalidOperationException(NoSourceYet);
@@ -211,17 +179,15 @@ public class Scene
     /// <summary>
     /// Adds an unowned entity, deferred to the end of the current step when necessary.
     /// <para>
-    /// A component may refuse the scene from its entry hook — a collider needing a layer name the
-    /// world has no room left to intern, or a <see cref="KinematicBody2D"/> whose collider is
-    /// attached to some other entity. That is a programmer error, and the entity is left in the
-    /// scene with the components ahead of the refusal registered and the rest not. Added during a
-    /// step, the refusal surfaces where the queue is drained at the end of the step rather than
-    /// from this call.
+    /// A component may refuse the scene from its entry hook. The entity is then left in the scene
+    /// with the components ahead of the refusal registered and the rest not; added during a step,
+    /// the refusal surfaces where the queue is drained rather than from this call.
     /// </para>
     /// </summary>
+    /// <exception cref="ArgumentNullException">The entity is null.</exception>
     /// <exception cref="InvalidOperationException">
-    /// The entity is already in a scene or already queued; or, when the add is not deferred, a
-    /// component refused the scene.
+    /// The scene has stopped, the entity is already in a scene or queued, or, when the add is not
+    /// deferred, a component refused the scene.
     /// </exception>
     public void Add(Entity entity)
     {
@@ -248,7 +214,8 @@ public class Scene
     /// Removes an entity, deferred and idempotent within the current step. One queued to join this
     /// step is accepted too: it attaches and detaches in the same drain, with symmetric hooks.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The entity is neither in this scene nor queued to join it.</exception>
+    /// <exception cref="ArgumentNullException">The entity is null.</exception>
+    /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is neither in it nor queued to join it.</exception>
     public void Remove(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -318,6 +285,7 @@ public class Scene
     /// Asks the host to shut down once the current step finishes, replacing whatever transition
     /// was already pending.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
     public void RequestExit()
     {
         ThrowIfStopped();
@@ -327,15 +295,18 @@ public class Scene
     }
 
     /// <summary>Asks the host to reconstruct this scene once the current step finishes.</summary>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
     public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));
 
     /// <summary>
     /// Asks the host to reconstruct this scene with <paramref name="payload"/> once the current
     /// step finishes.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
     public void RequestRestart(object? payload) => TryRequest(SceneTransition.Restart(payload, true));
 
     /// <summary>Asks the host to replace this scene with <typeparamref name="TScene"/>.</summary>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
     public void RequestScene<TScene>(object? payload = null)
         where TScene : Scene =>
         TryRequest(SceneTransition.ToScene(typeof(TScene), payload));
@@ -346,6 +317,8 @@ public class Scene
     /// </summary>
     /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
     /// <param name="payload">State offered to the next scene.</param>
+    /// <exception cref="ArgumentException">The name is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
     public void RequestScene(string name, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -374,8 +347,7 @@ public class Scene
 
     /// <summary>
     /// Runs after entities step and before the frame is built; use it for the scene's camera
-    /// policy — choosing a subject, ordering a cut — which the camera's own
-    /// <see cref="Scenes.Camera.OnLateStep"/> then frames.
+    /// policy, which the camera's own <see cref="Scenes.Camera.OnLateStep"/> then frames.
     /// </summary>
     protected virtual void OnLateStep(in StepContext context)
     {
@@ -399,16 +371,14 @@ public class Scene
         // can search the scene and find every other entry.
         StartPending();
 
-        // Then the camera it opens with — whichever camera those starts left in place, so one an
-        // entity installed as it started is the one notified here, and a camera that discovers its
-        // subject finds an entity that has already started.
+        // Then whichever camera those starts left in place, so a camera that discovers its subject
+        // finds an entity that has already started.
         Install(_camera);
 
         OnStart();
 
-        // Wherever OnStart left the camera is where the scene opens, not somewhere it slid in
-        // from: a scene's first frame never interpolates, and neither does the one a transition
-        // opens, since that scene is a new one starting here too.
+        // Wherever OnStart left the camera is where the scene opens: a scene's first frame never
+        // interpolates.
         Camera.Retain();
     }
 
@@ -432,8 +402,7 @@ public class Scene
         }
 
         // The camera goes first, in reverse of the order Start installed it, so it is released
-        // while the entities it framed are still here — and only if it was ever installed, since a
-        // scene whose entities failed to start never reached its camera.
+        // while the entities it framed are still here — and only if it was ever installed.
         if (ReferenceEquals(_camera.Scene, this))
         {
             try
@@ -506,8 +475,8 @@ public class Scene
 
     internal void InvalidateRenderers() => _renderersStale = true;
 
-    // Held and not on its way out. Starting is what begins time for an entity, and an entity queued
-    // for removal never steps, so it must never start either — nor start the components it holds.
+    // Held and not on its way out. An entity queued for removal never steps, so it must never
+    // start either — nor start the components it holds.
     internal bool Keeps(Entity entity) =>
         ReferenceEquals(entity.Scene, this) && !_pendingRemoveSet.Contains(entity);
 
@@ -533,8 +502,6 @@ public class Scene
         }
     }
 
-    // Between the entity pass and the late step: every position this step is going to produce
-    // has been produced, and a scene's own late-step policy already sees the settled contact set.
     internal void SettleContacts()
     {
         for (int index = 0; index < _contactReporters.Count;)
@@ -577,21 +544,17 @@ public class Scene
         }
     }
 
-    // Scene policy before the camera settles: choosing a subject or ordering a cut is what the
-    // camera then frames, so a scene that decides both in one step never lags a step behind.
     internal void RunLateStep(in StepContext context)
     {
         OnLateStep(context);
         Camera.OnLateStep(context);
     }
 
-    // Keep deferral active while lifecycle hooks grow either queue.
+    // Deferral stays active while lifecycle hooks grow either queue. A cursor over a live Count
+    // keeps the drain linear; dropping the processed prefix in a finally is what keeps an entity
+    // that refused this scene from being tried again next step.
     internal void EndStep()
     {
-        // A cursor, and the processed prefix dropped in a finally. Indexing keeps the drain linear
-        // in the queue — a hook may still grow it, and the loop re-reads Count — while dropping the
-        // prefix however the drain ended is what keeps an entity that refuses this scene from being
-        // tried again next step, and the ones attached before it from attaching twice.
         try
         {
             while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
@@ -641,6 +604,22 @@ public class Scene
         }
     }
 
+    // Membership is reference identity: a subclass may override Equals, and two distinct instances
+    // that compare equal must never stand in for each other here.
+    internal static int IndexOf<T>(List<T> items, T item)
+        where T : class
+    {
+        for (int index = 0; index < items.Count; index++)
+        {
+            if (ReferenceEquals(items[index], item))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     // Drops the processed prefix from a queue and from the set that mirrors it.
     private static void Forget(List<Entity> queue, HashSet<Entity> membership, int processed)
     {
@@ -654,8 +633,7 @@ public class Scene
 
     private void Attach(Entity entity)
     {
-        // Idempotent, because the drain hands an entity over before it knows the attach succeeds:
-        // one already here has nothing left to do.
+        // Idempotent, because the drain hands an entity over before it knows the attach succeeds.
         if (entity.Scene is not null)
         {
             return;
@@ -693,8 +671,6 @@ public class Scene
 
         try
         {
-            // A cursor over a live Count, with the processed prefix dropped however the drain
-            // ended, so an entity whose OnStart throws is not started again next drain.
             int processed = 0;
             try
             {
@@ -704,8 +680,7 @@ public class Scene
                     processed++;
 
                     // Attached and detached within the same drain, or queued for removal by a peer
-                    // that started ahead of it: it never reaches a step, so time never begins for
-                    // it.
+                    // that started ahead of it: it never reaches a step, so time never begins for it.
                     if (Keeps(pending))
                     {
                         pending.RunStart();
@@ -727,14 +702,13 @@ public class Scene
     {
         RequireUnowned(camera);
 
-        // Set before the hook, not after: a camera whose OnAddedToScene throws has entered the
-        // scene, and Stop must still release it.
+        // Set before the hook: a camera whose OnAddedToScene throws has entered the scene, and
+        // Stop must still release it.
         camera.Scene = this;
         camera.OnAddedToScene();
 
-        // The hook may have installed another camera, which released this one and installed that
-        // one in full. Starting a camera the scene has let go of would begin time for something
-        // already removed.
+        // The hook may have installed another camera, which released this one. Starting a camera
+        // the scene has let go of would begin time for something already removed.
         if (!ReferenceEquals(_camera, camera))
         {
             return;
@@ -809,20 +783,5 @@ public class Scene
         }
 
         _renderersStale = false;
-    }
-
-    // Membership is reference identity: an entity subclass may override Equals, and two
-    // distinct entities that compare equal must never stand in for each other here.
-    private static int IndexOf(List<Entity> entities, Entity entity)
-    {
-        for (int index = 0; index < entities.Count; index++)
-        {
-            if (ReferenceEquals(entities[index], entity))
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 }

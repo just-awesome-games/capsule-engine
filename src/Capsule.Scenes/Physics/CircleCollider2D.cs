@@ -19,10 +19,7 @@ public sealed class CircleCollider2D : Collider2D
 
     /// <summary>How far the circle reaches from its centre, in world units.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The radius is not finite and greater than zero.</exception>
-    /// <exception cref="ArgumentException">
-    /// The radius overflows the shape's bounds, or the circle has no place at this collider's
-    /// offset and position.
-    /// </exception>
+    /// <exception cref="ArgumentException">The radius overflows the bounds, or the circle has no place here.</exception>
     public float Radius
     {
         get => _radius;

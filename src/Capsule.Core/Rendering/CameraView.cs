@@ -4,7 +4,7 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// A world-space viewport. The renderer interpolates its centres, preserves <see cref="Size"/>'s
-/// aspect ratio, and letterboxes any slack. A non-positive size draws nothing.
+/// aspect ratio and letterboxes any slack; a non-positive size draws nothing.
 /// </summary>
 /// <param name="PreviousCenter">The centre as of the previous fixed step.</param>
 /// <param name="Center">The centre as of the current fixed step.</param>

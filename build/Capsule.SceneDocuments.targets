@@ -3,43 +3,14 @@
   <!-- Validates every scene document a game authors, re-emits it canonically under obj/, and ships
        it as content at assets/scenes. Nothing derived is committed.
 
-       A game repo's Directory.Build.targets reaches every project in the repo, so this hook is
-       inert until a project asks for scenes:
+       Inert until a project sets <CapsuleImportScenes>true</CapsuleImportScenes>; the shell role
+       sets it. One format, *.scene.json under $(CapsuleAssetSourcesDir)/scenes, keyed by its path
+       under that root without either extension. <CapsuleTileSize> imposes one tile size on every
+       grid; left unset, each scene keeps its own.
 
-         <CapsuleImportScenes>true</CapsuleImportScenes>
-
-       A shell is one by definition and needs no line. Anything else that has to read the scene
-       documents a game ships — a test project, a headless smoke binary — opts in with that
-       property, and gets the import and the content without a Capsule.Runtime reference, a window
-       or a role.
-
-       The engine wires one format: *.scene.json, found by convention under
-       $(CapsuleAssetSourcesDir)/scenes. A scene's key is its path under that root without either
-       extension, so scenes/stage-1/room-01.scene.json is keyed 'stage-1/room-01' and ships at
-       assets/scenes/stage-1/room-01.scene.json; the class claiming it is the one whose own key
-       matches.
-
-       An editor's own format enters through an authoring module — a package whose targets derive a
-       *.scene.json per source into their own obj space and add each derived document to the
-       CapsuleSceneDocument item from a target that runs
-       BeforeTargets="CapsuleCollectSceneDocuments". Those documents then take the same path as
-       hand-authored ones: validated, re-emitted, checked for a clashing key, and shipped. A
-       document that arrives with a source block keeps it. A module states the key its document
-       claims as %(CapsuleDocumentKey) — the root-relative path, forward slashes, no extensions; a
-       document that names none is keyed by its stem at the root.
-
-       A module reads Capsule's properties only inside its targets: NuGet imports a package's
-       targets in no promised order, so at evaluation time CapsuleImportScenes may not yet be what
-       the shell role makes it, while every target runs after evaluation has settled. The
-       BeforeTargets hook is resolved at execution for the same reason; a module that is imported
-       after this file may append to $(CapsuleCollectSceneDocumentsDependsOn) instead.
-
-       An importing project may declare the one tile size every scene is authored at, and a scene
-       whose grid differs then fails the build:
-
-         <CapsuleTileSize>16</CapsuleTileSize>
-
-       Left unset, no size is imposed and each scene keeps its own. -->
+       An authoring module adds its derived documents to the CapsuleSceneDocument item from a target
+       running BeforeTargets="CapsuleCollectSceneDocuments", keying each with
+       %(CapsuleDocumentKey); docs/scenes.md, under Authoring tools, states that contract whole. -->
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
     <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json">
@@ -53,8 +24,8 @@
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSceneDocumentsDependsOn)" />
 
-  <!-- Hooked into the build in its own right, not only through the import: the checks below
-       must run whether or not there is anything to import. -->
+  <!-- Hooked in its own right, not only through the import: the checks below must run whether or
+       not there is anything to import. -->
   <Target Name="CapsuleSceneDocumentsInit"
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleCollectSceneDocuments;CapsuleResolveBuildTool"
@@ -62,9 +33,7 @@
     <Error Condition="('@(CapsuleNativeScene)' != '' or '@(CapsuleSceneDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the scene importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- A source's %(Filename) is '<stem>.scene', so the extension comes off it a second time. A
-         module's document states its own key; a hand-authored one is keyed by where it sits under
-         the scenes root. -->
+    <!-- A source's %(Filename) is '<stem>.scene', so the extension comes off it a second time. -->
     <ItemGroup>
       <_CapsuleSceneSource Include="@(CapsuleNativeScene)">
         <Key>$([System.String]::Copy('%(CapsuleNativeScene.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeScene.Filename)'))</Key>
@@ -79,16 +48,13 @@
       <_CapsuleSceneNameDistinct Include="@(_CapsuleSceneName->Distinct())" />
     </ItemGroup>
 
-    <!-- A scene document ships at its key, so a repeated key would leave one document silently
-         overwriting the other — across a hand-authored document and a module's as much as within
-         one origin. Two scenes of one stem in different directories are two keys. -->
+    <!-- A scene document ships at its key, so a repeated key would silently overwrite. -->
     <Error Condition="'@(_CapsuleSceneName->Count())' != '@(_CapsuleSceneNameDistinct->Count())'"
            Text="Capsule: two scene sources share a path under the scenes root, and a scene document ships at that path. Rename one of: @(_CapsuleSceneSource, ' ')" />
 
-    <!-- The importer runs from the importing project's directory, so the derived paths are made
-         absolute rather than left relative to wherever MSBuild was launched. The out directory
-         carries no trailing separator: it is spliced into a command line, where a trailing one
-         would escape the closing quote on Windows. -->
+    <!-- Absolute, because the importer runs from the importing project's directory. The out
+         directory carries no trailing separator: spliced into a command line, one would escape the
+         closing quote on Windows. -->
     <PropertyGroup>
       <CapsuleImportProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleImportProjectDir>
       <CapsuleSceneDocumentsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleSceneDocumentsObjDir>
@@ -102,34 +68,25 @@
 
     <MakeDir Directories="$(CapsuleSceneDocumentsObjDir)" />
 
-    <!-- The declared size is an input to every scene's import, and MSBuild's incrementality is
-         file-based: without this stamp, changing CapsuleTileSize would leave documents already
-         derived under the old one up to date and unchecked. -->
+    <!-- MSBuild's incrementality is file-based, so the declared size needs a file: without this
+         stamp, changing CapsuleTileSize leaves documents derived under the old one unchecked. -->
     <WriteLinesToFile File="$(CapsuleSceneDocumentsTileSizeStamp)"
                       Lines="$(CapsuleTileSize)"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
 
-    <!-- Which source each scene document is derived from. Sources of every origin derive into one
-         directory under one naming rule: moving a scene from a module's format to a hand-authored
-         document leaves a derived file no newer source claims, and this stamp is what puts it out
-         of date so it is validated and stamped with its new provenance rather than skipped. -->
+    <!-- Which source each document came from: moving a scene between origins leaves a derived
+         file no newer source claims, and this stamp is what puts it out of date. -->
     <WriteLinesToFile File="$(CapsuleSceneDocumentsSourceStamp)"
                       Lines="@(_CapsuleSceneSource->'%(Key)=%(FullPath)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
   </Target>
 
-  <!-- Inputs/Outputs make this partially incremental: sources correlate one-to-one with the derived
-       documents, so MSBuild re-runs the target with only the stale ones in @(_CapsuleSceneSource),
-       and the whole batch goes to one process. Never one process per scene — a few hundred rooms
-       would spend most of a cold build in host startup. An empty Inputs skips the target outright,
-       which is how a project with no scenes gets no process.
-
-       The stamps and the importer's assemblies are discrete inputs, correlating with nothing:
-       touching any of them puts every scene out of date and re-derives the lot. A game consuming
-       Capsule from a sibling clone must not keep documents a changed importer would now write
-       differently, and a full re-derive is one process either way. -->
+  <!-- Partially incremental: sources correlate one-to-one with the derived documents, so only the
+       stale ones reach @(_CapsuleSceneSource), and the whole batch goes to one process rather than
+       one per scene. The stamps and the importer's assemblies correlate with nothing, so touching
+       any of them re-derives the lot. -->
   <Target Name="CapsuleImportSceneDocuments"
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleSceneDocumentsInit;ResolveProjectReferences"
@@ -140,21 +97,13 @@
            Text="Capsule: the scene importer was not built (expected '@(_CapsuleBuildTool)')." />
 
     <!-- The batch goes through a file, not the command line: Exec runs through cmd, whose
-         8191-character line limit a couple of hundred paths blow past — and the error when they
-         do names neither the limit nor a scene.
+         8191-character limit a couple of hundred paths blow past. Each line is 'key|path', the path
+         relative to the importing project, which is the provenance a hand-authored document is
+         stamped with.
 
-         Sources are named relative to the importing project, and the tool runs from there. A
-         hand-authored document is stamped with that path verbatim, so this is what decides that
-         provenance reads '../asset-sources/scenes/room.scene.json' rather than a walk out of obj/.
-
-         Each line is the key the scene claims, then '|', then that path; a key is safe path
-         segments and a path carries no '|' on any platform Capsule targets. -->
-
-    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
-
-         Conditioned on the list rather than left to batching: unqualified metadata on an empty item
-         list still evaluates the element once, with %(FullPath) empty, and MakeRelative refuses an
-         empty path. A game that authors no scenes must reach the end of this target. -->
+         Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
+         Conditioned on the list, because unqualified metadata on an empty list still evaluates once
+         with %(FullPath) empty, and MakeRelative refuses an empty path. -->
     <ItemGroup Condition="'@(_CapsuleSceneSource)' != ''">
       <_CapsuleSceneSourceArg Include="@(_CapsuleSceneSource)">
         <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
@@ -165,24 +114,22 @@
                       Lines="@(_CapsuleSceneSourceArg->'%(Key)|%(ProjectRelativePath)')"
                       Overwrite="true" />
 
-    <!-- LogStandardErrorAsError surfaces the tool's own per-source messages verbatim as build
-         errors, each already anchored to the source that failed. -->
+    <!-- LogStandardErrorAsError surfaces the tool's per-source messages verbatim, each already
+         anchored to the source that failed. -->
     <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --out &quot;$(CapsuleSceneDocumentsOutDir)&quot; $(CapsuleTileSizeArg)--scenes-from &quot;$(CapsuleSceneDocumentsBatchFile)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- Separate from the import so the content is wired on an up-to-date build too, where it is
-       skipped entirely. -->
+  <!-- Separate from the import so the content is wired on an up-to-date build too. -->
   <Target Name="CapsuleAddSceneDocumentsToOutput"
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleImportSceneDocuments"
           BeforeTargets="AssignTargetPaths">
 
-    <!-- Named in two steps on purpose: %() in the Content metadata below batches over the item
-         the Include names, so a transform there would resolve %(Key) against the source. A
-         transform carries the source's own metadata across, which is how the key survives it. -->
+    <!-- Two steps: %() in the Content metadata below batches over the item the Include names, so
+         a transform there would resolve %(Key) against the source. -->
     <ItemGroup>
       <_CapsuleDerivedScene Include="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Key).scene.json')" />
     </ItemGroup>

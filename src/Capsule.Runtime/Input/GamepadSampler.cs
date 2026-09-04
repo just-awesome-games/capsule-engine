@@ -10,9 +10,8 @@ internal static class GamepadSampler
     private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
 
     /// <summary>
-    /// <paramref name="snapshot"/> with this frame's pad buttons additionally held and its
-    /// axes set through <paramref name="filter"/>. With no pad connected the snapshot is
-    /// returned untouched, which is the same value a connected pad at rest produces.
+    /// <paramref name="snapshot"/> with this frame's pad buttons additionally held and its axes set
+    /// through <paramref name="filter"/>. With no pad connected it is returned untouched.
     /// </summary>
     internal static DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
     {
@@ -57,8 +56,8 @@ internal static class GamepadSampler
             .WithAxis(PadAxis.RightTrigger, rightPull);
     }
 
-    // GamePadDeadZone.None: the backend's own filtering would apply a second, differently
-    // shaped deadzone under the one PadFilter applies.
+    // GamePadDeadZone.None: the backend's own filtering would apply a second, differently shaped
+    // deadzone under PadFilter's.
     private static GamePadState FirstConnected()
     {
         for (PlayerIndex player = PlayerIndex.One; player <= PlayerIndex.Four; player++)
@@ -73,8 +72,8 @@ internal static class GamepadSampler
         return default;
     }
 
-    // Buttons without an XNA constant are absent from the lookup, so IsButtonDown is never
-    // handed an empty flag set — which every state reports as down.
+    // Buttons without an XNA constant are absent from the lookup, so IsButtonDown is never handed
+    // an empty flag set — which every state reports as down.
     private static (PadButton, Buttons)[] BuildLookup()
     {
         List<(PadButton, Buttons)> mappings = [];
@@ -93,8 +92,7 @@ internal static class GamepadSampler
 #pragma warning disable CS8524 // PadButton has no unnamed values; only a cast can produce one.
     private static Buttons? ToXna(PadButton button) => button switch
     {
-        // None is never a snapshot member; the triggers are derived from the filtered pull,
-        // whose deadzone is Capsule's press threshold rather than the backend's.
+        // None is never a snapshot member; the triggers derive from the filtered pull instead.
         PadButton.None => null,
         PadButton.LeftTrigger => null,
         PadButton.RightTrigger => null,

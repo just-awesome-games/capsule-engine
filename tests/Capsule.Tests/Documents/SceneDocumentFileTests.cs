@@ -45,8 +45,7 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("the scene document has no entities", error.Message, StringComparison.Ordinal);
     }
 
-    // A tile map is one entry among the rest, so a scene of entities alone is an ordinary document
-    // and an empty list is an empty scene.
+    // A tile map is one entry among the rest, so a scene of entities alone is an ordinary document.
     [Fact]
     public void ADocumentWithNoTileMapEntry_ParsesAndRoundTripsByteForByte()
     {
@@ -123,28 +122,6 @@ public sealed class SceneDocumentFileTests
         Assert.NotNull(document.Entries[1].TileMap);
     }
 
-    // Properties are a contract per entry type, not a bag the reader sets by name, so a type with
-    // no contract carrying them is a mistake rather than data the engine would silently drop.
-    [Fact]
-    public void Parse_RejectsPropertiesOnATypeThatDeclaresNoContract()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
-                entities: """
-                    ,
-                        {
-                          "id": 2,
-                          "type": "coin",
-                          "x": 8,
-                          "y": 0,
-                          "properties": { "value": 5 }
-                        }
-                    """,
-                nextEntityId: 3)));
-
-        Assert.Contains("the type 'coin' has no properties contract", error.Message, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
     [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
@@ -181,40 +158,19 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("tileSize must be positive", error.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Parse_RejectsAGridWithNoTileTypes()
+    [Theory]
+    [InlineData("null", "[0, 1]", "the 'tile-map' entry's grid has no tileTypes")]
+    [InlineData(null, "null", "the 'tile-map' entry's grid has no tiles")]
+    [InlineData("""[{"type": "empty"}, null]""", "[0, 1]", "tileTypes[1] is null")]
+    [InlineData(null, "[0, 7]", "tiles[1] is 7")]
+    // A palette field the format does not define, which is what a typo looks like.
+    [InlineData("""[{"type": "empty"}, {"type": "ground", "sprite": "wall.png"}]""", "[0, 1]", "the 'tile-map' entry's properties are not")]
+    public void Parse_RefusesAMalformedGridWithTheDefectNamed(string? tileTypes, string tiles, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileTypes: "null")));
+            () => SceneDocumentFile.Parse(DocumentText(tileTypes: tileTypes, tiles: tiles)));
 
-        Assert.Contains("the 'tile-map' entry's grid has no tileTypes", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsAGridWithNoTiles()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tiles: "null")));
-
-        Assert.Contains("the 'tile-map' entry's grid has no tiles", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsANullPaletteEntry()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileTypes: """[{"type": "empty"}, null]""")));
-
-        Assert.Contains("tileTypes[1] is null", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsATileWithNoTileType()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tiles: "[0, 7]")));
-
-        Assert.Contains("tiles[1] is 7", error.Message, StringComparison.Ordinal);
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -310,8 +266,7 @@ public sealed class SceneDocumentFileTests
         Assert.Equal(json, SceneDocumentFile.ToJson(round));
     }
 
-    // Asked of the field's presence: a 0 read as an absent columns would parse and then be written
-    // back without the field, so the document would not survive its own round trip.
+    // Asked of the field's presence: a 0 read as absent would be written back without the field.
     [Theory]
     [InlineData(0)]
     [InlineData(4)]
@@ -327,9 +282,7 @@ public sealed class SceneDocumentFileTests
         Assert.Contains("declares columns but no texture", error.Message, StringComparison.Ordinal);
     }
 
-    // The name is one asset's path under the textures root: '/'-joined segments, none of them empty
-    // or relative, ending in a stem and an extension. The two spellings differ only for the
-    // separator JSON itself escapes.
+    // The two spellings differ only for the separator JSON itself escapes.
     [Theory]
     [InlineData("tiles", "tiles")]
     [InlineData("tiles.", "tiles.")]
@@ -363,45 +316,31 @@ public sealed class SceneDocumentFileTests
             SceneDocumentFile.Parse(json).Entries[0].TileMap!.Value.Grid.Texture);
     }
 
-    [Fact]
-    public void Parse_RejectsDuplicateEntityIds()
+    // Ids share one space with the tile-map entry's, and nextEntityId is the next one to hand out.
+    // An entry with no position would otherwise be placed at the origin, which is a position the
+    // file never stated. An untyped entry would reach the entity registry as "", failing at boot
+    // naming nothing an author could act on. Properties are a contract per entry type, never a bag
+    // the reader sets by name.
+    [Theory]
+    [InlineData(Coin + Coin, 3, "appears more than once")]
+    [InlineData(""",{"id": 1, "type": "coin", "x": 8, "y": 0}""", 2, "entity id 1 appears more than once")]
+    [InlineData(Coin, 2, "entity id 2 is not below nextEntityId 2")]
+    [InlineData("", 1, "entity id 1 is not below nextEntityId 1")]
+    [InlineData(", null", 2, "entities[1] is null")]
+    [InlineData(""",{"id": 2, "type": "coin", "y": 0}""", 3, "entities[1] has no x")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8}""", 3, "entities[1] has no y")]
+    [InlineData(""",{"id": 2, "x": 8, "y": 0}""", 3, "entity id 2 has no type")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"value": 5}}""", 3, "the type 'coin' has no properties contract")]
+    public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, int nextEntityId, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities: Coin + Coin, nextEntityId: 3)));
+            () => SceneDocumentFile.Parse(DocumentText(entities: entities, nextEntityId: nextEntityId)));
 
-        Assert.Contains("appears more than once", error.Message, StringComparison.Ordinal);
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 
-    // The terrain's id shares the one id space, so a placement cannot quietly reuse it.
-    [Fact]
-    public void Parse_RejectsAnEntityIdTheTileMapEntryAlreadyHolds()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
-                entities: """
-                    ,
-                        {
-                          "id": 1,
-                          "type": "coin",
-                          "x": 8,
-                          "y": 0
-                        }
-                    """)));
-
-        Assert.Contains("entity id 1 appears more than once", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsAnEntityIdThatNextEntityIdWouldHandOutAgain()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities: Coin)));
-
-        Assert.Contains("entity id 2 is not below nextEntityId 2", error.Message, StringComparison.Ordinal);
-    }
-
-    // The terrain entry draws its id from the same space as the placements. Without one it sits at
-    // 0, which no other entry is ever checked against, so a later placement could alias it.
+    // The tile-map entry draws its id from that same space. Without one it sits at 0, which no
+    // other entry is checked against, so a later placement could alias it.
     [Fact]
     public void Parse_RejectsATileMapEntryWithNoId()
     {
@@ -413,57 +352,6 @@ public sealed class SceneDocumentFileTests
                 """));
 
         Assert.Contains("the 'tile-map' entry has no id", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsATileMapEntryIdThatNextEntityIdWouldHandOutAgain()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(nextEntityId: 1)));
-
-        Assert.Contains("entity id 1 is not below nextEntityId 1", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Parse_RejectsANullEntry()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities: ", null")));
-
-        Assert.Contains("entities[1] is null", error.Message, StringComparison.Ordinal);
-    }
-
-    // An entry with no position would otherwise be placed at the origin, which is a position the
-    // file never stated and the terrain entry is required to be at.
-    [Theory]
-    [InlineData("""{"id": 2, "type": "coin", "y": 0}""", "x")]
-    [InlineData("""{"id": 2, "type": "coin", "x": 8}""", "y")]
-    public void Parse_RejectsAnEntryWithNoPosition(string entry, string missing)
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities: $",{entry}", nextEntityId: 3)));
-
-        Assert.Contains($"entities[1] has no {missing}", error.Message, StringComparison.Ordinal);
-    }
-
-    // An untyped entry reaches the entity registry as "", which fails at boot naming nothing an
-    // author could act on; the document is where the defect is, so it is refused there.
-    [Fact]
-    public void Parse_RejectsAnEntryWithNoType()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
-                entities: """
-                    ,
-                        {
-                          "id": 2,
-                          "x": 8,
-                          "y": 0
-                        }
-                    """,
-                nextEntityId: 3)));
-
-        Assert.Contains("entity id 2 has no type", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -489,13 +377,6 @@ public sealed class SceneDocumentFileTests
     public void Parse_RejectsAFieldTheFormatDoesNotDefine()
     {
         Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentFile.Parse(DocumentText(extra: ""","spawn": [0, 0]""")));
-    }
-
-    [Fact]
-    public void Parse_RejectsAPaletteEntryFieldTheFormatDoesNotDefine()
-    {
-        Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileTypes: """[{"type": "empty"}, {"type": "ground", "sprite": "wall.png"}]""")));
     }
 
     [Fact]
@@ -639,7 +520,7 @@ public sealed class SceneDocumentFileTests
         SceneDocument round = SceneDocumentFile.Parse(json);
 
         Assert.Contains("\"scale\": [\n        2,\n        3\n      ]", json, StringComparison.Ordinal);
-        Assert.Equal(1, CountOf(json, "\"scale\""));
+        Assert.Equal(1, json.Split("\"scale\"").Length - 1);
         Assert.Equal(document.Entries[0].Entity, round.Entries[0].Entity);
         Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleX);
         Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleY);
@@ -670,39 +551,20 @@ public sealed class SceneDocumentFileTests
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 
-    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale here
-    // would be a factor the engine writes back and then ignores.
-    [Fact]
-    public void Parse_RejectsAScaleOnTheTileMapEntry()
+    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale here would
+    // be a factor the engine writes back and then ignores. Asked of the field's presence rather than
+    // its value: on value alone a null scale would parse and be written back without the field.
+    [Theory]
+    [InlineData("\"scale\": [2, 2],")]
+    [InlineData("\"scale\": null,")]
+    public void Parse_RejectsAScaleOnTheTileMapEntry(string scale)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(extra: "", scale: "\"scale\": [2, 2],")));
+            () => SceneDocumentFile.Parse(DocumentText(scale: scale)));
 
         Assert.Contains("anchored and unscaled", error.Message, StringComparison.Ordinal);
     }
 
-    // Asked of the field's presence rather than its value: a null scale reads as the absent one, so
-    // on value alone the entry would parse and then be written back without the field it declared.
-    [Fact]
-    public void Parse_RejectsANullScaleOnTheTileMapEntry()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(extra: "", scale: "\"scale\": null,")));
-
-        Assert.Contains("anchored and unscaled", error.Message, StringComparison.Ordinal);
-    }
-
-    private static int CountOf(string json, string needle)
-    {
-        int count = 0;
-        for (int at = json.IndexOf(needle, StringComparison.Ordinal); at >= 0;
-            at = json.IndexOf(needle, at + needle.Length, StringComparison.Ordinal))
-        {
-            count++;
-        }
-
-        return count;
-    }
 
     private static TileMapPlacement Terrain() =>
         new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4));

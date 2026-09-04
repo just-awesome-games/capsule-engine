@@ -1,15 +1,12 @@
 <Project>
 
-  <!-- Loads Capsule's compiler plug-ins (registry generators and game-boundary analyzer, one assembly)
-       into any project declaring a Capsule role. A project declares CapsuleGameLogic or CapsuleGameShell
-       once; every generator and analyzer arrives through here. The Exists() condition selects the source
-       clone; a package consumer receives the same assembly from analyzers/dotnet/cs/ without this reference.
-       Paths use forward slashes for Linux. -->
+  <!-- Loads Capsule's compiler plug-ins (registry generators and game-boundary analyzer, one
+       assembly) into any project declaring a Capsule role. The Exists() condition selects the source
+       clone; a package consumer receives the same assembly from analyzers/dotnet/cs/. -->
 
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
-    <!-- The generator rides the game's own restore and build graph, the way the scene importer
-         does. An analyzer is loaded by the compiler and never shipped, so nothing here reaches
-         the game's output or its publish set. -->
+    <!-- The generator rides the game's own restore and build graph. An analyzer is loaded by the
+         compiler and never shipped, so nothing here reaches the game's output. -->
     <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj"
                       Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj')"
                       OutputItemType="Analyzer"
@@ -17,8 +14,7 @@
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all" />
 
-    <!-- The generator reads the declared role for itself; these conditions only decide whether it
-         is loaded at all. -->
+    <!-- The generator reads the declared role for itself; this only decides whether it loads. -->
     <CompilerVisibleProperty Include="CapsuleGameLogic" />
     <CompilerVisibleProperty Include="CapsuleGameShell" />
 

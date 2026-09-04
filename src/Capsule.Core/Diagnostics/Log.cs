@@ -19,14 +19,14 @@ public enum LogLevel
 }
 
 /// <summary>
-/// Where log lines go. The host installs one before the simulation runs; a game never implements
-/// this except to capture output in its own tests.
+/// Where log lines go. The host installs one before the simulation runs; a game implements it only
+/// to capture output in its own tests.
 /// </summary>
 public interface ILogSink
 {
     /// <summary>
-    /// Writes one line. Called on the simulation thread, synchronously. A sink is expected not to
-    /// throw: one that does is detached, and everything it would have received afterwards is lost.
+    /// Writes one line, on the simulation thread and synchronously. A sink that throws is detached,
+    /// and everything it would have received afterwards is lost.
     /// </summary>
     /// <param name="level">How much attention the line is asking for.</param>
     /// <param name="message">The line, already formatted; never null.</param>
@@ -34,14 +34,9 @@ public interface ILogSink
 }
 
 /// <summary>
-/// How game logic says something out loud. Write-only telemetry: nothing here reads back, so a game
-/// cannot branch on how the host configured logging, and a run with a sink installed produces the
-/// same state transitions as a run without one. Logging never weakens the determinism contract.
-/// <para>
-/// That holds even of a sink that misbehaves. A sink is expected not to throw, and one that does is
-/// detached rather than allowed to end the step: the exception reaches nobody, the line is lost,
-/// and so is everything that sink would have received afterwards.
-/// </para>
+/// How game logic says something out loud. Write-only telemetry: nothing reads back, so a run with
+/// a sink installed reaches the same state as a run without one. A sink that throws is detached
+/// rather than allowed to end the step; its line and everything after it are lost.
 /// <para>
 /// Silent until a sink is installed, which the runtime does at boot; a headless harness installs
 /// its own or leaves it silent.
@@ -49,18 +44,16 @@ public interface ILogSink
 /// </summary>
 public static class Log
 {
-    // Installing is the whole of the public contract, and nothing reads it back: a reader would let
-    // a game reach past the containment below and call a sink directly, and a presence query would
-    // let one branch on how the host was configured.
+    // Private: a reader would let a game call a sink directly, past the containment below, and a
+    // presence query would let one branch on how the host was configured.
     private static ILogSink? Sink { get; set; }
 
     /// <summary>Installs <paramref name="sink"/>, replacing whatever was there; null silences logging.</summary>
     public static void UseSink(ILogSink? sink) => Sink = sink;
 
     /// <summary>
-    /// Writes one line of detail for whoever is working on the code. The call and the expression
-    /// that builds its message are both compiled out of a Release build of the assembly the call
-    /// site is in, so a game pays nothing for one it ships without.
+    /// Writes one line of detail for whoever is working on the code. The call and its message
+    /// expression are both compiled out of a Release build of the calling assembly.
     /// </summary>
     [Conditional("DEBUG")]
     public static void Debug(string? message) => Write(LogLevel.Debug, message);
@@ -90,11 +83,8 @@ public static class Log
         }
         catch
         {
-            // Telemetry does not get to decide whether a step completes, which is the whole of the
-            // claim above: a run with a sink has to reach the same state as a run without one, and
-            // a sink that threw through here would end the step instead. Dropped rather than left
-            // installed, because a sink that failed once fails on every line after it and the throw
-            // would only be contained again and again.
+            // Telemetry does not get to decide whether a step completes. Dropped rather than left
+            // installed: a sink that failed once fails on every line after it.
             if (ReferenceEquals(Sink, sink))
             {
                 Sink = null;

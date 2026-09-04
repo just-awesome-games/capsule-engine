@@ -2,8 +2,8 @@ namespace Capsule.Scenes.Spawning;
 
 /// <summary>
 /// Overrides the <see cref="EntitySpawn.Type"/> an entity class derives from where it is declared.
-/// The value is a whole key — one or more '/'-joined segments of ASCII letters, digits, hyphens and
-/// underscores, none of them a reserved Windows device name (<c>nul</c>, <c>con</c>, ...).
+/// The value is a whole key — '/'-joined segments of ASCII letters, digits, hyphens and
+/// underscores, none of them a reserved Windows device name.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class SpawnTypeAttribute : Attribute

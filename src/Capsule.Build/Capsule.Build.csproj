@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
   <!-- The package and the process at once. JAG.Capsule.Build ships the build targets, the
-       generators and this assembly, which is the document process those targets run out of
-       process: it validates and canonically re-emits every *.scene.json a game ships, and turns
-       every *.sheet.json into the game's generated sprite registry. No game references it and
-       nothing invokes it by hand, so it packs unlisted under tools/ with no reference assembly. -->
+       generators and this assembly — the document process those targets run out of process. No game
+       references it, so it packs unlisted under tools/ with no reference assembly. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -17,21 +15,25 @@
     <IncludeSymbols>false</IncludeSymbols>
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- Local, never global, together with TreatAsLocalProperty on the Project element: a
-         consumer's NativeAOT publish reaches this project twice — the build, where the
-         ProjectReference strips these properties, and NuGet's restore walk, which strips nothing.
-         Without the guard the restore evaluates this project for the publish's runtime and fails
-         (NETSDK1207 on the netstandard2.0 generator). -->
+    <!-- Local, never global, with TreatAsLocalProperty on the Project element: NuGet's restore
+         walk strips nothing, so without the guard it evaluates this project for a consumer's
+         NativeAOT publish runtime and fails (NETSDK1207 on the netstandard2.0 generator). -->
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier></RuntimeIdentifier>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsuleBuildAssets</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
-  <!-- The keyed import overloads and the source list they take are the process's own shape, which
-       only the batch entry point and its specs use. -->
+  <!-- Nothing here is a reference; the specs are the only outside caller. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The identifier rule, compiled rather than referenced: the generator ships as an analyzer,
+         and a second copy would let the sheet registry and the asset registry name a file
+         differently. -->
+    <Compile Include="../Capsule.Generators/TypeNaming.cs" Link="Sprites/TypeNaming.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,13 +50,13 @@
     <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />
     <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
-         pair whether a game builds against the packages or an engine clone. -->
+         pair from a package or an engine clone. -->
     <None Include="../../build/Icon.ico" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Icon.bmp" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 
-  <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and
-       its spine, and those ship beside it so it resolves without a game's package graph. -->
+  <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and its
+       spine, which must ship beside it. -->
   <Target Name="IncludeCapsuleBuildAssets">
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(OutDir)*.dll" PackagePath="tools/net10.0/any/" />

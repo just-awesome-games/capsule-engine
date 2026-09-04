@@ -3,38 +3,31 @@ using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 
-// Where a handle's file has to be, and what boot says when it is not there. The decode itself
-// needs a graphics device; the path contract does not, and it is the half a game gets wrong.
+// Where a handle's file has to be, and what boot says when it is not there. The decode needs a
+// graphics device; the path contract does not.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
 
     private static readonly TextureHandle Tiles = new("tiles", ".png");
 
-    [Fact]
-    public void AHandle_NamesItsFileUnderTheTexturesDomain()
+    // A handle's name is the source's path under the textures root, so a nested asset resolves to
+    // a nested file — with the format's separator, whatever the platform's is.
+    [Theory]
+    [InlineData("hero", "assets/textures/hero.png")]
+    [InlineData("enemies/bat", "assets/textures/enemies/bat.png")]
+    public void AHandle_NamesItsFileUnderTheTexturesDomain(string name, string expected)
     {
-        Assert.Equal("assets/textures/hero.png", TextureFiles.RelativePathOf(Hero));
+        Assert.Equal(expected, TextureFiles.RelativePathOf(new TextureHandle(name, ".png")));
     }
 
-    // A handle's name is the source's path under the textures root, so a nested asset resolves to a
-    // nested file — with the format's separator, whatever the platform's is.
     [Fact]
-    public void ANestedHandle_NamesItsFileUnderTheDirectoryItWasAuthoredIn()
+    public void Locate_FindsAShippedTextureUnderTheDirectoryItWasAuthoredIn()
     {
         TextureHandle bat = new("enemies/bat", ".png");
         using Shipped shipped = new(bat);
 
-        Assert.Equal("assets/textures/enemies/bat.png", TextureFiles.RelativePathOf(bat));
         Assert.Equal(shipped.Path, TextureFiles.Locate(shipped.BaseDirectory, bat));
-    }
-
-    [Fact]
-    public void Locate_FindsAShippedTexture()
-    {
-        using Shipped shipped = new(Hero);
-
-        Assert.Equal(shipped.Path, TextureFiles.Locate(shipped.BaseDirectory, Hero));
     }
 
     [Fact]

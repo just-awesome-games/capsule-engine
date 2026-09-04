@@ -3,9 +3,8 @@ using Capsule.Collision;
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
-/// How a tile type's collidable sides are spelled in a scene document, and in the authoring formats
-/// that derive one. Named by grid direction in a Y-down world, so <see cref="Top"/> is the side a
-/// falling body lands on. An absent list means every side.
+/// How a tile type's collidable sides are spelled in a scene document. Named by grid direction in a
+/// Y-down world, so <see cref="Top"/> is the side a falling body lands on; an absent list is all.
 /// </summary>
 public static class TileFaceNames
 {
@@ -48,8 +47,8 @@ public static class TileFaceNames
     }
 
     /// <summary>
-    /// How <paramref name="faces"/> is written, in the order of <see cref="All"/>, or null for
-    /// <see cref="CellFaces2D.All"/> — which is the absent list.
+    /// How <paramref name="faces"/> is written, in <see cref="All"/> order, or null for
+    /// <see cref="CellFaces2D.All"/>, which is the absent list.
     /// </summary>
     public static string[]? Format(CellFaces2D faces)
     {

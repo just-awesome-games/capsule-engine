@@ -3,9 +3,8 @@ namespace Capsule.Collision;
 /// <summary>
 /// Identifies one collider in one <see cref="CollisionWorld2D"/>. Handles are not reused: a slot
 /// refilled after a removal hands out a handle that no longer equals the old one, so a stale
-/// handle reads as absent rather than as somebody else. A handle also carries the world that
-/// issued it, so one world's handle never names a collider in another — every world API rejects a
-/// foreign handle rather than acting on whatever sits at that index.
+/// handle reads as absent. A handle carries the world that issued it, and every world API rejects
+/// a foreign handle.
 /// </summary>
 public readonly struct ColliderHandle : IEquatable<ColliderHandle>
 {

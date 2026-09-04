@@ -67,8 +67,7 @@ public sealed class CollisionQueryTests
         Assert.Equal(2, world.RaycastAll(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, narrow));
     }
 
-    // The span is a budget, not a race: whichever hits the traversal happens to meet first, the
-    // ones that survive are the nearest ones.
+    // The span is a budget, not a race: the hits that survive are the nearest ones.
     [Fact]
     public void RaycastAll_KeepsTheNearestHitsWhenTheSpanCannotHoldThemAll()
     {
@@ -156,9 +155,8 @@ public sealed class CollisionQueryTests
         Assert.Equal(CollisionFilter.None, second.FilterOf(handle));
     }
 
-    // One NaN bound in the tree does not stay in its own proxy: the tree unions boxes as it
-    // balances, so it would spread to ancestors shared with colliders that have nothing to do with
-    // it. Nothing non-finite is allowed to reach a proxy in the first place.
+    // One NaN bound does not stay in its own proxy: the tree unions boxes as it balances, so it
+    // would spread to ancestors shared with unrelated colliders.
     [Fact]
     public void EveryTransformSeam_RefusesANonFiniteValueAndLeavesTheWorldQueryable()
     {
@@ -226,8 +224,8 @@ public sealed class CollisionQueryTests
         Assert.Equal(bystander, contacts[0].Target.Collider);
     }
 
-    // A handle to a removed collider carries an index the world has since handed to somebody else,
-    // so honouring it as an ignore would silence an unrelated collider.
+    // A removed collider's handle carries an index since handed to somebody else, so honouring it
+    // as an ignore would silence an unrelated collider.
     [Fact]
     public void EveryQueryVerb_RefusesAStaleIgnoreRatherThanSuppressingWhateverTookItsSlot()
     {
@@ -441,67 +439,49 @@ public sealed class CollisionQueryTests
     }
 
     [Fact]
-    public void Overlap_GridCellContactPrecedesColliderContact()
+    public void Overlap_WritesTheGridCellBeforeTheColliderItAlsoTouches()
     {
         CollisionWorld2D world = new();
-        CollisionLayer item = world.Layer("item");
-
-        // Add a grid cell at (0,0)
         CollisionFixtures.Paint(world, "#");
-
-        // Add a collider that overlaps the same cell
-        world.Add(Shape2D.Box(new Vector2(4f, 4f), new Vector2(4f, 4f)), Vector2.Zero, item, CollisionFilter.None);
-
-        Span<Contact2D> contacts = stackalloc Contact2D[4];
-        int count = world.Overlap(Shape2D.Box(new Vector2(4f, 4f), new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Everything, contacts);
-
-        Assert.True(count >= 2);
-        Assert.True(contacts[0].Target.IsGridCell, "First contact should target grid cell");
-        Assert.False(contacts[1].Target.IsGridCell, "Later contact should target collider");
-    }
-
-    [Fact]
-    public void RaycastAll_GridCellHitPrecedesColliderHitAtSameDistance()
-    {
-        CollisionWorld2D world = new();
-
-        // Add a grid with a solid cell at (0, 0) that is 8 units on each side
-        CollisionFixtures.Paint(world, "#");
-
-        // Add colliders at the exact same ray distance
-        // Grid cell at (0,0) has walls at distance 0 on left side
-        world.Add(
-            Shape2D.Box(new Vector2(0f, 4f), new Vector2(1f, 8f)),
+        ColliderHandle item = world.Add(
+            Shape2D.Box(new Vector2(4f, 4f), new Vector2(4f, 4f)),
             Vector2.Zero,
             world.Layer("item"),
             CollisionFilter.None);
-        world.Add(
-            Shape2D.Box(new Vector2(1f, 4f), new Vector2(1f, 8f)),
+
+        Span<Contact2D> contacts = stackalloc Contact2D[4];
+        int count = world.Overlap(
+            Shape2D.Box(new Vector2(4f, 4f), new Vector2(8f, 8f)),
             Vector2.Zero,
-            world.Layer("item2"),
-            CollisionFilter.None);
+            CollisionFilter.Everything,
+            contacts);
+
+        Assert.Equal(2, count);
+        Assert.True(contacts[0].Target.IsGridCell);
+        Assert.Equal((0, 0), (contacts[0].Target.CellX, contacts[0].Target.CellY));
+        Assert.Equal(item, contacts[1].Target.Collider);
+    }
+
+    // The tie-break at one distance is total: tiles before colliders, then by slot.
+    [Fact]
+    public void RaycastAll_WritesTheGridCellBeforeCollidersAtTheSameDistance()
+    {
+        CollisionWorld2D world = new();
+        GridCollider2D terrain = CollisionFixtures.Paint(world, "#");
+        CollisionLayer item = world.Layer("item");
+
+        // Both start on the grid's own left face at x = 0, so all three hits are at distance 4.
+        ColliderHandle first = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(1f, 8f)), Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(2f, 8f)), Vector2.Zero, item, CollisionFilter.None);
 
         Span<RayHit2D> hits = stackalloc RayHit2D[4];
         int count = world.RaycastAll(new Vector2(-4f, 4f), Vector2.UnitX, 20f, CollisionFilter.Everything, hits);
 
-        Assert.True(count >= 2);
-
-        // Find grid cell hit and first collider hit
-        int gridIndex = -1;
-        int colliderIndex = -1;
-        for (int i = 0; i < count; i++)
-        {
-            if (hits[i].Target.IsGridCell && gridIndex == -1)
-            {
-                gridIndex = i;
-            }
-            else if (!hits[i].Target.IsGridCell && colliderIndex == -1)
-            {
-                colliderIndex = i;
-            }
-        }
-
-        Assert.True(gridIndex >= 0, "Should have grid cell hit");
-        Assert.True(colliderIndex > gridIndex, "Collider hit should come after grid cell hit");
+        Assert.Equal(3, count);
+        Assert.All(hits[..count].ToArray(), hit => Assert.Equal(4f, hit.Distance, 3));
+        Assert.Equal(terrain.Handle, hits[0].Target.Collider);
+        Assert.True(hits[0].Target.IsGridCell);
+        Assert.Equal(first, hits[1].Target.Collider);
+        Assert.Equal(second, hits[2].Target.Collider);
     }
 }

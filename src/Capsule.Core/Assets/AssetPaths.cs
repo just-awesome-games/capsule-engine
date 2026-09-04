@@ -1,16 +1,12 @@
 namespace Capsule.Assets;
 
-// The two spellings the build's own tree is named by, in one place so nothing accepts what
-// something else would reject:
+// The two spellings the build's own tree is named by:
 //
-//   a path — an asset's place under its domain root, extension included: "enemies/bat.png", or
-//   "tiles.png" for a file at the root, which is how a document names a texture;
+//   a path — an asset's place under its domain root, extension included: "enemies/bat.png";
+//   a key — a document's place under its root, without extensions: "stage-1/room-01".
 //
-//   a key — a document's place under its root, without extensions: "stage-1/room-01", which is
-//   what a scene or sheet source claims and what its derived file is written at.
-//
-// Neither can reach outside the directory the build owns. Capsule.Generators holds the only other
-// copy of the key rule, since a source generator references no engine assembly.
+// Neither can reach outside the directory the build owns. Compiled into Capsule.Generators as well,
+// which references no engine assembly, so nothing here may use a type netstandard2.0 lacks.
 internal static class AssetPaths
 {
     // Windows resolves these as devices from any directory, matching on the stem before the first
@@ -22,7 +18,7 @@ internal static class AssetPaths
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
 
-    // A key is the path a file is written at, so its segments are the characters a file name
+    // A key is the path a file is written at, so its segments carry the characters a file name
     // carries on every platform Capsule targets and nothing else.
     internal static bool IsKey(string key)
     {
@@ -32,12 +28,12 @@ internal static class AssetPaths
         }
 
         int start = 0;
-        while (start <= key.Length)
+        while (true)
         {
             int slash = key.IndexOf('/', start);
             int end = slash < 0 ? key.Length : slash;
 
-            if (end == start || IsReservedDeviceName(key.AsSpan(start, end - start)))
+            if (end == start || IsReservedDeviceName(key.Substring(start, end - start)))
             {
                 return false;
             }
@@ -62,15 +58,13 @@ internal static class AssetPaths
 
             start = slash + 1;
         }
-
-        return true;
     }
 
-    internal static bool IsReservedDeviceName(ReadOnlySpan<char> stem)
+    internal static bool IsReservedDeviceName(string stem)
     {
         foreach (string reserved in ReservedDeviceNames)
         {
-            if (stem.Equals(reserved, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(stem, reserved, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -79,8 +73,8 @@ internal static class AssetPaths
         return false;
     }
 
-    // Split on the last dot rather than matched against a known extension: the handle carries
-    // whatever the build shipped, and which extensions a domain admits is the build's allow-list.
+    // Split on the last dot rather than matched against a known extension: which extensions a
+    // domain admits is the build's allow-list, not this rule's.
     internal static bool TrySplit(string path, out string name, out string extension)
     {
         name = string.Empty;
@@ -98,15 +92,14 @@ internal static class AssetPaths
             return false;
         }
 
-        name = path[..dot];
-        extension = path[dot..];
+        name = path.Substring(0, dot);
+        extension = path.Substring(dot);
 
         return true;
     }
 
-    // The exact inverse of the split, which is what makes a written name give its handle back
-    // unchanged. A name carrying dots of its own is fine: "x.atlas" and ".png" write "x.atlas.png"
-    // and split apart again at the last one.
+    // The exact inverse of the split, so a written name gives its handle back unchanged. A name
+    // carrying dots of its own is fine: "x.atlas" and ".png" split apart again at the last one.
     internal static bool Joins(string name, string extension) =>
         extension is { Length: > 1 }
         && extension[0] == '.'
@@ -117,8 +110,7 @@ internal static class AssetPaths
         && name.LastIndexOf('/') < name.Length - 1;
 
     // Forward slashes only, and every segment names something: a backslash, an empty segment, or a
-    // '.' or '..' segment would reach outside the directory the build ships into, or name nothing
-    // at all.
+    // '.' or '..' segment would reach outside the directory the build ships into.
     private static bool IsPath(string value)
     {
         if (value.Length == 0 || value.IndexOf('\\') >= 0)
@@ -127,7 +119,7 @@ internal static class AssetPaths
         }
 
         int start = 0;
-        while (start <= value.Length)
+        while (true)
         {
             int slash = value.IndexOf('/', start);
             int end = slash < 0 ? value.Length : slash;
@@ -147,7 +139,5 @@ internal static class AssetPaths
 
             start = slash + 1;
         }
-
-        return true;
     }
 }

@@ -1,8 +1,6 @@
 namespace Capsule.Scenes.Documents;
 
-/// <summary>
-/// A scene document is malformed. The message states the defect and, where one exists, the fix.
-/// </summary>
+/// <summary>A scene document is malformed. The message states the defect and, where one exists, the fix.</summary>
 public sealed class SceneDocumentFormatException : Exception
 {
     /// <summary>Creates the exception with the runtime's own default message.</summary>

@@ -5,15 +5,11 @@ namespace Capsule.Collision;
 /// from names at setup — <see cref="CollisionWorld2D.Filter(System.ReadOnlySpan{string})"/> — and
 /// read as a mask afterwards, so matching costs one bit test.
 /// <para>
-/// A filter built from layers belongs to the world that interned them, because a bit means nothing
-/// without the table it indexes. Mixing two worlds' layers or filters, and testing a filter against
-/// a layer from elsewhere, throw <see cref="ArgumentException"/> rather than aliasing one world's
-/// names onto another's — as does any layer no world interned, such as the one a failed
-/// <see cref="CollisionWorld2D.TryFindLayer"/> leaves behind.
-/// </para>
-/// <para>
-/// <see cref="None"/> and <see cref="Everything"/> name no table, and they alone are accepted by
-/// every world: agnosticism is a property of those two values, never of a layer.
+/// A filter belongs to the world that interned its layers. Mixing two worlds' layers or filters,
+/// and testing a filter against a layer from elsewhere, throw <see cref="ArgumentException"/>, as
+/// does any layer no world interned — including the one a failed
+/// <see cref="CollisionWorld2D.TryFindLayer"/> leaves behind. <see cref="None"/> and
+/// <see cref="Everything"/> name no table and are accepted by every world.
 /// </para>
 /// </summary>
 public readonly struct CollisionFilter : IEquatable<CollisionFilter>
@@ -88,11 +84,11 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
     public static CollisionFilter operator &(CollisionFilter left, CollisionFilter right) =>
         new(Shared(left._world, right._world, nameof(right)), left._mask & right._mask);
 
-    /// <summary>A filter matching what either matches; the operator's named form.</summary>
+    /// <summary>A filter matching what either matches; the named form of <c>|</c>.</summary>
     /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
     public CollisionFilter Union(CollisionFilter other) => this | other;
 
-    /// <summary>A filter matching what both match; the operator's named form.</summary>
+    /// <summary>A filter matching what both match; the named form of <c>&amp;</c>.</summary>
     /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
     public CollisionFilter Intersect(CollisionFilter other) => this & other;
 
@@ -111,10 +107,9 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
     /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(_world, _mask);
 
-    // A layer's world, insisting it has one. Agnosticism belongs to None and Everything, which name
-    // no table; an unstamped layer is the zero value of a type whose whole content is a table index,
-    // and treating it as agnostic would build a filter every world accepts and every world reads
-    // as its own index-0 entry. The default out value of a failed lookup arrives exactly this way.
+    // A layer's world, insisting it has one. An unstamped layer is the zero value of a type whose
+    // whole content is a table index — the default out value of a failed lookup — and reading it
+    // as agnostic would build a filter every world accepts as its own index-0 entry.
     private static int Interned(CollisionLayer layer, string parameterName) =>
         layer.World != 0
             ? layer.World
@@ -122,8 +117,8 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
                 "No collision world interned that layer, so there is no table for a filter bit to mean anything in; intern the name first, or check the result of TryFindLayer before using it.",
                 parameterName);
 
-    // The world two operands agree on. Zero is the world-agnostic value that None and Everything
-    // carry, so it takes on whichever world it meets rather than fighting it.
+    // The world two operands agree on. Zero is the agnostic value None and Everything carry, so it
+    // takes on whichever world it meets.
     private static int Shared(int left, int right, string parameterName)
     {
         if (left == 0)

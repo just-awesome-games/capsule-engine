@@ -12,38 +12,34 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 Symbols.Declares(options.GlobalOptions, Symbols.LogicRole),
                 Symbols.Declares(options.GlobalOptions, Symbols.ShellRole)));
 
+        IncrementalValueProvider<(bool EnginePresent, bool RuntimePresent, bool Logic, bool Shell, string AssemblyName)> configuration =
+            context.CompilationProvider
+                .Select(static (compilation, _) => (
+                    EnginePresent: compilation.GetTypeByMetadataName(Symbols.Scene) is not null,
+                    RuntimePresent: compilation.GetTypeByMetadataName(Symbols.CapsuleEngine) is not null,
+                    AssemblyName: compilation.AssemblyName ?? "Game"))
+                .Combine(roles)
+                .Select(static (input, _) => (
+                    input.Left.EnginePresent,
+                    input.Left.RuntimePresent,
+                    input.Right.Logic,
+                    input.Right.Shell,
+                    input.Left.AssemblyName));
+
         // An assembly that does not reference Capsule.Scenes has no registry to hold and no call
         // site to satisfy, so it gets nothing rather than code it could not compile.
-        IncrementalValueProvider<bool> registries = context.CompilationProvider
-            .Select(static (compilation, _) => compilation.GetTypeByMetadataName(Symbols.Scene) is not null)
-            .Combine(roles)
-            .Select(static (input, _) => input.Left && input.Right.Logic && !input.Right.Shell);
+        IncrementalValueProvider<bool> registries = configuration
+            .Select(static (configured, _) => configured.EnginePresent && configured.Logic && !configured.Shell);
 
-        IncrementalValueProvider<string?> provider = context.CompilationProvider
-            .Select(static (compilation, _) => (
-                EnginePresent: compilation.GetTypeByMetadataName(Symbols.Scene) is not null,
-                AssemblyName: compilation.AssemblyName ?? "Game"))
-            .Combine(roles)
-            .Select(static (input, _) => input.Left.EnginePresent && input.Right.Logic && !input.Right.Shell
-                ? TypeNaming.RegistryProviderName(input.Left.AssemblyName)
+        IncrementalValueProvider<string?> provider = configuration
+            .Select(static (configured, _) => configured.EnginePresent && configured.Logic && !configured.Shell
+                ? TypeNaming.RegistryProviderName(configured.AssemblyName)
                 : null);
 
         IncrementalValueProvider<BootModel> boot = context.CompilationProvider
             .Select(static (compilation, _) => CapsuleBootSource.Describe(compilation))
             .Combine(roles)
             .Select(static (input, _) => input.Right.Shell && !input.Right.Logic ? input.Left : BootModel.None);
-
-        IncrementalValueProvider<(bool EnginePresent, bool RuntimePresent, bool Logic, bool Shell)> configuration =
-            context.CompilationProvider
-                .Select(static (compilation, _) => (
-                    EnginePresent: compilation.GetTypeByMetadataName(Symbols.Scene) is not null,
-                    RuntimePresent: compilation.GetTypeByMetadataName(Symbols.CapsuleEngine) is not null))
-                .Combine(roles)
-                .Select(static (input, _) => (
-                    input.Left.EnginePresent,
-                    input.Left.RuntimePresent,
-                    input.Right.Logic,
-                    input.Right.Shell));
 
         IncrementalValuesProvider<EntityModel> entities = context.SyntaxProvider
             .CreateSyntaxProvider(

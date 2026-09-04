@@ -1,32 +1,21 @@
 <Project>
 
-  <!-- Ships the game's general assets and names them for its code. asset-sources/ is the
-       committed authoring plane; assets/ beside the executable is derived and build-owned, so
-       nothing under it is committed and what ships is exactly what is authored.
+  <!-- Ships the game's general assets and names them for its code. asset-sources/ is the committed
+       authoring plane; assets/ beside the executable is derived and build-owned.
 
-       Three domain roots under $(CapsuleAssetSourcesDir), each admitting the extensions listed
-       below: textures/ (.png), audio/ (.ogg, .wav) and fonts/ (.ttf, .otf). A source's directory
-       under its domain root is kept: an asset filed at textures/enemies/bat.png ships at
-       assets/textures/enemies/bat.png, its handle is named 'enemies/bat', and the generated
-       registry declares it as GameAssets.Textures.Enemies.Bat. A domain gained here is a domain
-       gained everywhere, and the handle it hands out is paired with it in
-       Capsule.Generators' asset registry — the one other place the domains are named.
+       Three domain roots under $(CapsuleAssetSourcesDir): textures/ (.png), audio/ (.ogg, .wav) and
+       fonts/ (.ttf, .otf). A source's directory under its domain root is kept, so
+       textures/enemies/bat.png ships at assets/textures/enemies/bat.png, is handled as
+       'enemies/bat', and is declared as GameAssets.Textures.Enemies.Bat. Capsule.Generators' asset
+       registry is the one other place the domains are named, and must gain one with this.
 
        %(CapsuleAssetPath) is that domain-relative path with the extension off. It carries the
-       platform's separator, since %(RecursiveDir) does; every consumer that compares it against
+       platform's separator, since %(RecursiveDir) does; every consumer comparing it against
        authored text normalises to '/' first.
 
-       A project ships them by declaring:
-
-         <CapsuleShipAssets>true</CapsuleShipAssets>
-
-       A shell is one by definition and needs no line. A logic assembly ships nothing and gets the
-       generated GameAssets registry instead: the asset list reaches the generator as
-       AdditionalFiles, so a handle is a compile-time name for a file the build has seen, and a
-       misspelt asset is a compile error rather than a missing file on somebody else's machine.
-
-       Nothing here transforms bytes: an asset is copied verbatim, and the host reads it back —
-       every texture the generated registry holds is decoded onto the device at boot. -->
+       <CapsuleShipAssets>true</CapsuleShipAssets> ships them; the shell role sets it. A logic
+       assembly ships nothing and gets the generated GameAssets registry instead, from the same list
+       handed to the generator as AdditionalFiles. Nothing here transforms bytes. -->
 
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png">
@@ -43,8 +32,7 @@
     </CapsuleAsset>
 
     <!-- Everything under a domain root, so whatever the lists above did not admit is caught as a
-         typo rather than silently never shipping. A file outside these roots is not an asset and
-         is not looked at, which is where an authoring intermediate belongs. -->
+         typo rather than silently never shipping. A file outside these roots is no asset. -->
     <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/textures/**/*;$(CapsuleAssetSourcesDir)/audio/**/*;$(CapsuleAssetSourcesDir)/fonts/**/*" />
     <_CapsuleUnknownAsset Include="@(_CapsuleDomainFile)" Exclude="@(CapsuleAsset)" />
   </ItemGroup>
@@ -55,8 +43,8 @@
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetPath" />
   </ItemGroup>
 
-  <!-- Hooked into the build in its own right, not only through the copy: the checks below must
-       run in a logic assembly too, where nothing ships. -->
+  <!-- Hooked in its own right, not only through the copy: the checks below must run in a logic
+       assembly too, where nothing ships. -->
   <Target Name="CapsuleAssetsInit"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit"
@@ -70,9 +58,8 @@
       <_CapsuleAssetNameDistinct Include="@(_CapsuleAssetName->Distinct())" />
     </ItemGroup>
 
-    <!-- An asset is named after its path under its domain root, and ships at that path, so a
-         repeated path would leave one asset silently overwriting the other. A repeated stem in two
-         directories is two assets. -->
+    <!-- An asset ships at its path under its domain root, so a repeated path would silently
+         overwrite. A repeated stem in two directories is two assets. -->
     <Error Condition="'@(_CapsuleAssetName->Count())' != '@(_CapsuleAssetNameDistinct->Count())'"
            Text="Capsule: two assets under '$(CapsuleAssetSourcesDir)' share a path within their domain, differing only in extension. Rename one of: @(CapsuleAsset, ' ')" />
   </Target>
@@ -81,8 +68,8 @@
           Condition="'$(CapsuleShipAssets)' == 'true' and '@(CapsuleAsset)' != ''"
           DependsOnTargets="CapsuleAssetsInit"
           BeforeTargets="AssignTargetPaths">
-    <!-- Qualified metadata, not bare: %() in the Content metadata below would otherwise batch over
-         Content, which already carries a game's own files and the derived scene documents. -->
+    <!-- Qualified metadata, not bare: %() below would otherwise batch over Content, which already
+         carries a game's own files and the derived scene documents. -->
     <ItemGroup>
       <Content Include="@(CapsuleAsset)">
         <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.CapsuleAssetPath)%(CapsuleAsset.Extension)</Link>

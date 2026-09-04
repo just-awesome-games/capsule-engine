@@ -2,7 +2,7 @@ namespace Capsule.Scenes.Documents;
 
 /// <summary>
 /// One game-defined entity entry in a scene document. The id is stable for the life of the
-/// document and never reused; X and Y are authored world-space coordinates.
+/// document and never reused.
 /// </summary>
 /// <param name="Id">The entry's identity in the document's one id space.</param>
 /// <param name="Type">The spawn type claimed by a game entity.</param>

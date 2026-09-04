@@ -2,9 +2,7 @@ using Capsule.Scenes.Tiles;
 
 namespace Capsule.Scenes.Documents;
 
-/// <summary>
-/// One ordered entry in a scene document, represented without boxing either of its two shapes.
-/// </summary>
+/// <summary>One ordered entry in a scene document, represented without boxing either of its two shapes.</summary>
 public readonly record struct SceneDocumentEntry
 {
     private readonly EntryKind _kind;
@@ -32,8 +30,7 @@ public readonly record struct SceneDocumentEntry
         X = 0f;
         Y = 0f;
 
-        // A tile map is anchored and unscaled, so the fields exist only to be handed back
-        // unchanged; identity keeps a tile-map entry out of every scale check.
+        // A tile map is anchored and unscaled; identity keeps it out of every scale check.
         _scaleX = 1f;
         _scaleY = 1f;
         _type = null;

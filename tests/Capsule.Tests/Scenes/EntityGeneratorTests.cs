@@ -180,7 +180,5 @@ public sealed class EntityGeneratorTests
         Assert.Equal("CAP010", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
-    private static string Generated(string source) => GeneratorHarness.Generated(source, GeneratorHarness.GameEntitiesFile);
-
     private static string Emitted(Compilation compiled) => GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
 }

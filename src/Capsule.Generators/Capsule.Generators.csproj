@@ -13,11 +13,9 @@
     <!-- RS2008 tracks diagnostic IDs across released analyzer packages. This generator is
          consumed from a source clone at a pinned ref, so the ref is the release record. -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
-    <!-- Local, never global, together with TreatAsLocalProperty on the Project element: a
-         consumer's NativeAOT publish reaches this project twice — the build, where the
-         ProjectReference strips these properties, and NuGet's restore walk, which strips nothing.
-         Without the guard the restore evaluates this project for the publish's runtime and fails
-         (NETSDK1207 on the netstandard2.0 generator). -->
+    <!-- Local, never global, with TreatAsLocalProperty on the Project element: NuGet's restore
+         walk strips nothing, so without the guard it evaluates this project for a consumer's
+         NativeAOT publish runtime and fails (NETSDK1207 on netstandard2.0). -->
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier></RuntimeIdentifier>
@@ -25,6 +23,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The key rule, compiled rather than referenced: a generator loads no engine assembly, and a
+         second copy of the rule would let the compile-time and run-time halves drift apart. -->
+    <Compile Include="../Capsule.Core/Assets/AssetPaths.cs" Link="AssetPaths.cs" />
   </ItemGroup>
 
 </Project>

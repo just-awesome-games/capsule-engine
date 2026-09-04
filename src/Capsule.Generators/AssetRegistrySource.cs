@@ -14,8 +14,7 @@ internal static class AssetRegistrySource
     private const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
     private const string PathMetadata = "build_metadata.AdditionalFiles.CapsuleAssetPath";
 
-    // The set member every class carries — the domain root's is what the boot registry reads — and
-    // therefore a name no directory or file may take.
+    // The set member every class carries, and therefore a name no directory or file may take.
     private const string ListMember = "All";
 
     private const string BackingField = "_all";
@@ -29,16 +28,14 @@ internal static class AssetRegistrySource
 
     internal static AssetModel? Describe(AdditionalText text, AnalyzerConfigOptionsProvider options)
     {
-        // Every other additional file a project carries — an .editorconfig-adjacent list, a
-        // consumer's own analyzer input — reaches this the same way and is not an asset.
+        // Every other additional file a project carries reaches this the same way and is no asset.
         if (!options.GetOptions(text).TryGetValue(DomainMetadata, out string? domain)
             || string.IsNullOrEmpty(domain))
         {
             return null;
         }
 
-        // MSBuild's %(RecursiveDir) carries the platform's separator; the registry and the handle
-        // carry one spelling on every machine.
+        // MSBuild's %(RecursiveDir) carries the platform's separator; a handle has one spelling.
         string path = options.GetOptions(text).TryGetValue(PathMetadata, out string? authored) && !string.IsNullOrEmpty(authored)
             ? authored!.Replace('\\', '/')
             : Path.GetFileNameWithoutExtension(text.Path);
@@ -66,9 +63,8 @@ internal static class AssetRegistrySource
             sound.Add(model);
         }
 
-        // Sorted before the tree is built off it, and before anything is rendered: the additional
-        // files arrive in whatever order MSBuild collected them, and generated source that reorders
-        // itself between machines is a diff nobody made.
+        // Sorted before the tree is built off it: the additional files arrive in whatever order
+        // MSBuild collected them, and the generated source must not reorder between machines.
         sound.Sort(static (left, right) =>
         {
             int byDomain = string.CompareOrdinal(left.Domain, right.Domain);
@@ -103,8 +99,7 @@ internal static class AssetRegistrySource
         context.AddSource(FileName, SourceText.From(Render(roots), Encoding.UTF8));
     }
 
-    // Every segment of the path is an identifier in its own right, so a directory no C# name can
-    // spell is the same defect as a file no C# name can spell.
+    // Every segment of the path is an identifier in its own right.
     private static AssetFault FaultIn(string path)
     {
         foreach (string segment in path.Split('/'))
@@ -118,9 +113,8 @@ internal static class AssetRegistrySource
         return AssetFault.None;
     }
 
-    // Walks the model's directories into the tree, declaring the classes they name on the way, and
-    // hangs the handle off the last one. Every collision the C# the tree renders could not compile
-    // is reported here, against both parties.
+    // Walks the model's directories into the tree and hangs the handle off the last one, reporting
+    // every collision the rendered C# could not compile against both parties.
     private static void Place(SourceProductionContext context, Node root, AssetModel model)
     {
         string[] segments = model.Path.Split('/');
@@ -164,9 +158,8 @@ internal static class AssetRegistrySource
         }
     }
 
-    // Whether an identifier may be declared on this class: a member may not carry the name of the
-    // class it is declared on (CS0542), the set member is declared on every class, and two members
-    // of one name do not compile whatever the file system kept apart.
+    // Whether an identifier may be declared on this class: not the class's own name (CS0542), not
+    // the set member every class carries, and not one already claimed here.
     private static bool Claimable(SourceProductionContext context, Node node, string identifier, string display)
     {
         if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal)
@@ -209,8 +202,7 @@ internal static class AssetRegistrySource
         source.AppendLine("    public static class GameAssets");
         source.AppendLine("    {");
 
-        // Every domain is emitted whatever the game authored, so a call site naming one always
-        // compiles and only the asset it names can be missing.
+        // Every domain is emitted whatever the game authored, so a call site naming one compiles.
         for (int i = 0; i < roots.Length; i++)
         {
             if (i > 0)
@@ -273,8 +265,7 @@ internal static class AssetRegistrySource
         source.Append(indent).AppendLine("}");
     }
 
-    // Backed by a field and handed out as a span: the set is constant data a game may enumerate
-    // without allocating and cannot write through.
+    // Backed by a field and handed out as a span: allocation-free to enumerate, and read-only.
     private static void AppendList(StringBuilder source, Node node, string handle, string shipped, string indent, bool first)
     {
         if (!first)
@@ -300,8 +291,7 @@ internal static class AssetRegistrySource
             .Append(ListMember).Append(" => ").Append(BackingField).AppendLine(";");
     }
 
-    // How the handle is named from inside this class: the directories between it and the leaf,
-    // then the leaf's own member.
+    // How the handle is named from inside this class.
     private static string Reference(Node node, AssetModel model)
     {
         string relative = model.Path.Substring(node.Depth);
@@ -327,8 +317,7 @@ internal static class AssetRegistrySource
             Identifier = identifier;
             Display = display;
 
-            // The domain root's display is '<domain>/', which is no part of a model's path; every
-            // nested class adds one segment and its separator.
+            // The domain root's display is '<domain>/', which is no part of a model's path.
             Depth = display.Length - display.IndexOf('/') - 1;
         }
 

@@ -11,10 +11,9 @@ namespace Capsule.Collision;
 /// their own broadphase. A world is single-threaded, and every query is allocation-free once its
 /// colliders exist.
 /// <para>
-/// The handles, layers and filters a world hands out are its own: another world's are rejected with
-/// <see cref="ArgumentException"/> rather than read as whatever sits at the same index.
-/// <see cref="CollisionFilter.None"/> and <see cref="CollisionFilter.Everything"/> name no table
-/// and are accepted anywhere.
+/// The handles, layers and filters a world hands out are its own; another world's are rejected with
+/// <see cref="ArgumentException"/>. <see cref="CollisionFilter.None"/> and
+/// <see cref="CollisionFilter.Everything"/> name no table and are accepted anywhere.
 /// </para>
 /// </summary>
 public sealed partial class CollisionWorld2D
@@ -41,9 +40,8 @@ public sealed partial class CollisionWorld2D
     /// </summary>
     public const float ContactSkin = 0.02f;
 
-    // Worlds are numbered from one so that a default handle or layer — world zero — belongs to none
-    // of them. Deterministic for a game, which builds its worlds in order on the sim thread; the
-    // interlock is for test hosts that build them on several.
+    // Numbered from one, so a default handle or layer — world zero — belongs to none of them. The
+    // interlock is for test hosts that build worlds on several threads.
     private static int WorldsCreated;
 
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
@@ -69,24 +67,15 @@ public sealed partial class CollisionWorld2D
     internal ReadOnlySpan<GridCollider2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     /// <summary>
-    /// How many grid cells this world's traversals have handed to a narrowphase test since the
-    /// last <see cref="ResetDiagnostics"/>: one per cell a shape cast's swept band reaches and one
-    /// per cell a ray's grid walk enters, counted as the cell is reached and so including the
-    /// empty ones the test rejects at once. Cells no traversal reaches — a column pruned by the
-    /// band, or a walk that stopped at its limit — are not counted, and neither are the cells an
-    /// overlap probes.
-    /// <para>
-    /// Test-facing instrumentation for the shape of a traversal rather than its duration, and the
-    /// only per-cell cost a test can read deterministically. It is written by the traversals and
-    /// read by nothing else: no query result depends on it.
-    /// </para>
+    /// How many grid cells this world's casts and rays have reached since the last
+    /// <see cref="ResetDiagnostics"/>, empty ones included; overlaps are not counted. No query
+    /// result depends on it.
     /// </summary>
     internal long GridCellsTested { get; private set; }
 
     /// <summary>
-    /// The layer <paramref name="name"/> interns to, interning it if this is the first time it is
-    /// seen. Interning is deterministic: the same registration order always yields the same
-    /// indices.
+    /// The layer <paramref name="name"/> interns to, interning it the first time it is seen. The
+    /// same registration order always yields the same indices.
     /// </summary>
     /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
     /// <exception cref="InvalidOperationException">The world already holds <see cref="MaxLayers"/> layers.</exception>
@@ -113,6 +102,7 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>The layer <paramref name="name"/> was interned under, without interning it.</summary>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is null or blank.</exception>
     public bool TryFindLayer(string name, out CollisionLayer layer)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -177,7 +167,7 @@ public sealed partial class CollisionWorld2D
         RequireOwn(detects, nameof(detects));
 
         // Placed before the slot is claimed, so a shape that cannot be positioned leaves the world
-        // exactly as it was rather than half-registered.
+        // as it was rather than half-registered.
         Shape2D placed = shape.Translated(position);
 
         int index = AllocateSlot();
@@ -219,6 +209,7 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>Removes a grid collider.</summary>
     /// <exception cref="ArgumentException">The grid belongs to no world, or to another one.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is null.</exception>
     public void Remove(GridCollider2D grid)
     {
         ArgumentNullException.ThrowIfNull(grid);
@@ -256,10 +247,9 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
-        // Translated before the slot is written, so a rejected position leaves the collider where
-        // it was rather than half-moved with a stale proxy. The step between the two positions is
-        // derived rather than given, and two finite positions at opposite ends of the range have an
-        // infinite one between them.
+        // Translated before the slot is written, so a rejected position leaves the collider where it
+        // was rather than half-moved with a stale proxy. The displacement is derived, and two finite
+        // positions at opposite ends of the range have an infinite one between them.
         Shape2D placed = slot.Local.Translated(position);
         Vector2 displacement = position - slot.Position;
         RequireFinite(displacement, nameof(position));
@@ -300,8 +290,7 @@ public sealed partial class CollisionWorld2D
         RequireOwn(detects, nameof(detects));
 
         // A grid has no one layer to write: its cells carry the layers their profiles named, and
-        // every tile query reads those rather than the slot's. Writing here would look like it had
-        // done something.
+        // every tile query reads those rather than the slot's.
         int index = RequireShapeSlot(handle);
         _slots[index].Layer = layer;
         _slots[index].Detects = detects;
@@ -316,8 +305,8 @@ public sealed partial class CollisionWorld2D
     public Shape2D ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;
 
     /// <summary>
-    /// The layer a collider is on. A grid collider is not one thing: its cells carry the layers of
-    /// the profiles they were painted from, which <see cref="GridCollider2D.LayerAt"/> reads.
+    /// The layer a collider is on. A grid's cells carry the layers of the profiles they were
+    /// painted from, which <see cref="GridCollider2D.LayerAt"/> reads.
     /// </summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
     public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
@@ -331,9 +320,8 @@ public sealed partial class CollisionWorld2D
     public object? UserDataOf(ColliderHandle handle) => _slots[RequireSlot(handle)].UserData;
 
     /// <summary>
-    /// The grid collider a handle names, or null when it names a shape collider. One of the few
-    /// members that takes a grid's handle; the per-collider accessors describe a single shape and
-    /// refuse it.
+    /// The grid collider a handle names, or null when it names a shape collider. The per-collider
+    /// accessors describe a single shape and refuse a grid's handle.
     /// </summary>
     /// <exception cref="ArgumentException">The handle was issued by another world.</exception>
     public GridCollider2D? GridOf(ColliderHandle handle)
@@ -345,8 +333,8 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// Adds a grid of collidable cells anchored at the world origin. The cell array is held rather
-    /// than copied, and the cell faces are derived from it once, so a caller that repaints cells
-    /// afterwards must build a new collider.
+    /// than copied and its faces are derived once, so repainting cells afterwards requires a new
+    /// collider.
     /// </summary>
     /// <param name="cellSize">World units a cell spans on each axis.</param>
     /// <param name="width">Cells across.</param>
@@ -355,6 +343,8 @@ public sealed partial class CollisionWorld2D
     /// <param name="profiles">The layer each palette entry's cells are on, and which of their sides collide.</param>
     /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
     /// <exception cref="ArgumentException">Some invariant of the grid is broken; the message names the defect.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="cells"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cellSize"/> is not positive.</exception>
     public GridCollider2D AddGrid(
         int cellSize,
         int width,
@@ -375,8 +365,8 @@ public sealed partial class CollisionWorld2D
             throw new ArgumentException($"A grid collider is at least one cell on each axis, not {width}x{height}.", nameof(width));
         }
 
-        // Widened deliberately: an int product wraps, and a wrapped area would size nothing while
-        // letting a mismatched cell array through.
+        // Widened: an int product wraps, and a wrapped area would let a mismatched cell array
+        // through.
         long area = (long)width * height;
         if (cells.Length != area)
         {
@@ -407,8 +397,8 @@ public sealed partial class CollisionWorld2D
             {
                 RequireOwn(layer);
 
-                // A profile on a layer with no face would contribute a cell nothing can ever meet,
-                // which is a silent authoring mistake rather than a way to spell an empty cell.
+                // A layer with no face is a cell nothing can meet: an authoring mistake rather than
+                // a way to spell an empty cell.
                 if (profile.Faces == CellFaces2D.None)
                 {
                     throw new ArgumentException(
@@ -493,9 +483,9 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// The nearest things a ray meets, written into <paramref name="hits"/> in ascending distance.
-    /// The span is the budget as well as the destination: a span of <c>n</c> receives the
-    /// <c>n</c> nearest hits, and a hit nearer than one already stored displaces the farthest
-    /// rather than being dropped for arriving late. Returns how many were written.
+    /// The span is the budget as well as the destination: a span of <c>n</c> receives the <c>n</c>
+    /// nearest hits, and a nearer hit displaces the farthest already stored. Returns how many were
+    /// written.
     /// </summary>
     /// <param name="origin">Where the ray starts, in world units.</param>
     /// <param name="direction">Which way it points; normalised here, so any non-zero length will do.</param>
@@ -532,9 +522,8 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// Where a shape swept along <paramref name="translation"/> first meets something. A shape
-    /// already touching something reports that at fraction 0 when the sweep drives into it, and
-    /// passes it by when the sweep moves away: this module resolves motion, and has no solver to
-    /// push out of a penetration with.
+    /// already touching something reports it at fraction 0 when the sweep drives into it, and
+    /// passes it by when the sweep moves away — there is no solver to push out of a penetration.
     /// </summary>
     /// <param name="shape">The shape to sweep, in its own space.</param>
     /// <param name="origin">Where that shape starts.</param>
@@ -599,7 +588,7 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Everything an axis-aligned box is inside or touching; the box form of
+    /// Everything an axis-aligned box, already placed, is inside or touching; the box form of
     /// <see cref="Overlap(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The box spans nothing on an axis, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
@@ -607,13 +596,8 @@ public sealed partial class CollisionWorld2D
         in Aabb2D box,
         CollisionFilter filter,
         Span<Contact2D> contacts,
-        ColliderHandle ignore = default)
-    {
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
-
-        return Touching(Shape2D.Box(box), filter, 0f, ignore, contacts);
-    }
+        ColliderHandle ignore = default) =>
+        Overlap(Shape2D.Box(box), Vector2.Zero, filter, contacts, ignore);
 
     /// <summary>
     /// Everything a registered collider is touching right now — within <see cref="ContactSkin"/>
@@ -630,9 +614,9 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// Moves a shape as far along <paramref name="translation"/> as it can go, one axis at a time:
-    /// X first to its first contact, then Y from there. Stopping on one axis never stops the other,
-    /// which is what makes a mover slide along a wall instead of sticking to it. The move is swept,
-    /// so nothing is passed through at any speed.
+    /// X first to its first contact, then Y from there, so stopping on one axis never stops the
+    /// other. The move is swept, so nothing is passed through at any speed. Contacts come X sweep
+    /// first and then Y; within each, grid cells in traversal order and then colliders by handle.
     /// </summary>
     /// <param name="shape">The shape to move, in its own space.</param>
     /// <param name="origin">Where that shape starts.</param>
@@ -656,8 +640,8 @@ public sealed partial class CollisionWorld2D
         RequireFinite(origin, nameof(origin));
         RequireFinite(translation, nameof(translation));
 
-        // The move walks from the origin to this point one axis at a time, so every position it
-        // passes through is finite once both ends are.
+        // One axis at a time from the origin to this point, so every position between is finite
+        // once both ends are.
         RequireFinite(origin + translation, nameof(translation));
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
@@ -677,12 +661,11 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Moves an axis-aligned box; the box form of
+    /// Moves an axis-aligned box, already placed; the box form of
     /// <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// The translation is not finite, or the box the move covers between where it starts and where
-    /// it would end is not — a finite box and a finite translation can still describe one.
+    /// The translation is not finite, or the box the move covers between its ends is not.
     /// </exception>
     /// <exception cref="ArgumentException">The box spans nothing on an axis, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
     public MoveResult2D MoveBox(
@@ -717,13 +700,9 @@ public sealed partial class CollisionWorld2D
         return direction / length;
     }
 
-    // A default Shape2D is the zero value of a validated type: it holds no points at all, so it has
-    // no hull for the narrowphase to answer about and a ray would read its empty point set as an
-    // immediate hit. Every seam that takes a shape refuses it rather than passing it along.
-    // A NaN or infinite bound entering the dynamic tree does not stay where it was put: the tree
-    // unions boxes as it balances, so one poisoned proxy spreads through the ancestors it shares
-    // with unrelated colliders and makes them unfindable. Every value that can reach a proxy is
-    // checked at the seam it arrives through, which costs a pair of tests per call and none per
+    // A NaN or infinite bound does not stay in its own proxy: the tree unions boxes as it balances,
+    // so one poisoned proxy spreads through the ancestors it shares with unrelated colliders and
+    // makes them unfindable. Checked at the seam, which costs a pair of tests per call and none per
     // node or per cell.
     private static void RequireFinite(Vector2 value, string parameterName)
     {
@@ -764,9 +743,8 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // A handle a query is told to pass through. None is the no-ignore value and always passes;
-    // anything else must still name a live collider, because a handle to a removed one carries an
-    // index that has since been handed to somebody unrelated.
+    // None is the no-ignore value and always passes; anything else must name a live collider,
+    // because a handle to a removed one carries an index since handed to somebody unrelated.
     private void RequireIgnorable(ColliderHandle ignore)
     {
         RequireOwn(ignore, nameof(ignore));
@@ -789,8 +767,7 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // CollisionFilter.None and CollisionFilter.Everything index no table, so they pass everywhere;
-    // anything built from layers is only meaningful where those layers were interned.
+    // None and Everything index no table, so they pass everywhere.
     private void RequireOwn(CollisionFilter filter, string parameterName)
     {
         if (filter.World != 0 && filter.World != _id)

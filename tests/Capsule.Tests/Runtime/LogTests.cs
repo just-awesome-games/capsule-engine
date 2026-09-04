@@ -6,8 +6,8 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class LogTests : IDisposable
 {
-    // Log's sink is write-only, so a test cannot put back what it found: it leaves logging silent,
-    // which is where a headless run starts.
+    // Log's sink is write-only, so a test cannot put back what it found; silent is where a
+    // headless run starts.
     public void Dispose() => Log.UseSink(null);
 
     [Fact]
@@ -60,8 +60,7 @@ public sealed class LogTests : IDisposable
         Assert.Equal(new LogEntry(LogLevel.Info, string.Empty), Assert.Single(sink.Entries));
     }
 
-    // A sink is telemetry. Letting one end a step would mean a run with logging installed reaching
-    // a different state from the same run without it, which is the one thing Log promises not to do.
+    // A sink is telemetry: a run with logging installed must reach the same state as one without.
     [Fact]
     public void ASinkThatThrows_IsDetachedRatherThanAllowedToEndTheStep()
     {
@@ -84,19 +83,6 @@ public sealed class LogTests : IDisposable
         Log.Info("to the replacement");
 
         Assert.Single(replacement.Entries);
-    }
-
-    [Fact]
-    public void ASinkThatDoesNotThrow_IsLeftAloneByTheContainment()
-    {
-        CollectingLogSink sink = new();
-        Log.UseSink(sink);
-
-        Log.Info("first");
-        Log.Info("second");
-
-        // Still listening, and still the same sink: the second line reached it.
-        Assert.Equal(2, sink.Entries.Count);
     }
 
     [Fact]

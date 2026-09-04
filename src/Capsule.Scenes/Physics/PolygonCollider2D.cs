@@ -4,9 +4,8 @@ using Capsule.Collision;
 namespace Capsule.Scenes.Physics;
 
 /// <summary>
-/// A convex polygon collider, optionally rounded. Its corners are fixed at construction and are
-/// read back through <see cref="Collider2D.Shape"/>; a game that needs another outline replaces the
-/// component. The corners are relative to the entity's position plus
+/// A convex polygon collider, optionally rounded. Its corners are fixed at construction, read back
+/// through <see cref="Collider2D.Shape"/>, and relative to the entity's position plus
 /// <see cref="Collider2D.Offset"/>.
 /// </summary>
 public sealed class PolygonCollider2D : Collider2D

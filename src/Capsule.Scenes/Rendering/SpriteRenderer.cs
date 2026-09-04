@@ -5,17 +5,13 @@ namespace Capsule.Scenes.Rendering;
 
 /// <summary>
 /// Draws its entity as one sprite, one texel per world unit until <see cref="Scale"/> says
-/// otherwise. The frame's pivot lands on the
-/// entity's position plus <see cref="Offset"/>, so an entity whose position anchors something
-/// other than the frame's own anchor still places its art exactly. World units, Y-down.
+/// otherwise. The frame's pivot lands on the entity's position plus <see cref="Offset"/>. World
+/// units, Y-down.
 /// </summary>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer
 {
-    /// <summary>
-    /// The frame drawn. Settable: a frame is swapped to animate, and to change a static one — a
-    /// door that is now open — without animating at all.
-    /// </summary>
+    /// <summary>The frame drawn; swapped to animate, or to change a static frame.</summary>
     public Sprite Sprite { get; set; } = sprite;
 
     /// <summary>
@@ -25,13 +21,10 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     public Vector2 Offset { get; set; }
 
     /// <summary>
-    /// Multiplies the frame's drawn extent per axis, about its pivot; <see cref="Vector2.One"/>, one
-    /// texel per world unit, by default. Presentation only: a collider never reads it, so a scaled
-    /// sprite collides as its entity's shape says and nothing else.
-    /// <para>
-    /// Not a mirror — <see cref="FlipX"/> and <see cref="FlipY"/> are the only ones. A component
-    /// that is not positive and finite on both axes draws nothing at all.
-    /// </para>
+    /// Multiplies the frame's drawn extent per axis, about its pivot; <see cref="Vector2.One"/>,
+    /// one texel per world unit, by default. Presentation only — a collider never reads it — and
+    /// not a mirror: <see cref="FlipX"/> and <see cref="FlipY"/> are. A component that is not
+    /// positive and finite draws nothing.
     /// </summary>
     public Vector2 Scale { get; set; } = Vector2.One;
 

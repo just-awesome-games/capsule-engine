@@ -4,9 +4,8 @@ namespace Capsule.Collision;
 
 /// <summary>
 /// One grid of layered cells, anchored at the world origin. Each cell is on the layer its palette
-/// entry names and collides on the sides that entry declares. The grid is its own broadphase, so a
-/// query visits only the cells it crosses rather than a list of individual colliders, and it knows
-/// nothing about what authored those cells.
+/// entry names and collides on the sides that entry declares. The grid is its own broadphase: a
+/// query visits only the cells it crosses.
 /// </summary>
 public sealed class GridCollider2D
 {
@@ -14,13 +13,10 @@ public sealed class GridCollider2D
     private readonly CollisionLayer?[] _layers;
     private readonly CellFaces2D[] _faces;
 
-    // One byte a cell: whether it is a solid box, and which of its sides are surfaces a query can
-    // meet. Derived once, so the mover's inner loop reads a face without walking back into the
-    // palette. For a solid cell the sides are the ones not shared with a solid neighbour, which is
-    // purely geometric: a query that filters some of the grid out re-decides the faces it culled,
-    // through NeighbourAdmits. A cell with fewer than four faces keeps exactly the sides it
-    // declared — an edge is one-directional, so one buried behind a neighbour costs a narrowphase
-    // test and can never wrongly block.
+    // One byte a cell: whether it is a solid box, and which sides are surfaces a query can meet.
+    // Derived once, so the mover's inner loop never walks back into the palette. A solid cell's
+    // culling is purely geometric, so a query that filters part of the grid out re-decides it
+    // through NeighbourAdmits; a cell with fewer than four faces keeps exactly what it declared.
     private readonly CellState[] _state;
 
     internal GridCollider2D(
@@ -66,8 +62,8 @@ public sealed class GridCollider2D
     internal CollisionFilter Layers { get; private set; }
 
     /// <summary>
-    /// The layer the cell at (<paramref name="x"/>, <paramref name="y"/>) is on, or null where the
-    /// cell collides as nothing.
+    /// The layer the cell at (<paramref name="x"/>, <paramref name="y"/>) is on, or null where it
+    /// collides as nothing.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public CollisionLayer? LayerAt(int x, int y)
@@ -99,12 +95,12 @@ public sealed class GridCollider2D
         (uint)x < (uint)Width && (uint)y < (uint)Height ? _state[(y * Width) + x] : CellState.None;
 
     // The layer of a cell the caller has already found to collide, which is what makes the value
-    // present: a cell whose palette entry names no layer never reaches a query, because its derived
-    // state is CellState.None.
+    // present: a cell whose palette entry names no layer derives to CellState.None and never
+    // reaches a query.
     internal CollisionLayer LayerOf(int x, int y) => _layers[_cells[(y * Width) + x]]!.Value;
 
-    // Whether the derived face culling answers a query outright. Culling was derived over every
-    // cell in the grid, so it is the query's answer only while the query can see every cell.
+    // Whether the derived face culling answers a query outright. It was derived over every cell of
+    // the grid, so it holds only while the query can see every cell.
     internal bool AdmitsEveryLayer(CollisionFilter filter) => (Layers & filter) == Layers;
 
     // Whether the cell across the face a normal points out of is one the query both collides with
@@ -137,8 +133,7 @@ public sealed class GridCollider2D
             new Vector2(x * (float)CellSize, y * (float)CellSize),
             new Vector2((x + 1) * (float)CellSize, (y + 1) * (float)CellSize));
 
-    // One side of a cell, as the degenerate box the narrowphase treats it as: a zero-thickness
-    // segment lying along that side.
+    // One side of a cell, as the zero-thickness box the narrowphase reads as a segment.
     internal Aabb2D FaceEdge(int x, int y, CellState face)
     {
         Aabb2D cell = CellBox(x, y);
@@ -152,8 +147,8 @@ public sealed class GridCollider2D
         };
     }
 
-    // The unit direction a face points away from its cell, which is also the surface normal a query
-    // meeting it reports.
+    // The unit direction a face points away from its cell, and the normal a query meeting it
+    // reports.
     internal static Vector2 FaceNormal(CellState face) => face switch
     {
         CellState.FaceMinX => new Vector2(-1f, 0f),

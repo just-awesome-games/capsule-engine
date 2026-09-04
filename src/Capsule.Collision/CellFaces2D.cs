@@ -7,7 +7,7 @@ namespace Capsule.Collision;
 /// <see cref="All"/> is a solid cell — the whole box, with faces shared with a solid neighbour
 /// culled so a flat run is one surface. Any smaller set is that many one-directional edges: a face
 /// blocks only what crosses it travelling into the cell, never motion along it and never something
-/// that started on the far side of it. What a game builds out of that is the game's business.
+/// that started on the far side of it.
 /// </para>
 /// </summary>
 [Flags]

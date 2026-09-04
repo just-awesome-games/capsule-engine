@@ -7,8 +7,7 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // An assembly that does not reference the handle types has no registry to hold, so it
-        // gets nothing rather than code it could not compile.
+        // An assembly that does not reference the handle types gets nothing to compile.
         IncrementalValueProvider<bool> emitting = context.AnalyzerConfigOptionsProvider
             .Select(static (options, _) =>
                 Symbols.Declares(options.GlobalOptions, Symbols.LogicRole)

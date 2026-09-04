@@ -15,14 +15,14 @@ public abstract class Component
     protected bool InScene { get; private set; }
 
     /// <summary>
-    /// The run's deterministic random source, reached through the scene rather than passed in.
-    /// This is the default stream; a domain whose draws must not move another's takes its own —
+    /// The run's deterministic random source, reached through the scene. This is the default
+    /// stream; a domain whose draws must not move another's takes its own —
     /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// This component is on no entity, is on one in no scene, or its scene has not started.
-    /// Randomness is discovered in <see cref="OnStart"/>; <see cref="OnAddedToScene"/> reaches it
-    /// only for a component added after the scene has started.
+    /// This component is on no entity, is on one in no scene, or its scene has not started;
+    /// randomness is discovered in <see cref="OnStart"/>. <see cref="OnAddedToScene"/> reaches it only when the
+    /// scene had already started before this was added.
     /// </exception>
     public RandomSource Random => Entity?.Scene is { } scene
         ? scene.Random
@@ -49,7 +49,7 @@ public abstract class Component
 
     /// <summary>
     /// Runs once the component's entity is in a scene, with <see cref="Entity"/> and its
-    /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity a scene already holds
+    /// <see cref="Scenes.Entity.Scene"/> both set; attaching to an entity a scene already holds
     /// runs it immediately. Whatever the component registers with that scene is registered here;
     /// the scene's other contents may not exist yet, so discover them in <see cref="OnStart"/>.
     /// </summary>
@@ -100,9 +100,7 @@ public abstract class Component
         OnAddedToScene();
     }
 
-    // Idempotent for the same reason EnterScene is: an entity starts the components it holds, and
-    // Entity.Add starts one taken on by an entity that has already started, so a component
-    // attached from inside another's OnStart must not start twice.
+    // Idempotent for the same reason EnterScene is.
     internal void RunStart()
     {
         if (_started)

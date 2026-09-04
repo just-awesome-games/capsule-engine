@@ -9,16 +9,15 @@ internal static class TextureFiles
     private const string DomainDirectory = "textures";
 
     /// <summary>
-    /// The handle's file, relative to the directory the executable ships its assets in. The name is
-    /// the source's path under the textures root, so a nested asset resolves to a nested file.
+    /// The handle's file, relative to the executable. A handle's name is its source's path under
+    /// the textures root, so a nested asset resolves to a nested file.
     /// </summary>
     internal static string RelativePathOf(in TextureHandle handle) =>
         "assets/" + DomainDirectory + "/" + handle.Name + handle.Extension;
 
     /// <summary>
     /// Every handle's file under <paramref name="baseDirectory"/>, in first-appearance order, with
-    /// a handle named more than once resolved once. Registries aggregate per logic assembly and two
-    /// of them may ship under one stem, which names one file and is one texture.
+    /// a handle named more than once resolved once.
     /// </summary>
     /// <exception cref="FileNotFoundException">A handle's file is not there; nothing is returned.</exception>
     internal static (TextureHandle Handle, string Path)[] Resolve(

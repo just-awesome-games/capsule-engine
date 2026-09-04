@@ -27,6 +27,8 @@ public sealed class EngineBuilderTests
         yield return [new Action<SceneEngineBuilder>(b => b.WithSpikeClamp(double.PositiveInfinity))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(float.NaN, 0.12f))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(0.25f, float.NaN))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithWindowTitle("  "))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithSampling((TextureSampling)99))];
     }
 
     [Fact]
@@ -48,7 +50,6 @@ public sealed class EngineBuilderTests
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder(gameName));
     }
 
-
     [Theory]
     [InlineData("bad\\name")]
     [InlineData("C:name")]
@@ -56,29 +57,11 @@ public sealed class EngineBuilderTests
     [InlineData("Game ")]
     [InlineData("nul")]
     [InlineData("AUX.log")]
+    // The top of the control range: the row an off-by-one in the unsafe-character set lets through.
+    [InlineData("Game\u001FName")]
     public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string appName)
     {
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithCrashLog(appName));
-    }
-
-    // The top of the control range: the row an off-by-one in the unsafe-character set lets through.
-    [Fact]
-    public void WithCrashLog_RejectsAControlCharacter()
-    {
-        Assert.Throws<ArgumentException>(
-            () => SceneBuilder().WithCrashLog($"Game{(char)0x1F}Name"));
-    }
-
-    [Fact]
-    public void WithWindowTitle_RejectsABlankTitle()
-    {
-        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithWindowTitle("  "));
-    }
-
-    [Fact]
-    public void WithSampling_RejectsAModeThatIsNotDeclared()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => SceneBuilder().WithSampling((TextureSampling)99));
     }
 
     [Fact]
@@ -101,14 +84,7 @@ public sealed class EngineBuilderTests
     [InlineData("rooms/room one")]
     public void RunScene_RejectsADocumentNameThatIsNoSafePath(string documentName)
     {
-        SceneEngineBuilder builder = SceneBuilder()
-            .WithRenderResolution(320, 180)
-            .WithSampling(TextureSampling.Point)
-            .WithWindow(1280, 720)
-            .WithoutCrashLog()
-            .WithBindings(static _ => { });
-
-        Assert.Throws<ArgumentException>(() => builder.RunScene(documentName));
+        Assert.Throws<ArgumentException>(() => SceneBuilder().RunScene(documentName));
     }
 
     private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>

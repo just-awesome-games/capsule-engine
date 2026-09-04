@@ -41,12 +41,6 @@ public sealed class SceneEngineBuilder
     private TextureSampling _sampling = TextureSampling.Linear;
     private ulong _randomSeed = RandomSource.DefaultSeed;
 
-    /// <param name="gameName">
-    /// The game's display name: the window's title, and the crash log's folder as a slug of it.
-    /// </param>
-    /// <param name="scenes">Every scene the game declares, plain and document-backed alike.</param>
-    /// <param name="textures">Every texture the game ships, made resident before the first frame.</param>
-    /// <exception cref="ArgumentException">The name is blank, or no safe directory name slugs out of it.</exception>
     internal SceneEngineBuilder(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
@@ -64,115 +58,106 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>The window's title, which is the game's name unless this replaces it.</summary>
+    /// <exception cref="ArgumentException">The title is null or blank.</exception>
     public SceneEngineBuilder WithWindowTitle(string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
-
         _windowTitle = title;
-
         return this;
     }
 
     /// <summary>
-    /// The windowed-mode window: opened at this size unless the game boots fullscreen, and
-    /// returned to at this size whenever fullscreen is left. Defaults to 1280x720, resizable.
+    /// The windowed-mode window, opened at this size unless the game boots fullscreen and returned
+    /// to it whenever fullscreen is left. Defaults to 1280x720, resizable.
     /// </summary>
     /// <param name="width">Client width in pixels.</param>
     /// <param name="height">Client height in pixels.</param>
     /// <param name="resizable">Whether the player may drag the window's edges; windowed mode only.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
     public SceneEngineBuilder WithWindow(int width, int height, bool resizable = true)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-
         _windowWidth = width;
         _windowHeight = height;
         _resizable = resizable;
-
         return this;
     }
 
-    /// <summary>
-    /// Boots fullscreen — borderless, at the desktop's own resolution. Alt+Enter toggles
-    /// either way from there.
-    /// </summary>
+    /// <summary>Boots borderless fullscreen at the desktop's resolution; Alt+Enter toggles from there.</summary>
     public SceneEngineBuilder WithFullscreen()
     {
         _fullscreen = true;
-
         return this;
     }
 
     /// <summary>
-    /// Sets a fixed render surface, letterboxed into the window. Dimensions are pixels and are
-    /// independent of the camera's world-unit viewport.
+    /// A fixed render surface, letterboxed into the window; independent of the camera's
+    /// world-unit viewport.
     /// </summary>
     /// <param name="width">Render-target width in pixels.</param>
     /// <param name="height">Render-target height in pixels.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
     public SceneEngineBuilder WithRenderResolution(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-
         _renderResolution = (width, height);
-
         return this;
     }
 
-    /// <param name="hertz">Simulation steps per second of simulated time.</param>
+    /// <summary>The simulation's fixed step rate. Defaults to 60 Hz.</summary>
+    /// <param name="hertz">Simulation steps per second of simulated time; positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The rate is not positive.</exception>
     public SceneEngineBuilder WithFixedStep(int hertz)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hertz);
-
         _stepSeconds = 1.0 / hertz;
-
         return this;
     }
 
-    /// <summary>Caps simulated time contributed by one frame after a stall.</summary>
+    /// <summary>Caps simulated time contributed by one frame after a stall. Defaults to 0.25 s.</summary>
     /// <param name="seconds">
-    /// Real seconds, positive and finite, never below one fixed step; a shorter ceiling
-    /// could not carry a whole step, and the run — where both values are known — rejects it.
+    /// Real seconds, positive and finite, and never below one fixed step; the run rejects a
+    /// shorter ceiling, which could not carry a whole step.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not finite and positive.</exception>
     public SceneEngineBuilder WithSpikeClamp(double seconds)
     {
-        // NaN passes every comparison-based guard and an infinite ceiling never binds:
-        // either would silently disable the clamp the method exists to set.
+        // NaN passes every comparison-based guard and an infinite ceiling never binds.
         if (!double.IsFinite(seconds))
         {
             throw new ArgumentOutOfRangeException(nameof(seconds), seconds, "A spike clamp must be a finite number of seconds.");
         }
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds);
-
         _maxFrameSeconds = seconds;
-
         return this;
     }
 
     /// <summary>
-    /// A stick reading inside <paramref name="stick"/> radially reads centred and a trigger
-    /// pull below <paramref name="trigger"/> reads released; past either, what remains is
-    /// remapped onto [0, 1], so full deflection stays reachable.
+    /// A stick reading inside <paramref name="stick"/> radially reads centred and a trigger pull
+    /// below <paramref name="trigger"/> reads released; past either, what remains is remapped onto
+    /// [0, 1]. Defaults to 0.25 and 0.12.
     /// </summary>
     /// <param name="stick">Stick radius, in [0, 1); 0 applies no stick deadzone.</param>
     /// <param name="trigger">Trigger pull, in [0, 1); 0 applies no trigger deadzone.</param>
+    /// <exception cref="ArgumentOutOfRangeException">A radius is NaN or outside [0, 1).</exception>
     public SceneEngineBuilder WithGamepadDeadzones(float stick, float trigger)
     {
         RequireDeadzone(stick, nameof(stick));
         RequireDeadzone(trigger, nameof(trigger));
-
         _stickDeadzone = stick;
         _triggerDeadzone = trigger;
-
         return this;
     }
 
     /// <summary>
-    /// Writes an escaping exception to <c>crash.log</c> under the OS-local application data
-    /// folder for <paramref name="appName"/>, replacing the folder slugged from the game's name.
+    /// Writes an escaping exception to <c>crash.log</c> under the OS-local application data folder
+    /// for <paramref name="appName"/>, replacing the folder slugged from the game's name.
     /// </summary>
     /// <param name="appName">Used verbatim as one directory name, so it must be exactly that.</param>
+    /// <exception cref="ArgumentException">It is not a single safe directory name.</exception>
     public SceneEngineBuilder WithCrashLog(string appName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
@@ -185,7 +170,6 @@ public sealed class SceneEngineBuilder
         }
 
         _crashLogAppName = appName;
-
         return this;
     }
 
@@ -193,48 +177,41 @@ public sealed class SceneEngineBuilder
     public SceneEngineBuilder WithoutCrashLog()
     {
         _crashLogAppName = null;
-
         return this;
     }
 
-    /// <summary>
-    /// Sends <see cref="Log"/> output to <paramref name="sink"/> instead of to the console the
-    /// host would otherwise write to.
-    /// </summary>
+    /// <summary>Sends <see cref="Log"/> output to <paramref name="sink"/> rather than the console.</summary>
+    /// <exception cref="ArgumentNullException">The sink is null.</exception>
     public SceneEngineBuilder WithLogSink(ILogSink sink)
     {
         ArgumentNullException.ThrowIfNull(sink);
-
         _logSink = sink;
         _loggingSilenced = false;
-
         return this;
     }
 
-    /// <summary>Silences <see cref="Log"/> entirely, so nothing the game writes goes anywhere.</summary>
+    /// <summary>Silences <see cref="Log"/> entirely.</summary>
     public SceneEngineBuilder WithoutLogging()
     {
         _logSink = null;
         _loggingSilenced = true;
-
         return this;
     }
 
-    /// <summary>Registers action bindings; call it more than once and the registrations accumulate.</summary>
+    /// <summary>Registers action bindings; repeated calls accumulate.</summary>
+    /// <exception cref="ArgumentNullException">The callback is null.</exception>
     public SceneEngineBuilder WithBindings(Action<ActionBindings> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-
         configure(_bindings);
-
         return this;
     }
 
     /// <summary>
-    /// How every scene filters world-space textures unless it sets its own; a pixel-art game
-    /// declares <see cref="TextureSampling.Point"/> once here. Defaults to
+    /// How every scene filters world-space textures unless it sets its own. Defaults to
     /// <see cref="TextureSampling.Linear"/>.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The mode is not a declared one.</exception>
     public SceneEngineBuilder WithSampling(TextureSampling sampling)
     {
         if (sampling is not TextureSampling.Linear and not TextureSampling.Point)
@@ -243,26 +220,23 @@ public sealed class SceneEngineBuilder
         }
 
         _sampling = sampling;
-
         return this;
     }
 
     /// <summary>
     /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
     /// <see cref="Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
-    /// game that never calls this replays identically run to run; a game that wants a different
-    /// run each launch passes a seed it obtained in the shell, where entropy is legal.
+    /// game that never calls this replays identically run to run.
     /// </summary>
     public SceneEngineBuilder WithRandomSeed(ulong seed)
     {
         _randomSeed = seed;
-
         return this;
     }
 
     /// <summary>
-    /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit. A
-    /// scene a document backs loads it first; one that is not runs as it is.
+    /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
+    /// composing it from the document that backs it when one does.
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <exception cref="InvalidOperationException">
@@ -272,14 +246,15 @@ public sealed class SceneEngineBuilder
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
     public void RunScene<TScene>()
         where TScene : Scene
-        => RunScene(SceneTarget.ForScene(typeof(TScene)));
+        => RunScene(SceneTransition.ToScene(typeof(TScene), null));
 
     /// <summary>
     /// Opens the window and runs the scene the named document backs, or a plain
-    /// <see cref="Scene"/> composed from it when no class claims it. The current parsed document
-    /// is reused on restart.
+    /// <see cref="Scene"/> composed from it when no class claims it. A restart reuses the parsed
+    /// document rather than reading it again.
     /// </summary>
     /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="InvalidOperationException">The spike clamp is below the fixed step.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
@@ -287,16 +262,12 @@ public sealed class SceneEngineBuilder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTarget.ForName(name));
+        RunScene(SceneTransition.ToName(name, null));
     }
 
     /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>
     internal void Run(ISimulation simulation)
     {
-        ArgumentNullException.ThrowIfNull(simulation);
-
-        InstallLogging();
-
         // Neither call can see the other's value, so the pair settles here.
         if (_maxFrameSeconds < _stepSeconds)
         {
@@ -318,20 +289,14 @@ public sealed class SceneEngineBuilder
             _bindings,
             _textures);
 
-        if (_crashLogAppName is null)
-        {
-            Host(options, simulation);
-            return;
-        }
-
         try
         {
             Host(options, simulation);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (_crashLogAppName is not null)
         {
-            // A windowed build has no console, so an escaping exception would otherwise
-            // vanish. Rethrow to preserve the exit code and the debugger break.
+            // A windowed build has no console, so an escaping exception would otherwise vanish.
+            // Rethrown to preserve the exit code and the debugger break.
             CrashLog.TryWrite(_crashLogAppName, exception);
             throw;
         }
@@ -349,9 +314,9 @@ public sealed class SceneEngineBuilder
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
-    private void RunScene(in SceneTarget initialTarget)
+    private void RunScene(in SceneTransition initialTarget)
     {
-        // Ahead of composing, not inside Run: a scene's OnStart runs while the host is built here.
+        // Before composing, not inside Run: a scene's OnStart logs while the host is built here.
         InstallLogging();
 
         SceneComposer composer = new(_scenes);
@@ -360,8 +325,6 @@ public sealed class SceneEngineBuilder
         Run(host);
     }
 
-    // Idempotent, and called before anything a game could log from: a scene's OnStart runs while
-    // the host is still being composed, and its lines have to reach the same sink as the rest.
     private void InstallLogging()
     {
         if (_loggingSilenced)

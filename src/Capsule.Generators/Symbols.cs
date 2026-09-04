@@ -21,13 +21,12 @@ internal static class Symbols
     internal const string RegistryClaimAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute";
     internal const string TextureHandle = "Capsule.Assets.TextureHandle";
 
-    // MSBuild passes a boolean property through verbatim and compares it case-insensitively itself.
+    // MSBuild passes a boolean property through verbatim, compared case-insensitively.
     internal static bool Declares(AnalyzerConfigOptions options, string key) =>
         options.TryGetValue(key, out string? value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
-    // Syntax only: this runs on every type declaration in the assembly at every keystroke, so a
-    // semantic lookup here would be paid over and over. A registered class states its base type,
-    // and an annotation is the other way a declaration asks to be judged rather than ignored.
+    // Syntax only: this runs on every type declaration at every keystroke, so a semantic lookup
+    // here would be paid over and over.
     internal static bool MayBeRegistered(SyntaxNode node) =>
         node is TypeDeclarationSyntax declaration
         && (declaration.BaseList is not null || declaration.AttributeLists.Count > 0);
@@ -73,8 +72,7 @@ internal static class Symbols
 
             IParameterSymbol parameter = constructor.Parameters[0];
 
-            // Taken by value or by readonly reference: the generated call site passes an
-            // lvalue, which binds to either.
+            // The generated call site passes an lvalue, which binds to any of these.
             bool passable = parameter.RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter;
             if (passable && SymbolEqualityComparer.Default.Equals(parameter.Type, parameterType))
             {

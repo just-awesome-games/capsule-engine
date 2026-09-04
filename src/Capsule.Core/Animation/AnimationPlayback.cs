@@ -1,21 +1,16 @@
 namespace Capsule.Animation;
 
 /// <summary>
-/// The tick cursor over an ordered run of frames, each held for a whole number of fixed steps.
-/// It carries the position and nothing else: what a frame <em>is</em> — a sprite, a pose, a set of
-/// bone transforms — belongs to whatever composes the cursor with its own frame table.
+/// The tick cursor over an ordered run of frames, each held for a whole number of fixed steps. It
+/// carries the position and nothing else; what a frame is belongs to whatever composes the cursor
+/// with its own frame table. A fresh cursor is on frame 0 with no ticks elapsed. Every
+/// <see cref="Step"/> advances exactly one tick, so a frame held for <c>n</c> ticks is current
+/// across exactly <c>n</c> steps. A looping run wraps from the last frame back to frame 0; one
+/// that does not loop holds its last frame and reports <see cref="IsFinished"/> once that frame's
+/// ticks have elapsed, after which stepping does nothing.
 /// <para>
-/// A fresh cursor is on frame 0 with no ticks elapsed, which is the frame to show before the first
-/// step runs. Every <see cref="Step"/> advances exactly one tick, so a frame held for
-/// <c>n</c> ticks is the current frame across exactly <c>n</c> steps. A looping run wraps from the
-/// last frame back to frame 0; a run that does not loop holds its last frame and reports
-/// <see cref="IsFinished"/> once that frame's ticks have elapsed, after which stepping does
-/// nothing.
-/// </para>
-/// <para>
-/// A mutable value: copying it copies the position. It is stepped over one run of durations —
-/// <see cref="Restart"/> it when the run it walks changes, since the cursor is meaningless against
-/// a different one.
+/// A mutable value: copying it copies the position. <see cref="Restart"/> it when the run it walks
+/// changes, since the cursor is meaningless against a different one.
 /// </para>
 /// </summary>
 public struct AnimationPlayback
@@ -51,10 +46,7 @@ public struct AnimationPlayback
     /// duration positive.
     /// </param>
     /// <param name="loop">Whether the last frame wraps back to frame 0 instead of finishing.</param>
-    /// <exception cref="ArgumentException">
-    /// <paramref name="frameTicks"/> is empty, does not reach the frame the cursor is on, or holds
-    /// a duration that is not positive.
-    /// </exception>
+    /// <exception cref="ArgumentException">The run is empty, does not reach the cursor, or holds a non-positive hold.</exception>
     public void Step(ReadOnlySpan<int> frameTicks, bool loop)
     {
         if (IsFinished)

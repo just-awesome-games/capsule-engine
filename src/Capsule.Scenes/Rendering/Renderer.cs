@@ -4,8 +4,7 @@ namespace Capsule.Scenes.Rendering;
 
 /// <summary>
 /// A component that draws. A scene walks its renderers in entity order and, within an entity, in
-/// attachment order, so what draws later covers what drew earlier. Adding a kind of renderer is
-/// a new subclass and nothing else.
+/// attachment order, so what draws later covers what drew earlier.
 /// </summary>
 public abstract class Renderer : Component
 {

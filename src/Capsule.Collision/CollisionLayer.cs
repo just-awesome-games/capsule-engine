@@ -1,10 +1,9 @@
 namespace Capsule.Collision;
 
 /// <summary>
-/// One named layer of one <see cref="CollisionWorld2D"/>, held as the index it interned to. Setup
-/// code speaks the string; results carry masks of these, so no hot path compares text and every
-/// query result stays unmanaged — a caller may keep its contact buffer on the stack.
-/// <see cref="CollisionWorld2D.NameOf"/> reads the name back. A layer also carries the world that
+/// One named layer of one <see cref="CollisionWorld2D"/>, held as the index it interned to, so no
+/// hot path compares text and query results stay unmanaged.
+/// <see cref="CollisionWorld2D.NameOf"/> reads the name back. A layer carries the world that
 /// interned it: two worlds' layers never compare equal even at the same index, and a world rejects
 /// a layer it did not intern. The default value is no world's layer.
 /// </summary>

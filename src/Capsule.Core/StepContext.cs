@@ -17,10 +17,9 @@ public readonly struct StepContext(double deltaSeconds, InputState input, long t
     public long Tick { get; } = tick;
 
     /// <summary>
-    /// Simulated seconds at the start of this step — never wall clock. Derived rather
-    /// than accumulated, so it cannot drift from <see cref="Tick"/> across a long run,
-    /// and computed from the double-precision step rather than from
-    /// <see cref="DeltaSeconds"/>, so no rounding of the single-precision value enters it.
+    /// Simulated seconds at the start of this step — never wall clock. Derived from
+    /// <see cref="Tick"/> and the double-precision step rather than accumulated, so it neither
+    /// drifts across a long run nor carries the rounding of <see cref="DeltaSeconds"/>.
     /// </summary>
     public double TotalSeconds => Tick * _stepSeconds;
 }

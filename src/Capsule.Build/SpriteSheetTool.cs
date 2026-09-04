@@ -5,10 +5,9 @@ namespace Capsule.Build;
 
 /// <summary>
 /// The sheet half of the build hook: validates every authored <c>*.sheet.json</c>, re-emits it
-/// canonically, and renders the whole set as the one C# file a game compiles against. Nothing it
-/// writes ships beside the executable.
+/// canonically, and renders the whole set as the one C# file a game compiles against.
 /// </summary>
-public static class SpriteSheetTool
+internal static class SpriteSheetTool
 {
     private const string Name = "sprite sheets";
 
@@ -25,7 +24,7 @@ public static class SpriteSheetTool
     /// <param name="output">Progress, one line per source.</param>
     /// <param name="error">Failures, each anchored to the source that failed.</param>
     /// <returns>0 when every source succeeded, 1 when any failed.</returns>
-    public static int ImportFromList(
+    internal static int ImportFromList(
         string outputDirectory,
         string listPath,
         string texturesPath,
@@ -72,16 +71,6 @@ public static class SpriteSheetTool
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
-        try
-        {
-            Directory.CreateDirectory(outputDirectory);
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{Name}: cannot create '{outputDirectory}' — {ex.Message}");
-            return 1;
-        }
-
         // Ordinal, not case-insensitive: the runtime store is keyed by the shipped spelling, so a
         // document naming 'player.PNG' against 'player.png' would carry a handle nothing loaded.
         // The build writes whichever separator its platform uses; the format has one spelling.
@@ -91,31 +80,19 @@ public static class SpriteSheetTool
             shipped.Add(texture.Replace('\\', '/'));
         }
 
-        Dictionary<string, string> claimedBy = new(StringComparer.OrdinalIgnoreCase);
         SheetNames declared = new();
         List<(string Key, SpriteSheetDocument Document)> sheets = new(sources.Count);
-        int failures = 0;
 
-        foreach (DocumentSource source in sources)
-        {
-            string documentPath = Path.Combine(outputDirectory, source.Key + SpriteSheetDocumentFile.DocumentExtension);
-
-            try
+        int result = DocumentImport.Run(
+            Name,
+            "sheet",
+            outputDirectory,
+            sources,
+            SpriteSheetDocumentFile.DocumentExtension,
+            IsReportable,
+            (source, documentPath) =>
             {
-                if (!source.HasSafeKey())
-                {
-                    throw new SpriteSheetFormatException(
-                        $"claims sheet key \"{source.Key}\"; a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension.");
-                }
-
-                if (claimedBy.TryGetValue(documentPath, out string? claimed))
-                {
-                    throw new SpriteSheetFormatException(
-                        $"would overwrite the sheet document of '{claimed}'; a document is written at the key its source claims, so keys must be unique.");
-                }
-
                 declared.Declare(source.Key);
-                claimedBy[documentPath] = source.Path;
 
                 SpriteSheetDocument document = SpriteSheetDocumentFile.Load(source.Path);
                 string texture = document.Texture.Name + document.Texture.Extension;
@@ -125,23 +102,15 @@ public static class SpriteSheetTool
                         $"cuts from texture \"{texture}\", which this game does not ship; author it at asset-sources/textures/{texture}.");
                 }
 
-                // The key nests, so the directory the document lands in may not exist yet.
-                Directory.CreateDirectory(Path.GetDirectoryName(documentPath)!);
                 SpriteSheetDocumentFile.Save(document, documentPath);
                 sheets.Add((source.Key, document));
-                output.WriteLine($"{Name}: {source.Path} -> {documentPath}");
-            }
-            catch (Exception ex) when (IsReportable(ex))
-            {
-                error.WriteLine($"{source.Path}: {Message(ex, source.Path)}");
-                failures++;
-            }
-        }
+            },
+            output,
+            error);
 
-        if (failures > 0)
+        if (result != 0)
         {
-            error.WriteLine($"{Name}: {failures} of {sources.Count} source(s) failed");
-            return 1;
+            return result;
         }
 
         try
@@ -159,16 +128,6 @@ public static class SpriteSheetTool
         output.WriteLine($"{Name}: {sheets.Count} sheet(s) -> {generatedPath}");
 
         return 0;
-    }
-
-    // The path is the prefix of every line already, so a message the document reader anchored to
-    // the same path is not anchored to it twice.
-    private static string Message(Exception exception, string sourcePath)
-    {
-        string message = exception.Message;
-        string prefix = sourcePath + ": ";
-
-        return message.StartsWith(prefix, StringComparison.Ordinal) ? message[prefix.Length..] : message;
     }
 
     private static string[] Lines(string path) =>

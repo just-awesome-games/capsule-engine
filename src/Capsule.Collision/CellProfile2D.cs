@@ -1,9 +1,6 @@
 namespace Capsule.Collision;
 
-/// <summary>
-/// What one entry of a grid's palette collides as. The layer is the identity every cell of this
-/// entry carries, so a query result retains what was authored there.
-/// </summary>
+/// <summary>What one entry of a grid's palette collides as.</summary>
 /// <param name="Layer">
 /// The layer every cell of this entry is on. A null layer contributes no cell at all: the cell is
 /// empty as far as collision is concerned.

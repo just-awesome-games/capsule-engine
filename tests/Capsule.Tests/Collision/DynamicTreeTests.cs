@@ -60,23 +60,4 @@ public sealed class DynamicTreeTests
             return found;
         }
     }
-
-    private struct RayCollector(DynamicTree tree) : IRayVisitor
-    {
-        private readonly List<int> _found = [];
-
-        public float Visit(int proxyId, float maxFraction)
-        {
-            _found.Add(tree.UserDataOf(proxyId));
-            return maxFraction;
-        }
-
-        public readonly int[] Sorted()
-        {
-            int[] found = [.. _found];
-            Array.Sort(found);
-
-            return found;
-        }
-    }
 }

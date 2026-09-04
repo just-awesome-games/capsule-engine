@@ -8,8 +8,8 @@ using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 namespace Capsule.Runtime.Rendering;
 
 /// <summary>
-/// Draws a <see cref="FrameView"/>. Holds no scene state of its own: what a sprite
-/// interpolates from travels in the sprite.
+/// Draws a <see cref="FrameView"/>. Holds no scene state of its own: what a sprite interpolates
+/// from travels in the sprite.
 /// </summary>
 internal sealed class FrameRenderer : IDisposable
 {
@@ -24,12 +24,11 @@ internal sealed class FrameRenderer : IDisposable
     private readonly SpriteBatch _batch;
     private readonly TextureStore _textures;
 
-    // One white texel, tinted and stretched across the camera: the clear colour is world intent
-    // and needs no asset of the game's to be drawn as one.
+    // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
 
-    // Null when no render resolution is declared: the world then rasterises straight into
-    // the back buffer at whatever size the window is.
+    // Null when no render resolution is declared: the world then rasterises straight into the
+    // back buffer at whatever size the window is.
     private readonly RenderTarget2D? _target;
 
     /// <param name="device">The device to rasterise on.</param>
@@ -49,9 +48,7 @@ internal sealed class FrameRenderer : IDisposable
             : null;
     }
 
-    // Allocation-free at steady state: the span is iterated directly, the matrix and the
-    // fits are on the stack, and there is no closure or LINQ in the path.
-
+    /// <summary>Draws one frame. Allocation-free at steady state.</summary>
     /// <param name="view">What the simulation wants drawn.</param>
     /// <param name="alpha">
     /// Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the camera
@@ -59,8 +56,7 @@ internal sealed class FrameRenderer : IDisposable
     /// </param>
     internal void Draw(FrameView view, float alpha)
     {
-        // The scheduler leaves the accumulator holding a whole step when a game exits mid-catch-up,
-        // and an alpha past 1 would throw every sprite beyond where it actually is.
+        // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);
 
         if (_target is null)
@@ -77,11 +73,8 @@ internal sealed class FrameRenderer : IDisposable
         Present(_target);
     }
 
-    /// <summary>
-    /// Rasterises the world into the surface already bound, letterboxed to the camera's
-    /// shape. <paramref name="surfaceWidth"/> and <paramref name="surfaceHeight"/> are that
-    /// surface's own extent, which the viewport no longer reports once narrowed.
-    /// </summary>
+    // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
+    // longer reports once narrowed to the letterbox.
     private void DrawWorld(FrameView view, float alpha, int surfaceWidth, int surfaceHeight)
     {
         // A minimised window can present a back buffer with no area.
@@ -108,14 +101,13 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        // The camera moves on the same clock as what it looks at. Snapping it to the step's end
-        // while the sprites interpolate would slide the whole world back and let it catch up once
-        // per step, which is the one artefact interpolation exists to remove.
+        // The camera interpolates on the same clock as what it looks at; snapping it to the step's
+        // end instead would slide the whole world back once per step.
         Vector2 center = Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
         Vector2 topLeft = center - (camera.Size / 2f);
 
-        // Interpolation is quantised to the grid it is sampled on, camera and sprites alike, so the
-        // two never disagree by a pixel. The simulation keeps its fractional positions.
+        // Camera and sprites quantise to the same grid, so the two never disagree by a pixel. The
+        // simulation keeps its fractional positions.
         bool snap = view.Sampling == TextureSampling.Point;
         if (snap)
         {
@@ -128,8 +120,7 @@ internal sealed class FrameRenderer : IDisposable
 
         _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: worldToScreen);
 
-        // Clear colour is world intent rather than host configuration. Drawing it through the
-        // narrowed world viewport leaves presentation bars black on every backend.
+        // Drawn through the narrowed world viewport, so presentation bars stay black.
         _batch.Draw(
             _white,
             new XnaVector2(topLeft.X, topLeft.Y),
@@ -141,30 +132,26 @@ internal sealed class FrameRenderer : IDisposable
             effects: SpriteEffects.None,
             layerDepth: 0f);
 
-        // A run of tiles shares one atlas, so the handle is compared before the dictionary is
-        // asked: the lookup is once per texture change rather than once per sprite.
+        // Compared before the dictionary is asked, so the lookup is once per texture change
+        // rather than once per sprite.
         TextureHandle resolved = default;
         Texture2D? texture = null;
 
         ReadOnlySpan<SpriteIntent> sprites = view.Sprites;
         foreach (RenderCommand command in view.Commands)
         {
-            switch (command.Kind)
+            if (command.Kind != RenderKind.Sprite)
             {
-                case RenderKind.Sprite:
-                    DrawSprite(sprites[command.Index], alpha, snap, fit.Scale, ref resolved, ref texture);
-                    break;
-
-                default:
-                    throw new InvalidOperationException($"Unknown render kind '{command.Kind}'.");
+                throw new InvalidOperationException($"Unknown render kind '{command.Kind}'.");
             }
+
+            DrawSprite(sprites[command.Index], alpha, snap, fit.Scale, ref resolved, ref texture);
         }
 
         _batch.End();
     }
 
-    // resolved is the handle texture was fetched for; both are carried across the whole stream so
-    // a run drawing from one atlas resolves it once.
+    // resolved is the handle texture was fetched for; both are carried across the whole stream.
     private void DrawSprite(
         in SpriteIntent sprite,
         float alpha,
@@ -206,7 +193,7 @@ internal sealed class FrameRenderer : IDisposable
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
-    /// <summary>Blits <paramref name="target"/> into the back buffer, letterboxed a second time.</summary>
+    // Letterboxed a second time, into the back buffer.
     private void Present(RenderTarget2D target)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
@@ -224,9 +211,8 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
-        // One scalar scale and a fractional position rather than a destination rectangle:
-        // rounding the two extents to whole pixels independently is what makes a blit
-        // anisotropic. The sub-pixel slack at the far edge is already cleared black.
+        // One scalar scale and a fractional position rather than a destination rectangle, whose
+        // two extents would round to whole pixels independently and skew the blit.
         XnaVector2 position = new(
             (backBuffer.BackBufferWidth - (target.Width * fit.Scale)) / 2f,
             (backBuffer.BackBufferHeight - (target.Height * fit.Scale)) / 2f);

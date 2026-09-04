@@ -6,25 +6,16 @@ namespace Capsule.Scenes.Physics;
 
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. It registers when
-/// its entity joins a scene and unregisters when it leaves, and it follows the entity's
+/// its entity joins a scene and unregisters when it leaves, and follows the entity's
 /// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
-/// sees a stale one.
+/// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
 /// <para>
-/// The shape itself belongs to the subclass: <see cref="BoxCollider2D"/>,
-/// <see cref="CircleCollider2D"/>, <see cref="CapsuleCollider2D"/> and
-/// <see cref="PolygonCollider2D"/> each hold their own authoring state and rebuild
-/// <see cref="Shape"/> from it. Where that shape sits relative to the entity's position is each
-/// subclass's own convention.
-/// </para>
-/// <para>
-/// While this collider is dispatching its own <see cref="ContactEntered"/> and
-/// <see cref="ContactExited"/> handlers, what those handlers are being told about is fixed:
-/// <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
-/// <see cref="ReportsContacts"/>, <see cref="Detects"/> and a subclass's shape are all refused
-/// for the whole dispatch, nested ones included. Detaching the collider from its entity is the
-/// one thing a handler may do: it takes the collider out of the world, is given the exits it
-/// owes, and raises no further enters this step. Attaching it to an entity again before the
-/// dispatch ends is refused.
+/// While this collider is dispatching its own contact handlers, what they are being told about is
+/// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
+/// <see cref="ReportsContacts"/>, <see cref="Detects"/> and a subclass's shape are all refused for
+/// the whole dispatch, nested ones included. A handler may detach the collider, which takes it out
+/// of the world, gives it the exits it owes and ends its enters for the step; re-attaching before
+/// the dispatch ends is refused.
 /// </para>
 /// </summary>
 public abstract class Collider2D : Component
@@ -51,16 +42,13 @@ public abstract class Collider2D : Component
     private int _wasTouchingCount;
 
     // How many entries at the head of _touching have been announced through ContactEntered, and so
-    // are owed a ContactExited. The rest are settled but unannounced and owe nothing.
-    // SettleContacts orders the contacts carried over from the previous step first, which is what
+    // are owed a ContactExited. SettleContacts orders carried-over contacts first, which is what
     // keeps the announced set a prefix while the enter loop walks the new ones.
     private int _announcedCount;
 
-    // True while this collider's own enter and exit handlers are running. What they are being told
-    // about must not change underneath them, so the setters that would change it throw. Each
-    // dispatch scope restores the value it found rather than clearing: a handler that detaches this
-    // collider unregisters it and dispatches its exits from inside the outer dispatch, which stays
-    // armed across that.
+    // True while this collider's own enter and exit handlers are running. Each dispatch scope
+    // restores the value it found rather than clearing: a handler that detaches this collider
+    // dispatches its exits from inside the outer dispatch, which stays armed across that.
     private bool _dispatching;
 
     /// <summary>The shape this collider starts out holding, expressed relative to the entity's position.</summary>
@@ -75,26 +63,18 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Raised for each thing this collider began touching since the previous step, in the order an
-    /// overlap query would return them — every one of them is new, so nothing is carried ahead of
-    /// anything here. A handler may not reconfigure the collider it is being raised for; see
-    /// <see cref="Enabled"/>. It may detach it, which ends the dispatch: a collider that has left
-    /// the world enters nothing more this step, so the contacts the loop had not reached yet are
-    /// never announced.
+    /// overlap query would return them. A handler may not reconfigure the collider it is raised
+    /// for; it may detach it, which ends the dispatch, leaving the contacts the loop had not
+    /// reached unannounced.
     /// </summary>
     public event Action<ColliderContact2D>? ContactEntered;
 
     /// <summary>
     /// Raised for each thing this collider stopped touching since the previous step, and for
     /// everything it had announced entering when it left its scene, was disabled, stopped
-    /// reporting contacts, or was detached from its entity. Exits come in
-    /// <see cref="Touching"/> order. Handlers are bound by the same rule as
-    /// <see cref="ContactEntered"/>.
-    /// <para>
-    /// The pairing is exact for handlers that return: every contact announced through
-    /// <see cref="ContactEntered"/> raises this exactly once, and a contact that was never
-    /// announced never raises it at all. A handler that throws is a programmer error the engine
-    /// reports rather than unwinds, so the exits still owed behind it are never raised.
-    /// </para>
+    /// reporting contacts, or was detached from its entity. Exits come in <see cref="Touching"/>
+    /// order, and handlers are bound by the same rule as <see cref="ContactEntered"/>. The pairing
+    /// is exact for handlers that return; one that throws leaves the exits owed behind it unraised.
     /// </summary>
     public event Action<ColliderContact2D>? ContactExited;
 
@@ -129,10 +109,7 @@ public abstract class Collider2D : Component
     /// Whether this collider participates in its scene's collision world. A disabled collider
     /// remains attached to its entity but cannot be hit, queried, or report contacts.
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// The collider's contacts are being dispatched: a <see cref="ContactEntered"/> or
-    /// <see cref="ContactExited"/> handler cannot reconfigure the collider it was raised for.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public bool Enabled
     {
         get => _enabled;
@@ -162,12 +139,10 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Whether this collider computes what it is touching every step and raises
-    /// <see cref="ContactEntered"/> and <see cref="ContactExited"/> for the difference. Off by
-    /// default: a collider that nobody is listening to costs nothing. Turning it off ends the
-    /// contacts it had announced rather than discarding them: each raises
-    /// <see cref="ContactExited"/> once, before the setter returns. Turning it back on re-announces
-    /// from an empty set on the next step.
+    /// Whether contacts are settled each step and announced through <see cref="ContactEntered"/>
+    /// and <see cref="ContactExited"/>. Off by default. Turning it off raises
+    /// <see cref="ContactExited"/> for every announced contact before returning; turning it on
+    /// announces afresh on the next step.
     /// </summary>
     /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public bool ReportsContacts
@@ -207,10 +182,9 @@ public abstract class Collider2D : Component
     public ColliderHandle Handle => _handle;
 
     /// <summary>
-    /// What this collider's contact queries may detect, in the terms of
-    /// <see cref="World"/>. Rebuilt from the layer names given to <see cref="Detects"/> each
-    /// time the collider joins a scene, so a collider carried between scenes filters against the
-    /// world it is in; <see cref="CollisionFilter.None"/> while it is in none.
+    /// What this collider's contact queries may detect, in <see cref="World"/>'s terms. Rebuilt
+    /// from the names given to <see cref="Detects"/> each time the collider joins a scene, so one
+    /// carried between scenes filters against the world it is in; None while it is in none.
     /// </summary>
     public CollisionFilter Filter { get; private set; }
 
@@ -219,9 +193,7 @@ public abstract class Collider2D : Component
     /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">
-    /// The world has no room left to intern the name, or the collider's contacts are being dispatched.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The world cannot intern the name, or contacts are being dispatched.</exception>
     public string Layer
     {
         get => _layer;
@@ -251,44 +223,33 @@ public abstract class Collider2D : Component
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
-    public Aabb2D Bounds => _shape.Translated(Origin).Bounds;
-
-    /// <summary>
-    /// Everything this collider was touching as of the last step, while
-    /// <see cref="ReportsContacts"/> is on; empty otherwise. Never abridged: the gather widens
-    /// until every overlap fits, so nothing is left out for want of room. Ordered carried-over
-    /// contacts first — the ones the previous step also held — then the newly entered ones, each
-    /// group in the order an overlap query would return it.
-    /// <para>
-    /// A handler reads the settled set, so mid-dispatch this can hold contacts whose
-    /// <see cref="ContactEntered"/> has not been raised yet: the enter/exit pairing is a promise
-    /// about the events, not about this span. A handler that throws drops those from here, and
-    /// they settle afresh on the next step.
-    /// </para>
-    /// </summary>
-    public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
-
-    private Vector2 Origin =>
+    public Aabb2D Bounds =>
         Entity is { } entity
-            ? entity.Position + _offset
+            ? _local.Translated(entity.Position).Bounds
             : throw new InvalidOperationException("A Collider2D that is attached to no entity has no place in the world.");
 
     /// <summary>
+    /// Everything this collider was touching as of the last step, while
+    /// <see cref="ReportsContacts"/> is on; empty otherwise. Never abridged, and ordered
+    /// carried-over contacts first, then newly entered ones, each group in overlap-query order.
+    /// Mid-dispatch it can hold contacts whose <see cref="ContactEntered"/> has not been raised:
+    /// the enter/exit pairing is a promise about the events, not about this span.
+    /// </summary>
+    public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
+
+    /// <summary>
     /// Replaces what this collider's contact queries detect. Detection does not block movement;
-    /// <see cref="KinematicBody2D.BlocksOn"/> owns that independent filter. Layer names are
-    /// setup-time text, interned once and never compared during a query.
+    /// <see cref="KinematicBody2D.BlocksOn"/> owns that independent filter.
     /// </summary>
     /// <param name="names">The layer names to hit; an empty list hits nothing.</param>
     /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">
-    /// The world has no room left to intern a name, or the collider's contacts are being dispatched.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">The world cannot intern a name, or contacts are being dispatched.</exception>
     public void Detects(params ReadOnlySpan<string> names)
     {
         RequireNotDispatching();
 
         // Every name is checked, and every one interned, before the list this collider filters by
-        // is touched: a bad name half way along used to leave the old list already cleared.
+        // is touched: a bad name half way along must leave the old list intact.
         foreach (string name in names)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
@@ -318,9 +279,8 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Everything this collider is touching right now — within
-    /// <see cref="CollisionWorld2D.ContactSkin"/>, matching <see cref="Filter"/>, never itself.
-    /// Written into <paramref name="contacts"/>; the return is how many, never more than the span
-    /// holds.
+    /// <see cref="CollisionWorld2D.ContactSkin"/>, matching <see cref="Filter"/>, never itself —
+    /// written into <paramref name="contacts"/>, returning how many, never more than it holds.
     /// </summary>
     /// <exception cref="InvalidOperationException">The collider is in no scene.</exception>
     public int Overlap(Span<Contact2D> contacts) => RequireWorld().OverlapCollider(_handle, contacts);
@@ -328,35 +288,26 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Sweeps this collider's own shape from where it stands along <paramref name="translation"/>
     /// and reports the first thing it meets, under <see cref="Filter"/> and never itself. Nothing
-    /// moves: the collider, its entity and the world are exactly as they were.
-    /// <para>
-    /// A surface already being touched is reported at fraction 0 when the sweep drives into it, and
-    /// passed by when the sweep runs along it or away from it — so a body resting on a floor and
-    /// cast sideways meets the floor not at all.
-    /// </para>
+    /// moves. A surface already being touched is reported at fraction 0 when the sweep drives into
+    /// it, and passed by when the sweep runs along it or away from it.
     /// </summary>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
     /// <param name="hit">The nearest thing met, when there is one.</param>
     /// <returns>Whether the sweep met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The translation is not finite, or the box the sweep covers is not.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The translation, or the box the sweep covers, is not finite.</exception>
     /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
     public bool Cast(Vector2 translation, out ShapeCastHit2D hit) => Cast(translation, Filter, out hit);
 
     /// <summary>
     /// Sweeps this collider's own shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call alone; <see cref="Detects"/> is untouched. Self-exclusion,
-    /// the touching rule and the promise that nothing moves are those of
-    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
+    /// <see cref="Filter"/>, for this call alone; <see cref="Detects"/> is untouched. Bound in
+    /// every other way by <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
     /// </summary>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
     /// <param name="filter">What the sweep may hit; <see cref="CollisionFilter.None"/> hits nothing.</param>
     /// <param name="hit">The nearest thing met, when there is one.</param>
     /// <returns>Whether the sweep met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The translation is not finite, or the box the sweep covers is not.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The translation, or the box the sweep covers, is not finite.</exception>
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
@@ -365,13 +316,9 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Takes <paramref name="shape"/> as the collider's shape and resyncs whatever world holds it,
     /// so a registered collider is queried as its new shape from the moment the call returns. A
-    /// subclass rebuilds its shape through here whenever its authoring state changes; a refusal
-    /// leaves the collider exactly as it was.
+    /// refusal leaves the collider exactly as it was.
     /// </summary>
-    /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape2D"/>, which is no shape at all, or it cannot be
-    /// placed at this collider's offset and position.
-    /// </exception>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or is unplaceable here.</exception>
     /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     protected void SetShape(in Shape2D shape)
     {
@@ -384,15 +331,14 @@ public abstract class Collider2D : Component
         Resync();
     }
 
-    // A handler may detach this collider, and that is where the dispatch ends for it; re-attaching
-    // it would put it back in the world mid-dispatch, where whether it settles again this step
-    // depends on where the next reporting collider sits in the scene's list.
+    // Re-attaching mid-dispatch would put the collider back in the world, where whether it settles
+    // again this step depends on where the next reporting collider sits in the scene's list.
     internal override void OnAttachedTo(Entity entity)
     {
         if (_dispatching)
         {
             throw new InvalidOperationException(
-                $"A {GetType().Name} cannot be attached to an entity while its own contacts are being dispatched; a handler may detach it, and a collider that has left the world enters nothing more this step.");
+                $"A {GetType().Name} cannot be attached to an entity while its own contacts are being dispatched.");
         }
 
         entity.TrackMovement(1);
@@ -411,12 +357,12 @@ public abstract class Collider2D : Component
             Register();
         }
     }
+
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
         Unregister();
         _scene = null;
-        Filter = CollisionFilter.None;
     }
 
     private void Register()
@@ -453,12 +399,9 @@ public abstract class Collider2D : Component
         EndAnnouncedContacts();
     }
 
-    // Ends every contact this collider had announced and leaves it holding none, so whatever settles
-    // next starts from an empty set. Everything announced gets its end, so no contact is left
-    // half-reported — and only that, so a contact never announced is not given an end it never
-    // began. The two differ only when a handler detaches this collider part way through a dispatch.
-    // The counts are cleared before the first handler runs: a handler that detaches the collider
-    // from in here finds nothing left owing rather than exiting the same contacts twice.
+    // Ends every announced contact and only those, leaving this collider holding none. The counts
+    // are cleared before the first handler runs: a handler that detaches the collider from in here
+    // finds nothing left owing rather than exiting the same contacts twice.
     private void EndAnnouncedContacts()
     {
         ColliderContact2D[] announced = _touching;
@@ -504,9 +447,8 @@ public abstract class Collider2D : Component
         (_touching, _wasTouching) = (_wasTouching, _touching);
         _wasTouchingCount = _touchingCount;
 
-        // Which of the settled set was already there last step: announced then, and owed an exit
-        // from here on. Everything after them is new and owes nothing until the enter loop
-        // announces it, one at a time.
+        // Carried-over contacts were announced last step and are owed an exit from here on;
+        // everything after them owes nothing until the enter loop announces it, one at a time.
         _touchingCount = DescribeCarriedFirst(
             world,
             _found.AsSpan(0, count),
@@ -526,9 +468,8 @@ public abstract class Collider2D : Component
         try
         {
             // Exits before enters, so a handler reading Touching sees the settled set either way.
-            // This loop runs to the end even if a handler detaches the collider: what it still has
-            // to report was announced on an earlier step, and the unregister sweep does not cover
-            // it — the two sets are disjoint, so nothing is exited twice and nothing is dropped.
+            // This loop runs to the end even if a handler detaches the collider: its contacts and
+            // the unregister sweep's are disjoint, so nothing is exited twice or dropped.
             for (int index = 0; index < leftCount; index++)
             {
                 if (!Holds(entered, enteredCount, left[index].Target))
@@ -539,9 +480,8 @@ public abstract class Collider2D : Component
 
             for (int index = carried; index < enteredCount; index++)
             {
-                // Read after every handler rather than trusted from before the loop: a handler that
-                // detached this collider took it out of the world and swept the exits it owed, and
-                // a collider with no place in the world has nothing left to enter.
+                // Re-read after every handler: one that detached this collider took it out of the
+                // world and swept the exits it owed, so it has nothing left to enter.
                 if (_world is null || _announcedCount != index)
                 {
                     break;
@@ -567,8 +507,7 @@ public abstract class Collider2D : Component
         }
     }
 
-    // Two passes over the gather rather than a scratch buffer, and stable within each group: the
-    // world's own contact order survives among the carried contacts and among the new ones.
+    // Two passes over the gather rather than a scratch buffer, stable within each group.
     private static int DescribeCarriedFirst(
         CollisionWorld2D world,
         ReadOnlySpan<Contact2D> found,
@@ -604,10 +543,8 @@ public abstract class Collider2D : Component
         return written;
     }
 
-    // The shape as the world would have to hold it, checked before anything is committed. None of
-    // it needs a world: an offset that could never be placed, or one that cannot be placed where
-    // the entity stands, is refused where it is set rather than surfacing much later as a failure
-    // to join a scene.
+    // The shape as the world would have to hold it, checked before anything is committed, so an
+    // unplaceable offset is refused where it is set rather than as a failure to join a scene.
     private void RequirePlaceable(in Shape2D shape, Vector2 offset)
     {
         Shape2D local = shape.Translated(offset);

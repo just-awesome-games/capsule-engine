@@ -27,8 +27,7 @@ public sealed partial class CollisionWorld2D
         {
             Insert(hits, ref count, candidate);
 
-            // A full span is also the limit: nothing past its farthest entry can join the result,
-            // so the grid walk and the tree walk both stop looking beyond it from here on.
+            // A full span is also the limit: both walks stop looking past its farthest entry.
             if (count == hits.Length)
             {
                 accumulator.Distance = hits[count - 1].Distance;
@@ -49,9 +48,8 @@ public sealed partial class CollisionWorld2D
         accumulator.Target = target;
     }
 
-    // The span holds the nearest hits found so far, in order. A full span gives up its farthest
-    // entry to a nearer one rather than dropping the newcomer, so which hits survive depends on
-    // where they are and never on the order the traversal happened to meet them.
+    // A full span gives up its farthest entry to a nearer one rather than dropping the newcomer, so
+    // which hits survive never depends on the order the traversal met them.
     private static void Insert(Span<RayHit2D> hits, ref int count, in RayHit2D hit)
     {
         if (count == hits.Length)
@@ -93,9 +91,7 @@ public sealed partial class CollisionWorld2D
             : left.CellX < right.CellX;
     }
 
-    // Nearest first, and then a tie-break that reads nothing from the tree's current arrangement:
-    // tiles before colliders, then by slot, then by cell. Two runs over the same world must fill
-    // the same span with the same hits in the same order.
+    // Nearest first, then a tie-break that reads nothing from the tree's current arrangement.
     private static bool Precedes(in RayHit2D left, in RayHit2D right)
     {
         if (left.Distance != right.Distance)
@@ -106,7 +102,8 @@ public sealed partial class CollisionWorld2D
         return TargetPrecedes(left.Target, right.Target);
     }
 
-    private static void Consider(
+    // Returns whether this hit opened a new band, discarding the contacts written before it.
+    private static bool Consider(
         ref CastAccumulator accumulator,
         Span<Contact2D> contacts,
         Vector2 translation,
@@ -119,10 +116,12 @@ public sealed partial class CollisionWorld2D
         // that starts overlapping something move back out of it.
         if (Vector2.Dot(translation, normal) >= 0f)
         {
-            return;
+            return false;
         }
 
-        if (!accumulator.Hit || fraction < accumulator.Band - FractionBand)
+        bool opened = !accumulator.Hit || fraction < accumulator.Band - FractionBand;
+
+        if (opened)
         {
             accumulator.Hit = true;
             accumulator.Band = fraction;
@@ -134,7 +133,7 @@ public sealed partial class CollisionWorld2D
         }
         else if (fraction > accumulator.Band + FractionBand)
         {
-            return;
+            return false;
         }
         else if (fraction < accumulator.Fraction
             || (fraction == accumulator.Fraction && TargetPrecedes(target, accumulator.Target)))
@@ -151,12 +150,12 @@ public sealed partial class CollisionWorld2D
         {
             contacts[accumulator.Count++] = new Contact2D(target, point, normal);
         }
+
+        return opened;
     }
 
-    // Whether a slot is the one the query was told to pass through. The generation is half the
-    // answer: an index alone still names the slot after its collider is removed, and the next
-    // collider to take that slot would be suppressed in its place. The seams reject a stale ignore
-    // outright, so this is the invariant holding structurally rather than a reachable case.
+    // The generation is half the answer: an index alone still names the slot after its collider is
+    // removed, and the next collider to take it would be suppressed in its place.
     private static bool IsIgnored(ColliderHandle ignore, int index, int generation) =>
         !ignore.IsNone && ignore.Index == index && ignore.Generation == generation;
 
@@ -170,12 +169,10 @@ public sealed partial class CollisionWorld2D
         return (state & (normal.Y < 0f ? CellState.FaceMinY : CellState.FaceMaxY)) != 0;
     }
 
-    // Whether a solid cell's face is a surface this query can meet. The grid's own face culling is
-    // geometric — a face shared with a solid neighbour is interior — and that is exactly right only
-    // while the query admits every layer the grid uses. A filter that excludes a layer turns those
-    // cells into empty space, faces included, so an interior face bordering one becomes a real
-    // surface. The layer test costs nothing in the ordinary case: it is reached only for a face the
-    // grid already culled, on a grid the filter does not wholly admit.
+    // Whether a solid cell's face is a surface this query can meet. The grid culls a face shared
+    // with a solid neighbour, which holds only while the query admits every layer the grid uses: a
+    // filter that excludes a layer turns those cells into empty space, making a culled face real
+    // again. The layer test is reached only for a culled face on a grid the filter partly admits.
     private static bool IsActiveFace(
         GridCollider2D map,
         int x,
@@ -186,8 +183,7 @@ public sealed partial class CollisionWorld2D
         IsBoundaryFace(state, normal)
         || (!map.AdmitsEveryLayer(filter) && !map.NeighbourAdmits(x, y, normal, filter));
 
-    // A cell's face and a solid cell's body are both handed over as boxes; a face is the degenerate
-    // one, which is the segment it looks like and which the hull routines read directly.
+    // A face is the degenerate box, which the hull routines read as the segment it is.
     private static Shape2D AsShape(in Aabb2D box) =>
         box.Min.X == box.Max.X || box.Min.Y == box.Max.Y
             ? Shape2D.Segment(box.Min, box.Max)
@@ -198,9 +194,8 @@ public sealed partial class CollisionWorld2D
     private static ReadOnlySpan<CellState> Faces =>
         [CellState.FaceMinX, CellState.FaceMaxX, CellState.FaceMinY, CellState.FaceMaxY];
 
-    // How far a shape already reaches past a face's plane, measured inwards. A face is one-
-    // directional: it guards the cell from outside, so a shape that starts more than a slop beyond
-    // it is already through and meets nothing.
+    // How far a shape already reaches past a face's plane, measured inwards. A face is
+    // one-directional, so a shape starting more than a slop beyond it is through and meets nothing.
     private static float InwardOf(in Aabb2D bounds, in Aabb2D edge, Vector2 normal) =>
         normal.X != 0f
             ? (normal.X < 0f ? bounds.Max.X - edge.Min.X : edge.Min.X - bounds.Min.X)
@@ -225,8 +220,8 @@ public sealed partial class CollisionWorld2D
         return separation;
     }
 
-    // A cell is an axis-aligned box even when it is the degenerate one a single face is, so a box
-    // mover meets terrain through the closed-form sweep and never through the iterated one.
+    // A cell is an axis-aligned box even when it is a single face, so a box mover meets terrain
+    // through the closed-form sweep and never through the iterated one.
     private static bool SweepAgainstCell(
         in Shape2D moving,
         Vector2 translation,
@@ -298,23 +293,10 @@ public sealed partial class CollisionWorld2D
         return false;
     }
 
-    // The tree hands proxies back in whatever shape it currently has, so the collider half of a
-    // result set is ordered by handle here and the caller never sees the tree's own arrangement.
-    private static void SortByHandle(Span<Contact2D> contacts)
-    {
-        for (int index = 1; index < contacts.Length; index++)
-        {
-            Contact2D candidate = contacts[index];
-            int position = index - 1;
-            while (position >= 0 && contacts[position].Target.Collider.Index > candidate.Target.Collider.Index)
-            {
-                contacts[position + 1] = contacts[position];
-                position--;
-            }
-
-            contacts[position + 1] = candidate;
-        }
-    }
+    // The tree hands proxies back in whatever shape it currently has, so the collider tail of a
+    // result set is ordered by handle here and never carries the tree's own arrangement out.
+    private static void SortByHandle(Span<Contact2D> contacts) =>
+        contacts.Sort(static (left, right) => left.Target.Collider.Index.CompareTo(right.Target.Collider.Index));
 
     private void RaycastGrids(
         Vector2 origin,
@@ -343,8 +325,7 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // Amanatides and Woo: the grid is the broadphase, so a ray touches only the cells it crosses,
-    // in the order it crosses them.
+    // Amanatides and Woo: a ray touches only the cells it crosses, in the order it crosses them.
     private void WalkGrid(
         GridCollider2D map,
         Vector2 origin,
@@ -380,21 +361,18 @@ public sealed partial class CollisionWorld2D
                 return;
             }
 
-            // Re-read every step, because it tightens as hits are taken: once a bounded RaycastAll
-            // has filled its span, nothing past its farthest entry can join the result, and a walk
-            // that kept going to the grid's far edge would cell-test the rest of the map for
-            // nothing. Strictly greater, so a cell entered exactly at the limit is still tested and
-            // the total order decides the tie rather than the traversal.
+            // Re-read every step, because the limit tightens as hits are taken: a filled span puts
+            // everything beyond its farthest entry out of reach. Strictly greater, so a cell entered
+            // exactly at the limit is still tested and the total order decides the tie.
             if (MathF.Min(boundaryX, boundaryY) > MathF.Min(exit, accumulator.Distance))
             {
                 return;
             }
 
-            // An exact tie is the ray passing through a cell corner rather than across an edge, and
-            // both cells that corner separates are entered at that one moment. Stepping X and
-            // leaving it there would commit the walk to whichever face the box test picks — and at
-            // a corner that can be the seam the two cells share, hiding the exposed face of the one
-            // never visited. The other cell is tested here, before the walk goes on through it.
+            // An exact tie is the ray crossing a cell corner, entering both cells the corner
+            // separates at one moment. Stepping X alone would commit to whichever face the box test
+            // picks — at a corner, possibly the seam the two share — hiding the exposed face of the
+            // cell never visited.
             if (boundaryX == boundaryY
                 && (uint)(y + stepY) < (uint)map.Height
                 && TestCell(map, x, y + stepY, origin, unit, filter, ref accumulator, hits, ref count, all)
@@ -607,7 +585,7 @@ public sealed partial class CollisionWorld2D
     }
 
     // Whether a shape is within tolerance of a cell, and where. One contact a cell however many
-    // faces it carries: the nearest of them is what the shape is touching.
+    // faces it carries: the nearest.
     private static bool TouchingCell(
         GridCollider2D map,
         int x,
@@ -638,14 +616,12 @@ public sealed partial class CollisionWorld2D
             Aabb2D edge = map.FaceEdge(x, y, face);
             float separation = SeparationOfCell(world, edge, out _, out Vector2 facePoint);
 
-            // A face exists only for what crosses it inwards, so it is a surface to a shape on its
-            // outward side and to nothing else: one that has already passed through touches it not
-            // at all. Which side that is comes from the authored plane and never from the
-            // narrowphase, whose least-penetration axis resolves an exact tie towards -X and -Y and
-            // would answer the question differently for a Top than for a Bottom. Measured from the
-            // centre of the shape's bounds, and inclusive: a centre exactly on the plane is
-            // outward, so a body resting on a face while straddling it a skin deep still contacts
-            // it, and all four faces read the same way.
+            // A face is a surface only to a shape on its outward side; one that has passed through
+            // touches it not at all. Which side that is comes from the authored plane, never from
+            // the narrowphase, whose least-penetration axis resolves an exact tie towards -X and -Y
+            // and would answer differently for a Top than for a Bottom. Measured from the centre of
+            // the shape's bounds and inclusive, so a centre exactly on the plane is outward and all
+            // four faces read alike.
             if (separation <= tolerance
                 && separation < nearest
                 && Vector2.Dot(world.Bounds.Center - edge.Min, outward) >= 0f)
@@ -670,9 +646,8 @@ public sealed partial class CollisionWorld2D
         Aabb2D start = moving.Bounds.Expanded(LinearSlop);
         Aabb2D swept = start.Swept(translation);
 
-        // The one derived box both broadphases read: the grid floors it into cell coordinates and
-        // the tree queries it directly. Checked here rather than at each seam because ShapeCast and
-        // every axis of a move arrive through this one point.
+        // The one derived box both broadphases read; checked here because ShapeCast and every axis
+        // of a move arrive through this point.
         RequireFinite(swept, nameof(translation));
 
         foreach (GridCollider2D map in _grids)
@@ -686,9 +661,8 @@ public sealed partial class CollisionWorld2D
             int minX = Math.Max(0, GridCollider2D.FloorDiv(swept.Min.X, size));
             int maxX = Math.Min(map.Width - 1, GridCollider2D.FloorDiv(swept.Max.X, size));
 
-            // Column by column, and within each only the rows the sweep actually passes through.
-            // The swept bounds of a long diagonal describe a rectangle the shape never enters most
-            // of; walking the band keeps the cost proportional to the distance travelled.
+            // Column by column, and within each only the rows the sweep passes through: the band,
+            // not the bounding rectangle a long diagonal describes.
             for (int x = minX; x <= maxX; x++)
             {
                 if (!ColumnRows(start, translation, x, size, map.Height, out int minY, out int maxY))
@@ -706,12 +680,13 @@ public sealed partial class CollisionWorld2D
         CastVisitor visitor = new(this, moving, translation, filter, ignore, contacts, accumulator);
         _tree.Query(swept, ref visitor);
         accumulator = visitor.Accumulator;
+
+        SortByHandle(contacts[visitor.First..accumulator.Count]);
     }
 
-    // The rows one column of the grid shares with the swept shape. The sweep is inside the column's
-    // slab over a single interval of the translation — the box's X range crosses each slab edge
-    // once — and over that interval the shape's Y range is bounded by its position at the two ends,
-    // so the band is exact rather than the bounding rectangle's full height.
+    // The rows one column shares with the swept shape. The sweep is inside the column's slab over a
+    // single interval of the translation, and over that interval the shape's Y range is bounded by
+    // its position at the two ends, so the band is exact.
     private static bool ColumnRows(
         in Aabb2D start,
         Vector2 translation,
@@ -812,8 +787,7 @@ public sealed partial class CollisionWorld2D
             Vector2 outward = GridCollider2D.FaceNormal(face);
             Aabb2D edge = map.FaceEdge(x, y, face);
 
-            // A face stops only a sweep crossing it inwards that began on the outward side of it;
-            // nothing else it could meet is a landing.
+            // A face stops only a sweep crossing it inwards that began on its outward side.
             if (Vector2.Dot(translation, outward) >= 0f
                 || InwardOf(moving.Bounds, edge, outward) > LinearSlop)
             {
@@ -826,10 +800,9 @@ public sealed partial class CollisionWorld2D
                 continue;
             }
 
-            // The face's own normal, not the narrowphase's. A rounded shape meeting the end of an
-            // edge is nearest to its endpoint, so GJK answers with the diagonal from that corner —
-            // a direction the surface does not have. The face is a declared plane and this is the
-            // one thing it can report; the test above is what makes the two agree in sign.
+            // The face's own normal, not the narrowphase's: a rounded shape meeting the end of an
+            // edge is nearest its endpoint, so GJK answers with the diagonal from that corner — a
+            // direction the declared plane does not have.
             Consider(ref accumulator, contacts, translation, fraction, target, outward, point);
         }
     }
@@ -856,10 +829,9 @@ public sealed partial class CollisionWorld2D
 
         if (moving.Kind == ShapeKind2D.Box)
         {
-            // A box is shrunk on the axis it is not moving along, so a face exactly flush with its
-            // side never reads as something in its way: this is what keeps a slide along a flat run
-            // of tiles from catching on the seam between two of them. A rounded shape needs no
-            // inset — the narrowphase's own advance already stops short of a tangent surface.
+            // Shrunk on the axis it is not moving along, so a face flush with its side never reads
+            // as something in its way and a slide along a flat run cannot catch on a seam. A
+            // rounded shape needs no inset: its advance already stops short of a tangent surface.
             Aabb2D bounds = moving.Bounds;
             Vector2 size = bounds.Size;
             float inset = horizontal
@@ -880,9 +852,9 @@ public sealed partial class CollisionWorld2D
             return false;
         }
 
-        // Stopped a slop short of the surface rather than flush against it, so a rounding error at
-        // the contact cannot leave the mover a hair inside; the gap is well within the contact
-        // skin, so the surface still reports as touched on the next step.
+        // A slop short of the surface rather than flush, so a rounding error cannot leave the mover
+        // a hair inside; the gap is well within the contact skin, so the surface still reports as
+        // touched next step.
         float sign = MathF.Sign(delta);
         moved = (delta * accumulator.Fraction) - (sign * LinearSlop);
         if (moved * sign < 0f)
@@ -1048,9 +1020,13 @@ public sealed partial class CollisionWorld2D
             _ignore = ignore;
             _contacts = contacts;
             Accumulator = accumulator;
+            First = accumulator.Count;
         }
 
         internal CastAccumulator Accumulator { get; private set; }
+
+        /// <summary>Where the tree-phase contacts start; the grid phase's stay in traversal order.</summary>
+        internal int First { get; private set; }
 
         public bool Visit(int proxyId)
         {
@@ -1069,7 +1045,7 @@ public sealed partial class CollisionWorld2D
             }
 
             CastAccumulator accumulator = Accumulator;
-            Consider(
+            bool opened = Consider(
                 ref accumulator,
                 _contacts,
                 _translation,
@@ -1078,6 +1054,12 @@ public sealed partial class CollisionWorld2D
                 normal,
                 point);
             Accumulator = accumulator;
+
+            if (opened)
+            {
+                // The band that opened discarded every contact before it, grid cells included.
+                First = 0;
+            }
 
             return true;
         }

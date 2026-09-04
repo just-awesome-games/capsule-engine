@@ -8,44 +8,28 @@ internal static class Hulls
     /// <summary>Whether <paramref name="point"/> lies inside the shape or on its outline.</summary>
     internal static bool Contains(in Shape2D shape, Vector2 point)
     {
-        float radius = shape.Radius;
+        int count = shape.PointCount;
 
-        if (shape.PointCount >= 3 && InsideCore(shape, point))
+        if (count >= 3 && Inside(shape, point))
         {
             return true;
         }
 
-        return DistanceToCore(shape, point) <= radius;
-    }
-
-    /// <summary>How far <paramref name="point"/> is from the hull of the shape's points; zero inside it.</summary>
-    internal static float DistanceToCore(in Shape2D shape, Vector2 point)
-    {
-        int count = shape.PointCount;
-
-        if (count == 1)
-        {
-            return Vector2.Distance(point, shape.PointAt(0));
-        }
-
-        if (count >= 3 && InsideCore(shape, point))
-        {
-            return 0f;
-        }
-
-        float nearest = float.PositiveInfinity;
         int edges = count == 2 ? 1 : count;
         for (int index = 0; index < edges; index++)
         {
             Vector2 a = shape.PointAt(index);
             Vector2 b = shape.PointAt((index + 1) % count);
-            nearest = MathF.Min(nearest, Vector2.Distance(point, ClosestOnSegment(a, b, point)));
+            if (Vector2.Distance(point, ClosestOnSegment(a, b, point)) <= shape.Radius)
+            {
+                return true;
+            }
         }
 
-        return nearest;
+        return false;
     }
 
-    internal static Vector2 ClosestOnSegment(Vector2 a, Vector2 b, Vector2 point)
+    private static Vector2 ClosestOnSegment(Vector2 a, Vector2 b, Vector2 point)
     {
         Vector2 edge = b - a;
         float lengthSquared = Vector2.Dot(edge, edge);
@@ -59,9 +43,8 @@ internal static class Hulls
         return a + (edge * t);
     }
 
-    // Winding is normalised on construction, so every outward normal points the same way round
-    // and one sign test per edge decides the question.
-    private static bool InsideCore(in Shape2D shape, Vector2 point)
+    // Winding is normalised on construction, so one sign test per edge decides the question.
+    private static bool Inside(in Shape2D shape, Vector2 point)
     {
         for (int index = 0; index < shape.PointCount; index++)
         {

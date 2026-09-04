@@ -9,8 +9,8 @@ internal interface ITreeVisitor
 }
 
 /// <summary>
-/// Visits proxies a ray could reach, nearest first is not guaranteed; the returned value is the
-/// new maximum fraction to keep searching within, and zero ends the walk.
+/// Visits proxies a ray could reach, in no particular order; the returned value is the new maximum
+/// fraction to keep searching within, and zero ends the walk.
 /// </summary>
 internal interface IRayVisitor
 {
@@ -81,16 +81,14 @@ internal sealed class DynamicTree
 
         Aabb2D fat = tight.Expanded(BoundsMargin);
 
-        // Predicted along the motion so a proxy travelling in one direction reinserts less often;
-        // the slack is added on the side it is heading towards and nowhere else.
+        // Slack on the side the proxy is heading towards, so one travelling in a fixed direction
+        // reinserts less often.
         Vector2 predicted = displacement * DisplacementLookahead;
         Vector2 min = fat.Min + Vector2.Min(predicted, Vector2.Zero);
         Vector2 max = fat.Max + Vector2.Max(predicted, Vector2.Zero);
 
-        // The lookahead is slack, not geometry. A displacement large enough to carry the slack off
-        // the end of the float range is dropped rather than stored: the tight box is what the
-        // proxy has to cover, and an infinite bound here would union its way up the ancestors and
-        // lose colliders that have nothing to do with this one.
+        // Lookahead is slack, not geometry: one that overflows is dropped rather than stored,
+        // because an infinite bound unions its way up the ancestors and loses unrelated colliders.
         _nodes[proxyId].Box = Aabb2D.IsFinite(min) && Aabb2D.IsFinite(max) ? new Aabb2D(min, max) : fat;
         InsertLeaf(proxyId);
 
@@ -147,7 +145,7 @@ internal sealed class DynamicTree
             int nodeId = _stack[--depth];
             ref Node node = ref _nodes[nodeId];
 
-            if (!Segments.IntersectsBox(node.Box, origin, direction, maxFraction))
+            if (!Segments.RayBox(node.Box, origin, direction, maxFraction, out _, out _))
             {
                 continue;
             }
@@ -224,8 +222,8 @@ internal sealed class DynamicTree
         _freeList = first;
     }
 
-    // Branch-and-bound descent on the surface-area heuristic: at each node, keep descending only
-    // while doing so costs less than making the sibling a leaf's new brother here.
+    // Branch-and-bound descent on the surface-area heuristic: descend only while doing so costs
+    // less than pairing the leaf with the node here.
     private void InsertLeaf(int leaf)
     {
         if (_root == NullNode)
@@ -350,8 +348,8 @@ internal sealed class DynamicTree
         }
     }
 
-    // One AVL rotation where a subtree leans by more than one level, which is what keeps query
-    // depth logarithmic without ever rebuilding the tree.
+    // One AVL rotation where a subtree leans by more than one level, keeping query depth
+    // logarithmic without ever rebuilding the tree.
     private int Balance(int iA)
     {
         ref Node a = ref _nodes[iA];
@@ -403,8 +401,8 @@ internal sealed class DynamicTree
             _root = iPivot;
         }
 
-        // The taller grandchild rises with the pivot; the shorter one takes the rotated node's
-        // free slot, which is where the height difference is spent.
+        // The taller grandchild rises with the pivot; the shorter takes the rotated node's free
+        // slot, spending the height difference.
         int iTall = _nodes[iF].Height > _nodes[iG].Height ? iF : iG;
         int iShort = iTall == iF ? iG : iF;
 

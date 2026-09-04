@@ -48,6 +48,10 @@ public sealed class EntityTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => entity.Position = new Vector2(float.NaN, 0f));
 
+        // Finite, but too far out for an 8-unit box to keep any extent: the collider refuses it,
+        // and the entity must not keep a position its colliders never reached.
+        Assert.Throws<ArgumentException>(() => entity.Position = new Vector2(3e38f, 0f));
+
         Assert.Equal(new Vector2(4, 6), entity.Position);
         Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(collider.Handle));
     }

@@ -45,8 +45,7 @@ public sealed class MoverTests
         Assert.Equal((2, 0), (contacts[0].Target.CellX, contacts[0].Target.CellY));
     }
 
-    // Axis separation is the whole point of the mover: stopping on X must not stop Y, or a box
-    // pressed against a wall stops falling.
+    // Stopping on X must not stop Y, or a box pressed against a wall stops falling.
     [Fact]
     public void MoveBox_SlidesAlongASurfaceInsteadOfStoppingDead()
     {
@@ -65,8 +64,7 @@ public sealed class MoverTests
         Assert.False(result.BlockedY);
     }
 
-    // The seam between two tiles of one flat run is not a face, and a box travelling along it must
-    // never catch on one.
+    // The seam between two tiles of one flat run is not a face and must never catch a box.
     [Fact]
     public void MoveBox_CrossesEveryCellSeamOfAFlatRunWithoutCatching()
     {
@@ -88,8 +86,8 @@ public sealed class MoverTests
         Assert.Equal(8f, box.Min.Y, Tolerance);
     }
 
-    // The mover separates the axes, so each sweep can only ever meet a face along the one it is
-    // travelling; a leading corner landing exactly on a seam has no tie to resolve.
+    // Each sweep meets faces only along the axis it travels, so a leading corner landing exactly
+    // on a seam has no tie to resolve.
     [Fact]
     public void MoveBox_DrivingItsLeadingCornerIntoACellSeam_LandsOnTheSurface()
     {
@@ -205,12 +203,10 @@ public sealed class MoverTests
         Assert.Equal(20f, result.Translation.Y, Tolerance);
     }
 
-    // A face is a declared plane, so the surface it reports is its own normal whatever the
-    // narrowphase measured against. A rounded shape coming down past the near end of an edge is
-    // nearest to that endpoint, and GJK answers with the diagonal from the corner — a direction the
-    // surface does not have, and one a game classifying grounded-versus-wall by normal would read
-    // as a wall. The shape is placed so its centre is off the end of the face and only its side
-    // overhangs, which is exactly where the endpoint is the nearest feature.
+    // A face reports its own normal whatever the narrowphase measured. A rounded shape coming down
+    // past the near end of an edge is nearest that endpoint, where GJK answers with the diagonal
+    // from the corner — a direction the surface does not have. Each shape is placed with its centre
+    // off the end of the face, which is where the endpoint is the nearest feature.
     [Theory]
     [InlineData(ShapeKind2D.Circle)]
     [InlineData(ShapeKind2D.Capsule)]
@@ -234,8 +230,8 @@ public sealed class MoverTests
         Assert.Equal(new Vector2(0f, -1f), hit.Normal);
     }
 
-    // The same claim through the mover, which is what a game actually reads: every contact it
-    // writes for a directional face carries that face's normal.
+    // The same claim through the mover: every contact it writes for a directional face carries
+    // that face's normal.
     [Theory]
     [InlineData(ShapeKind2D.Circle)]
     [InlineData(ShapeKind2D.Capsule)]
@@ -259,8 +255,8 @@ public sealed class MoverTests
             contact => Assert.Equal(new Vector2(0f, -1f), contact.Normal));
     }
 
-    // Centred on the origin, so the cast origin places the shape's middle: a box takes the
-    // closed-form sweep and is the control, the rounded pair take the GJK path this is about.
+    // Centred on the origin, so the cast origin places the shape's middle. The box is the control:
+    // it takes the closed-form sweep, the rounded pair take the GJK path this is about.
     private static Shape2D Landing(ShapeKind2D kind) => kind switch
     {
         ShapeKind2D.Circle => Shape2D.Circle(Vector2.Zero, 4f),
@@ -268,8 +264,8 @@ public sealed class MoverTests
         _ => Shape2D.Box(Aabb2D.FromCenter(Vector2.Zero, new Vector2(8f, 8f))),
     };
 
-    // The generalisation: a face is a direction, so the same primitive pointed the other way is
-    // what a body under reversed gravity stands on.
+    // A face is a direction, so the same primitive pointed the other way is what a body under
+    // reversed gravity stands on.
     [Fact]
     public void MoveBox_LandsOnABottomFaceFromBelowAndPassesItFromAbove()
     {
@@ -370,8 +366,8 @@ public sealed class MoverTests
             default));
     }
 
-    // Handles and layers name a slot in one world and never compare across two, so what two runs
-    // owe each other is the same surfaces in the same order — cells, layer names and normals.
+    // Handles and layers never compare across worlds, so what two runs owe each other is the same
+    // surfaces in the same order: cells, layer names and normals.
     [Fact]
     public void MoveBox_ProducesTheSameContactsForTheSameInputsOnAFreshWorld()
     {
@@ -410,22 +406,80 @@ public sealed class MoverTests
         Assert.NotEmpty(firstContacts);
     }
 
+    // The tree hands its proxies back in whatever shape it currently holds, so the collider half of
+    // a move's contacts is ordered by handle before the caller sees it: two worlds holding the same
+    // colliders under the same handles write the same contacts in the same order.
     [Fact]
-    public void MoveBox_WithAThinBoxDoesNotThrow()
+    public void MoveBox_OrdersItsColliderContactsByHandleWhateverShapeTheTreeIsIn()
+    {
+        static int[] Run(bool churn)
+        {
+            CollisionWorld2D world = new();
+            CollisionLayer wall = world.Layer("wall");
+            for (int index = 0; index < 6; index++)
+            {
+                world.Add(
+                    Shape2D.Box(new Vector2(index * 10f, 32f), new Vector2(8f, 8f)),
+                    Vector2.Zero,
+                    wall,
+                    CollisionFilter.None);
+            }
+
+            if (churn)
+            {
+                // Added after the six, so they take later slots and leave the handles above alone;
+                // inserting and removing them rebalances the hierarchy over the same colliders.
+                ColliderHandle[] decoys = new ColliderHandle[24];
+                for (int index = 0; index < decoys.Length; index++)
+                {
+                    decoys[index] = world.Add(
+                        Shape2D.Box(new Vector2(((index * 37) % 400) - 200f, ((index * 53) % 200) - 100f), new Vector2(6f, 6f)),
+                        Vector2.Zero,
+                        wall,
+                        CollisionFilter.None);
+                }
+
+                for (int index = decoys.Length - 1; index >= 0; index--)
+                {
+                    world.Remove(decoys[index]);
+                }
+            }
+
+            Contact2D[] contacts = new Contact2D[8];
+            MoveResult2D result = world.MoveBox(
+                CollisionFixtures.Box(0f, 0f, 58f, 8f),
+                new Vector2(0f, 40f),
+                CollisionFilter.Everything,
+                contacts);
+
+            Assert.True(result.BlockedY);
+
+            return [.. contacts[..result.ContactCount].Select(contact => contact.Target.Collider.Index)];
+        }
+
+        int[] plain = Run(false);
+        int[] churned = Run(true);
+
+        Assert.Equal([0, 1, 2, 3, 4, 5], plain);
+        Assert.Equal(plain, churned);
+    }
+
+    // The mover insets a box on the axis it is not travelling along. A box thinner than twice the
+    // point tolerance has no room for one, and the inset clamps to zero rather than inverting it.
+    [Fact]
+    public void MoveBox_ThinnerThanTwiceThePointTolerance_StillSweeps()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
 
-        // A box with height 0.008f (less than 2 * PointTolerance).
-        Aabb2D thinBox = new(Vector2.Zero, new Vector2(4f, 0.008f));
-
         MoveResult2D result = world.MoveBox(
-            thinBox,
+            new Aabb2D(Vector2.Zero, new Vector2(4f, 0.008f)),
             new Vector2(10f, 5f),
             CollisionFilter.Everything,
             default);
 
         Assert.False(result.BlockedX);
+        Assert.False(result.BlockedY);
+        Assert.Equal(new Vector2(10f, 5f), result.Translation);
     }
-
 }

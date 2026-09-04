@@ -1,36 +1,17 @@
 <Project>
 
-  <!-- Validates every sprite sheet document a game authors, re-emits it canonically under obj/, and
-       renders the whole set as one generated C# file the game compiles. Nothing derived is
-       committed, and nothing ships: a sheet is a table of integers, so the build turns it into
-       typed frames and clips and a misspelt frame is a compile error.
+  <!-- Validates every sprite sheet document a game authors, re-emits it canonically under obj/,
+       and renders the whole set as one generated C# file the game compiles. Nothing derived is
+       committed and nothing ships, which is why this hook belongs to the logic role rather than the
+       shell.
 
-       That is why this hook belongs to the logic role rather than the shell:
+       Inert until a project sets <CapsuleImportSprites>true</CapsuleImportSprites>; the logic role
+       sets it. One format, *.sheet.json under $(CapsuleAssetSourcesDir)/sprites, keyed by its path
+       under that root without either extension — 'enemies/bat' declares GameSprites.Enemies.Bat.
 
-         <CapsuleImportSprites>true</CapsuleImportSprites>
-
-       A logic assembly is one by definition and needs no line. Anything else that has to compile
-       against a game's frames and clips — a test assembly building a scene in code — opts in with
-       that property.
-
-       The engine wires one format: *.sheet.json, found by convention under
-       $(CapsuleAssetSourcesDir)/sprites. A sheet's key is its path under that root without either
-       extension, so sprites/enemies/bat.sheet.json is keyed 'enemies/bat' and declared as
-       GameSprites.Enemies.Bat.
-
-       A packer's output or an editor's file enters through an authoring module — a package whose
-       targets derive a *.sheet.json per source into their own obj space and add each derived
-       document to the CapsuleSheetDocument item from a target that runs
-       BeforeTargets="CapsuleCollectSheetDocuments". Those documents then take the same path as
-       hand-authored ones. A document that arrives with a source block keeps it. A module states
-       the key its document claims as %(CapsuleDocumentKey) — the root-relative path, forward
-       slashes, no extensions; a document that names none is keyed by its stem at the root.
-
-       A module reads Capsule's properties only inside its targets: NuGet imports a package's
-       targets in no promised order, so at evaluation time CapsuleImportSprites may not yet be what
-       the logic role makes it, while every target runs after evaluation has settled. The
-       BeforeTargets hook is resolved at execution for the same reason; a module that is imported
-       after this file may append to $(CapsuleCollectSheetDocumentsDependsOn) instead. -->
+       An authoring module adds its derived documents to the CapsuleSheetDocument item from a target
+       running BeforeTargets="CapsuleCollectSheetDocuments", keying each with %(CapsuleDocumentKey);
+       docs/sprite-animation.md, under Authoring tools, states that contract. -->
 
   <ItemGroup Condition="'$(CapsuleImportSprites)' == 'true'">
     <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json">
@@ -44,10 +25,9 @@
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSheetDocumentsDependsOn)" />
 
-  <!-- Every target here is conditioned on the property alone. A target's own condition is
-       evaluated before its DependsOnTargets are built, so one asked about an item another target
-       fills would never let that target run; whether there is anything to import is decided
-       task by task inside them. -->
+  <!-- Conditioned on the property alone: a target's condition is evaluated before its
+       DependsOnTargets are built, so one asking about an item another target fills would never let
+       that target run. Whether there is anything to import is decided task by task inside. -->
   <Target Name="CapsuleSheetDocumentsInit"
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleCollectSheetDocuments;CapsuleAssetsInit;CapsuleResolveBuildTool">
@@ -55,9 +35,7 @@
     <Error Condition="('@(CapsuleNativeSheet)' != '' or '@(CapsuleSheetDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the sprite sheet importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- A source's %(Filename) is '<stem>.sheet', so the extension comes off it a second time. A
-         module's document states its own key; a hand-authored one is keyed by where it sits under
-         the sprites root. -->
+    <!-- A source's %(Filename) is '<stem>.sheet', so the extension comes off it a second time. -->
     <ItemGroup>
       <_CapsuleSheetSource Include="@(CapsuleNativeSheet)">
         <Key>$([System.String]::Copy('%(CapsuleNativeSheet.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeSheet.Filename)'))</Key>
@@ -72,25 +50,21 @@
       <_CapsuleSheetNameDistinct Include="@(_CapsuleSheetName->Distinct())" />
     </ItemGroup>
 
-    <!-- A sheet's generated class is named after its key and its derived document is written at
-         that path, so a repeated key would be two classes of one name — across a hand-authored
-         document and a module's as much as within one origin. Two sheets of one stem in different
-         directories are two keys. -->
+    <!-- A sheet's generated class is named after its key, so a repeated key is two classes of one
+         name. -->
     <Error Condition="'@(_CapsuleSheetName->Count())' != '@(_CapsuleSheetNameDistinct->Count())'"
            Text="Capsule: two sprite sheet sources share a path under the sprites root, and a sheet's generated class is named after that path. Rename one of: @(_CapsuleSheetSource, ' ')" />
 
     <!-- The textures a sheet may cut from are exactly the ones this game ships, so the list is the
-         asset hook's own texture domain rather than a second enumeration. Named by their path under
-         the textures root, which is what a document names a texture by. -->
+         asset hook's own texture domain rather than a second enumeration. -->
     <ItemGroup>
       <_CapsuleSheetTextureAsset Include="@(CapsuleAsset)" Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'textures'" />
       <_CapsuleSheetTextureName Include="@(_CapsuleSheetTextureAsset->'%(CapsuleAssetPath)%(Extension)')" />
     </ItemGroup>
 
-    <!-- The importer runs from the importing project's directory, so the derived paths are made
-         absolute rather than left relative to wherever MSBuild was launched. The out directory
-         carries no trailing separator: it is spliced into a command line, where a trailing one
-         would escape the closing quote on Windows. -->
+    <!-- Absolute, because the importer runs from the importing project's directory. The out
+         directory carries no trailing separator: spliced into a command line, one would escape the
+         closing quote on Windows. -->
     <PropertyGroup>
       <CapsuleSheetProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleSheetProjectDir>
       <CapsuleSheetDocumentsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleSheetDocumentsObjDir>
@@ -103,9 +77,8 @@
 
     <MakeDir Directories="$(CapsuleSheetDocumentsObjDir)" Condition="'@(_CapsuleSheetSource)' != ''" />
 
-    <!-- Both lists are inputs to the import, and MSBuild's incrementality is file-based: without
-         these stamps, renaming a texture or moving a sheet from a module's format to a
-         hand-authored document would leave the generated registry up to date and unchecked. -->
+    <!-- MSBuild's incrementality is file-based, so both lists need a file: without these stamps,
+         renaming a texture or moving a sheet between origins leaves the registry unchecked. -->
     <WriteLinesToFile File="$(CapsuleSheetTextureStamp)"
                       Lines="@(_CapsuleSheetTextureName)"
                       Overwrite="true"
@@ -120,8 +93,7 @@
   </Target>
 
   <!-- One output for the whole set, so this is all-or-nothing rather than partially incremental:
-       every sheet is declared on one generated class, and a single changed frame rewrites it.
-       Never one process per sheet, and none at all for a game that has authored none. -->
+       every sheet is declared on one generated class, and a single changed frame rewrites it. -->
   <Target Name="CapsuleImportSheetDocuments"
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleSheetDocumentsInit;ResolveProjectReferences"
@@ -132,19 +104,12 @@
            Text="Capsule: the sprite sheet importer was not built (expected '@(_CapsuleBuildTool)')." />
 
     <!-- The batch goes through a file, not the command line: Exec runs through cmd, whose
-         8191-character line limit a couple of hundred paths blow past — and the error when they do
-         names neither the limit nor a sheet.
+         8191-character limit a couple of hundred paths blow past. Each line is 'key|path', the path
+         relative to the importing project, so a failure names a path a person can open.
 
-         Sources are named relative to the importing project, and the tool runs from there, so a
-         failure names a path a person can open. Each line is the key the sheet claims, then '|',
-         then that path; a key is safe path segments and a path carries no '|' on any platform
-         Capsule targets. -->
-
-    <!-- Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
-
-         Conditioned on the list rather than left to batching: unqualified metadata on an empty item
-         list still evaluates the element once, with %(FullPath) empty, and MakeRelative refuses an
-         empty path. A game that authors no sheets must reach the end of this target. -->
+         Metadata, not a transform: a property function inside @(->'') sees %(FullPath) as text.
+         Conditioned on the list, because unqualified metadata on an empty list still evaluates once
+         with %(FullPath) empty, and MakeRelative refuses an empty path. -->
     <ItemGroup Condition="'@(_CapsuleSheetSource)' != ''">
       <_CapsuleSheetSourceArg Include="@(_CapsuleSheetSource)">
         <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleSheetProjectDir), %(FullPath)))</ProjectRelativePath>
@@ -156,8 +121,8 @@
                       Overwrite="true"
                       Condition="'@(_CapsuleSheetSource)' != ''" />
 
-    <!-- LogStandardErrorAsError surfaces the tool's own per-source messages verbatim as build
-         errors, each already anchored to the source that failed. -->
+    <!-- LogStandardErrorAsError surfaces the tool's per-source messages verbatim, each already
+         anchored to the source that failed. -->
     <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --out &quot;$(CapsuleSheetDocumentsOutDir)&quot; --sheets-from &quot;$(CapsuleSheetDocumentsBatchFile)&quot; --textures &quot;$(CapsuleSheetTextureStamp)&quot; --generated &quot;$(CapsuleSpriteRegistryFile)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           LogStandardErrorAsError="true"
@@ -165,10 +130,9 @@
           Condition="'@(_CapsuleSheetSource)' != ''" />
   </Target>
 
-  <!-- Separate from the import so the file is compiled on an up-to-date build too, where the import
-       is skipped entirely. Both BeforeTargets are named because a design-time build reaches
-       CoreCompile without running BeforeCompile's usual chain, and IntelliSense over a game's
-       frames and clips depends on the item being there. -->
+  <!-- Separate from the import so the file is compiled on an up-to-date build too. Both
+       BeforeTargets are named because a design-time build reaches CoreCompile without running
+       BeforeCompile's usual chain, and IntelliSense depends on the item being there. -->
   <Target Name="CapsuleAddSpriteRegistryToCompile"
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleImportSheetDocuments"

@@ -13,7 +13,7 @@ public delegate Scene SceneFactory();
 /// <summary>
 /// One scene as a <see cref="SceneRegistry"/> entry: the class, what constructs it, and the
 /// document backing it when one does. Built through <see cref="FromDocument"/> or
-/// <see cref="Plain"/>, so the two kinds cannot be mixed.
+/// <see cref="Plain"/>.
 /// </summary>
 public readonly record struct SceneRegistration
 {
@@ -62,8 +62,8 @@ public readonly record struct SceneRegistration
         return new SceneRegistration(sceneType, null, null, factory);
     }
 
-    // Both reached only through SceneRegistry, which has already read DocumentName to tell the
-    // kinds apart, so the factory for that kind is the one that is present.
+    // Reached only through SceneRegistry, which has already read DocumentName to tell the kinds
+    // apart, so the factory for that kind is the one present.
     internal Scene Create(SceneContent content) => _fromDocument!(content);
 
     internal Scene Create() => _plain!();

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Capsule.Generators;
 
 namespace Capsule.Build.Sprites;
 
@@ -8,16 +9,16 @@ namespace Capsule.Build.Sprites;
 /// typed members, so a misspelt frame or clip is a compile error and no document is read at run
 /// time.
 /// </summary>
-public static class SpriteRegistrySource
+internal static class SpriteRegistrySource
 {
     /// <summary>The generated class every sheet is declared on.</summary>
-    public const string RegistryClass = "GameSprites";
+    internal const string RegistryClass = "GameSprites";
 
     /// <summary>The generated class a sheet's frames are declared on.</summary>
-    public const string FramesClass = "Frames";
+    internal const string FramesClass = "Frames";
 
     /// <summary>The generated class a sheet's clips are declared on.</summary>
-    public const string ClipsClass = "Clips";
+    internal const string ClipsClass = "Clips";
 
     private const string SpriteType = "global::Capsule.Rendering.Sprite";
     private const string RegionType = "global::Capsule.Rendering.TextureRegion";
@@ -32,7 +33,7 @@ public static class SpriteRegistrySource
     /// whatever order the build collected the sources in.
     /// </summary>
     /// <param name="sheets">Each sheet's key paired with the document it was read from.</param>
-    public static string Render(IReadOnlyList<(string Key, SpriteSheetDocument Document)> sheets)
+    internal static string Render(IReadOnlyList<(string Key, SpriteSheetDocument Document)> sheets)
     {
         ArgumentNullException.ThrowIfNull(sheets);
 
@@ -170,8 +171,8 @@ public static class SpriteRegistrySource
                 .Append(Number(TotalTicks(clip))).Append(" ticks, ")
                 .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
 
-            // A property with a field initializer, not an expression body: a clip is immutable and
-            // shared, so every entity playing it reads one instance.
+            // A property with a field initializer, not an expression body: a clip is immutable, so
+            // every entity playing it reads one instance.
             source.Append(member).Append("public static ").Append(ClipType).Append(' ')
                 .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(ClipType).AppendLine("(");
             source.Append(member).Append("    new ").Append(SpriteType).Append("[] { ");
@@ -227,7 +228,7 @@ public static class SpriteRegistrySource
 
     // The document has already been validated, so a name that is no identifier cannot reach here.
     private static string Identifier(string name) =>
-        SpriteSheetNaming.ToIdentifier(name)!;
+        TypeNaming.ToIdentifier(name)!;
 
     private static string Number(int value) =>
         value.ToString(CultureInfo.InvariantCulture);

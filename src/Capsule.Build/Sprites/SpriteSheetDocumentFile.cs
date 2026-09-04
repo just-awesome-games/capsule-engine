@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
+using Capsule.Generators;
 using Capsule.Rendering;
 
 namespace Capsule.Build.Sprites;
@@ -12,10 +13,10 @@ namespace Capsule.Build.Sprites;
 /// field order, two-space indent, LF, UTF-8 without a BOM, one trailing newline — so re-generating
 /// an unchanged document reproduces its bytes exactly and a diff shows only real change.
 /// </summary>
-public static class SpriteSheetDocumentFile
+internal static class SpriteSheetDocumentFile
 {
     /// <summary>The extension a sheet document is authored under, both halves of it.</summary>
-    public const string DocumentExtension = ".sheet.json";
+    internal const string DocumentExtension = ".sheet.json";
 
     private const int FormatVersion = 1;
 
@@ -23,9 +24,11 @@ public static class SpriteSheetDocumentFile
 
     /// <summary>Reads and validates the sheet document at <paramref name="path"/>.</summary>
     /// <exception cref="SpriteSheetFormatException">The file is malformed; the message is prefixed with the path.</exception>
-    public static SpriteSheetDocument Load(string path)
+    internal static SpriteSheetDocument Load(string path)
     {
-        string json = Text(File.ReadAllBytes(path));
+        // ReadAllText, not the bytes: it honours a BOM an editor may have added, which the JSON
+        // reader would otherwise find where it expects a brace.
+        string json = File.ReadAllText(path);
 
         try
         {
@@ -39,7 +42,7 @@ public static class SpriteSheetDocumentFile
 
     /// <summary>Reads and validates sheet document JSON that is already in hand.</summary>
     /// <exception cref="SpriteSheetFormatException">The JSON is malformed or the document breaks the format.</exception>
-    public static SpriteSheetDocument Parse(string json)
+    internal static SpriteSheetDocument Parse(string json)
     {
         SpriteSheetJson file = Deserialize(json);
 
@@ -63,7 +66,7 @@ public static class SpriteSheetDocumentFile
     }
 
     /// <summary>The canonical text of <paramref name="document"/>.</summary>
-    public static string ToJson(SpriteSheetDocument document)
+    internal static string ToJson(SpriteSheetDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -123,7 +126,7 @@ public static class SpriteSheetDocumentFile
     }
 
     /// <summary>Writes <paramref name="document"/> to <paramref name="path"/> in canonical form.</summary>
-    public static void Save(SpriteSheetDocument document, string path) =>
+    internal static void Save(SpriteSheetDocument document, string path) =>
         File.WriteAllText(path, ToJson(document), Utf8NoBom);
 
     private static SpriteSheetFrame[] Frames(SpriteSheetFrameJson?[]? authored)
@@ -278,7 +281,7 @@ public static class SpriteSheetDocumentFile
                 $"{position} is a second \"{name}\"; names are unique within their list, since a game reaches each by name.");
         }
 
-        if (SpriteSheetNaming.ToIdentifier(name) is not { } identifier)
+        if (TypeNaming.ToIdentifier(name) is not { } identifier)
         {
             throw new SpriteSheetFormatException(
                 $"{position} is named \"{name}\", which is no C# name; a name is letters, digits, '-' and '_', and does not start with a digit.");
@@ -364,15 +367,5 @@ public static class SpriteSheetDocumentFile
         }
 
         return document ?? throw new SpriteSheetFormatException("the sheet document file is empty.");
-    }
-
-    // The format is written without one, but an editor may add one, and the JSON reader would find
-    // U+FEFF where it expects a brace.
-    private static string Text(byte[] utf8)
-    {
-        ReadOnlySpan<byte> bom = [0xEF, 0xBB, 0xBF];
-        ReadOnlySpan<byte> bytes = utf8;
-
-        return Encoding.UTF8.GetString(bytes.StartsWith(bom) ? bytes[bom.Length..] : bytes);
     }
 }

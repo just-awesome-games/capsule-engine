@@ -37,8 +37,7 @@ public sealed class SpriteSheetToolTests
         Assert.Contains("new int[] { 4 }", generated, StringComparison.Ordinal);
     }
 
-    // The order the build collected the sources in must not reach the generated file, or the same
-    // sheets produce a different diff on another machine.
+    // The collection order must not reach the generated file.
     [Fact]
     public void SheetsAreRenderedInNameOrderWhateverOrderTheyArrivedIn()
     {
@@ -71,8 +70,8 @@ public sealed class SpriteSheetToolTests
         Assert.False(File.Exists("obj/GameSprites.g.cs"));
     }
 
-    // The runtime's texture store is keyed by the shipped spelling, so a case-blind match here
-    // would emit a Sprite carrying a handle nothing ever loaded — a black frame at run time.
+    // The runtime's texture store is keyed by the shipped spelling, so a case-blind match would
+    // emit a handle nothing ever loaded.
     [Fact]
     public void ASheetCuttingFromATextureThatDiffersOnlyInCaseFails()
     {
@@ -123,7 +122,7 @@ public sealed class SpriteSheetToolTests
     }
 
     // A key's directories are the classes the sheet is declared under, and the derived document
-    // keeps the same path, so two sheets of one stem in different directories are two sheets.
+    // keeps the same path.
     [Fact]
     public void ANestedKeyBecomesNestedClassesAndANestedDocument()
     {
@@ -148,8 +147,7 @@ public sealed class SpriteSheetToolTests
         Assert.Contains("public static class Bat", generated, StringComparison.Ordinal);
     }
 
-    // Two siblings the file system kept apart are one C# name, and a sheet may not carry the name
-    // of the class it is declared on.
+    // Two siblings the file system kept apart can be one C# name.
     [Theory]
     [InlineData("enemies/bat", "enemies/enemies")]
     [InlineData("enemies/b-at", "enemies/b_at")]
@@ -172,8 +170,7 @@ public sealed class SpriteSheetToolTests
         Assert.Contains("b.sheet.json", error.ToString(), StringComparison.Ordinal);
     }
 
-    // A sheet's texture is its path under the textures root, and the shipped list the build hands
-    // over is written in those terms too.
+    // A sheet's texture is its path under the textures root, as the shipped list is.
     [Fact]
     public void ASheetCutsFromANestedTextureByItsPath()
     {
@@ -210,8 +207,7 @@ public sealed class SpriteSheetToolTests
         Assert.True(File.Exists("obj/GameSprites.g.cs"));
     }
 
-    // The stem at the root is the key a source carries when nothing states one, which is what the
-    // build hands the tool for a document authored directly under sprites/.
+    // The stem at the root is the key a source carries when nothing states one.
     private static DocumentSource[] Sources(params string[] paths) =>
         [.. paths.Select(static path => new DocumentSource(
             Path.GetFileName(path)[..^SpriteSheetDocumentFile.DocumentExtension.Length], path))];

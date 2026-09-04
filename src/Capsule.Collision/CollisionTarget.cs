@@ -1,9 +1,8 @@
 namespace Capsule.Collision;
 
 /// <summary>
-/// What a query found: either a collider, or one cell of a grid collider. A cell keeps its own
-/// identity here — its coordinates and its layer — so callers can reach authored content rather
-/// than an anonymous piece of terrain.
+/// What a query found: either a collider, or one cell of a grid collider, identified by its
+/// coordinates and its layer.
 /// </summary>
 public readonly record struct CollisionTarget
 {

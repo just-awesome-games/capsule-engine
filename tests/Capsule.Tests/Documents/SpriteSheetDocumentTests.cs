@@ -45,11 +45,10 @@ public sealed class SpriteSheetDocumentTests
 
         // Neither default is written back: a top-left pivot and a clip played once say nothing.
         Assert.DoesNotContain("\"loop\": false", canonical, StringComparison.Ordinal);
-        Assert.Equal(1, Count(canonical, "\"pivot\""));
+        Assert.Equal(1, canonical.Split("\"pivot\"").Length - 1);
     }
 
-    // An authoring module's document arrives stamped with the file a person edited, and that is the
-    // provenance the derived document must keep.
+    // A module's document arrives stamped with the file a person edited; that provenance is kept.
     [Fact]
     public void ASourceBlockSurvivesTheRoundTrip()
     {
@@ -146,16 +145,5 @@ public sealed class SpriteSheetDocumentTests
             Assert.Throws<SpriteSheetFormatException>(() => SpriteSheetDocumentFile.Parse(json));
 
         Assert.Contains(expected, failure.Message, StringComparison.Ordinal);
-    }
-
-    private static int Count(string text, string value)
-    {
-        int count = 0;
-        for (int i = text.IndexOf(value, StringComparison.Ordinal); i >= 0; i = text.IndexOf(value, i + 1, StringComparison.Ordinal))
-        {
-            count++;
-        }
-
-        return count;
     }
 }

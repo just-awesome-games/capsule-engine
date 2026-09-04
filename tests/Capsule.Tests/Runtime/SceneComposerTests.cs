@@ -19,15 +19,14 @@ public sealed class SceneComposerTests : IDisposable
         Path.Combine(AppContext.BaseDirectory, "assets", "scenes", DocumentName + ".scene.json");
 
     // A game boots a document-backed scene by its class; nothing in game code names the document.
-    // Turning the one into the other is this layer's job, and a game that lost it would boot into
-    // an empty room rather than fail.
+    // Losing the turn from one into the other boots an empty room rather than failing.
     [Fact]
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
         Write(SceneFixtures.Room(new EntityPlacement(1, "chest", 48f, 16f)));
         SceneComposer composer = new(Registry());
 
-        Scene composed = composer.Resolve(SceneTarget.ForScene(typeof(Hall)));
+        Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
 
         Assert.IsType<Hall>(composed);
         Assert.IsType<TileMap>(composed.Entities[0]);
@@ -35,7 +34,7 @@ public sealed class SceneComposerTests : IDisposable
     }
 
     // The scene layer is pure and knows no paths, so without this the commonest authoring mistake
-    // names a spawn type and leaves the author to guess which document holds it.
+    // leaves the author guessing which document holds the spawn type it names.
     [Fact]
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
@@ -43,7 +42,7 @@ public sealed class SceneComposerTests : IDisposable
         SceneComposer composer = new(Registry());
 
         SpawnException failure = Assert.Throws<SpawnException>(
-            () => composer.Resolve(SceneTarget.ForName(DocumentName)));
+            () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
 
         Assert.Contains(DocumentName + ".scene.json", failure.Message, StringComparison.Ordinal);
         Assert.Contains("wyvern", failure.Message, StringComparison.Ordinal);

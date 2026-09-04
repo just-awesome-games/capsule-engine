@@ -48,8 +48,7 @@ public sealed class SceneCompositionTests
         Assert.IsType<SceneFixtures.Placed>(scene.Entities[1]);
     }
 
-    // A document with no tile-map entry is a scene of entities alone: nothing draws terrain and
-    // the scene spans nothing until it sets its own size.
+    // A scene of entities alone draws no terrain and spans nothing until it sets its own size.
     [Fact]
     public void ADocumentWithNoTerrain_ComposesWithNoTileMapAndNoSize()
     {

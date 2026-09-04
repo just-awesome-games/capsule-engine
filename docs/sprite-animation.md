@@ -1,14 +1,14 @@
 # Sprite animation
 
-A frame of animation is a `Sprite` — a texel region of a texture with its own pivot — and a clip is an ordered run of frames, each held for a whole number of fixed steps. Animation is simulation state: the frame an entity is on is deterministic, assertable headlessly, and readable by gameplay, because it advances on ticks and never on the render clock.
+A frame of animation is a `Sprite` — a texel region of a texture with its own pivot — and a clip is an ordered run of frames, each held for a whole number of fixed steps. Animation is simulation state: it advances on ticks and never on the render clock, so the frame an entity is on is deterministic, assertable headlessly, and readable by gameplay.
 
-A `*.sheet.json` **sprite sheet document** is the authored form. Capsule never packs an atlas: packing is authoring, done by an editor's export, an open-source packer, or a script that writes this document directly.
+A `*.sheet.json` **sprite sheet document** is the authored form. Capsule never packs an atlas: packing is authoring, done by an editor's export, a packer, or a script that writes this document directly.
 
 ## Authoring model
 
 A sheet names one texture, the frames it cuts from it, and the clips played over those frames. Frames carry their own regions and pivots, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid is only one way to author it.
 
-Nothing is read at run time. The build turns every sheet into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable.
+Nothing is read at run time: the build turns every sheet into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable.
 
 ```csharp
 using Capsule.Scenes.Animation;
@@ -82,8 +82,8 @@ GameSprites.Player.Clips.Idle     // a SpriteClip
 
 A sheet's key is its path under the sprites root without either extension, and each directory in it becomes a nested class: `player.sheet.json` declares `GameSprites.Player`, `actors/player.sheet.json` declares `GameSprites.Actors.Player`. Two sheets of one stem in different directories are two sheets; two sharing a key, or two whose names become one C# identifier in the same directory, fail the build. Derived documents are never committed and nothing ships under `assets/`.
 
-The logic role imports sheets on its own; any other project that has to compile against a game's frames and clips opts in with `<CapsuleImportSprites>`, a project property named in [`consuming-capsule.md`](consuming-capsule.md). The process behind the hook is `Capsule.Build` itself, packed unlisted under the package's `tools/`.
+The logic role imports sheets on its own; any other project that has to compile against a game's frames and clips opts in with `<CapsuleImportSprites>`, a project property named in [`consuming-capsule.md`](consuming-capsule.md). The process behind the hook is `Capsule.Build` itself, as it is for scenes.
 
 ## Authoring tools
 
-The engine's build wires one format: `*.sheet.json`. A packer's output or an editor's own file enters through an authoring module — a package whose `buildTransitive` targets derive a document per source into their own `obj/` space and add each derived document to the `CapsuleSheetDocument` item from a target that runs `BeforeTargets="CapsuleCollectSheetDocuments"`. The engine then validates and canonicalizes those documents exactly as hand-authored ones, preserving the module's `source` block. A module states the key each document claims as `%(CapsuleDocumentKey)` on the item — the root-relative path, forward slashes, one or more `/`-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (`nul`, `con`, …), carrying no extension — and a document that names none is keyed by its stem at the root. A module globbing its own sources inside a target cannot read `%(RecursiveDir)` on the glob's own `Include`: metadata there batches over the target and comes back empty. Collect the glob first, then set the key in a second item group that names the metadata qualified — `%(MyModuleSource.RecursiveDir)`, the module's own item — before stamping `CapsuleDocumentKey`. The engine's own globs run at evaluation time, which is why the targets here use the bare form. A module converts its own pivot model and time base at derivation, and may read `CapsuleImportSprites`, `CapsuleAssetSourcesDir` and `CapsuleDotNetHost` inside its targets — never at evaluation, since NuGet imports package targets in no promised order.
+The engine's build wires one format: `*.sheet.json`. A packer's output or an editor's own file enters through an authoring module, on the contract stated in full under [`scenes.md` § Authoring tools](scenes.md#authoring-tools). For sheets: the item is `CapsuleSheetDocument`, the seam target is `CapsuleCollectSheetDocuments`, the properties a module may read are `CapsuleImportSprites`, `CapsuleAssetSourcesDir` and `CapsuleDotNetHost`, and the module converts its own pivot model and time base at derivation — this format's pivots are texels of the frame from its top-left corner, and its durations are ticks of the game's fixed step.

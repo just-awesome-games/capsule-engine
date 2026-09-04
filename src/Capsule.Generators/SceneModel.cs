@@ -51,10 +51,6 @@ internal readonly struct SceneModel : IEquatable<SceneModel>
 
     internal Location Location { get; }
 
-    public static bool operator ==(SceneModel left, SceneModel right) => left.Equals(right);
-
-    public static bool operator !=(SceneModel left, SceneModel right) => !left.Equals(right);
-
     // Location participates in equality only for faulted models, so an unrelated edit does not re-emit the registry.
     public bool Equals(SceneModel other) =>
         Fault == other.Fault

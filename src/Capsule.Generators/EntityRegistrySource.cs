@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
+using Capsule.Assets;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -32,8 +33,7 @@ internal static class EntityRegistrySource
 
         if (annotation is null)
         {
-            // A class of the wrong shape has said nothing and is claiming nothing: it is an
-            // ordinary class, not a mistake.
+            // A class of the wrong shape claiming nothing is an ordinary class, not a mistake.
             if (spawnConstructors == 0)
             {
                 return null;
@@ -92,76 +92,31 @@ internal static class EntityRegistrySource
             return;
         }
 
-        // Partial declarations are visited in path order so the fault's location is stable.
         List<EntityModel> ordered = new(models);
         ordered.Sort(static (left, right) =>
-        {
-            int byName = string.CompareOrdinal(left.QualifiedName, right.QualifiedName);
-            if (byName != 0)
-            {
-                return byName;
-            }
-
-            string? leftPath = left.Location.SourceTree?.FilePath;
-            string? rightPath = right.Location.SourceTree?.FilePath;
-            int byPath = string.CompareOrdinal(leftPath ?? string.Empty, rightPath ?? string.Empty);
-            if (byPath != 0)
-            {
-                return byPath;
-            }
-
-            if ((leftPath is null) != (rightPath is null))
-            {
-                return leftPath is null ? 1 : -1;
-            }
-
-            return left.Location.SourceSpan.Start.CompareTo(right.Location.SourceSpan.Start);
-        });
+            DeclarationOrder.Compare(left.QualifiedName, left.Location, right.QualifiedName, right.Location));
 
         List<Registration> sound = new(ordered.Count);
         HashSet<string> described = new(StringComparer.Ordinal);
         foreach (EntityModel model in ordered)
         {
-            // The parts of a partial class are separate declarations of one type, and only the
-            // type is registered or faulted.
+            // The parts of a partial class are one type, registered or faulted once.
             if (!described.Add(model.QualifiedName))
             {
                 continue;
             }
 
-            switch (model.Fault)
+            if (Reported(model.Fault) is { } descriptor)
             {
-                case EntityFault.NotAConcreteEntity:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.NotAConcreteEntity, model.Location, model.DisplayName));
-                    break;
-                case EntityFault.MissingSpawnConstructor:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.MissingSpawnConstructor, model.Location, model.DisplayName));
-                    break;
-                case EntityFault.BlankSpawnType:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.BlankSpawnType, model.Location, model.DisplayName));
-                    break;
-                case EntityFault.InaccessibleType:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
-                    break;
-                case EntityFault.AmbiguousSpawnConstructors:
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        RegistryDiagnostics.AmbiguousEntityConstructors, model.Location, model.DisplayName));
-                    break;
-                default:
-                    // Where the type is declared is the key it claims, so the key — and whether it
-                    // is a key at all — is not settled until the assembly's root namespace is.
-                    Resolve(context, sound, model, rootNamespace);
-                    break;
+                context.ReportDiagnostic(Diagnostic.Create(descriptor, model.Location, model.DisplayName));
+                continue;
             }
+
+            Resolve(context, sound, model, rootNamespace);
         }
 
-        // Sorted before anything is read off it: the collected order follows whichever syntax
-        // trees the compiler happened to hand over, and both the duplicate check and the
-        // emitted file must not depend on that.
+        // Sorted before the duplicate check and the render read off it: the collected order is
+        // whichever syntax trees the compiler handed over.
         sound.Sort(static (left, right) =>
         {
             int byType = string.CompareOrdinal(left.SpawnType, right.SpawnType);
@@ -189,8 +144,18 @@ internal static class EntityRegistrySource
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }
 
-    // A key names the document entry a scene spawns from, and an override names it whole, so it is
-    // held to the same grammar as the key the namespace would have named.
+    private static DiagnosticDescriptor? Reported(EntityFault fault) => fault switch
+    {
+        EntityFault.NotAConcreteEntity => RegistryDiagnostics.NotAConcreteEntity,
+        EntityFault.MissingSpawnConstructor => RegistryDiagnostics.MissingSpawnConstructor,
+        EntityFault.BlankSpawnType => RegistryDiagnostics.BlankSpawnType,
+        EntityFault.InaccessibleType => RegistryDiagnostics.InaccessibleRegisteredType,
+        EntityFault.AmbiguousSpawnConstructors => RegistryDiagnostics.AmbiguousEntityConstructors,
+        _ => null,
+    };
+
+    // Where the type is declared is the key it claims, so the key is not settled until the
+    // assembly's root namespace is. An override names a whole key, held to the same grammar.
     private static void Resolve(
         SourceProductionContext context,
         List<Registration> sound,
@@ -200,7 +165,7 @@ internal static class EntityRegistrySource
         string spawnType = model.Declared
             ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
 
-        if (TypeNaming.IsKey(spawnType))
+        if (AssetPaths.IsKey(spawnType))
         {
             sound.Add(new Registration(spawnType, model));
 

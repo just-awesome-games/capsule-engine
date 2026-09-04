@@ -12,11 +12,11 @@ public sealed class SceneHostTests
     {
         List<string> log = [];
 
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(FirstScene)
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(FirstScene)
             ? new FirstScene(log)
             : new SecondScene(log);
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(FirstScene)), Resolve);
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve);
 
         host.Step(SceneStep(0));
 
@@ -35,9 +35,9 @@ public sealed class SceneHostTests
         object checkpoint = new();
         int instances = 0;
 
-        Scene Resolve(in SceneTarget target) => new RestartingScene(++instances);
+        Scene Resolve(in SceneTransition target) => new RestartingScene(++instances);
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(RestartingScene), checkpoint), Resolve);
+        using SceneHost host = new(ToScene<RestartingScene>(checkpoint), Resolve);
         host.Step(SceneStep(0));
 
         RestartingScene restarted = Assert.IsType<RestartingScene>(host.Scene);
@@ -50,30 +50,52 @@ public sealed class SceneHostTests
     {
         int instances = 0;
 
-        Scene Resolve(in SceneTarget target) => new PayloadReplacingScene(++instances);
+        Scene Resolve(in SceneTransition target) => new PayloadReplacingScene(++instances);
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(PayloadReplacingScene), new object()), Resolve);
+        using SceneHost host = new(ToScene<PayloadReplacingScene>(new object()), Resolve);
         host.Step(SceneStep(0));
 
         PayloadReplacingScene restarted = Assert.IsType<PayloadReplacingScene>(host.Scene);
         Assert.Null(restarted.ReceivedPayload);
     }
 
+    // A restart after a named request restarts that document, not the class the host booted on.
+    [Fact]
+    public void Restart_ReconstructsTheTargetTheCurrentSceneWasOpenedBy()
+    {
+        List<SceneTransition> seen = [];
+
+        Scene Resolve(in SceneTransition target)
+        {
+            seen.Add(target);
+            return target.Kind == SceneTransitionKind.Scene ? new NameRequestingScene() : new RestartingScene(1);
+        }
+
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
+        host.Step(SceneStep(0));
+        host.Step(SceneStep(1));
+
+        Assert.Equal(
+            [SceneTransitionKind.Scene, SceneTransitionKind.Named, SceneTransitionKind.Named],
+            seen.Select(static target => target.Kind));
+        Assert.Equal("boss-room", seen[^1].DocumentName);
+    }
+
     [Fact]
     public void ANamedRequest_IsResolvedByDocumentNameAtTheHostBoundary()
     {
-        SceneTarget seen = default;
+        SceneTransition seen = default;
 
-        Scene Resolve(in SceneTarget target)
+        Scene Resolve(in SceneTransition target)
         {
             seen = target;
-            return target.Kind == SceneTargetKind.Scene ? new NameRequestingScene() : new PassiveScene();
+            return target.Kind == SceneTransitionKind.Scene ? new NameRequestingScene() : new PassiveScene();
         }
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
         host.Step(SceneStep(0));
 
-        Assert.Equal(SceneTargetKind.Named, seen.Kind);
+        Assert.Equal(SceneTransitionKind.Named, seen.Kind);
         Assert.Equal("boss-room", seen.DocumentName);
         Assert.IsType<PassiveScene>(host.Scene);
     }
@@ -83,9 +105,9 @@ public sealed class SceneHostTests
     {
         ExitScene scene = new();
 
-        Scene Resolve(in SceneTarget target) => scene;
+        Scene Resolve(in SceneTransition target) => scene;
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(ExitScene)), Resolve);
+        using SceneHost host = new(ToScene<ExitScene>(), Resolve);
         host.Step(SceneStep(0));
 
         Assert.True(host.ExitRequested);
@@ -97,11 +119,7 @@ public sealed class SceneHostTests
     {
         SceneDefaults defaults = new(TextureSampling.Point);
 
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(NameRequestingScene)
-            ? new NameRequestingScene()
-            : new PassiveScene();
-
-        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve, defaults);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), ScenesByKind, defaults);
         host.Step(SceneStep(0));
 
         Assert.IsType<PassiveScene>(host.Scene);
@@ -111,30 +129,29 @@ public sealed class SceneHostTests
     [Fact]
     public void ASceneOpenedByATransition_DoesNotSweepIntoPlace()
     {
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(NameRequestingScene)
+        Scene Resolve(in SceneTransition target) => target.Kind == SceneTransitionKind.Scene
             ? new NameRequestingScene()
             : new FarAwayScene();
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(NameRequestingScene)), Resolve);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
         host.Step(SceneStep(0));
 
         Assert.Equal(new Vector2(4000, 4000), host.View.Camera.Center);
         Assert.Equal(host.View.Camera.Center, host.View.Camera.PreviousCenter);
     }
 
-    // The run's source outlives its scenes: one instance, seeded once at boot, handed to every
-    // scene the host opens, so a transition neither reseeds nor rewinds the sequence.
+    // One instance, seeded once at boot, handed to every scene the host opens.
     [Fact]
     public void OneSeededSourceServesEveryScene_AcrossATransition()
     {
         List<string> log = [];
         RandomSource run = new(0xC0FFEE);
 
-        Scene Resolve(in SceneTarget target) => target.SceneType == typeof(FirstScene)
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(FirstScene)
             ? new FirstScene(log)
             : new SecondScene(log);
 
-        using SceneHost host = new(SceneTarget.ForScene(typeof(FirstScene)), Resolve, default, run);
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve, default, run);
 
         Assert.Same(run, host.Scene.Random);
 
@@ -153,13 +170,18 @@ public sealed class SceneHostTests
     [Fact]
     public void AHostGivenNoSourceSeedsTheSceneFromTheDefault()
     {
-        List<string> log = [];
-
-        using SceneHost host = new(SceneTarget.ForScene(typeof(FirstScene)), (in SceneTarget _) => new FirstScene(log));
+        using SceneHost host = new(ToScene<FirstScene>(), (in SceneTransition _) => new FirstScene([]));
 
         Assert.Equal(RandomSource.DefaultSeed, host.Scene.Random.Seed);
         Assert.Equal(0ul, host.Scene.Random.Stream);
     }
+
+    private static SceneTransition ToScene<TScene>(object? payload = null)
+        where TScene : Scene
+        => SceneTransition.ToScene(typeof(TScene), payload);
+
+    private static Scene ScenesByKind(in SceneTransition target) =>
+        target.Kind == SceneTransitionKind.Scene ? new NameRequestingScene() : new PassiveScene();
 
     private static StepContext SceneStep(long tick) => Capsule.Tests.Scenes.SceneFixtures.Step(tick);
 

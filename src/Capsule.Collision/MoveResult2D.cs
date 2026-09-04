@@ -14,8 +14,7 @@ namespace Capsule.Collision;
 /// when more were touched.
 /// </param>
 /// <param name="XContactCount">
-/// How many of those contacts the X sweep wrote. They come first, so the rest are the Y sweep's:
-/// this is what says which axis's blocked flag judges a given contact.
+/// How many of those contacts the X sweep wrote; they come first, so the rest are the Y sweep's.
 /// </param>
 public readonly record struct MoveResult2D(
     Vector2 Translation,

@@ -25,16 +25,15 @@ public readonly record struct SpriteIntent(
     bool FlipY,
     ColorRgba Color)
 {
-    // The anchor a backend draws from, in region texels: mirroring it on a flipped axis is what
-    // moves the drawn rect, so the pivot texel stays on the position whichever way the frame faces.
+    // The anchor a backend draws from, in region texels. Mirrored on a flipped axis, so the pivot
+    // texel stays on the position whichever way the frame faces.
     internal Vector2 DrawOrigin => new(
         FlipX ? Sprite.Region.Width - Sprite.Pivot.X : Sprite.Pivot.X,
         FlipY ? Sprite.Region.Height - Sprite.Pivot.Y : Sprite.Pivot.Y);
 
     /// <summary>
     /// The world rect this sprite sweeps between its two positions, or false where it draws
-    /// nothing testable: an extent that is not positive, a region with no texels, or a rect some
-    /// coordinate of which is not finite.
+    /// nothing testable: a non-positive extent, a region with no texels, or a non-finite rect.
     /// </summary>
     internal bool TryGetSweptBounds(out ViewBounds swept)
     {
@@ -43,9 +42,8 @@ public readonly record struct SpriteIntent(
         TextureRegion region = Sprite.Region;
 
         // Tested on the extents themselves, never left to the swept rect: travel widens that rect,
-        // so a sprite moving further than a negative extent still measures positive area there and
-        // would reach the renderer to be drawn inverted. A region with no texels has no scale to
-        // place the pivot by. NaN fails these comparisons too.
+        // so a sprite moving further than a negative extent would measure positive area there and
+        // be drawn inverted. NaN fails these comparisons too.
         if (!(Size.X > 0f) || !(Size.Y > 0f) || region.Width <= 0 || region.Height <= 0)
         {
             return false;

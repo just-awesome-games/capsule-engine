@@ -18,6 +18,7 @@ public sealed class SceneRegistry
     /// <param name="entities">What each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <exception cref="ArgumentException">A registration names no class, or a class or a document is registered twice.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
     {
@@ -44,9 +45,7 @@ public sealed class SceneRegistry
         }
     }
 
-    /// <summary>
-    /// The scene document backing <paramref name="sceneType"/>, or null when no document does.
-    /// </summary>
+    /// <summary>The scene document backing <paramref name="sceneType"/>, or null when none does.</summary>
     /// <exception cref="InvalidOperationException">Nothing registers that class.</exception>
     internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 
@@ -67,7 +66,7 @@ public sealed class SceneRegistry
 
     /// <summary>
     /// Builds the scene <paramref name="name"/> composes into: the class claiming that name, or a
-    /// plain <see cref="Scene"/> when no class claims it.
+    /// plain <see cref="Scene"/> when none does.
     /// </summary>
     /// <param name="name">The document's bare name, without the <c>.scene.json</c> suffix.</param>
     /// <param name="document">The parsed document to compose.</param>

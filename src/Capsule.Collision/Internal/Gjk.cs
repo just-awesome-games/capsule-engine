@@ -5,8 +5,8 @@ namespace Capsule.Collision.Internal;
 /// <summary>
 /// The general narrowphase: GJK distance between two shapes' point hulls, and the conservative
 /// advancement built on it that turns a translation into a time of impact. Every pair of shapes
-/// the module ships is answered here, and the closed-form routines elsewhere are shortcuts
-/// through the same answers rather than alternatives to them.
+/// the module ships is answered here; the closed-form routines elsewhere are shortcuts through the
+/// same answers.
 /// </summary>
 internal static class Gjk
 {
@@ -14,15 +14,10 @@ internal static class Gjk
     private const float Epsilon = 1e-9f;
 
     /// <summary>
-    /// How far apart two shapes are, negative when they overlap by less than their radii. The
-    /// normal points from <paramref name="b"/> towards <paramref name="a"/>, and is zero only when
-    /// the hulls themselves intersect, where the distance carries no direction.
-    /// </summary>
-    internal static float Separation(in Shape2D a, in Shape2D b, out Vector2 normal) =>
-        Separation(a, b, out normal, out _);
-
-    /// <summary>
-    /// How far apart two shapes are, with a closest point on <paramref name="b"/>'s surface.
+    /// How far apart two shapes are, negative when they overlap by less than their radii, with a
+    /// closest point on <paramref name="b"/>'s surface. The normal points from
+    /// <paramref name="b"/> towards <paramref name="a"/>, and is zero only when the hulls
+    /// themselves intersect, where the distance carries no direction.
     /// </summary>
     internal static float Separation(in Shape2D a, in Shape2D b, out Vector2 normal, out Vector2 point)
     {
@@ -118,8 +113,8 @@ internal static class Gjk
 
         float radius = target.Radius + moving.Radius;
 
-        // The advance stops at this separation rather than at zero: a hull pair that meets exactly
-        // has no separating direction to read a normal from.
+        // The advance stops here rather than at zero: a hull pair meeting exactly has no separating
+        // direction to read a normal from.
         float sigma = MathF.Max(CollisionWorld2D.LinearSlop, radius - CollisionWorld2D.LinearSlop);
         float tolerance = 0.5f * CollisionWorld2D.LinearSlop;
 
@@ -162,8 +157,8 @@ internal static class Gjk
                 simplex.Count = 0;
             }
 
-            // The simplex is built over moving-minus-target, shifted by the advance so far, while
-            // the support point above stays unshifted so the plane it defines does not move.
+            // Built over moving-minus-target shifted by the advance so far; the support point above
+            // stays unshifted so the plane it defines does not move.
             simplex.Add(new SimplexVertex
             {
                 PointA = witnessMoving + (lambda * translation),
@@ -199,8 +194,8 @@ internal static class Gjk
             return false;
         }
 
-        // The simplex was built with the moving shape in the first slot and the target in the
-        // second, so the surface point is the target's witness pushed out by the target's radius.
+        // The moving shape is in the first slot and the target in the second, so the surface point
+        // is the target's witness pushed out by the target's radius.
         simplex.Witness(out _, out Vector2 targetWitness);
 
         if (Vector2.Dot(v, v) > 0f)
@@ -249,8 +244,8 @@ internal static class Gjk
         return best;
     }
 
-    // Termination: a support point the simplex already holds means the search cannot improve, and
-    // without this an exactly touching pair loops until the iteration cap.
+    // Termination: a support point the simplex already holds means the search cannot improve.
+    // Without it an exactly touching pair loops to the iteration cap.
     private static bool IsDuplicate(ReadOnlySpan<int> savedA, ReadOnlySpan<int> savedB, int count, int indexA, int indexB)
     {
         for (int index = 0; index < count; index++)
