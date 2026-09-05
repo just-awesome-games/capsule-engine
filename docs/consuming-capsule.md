@@ -122,6 +122,10 @@ Exactly one project takes the shell role:
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- A console-subsystem executable double-clicked from Explorer opens a console window, and
+         the console host's startup (~230 ms) lands inside the game's boot. Release ships as a
+         Windows-subsystem app; Debug keeps the console for the log sink. -->
+    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MyGame</AssemblyName>
     <CapsuleGameShell>true</CapsuleGameShell>
   </PropertyGroup>
