@@ -20,10 +20,11 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
     // what those cost, and well under what one stray per-step allocation in the engine would add.
     private const long SpawnBytesEach = 512;
 
-    // The step measures in the tens of microseconds against a 16.7 ms budget, so this sits some
-    // fifty times above it: a collapse trips it and a drift does not, which is all a wall-clock
-    // number on a shared runner can honestly claim.
-    private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(1);
+    // A frame, the ceiling every mean-step gate claims (D-capsule-029). The step measures in the
+    // tens of microseconds on a desktop and about 100 us on a hosted runner, so a collapse trips
+    // it and a drift does not, which is all a wall-clock number on a shared runner can honestly
+    // claim.
+    private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(16);
 
     // A wave of 65536 deferred adds measures in the tens of milliseconds drained linearly and in
     // thousands drained by the square; this sits an order of magnitude clear of both.

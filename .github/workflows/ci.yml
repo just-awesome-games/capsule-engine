@@ -82,12 +82,15 @@ jobs:
           --logger "console;verbosity=detailed"
 
       # Per-assembly coverage gates so no module hides behind another.
-      # Each included module must clear its floor independently.
+      # Each included module must clear its floor independently. The performance gates ran
+      # uninstrumented above and are excluded here: under coverage instrumentation their
+      # wall-clock numbers are the instrumentation's, not the engine's.
       - name: Test with coverage (Core, Collision, Scenes)
         run: >
           dotnet test
           --configuration Release
           --no-build
+          --filter "FullyQualifiedName!~Capsule.Tests.Performance"
           -p:CollectCoverage=true
           '-p:Include=[Capsule.Core]*%2c[Capsule.Collision]*%2c[Capsule.Scenes]*'
           -p:CoverletOutputFormat=cobertura
@@ -101,6 +104,7 @@ jobs:
           dotnet test
           --configuration Release
           --no-build
+          --filter "FullyQualifiedName!~Capsule.Tests.Performance"
           -p:CollectCoverage=true
           '-p:Include=[Capsule.Runtime]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'

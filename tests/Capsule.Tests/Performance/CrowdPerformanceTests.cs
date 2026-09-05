@@ -11,12 +11,11 @@ public sealed class CrowdPerformanceTests(ITestOutputHelper output)
     private const int MeasuredSteps = 600;
     private const double StepSeconds = 1.0 / 60.0;
 
-    // A frame, the ceiling the diagonal-cast gate already claims: a tripwire for a collapse, not
-    // for drift. The optimised step measures 0.3 ms on a desktop, 0.6 ms on a hosted Linux runner,
-    // 1.5 ms on a hosted Windows one and 6.5 ms under coverage instrumentation, which runs the
-    // whole suite; the collapse this exists to catch — the tree walked for every mover on layers
-    // none detects — was eight times the step, which reads in every one of those environments.
-    // Drift shows in the printed mean, not in the gate.
+    // A frame, the ceiling every mean-step gate claims (D-capsule-029): a tripwire for a collapse,
+    // not for drift. The optimised step measures 0.3 ms on a desktop and 0.4 to 1.5 ms on hosted
+    // runners; the collapse this exists to catch — the tree walked for every mover on layers none
+    // detects — was eight times the step and reads on any of them. Drift shows in the printed
+    // mean and in the desktop harness, never in the gate.
     private const double ReleaseBudgetMilliseconds = 16.0;
 
     // An unoptimised build runs this workload some eight to nine times slower — every Vector2

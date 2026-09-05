@@ -17,14 +17,13 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     private const int OverlapsPerBatch = 64;
     private const int DiagonalCastsPerBatch = 4;
 
-    // The same shape of claim the stage workload makes: the work measures in microseconds against
-    // a 16.7 ms frame, so a ceiling this far above it trips on a collapse and not on drift.
-    private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(1);
+    // A frame, the ceiling every mean-step gate claims (D-capsule-029): the work measures in
+    // microseconds (about 70 us for the batch on a hosted runner), so it trips on a collapse and
+    // not on drift.
+    private static readonly TimeSpan MaxMeanStep = TimeSpan.FromMilliseconds(16);
 
-    // The diagonal batch is four 4096 px sweeps a step, not microsecond work: 0.1 to 0.3 ms
-    // uninstrumented on a desktop and some 2.3 ms under coverage instrumentation. A frame is the
-    // nearest ceiling that still reads a collapse without tripping on instrumentation or on a
-    // shared runner, and it is all a wall-clock number in either environment can honestly claim.
+    // The diagonal batch is four 4096 px sweeps a step, not microsecond work: 0.1 to 0.3 ms on a
+    // desktop. The same frame ceiling reads a collapse without tripping on a shared runner.
     private static readonly TimeSpan MaxDiagonalBatchStep = TimeSpan.FromMilliseconds(16);
 
     [Fact]
