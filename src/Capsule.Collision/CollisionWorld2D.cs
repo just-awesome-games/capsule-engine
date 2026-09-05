@@ -136,6 +136,7 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>A filter naming every layer in <paramref name="names"/>, interning any that is new.</summary>
     /// <returns>A filter of this world matching exactly those layers; <see cref="CollisionFilter.None"/> for no names.</returns>
+    /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
     /// <exception cref="InvalidOperationException">Interning would exceed <see cref="MaxLayers"/>.</exception>
     public CollisionFilter CreateFilter(params ReadOnlySpan<string> names)
     {

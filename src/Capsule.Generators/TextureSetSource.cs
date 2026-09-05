@@ -3,21 +3,19 @@ using System.Text;
 
 namespace Capsule.Generators;
 
-/// <summary>
-/// How a derived residency set reaches the registry that carries it: one method per registration
-/// that has groups, adding each group's handles to the set being assembled.
-/// </summary>
+// How a derived residency set reaches the registry that carries it: one method per registration
+// that has groups, adding each group's handles to the set being assembled.
 internal static class TextureSetSource
 {
     private const string MethodPrefix = "Textures";
 
     private const string SetType = "global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle>";
 
-    /// <summary>The argument a registration passes, or nothing when its class reaches no group.</summary>
+    // The argument a registration passes, or nothing when its class reaches no group.
     internal static string ArgumentFor(ImmutableArray<string> groups, int index) =>
         groups.IsDefaultOrEmpty ? string.Empty : ", " + MethodPrefix + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Emits a builder for every registration that has groups, in registration order.</summary>
+    // Emits a builder for every registration that has groups, in registration order.
     internal static void AppendBuilders(StringBuilder source, List<ImmutableArray<string>> sets, string indent)
     {
         for (int i = 0; i < sets.Count; i++)

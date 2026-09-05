@@ -6,23 +6,21 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Capsule.Generators;
 
-/// <summary>
-/// Which texture groups each declared type reaches, closed over the types it references. A group is
-/// one generated directory class's set — <c>GameAssets.Textures.Enemies.All</c> — and a scene's
-/// residency set is the union of the groups its class and its document's spawn types reach.
-/// </summary>
+// Which texture groups each declared type reaches, closed over the types it references. A group
+// is one generated directory class's set — GameAssets.Textures.Enemies.All — and a scene's
+// residency set is the union of the groups its class and its document's spawn types reach.
 internal sealed class TextureResidency
 {
     internal static readonly TextureResidency None = new(new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal));
 
-    /// <summary>The generated tree a game names its textures through.</summary>
+    // The generated tree a game names its textures through.
     private const string AssetsClass = "GameAssets";
 
     private const string TexturesClass = "Textures";
 
     private const string AssetsReference = "global::Capsule.Assets.Generated.GameAssets.Textures";
 
-    /// <summary>The set member every generated asset class carries.</summary>
+    // The set member every generated asset class carries.
     private const string ListMember = "All";
 
     private const string TextureDomain = "textures";
@@ -31,23 +29,17 @@ internal sealed class TextureResidency
 
     private TextureResidency(Dictionary<string, ImmutableArray<string>> groups) => _groups = groups;
 
-    /// <summary>
-    /// The groups <paramref name="qualifiedName"/> reaches, ordinal-sorted, or empty when it
-    /// reaches none.
-    /// </summary>
+    // The groups a type reaches, ordinal-sorted, or empty when it reaches none.
     internal ImmutableArray<string> GroupsOf(string qualifiedName) =>
         _groups.TryGetValue(qualifiedName, out ImmutableArray<string> groups) ? groups : ImmutableArray<string>.Empty;
 
-    /// <summary>How generated code names one group's handles.</summary>
+    // How generated code names one group's handles.
     internal static string ReferenceTo(string group) =>
         group.Length == 0 ? AssetsReference + "." + ListMember : AssetsReference + "." + group + "." + ListMember;
 
-    /// <summary>
-    /// Walks every type this compilation declares once, then closes each type's own groups over the
-    /// types it references.
-    /// </summary>
-    /// <param name="compilation">The game's logic assembly.</param>
-    /// <param name="assets">Everything the asset hook handed the compiler, all domains.</param>
+    // Walks every type this compilation declares once, then closes each type's own groups over the
+    // types it references. The compilation is the game's logic assembly; the assets are everything
+    // the asset hook handed the compiler, all domains.
     internal static TextureResidency Derive(
         Compilation compilation,
         ImmutableArray<AssetModel> assets,
@@ -69,7 +61,7 @@ internal sealed class TextureResidency
                     continue;
                 }
 
-                string qualifiedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                string qualifiedName = Key(type);
                 if (!walked.TryGetValue(qualifiedName, out Walked entry))
                 {
                     // The parts of a partial class are one type, and each part contributes.
@@ -91,7 +83,7 @@ internal sealed class TextureResidency
         return new TextureResidency(closed);
     }
 
-    /// <summary>Every directory the texture domain declares, as the dotted identifier path its class has.</summary>
+    // Every directory the texture domain declares, as the dotted identifier path its class has.
     private static HashSet<string> TextureDirectories(ImmutableArray<AssetModel> assets)
     {
         // The domain root is a directory in its own right, and the group of anything filed loose.
@@ -148,7 +140,9 @@ internal sealed class TextureResidency
 
                     break;
 
-                case ObjectCreationExpressionSyntax creation:
+                // Both spellings of a construction: 'new TextureHandle(...)' and the target-typed
+                // 'new(...)', which carries no type name to walk.
+                case BaseObjectCreationExpressionSyntax creation:
                     if (LiteralHandleGroup(model, creation, directories) is { } literal)
                     {
                         entry.Groups.Add(literal);
@@ -170,15 +164,13 @@ internal sealed class TextureResidency
         }
     }
 
-    /// <summary>Whether this access is the left-hand side of a longer one, which carries the whole chain.</summary>
+    // Whether this access is the left-hand side of a longer one, which carries the whole chain.
     private static bool IsInnerLink(MemberAccessExpressionSyntax access) =>
         access.Parent is MemberAccessExpressionSyntax parent && ReferenceEquals(parent.Expression, access);
 
-    /// <summary>
-    /// The group a <c>GameAssets.Textures....</c> chain names, or null when the chain is not one.
-    /// Matched on syntax: the asset registry is a sibling generator's output, so its members do not
-    /// bind while this one runs.
-    /// </summary>
+    // The group a 'GameAssets.Textures....' chain names, or null when the chain is not one.
+    // Matched on syntax: the asset registry is a sibling generator's output, so its members do not
+    // bind while this one runs.
     private static string? AssetGroup(MemberAccessExpressionSyntax access, HashSet<string> directories)
     {
         List<string> chain = [];
@@ -189,12 +181,20 @@ internal sealed class TextureResidency
             current = link.Expression;
         }
 
-        if (current is not IdentifierNameSyntax root)
+        // A fully qualified chain roots in an alias — 'global::Capsule' — rather than a bare name.
+        string? root = current switch
+        {
+            IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+            AliasQualifiedNameSyntax alias => alias.Name.Identifier.ValueText,
+            _ => null,
+        };
+
+        if (root is null)
         {
             return null;
         }
 
-        chain.Add(root.Identifier.ValueText);
+        chain.Add(root);
         chain.Reverse();
 
         int domain = chain.IndexOf(AssetsClass);
@@ -219,13 +219,12 @@ internal sealed class TextureResidency
         return group;
     }
 
-    /// <summary>
-    /// The group a <c>new TextureHandle("actors/player", ".png")</c> names. Sprite sheets and other
-    /// derived registries construct handles rather than naming the asset registry's members.
-    /// </summary>
+    // The group a 'new TextureHandle("actors/player", ".png")' names. Sprite sheets and other
+    // derived registries construct handles rather than naming the asset registry's members. The
+    // constructed type comes from the semantic model, so a target-typed 'new' is recognised too.
     private static string? LiteralHandleGroup(
         SemanticModel model,
-        ObjectCreationExpressionSyntax creation,
+        BaseObjectCreationExpressionSyntax creation,
         HashSet<string> directories)
     {
         if (creation.ArgumentList is not { Arguments.Count: 2 } arguments
@@ -243,7 +242,7 @@ internal sealed class TextureResidency
         return separator < 0 ? string.Empty : DirectoryOf(name.Substring(0, separator), directories);
     }
 
-    /// <summary>The class path a handle's directory has, cut back to the deepest one that exists.</summary>
+    // The class path a handle's directory has, cut back to the deepest one that exists.
     private static string DirectoryOf(string path, HashSet<string> directories)
     {
         string group = string.Empty;
@@ -268,7 +267,12 @@ internal sealed class TextureResidency
         return group;
     }
 
-    /// <summary>The type this name reaches, when it is one this compilation declares.</summary>
+    // How a type is keyed: its unbound definition, so a walked 'Helper<T>' and a reference to
+    // 'Helper<int>' are the same entry and the closure finds it.
+    private static string Key(INamedTypeSymbol type) =>
+        type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+    // The type this name reaches, when it is one this compilation declares.
     private static string? Referenced(
         Compilation compilation,
         SemanticModel model,
@@ -290,7 +294,7 @@ internal sealed class TextureResidency
         // edge would make every scene reachable from the boot scene resident at boot.
         return Symbols.DerivesFrom(type, compilation, Symbols.Scene)
             ? null
-            : type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            : Key(type);
     }
 
     private static ImmutableArray<string> Close(string root, Dictionary<string, Walked> walked)

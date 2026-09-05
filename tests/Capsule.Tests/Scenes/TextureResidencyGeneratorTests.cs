@@ -95,6 +95,64 @@ public sealed class TextureResidencyGeneratorTests
         Assert.Contains("GameAssets.Textures.Actors.All", generated, StringComparison.Ordinal);
     }
 
+    // The construction is recognised by the type the model binds, not by the spelling, so a
+    // target-typed 'new' groups like a named one.
+    [Fact]
+    public void ATargetTypedHandleConstruction_IsGroupedByItsDirectory()
+    {
+        string generated = Entities("""
+            public sealed class Ghost(EntitySpawn spawn) : Entity(spawn.Position)
+            {
+                private static readonly Capsule.Assets.TextureHandle Frame = new("actors/hero", ".png");
+            }
+            """);
+
+        Assert.Contains("GameAssets.Textures.Actors.All", generated, StringComparison.Ordinal);
+    }
+
+    // A fully qualified chain roots in 'global::', which is not a plain identifier.
+    [Fact]
+    public void AFullyQualifiedAssetChain_PullsInItsDirectory()
+    {
+        string generated = Entities("""
+            public sealed class Wisp(EntitySpawn spawn) : Entity(spawn.Position)
+            {
+                private static readonly Capsule.Assets.TextureHandle Skin =
+                    global::Capsule.Assets.Generated.GameAssets.Textures.Enemies.Bat;
+            }
+            """);
+
+        Assert.Contains("GameAssets.Textures.Enemies.All", generated, StringComparison.Ordinal);
+    }
+
+    // A reference names a constructed type while the walk keyed its definition, so the closure only
+    // finds the entry if both are keyed the same way.
+    [Fact]
+    public void GroupsReachedThroughAGenericType_AreClosedOver()
+    {
+        string generated = Entities("""
+            public static class Palette<T>
+            {
+                internal static readonly Capsule.Assets.TextureHandle Swatch = GameAssets.Textures.Enemies.Bat;
+            }
+
+            public abstract class Effect(Vector2 at) : Entity(at)
+            {
+                private static readonly Capsule.Assets.TextureHandle Glow = GameAssets.Textures.Fx.Shot;
+            }
+
+            public abstract class Effect<T>(Vector2 at) : Effect(at);
+
+            public sealed class Spark(EntitySpawn spawn) : Effect<int>(spawn.Position)
+            {
+                private static Capsule.Assets.TextureHandle Skin => Palette<int>.Swatch;
+            }
+            """);
+
+        Assert.Contains("GameAssets.Textures.Enemies.All", generated, StringComparison.Ordinal);
+        Assert.Contains("GameAssets.Textures.Fx.All", generated, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AClassReachingNoTexture_CarriesNoSet()
     {
