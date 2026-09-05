@@ -116,7 +116,7 @@ public sealed class ColliderTests
         Body player = new(Vector2.Zero);
         Body enemy = new(new Vector2(10f, 0f));
         player.Collider.Layer = "player";
-        player.Collider.Detects("enemy");
+        player.Collider.SetFilter("enemy");
         player.Collider.ReportsContacts = true;
         player.Mover.BlocksOn("solid");
         enemy.Collider.Layer = "enemy";
@@ -149,7 +149,7 @@ public sealed class ColliderTests
         Scene scene = new();
         Body first = new(Vector2.Zero);
         Body second = new(new Vector2(4f, 0f));
-        first.Collider.Detects("other");
+        first.Collider.SetFilter("other");
         first.Collider.ReportsContacts = true;
         second.Collider.Layer = "other";
 
@@ -187,7 +187,7 @@ public sealed class ColliderTests
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
         body.Mover.BlocksOn("solid");
         body.Collider.ReportsContacts = true;
 
@@ -218,7 +218,7 @@ public sealed class ColliderTests
     public void ContactEvents_SettleBeforeTheSceneLateStepRuns()
     {
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
@@ -241,7 +241,7 @@ public sealed class ColliderTests
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
 
         int entered = 0;
         body.Collider.ContactEntered += _ => entered++;
@@ -259,7 +259,7 @@ public sealed class ColliderTests
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
@@ -327,7 +327,7 @@ public sealed class ColliderTests
     {
         Scene first = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
         body.Collider.ReportsContacts = true;
         first.Add(body);
 
@@ -339,14 +339,14 @@ public sealed class ColliderTests
         // Names interned ahead of 'solid' land it on a different bit, so a filter carried over
         // would match some other tile type rather than simply matching nothing.
         Scene second = new();
-        second.Collision.Filter("hazard", "water", "ladder");
+        second.Collision.CreateFilter("hazard", "water", "ladder");
         second.Add(new TileMap(SceneFixtures.TerrainGrid("....", "####")));
         second.Add(body);
 
         Assert.NotEqual(first.Collision.Layer("solid").Index, second.Collision.Layer("solid").Index);
         Assert.NotEqual(inFirst, body.Collider.Filter);
         Assert.Throws<ArgumentException>(
-            () => second.Collision.OverlapBox(body.Collider.Bounds, inFirst, default));
+            () => second.Collision.OverlapBoxAll(body.Collider.Bounds, inFirst, default));
 
         using SceneSimulation simulation = new(second);
         simulation.Step(SceneFixtures.Step(0));
@@ -636,7 +636,7 @@ public sealed class ColliderTests
 
         // Still exactly where the proxy said it was.
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(1, scene.Collision.OverlapBox(bounds, CollisionFilter.Everything, contacts));
+        Assert.Equal(1, scene.Collision.OverlapBoxAll(bounds, CollisionFilter.Everything, contacts));
     }
 
     // The typed setters are the only way a shape changes now, and a registered collider has to be
@@ -650,12 +650,12 @@ public sealed class ColliderTests
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         Aabb2D reach = Aabb2D.FromCorner(new Vector2(120f, 100f), new Vector2(8f, 8f));
-        Assert.Equal(0, scene.Collision.OverlapBox(reach, CollisionFilter.Everything, contacts));
+        Assert.Equal(0, scene.Collision.OverlapBoxAll(reach, CollisionFilter.Everything, contacts));
 
         body.Collider.Size = new Vector2(64f, 8f);
 
         Assert.Equal(new Vector2(64f, 8f), body.Collider.Size);
-        Assert.Equal(1, scene.Collision.OverlapBox(reach, CollisionFilter.Everything, contacts));
+        Assert.Equal(1, scene.Collision.OverlapBoxAll(reach, CollisionFilter.Everything, contacts));
         Assert.Equal(body.Collider.Handle, contacts[0].Target.Collider);
     }
 
@@ -687,7 +687,7 @@ public sealed class ColliderTests
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects("solid");
+        body.Collider.SetFilter("solid");
         body.Mover.BlocksOn("solid");
         scene.Add(body);
 
@@ -695,7 +695,7 @@ public sealed class ColliderTests
 
         // The bad name is second, so a call that committed as it went would already have thrown the
         // old list away and kept the first.
-        Assert.Throws<ArgumentException>(() => body.Collider.Detects("wall", " "));
+        Assert.Throws<ArgumentException>(() => body.Collider.SetFilter("wall", " "));
 
         Assert.Equal(before, body.Collider.Filter);
         Assert.Equal(before, scene.Collision.FilterOf(body.Collider.Handle));
@@ -721,7 +721,7 @@ public sealed class ColliderTests
         Saturate(scene.Collision);
 
         BoxCollider2D late = new(new Vector2(8f, 8f));
-        late.Detects("a name this world has never seen");
+        late.SetFilter("a name this world has never seen");
 
         InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => host.Add(late));
 
@@ -802,7 +802,7 @@ public sealed class ColliderTests
         Body second = new(new Vector2(4f, 0f));
         first.Collider.Layer = "one";
         second.Collider.Layer = "two";
-        first.Collider.Detects("two");
+        first.Collider.SetFilter("two");
         first.Collider.ReportsContacts = true;
 
         Body? touched = null;
@@ -845,13 +845,13 @@ public sealed class ColliderTests
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
 
-        Assert.Equal(0, scene.Collision.OverlapBox(probe, scene.Collision.Filter("hazard"), contacts));
+        Assert.Equal(0, scene.Collision.OverlapBoxAll(probe, scene.Collision.CreateFilter("hazard"), contacts));
 
         body.Collider.Layer = "hazard";
 
         Assert.Equal("hazard", body.Collider.Layer);
         Assert.Equal(scene.Collision.Layer("hazard"), scene.Collision.LayerOf(body.Collider.Handle));
-        Assert.Equal(1, scene.Collision.OverlapBox(probe, scene.Collision.Filter("hazard"), contacts));
+        Assert.Equal(1, scene.Collision.OverlapBoxAll(probe, scene.Collision.CreateFilter("hazard"), contacts));
     }
 
     // A contact carries the touched thing's layer as an index, and its name for a log line.
@@ -861,7 +861,7 @@ public sealed class ColliderTests
         Scene scene = new();
         Body player = new(Vector2.Zero);
         Body enemy = new(new Vector2(4f, 0f));
-        player.Collider.Detects("enemy");
+        player.Collider.SetFilter("enemy");
         player.Collider.ReportsContacts = true;
         enemy.Collider.Layer = "enemy";
 
@@ -910,7 +910,7 @@ public sealed class ColliderTests
         Body body = new(new Vector2(8f, 8f));
         scene.Add(body);
 
-        CollisionFilter foreign = new Scene().Collision.Filter("solid");
+        CollisionFilter foreign = new Scene().Collision.CreateFilter("solid");
 
         Assert.Throws<ArgumentException>(() => body.Mover.Move(Vector2.UnitY, foreign));
     }
@@ -923,7 +923,7 @@ public sealed class ColliderTests
     {
         Scene scene = Ledge();
         Body body = new(new Vector2(20f, 16f + (0.5f * CollisionWorld2D.ContactSkin)));
-        body.Collider.Detects("platform");
+        body.Collider.SetFilter("platform");
         body.Collider.ReportsContacts = true;
         body.Mover.BlocksOn("platform");
 
@@ -1065,7 +1065,7 @@ public sealed class ColliderTests
         Assert.Equal(CollisionFilter.None, prober.Collider.Filter);
         Assert.False(prober.Collider.Cast(new Vector2(0f, 40f), out _));
 
-        Assert.True(prober.Collider.Cast(new Vector2(0f, 40f), scene.Collision.Filter("solid"), out ShapeCastHit2D hit));
+        Assert.True(prober.Collider.Cast(new Vector2(0f, 40f), scene.Collision.CreateFilter("solid"), out ShapeCastHit2D hit));
         Assert.Equal(new Vector2(0f, -1f), hit.Normal);
     }
 
@@ -1076,7 +1076,7 @@ public sealed class ColliderTests
             : base(position)
         {
             Collider = new BoxCollider2D(new Vector2(40f, 8f)) { ReportsContacts = true };
-            Collider.Detects("solid");
+            Collider.SetFilter("solid");
             Collider.ContactEntered += contact => Log.Add($"+({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
             Collider.ContactExited += contact => Log.Add($"-({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
             Add(Collider);
@@ -1094,7 +1094,7 @@ public sealed class ColliderTests
             : base(position)
         {
             Collider = new BoxCollider2D(size);
-            Collider.Detects(detects);
+            Collider.SetFilter(detects);
             Add(Collider);
         }
 
@@ -1108,7 +1108,7 @@ public sealed class ColliderTests
             : base(position)
         {
             Collider = new CircleCollider2D(radius);
-            Collider.Detects(detects);
+            Collider.SetFilter(detects);
             Add(Collider);
         }
 
@@ -1122,7 +1122,7 @@ public sealed class ColliderTests
             : base(position)
         {
             Collider = new BoxCollider2D(new Vector2(45f * 16f, 8f)) { ReportsContacts = true };
-            Collider.Detects("solid");
+            Collider.SetFilter("solid");
             Collider.ContactEntered += _ => Entered++;
             Add(Collider);
             Mover = new KinematicBody2D(Collider);

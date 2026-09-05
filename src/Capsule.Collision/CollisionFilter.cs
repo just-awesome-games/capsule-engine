@@ -2,7 +2,7 @@ namespace Capsule.Collision;
 
 /// <summary>
 /// Which layers a query or a mover may hit, held as one bit per <see cref="CollisionLayer"/>. Built
-/// from names at setup — <see cref="CollisionWorld2D.Filter(System.ReadOnlySpan{string})"/> — and
+/// from names at setup — <see cref="CollisionWorld2D.CreateFilter(System.ReadOnlySpan{string})"/> — and
 /// read as a mask afterwards, so matching costs one bit test.
 /// <para>
 /// A filter belongs to the world that interned its layers. Mixing two worlds' layers or filters,

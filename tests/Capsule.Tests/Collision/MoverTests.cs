@@ -332,7 +332,7 @@ public sealed class MoverTests
         MoveResult2D result = world.MoveBox(
             CollisionFixtures.Box(40f, 4f, 8f, 8f),
             new Vector2(-40f, 0f),
-            world.Filter(CollisionFixtures.Climb),
+            world.CreateFilter(CollisionFixtures.Climb),
             default);
 
         Assert.True(result.BlockedX);

@@ -29,6 +29,19 @@ public sealed class SceneHostTests
         Assert.Equal("second.step:1", log[^1]);
     }
 
+    // The transition a builder's RunScene(payload) hands the host, seen from the scene's side.
+    [Fact]
+    public void TheTransitionTheHostBootsOn_CarriesItsPayloadIntoTheFirstScene()
+    {
+        SecondScene first = new([]);
+
+        using SceneHost host = new(ToScene<SecondScene>("boot"), (in SceneTransition _) => first);
+        host.Step(SceneStep(0));
+
+        Assert.Same(first, host.Scene);
+        Assert.Equal("boot", first.ReceivedPayload);
+    }
+
     [Fact]
     public void Restart_ReconstructsTheCurrentTargetAndKeepsItsEntryPayload()
     {

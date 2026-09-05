@@ -280,14 +280,18 @@ public sealed class SceneEngineBuilder
     /// composing it from the document that backs it when one does.
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
+    /// <param name="payload">
+    /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
+    /// <see cref="Scene.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
+    /// </param>
     /// <exception cref="InvalidOperationException">
     /// The registry holds no such class, or the spike clamp is below the fixed step.
     /// </exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene<TScene>()
+    public void RunScene<TScene>(object? payload = null)
         where TScene : Scene
-        => RunScene(SceneTransition.ToScene(typeof(TScene), null));
+        => RunScene(SceneTransition.ToScene(typeof(TScene), payload));
 
     /// <summary>
     /// Opens the window and runs the scene the named document backs, or a plain
@@ -295,15 +299,19 @@ public sealed class SceneEngineBuilder
     /// document rather than reading it again.
     /// </summary>
     /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <param name="payload">
+    /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
+    /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
+    /// </param>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="InvalidOperationException">The spike clamp is below the fixed step.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene(string name)
+    public void RunScene(string name, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTransition.ToName(name, null));
+        RunScene(SceneTransition.ToName(name, payload));
     }
 
     /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>

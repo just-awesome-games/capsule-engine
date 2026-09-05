@@ -31,7 +31,7 @@ public sealed class CastTraversalTests
     public void ShapeCast_AcrossTheMapDiagonal_TestsTheBandItSweepsAndNotItsBoundingRectangle()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
 
         world.ResetDiagnostics();
         world.ShapeCast(
@@ -49,7 +49,7 @@ public sealed class CastTraversalTests
     public void ShapeCast_AcrossTheFullWidth_TestsOnlyTheRowsItsShapeCovers()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
 
         world.ResetDiagnostics();
         world.ShapeCast(
@@ -69,7 +69,7 @@ public sealed class CastTraversalTests
 
         // Only the platform layer, and the ray climbs, so nothing stops it: the walk runs the
         // length of the grid rather than ending at a first hit that would measure nothing.
-        CollisionFilter filter = world.Filter(CollisionWorkload.Platform);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Platform);
 
         world.ResetDiagnostics();
         Assert.False(world.Raycast(

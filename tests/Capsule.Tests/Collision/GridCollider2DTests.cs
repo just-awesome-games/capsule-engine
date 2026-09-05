@@ -57,7 +57,7 @@ public sealed class GridCollider2DTests
             new Vector2(8f, -8f),
             Vector2.UnitY,
             32f,
-            world.Filter(CollisionFixtures.Platform),
+            world.CreateFilter(CollisionFixtures.Platform),
             out RayHit2D platform));
         Assert.Equal(world.Layer(CollisionFixtures.Platform), platform.Target.Layer);
 
@@ -65,7 +65,7 @@ public sealed class GridCollider2DTests
             new Vector2(8f, -8f),
             Vector2.UnitY,
             32f,
-            world.Filter(CollisionFixtures.Solid),
+            world.CreateFilter(CollisionFixtures.Solid),
             out _));
     }
 
@@ -91,7 +91,7 @@ public sealed class GridCollider2DTests
         Assert.Equal(world.Layer(CollisionFixtures.Solid), map.LayerAt(0, 1));
 
         // And the refused SetFilter changed nothing a tile query reads.
-        Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, world.Filter(CollisionFixtures.Solid), out RayHit2D hit));
+        Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, world.CreateFilter(CollisionFixtures.Solid), out RayHit2D hit));
         Assert.Equal((0, 1), (hit.Target.CellX, hit.Target.CellY));
     }
 
@@ -197,7 +197,7 @@ public sealed class GridCollider2DTests
             new Vector2(40f, 8f),
             -Vector2.UnitX,
             64f,
-            world.Filter(CollisionFixtures.Climb),
+            world.CreateFilter(CollisionFixtures.Climb),
             out RayHit2D climbing));
 
         Assert.Equal((0, 0), (climbing.Target.CellX, climbing.Target.CellY));
@@ -298,7 +298,7 @@ public sealed class GridCollider2DTests
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "####");
-        CollisionFilter solidOnly = world.Filter(CollisionFixtures.Solid);
+        CollisionFilter solidOnly = world.CreateFilter(CollisionFixtures.Solid);
 
         Assert.True(world.Raycast(new Vector2(24f, 0f), Vector2.UnitY, 96f, solidOnly, out RayHit2D hit));
 
@@ -334,7 +334,7 @@ public sealed class GridCollider2DTests
         Span<Contact2D> contacts = stackalloc Contact2D[8];
         Assert.Equal(
             1,
-            world.OverlapBox(CollisionFixtures.Box(20f, 18f, 12f, 12f), CollisionFilter.Everything, contacts, floor.Handle));
+            world.OverlapBoxAll(CollisionFixtures.Box(20f, 18f, 12f, 12f), CollisionFilter.Everything, contacts, floor.Handle));
         Assert.Equal(body, contacts[0].Target.Collider);
 
         // And a move down through the floor is not stopped by it.
@@ -370,7 +370,7 @@ public sealed class GridCollider2DTests
         CollisionFixtures.Paint(world, "....", "####");
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
-        int count = world.OverlapBox(CollisionFixtures.Box(20f, 12f, 16f, 8f), CollisionFilter.Everything, contacts);
+        int count = world.OverlapBoxAll(CollisionFixtures.Box(20f, 12f, 16f, 8f), CollisionFilter.Everything, contacts);
 
         Assert.Equal(2, count);
         Assert.Equal((1, 1), (contacts[0].Target.CellX, contacts[0].Target.CellY));
@@ -389,10 +389,10 @@ public sealed class GridCollider2DTests
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
         // Wholly inside the cell but below its edge: the body is not the shape.
-        Assert.Equal(0, world.OverlapBox(CollisionFixtures.Box(20f, 20f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(0, world.OverlapBoxAll(CollisionFixtures.Box(20f, 20f, 8f, 8f), CollisionFilter.Everything, contacts));
 
         // Straddling the edge.
-        Assert.Equal(1, world.OverlapBox(CollisionFixtures.Box(20f, 12f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 12f, 8f, 8f), CollisionFilter.Everything, contacts));
     }
 
     // A face is a surface only from the side it faces. Both boxes are within the skin of the
@@ -409,14 +409,14 @@ public sealed class GridCollider2DTests
         ColliderHandle above = world.Add(box, new Vector2(20f, 8f - Half), world.Layer("body"), CollisionFilter.Everything);
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
-        Assert.Equal(1, world.OverlapCollider(above, contacts));
+        Assert.Equal(1, world.OverlapColliderAll(above, contacts));
         Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
         world.Remove(above);
 
         // The same box the same distance the other side of the plane, having passed through it.
         ColliderHandle below = world.Add(box, new Vector2(20f, 16f + Half), world.Layer("body"), CollisionFilter.Everything);
 
-        Assert.Equal(0, world.OverlapCollider(below, contacts));
+        Assert.Equal(0, world.OverlapColliderAll(below, contacts));
     }
 
     // Sidedness is read off the authored plane, so all four faces answer alike. Read off the
@@ -437,7 +437,7 @@ public sealed class GridCollider2DTests
         CollisionWorld2D world = OneFace(face);
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
-        int count = world.OverlapBox(
+        int count = world.OverlapBoxAll(
             Aabb2D.FromCenter(new Vector2(centerX, centerY), new Vector2(8f, 8f)),
             CollisionFilter.Everything,
             contacts);
@@ -469,7 +469,7 @@ public sealed class GridCollider2DTests
 
         Assert.Equal(
             0,
-            world.OverlapBox(
+            world.OverlapBoxAll(
                 Aabb2D.FromCenter(center, new Vector2(8f, 8f)),
                 CollisionFilter.Everything,
                 contacts));
@@ -548,7 +548,7 @@ public sealed class GridCollider2DTests
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
-        Assert.Equal(1, world.OverlapCollider(circle, contacts));
+        Assert.Equal(1, world.OverlapColliderAll(circle, contacts));
         Assert.Equal((1, 1), (contacts[0].Target.CellX, contacts[0].Target.CellY));
         Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
     }
