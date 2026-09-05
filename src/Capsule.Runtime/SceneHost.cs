@@ -1,14 +1,14 @@
+using Capsule.Assets;
 using Capsule.Rendering;
+using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
 
 internal delegate Scene SceneResolver(in SceneTransition target);
 
-/// <summary>
-/// Keeps the runtime alive while scenes replace one another, resolving each requested target at
-/// the host boundary so content never enters game logic as a file operation.
-/// </summary>
+// Keeps the runtime alive while scenes replace one another, resolving each requested target at the
+// host boundary so content never enters game logic as a file operation.
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
@@ -35,6 +35,15 @@ internal sealed class SceneHost : ISimulation, IDisposable
     public FrameView View => _current.View;
 
     internal Scene Scene => _current.Scene;
+
+    // What keeps the current scene's textures on the device. Null until the device is up, which is
+    // after the first scene is composed: the host applies that scene's set itself, and every set
+    // from a transition on comes through here.
+    internal SceneResidency? Residency { get; set; }
+
+    // The current scene's texture set, and the class name a wiring fault in it names.
+    internal (string Scene, IReadOnlyList<TextureHandle> Textures) TextureSet =>
+        (_current.Scene.GetType().Name, _current.Scene.TextureSet);
 
     public void Step(in StepContext context)
     {
@@ -87,6 +96,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private void Replace(in SceneTransition target)
     {
         Scene next = _resolve(target);
+
+        // Before the outgoing scene is torn down: composing the incoming one is what settles its
+        // set, and a set that cannot be made resident must leave the run on the scene it was on.
+        Residency?.MakeResident(next.GetType().Name, next.TextureSet);
 
         _current.Dispose();
         _current = new SceneSimulation(next, target.Payload, _defaults, _random);

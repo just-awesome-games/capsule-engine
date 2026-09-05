@@ -65,7 +65,7 @@ public sealed class CollisionFilterTests
     public void Filter_MatchesEveryNamedLayerAndNothingElse()
     {
         CollisionWorld2D world = new();
-        CollisionFilter filter = world.Filter("solid", "platform");
+        CollisionFilter filter = world.CreateFilter("solid", "platform");
 
         Assert.True(filter.Matches(world.Layer("solid")));
         Assert.True(filter.Matches(world.Layer("platform")));
@@ -146,7 +146,7 @@ public sealed class CollisionFilterTests
         Assert.Equal(hazard.Index, solid.Index);
         Assert.NotEqual(CollisionFilter.Of(hazard), CollisionFilter.Of(solid));
         Assert.Throws<ArgumentException>(() => CollisionFilter.Of(hazard).Matches(solid));
-        Assert.Throws<ArgumentException>(() => first.Filter("hazard").Matches(solid));
+        Assert.Throws<ArgumentException>(() => first.CreateFilter("hazard").Matches(solid));
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public sealed class CollisionFilterTests
         Assert.False(CollisionFilter.None.Matches(hazard));
 
         Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
-        Assert.Equal(0, second.OverlapBox(probe, CollisionFilter.Everything, default));
-        Assert.Equal(0, second.OverlapBox(probe, CollisionFilter.None, default));
-        Assert.Throws<ArgumentException>(() => second.OverlapBox(probe, CollisionFilter.Of(hazard), default));
+        Assert.Equal(0, second.OverlapBoxAll(probe, CollisionFilter.Everything, default));
+        Assert.Equal(0, second.OverlapBoxAll(probe, CollisionFilter.None, default));
+        Assert.Throws<ArgumentException>(() => second.OverlapBoxAll(probe, CollisionFilter.Of(hazard), default));
     }
 }

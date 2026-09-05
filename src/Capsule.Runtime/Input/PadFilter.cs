@@ -1,25 +1,21 @@
 namespace Capsule.Runtime.Input;
 
-/// <summary>
-/// Capsule's own deadzone filtering, applied to raw backend axis readings. One instance carries
-/// the radii a host was configured with.
-/// </summary>
+// Capsule's own deadzone filtering, applied to raw backend axis readings. One instance carries the
+// radii a host was configured with.
 internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
 {
-    /// <summary>Stick radius below which the stick reads as centred, absent a configured one.</summary>
+    // Stick radius below which the stick reads as centred, absent a configured one.
     internal const float DefaultStickDeadzone = 0.25f;
 
-    /// <summary>Trigger pull below which the trigger reads as released, absent a configured one.</summary>
+    // Trigger pull below which the trigger reads as released, absent a configured one.
     internal const float DefaultTriggerDeadzone = 0.12f;
 
     private readonly float _stickDeadzone = stickDeadzone;
     private readonly float _triggerDeadzone = triggerDeadzone;
 
-    /// <summary>
-    /// A raw stick reading with the deadzone removed radially: inside the radius it reads centred,
-    /// outside it the magnitude is remapped onto [0, 1] with the direction preserved. The result
-    /// never leaves the unit disk, even for a hardware diagonal past it.
-    /// </summary>
+    // A raw stick reading with the deadzone removed radially: inside the radius it reads centred,
+    // outside it the magnitude is remapped onto [0, 1] with the direction preserved. The result
+    // never leaves the unit disk, even for a hardware diagonal past it.
     internal (float X, float Y) Stick(float x, float y)
     {
         float magnitude = MathF.Sqrt((x * x) + (y * y));
@@ -33,14 +29,12 @@ internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
         return (x * scale, y * scale);
     }
 
-    /// <summary>A raw trigger reading with the deadzone removed, remapped onto [0, 1].</summary>
+    // A raw trigger reading with the deadzone removed, remapped onto [0, 1].
     internal float Trigger(float value) =>
         value <= _triggerDeadzone ? 0f : Remap(value, _triggerDeadzone);
 
-    /// <summary>
-    /// Whether a pull already through <see cref="Trigger"/> counts as a button press: the deadzone
-    /// is the press threshold, so anything the filter did not zero is a press.
-    /// </summary>
+    // Whether a pull already through Trigger counts as a button press: the deadzone is the press
+    // threshold, so anything the filter did not zero is a press.
     internal static bool TriggerHeld(float filteredPull) => filteredPull > 0f;
 
     private static float Remap(float value, float deadzone) =>

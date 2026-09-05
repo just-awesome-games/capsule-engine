@@ -70,10 +70,10 @@ internal static class SceneFixtures
 
     internal static EntityRegistry Registry(params (string Type, EntitySpawner Spawner)[] entities)
     {
-        List<KeyValuePair<string, EntitySpawner>> entries = new(entities.Length);
+        List<EntityRegistration> entries = new(entities.Length);
         foreach ((string type, EntitySpawner spawner) in entities)
         {
-            entries.Add(new KeyValuePair<string, EntitySpawner>(type, spawner));
+            entries.Add(new EntityRegistration(type, spawner));
         }
 
         return new EntityRegistry(entries);

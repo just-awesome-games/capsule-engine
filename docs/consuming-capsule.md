@@ -122,6 +122,10 @@ Exactly one project takes the shell role:
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- A console-subsystem executable double-clicked from Explorer opens a console window, and
+         the console host's startup (~230 ms) lands inside the game's boot. Release ships as a
+         Windows-subsystem app; Debug keeps the console for the log sink. -->
+    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MyGame</AssemblyName>
     <CapsuleGameShell>true</CapsuleGameShell>
   </PropertyGroup>
@@ -158,6 +162,8 @@ Commit each package-consuming project's `packages.lock.json` and restore CI with
 
 It is git-ignored, and the source-mode lock file lands under `obj/`, so the committed lock file is untouched.
 
+A source build compiles the engine clone's own projects optimised — `Release`, into the clone's `bin/Release` — whatever configuration the game builds in, so a `Debug` game runs at the speed of the engine it will ship against while its own code stays debuggable. `CapsuleSourceConfiguration` overrides that; set it to `Debug` to step into engine source.
+
 ### The API reference
 
 Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
@@ -176,7 +182,25 @@ Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and runn
 
 ## Model and rendering
 
-Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
+Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A handle whose file is missing fails the game where its scene is loaded, naming the handle and the path it looked in.
+
+## Texture residency
+
+The host keeps one scene's textures on the device at a time. Entering a scene loads what its set adds and releases what the scene being left wanted alone, in one synchronous exchange before that scene is torn down; a texture in both sets is never touched. Drawing a handle the current scene's set does not hold throws, naming the scene.
+
+A set is a union of *residency groups*, and a group is one asset directory's generated `All` — `GameAssets.Textures.All`, `GameAssets.Textures.Enemies.All`. The build derives each scene's groups and you write nothing: they are the textures the scene's document names, plus, for the scene's class and for every entity its document places, the `GameAssets.Textures` members that code reaches — closed over the types those types reference, so a `Player` that spawns a `Buster` drawing `GameAssets.Textures.Fx.Shot` keeps `Fx` resident. A handle built from literals, as a sprite sheet's generated frames build theirs, counts the same. A reference from one scene class to another does not: each scene's set is its own, loaded when it is entered.
+
+Two things the derivation cannot see are a handle whose name is computed at run time and a texture reached through a `using static` or an alias of the generated tree. A scene that needs either declares its whole set instead, which replaces the derivation:
+
+```csharp
+public sealed class BossArena : Scene
+{
+    protected internal override IReadOnlyList<TextureHandle>? ResidentTextures =>
+        [.. GameAssets.Textures.Bosses.All, .. GameAssets.Textures.Fx.All];
+}
+```
+
+It is read once, before the scene starts, so it cannot depend on state the scene builds in `OnStart`. Returning `null`, which is the default, takes the derivation.
 
 ## Named assets
 
@@ -189,6 +213,35 @@ A document names a texture by that same path, extension included — `"enemies/b
 Every generated class, each domain root and each nested class, exposes a read-only `All` holding every handle beneath it, its subdirectories included: `GameAssets.Textures.All` is the whole domain, `GameAssets.Textures.Enemies.All` is that directory. It is a `ReadOnlySpan<T>` over generated constant data, so enumerating it allocates nothing.
 
 Two sources may share a stem in different directories. Names collide only within one directory, where two spellings that become one C# identifier — `a-b.png` beside `a_b.png`, or a `bat/` directory beside `bat.png` — fail the build naming both. So does a name that would shadow the class it is declared on: `textures/enemies/enemies.png`, a `textures/textures/` directory, or anything named `all`.
+
+## Testing headlessly
+
+A scene and everything on it are substrate-free, so a test builds one, steps it, and asserts simulation state with no window, no graphics device and no assets on disk. `SceneSimulation` needs a scene and nothing else: the render defaults and the random source are optional, and omitting them takes the default sampling and the default seed's stream 0.
+
+```csharp
+using Capsule;
+using Capsule.Input;
+using Capsule.Scenes;
+
+Scene scene = new();
+Player player = new(Vector2.Zero);
+scene.Add(player);
+
+using SceneSimulation simulation = new(scene);
+
+InputState input = new(bindings);
+for (long tick = 0; tick < 30; tick++)
+{
+    input.Advance(snapshot);
+    simulation.Step(new StepContext(1.0 / 60.0, input, tick));
+}
+
+Assert.Same(GameSprites.Player.Clips.Idle, player.Animator.Clip);
+```
+
+`StepContext` is the whole of what one fixed step is given: its duration in seconds, the `InputState` to read, and the tick index. Hold one `InputState` across the run and `Advance` it with the `DeviceSnapshot` a device would have reported, since input edges are differences between consecutive snapshots and a fresh state each step has none. `DeviceSnapshot.Empty` is nothing held.
+
+What the step would draw is `simulation.View`, rewritten once per step, so a test asserts the frame a player would have seen without a renderer or a window. A test whose subject draws from `Scene.Random` takes its own seed — `new SceneSimulation(scene, random: new RandomSource(seed))` — and replays exactly.
 
 ## Seeing your game's output
 
@@ -222,6 +275,14 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 ```
 
 `WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
+
+## Measuring the host
+
+`WithFrameDiagnostics(path)` on the engine builder writes a CSV of what the host spent its time on. It opens with a commented boot trace — the milliseconds from process start to builder entry, host construction, device readiness, texture residency, the first update and the first submitted frame — and then holds one row per frame: the interval since the previous frame began, the time spent in the update, and the time spent submitting the draw, all in milliseconds. Present is excluded, because the wait for the display happens after the host's draw returns. A second argument exits the run that many seconds after the first frame, for an unattended capture. It is off unless the call is made; the shell decides where the path comes from.
+
+## Controllers
+
+The host reaches controllers through every SDL backend, DirectInput included, so generic HID pads in DirectInput mode, fight sticks, and flight sticks work without configuration. Enumerating DirectInput costs about 200 ms of every boot on Windows; a developer measuring boot can set SDL's own `SDL_DIRECTINPUT_ENABLED=0` in the environment to see the host without it. The engine's ledger records why the default stays on (D-capsule-071).
 
 ## Build configuration reference
 
@@ -277,3 +338,4 @@ The window icon is transparent where its alpha says so, and Capsule's own defaul
 | `CapsuleSourcePath`            | unset                                             | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory.                    |
 | `CapsuleUsePackages`           | `false`                                           | Set to `true` to ignore a source override and verify the pinned NuGet graph.                                                                                                                  |
 | `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |
+| `CapsuleSourceConfiguration`   | `Release`                                         | The configuration the engine clone's own projects build in under a source consumer, whatever the game builds. Set it to `Debug` to step into engine source.                                   |

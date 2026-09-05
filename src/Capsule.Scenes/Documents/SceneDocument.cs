@@ -8,7 +8,7 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public sealed class SceneDocument
 {
-    /// <summary>The entry type the engine reserves for tile maps; any number may appear.</summary>
+    // The entry type the engine reserves for tile maps; any number may appear.
     internal const string TileMapType = "tile-map";
 
     private const int Sha256HexLength = 64;

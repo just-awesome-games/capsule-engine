@@ -117,17 +117,45 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentException>(() => second.Remove(terrain));
         Assert.Throws<ArgumentException>(() => second.NameOf(first.Layer("item")));
         Assert.Throws<ArgumentException>(
-            () => second.OverlapBox(terrain.CellBounds(0, 0), first.Filter("solid"), default));
+            () => second.OverlapBoxAll(terrain.CellBounds(0, 0), first.CreateFilter("solid"), default));
         Assert.Throws<ArgumentException>(
             () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Layer("item"), CollisionFilter.None));
         Assert.Throws<ArgumentException>(
             () => second.Raycast(Vector2.Zero, Vector2.UnitX, 10f, CollisionFilter.Everything, out _, foreign));
         Assert.Throws<ArgumentException>(
-            () => second.OverlapBox(CollisionFixtures.Box(0f, 0f, 8f, 8f), CollisionFilter.Everything, default, foreign));
+            () => second.OverlapBoxAll(CollisionFixtures.Box(0f, 0f, 8f, 8f), CollisionFilter.Everything, default, foreign));
 
         // The collider it did add is untouched by any of that.
         Assert.True(second.Contains(own));
         Assert.Equal(1, second.ColliderCount);
+    }
+
+    // A query whose filter reaches no layer any registered collider stands on skips the tree walk
+    // entirely, so the set of occupied layers must track every way a collider joins, is relayered,
+    // or leaves: a stale one is a collider the broadphase silently stops reporting.
+    [Fact]
+    public void AQuery_FindsAColliderOnWhicheverLayerItCurrentlyStandsOn()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer wall = world.Layer("wall");
+        CollisionLayer ghost = world.Layer("ghost");
+        Shape2D box = Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f));
+        ColliderHandle handle = world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
+
+        world.SetFilter(handle, ghost, CollisionFilter.None);
+
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(40f, -8f, 8f, 16f), CollisionFilter.Of(ghost), new Contact2D[4]));
+
+        world.Remove(handle);
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, out _));
+
+        world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
     }
 
     [Fact]
@@ -135,7 +163,7 @@ public sealed class CollisionQueryTests
     {
         CollisionWorld2D first = new();
         CollisionWorld2D second = new();
-        CollisionFilter foreign = first.Filter("wall");
+        CollisionFilter foreign = first.CreateFilter("wall");
         CollisionLayer item = second.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         ColliderHandle handle = second.Add(box, Vector2.Zero, item, CollisionFilter.None);
@@ -146,8 +174,8 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentException>(() => second.Raycast(Vector2.Zero, Vector2.UnitX, 10f, foreign, out _));
         Assert.Throws<ArgumentException>(() => second.RaycastAll(Vector2.Zero, Vector2.UnitX, 10f, foreign, default));
         Assert.Throws<ArgumentException>(() => second.ShapeCast(box, Vector2.Zero, new Vector2(10f, 0f), foreign, out _));
-        Assert.Throws<ArgumentException>(() => second.Overlap(box, Vector2.Zero, foreign, default));
-        Assert.Throws<ArgumentException>(() => second.OverlapBox(probe, foreign, default));
+        Assert.Throws<ArgumentException>(() => second.OverlapAll(box, Vector2.Zero, foreign, default));
+        Assert.Throws<ArgumentException>(() => second.OverlapBoxAll(probe, foreign, default));
         Assert.Throws<ArgumentException>(() => second.Move(box, Vector2.Zero, new Vector2(10f, 0f), foreign, default));
         Assert.Throws<ArgumentException>(() => second.MoveBox(probe, new Vector2(10f, 0f), foreign, default));
 
@@ -176,7 +204,7 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.ShapeCast(box, Vector2.Zero, new Vector2(float.PositiveInfinity, 0f), CollisionFilter.Everything, out _));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => world.Overlap(box, new Vector2(0f, float.NaN), CollisionFilter.Everything, default));
+            () => world.OverlapAll(box, new Vector2(0f, float.NaN), CollisionFilter.Everything, default));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Move(box, new Vector2(float.NaN, 0f), Vector2.UnitX, CollisionFilter.Everything, default));
         Assert.Throws<ArgumentOutOfRangeException>(
@@ -187,7 +215,7 @@ public sealed class CollisionQueryTests
         Assert.Equal(new Vector2(100f, 0f), world.PositionOf(bystander));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(1, world.OverlapBox(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
         Assert.Equal(bystander, contacts[0].Target.Collider);
     }
 
@@ -220,7 +248,7 @@ public sealed class CollisionQueryTests
         Assert.Equal(new Vector2(-2e38f, 0f), world.PositionOf(far));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(1, world.OverlapBox(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
         Assert.Equal(bystander, contacts[0].Target.Collider);
     }
 
@@ -248,8 +276,8 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentException>(
             () => world.ShapeCast(box, new Vector2(-20f, 0f), new Vector2(40f, 0f), CollisionFilter.Everything, out _, removed));
         Assert.Throws<ArgumentException>(
-            () => world.Overlap(box, Vector2.Zero, CollisionFilter.Everything, default, removed));
-        Assert.Throws<ArgumentException>(() => world.OverlapBox(probe, CollisionFilter.Everything, default, removed));
+            () => world.OverlapAll(box, Vector2.Zero, CollisionFilter.Everything, default, removed));
+        Assert.Throws<ArgumentException>(() => world.OverlapBoxAll(probe, CollisionFilter.Everything, default, removed));
         Assert.Throws<ArgumentException>(
             () => world.Move(box, Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, default, removed));
         Assert.Throws<ArgumentException>(
@@ -258,9 +286,9 @@ public sealed class CollisionQueryTests
         // The collider that took the slot is a collider like any other, and its own handle still
         // ignores it.
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(1, world.OverlapBox(probe, CollisionFilter.Everything, contacts));
+        Assert.Equal(1, world.OverlapBoxAll(probe, CollisionFilter.Everything, contacts));
         Assert.Equal(reused, contacts[0].Target.Collider);
-        Assert.Equal(0, world.OverlapBox(probe, CollisionFilter.Everything, contacts, reused));
+        Assert.Equal(0, world.OverlapBoxAll(probe, CollisionFilter.Everything, contacts, reused));
     }
 
     [Fact]
@@ -291,7 +319,7 @@ public sealed class CollisionQueryTests
         Assert.Throws<ArgumentException>(
             () => world.ShapeCast(none, Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, out _));
         Assert.Throws<ArgumentException>(
-            () => world.Overlap(none, Vector2.Zero, CollisionFilter.Everything, default));
+            () => world.OverlapAll(none, Vector2.Zero, CollisionFilter.Everything, default));
         Assert.Throws<ArgumentException>(
             () => world.Move(none, Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, default));
     }
@@ -340,7 +368,7 @@ public sealed class CollisionQueryTests
         world.Add(Shape2D.Circle(new Vector2(400f, 400f), 4f), Vector2.Zero, item, CollisionFilter.None);
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
-        int count = world.Overlap(Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)), Vector2.Zero, CollisionFilter.Everything, contacts);
+        int count = world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)), Vector2.Zero, CollisionFilter.Everything, contacts);
 
         Assert.Equal(2, count);
         Assert.Equal(first, contacts[0].Target.Collider);
@@ -358,9 +386,9 @@ public sealed class CollisionQueryTests
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
-        Assert.Equal(1, world.Overlap(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Everything, contacts, self));
-        Assert.Equal(1, world.Overlap(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Of(item), contacts));
-        Assert.Equal(0, world.Overlap(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Of(item), contacts, self));
+        Assert.Equal(1, world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Everything, contacts, self));
+        Assert.Equal(1, world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Of(item), contacts));
+        Assert.Equal(0, world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Of(item), contacts, self));
     }
 
     [Fact]
@@ -402,11 +430,11 @@ public sealed class CollisionQueryTests
         ColliderHandle moving = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(0, world.OverlapBox(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(0, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
 
         world.SetPosition(moving, new Vector2(100f, 0f));
 
-        Assert.Equal(1, world.OverlapBox(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
     }
 
     [Fact]
@@ -450,7 +478,7 @@ public sealed class CollisionQueryTests
             CollisionFilter.None);
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
-        int count = world.Overlap(
+        int count = world.OverlapAll(
             Shape2D.Box(new Vector2(4f, 4f), new Vector2(8f, 8f)),
             Vector2.Zero,
             CollisionFilter.Everything,

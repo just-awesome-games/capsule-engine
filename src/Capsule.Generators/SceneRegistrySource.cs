@@ -84,7 +84,8 @@ internal static class SceneRegistrySource
         SourceProductionContext context,
         ImmutableArray<SceneModel> models,
         bool enginePresent,
-        string rootNamespace)
+        string rootNamespace,
+        TextureResidency residency)
     {
         if (!enginePresent)
         {
@@ -142,7 +143,7 @@ internal static class SceneRegistrySource
             registered.Add(entry);
         }
 
-        context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
+        context.AddSource(FileName, SourceText.From(Render(registered, residency), Encoding.UTF8));
     }
 
     private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
@@ -182,7 +183,7 @@ internal static class SceneRegistrySource
             RegistryDiagnostics.UnsafeSceneDocumentName, model.Location, model.DisplayName, documentName));
     }
 
-    private static string Render(List<Registration> registered)
+    private static string Render(List<Registration> registered, TextureResidency residency)
     {
         StringBuilder source = new();
 
@@ -219,10 +220,12 @@ internal static class SceneRegistrySource
         source.AppendLine("            new global::Capsule.Scenes.SceneRegistration[]");
         source.AppendLine("            {");
 
-        AppendRegistrations(source, registered, "                ");
+        AppendRegistrations(source, registered, residency, "                ");
 
         source.AppendLine("            };");
         source.AppendLine();
+
+        TextureSetSource.AppendBuilders(source, ResidencySets(registered, residency), "        ");
         source.AppendLine("        /// <summary>The registry the engine composes every scene through.</summary>");
         source.AppendLine("        public static global::Capsule.Scenes.SceneRegistry Registry { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.SceneRegistry(");
@@ -234,10 +237,29 @@ internal static class SceneRegistrySource
         return source.ToString();
     }
 
-    private static void AppendRegistrations(StringBuilder source, List<Registration> registered, string indent)
+    /// <summary>The groups each registration's class reaches, in registration order.</summary>
+    private static List<ImmutableArray<string>> ResidencySets(List<Registration> registered, TextureResidency residency)
     {
+        List<ImmutableArray<string>> sets = new(registered.Count);
         foreach (Registration entry in registered)
         {
+            sets.Add(residency.GroupsOf(entry.Model.QualifiedName));
+        }
+
+        return sets;
+    }
+
+    private static void AppendRegistrations(
+        StringBuilder source,
+        List<Registration> registered,
+        TextureResidency residency,
+        string indent)
+    {
+        for (int i = 0; i < registered.Count; i++)
+        {
+            Registration entry = registered[i];
+            string textures = TextureSetSource.ArgumentFor(residency.GroupsOf(entry.Model.QualifiedName), i);
+
             source.Append(indent);
 
             if (entry.DocumentName is null)
@@ -246,7 +268,9 @@ internal static class SceneRegistrySource
                 source.Append(entry.Model.QualifiedName);
                 source.Append("), static () => new ");
                 source.Append(entry.Model.QualifiedName);
-                source.AppendLine("()),");
+                source.Append("()");
+                source.Append(textures);
+                source.AppendLine("),");
                 continue;
             }
 
@@ -256,7 +280,9 @@ internal static class SceneRegistrySource
             source.Append(SymbolDisplay.FormatLiteral(entry.DocumentName, quote: true));
             source.Append(", static (global::Capsule.Scenes.SceneContent content) => new ");
             source.Append(entry.Model.QualifiedName);
-            source.AppendLine("(content)),");
+            source.Append("(content)");
+            source.Append(textures);
+            source.AppendLine("),");
         }
     }
 

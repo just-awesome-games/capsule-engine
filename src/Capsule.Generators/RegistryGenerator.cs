@@ -65,15 +65,29 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Combine(context.CompilationProvider.Select(static (compilation, _) => compilation.AssemblyName ?? string.Empty))
             .Select(static (input, _) => input.Left ?? input.Right);
 
-        context.RegisterSourceOutput(
-            entities.Collect().Combine(registries).Combine(rootNamespace),
-            static (production, input) =>
-                EntityRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
+        // The one walk of the compilation behind every derived residency set. Computed once and
+        // shared: the scene and entity registries read the same closure.
+        IncrementalValueProvider<TextureResidency> residency = context.CompilationProvider
+            .Combine(context.AdditionalTextsProvider
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Select(static (input, _) => AssetRegistrySource.Describe(input.Left, input.Right))
+                .Where(static asset => asset.HasValue)
+                .Select(static (asset, _) => asset!.Value)
+                .Collect())
+            .Combine(registries)
+            .Select(static (input, cancellation) => input.Right
+                ? TextureResidency.Derive(input.Left.Left, input.Left.Right, cancellation)
+                : TextureResidency.None);
 
         context.RegisterSourceOutput(
-            scenes.Collect().Combine(registries).Combine(rootNamespace),
+            entities.Collect().Combine(registries).Combine(rootNamespace).Combine(residency),
             static (production, input) =>
-                SceneRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
+                EntityRegistrySource.Emit(production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
+
+        context.RegisterSourceOutput(
+            scenes.Collect().Combine(registries).Combine(rootNamespace).Combine(residency),
+            static (production, input) =>
+                SceneRegistrySource.Emit(production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(provider, static (production, providerName) => RegistryProviderSource.Emit(production, providerName));
         context.RegisterSourceOutput(boot, static (production, wiring) => CapsuleBootSource.Emit(production, wiring));

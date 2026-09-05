@@ -48,7 +48,7 @@ public sealed class SpawnTests
     [Fact]
     public void ARegistryWithARepeatedType_IsRejectedWhereItIsBuilt()
     {
-        List<KeyValuePair<string, EntitySpawner>> entries =
+        List<EntityRegistration> entries =
         [
             new("chest", static spawn => new SceneFixtures.Placed(spawn)),
             new("chest", static spawn => new SceneFixtures.Placed(spawn)),
@@ -62,7 +62,7 @@ public sealed class SpawnTests
     [Fact]
     public void ARegistryClaimingTheReservedTerrainType_IsRejectedWhereItIsBuilt()
     {
-        List<KeyValuePair<string, EntitySpawner>> entries =
+        List<EntityRegistration> entries =
         [
             new(SceneDocument.TileMapType, static spawn => new SceneFixtures.Placed(spawn)),
         ];

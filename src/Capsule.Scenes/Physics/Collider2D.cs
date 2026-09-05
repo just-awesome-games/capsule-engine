@@ -12,7 +12,7 @@ namespace Capsule.Scenes.Physics;
 /// <para>
 /// While this collider is dispatching its own contact handlers, what they are being told about is
 /// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
-/// <see cref="ReportsContacts"/>, <see cref="Detects"/> and a subclass's shape are all refused for
+/// <see cref="ReportsContacts"/>, <see cref="SetFilter"/> and a subclass's shape are all refused for
 /// the whole dispatch, nested ones included. A handler may detach the collider, which takes it out
 /// of the world, gives it the exits it owes and ends its enters for the step; re-attaching before
 /// the dispatch ends is refused.
@@ -175,16 +175,22 @@ public abstract class Collider2D : Component
         }
     }
 
-    /// <summary>The world this collider is registered with, or null while disabled or in no scene.</summary>
-    public CollisionWorld2D? World => _world;
+    // The world this collider is registered with, or null while disabled or in no scene. Game code
+    // reaches the same world through Scene.Collision, so this is the engine's own shortcut and stays
+    // out of the API reference: a doc comment here would ship in the XML a consumer reads.
+    internal CollisionWorld2D? World => _world;
 
-    /// <summary>This collider's identity in <see cref="World"/>; <see cref="ColliderHandle.None"/> while it is in no scene.</summary>
+    /// <summary>
+    /// This collider's identity in its scene's <see cref="Scene.Collision"/> world;
+    /// <see cref="ColliderHandle.None"/> while it is in no scene.
+    /// </summary>
     public ColliderHandle Handle => _handle;
 
     /// <summary>
-    /// What this collider's contact queries may detect, in <see cref="World"/>'s terms. Rebuilt
-    /// from the names given to <see cref="Detects"/> each time the collider joins a scene, so one
-    /// carried between scenes filters against the world it is in; None while it is in none.
+    /// What this collider's contact queries may detect, in its scene's <see cref="Scene.Collision"/>
+    /// world's terms. Rebuilt from the names given to <see cref="SetFilter"/> each time the collider
+    /// joins a scene, so one carried between scenes filters against the world it is in; None while
+    /// it is in none.
     /// </summary>
     public CollisionFilter Filter { get; private set; }
 
@@ -244,7 +250,7 @@ public abstract class Collider2D : Component
     /// <param name="names">The layer names to hit; an empty list hits nothing.</param>
     /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
     /// <exception cref="InvalidOperationException">The world cannot intern a name, or contacts are being dispatched.</exception>
-    public void Detects(params ReadOnlySpan<string> names)
+    public void SetFilter(params ReadOnlySpan<string> names)
     {
         RequireNotDispatching();
 
@@ -280,10 +286,100 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Everything this collider is touching right now — within
     /// <see cref="CollisionWorld2D.ContactSkin"/>, matching <see cref="Filter"/>, never itself —
-    /// written into <paramref name="contacts"/>, returning how many, never more than it holds.
+    /// written into <paramref name="contacts"/>.
     /// </summary>
+    /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
     /// <exception cref="InvalidOperationException">The collider is in no scene.</exception>
-    public int Overlap(Span<Contact2D> contacts) => RequireWorld().OverlapCollider(_handle, contacts);
+    public int OverlapAll(Span<Contact2D> contacts) => RequireWorld().OverlapColliderAll(_handle, contacts);
+
+    /// <summary>
+    /// Whether this collider is touching <paramref name="other"/> — within
+    /// <see cref="CollisionWorld2D.ContactSkin"/> of it. An explicit pair test: neither collider's
+    /// <see cref="Filter"/> is consulted, because the caller named both. A collider never touches
+    /// itself, and one that is disabled or in no scene is touching nothing.
+    /// </summary>
+    /// <param name="other">The collider to test against.</param>
+    /// <returns>Whether the two are touching.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
+    /// <exception cref="InvalidOperationException">This collider is disabled or in no scene.</exception>
+    public bool Overlaps(Collider2D other) => Overlaps(other, out _);
+
+    /// <summary>
+    /// Where this collider touches <paramref name="other"/>, bound in every other way by
+    /// <see cref="Overlaps(Collider2D)"/>. The contact describes <paramref name="other"/>'s surface,
+    /// exactly as an overlap query over the same pair would.
+    /// </summary>
+    /// <param name="other">The collider to test against.</param>
+    /// <param name="contact">Where the two touch, when they do.</param>
+    /// <returns>Whether the two are touching.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
+    /// <exception cref="InvalidOperationException">This collider is disabled or in no scene.</exception>
+    public bool Overlaps(Collider2D other, out Contact2D contact)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        CollisionWorld2D world = RequireWorld();
+        contact = default;
+
+        // A collider outside a world is not in the world's terms at all, which is how every other
+        // query already treats a disabled one: it is simply not there to be met.
+        if (ReferenceEquals(other, this) || other._world is not { } theirs)
+        {
+            return false;
+        }
+
+        if (!ReferenceEquals(theirs, world))
+        {
+            throw new ArgumentException(
+                "The other collider is registered with another collision world; a pair test compares two shapes in one world, and these stand in different ones.",
+                nameof(other));
+        }
+
+        return world.OverlapPair(_handle, other._handle, out contact);
+    }
+
+    /// <summary>
+    /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, under
+    /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit, breaking ties
+    /// as <see cref="CollisionWorld2D.Raycast"/> does.
+    /// </summary>
+    /// <param name="direction">Which way to look; normalised here, so any non-zero length will do.</param>
+    /// <param name="distance">How far to look, in world units.</param>
+    /// <param name="hit">The nearest thing met, when there is one.</param>
+    /// <returns>Whether the ray met anything.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is not positive and finite.</exception>
+    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    public bool Raycast(Vector2 direction, float distance, out RayHit2D hit) =>
+        Raycast(direction, distance, Filter, out hit);
+
+    /// <summary>
+    /// Casts a ray against <paramref name="filter"/> instead of <see cref="Filter"/>, for this call
+    /// alone; <see cref="SetFilter"/> is untouched. Bound in every other way by
+    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/>.
+    /// </summary>
+    /// <param name="direction">Which way to look; normalised here, so any non-zero length will do.</param>
+    /// <param name="distance">How far to look, in world units.</param>
+    /// <param name="filter">What the ray may hit; <see cref="CollisionFilter.None"/> hits nothing.</param>
+    /// <param name="hit">The nearest thing met, when there is one.</param>
+    /// <returns>Whether the ray met anything.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is not positive and finite.</exception>
+    /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
+    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
+    {
+        // The world admits a zero distance; a ray of no length out of a collider that ignores itself
+        // could only ever answer false, so it is a caller's mistake rather than a query.
+        if (!float.IsFinite(distance) || distance <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(distance), distance, "A collider's ray must reach a finite, positive distance.");
+        }
+
+        CollisionWorld2D world = RequireWorld();
+
+        return world.Raycast(Bounds.Center, direction, distance, filter, out hit, _handle);
+    }
 
     /// <summary>
     /// Sweeps this collider's own shape from where it stands along <paramref name="translation"/>
@@ -300,7 +396,7 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's own shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call alone; <see cref="Detects"/> is untouched. Bound in
+    /// <see cref="Filter"/>, for this call alone; <see cref="SetFilter"/> is untouched. Bound in
     /// every other way by <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
     /// </summary>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
@@ -437,11 +533,11 @@ public abstract class Collider2D : Component
 
         // Widened and re-asked until the answer fits, because a truncated gather is a contact
         // silently never entered and later never exited.
-        int count = world.OverlapCollider(_handle, _found);
+        int count = world.OverlapColliderAll(_handle, _found);
         while (count == _found.Length)
         {
             Array.Resize(ref _found, _found.Length * 2);
-            count = world.OverlapCollider(_handle, _found);
+            count = world.OverlapColliderAll(_handle, _found);
         }
 
         (_touching, _wasTouching) = (_wasTouching, _touching);

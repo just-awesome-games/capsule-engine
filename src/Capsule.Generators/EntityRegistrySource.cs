@@ -85,7 +85,8 @@ internal static class EntityRegistrySource
         SourceProductionContext context,
         ImmutableArray<EntityModel> models,
         bool enginePresent,
-        string rootNamespace)
+        string rootNamespace,
+        TextureResidency residency)
     {
         if (!enginePresent)
         {
@@ -141,7 +142,7 @@ internal static class EntityRegistrySource
             registered.Add(entry);
         }
 
-        context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
+        context.AddSource(FileName, SourceText.From(Render(registered, residency), Encoding.UTF8));
     }
 
     private static DiagnosticDescriptor? Reported(EntityFault fault) => fault switch
@@ -186,7 +187,7 @@ internal static class EntityRegistrySource
             fault,
             declaration.Identifier.GetLocation());
 
-    private static string Render(List<Registration> registered)
+    private static string Render(List<Registration> registered, TextureResidency residency)
     {
         StringBuilder source = new();
 
@@ -214,21 +215,30 @@ internal static class EntityRegistrySource
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
         source.AppendLine("    public static class GameEntities");
         source.AppendLine("    {");
-        source.AppendLine("        internal static global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>[] Registrations { get; } =");
-        source.AppendLine("            new global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>[]");
+        source.AppendLine("        internal static global::Capsule.Scenes.Spawning.EntityRegistration[] Registrations { get; } =");
+        source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistration[]");
         source.AppendLine("            {");
 
-        foreach (Registration entry in registered)
+        List<ImmutableArray<string>> sets = new(registered.Count);
+        for (int i = 0; i < registered.Count; i++)
         {
-            source.Append("                new global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>(");
+            Registration entry = registered[i];
+            ImmutableArray<string> groups = residency.GroupsOf(entry.Model.QualifiedName);
+            sets.Add(groups);
+
+            source.Append("                new global::Capsule.Scenes.Spawning.EntityRegistration(");
             source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
             source.Append(", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new ");
             source.Append(entry.Model.QualifiedName);
-            source.AppendLine("(spawn)),");
+            source.Append("(spawn)");
+            source.Append(TextureSetSource.ArgumentFor(groups, i));
+            source.AppendLine("),");
         }
 
         source.AppendLine("            };");
         source.AppendLine();
+
+        TextureSetSource.AppendBuilders(source, sets, "        ");
         source.AppendLine("        /// <summary>The registry a scene resolves its spawn types through.</summary>");
         source.AppendLine("        public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);");

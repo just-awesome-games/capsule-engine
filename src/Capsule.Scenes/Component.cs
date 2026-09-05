@@ -65,23 +65,18 @@ public abstract class Component
     {
     }
 
-    /// <summary>
-    /// Runs once <paramref name="entity"/> holds this component. Whatever the component registers
-    /// with its entity — an interest in its movement, say — is registered here.
-    /// </summary>
+    // Runs once entity holds this component. Whatever the component registers with its entity — an
+    // interest in its movement, say — is registered here.
     internal virtual void OnAttachedTo(Entity entity)
     {
     }
 
-    /// <summary>
-    /// Runs as the component leaves its entity, releasing what <see cref="OnAttachedTo"/>
-    /// registered.
-    /// </summary>
+    // Runs as the component leaves its entity, releasing what OnAttachedTo registered.
     internal virtual void OnDetachingFrom(Entity entity)
     {
     }
 
-    /// <summary>Runs whenever the entity's position is written, including a teleport.</summary>
+    // Runs whenever the entity's position is written, including a teleport.
     internal virtual void OnEntityMoved()
     {
     }

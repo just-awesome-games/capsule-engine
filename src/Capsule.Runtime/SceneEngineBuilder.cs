@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -18,11 +19,12 @@ public sealed class SceneEngineBuilder
     private const int DefaultWindowWidth = 1280;
     private const int DefaultWindowHeight = 720;
     private const int DefaultStepHertz = 60;
-    private const double DefaultSpikeClampSeconds = 0.25;
+    private const int DefaultMaxStepsPerFrame = 8;
 
+    // The boot trace's first stage after process start, so it is taken before any configuration.
+    private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
-    private readonly IReadOnlyList<TextureHandle> _textures;
 
     private string _windowTitle;
     private int _windowWidth = DefaultWindowWidth;
@@ -31,7 +33,7 @@ public sealed class SceneEngineBuilder
     private bool _fullscreen;
     private (int Width, int Height)? _renderResolution;
     private double _stepSeconds = 1.0 / DefaultStepHertz;
-    private double _maxFrameSeconds = DefaultSpikeClampSeconds;
+    private int _maxStepsPerFrame = DefaultMaxStepsPerFrame;
     private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
     private float _triggerDeadzone = PadFilter.DefaultTriggerDeadzone;
     private string? _crashLogAppName;
@@ -40,15 +42,15 @@ public sealed class SceneEngineBuilder
     private bool _loggingSilenced;
     private TextureSampling _sampling = TextureSampling.Linear;
     private ulong _randomSeed = RandomSource.DefaultSeed;
+    private string? _frameDiagnosticsPath;
+    private double? _frameDiagnosticsExitAfterSeconds;
 
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures)
+    internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
-        ArgumentNullException.ThrowIfNull(textures);
 
         _scenes = scenes;
-        _textures = textures;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -116,22 +118,18 @@ public sealed class SceneEngineBuilder
         return this;
     }
 
-    /// <summary>Caps simulated time contributed by one frame after a stall. Defaults to 0.25 s.</summary>
-    /// <param name="seconds">
-    /// Real seconds, positive and finite, and never below one fixed step; the run rejects a
-    /// shorter ceiling, which could not carry a whole step.
-    /// </param>
-    /// <exception cref="ArgumentOutOfRangeException">The value is not finite and positive.</exception>
-    public SceneEngineBuilder WithSpikeClamp(double seconds)
+    /// <summary>
+    /// The most fixed steps one frame may run to catch up on a stall or on steps that cost more
+    /// than the step length. Once the bound is reached the frame drops the time it did not run, so
+    /// the simulation falls behind wall-clock instead of the frame spiralling. Defaults to 8, which
+    /// at 60 Hz absorbs a stall of about an eighth of a second.
+    /// </summary>
+    /// <param name="steps">Steps per frame; positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
+    public SceneEngineBuilder WithMaxStepsPerFrame(int steps)
     {
-        // NaN passes every comparison-based guard and an infinite ceiling never binds.
-        if (!double.IsFinite(seconds))
-        {
-            throw new ArgumentOutOfRangeException(nameof(seconds), seconds, "A spike clamp must be a finite number of seconds.");
-        }
-
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds);
-        _maxFrameSeconds = seconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(steps);
+        _maxStepsPerFrame = steps;
         return this;
     }
 
@@ -235,18 +233,56 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Writes host timing to a CSV at <paramref name="path"/>: a boot trace giving the
+    /// milliseconds from process start to each of builder entry, host construction, device
+    /// readiness, texture residency, the first update and the first submitted frame, then one row
+    /// per frame holding the interval since the previous frame began, the time spent updating and
+    /// the time spent submitting the draw, all in milliseconds. Present is excluded: the backend
+    /// waits for the display after the host's draw returns. Off unless this is called, and then
+    /// costs one null check per frame.
+    /// </summary>
+    /// <param name="path">The CSV to write; an existing file is overwritten.</param>
+    /// <param name="exitAfterSeconds">
+    /// Real seconds after the first submitted frame at which the run exits itself, for an
+    /// unattended capture; null runs until the game exits.
+    /// </param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The duration is not finite and positive.</exception>
+    public SceneEngineBuilder WithFrameDiagnostics(string path, double? exitAfterSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        if (exitAfterSeconds is { } seconds)
+        {
+            // NaN passes every comparison-based guard and an infinite budget never binds.
+            if (!double.IsFinite(seconds))
+            {
+                throw new ArgumentOutOfRangeException(nameof(exitAfterSeconds), seconds, "A capture duration must be a finite number of seconds.");
+            }
+
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds, nameof(exitAfterSeconds));
+        }
+
+        _frameDiagnosticsPath = path;
+        _frameDiagnosticsExitAfterSeconds = exitAfterSeconds;
+        return this;
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
     /// composing it from the document that backs it when one does.
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
-    /// <exception cref="InvalidOperationException">
-    /// The registry holds no such class, or the spike clamp is below the fixed step.
-    /// </exception>
+    /// <param name="payload">
+    /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
+    /// <see cref="Scene.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene<TScene>()
+    public void RunScene<TScene>(object? payload = null)
         where TScene : Scene
-        => RunScene(SceneTransition.ToScene(typeof(TScene), null));
+        => RunScene(SceneTransition.ToScene(typeof(TScene), payload));
 
     /// <summary>
     /// Opens the window and runs the scene the named document backs, or a plain
@@ -254,27 +290,25 @@ public sealed class SceneEngineBuilder
     /// document rather than reading it again.
     /// </summary>
     /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <param name="payload">
+    /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
+    /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
+    /// </param>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
-    /// <exception cref="InvalidOperationException">The spike clamp is below the fixed step.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene(string name)
+    public void RunScene(string name, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTransition.ToName(name, null));
+        RunScene(SceneTransition.ToName(name, payload));
     }
 
-    /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>
-    internal void Run(ISimulation simulation)
-    {
-        // Neither call can see the other's value, so the pair settles here.
-        if (_maxFrameSeconds < _stepSeconds)
-        {
-            throw new InvalidOperationException(
-                $"A spike clamp of {_maxFrameSeconds} s is below the fixed step of {_stepSeconds} s: no frame could contribute a whole step, so the simulation would fall behind real time at any frame rate.");
-        }
+    // Opens the window and runs simulation until it requests exit.
+    internal void Run(ISimulation simulation) => Run(simulation, null);
 
+    private void Run(ISimulation simulation, SceneHost? scenes)
+    {
         EngineOptions options = new(
             _windowTitle,
             _windowWidth,
@@ -283,15 +317,14 @@ public sealed class SceneEngineBuilder
             _fullscreen,
             _renderResolution,
             _stepSeconds,
-            _maxFrameSeconds,
+            _maxStepsPerFrame,
             _stickDeadzone,
             _triggerDeadzone,
-            _bindings,
-            _textures);
+            _bindings);
 
         try
         {
-            Host(options, simulation);
+            Host(options, simulation, scenes);
         }
         catch (Exception exception) when (_crashLogAppName is not null)
         {
@@ -322,7 +355,7 @@ public sealed class SceneEngineBuilder
         SceneComposer composer = new(_scenes);
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
-        Run(host);
+        Run(host, host);
     }
 
     private void InstallLogging()
@@ -336,9 +369,14 @@ public sealed class SceneEngineBuilder
         Log.UseSink(_logSink ?? (_consoleSink ??= new ConsoleLogSink()));
     }
 
-    private void Host(EngineOptions options, ISimulation simulation)
+    private void Host(EngineOptions options, ISimulation simulation, SceneHost? scenes)
     {
-        using CapsuleGame game = new(options, simulation);
+        // Declared first so the host, disposed before it, has written its last frame by then.
+        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
+            ? null
+            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+
+        using CapsuleGame game = new(options, simulation, scenes, diagnostics);
 
         if (_consoleSink is not null)
         {

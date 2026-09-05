@@ -70,8 +70,8 @@ jobs:
 
       # The workload-scale gates, run uninstrumented and named on their own so a regression
       # reads as one. They assert allocation and file access, not wall time: those two are
-      # deterministic where a duration on a shared runner is not. They run again inside the
-      # coverage pass below; this is the run whose numbers are the engine's own, and detailed
+      # deterministic where a duration on a shared runner is not. The coverage passes below
+      # exclude them, so this is the only run and its numbers are the engine's own; detailed
       # verbosity is what puts them in the log.
       - name: Performance gates
         run: >
@@ -82,12 +82,15 @@ jobs:
           --logger "console;verbosity=detailed"
 
       # Per-assembly coverage gates so no module hides behind another.
-      # Each included module must clear its floor independently.
+      # Each included module must clear its floor independently. The performance gates ran
+      # uninstrumented above and are excluded here: under coverage instrumentation their
+      # wall-clock numbers are the instrumentation's, not the engine's.
       - name: Test with coverage (Core, Collision, Scenes)
         run: >
           dotnet test
           --configuration Release
           --no-build
+          --filter "FullyQualifiedName!~Capsule.Tests.Performance"
           -p:CollectCoverage=true
           '-p:Include=[Capsule.Core]*%2c[Capsule.Collision]*%2c[Capsule.Scenes]*'
           -p:CoverletOutputFormat=cobertura
@@ -101,6 +104,7 @@ jobs:
           dotnet test
           --configuration Release
           --no-build
+          --filter "FullyQualifiedName!~Capsule.Tests.Performance"
           -p:CollectCoverage=true
           '-p:Include=[Capsule.Runtime]*'
           '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'

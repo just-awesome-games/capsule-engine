@@ -3,8 +3,8 @@ using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 
-// Where a handle's file has to be, and what boot says when it is not there. The decode needs a
-// graphics device; the path contract does not.
+// Where a handle's file has to be, and which handles a scene's set moves on and off the device.
+// The decode needs a graphics device; neither the path contract nor the set arithmetic does.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
@@ -65,6 +65,94 @@ public sealed class TextureResidencyTests
             () => TextureFiles.Resolve(shipped.BaseDirectory, [Hero, Tiles]));
 
         Assert.Contains("'tiles'", error.Message, StringComparison.Ordinal);
+    }
+
+    // A set replaces the last one: only the difference reaches the device.
+    [Fact]
+    public void ASet_LoadsWhatItAddsAndReleasesWhatItDrops()
+    {
+        TextureHandle shared = new("shared", ".png");
+        Recorded recorded = new();
+
+        recorded.Residency.MakeResident("Menu", [Hero, shared]);
+        recorded.Residency.MakeResident("Arena", [shared, Tiles]);
+
+        Assert.Equal([("Menu", "hero,shared", ""), ("Arena", "tiles", "hero")], recorded.Changes);
+    }
+
+    [Fact]
+    public void AHandleNamedTwiceInOneSet_IsLoadedOnce()
+    {
+        Recorded recorded = new();
+
+        recorded.Residency.MakeResident("Arena", [Hero, Tiles, Hero]);
+
+        Assert.Equal([("Arena", "hero,tiles", "")], recorded.Changes);
+    }
+
+    // Two scenes over one set: the transition loads and releases nothing, and the store still
+    // learns which scene now owns the set, so a stray draw is blamed on the right one.
+    [Fact]
+    public void ASetThatChangesNothing_LoadsAndReleasesNothing()
+    {
+        Recorded recorded = new();
+
+        recorded.Residency.MakeResident("Menu", [Hero]);
+        recorded.Residency.MakeResident("Arena", [Hero]);
+
+        Assert.Equal([("Menu", "hero", ""), ("Arena", "", "")], recorded.Changes);
+    }
+
+    // A decode that fails leaves the last scene's set accounted for, so the next set diffs against
+    // what is actually on the device.
+    [Fact]
+    public void ASetTheDeviceRefuses_LeavesNothingRecorded()
+    {
+        Recorded recorded = new();
+        recorded.Residency.MakeResident("Menu", [Hero]);
+        recorded.Fails = true;
+
+        Assert.Throws<FileNotFoundException>(() => recorded.Residency.MakeResident("Arena", [Tiles]));
+
+        recorded.Fails = false;
+        recorded.Residency.MakeResident("Arena", [Tiles]);
+
+        Assert.Equal(("Arena", "tiles", "hero"), recorded.Changes[^1]);
+    }
+
+    [Fact]
+    public void ADrawTheSetDoesNotCover_NamesTheSceneAndTheHandle()
+    {
+        string message = SceneResidency.NotResident("Arena", Hero);
+
+        Assert.Contains("'Arena'", message, StringComparison.Ordinal);
+        Assert.Contains("'hero'", message, StringComparison.Ordinal);
+        Assert.Contains("assets/textures/hero.png", message, StringComparison.Ordinal);
+    }
+
+    private sealed class Recorded
+    {
+        internal Recorded() => Residency = new SceneResidency(Apply);
+
+        internal SceneResidency Residency { get; }
+
+        /// <summary>Each change as (scene, loaded, released), the handles ordinal-joined.</summary>
+        internal List<(string Scene, string Load, string Release)> Changes { get; } = [];
+
+        internal bool Fails { get; set; }
+
+        private void Apply(string scene, IReadOnlyList<TextureHandle> load, IReadOnlyList<TextureHandle> release)
+        {
+            if (Fails)
+            {
+                throw new FileNotFoundException("the device refused the set");
+            }
+
+            Changes.Add((scene, Names(load), Names(release)));
+        }
+
+        private static string Names(IReadOnlyList<TextureHandle> handles) =>
+            string.Join(",", handles.Select(static handle => handle.Name).Order(StringComparer.Ordinal));
     }
 
     private sealed class Shipped : IDisposable

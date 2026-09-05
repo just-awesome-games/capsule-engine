@@ -31,10 +31,8 @@ public readonly record struct SpriteIntent(
         FlipX ? Sprite.Region.Width - Sprite.Pivot.X : Sprite.Pivot.X,
         FlipY ? Sprite.Region.Height - Sprite.Pivot.Y : Sprite.Pivot.Y);
 
-    /// <summary>
-    /// The world rect this sprite sweeps between its two positions, or false where it draws
-    /// nothing testable: a non-positive extent, a region with no texels, or a non-finite rect.
-    /// </summary>
+    // The world rect this sprite sweeps between its two positions, or false where it draws nothing
+    // testable: a non-positive extent, a region with no texels, or a non-finite rect.
     internal bool TryGetSweptBounds(out ViewBounds swept)
     {
         swept = default;

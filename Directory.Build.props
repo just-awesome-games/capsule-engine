@@ -1,6 +1,10 @@
 <Project>
 
   <PropertyGroup>
+    <!-- A source consumer inside this repository builds the engine in the solution's own
+         configuration rather than the optimised one a game outside it gets, so a solution build
+         compiles each module once. -->
+    <CapsuleEngineRepository>true</CapsuleEngineRepository>
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

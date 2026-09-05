@@ -22,7 +22,7 @@ public sealed class ShapeUnionTests
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
 
-        Assert.Equal(1, world.OverlapBox(
+        Assert.Equal(1, world.OverlapBoxAll(
             Aabb2D.FromCorner(new Vector2(30f, 30f), new Vector2(40f, 40f)),
             CollisionFilter.Everything,
             contacts));

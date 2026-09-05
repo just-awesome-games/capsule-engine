@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Capsule.Runtime.Input;
 
-/// <summary>Turns the OS keyboard into a <see cref="DeviceSnapshot"/>. The only place hardware enters the engine.</summary>
+// Turns the OS keyboard into a DeviceSnapshot. The only place hardware enters the engine.
 internal static class KeyboardSampler
 {
     private static readonly Keys[] XnaByKey = BuildLookup();

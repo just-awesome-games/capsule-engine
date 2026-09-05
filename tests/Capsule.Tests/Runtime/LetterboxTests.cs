@@ -72,4 +72,62 @@ public sealed class LetterboxTests
     {
         Assert.True(Letterbox.Fit(1000f, 1f, 10, 10).IsEmpty);
     }
+
+    [Theory]
+    [InlineData(320, 180, 1280, 720, 4f)]
+    [InlineData(320, 180, 1279, 719, 3f)]
+    [InlineData(320, 180, 1366, 768, 4f)]
+    [InlineData(320, 180, 3440, 1440, 8f)]
+    [InlineData(320, 180, 640, 359, 1f)]
+    public void FitPixels_TakesTheLargestWholeScaleThatFits(
+        int contentWidth,
+        int contentHeight,
+        int containerWidth,
+        int containerHeight,
+        float expectedScale)
+    {
+        Letterbox fit = Letterbox.FitPixels(contentWidth, contentHeight, containerWidth, containerHeight);
+
+        Assert.Equal(expectedScale, fit.Scale);
+        Assert.Equal((int)(contentWidth * expectedScale), fit.Width);
+        Assert.Equal((int)(contentHeight * expectedScale), fit.Height);
+    }
+
+    [Theory]
+    [InlineData(320, 180, 1366, 768)]
+    [InlineData(320, 180, 1001, 777)]
+    [InlineData(320, 180, 100, 100)]
+    public void FitPixels_LeavesEqualBarsOnEitherSide(int contentWidth, int contentHeight, int containerWidth, int containerHeight)
+    {
+        Letterbox fit = Letterbox.FitPixels(contentWidth, contentHeight, containerWidth, containerHeight);
+
+        Assert.InRange(containerWidth - fit.Width - (2 * fit.X), 0, 1);
+        Assert.InRange(containerHeight - fit.Height - (2 * fit.Y), 0, 1);
+    }
+
+    [Theory]
+    [InlineData(320, 180, 160, 90)]
+    [InlineData(320, 180, 319, 179)]
+    public void FitPixels_FallsBackToTheFractionalFitBelowOneWholeScale(
+        int contentWidth,
+        int contentHeight,
+        int containerWidth,
+        int containerHeight)
+    {
+        Letterbox fit = Letterbox.FitPixels(contentWidth, contentHeight, containerWidth, containerHeight);
+
+        Assert.Equal(Letterbox.Fit(contentWidth, contentHeight, containerWidth, containerHeight), fit);
+        Assert.InRange(fit.Scale, 0f, 1f);
+    }
+
+    [Theory]
+    [InlineData(320, 180, 0, 720)]
+    [InlineData(320, 180, 1280, 0)]
+    [InlineData(0, 180, 1280, 720)]
+    [InlineData(320, 0, 1280, 720)]
+    [InlineData(320, 180, -1280, -720)]
+    public void FitPixels_IsEmptyForDegenerateGeometry(int contentWidth, int contentHeight, int containerWidth, int containerHeight)
+    {
+        Assert.True(Letterbox.FitPixels(contentWidth, contentHeight, containerWidth, containerHeight).IsEmpty);
+    }
 }

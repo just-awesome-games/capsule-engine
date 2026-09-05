@@ -147,7 +147,7 @@ public sealed class ActionBindings
         return this;
     }
 
-    /// <summary>One contribution to an axis action: an analog axis, or else a digital pair.</summary>
+    // One contribution to an axis action: an analog axis, or else a digital pair.
     private readonly record struct AxisSource(PadAxis Analog, InputButton Negative, InputButton Positive)
     {
         internal float Read(in DeviceSnapshot snapshot) =>

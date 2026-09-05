@@ -241,7 +241,7 @@ public class Entity
     {
     }
 
-    /// <summary>Counts the components that want telling when this entity moves.</summary>
+    // Counts the components that want telling when this entity moves.
     internal void TrackMovement(int delta) => _movementTrackers += delta;
 
     // The entity's own start is once for its lifetime; the component sweep is not. An entity

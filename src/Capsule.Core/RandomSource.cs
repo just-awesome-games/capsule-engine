@@ -61,7 +61,7 @@ public sealed class RandomSource
     /// <summary>The stream this source draws, which names the domain it serves within <see cref="Seed"/>.</summary>
     public ulong Stream { get; }
 
-    /// <summary>The generator's state words, which the seeding test inverts to recover the pair.</summary>
+    // The generator's state words, which the seeding test inverts to recover the pair.
     internal (ulong S0, ulong S1, ulong S2, ulong S3) StateWords => (_s0, _s1, _s2, _s3);
 
     /// <summary>

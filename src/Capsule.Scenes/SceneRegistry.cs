@@ -45,12 +45,9 @@ public sealed class SceneRegistry
         }
     }
 
-    /// <summary>The scene document backing <paramref name="sceneType"/>, or null when none does.</summary>
-    /// <exception cref="InvalidOperationException">Nothing registers that class.</exception>
+    // The scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 
-    /// <summary>Builds the scene registered for <paramref name="sceneType"/>.</summary>
-    /// <exception cref="InvalidOperationException">Nothing registers that class, or a document backs it.</exception>
     internal Scene Create(Type sceneType)
     {
         SceneRegistration registration = Registered(sceneType);
@@ -61,16 +58,14 @@ public sealed class SceneRegistry
                 + $"name rather than its class: CreateFromDocument(\"{name}\", document).");
         }
 
-        return registration.Create();
+        Scene scene = registration.Create();
+        scene.DeclareTextures(registration.Textures);
+
+        return scene;
     }
 
-    /// <summary>
-    /// Builds the scene <paramref name="name"/> composes into: the class claiming that name, or a
-    /// plain <see cref="Scene"/> when none does.
-    /// </summary>
-    /// <param name="name">The document's bare name, without the <c>.scene.json</c> suffix.</param>
-    /// <param name="document">The parsed document to compose.</param>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    // Builds the scene name composes into: the class claiming that name, or a plain Scene when none
+    // does.
     internal Scene CreateFromDocument(string name, SceneDocument document)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -78,9 +73,15 @@ public sealed class SceneRegistry
 
         SceneContent content = new(document, _entities);
 
-        return _byDocumentName.TryGetValue(name, out SceneRegistration claimed)
-            ? claimed.Create(content)
-            : new Scene(content);
+        if (!_byDocumentName.TryGetValue(name, out SceneRegistration claimed))
+        {
+            return new Scene(content);
+        }
+
+        Scene scene = claimed.Create(content);
+        scene.DeclareTextures(claimed.Textures);
+
+        return scene;
     }
 
     private SceneRegistration Registered(Type sceneType)

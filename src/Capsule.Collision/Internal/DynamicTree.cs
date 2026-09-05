@@ -2,26 +2,22 @@ using System.Numerics;
 
 namespace Capsule.Collision.Internal;
 
-/// <summary>Visits proxies whose fat bounds overlap a query; returning false ends the walk.</summary>
+// Visits proxies whose fat bounds overlap a query; returning false ends the walk.
 internal interface ITreeVisitor
 {
     bool Visit(int proxyId);
 }
 
-/// <summary>
-/// Visits proxies a ray could reach, in no particular order; the returned value is the new maximum
-/// fraction to keep searching within, and zero ends the walk.
-/// </summary>
+// Visits proxies a ray could reach, in no particular order; the returned value is the new maximum
+// fraction to keep searching within, and zero ends the walk.
 internal interface IRayVisitor
 {
     float Visit(int proxyId, float maxFraction);
 }
 
-/// <summary>
-/// A dynamic bounding-volume hierarchy over moving colliders: fat bounds so a proxy that moves a
-/// little is not reinserted, surface-area-heuristic descent for insertion, and rotation-based
-/// rebalancing. Never rebuilt wholesale, and deterministic for a given sequence of operations.
-/// </summary>
+// A dynamic bounding-volume hierarchy over moving colliders: fat bounds so a proxy that moves a
+// little is not reinserted, surface-area-heuristic descent for insertion, and rotation-based
+// rebalancing. Never rebuilt wholesale, and deterministic for a given sequence of operations.
 internal sealed class DynamicTree
 {
     internal const int NullNode = -1;
@@ -69,7 +65,7 @@ internal sealed class DynamicTree
         ProxyCount--;
     }
 
-    /// <summary>Refits the proxy, reinserting it only when its tight bounds escape its fat ones.</summary>
+    // Refits the proxy, reinserting it only when its tight bounds escape its fat ones.
     internal bool MoveProxy(int proxyId, in Aabb2D tight, Vector2 displacement)
     {
         if (_nodes[proxyId].Box.Contains(tight))

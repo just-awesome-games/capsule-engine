@@ -92,8 +92,8 @@ internal static class StageWorkload
     internal static EntityRegistry Entities() =>
         new(
         [
-            new KeyValuePair<string, EntitySpawner>("hero", static spawn => new Hero(spawn)),
-            new KeyValuePair<string, EntitySpawner>("actor", static spawn => new Actor(spawn)),
+            new EntityRegistration("hero", static spawn => new Hero(spawn)),
+            new EntityRegistration("actor", static spawn => new Actor(spawn)),
         ]);
 
     internal static SceneRegistry Scenes() =>

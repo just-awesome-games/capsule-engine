@@ -8,18 +8,13 @@ internal static class TextureFiles
 {
     private const string DomainDirectory = "textures";
 
-    /// <summary>
-    /// The handle's file, relative to the executable. A handle's name is its source's path under
-    /// the textures root, so a nested asset resolves to a nested file.
-    /// </summary>
+    // The handle's file, relative to the executable. A handle's name is its source's path under the
+    // textures root, so a nested asset resolves to a nested file.
     internal static string RelativePathOf(in TextureHandle handle) =>
         "assets/" + DomainDirectory + "/" + handle.Name + handle.Extension;
 
-    /// <summary>
-    /// Every handle's file under <paramref name="baseDirectory"/>, in first-appearance order, with
-    /// a handle named more than once resolved once.
-    /// </summary>
-    /// <exception cref="FileNotFoundException">A handle's file is not there; nothing is returned.</exception>
+    // Every handle's file under baseDirectory, in first-appearance order, with a handle named more
+    // than once resolved once.
     internal static (TextureHandle Handle, string Path)[] Resolve(
         string baseDirectory,
         IReadOnlyList<TextureHandle> handles)
@@ -38,8 +33,6 @@ internal static class TextureFiles
         return [.. resolved];
     }
 
-    /// <summary>The handle's file under <paramref name="baseDirectory"/>.</summary>
-    /// <exception cref="FileNotFoundException">Nothing is shipped there.</exception>
     internal static string Locate(string baseDirectory, in TextureHandle handle)
     {
         string relative = RelativePathOf(handle);

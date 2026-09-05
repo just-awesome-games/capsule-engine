@@ -2,15 +2,12 @@ using System.Numerics;
 
 namespace Capsule.Collision.Internal;
 
-/// <summary>The closed-form axis-aligned narrowphase the box cases take.</summary>
+// The closed-form axis-aligned narrowphase the box cases take.
 internal static class Boxes
 {
-    /// <summary>
-    /// How far apart two boxes are, negative when they overlap, with a closest surface point on
-    /// <paramref name="b"/>. <paramref name="normal"/> is the unit direction from
-    /// <paramref name="b"/> towards <paramref name="a"/> — for an overlap, the axis of least
-    /// penetration.
-    /// </summary>
+    // How far apart two boxes are, negative when they overlap, with a closest surface point on b.
+    // normal is the unit direction from b towards a — for an overlap, the axis of least
+    // penetration.
     internal static float Separation(in Aabb2D a, in Aabb2D b, out Vector2 normal, out Vector2 point)
     {
         float lowX = b.Min.X - a.Max.X;
@@ -43,12 +40,9 @@ internal static class Boxes
         return gapY;
     }
 
-    /// <summary>
-    /// The fraction of <paramref name="translation"/> at which <paramref name="moving"/> first
-    /// touches <paramref name="target"/> over an extent, exactly. Returns false when they never
-    /// touch and when they only ever meet along a line of zero width;
-    /// <paramref name="fraction"/> is 0 when they already overlap.
-    /// </summary>
+    // The fraction of translation at which moving first touches target over an extent, exactly.
+    // Returns false when they never touch and when they only ever meet along a line of zero width;
+    // fraction is 0 when they already overlap.
     internal static bool Sweep(
         in Aabb2D moving,
         Vector2 translation,

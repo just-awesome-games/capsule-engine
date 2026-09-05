@@ -93,8 +93,8 @@ internal static class Program
     private static SceneDocument Document(string path) =>
         SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
 
-    // Every texture the shell would make resident at boot, so a handle the build registered with
-    // no file behind it fails here rather than in front of a window.
+    // Every texture the sample's scenes make resident, so a handle the build registered with no
+    // file behind it fails here rather than in front of a window.
     private static bool ContentShipped()
     {
         SceneDocument hall = Document(NativeScenePath);

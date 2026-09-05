@@ -30,11 +30,9 @@ public readonly record struct CollisionTarget
     /// <summary>The layer the collider or grid cell is on.</summary>
     public CollisionLayer Layer { get; }
 
-    /// <summary>A target naming one collider.</summary>
     internal static CollisionTarget ForCollider(ColliderHandle collider, CollisionLayer layer) =>
         new(collider, false, 0, 0, layer);
 
-    /// <summary>A target naming one cell of a grid collider.</summary>
     internal static CollisionTarget ForGridCell(ColliderHandle grid, int x, int y, CollisionLayer layer) =>
         new(grid, true, x, y, layer);
 }

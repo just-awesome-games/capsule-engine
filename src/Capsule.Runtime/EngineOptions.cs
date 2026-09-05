@@ -1,9 +1,8 @@
-using Capsule.Assets;
 using Capsule.Input;
 
 namespace Capsule.Runtime;
 
-/// <summary>The settled configuration a builder hands the host; validated on the way in.</summary>
+// The settled configuration a builder hands the host; validated on the way in.
 internal sealed record EngineOptions(
     string WindowTitle,
     int WindowWidth,
@@ -12,8 +11,7 @@ internal sealed record EngineOptions(
     bool Fullscreen,
     (int Width, int Height)? RenderResolution,
     double StepSeconds,
-    double MaxFrameSeconds,
+    int MaxStepsPerFrame,
     float StickDeadzone,
     float TriggerDeadzone,
-    ActionBindings Bindings,
-    IReadOnlyList<TextureHandle> Textures);
+    ActionBindings Bindings);

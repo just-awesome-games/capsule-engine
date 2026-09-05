@@ -4,10 +4,8 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// Whether a name that will become a directory is portable, which the crash log's folder is the one
-/// caller of.
-/// </summary>
+// Whether a name that will become a directory is portable, which the crash log's folder is the one
+// caller of.
 internal static class SafeName
 {
     // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
@@ -36,11 +34,9 @@ internal static class SafeName
         return !AssetPaths.IsReservedDeviceName(dot >= 0 ? name[..dot] : name);
     }
 
-    /// <summary>
-    /// A display name lowercased, with every run of anything that is not a letter or a digit
-    /// becoming one hyphen — so "My Game" is "my-game". Null where what remains is not one safe
-    /// directory name, which a game name of punctuation alone or of a reserved device name is.
-    /// </summary>
+    // A display name lowercased, with every run of anything that is not a letter or a digit
+    // becoming one hyphen — so "My Game" is "my-game". Null where what remains is not one safe
+    // directory name, which a game name of punctuation alone or of a reserved device name is.
     internal static string? Slug(string name)
     {
         StringBuilder slug = new(name.Length);

@@ -2,10 +2,10 @@ using System.Numerics;
 
 namespace Capsule.Collision.Internal;
 
-/// <summary>Point queries against one shape whose points are already in world space.</summary>
+// Point queries against one shape whose points are already in world space.
 internal static class Hulls
 {
-    /// <summary>Whether <paramref name="point"/> lies inside the shape or on its outline.</summary>
+    // Whether point lies inside the shape or on its outline.
     internal static bool Contains(in Shape2D shape, Vector2 point)
     {
         int count = shape.PointCount;

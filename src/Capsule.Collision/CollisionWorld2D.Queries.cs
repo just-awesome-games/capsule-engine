@@ -518,6 +518,11 @@ public sealed partial class CollisionWorld2D
         Span<RayHit2D> hits,
         ref int count)
     {
+        if ((filter & _treeLayers).IsEmpty)
+        {
+            return;
+        }
+
         RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
         _tree.RayCast(origin, unit, accumulator.Distance, ref visitor);
 
@@ -572,6 +577,11 @@ public sealed partial class CollisionWorld2D
                     contacts[count++] = new Contact2D(CollisionTarget.ForGridCell(map.Handle, x, y, layer), point, normal);
                 }
             }
+        }
+
+        if ((filter & _treeLayers).IsEmpty)
+        {
+            return count;
         }
 
         int first = count;
@@ -675,6 +685,11 @@ public sealed partial class CollisionWorld2D
                     CastCell(map, x, y, moving, translation, filter, contacts, ref accumulator);
                 }
             }
+        }
+
+        if ((filter & _treeLayers).IsEmpty)
+        {
+            return;
         }
 
         CastVisitor visitor = new(this, moving, translation, filter, ignore, contacts, accumulator);
@@ -1025,7 +1040,7 @@ public sealed partial class CollisionWorld2D
 
         internal CastAccumulator Accumulator { get; private set; }
 
-        /// <summary>Where the tree-phase contacts start; the grid phase's stay in traversal order.</summary>
+        // Where the tree-phase contacts start; the grid phase's stay in traversal order.
         internal int First { get; private set; }
 
         public bool Visit(int proxyId)
