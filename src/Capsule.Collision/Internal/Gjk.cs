@@ -2,23 +2,18 @@ using System.Numerics;
 
 namespace Capsule.Collision.Internal;
 
-/// <summary>
-/// The general narrowphase: GJK distance between two shapes' point hulls, and the conservative
-/// advancement built on it that turns a translation into a time of impact. Every pair of shapes
-/// the module ships is answered here; the closed-form routines elsewhere are shortcuts through the
-/// same answers.
-/// </summary>
+// The general narrowphase: GJK distance between two shapes' point hulls, and the conservative
+// advancement built on it that turns a translation into a time of impact. Every pair of shapes the
+// module ships is answered here; the closed-form routines elsewhere are shortcuts through the same
+// answers.
 internal static class Gjk
 {
     private const int MaxIterations = 20;
     private const float Epsilon = 1e-9f;
 
-    /// <summary>
-    /// How far apart two shapes are, negative when they overlap by less than their radii, with a
-    /// closest point on <paramref name="b"/>'s surface. The normal points from
-    /// <paramref name="b"/> towards <paramref name="a"/>, and is zero only when the hulls
-    /// themselves intersect, where the distance carries no direction.
-    /// </summary>
+    // How far apart two shapes are, negative when they overlap by less than their radii, with a
+    // closest point on b's surface. The normal points from b towards a, and is zero only when the
+    // hulls themselves intersect, where the distance carries no direction.
     internal static float Separation(in Shape2D a, in Shape2D b, out Vector2 normal, out Vector2 point)
     {
         float hull = Distance(a, b, out Vector2 pointA, out Vector2 pointB);
@@ -36,10 +31,8 @@ internal static class Gjk
         return -a.Radius - b.Radius;
     }
 
-    /// <summary>
-    /// The distance between the two hulls, with the closest point on each. Both shapes' points are
-    /// already in world space; radii are the caller's to subtract.
-    /// </summary>
+    // The distance between the two hulls, with the closest point on each. Both shapes' points are
+    // already in world space; radii are the caller's to subtract.
     internal static float Distance(in Shape2D a, in Shape2D b, out Vector2 pointA, out Vector2 pointB)
     {
         Simplex simplex = default;
@@ -93,12 +86,9 @@ internal static class Gjk
         return Vector2.Distance(pointA, pointB);
     }
 
-    /// <summary>
-    /// The fraction of <paramref name="translation"/> at which <paramref name="moving"/> first
-    /// touches <paramref name="target"/>. Both shapes' points are already in world space. Returns
-    /// false when the sweep never touches, and when the pair already overlaps — a sweep out of an
-    /// overlap has no time of impact to report.
-    /// </summary>
+    // The fraction of translation at which moving first touches target. Both shapes' points are
+    // already in world space. Returns false when the sweep never touches, and when the pair already
+    // overlaps — a sweep out of an overlap has no time of impact to report.
     internal static bool ShapeCast(
         in Shape2D target,
         in Shape2D moving,

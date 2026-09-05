@@ -58,10 +58,10 @@ public sealed class FrameView
     /// <summary>Render-command counts from the current rewrite.</summary>
     public RenderMetrics Metrics => new(_submitted, _commands.Count);
 
-    /// <summary>What to draw and in what order, each naming its kind's pool and its place in it.</summary>
+    // What to draw and in what order, each naming its kind's pool and its place in it.
     internal ReadOnlySpan<RenderCommand> Commands => CollectionsMarshal.AsSpan(_commands);
 
-    /// <summary>Drops every pool and the stream, and resets <see cref="Metrics"/>, retaining capacity.</summary>
+    // Drops every pool and the stream, and resets Metrics, retaining capacity.
     internal void Clear()
     {
         _commands.Clear();

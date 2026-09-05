@@ -50,7 +50,6 @@ public sealed class EntityRegistry
         }
     }
 
-    /// <exception cref="SpawnException">No class claims the type, or the one that does returned nothing.</exception>
     internal Entity Create(EntitySpawn spawn)
     {
         if (!_spawners.TryGetValue(spawn.Type, out EntitySpawner? spawner))

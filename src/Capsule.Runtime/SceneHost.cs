@@ -5,10 +5,8 @@ namespace Capsule.Runtime;
 
 internal delegate Scene SceneResolver(in SceneTransition target);
 
-/// <summary>
-/// Keeps the runtime alive while scenes replace one another, resolving each requested target at
-/// the host boundary so content never enters game logic as a file operation.
-/// </summary>
+// Keeps the runtime alive while scenes replace one another, resolving each requested target at the
+// host boundary so content never enters game logic as a file operation.
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;

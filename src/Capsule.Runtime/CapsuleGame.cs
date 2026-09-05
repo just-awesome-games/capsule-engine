@@ -5,10 +5,8 @@ using Microsoft.Xna.Framework;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// The MonoGame host. Owns the window, the device and the clock, and drives the simulation on its
-/// own fixed-step accumulator rather than MonoGame's, so a run reproduces frame for frame.
-/// </summary>
+// The MonoGame host. Owns the window, the device and the clock, and drives the simulation on its
+// own fixed-step accumulator rather than MonoGame's, so a run reproduces frame for frame.
 internal sealed class CapsuleGame : Game
 {
     private readonly GraphicsDeviceManager _graphics;
@@ -136,10 +134,8 @@ internal sealed class CapsuleGame : Game
         base.Dispose(disposing);
     }
 
-    /// <summary>
-    /// Toggles the window on the chord's leading edge; returns whether Alt and Enter are still
-    /// quarantined from the simulation.
-    /// </summary>
+    // Toggles the window on the chord's leading edge; returns whether Alt and Enter are still
+    // quarantined from the simulation.
     private bool ConsumeFullscreenChord(in DeviceSnapshot snapshot)
     {
         bool alt = snapshot.IsDown(Key.LeftAlt) || snapshot.IsDown(Key.RightAlt);

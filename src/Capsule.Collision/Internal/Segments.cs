@@ -2,12 +2,9 @@ using System.Numerics;
 
 namespace Capsule.Collision.Internal;
 
-/// <summary>
-/// Ray casting against one shape. Every routine parameterises the ray as
-/// <c>origin + direction * t</c> over <c>t</c> in <c>[0, limit]</c>, so a unit direction with a
-/// distance and a whole translation with a limit of 1 read the same way. A ray that starts inside
-/// reports <c>t = 0</c> and a zero normal.
-/// </summary>
+// Ray casting against one shape. Every routine parameterises the ray as origin + direction * t over
+// t in [0, limit], so a unit direction with a distance and a whole translation with a limit of 1
+// read the same way. A ray that starts inside reports t = 0 and a zero normal.
 internal static class Segments
 {
     private const float Parallel = 1e-8f;
@@ -21,7 +18,7 @@ internal static class Segments
         out Vector2 normal) =>
         RayBoxRange(box, origin, direction, limit, out t, out _, out normal);
 
-    /// <summary>Where a ray enters and leaves a box; the entry is zero when it starts inside.</summary>
+    // Where a ray enters and leaves a box; the entry is zero when it starts inside.
     internal static bool RayBoxRange(
         in Aabb2D box,
         Vector2 origin,
@@ -85,7 +82,7 @@ internal static class Segments
         return true;
     }
 
-    /// <summary>The nearest point of a shape a ray reaches; the shape's points are in world space.</summary>
+    // The nearest point of a shape a ray reaches; the shape's points are in world space.
     internal static bool RayShape(
         in Shape2D shape,
         Vector2 origin,
@@ -156,10 +153,7 @@ internal static class Segments
         return t >= 0f && t <= limit;
     }
 
-    /// <summary>
-    /// The ray's first crossing of the segment from <paramref name="a"/> to <paramref name="b"/>,
-    /// ignoring a ray running along it.
-    /// </summary>
+    // The ray's first crossing of the segment from a to b, ignoring a ray running along it.
     internal static bool RaySegment(
         Vector2 a,
         Vector2 b,
@@ -193,7 +187,7 @@ internal static class Segments
 
     internal static float Cross(Vector2 left, Vector2 right) => (left.X * right.Y) - (left.Y * right.X);
 
-    /// <summary>The outward unit normal of the edge leaving point <paramref name="index"/>.</summary>
+    // The outward unit normal of the edge leaving point index.
     private static Vector2 EdgeNormal(in Shape2D shape, int index)
     {
         Vector2 edge = shape.PointAt((index + 1) % shape.PointCount) - shape.PointAt(index);

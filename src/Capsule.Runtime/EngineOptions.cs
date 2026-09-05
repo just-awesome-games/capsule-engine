@@ -3,7 +3,7 @@ using Capsule.Input;
 
 namespace Capsule.Runtime;
 
-/// <summary>The settled configuration a builder hands the host; validated on the way in.</summary>
+// The settled configuration a builder hands the host; validated on the way in.
 internal sealed record EngineOptions(
     string WindowTitle,
     int WindowWidth,

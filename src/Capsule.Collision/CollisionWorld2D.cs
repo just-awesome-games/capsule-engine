@@ -51,8 +51,14 @@ public sealed partial class CollisionWorld2D
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree _tree = new();
 
+    // How many tree-resident colliders stand on each layer, and the same as a mask. A grid carries
+    // its own Layers and every grid walk already skips a grid no filter bit reaches; this is that
+    // early-out for the tree, which otherwise descends to a leaf before the layer is ever read.
+    private readonly int[] _treeLayerCounts = new int[MaxLayers];
+
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
+    private CollisionFilter _treeLayers;
 
     /// <summary>A world holding nothing, with only <see cref="DefaultLayerName"/> interned.</summary>
     public CollisionWorld2D() => Layer(DefaultLayerName);
@@ -63,14 +69,12 @@ public sealed partial class CollisionWorld2D
     /// <summary>How many distinct layers have been interned, <see cref="DefaultLayerName"/> included.</summary>
     public int LayerCount => _layerIndices.Count;
 
-    /// <summary>The grid colliders the world holds, in the order they were added.</summary>
+    // The grid colliders the world holds, in the order they were added.
     internal ReadOnlySpan<GridCollider2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
-    /// <summary>
-    /// How many grid cells this world's casts and rays have reached since the last
-    /// <see cref="ResetDiagnostics"/>, empty ones included; overlaps are not counted. No query
-    /// result depends on it.
-    /// </summary>
+    // How many grid cells this world's casts and rays have reached since the last
+    // ResetDiagnostics, empty ones included; overlaps are not counted. No query result depends
+    // on it.
     internal long GridCellsTested { get; private set; }
 
     /// <summary>
@@ -181,6 +185,7 @@ public sealed partial class CollisionWorld2D
         slot.UserData = userData;
         slot.Grid = null;
         slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index);
+        TrackTreeLayer(layer, 1);
 
         return HandleAt(index);
     }
@@ -199,6 +204,7 @@ public sealed partial class CollisionWorld2D
         else
         {
             _tree.DestroyProxy(slot.ProxyId);
+            TrackTreeLayer(slot.Layer, -1);
         }
 
         slot.InUse = false;
@@ -218,8 +224,7 @@ public sealed partial class CollisionWorld2D
         Remove(grid.Handle);
     }
 
-    /// <summary>Whether <paramref name="handle"/> still names a live collider of this world.</summary>
-    /// <exception cref="ArgumentException">The handle was issued by another world.</exception>
+    // Whether <paramref name="handle"/> still names a live collider of this world.
     internal bool Contains(ColliderHandle handle)
     {
         RequireOwn(handle, nameof(handle));
@@ -293,12 +298,13 @@ public sealed partial class CollisionWorld2D
         // A grid has no one layer to write: its cells carry the layers their profiles named, and
         // every tile query reads those rather than the slot's.
         int index = RequireShapeSlot(handle);
+        TrackTreeLayer(_slots[index].Layer, -1);
+        TrackTreeLayer(layer, 1);
         _slots[index].Layer = layer;
         _slots[index].Detects = detects;
     }
 
-    /// <summary>Where a collider's shape origin sits.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
+    // Where a collider's shape origin sits.
     internal Vector2 PositionOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Position;
 
     /// <summary>A collider's shape, in its own space.</summary>
@@ -312,8 +318,7 @@ public sealed partial class CollisionWorld2D
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
     public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
 
-    /// <summary>What a collider may hit. A grid collider never moves and hits nothing.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
+    // What a collider may hit. A grid collider never moves and hits nothing.
     internal CollisionFilter FilterOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Detects;
 
     /// <summary>Whatever the caller attached to a collider or grid when it was added.</summary>
@@ -710,7 +715,7 @@ public sealed partial class CollisionWorld2D
         ColliderHandle ignore = default) =>
         Move(Shape2D.Box(box), Vector2.Zero, translation, filter, contacts, ignore);
 
-    /// <summary>Zeroes <see cref="GridCellsTested"/>, leaving everything the world holds alone.</summary>
+    // Zeroes GridCellsTested, leaving everything the world holds alone.
     internal void ResetDiagnostics() => GridCellsTested = 0;
 
     private static Vector2 RequireRay(Vector2 origin, Vector2 direction, float distance)
@@ -836,6 +841,22 @@ public sealed partial class CollisionWorld2D
         ColliderCount++;
 
         return index;
+    }
+
+    // A layer leaves the mask only when the last collider on it leaves the tree, so the mask is
+    // exact rather than monotonic: a world that once held an actor does not go on paying for one.
+    private void TrackTreeLayer(CollisionLayer layer, int delta)
+    {
+        int count = _treeLayerCounts[layer.Index] += delta;
+
+        if (delta > 0 && count == 1)
+        {
+            _treeLayers = _treeLayers.With(layer);
+        }
+        else if (delta < 0 && count == 0)
+        {
+            _treeLayers = _treeLayers.Without(layer);
+        }
     }
 
     private bool TryIndexOf(ColliderHandle handle, out int index)

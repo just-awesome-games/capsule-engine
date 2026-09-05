@@ -6,10 +6,8 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
 {
     internal bool IsEmpty => Width <= 0 || Height <= 0;
 
-    /// <summary>
-    /// Fits content measured in its own units — a camera's world extent — into a surface. The
-    /// scale is whatever the binding axis allows, because a world unit answers to no pixel grid.
-    /// </summary>
+    // Fits content measured in its own units — a camera's world extent — into a surface. The scale
+    // is whatever the binding axis allows, because a world unit answers to no pixel grid.
     internal static Letterbox Fit(float contentWidth, float contentHeight, int containerWidth, int containerHeight)
     {
         // Negated so a NaN extent is rejected alongside the non-positive ones.
@@ -21,13 +19,10 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
         return Place(contentWidth, contentHeight, containerWidth, containerHeight, UniformScale(contentWidth, contentHeight, containerWidth, containerHeight));
     }
 
-    /// <summary>
-    /// Fits a pixel surface into a container of pixels. The scale is the largest whole number that
-    /// fits and the bars absorb the remainder, so every source pixel covers the same square block
-    /// of the container rather than three columns here and four there. A container too small to
-    /// hold the surface once falls back to the fractional fit, which is the only way it fits at
-    /// all.
-    /// </summary>
+    // Fits a pixel surface into a container of pixels. The scale is the largest whole number that
+    // fits and the bars absorb the remainder, so every source pixel covers the same square block of
+    // the container rather than three columns here and four there. A container too small to hold
+    // the surface once falls back to the fractional fit, which is the only way it fits at all.
     internal static Letterbox FitPixels(int contentWidth, int contentHeight, int containerWidth, int containerHeight)
     {
         if (contentWidth <= 0 || contentHeight <= 0 || containerWidth <= 0 || containerHeight <= 0)

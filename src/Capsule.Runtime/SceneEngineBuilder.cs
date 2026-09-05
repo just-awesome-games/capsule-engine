@@ -307,7 +307,7 @@ public sealed class SceneEngineBuilder
         RunScene(SceneTransition.ToName(name, payload));
     }
 
-    /// <summary>Opens the window and runs <paramref name="simulation"/> until it requests exit.</summary>
+    // Opens the window and runs simulation until it requests exit.
     internal void Run(ISimulation simulation)
     {
         EngineOptions options = new(

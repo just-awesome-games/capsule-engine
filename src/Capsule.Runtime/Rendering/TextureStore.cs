@@ -3,16 +3,13 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Rendering;
 
-/// <summary>
-/// The textures resident on the device, keyed by handle. A set is loaded at once and disposed at
-/// once; nothing is loaded on demand.
-/// </summary>
+// The textures resident on the device, keyed by handle. A set is loaded at once and disposed at
+// once; nothing is loaded on demand.
 internal sealed class TextureStore : IDisposable
 {
     private readonly Dictionary<TextureHandle, Texture2D> _textures;
 
-    /// <summary>Decodes each distinct handle's file once, or leaves nothing on the device.</summary>
-    /// <exception cref="FileNotFoundException">A handle's file is not beside the executable.</exception>
+    // Decodes each distinct handle's file once, or leaves nothing on the device.
     internal TextureStore(GraphicsDevice device, IReadOnlyList<TextureHandle> handles)
     {
         // Located ahead of decoding, so a missing file costs no device memory.
@@ -36,8 +33,6 @@ internal sealed class TextureStore : IDisposable
         }
     }
 
-    /// <summary>The texture a handle names.</summary>
-    /// <exception cref="InvalidOperationException">The set does not hold it.</exception>
     internal Texture2D Get(in TextureHandle handle) =>
         _textures.TryGetValue(handle, out Texture2D? texture)
             ? texture

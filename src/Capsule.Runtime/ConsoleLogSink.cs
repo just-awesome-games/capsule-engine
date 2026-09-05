@@ -3,13 +3,11 @@ using Capsule.Diagnostics;
 
 namespace Capsule.Runtime;
 
-/// <summary>
-/// The sink the host installs at boot. Every level goes to standard output in write order, each
-/// line prefixed with the simulation tick it was written on.
-/// </summary>
+// The sink the host installs at boot. Every level goes to standard output in write order, each line
+// prefixed with the simulation tick it was written on.
 internal sealed class ConsoleLogSink : ILogSink
 {
-    /// <summary>Reads the current tick; null before the host's clock exists.</summary>
+    // Reads the current tick; null before the host's clock exists.
     internal Func<long>? Tick { get; set; }
 
     public void Write(LogLevel level, string message)

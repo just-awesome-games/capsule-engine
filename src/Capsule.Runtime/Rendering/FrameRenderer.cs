@@ -7,10 +7,8 @@ using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace Capsule.Runtime.Rendering;
 
-/// <summary>
-/// Draws a <see cref="FrameView"/>. Holds no scene state of its own: what a sprite interpolates
-/// from travels in the sprite.
-/// </summary>
+// Draws a FrameView. Holds no scene state of its own: what a sprite interpolates from travels in
+// the sprite.
 internal sealed class FrameRenderer : IDisposable
 {
     // Bars are presentation rather than world intent and remain black.
@@ -31,9 +29,9 @@ internal sealed class FrameRenderer : IDisposable
     // back buffer at whatever size the window is.
     private readonly RenderTarget2D? _target;
 
-    /// <param name="device">The device to rasterise on.</param>
-    /// <param name="renderResolution">A fixed render surface, or null to draw into the back buffer.</param>
-    /// <param name="textures">The resident textures to draw from; owned by the caller.</param>
+    // renderResolution: A fixed render surface, or null to draw into the back buffer.
+    //
+    // textures: The resident textures to draw from; owned by the caller.
     internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
     {
         _device = device;
@@ -48,12 +46,10 @@ internal sealed class FrameRenderer : IDisposable
             : null;
     }
 
-    /// <summary>Draws one frame. Allocation-free at steady state.</summary>
-    /// <param name="view">What the simulation wants drawn.</param>
-    /// <param name="alpha">
-    /// Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the camera
-    /// looking at it, is drawn that far from its previous position towards its current one.
-    /// </param>
+    // Draws one frame. Allocation-free at steady state.
+    //
+    // alpha: Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the
+    // camera looking at it, is drawn that far from its previous position towards its current one.
     internal void Draw(FrameView view, float alpha)
     {
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.

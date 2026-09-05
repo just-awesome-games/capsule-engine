@@ -130,6 +130,34 @@ public sealed class CollisionQueryTests
         Assert.Equal(1, second.ColliderCount);
     }
 
+    // A query whose filter reaches no layer any registered collider stands on skips the tree walk
+    // entirely, so the set of occupied layers must track every way a collider joins, is relayered,
+    // or leaves: a stale one is a collider the broadphase silently stops reporting.
+    [Fact]
+    public void AQuery_FindsAColliderOnWhicheverLayerItCurrentlyStandsOn()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer wall = world.Layer("wall");
+        CollisionLayer ghost = world.Layer("ghost");
+        Shape2D box = Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f));
+        ColliderHandle handle = world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
+
+        world.SetFilter(handle, ghost, CollisionFilter.None);
+
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(40f, -8f, 8f, 16f), CollisionFilter.Of(ghost), new Contact2D[4]));
+
+        world.Remove(handle);
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, out _));
+
+        world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+    }
+
     [Fact]
     public void EveryFilterSeam_RefusesAFilterBuiltFromAnotherWorldsLayers()
     {

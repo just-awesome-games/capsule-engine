@@ -4,15 +4,14 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Capsule.Runtime.Input;
 
-/// <summary>Folds the first connected gamepad into a <see cref="DeviceSnapshot"/>. The only place pad hardware enters the engine.</summary>
+// Folds the first connected gamepad into a DeviceSnapshot. The only place pad hardware enters the
+// engine.
 internal static class GamepadSampler
 {
     private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
 
-    /// <summary>
-    /// <paramref name="snapshot"/> with this frame's pad buttons additionally held and its axes set
-    /// through <paramref name="filter"/>. With no pad connected it is returned untouched.
-    /// </summary>
+    // snapshot with this frame's pad buttons additionally held and its axes set through filter.
+    // With no pad connected it is returned untouched.
     internal static DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
     {
         GamePadState pad = FirstConnected();
