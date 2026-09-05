@@ -90,16 +90,17 @@ public sealed class TextureResidencyTests
         Assert.Equal([("Arena", "hero,tiles", "")], recorded.Changes);
     }
 
-    // Two scenes over one set: the device has no work in that transition and is not disturbed.
+    // Two scenes over one set: the transition loads and releases nothing, and the store still
+    // learns which scene now owns the set, so a stray draw is blamed on the right one.
     [Fact]
-    public void ASetThatChangesNothing_NeverReachesTheDevice()
+    public void ASetThatChangesNothing_LoadsAndReleasesNothing()
     {
         Recorded recorded = new();
 
         recorded.Residency.MakeResident("Menu", [Hero]);
         recorded.Residency.MakeResident("Arena", [Hero]);
 
-        Assert.Equal([("Menu", "hero", "")], recorded.Changes);
+        Assert.Equal([("Menu", "hero", ""), ("Arena", "", "")], recorded.Changes);
     }
 
     // A decode that fails leaves the last scene's set accounted for, so the next set diffs against

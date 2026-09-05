@@ -55,14 +55,10 @@ internal sealed class SceneResidency(TextureSetChanged apply)
             }
         }
 
-        // Two scenes over one set is the common transition, and the device has no work in it.
-        if (_load.Count == 0 && _release.Count == 0)
-        {
-            return;
-        }
-
-        // Recorded only once the device has done the work: a decode that throws leaves the last
-        // scene's set both resident and accounted for.
+        // Two scenes over one set is the common transition and both lists are empty then; the call
+        // still goes through, so the store learns whose set it holds and a stray draw names the
+        // right scene. Recorded only once the device has done the work: a decode that throws leaves
+        // the last scene's set both resident and accounted for.
         apply(scene, _load, _release);
 
         foreach (TextureHandle handle in _release)

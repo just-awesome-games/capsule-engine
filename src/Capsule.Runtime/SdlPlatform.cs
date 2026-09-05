@@ -18,8 +18,9 @@ internal static class SdlPlatform
     // Windows backend reports: XInput, raw input, HID and Windows.Gaming.Input between them cover
     // the controllers a game meets, and Capsule exposes no rumble for the haptic half to drive. Set
     // at normal priority, so SDL_DIRECTINPUT_ENABLED=1 in the environment still turns it back on
-    // for a device that needs it.
-    internal static void TrimStartupSubsystems() => SDL_SetHint("SDL_DIRECTINPUT_ENABLED"u8.ToArray(), "0"u8.ToArray());
+    // for a device that needs it. SDL reads C strings: the literals carry their terminator, since a
+    // u8 span excludes it and the marshaller appends none.
+    internal static void TrimStartupSubsystems() => SDL_SetHint("SDL_DIRECTINPUT_ENABLED\0"u8.ToArray(), "0\0"u8.ToArray());
 
     // Brings the window to the front and asks for keyboard focus. Windows grants foreground
     // activation only to a process that already holds it, so a launch from a busy terminal can
