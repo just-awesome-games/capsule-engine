@@ -164,6 +164,10 @@ It is git-ignored, and the source-mode lock file lands under `obj/`, so the comm
 
 A source build compiles the engine clone's own projects optimised — `Release`, into the clone's `bin/Release` — whatever configuration the game builds in, so a `Debug` game runs at the speed of the engine it will ship against while its own code stays debuggable. `CapsuleSourceConfiguration` overrides that; set it to `Debug` to step into engine source.
 
+### Release schedule
+
+A game develops in source mode against the engine clone and its CI builds the same way, at the engine commit a pin file in the game names; an engine change lands on the engine's `main` first, then the game bumps its pin in the change that needs it. Capsule and its modules publish to NuGet only when the Creative Director promotes a release — a batch worth shipping, or a consumer that must bump — so a package pin is expected to lag `main` between releases (D-studio-technical-021).
+
 ### The API reference
 
 Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
