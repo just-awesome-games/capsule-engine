@@ -11,11 +11,12 @@ public sealed class CrowdPerformanceTests(ITestOutputHelper output)
     private const int MeasuredSteps = 600;
     private const double StepSeconds = 1.0 / 60.0;
 
-    // Twice the optimised step this workload measures on a desktop, which is a tripwire and not a
-    // target: what it catches is a collision or scene-walk change that costs a multiple of the
-    // step, and what it deliberately does not catch is drift. The whole point of the number is
-    // that a thousand colliding, animated, drawing bodies fit inside a sixtieth of a frame.
-    private const double ReleaseBudgetMilliseconds = 0.6;
+    // A quarter of a 60 Hz frame, the same shape of claim the stage and collision gates make: a
+    // tripwire for a collapse, not for drift. The optimised step measures 0.3 ms on a desktop,
+    // 0.6 ms on a hosted Linux runner and 1.5 ms on a hosted Windows one, and the collapse this
+    // exists to catch — the tree walked for every mover on layers none detects — was eight times
+    // the step, which reads on every runner. Drift shows in the printed mean, not in the gate.
+    private const double ReleaseBudgetMilliseconds = 4.0;
 
     // An unoptimised build runs this workload some eight to nine times slower — every Vector2
     // operation and every small struct copy is a real call — so the same ceiling would fail every
