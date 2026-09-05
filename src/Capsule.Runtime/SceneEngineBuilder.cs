@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -20,6 +21,8 @@ public sealed class SceneEngineBuilder
     private const int DefaultStepHertz = 60;
     private const double DefaultSpikeClampSeconds = 0.25;
 
+    // The boot trace's first stage after process start, so it is taken before any configuration.
+    private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
     private readonly IReadOnlyList<TextureHandle> _textures;
@@ -40,6 +43,8 @@ public sealed class SceneEngineBuilder
     private bool _loggingSilenced;
     private TextureSampling _sampling = TextureSampling.Linear;
     private ulong _randomSeed = RandomSource.DefaultSeed;
+    private string? _frameDiagnosticsPath;
+    private double? _frameDiagnosticsExitAfterSeconds;
 
     internal SceneEngineBuilder(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures)
     {
@@ -235,6 +240,42 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Writes host timing to a CSV at <paramref name="path"/>: a boot trace giving the
+    /// milliseconds from process start to each of builder entry, host construction, device
+    /// readiness, texture residency, the first update and the first submitted frame, then one row
+    /// per frame holding the interval since the previous frame began, the time spent updating and
+    /// the time spent submitting the draw, all in milliseconds. Present is excluded: the backend
+    /// waits for the display after the host's draw returns. Off unless this is called, and then
+    /// costs one null check per frame.
+    /// </summary>
+    /// <param name="path">The CSV to write; an existing file is overwritten.</param>
+    /// <param name="exitAfterSeconds">
+    /// Real seconds after the first submitted frame at which the run exits itself, for an
+    /// unattended capture; null runs until the game exits.
+    /// </param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The duration is not finite and positive.</exception>
+    public SceneEngineBuilder WithFrameDiagnostics(string path, double? exitAfterSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        if (exitAfterSeconds is { } seconds)
+        {
+            // NaN passes every comparison-based guard and an infinite budget never binds.
+            if (!double.IsFinite(seconds))
+            {
+                throw new ArgumentOutOfRangeException(nameof(exitAfterSeconds), seconds, "A capture duration must be a finite number of seconds.");
+            }
+
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds, nameof(exitAfterSeconds));
+        }
+
+        _frameDiagnosticsPath = path;
+        _frameDiagnosticsExitAfterSeconds = exitAfterSeconds;
+        return this;
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
     /// composing it from the document that backs it when one does.
     /// </summary>
@@ -338,7 +379,15 @@ public sealed class SceneEngineBuilder
 
     private void Host(EngineOptions options, ISimulation simulation)
     {
-        using CapsuleGame game = new(options, simulation);
+        // Declared first so the host, disposed before it, has written its last frame by then.
+        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
+            ? null
+            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+
+        // Before the backend initialises SDL in the host's constructor: the hint is read there.
+        SdlPlatform.TrimStartupSubsystems();
+
+        using CapsuleGame game = new(options, simulation, diagnostics);
 
         if (_consoleSink is not null)
         {

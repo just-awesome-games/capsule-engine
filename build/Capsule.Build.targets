@@ -11,6 +11,29 @@
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
+  <!-- Capsule's XML comments are its API reference, which a developer reads from the package or
+       from the staged source-mode directory. Shipping a copy of every module's beside the game's
+       executable serves nobody and is most of what a publish emits that a player cannot use.
+
+       Assigned unconditionally because the SDK has already defaulted it to true by the time this
+       file is imported. A publish that wants them back passes the property on the command line,
+       which no project-file assignment can override. -->
+  <PropertyGroup>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+
+  <!-- The graphics backend brings an OpenAL binary for its audio API. Capsule has no audio module,
+       so nothing in a Capsule game ever initialises it — the backend opens the library lazily, on
+       the first sound loaded — and 1.7 MB of every platform's publish is a library that is never
+       loaded. Removed by package rather than by file name, so it covers each runtime's own
+       spelling of it. This target goes when an audio module arrives. -->
+  <Target Name="CapsuleDropUnusedAudioBackend" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
+    </ItemGroup>
+  </Target>
+
   <!-- The authoring plane, resolved here because more than one hook reads it. The shipped plane
        beside the executable is wholly derived from it, and none of it is committed.
 

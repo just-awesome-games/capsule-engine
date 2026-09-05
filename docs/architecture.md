@@ -53,7 +53,7 @@ Simulation emits backend-free render intents. The host draws them at display rat
 
 A frame is an ordered stream of render commands, drawn in submission order; each command names the kind of thing it draws and its place in that kind's typed pool. A sprite — a texel region of a texture, anchored at a pivot the interpolated world position lands on and mirrored about that pivot on either axis when flipped — is the first kind. Drawing needs a texture, so the host loads every handle the build registered into device textures once at boot — alpha premultiplied at decode — and a draw naming a handle it does not hold is a wiring fault, not a fallback.
 
-The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region. A scene sets its own span; there is no game-wide default.
+The camera viewport is fitted uniformly into the output and letterboxed, so display shape does not change the visible world region. A scene sets its own span; there is no game-wide default. A fixed render resolution is then letterboxed a second time into the back buffer, and that fit is a whole-number scale whenever the window can hold the surface once, so a source pixel is never three columns wide beside a neighbour that is four; the bars absorb the remainder, and only a window smaller than the surface falls back to a fractional fit.
 
 ## Package boundary
 

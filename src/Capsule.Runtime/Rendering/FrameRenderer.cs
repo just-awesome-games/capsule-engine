@@ -193,7 +193,7 @@ internal sealed class FrameRenderer : IDisposable
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
-    // Letterboxed a second time, into the back buffer.
+    // Letterboxed a second time, into the back buffer, at a whole scale wherever one fits.
     private void Present(RenderTarget2D target)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
@@ -205,7 +205,7 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Clear(BarColor);
 
-        Letterbox fit = Letterbox.Fit(target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        Letterbox fit = Letterbox.FitPixels(target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
         if (fit.IsEmpty)
         {
             return;

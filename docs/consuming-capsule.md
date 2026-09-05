@@ -252,6 +252,10 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 
 `WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
 
+## Measuring the host
+
+`WithFrameDiagnostics(path)` on the engine builder writes a CSV of what the host spent its time on. It opens with a commented boot trace — the milliseconds from process start to builder entry, host construction, device readiness, texture residency, the first update and the first submitted frame — and then holds one row per frame: the interval since the previous frame began, the time spent in the update, and the time spent submitting the draw, all in milliseconds. Present is excluded, because the wait for the display happens after the host's draw returns. A second argument exits the run that many seconds after the first frame, for an unattended capture. It is off unless the call is made; the shell decides where the path comes from.
+
 ## Build configuration reference
 
 Capsule is configured with ordinary MSBuild properties. Put a value in the narrowest project that owns it. Paths may be absolute or relative to the project whose build imports Capsule unless a row says otherwise.
