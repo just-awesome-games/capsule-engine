@@ -36,14 +36,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     internal Scene Scene => _current.Scene;
 
-    /// <summary>
-    /// What keeps the current scene's textures on the device. Null until the device is up, which is
-    /// after the first scene is composed: the host applies that scene's set itself, and every set
-    /// from a transition on comes through here.
-    /// </summary>
+    // What keeps the current scene's textures on the device. Null until the device is up, which is
+    // after the first scene is composed: the host applies that scene's set itself, and every set
+    // from a transition on comes through here.
     internal SceneResidency? Residency { get; set; }
 
-    /// <summary>The current scene's texture set, and the class name a wiring fault in it names.</summary>
+    // The current scene's texture set, and the class name a wiring fault in it names.
     internal (string Scene, IReadOnlyList<TextureHandle> Textures) TextureSet =>
         (_current.Scene.GetType().Name, _current.Scene.TextureSet);
 

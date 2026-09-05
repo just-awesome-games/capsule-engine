@@ -197,10 +197,8 @@ public class Scene
     /// </summary>
     protected internal virtual IReadOnlyList<TextureHandle>? ResidentTextures => null;
 
-    /// <summary>
-    /// Everything this scene needs resident, settled on first read: the override where the scene
-    /// declares one, otherwise the derivation composed into it.
-    /// </summary>
+    // Everything this scene needs resident, settled on first read: the override where the scene
+    // declares one, otherwise the derivation composed into it.
     internal IReadOnlyList<TextureHandle> TextureSet
     {
         get
@@ -222,7 +220,7 @@ public class Scene
         }
     }
 
-    /// <summary>Hands the scene the groups its registration carries, before anything reads the set.</summary>
+    // Hands the scene the groups its registration carries, before anything reads the set.
     internal void DeclareTextures(TextureSetBuilder? textures) => _declaredTextures = textures;
 
     /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>

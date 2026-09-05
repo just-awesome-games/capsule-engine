@@ -2,25 +2,21 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime.Rendering;
 
-/// <summary>
-/// Loads <paramref name="load"/> and releases <paramref name="release"/>, two disjoint lists valid
-/// only for the duration of the call.
-/// </summary>
-/// <param name="scene">The scene the new set belongs to, for the wiring fault a stray draw raises.</param>
-/// <param name="load">Handles the new set adds; already located, none of them resident.</param>
-/// <param name="release">Handles the new set drops; every one of them resident.</param>
+// Loads load and releases release, two disjoint lists valid
+// only for the duration of the call.
+// <param name="scene">The scene the new set belongs to, for the wiring fault a stray draw raises.</param>
+// <param name="load">Handles the new set adds; already located, none of them resident.</param>
+// <param name="release">Handles the new set drops; every one of them resident.</param>
 internal delegate void TextureSetChanged(
     string scene,
     IReadOnlyList<TextureHandle> load,
     IReadOnlyList<TextureHandle> release);
 
-/// <summary>
-/// Which textures a scene keeps on the device. A set replaces the last one synchronously at the
-/// transition into its scene: what the new set adds is loaded, what it drops is released, and the
-/// intersection is never touched. Nothing is reference counted — a handle is resident because the
-/// current scene's set names it, and for no other reason.
-/// </summary>
-/// <remarks>Device-free: the decode and the dispose are the delegate's.</remarks>
+// Which textures a scene keeps on the device. A set replaces the last one synchronously at the
+// transition into its scene: what the new set adds is loaded, what it drops is released, and the
+// intersection is never touched. Nothing is reference counted — a handle is resident because the
+// current scene's set names it, and for no other reason.
+// <remarks>Device-free: the decode and the dispose are the delegate's.</remarks>
 internal sealed class SceneResidency(TextureSetChanged apply)
 {
     private readonly HashSet<TextureHandle> _resident = [];
@@ -28,15 +24,15 @@ internal sealed class SceneResidency(TextureSetChanged apply)
     private readonly List<TextureHandle> _load = [];
     private readonly List<TextureHandle> _release = [];
 
-    /// <summary>What a draw naming a handle the current scene's set does not hold is told.</summary>
+    // What a draw naming a handle the current scene's set does not hold is told.
     internal static string NotResident(string scene, in TextureHandle handle) =>
         $"Scene '{scene}' draws texture '{handle.Name}', which its resident set does not hold. A scene keeps the "
         + "textures its document names and the groups the build derived from the code its spawn types reach; a scene "
         + "drawing anything else declares its own set. The build ships a texture at "
         + $"'{TextureFiles.RelativePathOf(handle)}' only when its source sits under asset-sources/textures.";
 
-    /// <summary>Makes exactly <paramref name="set"/> resident, in one synchronous pass.</summary>
-    /// <exception cref="FileNotFoundException">A handle the set adds ships no file; nothing changed.</exception>
+    // Makes exactly set resident, in one synchronous pass.
+    // Throws FileNotFoundException: A handle the set adds ships no file; nothing changed.
     internal void MakeResident(string scene, IReadOnlyList<TextureHandle> set)
     {
         _wanted.Clear();
