@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using Capsule.Assets;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
@@ -36,8 +37,14 @@ public class Scene
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
+    // What composing this scene's document asked for: its grids' textures, and the groups the
+    // build derived for every spawn type it placed. The class's own groups join at DeclareTextures.
+    private readonly List<TextureHandle> _composedTextures = [];
+
     private Camera _camera = new();
     private RandomSource? _random;
+    private TextureSetBuilder? _declaredTextures;
+    private IReadOnlyList<TextureHandle>? _textureSet;
 
     private bool _stepping;
     private bool _starting;
@@ -72,9 +79,16 @@ public class Scene
                 TileMap tiles = new(tileMap.Grid);
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
+
+                if (tileMap.Grid.Texture is { } atlas)
+                {
+                    _composedTextures.Add(atlas);
+                }
             }
             else if (entry.Entity is { } placed)
             {
+                content.Entities.TexturesFor(placed.Type)?.Invoke(_composedTextures);
+
                 Add(content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
@@ -169,6 +183,47 @@ public class Scene
 
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
+
+    /// <summary>
+    /// The textures the host keeps on the device while this scene runs, replacing what the build
+    /// derived for it. Null, which is the default, takes that derivation: the textures its scene
+    /// document names, plus the residency groups the code its spawn types and the class itself
+    /// reach. A group is a generated directory's set — <c>GameAssets.Textures.Enemies.All</c>.
+    /// <para>
+    /// Read once, before the scene starts, so it cannot depend on state the scene builds in
+    /// <see cref="OnStart"/>. Drawing a texture the set does not hold is a wiring fault the host
+    /// raises by name.
+    /// </para>
+    /// </summary>
+    protected internal virtual IReadOnlyList<TextureHandle>? ResidentTextures => null;
+
+    /// <summary>
+    /// Everything this scene needs resident, settled on first read: the override where the scene
+    /// declares one, otherwise the derivation composed into it.
+    /// </summary>
+    internal IReadOnlyList<TextureHandle> TextureSet
+    {
+        get
+        {
+            if (_textureSet is not null)
+            {
+                return _textureSet;
+            }
+
+            if (ResidentTextures is { } declared)
+            {
+                return _textureSet = declared;
+            }
+
+            _declaredTextures?.Invoke(_composedTextures);
+            _declaredTextures = null;
+
+            return _textureSet = _composedTextures;
+        }
+    }
+
+    /// <summary>Hands the scene the groups its registration carries, before anything reads the set.</summary>
+    internal void DeclareTextures(TextureSetBuilder? textures) => _declaredTextures = textures;
 
     /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>
     public bool ExitRequested => _exitRequested;

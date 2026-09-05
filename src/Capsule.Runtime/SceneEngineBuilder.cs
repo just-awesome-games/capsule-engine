@@ -25,7 +25,6 @@ public sealed class SceneEngineBuilder
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
-    private readonly IReadOnlyList<TextureHandle> _textures;
 
     private string _windowTitle;
     private int _windowWidth = DefaultWindowWidth;
@@ -46,14 +45,12 @@ public sealed class SceneEngineBuilder
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
 
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures)
+    internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
-        ArgumentNullException.ThrowIfNull(textures);
 
         _scenes = scenes;
-        _textures = textures;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -308,7 +305,9 @@ public sealed class SceneEngineBuilder
     }
 
     // Opens the window and runs simulation until it requests exit.
-    internal void Run(ISimulation simulation)
+    internal void Run(ISimulation simulation) => Run(simulation, null);
+
+    private void Run(ISimulation simulation, SceneHost? scenes)
     {
         EngineOptions options = new(
             _windowTitle,
@@ -321,12 +320,11 @@ public sealed class SceneEngineBuilder
             _maxStepsPerFrame,
             _stickDeadzone,
             _triggerDeadzone,
-            _bindings,
-            _textures);
+            _bindings);
 
         try
         {
-            Host(options, simulation);
+            Host(options, simulation, scenes);
         }
         catch (Exception exception) when (_crashLogAppName is not null)
         {
@@ -357,7 +355,7 @@ public sealed class SceneEngineBuilder
         SceneComposer composer = new(_scenes);
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
-        Run(host);
+        Run(host, host);
     }
 
     private void InstallLogging()
@@ -371,7 +369,7 @@ public sealed class SceneEngineBuilder
         Log.UseSink(_logSink ?? (_consoleSink ??= new ConsoleLogSink()));
     }
 
-    private void Host(EngineOptions options, ISimulation simulation)
+    private void Host(EngineOptions options, ISimulation simulation, SceneHost? scenes)
     {
         // Declared first so the host, disposed before it, has written its last frame by then.
         using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
@@ -381,7 +379,7 @@ public sealed class SceneEngineBuilder
         // Before the backend initialises SDL in the host's constructor: the hint is read there.
         SdlPlatform.TrimStartupSubsystems();
 
-        using CapsuleGame game = new(options, simulation, diagnostics);
+        using CapsuleGame game = new(options, simulation, scenes, diagnostics);
 
         if (_consoleSink is not null)
         {

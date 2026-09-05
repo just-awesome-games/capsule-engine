@@ -214,16 +214,14 @@ internal static class CapsuleBootSource
         source.AppendLine("    {");
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();");
         source.AppendLine();
-        source.AppendLine("        private static global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle> Textures { get; } = CreateTextures();");
-        source.AppendLine();
         source.AppendLine("        /// <summary>The engine, configured with every registry this game generates.</summary>");
         source.AppendLine("        /// <param name=\"gameName\">The game's display name: its window title, and its crash-log folder as a slug.</param>");
         source.AppendLine("        public static global::Capsule.Runtime.SceneEngineBuilder Configure(string gameName) =>");
-        source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes, Textures);");
+        source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes);");
         source.AppendLine();
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry CreateScenes()");
         source.AppendLine("        {");
-        source.AppendLine("            var entities = new global::System.Collections.Generic.List<global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>>();");
+        source.AppendLine("            var entities = new global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration>();");
         foreach (RegistryProviderModel provider in providers)
         {
             source.Append("            ");
@@ -242,19 +240,6 @@ internal static class CapsuleBootSource
         source.AppendLine("            return new global::Capsule.Scenes.SceneRegistry(");
         source.AppendLine("                new global::Capsule.Scenes.Spawning.EntityRegistry(entities),");
         source.AppendLine("                scenes);");
-        source.AppendLine("        }");
-        source.AppendLine();
-        source.AppendLine("        private static global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle> CreateTextures()");
-        source.AppendLine("        {");
-        source.AppendLine("            var textures = new global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle>();");
-        foreach (RegistryProviderModel provider in providers)
-        {
-            source.Append("            ");
-            source.Append(provider.QualifiedName);
-            source.AppendLine(".AddTextures(textures);");
-        }
-
-        source.AppendLine("            return textures;");
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");

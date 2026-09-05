@@ -56,7 +56,7 @@ internal static class RegistryProviderSource
         source.AppendLine(providerName);
         source.AppendLine("    {");
         source.AppendLine("        [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]");
-        source.AppendLine("        public static void AddEntities(global::System.Collections.Generic.List<global::System.Collections.Generic.KeyValuePair<string, global::Capsule.Scenes.Spawning.EntitySpawner>> registrations)");
+        source.AppendLine("        public static void AddEntities(global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration> registrations)");
         source.AppendLine("        {");
         source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(registrations);");
         source.AppendLine("            registrations.AddRange(global::Capsule.Scenes.Generated.GameEntities.Registrations);");
@@ -67,17 +67,6 @@ internal static class RegistryProviderSource
         source.AppendLine("        {");
         source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(registrations);");
         source.AppendLine("            registrations.AddRange(global::Capsule.Scenes.Generated.GameScenes.Registrations);");
-        source.AppendLine("        }");
-        source.AppendLine();
-        source.AppendLine("        [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]");
-        source.AppendLine("        public static void AddTextures(global::System.Collections.Generic.List<global::Capsule.Assets.TextureHandle> textures)");
-        source.AppendLine("        {");
-        source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(textures);");
-        source.AppendLine("            global::System.ReadOnlySpan<global::Capsule.Assets.TextureHandle> all = global::Capsule.Assets.Generated.GameAssets.Textures.All;");
-        source.AppendLine("            for (int i = 0; i < all.Length; i++)");
-        source.AppendLine("            {");
-        source.AppendLine("                textures.Add(all[i]);");
-        source.AppendLine("            }");
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");

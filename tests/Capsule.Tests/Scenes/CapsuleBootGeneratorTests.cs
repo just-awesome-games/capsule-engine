@@ -32,7 +32,7 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
-            "CapsuleEngine.Configure(gameName, Scenes, Textures)",
+            "CapsuleEngine.Configure(gameName, Scenes)",
             GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile),
             StringComparison.Ordinal);
     }
@@ -95,7 +95,6 @@ public sealed class CapsuleBootGeneratorTests
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
         Assert.Equal(2, generated.Split(".AddEntities(entities);", StringSplitOptions.None).Length - 1);
         Assert.Equal(2, generated.Split(".AddScenes(scenes);", StringSplitOptions.None).Length - 1);
-        Assert.Equal(2, generated.Split(".AddTextures(textures);", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

@@ -17,7 +17,6 @@ internal static class GeneratorHarness
     internal const string GameScenesFile = "CapsuleGameScenes.g.cs";
     internal const string GameAssetsFile = "CapsuleGameAssets.g.cs";
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
-    internal const string RegistryProviderFile = "CapsuleRegistryProvider.g.cs";
 
     internal const string Preamble = """
         using System.Numerics;
@@ -108,11 +107,34 @@ internal static class GeneratorHarness
         return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
-    // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
-    // generator as metadata beside the file.
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
         bool logic,
         params string[] assetPaths)
+    {
+        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) = Assets(assetPaths);
+
+        return Run(
+            Compiled("AssetSpecs", "namespace Game; public sealed class Marker;", References),
+            logic,
+            shell: !logic,
+            texts,
+            assets);
+    }
+
+    /// <summary>Compiles game code against the assets the asset hook would hand the compiler beside it.</summary>
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileAgainstAssets(
+        string source,
+        params string[] assetPaths)
+    {
+        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) = Assets(assetPaths);
+
+        return Run(Compiled("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
+    }
+
+    // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
+    // generator as metadata beside the file.
+    private static (ImmutableArray<AdditionalText> Texts, Dictionary<string, (string Domain, string Path)> Assets) Assets(
+        string[] assetPaths)
     {
         Dictionary<string, (string Domain, string Path)> assets = new(StringComparer.Ordinal);
         ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
@@ -126,12 +148,7 @@ internal static class GeneratorHarness
             texts.Add(new AssetFile(path));
         }
 
-        return Run(
-            Compiled("AssetSpecs", "namespace Game; public sealed class Marker;", References),
-            logic,
-            shell: !logic,
-            texts.ToImmutable(),
-            assets);
+        return (texts.ToImmutable(), assets);
     }
 
     /// <summary>Compiles <paramref name="source"/> in an assembly declaring that root namespace.</summary>

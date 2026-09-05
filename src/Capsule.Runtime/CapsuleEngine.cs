@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Capsule.Assets;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
@@ -13,9 +12,10 @@ public static class CapsuleEngine
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
     /// </param>
-    /// <param name="scenes">Every scene the game declares, plain and document-backed alike.</param>
-    /// <param name="textures">Every texture the game ships, made resident before the first frame.</param>
+    /// <param name="scenes">
+    /// Every scene the game declares, plain and document-backed alike. Each carries the residency
+    /// groups the build derived for it, so the host has no separate texture list to be handed.
+    /// </param>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes, IReadOnlyList<TextureHandle> textures) =>
-        new(gameName, scenes, textures);
+    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes) => new(gameName, scenes);
 }

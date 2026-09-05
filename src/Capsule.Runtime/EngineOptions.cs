@@ -1,4 +1,3 @@
-using Capsule.Assets;
 using Capsule.Input;
 
 namespace Capsule.Runtime;
@@ -15,5 +14,4 @@ internal sealed record EngineOptions(
     int MaxStepsPerFrame,
     float StickDeadzone,
     float TriggerDeadzone,
-    ActionBindings Bindings,
-    IReadOnlyList<TextureHandle> Textures);
+    ActionBindings Bindings);

@@ -178,7 +178,25 @@ Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and runn
 
 ## Model and rendering
 
-Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. Every `GameAssets.Textures` handle the build registered is loaded at boot, so a handle whose file is missing fails the game at startup naming the handle and the path it looked in.
+Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A handle whose file is missing fails the game where its scene is loaded, naming the handle and the path it looked in.
+
+## Texture residency
+
+The host keeps one scene's textures on the device at a time. Entering a scene loads what its set adds and releases what the scene being left wanted alone, in one synchronous exchange before that scene is torn down; a texture in both sets is never touched. Drawing a handle the current scene's set does not hold throws, naming the scene.
+
+A set is a union of *residency groups*, and a group is one asset directory's generated `All` — `GameAssets.Textures.All`, `GameAssets.Textures.Enemies.All`. The build derives each scene's groups and you write nothing: they are the textures the scene's document names, plus, for the scene's class and for every entity its document places, the `GameAssets.Textures` members that code reaches — closed over the types those types reference, so a `Player` that spawns a `Buster` drawing `GameAssets.Textures.Fx.Shot` keeps `Fx` resident. A handle built from literals, as a sprite sheet's generated frames build theirs, counts the same. A reference from one scene class to another does not: each scene's set is its own, loaded when it is entered.
+
+Two things the derivation cannot see are a handle whose name is computed at run time and a texture reached through a `using static` or an alias of the generated tree. A scene that needs either declares its whole set instead, which replaces the derivation:
+
+```csharp
+public sealed class BossArena : Scene
+{
+    protected internal override IReadOnlyList<TextureHandle>? ResidentTextures =>
+        [.. GameAssets.Textures.Bosses.All, .. GameAssets.Textures.Fx.All];
+}
+```
+
+It is read once, before the scene starts, so it cannot depend on state the scene builds in `OnStart`. Returning `null`, which is the default, takes the derivation.
 
 ## Named assets
 

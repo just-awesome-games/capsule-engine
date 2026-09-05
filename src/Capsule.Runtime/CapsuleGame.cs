@@ -1,3 +1,4 @@
+using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
@@ -12,6 +13,11 @@ internal sealed class CapsuleGame : Game
     private readonly GraphicsDeviceManager _graphics;
     private readonly EngineOptions _options;
     private readonly ISimulation _simulation;
+
+    // What decides residency. Null when the simulation is not a run of scenes, which is the
+    // specs' case: that run draws nothing and keeps no texture on the device.
+    private readonly SceneHost? _scenes;
+
     private readonly PadFilter _padFilter;
     private readonly FixedStepScheduler _scheduler;
 
@@ -25,11 +31,12 @@ internal sealed class CapsuleGame : Game
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
-    internal CapsuleGame(EngineOptions options, ISimulation simulation, FrameDiagnostics? diagnostics)
+    internal CapsuleGame(EngineOptions options, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics)
     {
         _options = options;
         _diagnostics = diagnostics;
         _simulation = simulation;
+        _scenes = scenes;
         _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
         _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings);
 
@@ -63,9 +70,18 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        // Every registered texture, once, before the first frame: nothing is fetched while the
-        // game is running.
-        _textures = new TextureStore(GraphicsDevice, _options.Textures);
+        // The first scene's set, once, before the first frame. Every later set arrives at a
+        // transition, which is the only point a run fetches from disk.
+        _textures = new TextureStore(GraphicsDevice);
+
+        if (_scenes is { } scenes)
+        {
+            SceneResidency residency = new(_textures.Change);
+            (string scene, IReadOnlyList<TextureHandle> set) = scenes.TextureSet;
+            residency.MakeResident(scene, set);
+            scenes.Residency = residency;
+        }
+
         _diagnostics?.Mark(FrameDiagnostics.Stage.TexturesResident);
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
 
