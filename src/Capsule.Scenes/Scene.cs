@@ -188,7 +188,9 @@ public class Scene
     /// The textures the host keeps on the device while this scene runs, replacing what the build
     /// derived for it. Null, which is the default, takes that derivation: the textures its scene
     /// document names, plus the residency groups the code its spawn types and the class itself
-    /// reach. A group is a generated directory's set — <c>GameAssets.Textures.Enemies.All</c>.
+    /// reach. A group is a generated directory's set — <c>GameAssets.Textures.Enemies.All</c>. An
+    /// entity the scene's code can spawn is reached, whether the document names it or not; one
+    /// chosen by data at run time is not, and its group goes here.
     /// <para>
     /// Read once, before the scene starts, so it cannot depend on state the scene builds in
     /// <see cref="OnStart"/>. Drawing a texture the set does not hold is a wiring fault the host
