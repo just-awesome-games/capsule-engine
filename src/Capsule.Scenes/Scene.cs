@@ -480,6 +480,10 @@ public class Scene
     internal bool Keeps(Entity entity) =>
         ReferenceEquals(entity.Scene, this) && !_pendingRemoveSet.Contains(entity);
 
+    // The tick being stepped, and null outside a step. It is what lets an object act on the tick
+    // it was told something in rather than on its own position in the step order.
+    internal long? SteppingTick { get; private set; }
+
     internal void BeginStep()
     {
         _stepping = true;
@@ -492,7 +496,11 @@ public class Scene
         }
     }
 
-    internal void RunStep(in StepContext context) => OnStep(context);
+    internal void RunStep(in StepContext context)
+    {
+        SteppingTick = context.Tick;
+        OnStep(context);
+    }
 
     internal void StepEntities(in StepContext context)
     {
@@ -599,8 +607,10 @@ public class Scene
         finally
         {
             // The step is over however the drain went; leaving this set would refuse every
-            // mutation the game made afterwards.
+            // mutation the game made afterwards. The tick goes with it: what happens between
+            // steps belongs to no tick.
             _stepping = false;
+            SteppingTick = null;
         }
     }
 

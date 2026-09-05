@@ -32,7 +32,11 @@ public sealed class Player : Entity
 }
 ```
 
-`SpriteAnimator` is named the renderer it drives rather than finding one, so an entity drawing itself as several sprites animates whichever of them it says. It owns that renderer's `Sprite` and nothing else: `Offset`, `Scale`, `FlipX`, `FlipY` and `Color` stay the game's. `Play` draws its first frame at once and holds it for exactly its own ticks, counted from the frame view of the step it was called in, so a one-tick frame started from an entity's step is drawn for that step. It ignores the clip already playing, so a walk cycle asked for every step keeps running; `Play(clip, restart: true)` replays it from the start. A looping clip never finishes; one that does not holds its last frame and reports `IsFinished` once that frame's ticks have elapsed.
+`SpriteAnimator` is named the renderer it drives rather than finding one, so an entity drawing itself as several sprites animates whichever of them it says. It owns that renderer's `Sprite` and nothing else: `Offset`, `Scale`, `FlipX`, `FlipY` and `Color` stay the game's. `Play` draws its first frame at once and holds it for exactly its own ticks, counted from the tick it was called in wherever in that step it was called: an entity's step, a component stepped after the animator, and a late step all produce the same frames, so a one-tick frame is drawn for exactly one step whoever asked for it. Called outside a step, the first frame is held from the next one.
+
+`Play` ignores the clip already playing, so a walk cycle asked for every step keeps running; `Play(clip, restart: true)` replays it from the start. A looping clip never finishes; one that does not holds its last frame and reports `IsFinished` once that frame's ticks have elapsed, and it is still the clip playing — a state that keeps asking for a finished one-shot keeps its last pose, and re-triggering that one-shot is `restart: true`.
+
+A clip is compared by instance, so `animator.Clip == GameSprites.Player.Clips.Walk` is how a game reads what is playing. Stepping a scene with no window to assert exactly this is [`consuming-capsule.md` § Testing headlessly](consuming-capsule.md#testing-headlessly).
 
 `AnimationPlayback` is the tick cursor underneath — frame index, ticks elapsed, loop wrap, finished, restart — and knows nothing of sprites or renderers. `SpriteClip` composes it with a frame table.
 

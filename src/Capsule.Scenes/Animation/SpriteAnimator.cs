@@ -17,7 +17,8 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     private readonly SpriteRenderer _renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
 
     private AnimationPlayback _playback;
-    private bool _startedSinceStep;
+    private bool _pendingStart;
+    private long? _startedOnTick;
 
     /// <summary>The clip playing, or null until one is played.</summary>
     public SpriteClip? Clip { get; private set; }
@@ -36,10 +37,15 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
     /// <summary>
     /// Plays <paramref name="clip"/> from its first frame and draws that frame at once, so the
-    /// change shows on this step rather than the next. The first frame is then held for its own
-    /// ticks counted from the step this was called in; called after this animator has already
-    /// stepped, it is drawn one tick longer. Playing the clip already playing is ignored unless
-    /// <paramref name="restart"/> is passed.
+    /// change shows on this step rather than the next. The first frame is then held for exactly
+    /// its own ticks, counted from the tick this was called in wherever in that step it was
+    /// called: an entity, a component stepped after this animator and a late step all give the
+    /// same frames. Called outside a step, the first frame is held from the next one.
+    /// <para>
+    /// Playing the clip already playing is ignored unless <paramref name="restart"/> is passed,
+    /// and a finished non-looping clip is still the clip playing — re-triggering one from a state
+    /// that has not changed is <paramref name="restart"/>.
+    /// </para>
     /// </summary>
     /// <param name="clip">The clip to play.</param>
     /// <param name="restart">Whether to restart the clip when it is already the one playing.</param>
@@ -55,7 +61,8 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
         Clip = clip;
         _playback.Restart();
-        _startedSinceStep = true;
+        _pendingStart = true;
+        _startedOnTick = Entity?.Scene?.SteppingTick;
         _renderer.Sprite = clip.Frames[0];
     }
 
@@ -67,12 +74,19 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             return;
         }
 
-        // The frame Play chose is drawn for the step Play ran in, so that step spends no tick on
+        // The frame Play chose is drawn for the tick Play ran in, so that tick spends no step on
         // it: advancing here would retire a one-tick first frame before any frame view saw it.
-        if (_startedSinceStep)
+        // Keyed on the tick rather than on having stepped since, so a Play from a component
+        // stepped after this one — which reaches this animator only on the following step — is
+        // not mistaken for a Play belonging to that following tick. A Play outside a step belongs
+        // to no tick and is spent on the next one.
+        if (_pendingStart)
         {
-            _startedSinceStep = false;
-            return;
+            _pendingStart = false;
+            if (_startedOnTick is not { } startedOn || startedOn == context.Tick)
+            {
+                return;
+            }
         }
 
         _playback.Step(clip.FrameTicks, clip.Loop);

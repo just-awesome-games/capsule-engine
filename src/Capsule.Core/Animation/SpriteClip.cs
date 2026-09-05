@@ -7,6 +7,10 @@ namespace Capsule.Animation;
 /// steps, played once or on a loop. Immutable and shareable — every entity playing a clip reads the
 /// same instance, and the cursor over it is each entity's own <see cref="AnimationPlayback"/>.
 /// Each frame carries its own region and pivot, so frames need not be uniform.
+/// <para>
+/// A clip is identified by instance and carries no value equality, so the clip playing is compared
+/// against the one a sheet declared — <c>animator.Clip == GameSprites.Player.Clips.Run</c>.
+/// </para>
 /// </summary>
 public sealed class SpriteClip
 {

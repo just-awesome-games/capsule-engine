@@ -190,6 +190,35 @@ Every generated class, each domain root and each nested class, exposes a read-on
 
 Two sources may share a stem in different directories. Names collide only within one directory, where two spellings that become one C# identifier — `a-b.png` beside `a_b.png`, or a `bat/` directory beside `bat.png` — fail the build naming both. So does a name that would shadow the class it is declared on: `textures/enemies/enemies.png`, a `textures/textures/` directory, or anything named `all`.
 
+## Testing headlessly
+
+A scene and everything on it are substrate-free, so a test builds one, steps it, and asserts simulation state with no window, no graphics device and no assets on disk. `SceneSimulation` needs a scene and nothing else: the render defaults and the random source are optional, and omitting them takes the default sampling and the default seed's stream 0.
+
+```csharp
+using Capsule;
+using Capsule.Input;
+using Capsule.Scenes;
+
+Scene scene = new();
+Player player = new(Vector2.Zero);
+scene.Add(player);
+
+using SceneSimulation simulation = new(scene);
+
+InputState input = new(bindings);
+for (long tick = 0; tick < 30; tick++)
+{
+    input.Advance(snapshot);
+    simulation.Step(new StepContext(1.0 / 60.0, input, tick));
+}
+
+Assert.Same(GameSprites.Player.Clips.Idle, player.Animator.Clip);
+```
+
+`StepContext` is the whole of what one fixed step is given: its duration in seconds, the `InputState` to read, and the tick index. Hold one `InputState` across the run and `Advance` it with the `DeviceSnapshot` a device would have reported, since input edges are differences between consecutive snapshots and a fresh state each step has none. `DeviceSnapshot.Empty` is nothing held.
+
+What the step would draw is `simulation.View`, rewritten once per step, so a test asserts the frame a player would have seen without a renderer or a window. A test whose subject draws from `Scene.Random` takes its own seed — `new SceneSimulation(scene, random: new RandomSource(seed))` — and replays exactly.
+
 ## Seeing your game's output
 
 Game logic cannot reach `System.Console` — the analyzer stops it — so it says things out loud through `Capsule.Diagnostics.Log`:

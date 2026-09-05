@@ -148,6 +148,41 @@ public sealed class SpriteAnimatorTests
         Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(simulation, 5));
     }
 
+    // The natural Capsule shape: the animator is driven by a component beside it, which the entity
+    // attached second and the scene therefore steps after it. The Play reaches the animator only on
+    // its following step, and counting the hold from there would draw this one-tick frame twice.
+    [Fact]
+    public void AClipPlayedByAComponentSteppedAfterTheAnimatorDrawsItsFirstFrameForItsOwnTicks()
+    {
+        Animated entity = new();
+        entity.Add(new Driver(entity.Animator, Blink));
+        SceneSimulation simulation = Simulate(entity);
+
+        Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(simulation, 5));
+    }
+
+    // A finished clip holds its last frame and is still the clip playing, so the state that started
+    // it may keep asking for it; re-triggering it is restart.
+    [Fact]
+    public void AFinishedClipIsStillPlaying_AndRestartReplaysIt()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Land);
+        Step(simulation, 3);
+        Assert.True(animator.IsFinished);
+
+        animator.Play(Land);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(Frame(4), renderer.Sprite);
+
+        animator.Play(Land, restart: true);
+
+        Assert.False(animator.IsFinished);
+        Assert.Equal(0, animator.FrameIndex);
+        Assert.Equal(Frame(3), renderer.Sprite);
+    }
+
     private static Sprite[] DrawnOver(SceneSimulation simulation, int ticks)
     {
         Sprite[] drawn = new Sprite[ticks];
@@ -229,5 +264,10 @@ public sealed class SpriteAnimatorTests
                 Animator.Play(clip);
             }
         }
+    }
+
+    private sealed class Driver(SpriteAnimator animator, SpriteClip clip) : Component
+    {
+        protected internal override void OnStep(in StepContext context) => animator.Play(clip);
     }
 }
