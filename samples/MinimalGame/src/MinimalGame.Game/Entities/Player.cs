@@ -49,7 +49,7 @@ namespace MinimalGame.Game.Entities;
 /// <para>
 /// The two collision filters are independent. <see cref="KinematicBody2D.BlocksOn"/> names what
 /// stops the sweep — <c>solid</c> and <c>platform</c>, the layers the room's tiles are authored on
-/// — while <see cref="Collider2D.Detects"/> names what the collider reports, which is <c>sensor</c>
+/// — while <see cref="Collider2D.SetFilter"/> names what the collider reports, which is <c>sensor</c>
 /// alone: the player walks through a <see cref="Sensor"/> and says so. Contacts, jumps and landings
 /// are logged through <see cref="Log"/>, which the shell drains to the console at boot, each line
 /// prefixed with the tick it happened on.
@@ -114,7 +114,7 @@ public sealed class Player : Entity
         Add(_animator);
 
         BoxCollider2D collider = new(Body);
-        collider.Detects("sensor");
+        collider.SetFilter("sensor");
         collider.ReportsContacts = true;
         collider.ContactEntered += contact =>
             Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}"));

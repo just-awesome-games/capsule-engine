@@ -9,34 +9,83 @@ public enum Key
     /// <summary>No key. The default, so an unassigned <see cref="Key"/> never means a real key.</summary>
     None,
 
-#pragma warning disable CS1591 // A letter key's name is what it prints; a comment here could only restate it.
+    /// <summary>The <c>A</c> key.</summary>
     A,
+
+    /// <summary>The <c>B</c> key.</summary>
     B,
+
+    /// <summary>The <c>C</c> key.</summary>
     C,
+
+    /// <summary>The <c>D</c> key.</summary>
     D,
+
+    /// <summary>The <c>E</c> key.</summary>
     E,
+
+    /// <summary>The <c>F</c> key.</summary>
     F,
+
+    /// <summary>The <c>G</c> key.</summary>
     G,
+
+    /// <summary>The <c>H</c> key.</summary>
     H,
+
+    /// <summary>The <c>I</c> key.</summary>
     I,
+
+    /// <summary>The <c>J</c> key.</summary>
     J,
+
+    /// <summary>The <c>K</c> key.</summary>
     K,
+
+    /// <summary>The <c>L</c> key.</summary>
     L,
+
+    /// <summary>The <c>M</c> key.</summary>
     M,
+
+    /// <summary>The <c>N</c> key.</summary>
     N,
+
+    /// <summary>The <c>O</c> key.</summary>
     O,
+
+    /// <summary>The <c>P</c> key.</summary>
     P,
+
+    /// <summary>The <c>Q</c> key.</summary>
     Q,
+
+    /// <summary>The <c>R</c> key.</summary>
     R,
+
+    /// <summary>The <c>S</c> key.</summary>
     S,
+
+    /// <summary>The <c>T</c> key.</summary>
     T,
+
+    /// <summary>The <c>U</c> key.</summary>
     U,
+
+    /// <summary>The <c>V</c> key.</summary>
     V,
+
+    /// <summary>The <c>W</c> key.</summary>
     W,
+
+    /// <summary>The <c>X</c> key.</summary>
     X,
+
+    /// <summary>The <c>Y</c> key.</summary>
     Y,
+
+    /// <summary>The <c>Z</c> key.</summary>
     Z,
-#pragma warning restore CS1591
 
     /// <summary>The <c>0</c> key on the number row, never the keypad.</summary>
     Digit0,
@@ -113,18 +162,39 @@ public enum Key
     /// <summary>The right <c>Alt</c> key — <c>AltGr</c> on layouts that have one.</summary>
     RightAlt,
 
-#pragma warning disable CS1591 // A function key's name is what it prints; a comment here could only restate it.
+    /// <summary>The <c>F1</c> function key.</summary>
     F1,
+
+    /// <summary>The <c>F2</c> function key.</summary>
     F2,
+
+    /// <summary>The <c>F3</c> function key.</summary>
     F3,
+
+    /// <summary>The <c>F4</c> function key.</summary>
     F4,
+
+    /// <summary>The <c>F5</c> function key.</summary>
     F5,
+
+    /// <summary>The <c>F6</c> function key.</summary>
     F6,
+
+    /// <summary>The <c>F7</c> function key.</summary>
     F7,
+
+    /// <summary>The <c>F8</c> function key.</summary>
     F8,
+
+    /// <summary>The <c>F9</c> function key.</summary>
     F9,
+
+    /// <summary>The <c>F10</c> function key.</summary>
     F10,
+
+    /// <summary>The <c>F11</c> function key.</summary>
     F11,
+
+    /// <summary>The <c>F12</c> function key.</summary>
     F12,
-#pragma warning restore CS1591
 }

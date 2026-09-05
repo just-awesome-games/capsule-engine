@@ -76,7 +76,7 @@ public sealed class KinematicBody2D : Component
 
     /// <summary>
     /// Replaces the layers that stop this body. This is independent of
-    /// <see cref="Collider2D.Detects"/>: a collider can report an overlap without that overlap
+    /// <see cref="Collider2D.SetFilter"/>: a collider can report an overlap without that overlap
     /// changing movement.
     /// </summary>
     /// <param name="names">The layer names that block movement; an empty list blocks on nothing.</param>

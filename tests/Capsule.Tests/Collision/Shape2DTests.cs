@@ -47,7 +47,7 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => world.Add(unit, new Vector2(3e38f, 0f), item, CollisionFilter.None));
         Assert.Throws<ArgumentException>(() => world.SetPosition(handle, new Vector2(3e38f, 0f)));
         Assert.Throws<ArgumentException>(
-            () => world.Overlap(unit, new Vector2(3e38f, 0f), CollisionFilter.Everything, default));
+            () => world.OverlapAll(unit, new Vector2(3e38f, 0f), CollisionFilter.Everything, default));
 
         Assert.Equal(Vector2.Zero, world.PositionOf(handle));
     }

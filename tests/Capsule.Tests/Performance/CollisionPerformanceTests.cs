@@ -31,7 +31,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     public void AMoverOnARoomScaleTilemap_AllocatesNothingAndStaysWithinTheStepBudget()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
         Aabb2D box = CollisionWorkload.Mover;
         Contact2D[] contacts = new Contact2D[16];
         float direction = 1f;
@@ -54,7 +54,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     public void ABatchOfRaysAndOverlaps_AllocatesNothing()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
         Contact2D[] contacts = new Contact2D[32];
         RayHit2D[] hits = new RayHit2D[16];
 
@@ -77,7 +77,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
             for (int index = 0; index < OverlapsPerBatch; index++)
             {
                 float x = ((index * 37) + step) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
-                found += world.OverlapBox(
+                found += world.OverlapBoxAll(
                     Aabb2D.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f)),
                     filter,
                     contacts);
@@ -95,7 +95,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     public void ABatchOfMapLengthDiagonalCasts_AllocatesNothingAndStaysWithinTheStepBudget()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
         Shape2D shape = Shape2D.Box(Vector2.Zero, new Vector2(12f, 24f));
 
         const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
@@ -127,7 +127,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
     public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()
     {
         CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.Filter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
         RayHit2D[] one = new RayHit2D[1];
 
         // Along the floor: every cell of the row is solid, so an unpruned walk tests all 256 of

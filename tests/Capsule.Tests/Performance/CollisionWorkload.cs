@@ -111,7 +111,7 @@ internal static class CollisionWorkload
             : base(position)
         {
             _collider = new BoxCollider2D(new Vector2(12f, 24f));
-            _collider.Detects(Solid, Platform);
+            _collider.SetFilter(Solid, Platform);
             _collider.ReportsContacts = true;
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;

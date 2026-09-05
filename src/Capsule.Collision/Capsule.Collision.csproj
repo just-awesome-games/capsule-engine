@@ -16,6 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- OverlapPair is the pair test behind Collider2D.Overlaps; no game names a pair by handle. -->
+    <InternalsVisibleTo Include="Capsule.Scenes" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>
 
