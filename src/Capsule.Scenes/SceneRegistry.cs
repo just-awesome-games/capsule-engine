@@ -61,7 +61,10 @@ public sealed class SceneRegistry
                 + $"name rather than its class: CreateFromDocument(\"{name}\", document).");
         }
 
-        return registration.Create();
+        Scene scene = registration.Create();
+        scene.DeclareTextures(registration.Textures);
+
+        return scene;
     }
 
     /// <summary>
@@ -78,9 +81,15 @@ public sealed class SceneRegistry
 
         SceneContent content = new(document, _entities);
 
-        return _byDocumentName.TryGetValue(name, out SceneRegistration claimed)
-            ? claimed.Create(content)
-            : new Scene(content);
+        if (!_byDocumentName.TryGetValue(name, out SceneRegistration claimed))
+        {
+            return new Scene(content);
+        }
+
+        Scene scene = claimed.Create(content);
+        scene.DeclareTextures(claimed.Textures);
+
+        return scene;
     }
 
     private SceneRegistration Registered(Type sceneType)

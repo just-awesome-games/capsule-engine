@@ -1,7 +1,10 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -187,6 +190,67 @@ public sealed class SceneHostTests
 
         Assert.Equal(RandomSource.DefaultSeed, host.Scene.Random.Seed);
         Assert.Equal(0ul, host.Scene.Random.Stream);
+    }
+
+    // The transition is where residency changes: the incoming scene's set is made resident before
+    // the outgoing scene is torn down, and what only it wanted goes.
+    [Fact]
+    public void ATransition_LoadsWhatTheNextSceneAddsAndReleasesWhatItDrops()
+    {
+        List<(string Scene, string Load, string Release)> changes = [];
+        SceneResidency residency = new((scene, load, release) => changes.Add((scene, Names(load), Names(release))));
+
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(MenuTextures)
+            ? new MenuTextures()
+            : new ArenaTextures();
+
+        using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
+
+        // What the game's own host does at boot, once the device is up.
+        (string scene, IReadOnlyList<TextureHandle> set) = host.TextureSet;
+        residency.MakeResident(scene, set);
+        host.Residency = residency;
+
+        host.Step(SceneStep(0));
+
+        Assert.IsType<ArenaTextures>(host.Scene);
+        Assert.Equal(
+            [("MenuTextures", "hud,shared", string.Empty), ("ArenaTextures", "enemies/bat", "hud")],
+            changes);
+    }
+
+    // A scene declaring a set replaces the derivation the build handed its registration.
+    [Fact]
+    public void ADeclaredSet_ReplacesTheOneTheRegistrationCarries()
+    {
+        SceneRegistry scenes = new(
+            new EntityRegistry([]),
+            [SceneRegistration.Plain(typeof(MenuTextures), static () => new MenuTextures(), static set => set.Add(Bat))]);
+
+        using SceneHost host = new(ToScene<MenuTextures>(), (in SceneTransition target) => scenes.Create(target.SceneType!));
+
+        Assert.Equal([Hud, Shared], host.TextureSet.Textures);
+    }
+
+    private static readonly TextureHandle Hud = new("hud", ".png");
+
+    private static readonly TextureHandle Shared = new("shared", ".png");
+
+    private static readonly TextureHandle Bat = new("enemies/bat", ".png");
+
+    private static string Names(IReadOnlyList<TextureHandle> handles) =>
+        string.Join(",", handles.Select(static handle => handle.Name).Order(StringComparer.Ordinal));
+
+    private sealed class MenuTextures : Scene
+    {
+        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Hud, Shared];
+
+        protected override void OnStep(in StepContext context) => RequestScene<ArenaTextures>();
+    }
+
+    private sealed class ArenaTextures : Scene
+    {
+        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Shared, Bat];
     }
 
     private static SceneTransition ToScene<TScene>(object? payload = null)

@@ -88,7 +88,7 @@ public sealed class EngineBuilderTests
     }
 
     private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>
-        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]), []);
+        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
     // Every setter a game reaches for, so a rejection above is the run's and not a half-built
     // builder's; silent logging is where a headless run starts.

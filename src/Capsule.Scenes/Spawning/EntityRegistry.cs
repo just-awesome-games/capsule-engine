@@ -13,18 +13,19 @@ public delegate Entity EntitySpawner(EntitySpawn spawn);
 /// </summary>
 public sealed class EntityRegistry
 {
-    private readonly Dictionary<string, EntitySpawner> _spawners;
+    private readonly Dictionary<string, EntityRegistration> _entities;
 
     /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public EntityRegistry(IEnumerable<KeyValuePair<string, EntitySpawner>> entities)
+    public EntityRegistry(IEnumerable<EntityRegistration> entities)
     {
         ArgumentNullException.ThrowIfNull(entities);
 
-        _spawners = new Dictionary<string, EntitySpawner>(StringComparer.Ordinal);
-        foreach ((string type, EntitySpawner spawner) in entities)
+        _entities = new Dictionary<string, EntityRegistration>(StringComparer.Ordinal);
+        foreach (EntityRegistration entity in entities)
         {
+            (string type, EntitySpawner spawner) = (entity.SpawnType, entity.Spawner);
             if (string.IsNullOrWhiteSpace(type))
             {
                 throw new ArgumentException("A spawn type cannot be blank.", nameof(entities));
@@ -43,17 +44,21 @@ public sealed class EntityRegistry
                 throw new ArgumentException($"The spawn type '{type}' has no spawner.", nameof(entities));
             }
 
-            if (!_spawners.TryAdd(type, spawner))
+            if (!_entities.TryAdd(type, entity))
             {
                 throw new ArgumentException($"The spawn type '{type}' appears more than once.", nameof(entities));
             }
         }
     }
 
+    /// <summary>What a scene spawning <paramref name="spawnType"/> adds to its set, or null when it adds nothing.</summary>
+    internal TextureSetBuilder? TexturesFor(string spawnType) =>
+        _entities.TryGetValue(spawnType, out EntityRegistration entity) ? entity.Textures : null;
+
     /// <exception cref="SpawnException">No class claims the type, or the one that does returned nothing.</exception>
     internal Entity Create(EntitySpawn spawn)
     {
-        if (!_spawners.TryGetValue(spawn.Type, out EntitySpawner? spawner))
+        if (!_entities.TryGetValue(spawn.Type, out EntityRegistration registered))
         {
             throw new SpawnException(
                 $"spawn type '{spawn.Type}' (entity id {spawn.Id}) is claimed by no entity. A class claims "
@@ -62,19 +67,19 @@ public sealed class EntityRegistry
                 + $"[SpawnType] gives one. Claimed: {KnownTypes()}.");
         }
 
-        return spawner(spawn)
+        return registered.Spawner(spawn)
             ?? throw new SpawnException($"the class claiming spawn type '{spawn.Type}' returned no entity.");
     }
 
     // Sorted so the message reads the same whatever order the registry was built in.
     private string KnownTypes()
     {
-        if (_spawners.Count == 0)
+        if (_entities.Count == 0)
         {
             return "nothing";
         }
 
-        string[] types = [.. _spawners.Keys];
+        string[] types = [.. _entities.Keys];
         Array.Sort(types, StringComparer.Ordinal);
 
         return string.Join(", ", types);

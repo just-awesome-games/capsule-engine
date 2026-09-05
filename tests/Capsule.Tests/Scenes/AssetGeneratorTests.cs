@@ -67,7 +67,7 @@ public sealed class AssetGeneratorTests
 
     // Boot loads exactly the textures the build registered, from one place it can read.
     [Fact]
-    public void EveryTexture_ReachesTheBootRegistryThroughOneList()
+    public void EveryTexture_IsDeclaredAndHeldByItsDomainsSet()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
             GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png", "audio/hit.wav");
@@ -79,11 +79,6 @@ public sealed class AssetGeneratorTests
         Assert.Contains("ReadOnlySpan<global::Capsule.Assets.TextureHandle> All", generated, StringComparison.Ordinal);
         Assert.Contains("Hero,", generated, StringComparison.Ordinal);
         Assert.Contains("Tiles,", generated, StringComparison.Ordinal);
-
-        Assert.Contains(
-            "GameAssets.Textures.All",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.RegistryProviderFile),
-            StringComparison.Ordinal);
     }
 
     [Fact]
