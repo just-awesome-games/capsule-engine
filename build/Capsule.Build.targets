@@ -11,6 +11,20 @@
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
+  <!-- A package consumer links an optimised engine whatever it builds itself. A source consumer
+       would instead link whatever its own build is, so a Debug game ran a Debug engine: measured on
+       a thousand-entity scene that is roughly an order of magnitude of simulation cost, which is
+       the engine's inner loop lying about the shipped engine's headroom. So the engine's own
+       projects build optimised under a Debug game, and the game's code stays Debug.
+
+       Set CapsuleSourceConfiguration to Debug to step into engine source. The engine's own
+       repository is the exception: it leaves the property unset, so its source consumers inherit
+       the solution's configuration and a solution build compiles each module once. -->
+  <PropertyGroup>
+    <CapsuleSourceConfiguration Condition="'$(CapsuleSourceConfiguration)' == '' and '$(CapsuleSourceRoot)' != '' and '$(CapsuleEngineRepository)' != 'true'">Release</CapsuleSourceConfiguration>
+    <CapsuleSourceModulesDirectory Condition="'$(CapsuleSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))</CapsuleSourceModulesDirectory>
+  </PropertyGroup>
+
   <!-- Capsule's XML comments are its API reference, which a developer reads from the package or
        from the staged source-mode directory. Shipping a copy of every module's beside the game's
        executable serves nobody and is most of what a publish emits that a player cannot use.
@@ -76,13 +90,20 @@
        evaluated after its DependsOnTargets have run but before its own tasks, so asked from inside
        an import target the tool's path would arrive after the up-to-date check that needs it.
 
-       The removed properties must match the set the ProjectReference above drops: the tool is built
-       without them, so asking with them would name an output directory nothing wrote. -->
+       The configuration asked for and the removed properties must match what the ProjectReference
+       above builds the tool with, or this names an output directory nothing wrote. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+    <!-- Unset means the tool inherits this project's configuration, which is only settled by the
+         time this runs; an import-time fallback would read it before the SDK defaults it. -->
+    <PropertyGroup>
+      <_CapsuleBuildToolConfiguration>$(CapsuleSourceConfiguration)</_CapsuleBuildToolConfiguration>
+      <_CapsuleBuildToolConfiguration Condition="'$(_CapsuleBuildToolConfiguration)' == ''">$(Configuration)</_CapsuleBuildToolConfiguration>
+    </PropertyGroup>
+
     <MSBuild Projects="$(CapsuleBuildToolProject)"
              Condition="'$(CapsuleBuildToolProject)' != ''"
              Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)"
+             Properties="Configuration=$(_CapsuleBuildToolConfiguration)"
              RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
       <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
     </MSBuild>
@@ -124,5 +145,26 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
+
+  <!-- Every reference into the engine clone, the build tool above included, carries the same
+       configuration: the two consumer roles (logic references Capsule, the shell references
+       Capsule.Runtime) must resolve the shared modules to one instance, and a module reached under
+       two configurations would be compiled and copied twice into one output directory.
+
+       A target rather than an item group, hooked exactly there: the SDK adds the modules a direct
+       reference pulls in as further ProjectReference items in ResolvePackageDependenciesForBuild —
+       most of the closure, and long after this file is evaluated — and the configuration is read
+       out of them in AssignProjectConfiguration, which that target runs before.
+
+       AdditionalProperties rather than SetConfiguration: it is merged over the configuration the
+       parent hands down, so it is the value that binds. -->
+  <Target Name="CapsuleConfigureEngineReferences"
+          Condition="'$(CapsuleSourceRoot)' != '' and '$(CapsuleSourceConfiguration)' != ''"
+          AfterTargets="ResolvePackageDependenciesForBuild">
+    <ItemGroup>
+      <ProjectReference AdditionalProperties="Configuration=$(CapsuleSourceConfiguration)"
+                        Condition="$([System.String]::new('%(FullPath)').StartsWith('$(CapsuleSourceModulesDirectory)', System.StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+  </Target>
 
 </Project>

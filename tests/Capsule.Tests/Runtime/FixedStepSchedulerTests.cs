@@ -27,15 +27,36 @@ public sealed class FixedStepSchedulerTests
     }
 
     [Fact]
-    public void Advance_ClampsAFrameSpikeBeforeDrainingSteps()
+    public void Advance_BoundsAStallToTheStepBoundAndDropsWhatItDidNotRun()
     {
         RecordingSimulation simulation = new();
-        FixedStepScheduler scheduler = CreateScheduler(maxFrameSeconds: 0.25);
+        FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
 
         scheduler.Advance(30, DeviceSnapshot.Empty, simulation);
 
-        Assert.Equal(2, simulation.Steps.Count);
-        Assert.Equal(0.05, scheduler.AccumulatorSeconds, 10);
+        Assert.Equal(3, simulation.Steps.Count);
+        Assert.Equal(0, scheduler.AccumulatorSeconds);
+    }
+
+    // The spiral of death: a step costing more than the step length would otherwise queue two steps
+    // next frame, then three, until every frame drains the whole backlog.
+    [Fact]
+    public void Advance_HoldsTheStepBoundWhenEveryFrameArrivesLateAndNeverCarriesABacklog()
+    {
+        RecordingSimulation simulation = new();
+        FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
+        const double FrameSecondsWorthOfSteps = StepSeconds * 4.5;
+
+        for (int frame = 0; frame < 10; frame++)
+        {
+            simulation.Steps.Clear();
+            scheduler.Advance(FrameSecondsWorthOfSteps, DeviceSnapshot.Empty, simulation);
+
+            Assert.Equal(3, simulation.Steps.Count);
+            Assert.Equal(0, scheduler.AccumulatorSeconds);
+        }
+
+        Assert.Equal(30, scheduler.Tick);
     }
 
     [Fact]
@@ -60,7 +81,7 @@ public sealed class FixedStepSchedulerTests
     public void Advance_StopsQueuedStepsImmediatelyWhenSimulationRequestsExit()
     {
         RecordingSimulation simulation = new(exitOnTick: 1);
-        FixedStepScheduler scheduler = CreateScheduler(maxFrameSeconds: 1);
+        FixedStepScheduler scheduler = CreateScheduler();
 
         Assert.True(scheduler.Advance(0.5, DeviceSnapshot.Empty, simulation));
 
@@ -98,7 +119,7 @@ public sealed class FixedStepSchedulerTests
     public void Advance_ReusesOneSampleAcrossSeveralStepsWithoutRepeatingAnEdge()
     {
         RecordingSimulation simulation = new();
-        FixedStepScheduler scheduler = CreateScheduler(maxFrameSeconds: 1);
+        FixedStepScheduler scheduler = CreateScheduler();
 
         scheduler.Advance(0.3, DeviceSnapshot.Of(Key.Space), simulation);
 
@@ -134,8 +155,8 @@ public sealed class FixedStepSchedulerTests
         Assert.NotEqual(AnHourOfTicks * (double)(float)Sixty, context.TotalSeconds);
     }
 
-    private static FixedStepScheduler CreateScheduler(double maxFrameSeconds = 0.5) =>
-        new(StepSeconds, maxFrameSeconds, new ActionBindings().Bind(Jump, Key.Space));
+    private static FixedStepScheduler CreateScheduler(int maxStepsPerFrame = 5) =>
+        new(StepSeconds, maxStepsPerFrame, new ActionBindings().Bind(Jump, Key.Space));
 
     private static void AssertStep(in RecordedStep step, long tick)
     {

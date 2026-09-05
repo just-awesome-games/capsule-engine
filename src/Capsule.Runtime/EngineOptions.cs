@@ -12,7 +12,7 @@ internal sealed record EngineOptions(
     bool Fullscreen,
     (int Width, int Height)? RenderResolution,
     double StepSeconds,
-    double MaxFrameSeconds,
+    int MaxStepsPerFrame,
     float StickDeadzone,
     float TriggerDeadzone,
     ActionBindings Bindings,

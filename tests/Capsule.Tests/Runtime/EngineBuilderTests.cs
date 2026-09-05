@@ -23,22 +23,12 @@ public sealed class EngineBuilderTests
         yield return [new Action<SceneEngineBuilder>(b => b.WithFixedStep(0))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(0, 180))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(320, 0))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithSpikeClamp(double.NaN))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithSpikeClamp(double.PositiveInfinity))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
+        yield return [new Action<SceneEngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(float.NaN, 0.12f))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(0.25f, float.NaN))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithWindowTitle("  "))];
         yield return [new Action<SceneEngineBuilder>(b => b.WithSampling((TextureSampling)99))];
-    }
-
-    [Fact]
-    public void Run_RejectsASpikeClampBelowTheFixedStep()
-    {
-        SceneEngineBuilder builder = ConfiguredBuilder()
-            .WithFixedStep(60)
-            .WithSpikeClamp(1.0 / 120);
-
-        Assert.Throws<InvalidOperationException>(() => builder.Run(new IdleSimulation()));
     }
 
     [Theory]

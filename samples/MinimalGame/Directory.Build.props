@@ -20,6 +20,10 @@
          local feed in NuGet.config: NuGet rejects a missing local source (NU1301) even when nothing
          resolves from it, and the feed exists only after a pack. -->
     <RestoreSources Condition="'$(CapsuleSourceRoot)' != ''">https://api.nuget.org/v3/index.json</RestoreSources>
+    <!-- This file shadows the repository's own, which declares the same for everything else here.
+         Under the engine's solution the sample is part of the engine's build and takes its
+         configuration; on its own root it is an ordinary consumer and gets the optimised engine. -->
+    <CapsuleEngineRepository Condition="'$(SolutionName)' == 'Capsule'">true</CapsuleEngineRepository>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 

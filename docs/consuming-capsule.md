@@ -158,6 +158,8 @@ Commit each package-consuming project's `packages.lock.json` and restore CI with
 
 It is git-ignored, and the source-mode lock file lands under `obj/`, so the committed lock file is untouched.
 
+A source build compiles the engine clone's own projects optimised — `Release`, into the clone's `bin/Release` — whatever configuration the game builds in, so a `Debug` game runs at the speed of the engine it will ship against while its own code stays debuggable. `CapsuleSourceConfiguration` overrides that; set it to `Debug` to step into engine source.
+
 ### The API reference
 
 Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
@@ -310,3 +312,4 @@ The window icon is transparent where its alpha says so, and Capsule's own defaul
 | `CapsuleSourcePath`            | unset                                             | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory.                    |
 | `CapsuleUsePackages`           | `false`                                           | Set to `true` to ignore a source override and verify the pinned NuGet graph.                                                                                                                  |
 | `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |
+| `CapsuleSourceConfiguration`   | `Release`                                         | The configuration the engine clone's own projects build in under a source consumer, whatever the game builds. Set it to `Debug` to step into engine source.                                   |
