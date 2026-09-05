@@ -376,9 +376,6 @@ public sealed class SceneEngineBuilder
             ? null
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
 
-        // Before the backend initialises SDL in the host's constructor: the hint is read there.
-        SdlPlatform.TrimStartupSubsystems();
-
         using CapsuleGame game = new(options, simulation, scenes, diagnostics);
 
         if (_consoleSink is not null)

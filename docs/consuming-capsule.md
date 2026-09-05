@@ -282,7 +282,7 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 
 ## Controllers
 
-The host reaches controllers through SDL's XInput, raw-input, HID, and Windows.Gaming.Input backends. SDL's DirectInput backend is off by default: enumerating it costs about 210 ms of every boot and reports only the devices none of the others do, chiefly generic HID pads in DirectInput mode, fight sticks, and flight sticks. A player with such a device sets `SDL_DIRECTINPUT_ENABLED=1` in the environment before launching, which restores it. The engine's ledger records the trade (D-capsule-071).
+The host reaches controllers through every SDL backend, DirectInput included, so generic HID pads in DirectInput mode, fight sticks, and flight sticks work without configuration. Enumerating DirectInput costs about 200 ms of every boot on Windows; a developer measuring boot can set SDL's own `SDL_DIRECTINPUT_ENABLED=0` in the environment to see the host without it. The engine's ledger records why the default stays on (D-capsule-071).
 
 ## Build configuration reference
 

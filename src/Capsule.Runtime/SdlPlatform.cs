@@ -12,16 +12,6 @@ internal static class SdlPlatform
 
     static SdlPlatform() => NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
 
-    // Suppresses SDL's DirectInput backend, which must happen before the backend initialises SDL.
-    // Enumerating it costs about 210 ms of a boot — roughly half inside the joystick subsystem and
-    // the rest inside the haptic subsystem it also backs — and buys only the devices no other
-    // Windows backend reports: XInput, raw input, HID and Windows.Gaming.Input between them cover
-    // the controllers a game meets, and Capsule exposes no rumble for the haptic half to drive. Set
-    // at normal priority, so SDL_DIRECTINPUT_ENABLED=1 in the environment still turns it back on
-    // for a device that needs it. SDL reads C strings: the literals carry their terminator, since a
-    // u8 span excludes it and the marshaller appends none.
-    internal static void TrimStartupSubsystems() => SDL_SetHint("SDL_DIRECTINPUT_ENABLED\0"u8.ToArray(), "0\0"u8.ToArray());
-
     // Brings the window to the front and asks for keyboard focus. Windows grants foreground
     // activation only to a process that already holds it, so a launch from a busy terminal can
     // still leave the window behind that terminal.
@@ -52,14 +42,9 @@ internal static class SdlPlatform
         return nint.Zero;
     }
 
-    // LibraryImport generates unsafe marshalling stubs, and two blittable calls do not justify
-    // opening the whole assembly to unsafe code. Both arguments below are already pointers by the
-    // time the marshaller sees them: a pinned byte array is a char*, and the window is an opaque
-    // handle.
+    // LibraryImport generates unsafe marshalling stubs, and one blittable call does not justify
+    // opening the whole assembly to unsafe code: the window is an opaque handle, a pointer already.
 #pragma warning disable SYSLIB1054
-    [DllImport(LibraryName, EntryPoint = "SDL_SetHint")]
-    private static extern int SDL_SetHint(byte[] name, byte[] value);
-
     [DllImport(LibraryName, EntryPoint = "SDL_RaiseWindow")]
     private static extern void SDL_RaiseWindow(nint window);
 #pragma warning restore SYSLIB1054
