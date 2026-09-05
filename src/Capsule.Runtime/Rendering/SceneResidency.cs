@@ -4,9 +4,8 @@ namespace Capsule.Runtime.Rendering;
 
 // Loads load and releases release, two disjoint lists valid
 // only for the duration of the call.
-// <param name="scene">The scene the new set belongs to, for the wiring fault a stray draw raises.</param>
-// <param name="load">Handles the new set adds; already located, none of them resident.</param>
-// <param name="release">Handles the new set drops; every one of them resident.</param>
+// scene is the one the new set belongs to, for the wiring fault a stray draw raises; load is
+// already located and none of it resident; every handle in release is resident.
 internal delegate void TextureSetChanged(
     string scene,
     IReadOnlyList<TextureHandle> load,
@@ -16,7 +15,7 @@ internal delegate void TextureSetChanged(
 // transition into its scene: what the new set adds is loaded, what it drops is released, and the
 // intersection is never touched. Nothing is reference counted — a handle is resident because the
 // current scene's set names it, and for no other reason.
-// <remarks>Device-free: the decode and the dispose are the delegate's.</remarks>
+// Device-free: the decode and the dispose are the delegate's.
 internal sealed class SceneResidency(TextureSetChanged apply)
 {
     private readonly HashSet<TextureHandle> _resident = [];
