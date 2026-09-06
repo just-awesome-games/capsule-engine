@@ -80,7 +80,12 @@ public class Scene
         {
             if (entry.TileMap is { } tileMap)
             {
-                TileMap tiles = new(tileMap.Grid) { ZIndex = tileMap.ZIndex };
+                TileMap tiles = new(tileMap.Grid);
+                if (tileMap.ZIndex is { } band)
+                {
+                    tiles.ZIndex = band;
+                }
+
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
 
@@ -99,9 +104,13 @@ public class Scene
                     new Vector2(placed.X, placed.Y),
                     new Vector2(placed.ScaleX, placed.ScaleY)));
 
-                // After construction, so the authored band is what the entity ends up in whatever
-                // its constructor set.
-                spawned.ZIndex = placed.ZIndex;
+                // Only where the placement authors one, and after construction: the class owns the
+                // default, and an authored band — 0 included — is what overrides it.
+                if (placed.ZIndex is { } band)
+                {
+                    spawned.ZIndex = band;
+                }
+
                 Add(spawned);
             }
         }

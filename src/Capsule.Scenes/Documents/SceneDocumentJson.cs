@@ -72,8 +72,8 @@ internal sealed class SceneEntryJson
     [JsonIgnore]
     public bool HasScale { get; private set; }
 
-    // Absent on an unbanded entry; WhenWritingNull keeps it out. Nullable only so an omitted band
-    // and an authored 0 write back the same way, which the canonical form requires.
+    // Absent where the entry authors no band; WhenWritingNull keeps it out. An authored 0 is a
+    // band like any other and is written back, so it stays distinct from an absent field.
     [JsonPropertyName("zIndex")]
     [JsonPropertyOrder(5)]
     public int? ZIndex { get; set; }

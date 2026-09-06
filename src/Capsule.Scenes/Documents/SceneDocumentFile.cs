@@ -87,7 +87,7 @@ public static class SceneDocumentFile
             }
 
             Scale(entry, i, out float scaleX, out float scaleY);
-            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex ?? 0);
+            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex);
         }
 
         return new SceneDocument(documentEntries, file.NextEntityId, ToSource(file.Source));
@@ -114,7 +114,7 @@ public static class SceneDocumentFile
                     Type = SceneDocument.TileMapType,
                     X = entry.X,
                     Y = entry.Y,
-                    ZIndex = Band(tileMap.ZIndex),
+                    ZIndex = tileMap.ZIndex,
                     Properties = JsonSerializer.SerializeToElement(
                         ToJson(tileMap.Grid),
                         SceneDocumentJsonContext.Default.TileGridJson),
@@ -134,7 +134,7 @@ public static class SceneDocumentFile
                     Scale = placed.ScaleX == 1f && placed.ScaleY == 1f
                         ? null
                         : [placed.ScaleX, placed.ScaleY],
-                    ZIndex = Band(placed.ZIndex),
+                    ZIndex = placed.ZIndex,
                 };
             }
             else
@@ -167,10 +167,6 @@ public static class SceneDocumentFile
     /// <exception cref="UnauthorizedAccessException">The file cannot be written to.</exception>
     public static void Save(SceneDocument document, string path) =>
         File.WriteAllText(path, ToJson(document), Utf8NoBom);
-
-    // The unbanded default is what an absent zIndex means, so writing 0 would put a field in every
-    // entry the format already covers.
-    private static int? Band(int zIndex) => zIndex == 0 ? null : zIndex;
 
     private static bool IsTileMap(SceneEntryJson entry) =>
         string.Equals(entry.Type, SceneDocument.TileMapType, StringComparison.Ordinal);
@@ -234,7 +230,7 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry declares no properties; its grid — tileSize, width, height, tileTypes, tiles, and the texture and columns a drawn grid adds — is written there.");
         }
 
-        return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)), entry.ZIndex ?? 0);
+        return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)), entry.ZIndex);
     }
 
     private static TileGridJson DeserializeGrid(JsonElement properties)

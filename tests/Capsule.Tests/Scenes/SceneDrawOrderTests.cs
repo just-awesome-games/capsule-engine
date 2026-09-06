@@ -151,6 +151,21 @@ public sealed class SceneDrawOrderTests
         Assert.Equal(7, scene.Entities[1].ZIndex);
     }
 
+    // The class owns the default: a placement authoring no band leaves the one the constructor
+    // chose, and an authored band — 0 like any other — is what overrides it.
+    [Theory]
+    [InlineData(null, Banded.Band)]
+    [InlineData(0, 0)]
+    [InlineData(-4, -4)]
+    public void AnAuthoredBand_OverridesTheClasssOwnOnlyWhenPresent(int? authored, int expected)
+    {
+        Scene scene = SceneFixtures.RoomScene(
+            SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "banded", 0f, 0f, ZIndex: authored)),
+            SceneFixtures.Registry(("banded", _ => new Banded())));
+
+        Assert.Equal(expected, scene.Entities[0].ZIndex);
+    }
+
     private static EntitySpawner Spawns(int tag) => _ =>
     {
         Marker marker = new();
@@ -177,4 +192,13 @@ public sealed class SceneDrawOrderTests
     }
 
     private sealed class Marker() : Entity(Vector2.Zero);
+
+    /// <summary>An entity that bands itself, so a placement has a default to leave or to override.</summary>
+    private sealed class Banded : Entity
+    {
+        internal const int Band = 12;
+
+        internal Banded()
+            : base(Vector2.Zero) => ZIndex = Band;
+    }
 }

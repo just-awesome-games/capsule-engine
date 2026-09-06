@@ -110,10 +110,17 @@ public sealed class SceneDocumentFileTests
                   "id": 3,
                   "type": "coin",
                   "x": 0,
+                  "y": 0,
+                  "zIndex": 0
+                },
+                {
+                  "id": 4,
+                  "type": "coin",
+                  "x": 0,
                   "y": 0
                 }
               ],
-              "nextEntityId": 4
+              "nextEntityId": 5
             }
 
             """.ReplaceLineEndings("\n");
@@ -122,7 +129,11 @@ public sealed class SceneDocumentFileTests
 
         Assert.Equal(-20, document.Entries[0].TileMap!.Value.ZIndex);
         Assert.Equal(new EntityPlacement(2, "coin", 8f, 0f, ZIndex: 7), document.Entries[1].Entity);
+
+        // An authored 0 is a band, an absent field is no band, and the two survive the round trip
+        // as the different documents they are.
         Assert.Equal(0, document.Entries[2].ZIndex);
+        Assert.Null(document.Entries[3].ZIndex);
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 

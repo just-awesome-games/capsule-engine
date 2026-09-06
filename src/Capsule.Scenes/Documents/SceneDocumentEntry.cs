@@ -48,8 +48,8 @@ public readonly record struct SceneDocumentEntry
     /// <summary>The entry's authored world-space Y coordinate.</summary>
     public float Y { get; }
 
-    /// <summary>The entry's authored draw band; 0 is the unbanded default.</summary>
-    public int ZIndex { get; }
+    /// <summary>The entry's authored draw band, or null where it authors none.</summary>
+    public int? ZIndex { get; }
 
     /// <summary>The game-defined entity placement, or null when this is a tile map.</summary>
     public EntityPlacement? Entity =>
