@@ -44,6 +44,8 @@ public sealed class SceneEngineBuilder
     private ulong _randomSeed = RandomSource.DefaultSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
+    private string? _inputRecordingPath;
+    private InputTape? _inputTape;
 
     internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
     {
@@ -268,6 +270,86 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Records the snapshot every fixed step consumed and writes it to <paramref name="path"/> as
+    /// tape text when the run ends, so a play session becomes an <see cref="InputTape"/> that
+    /// replays it. What is recorded is what the simulation saw, past the host's own fullscreen
+    /// chord, so recording a replay reproduces the tape it replayed. Off unless this is called.
+    /// </summary>
+    /// <param name="path">The tape to write; an existing file is overwritten.</param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    public SceneEngineBuilder WithInputRecording(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _inputRecordingPath = path;
+        return this;
+    }
+
+    /// <summary>
+    /// Drives the run from <paramref name="tape"/> rather than from the keyboard and gamepad: one
+    /// snapshot per fixed step whatever the frame rate, and the run exits itself once the tape's
+    /// last step has run. The fullscreen chord stays the host's and never enters the tape.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The tape is null.</exception>
+    public SceneEngineBuilder WithInputTape(InputTape tape)
+    {
+        ArgumentNullException.ThrowIfNull(tape);
+        _inputTape = tape;
+        return this;
+    }
+
+    /// <summary>
+    /// Reads the tape text at <paramref name="path"/> now and drives the run from it, exactly as
+    /// <see cref="WithInputTape(InputTape)"/> does.
+    /// </summary>
+    /// <param name="path">A file of the tape text <see cref="WithInputRecording"/> writes.</param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    /// <exception cref="IOException">The file could not be read.</exception>
+    /// <exception cref="FormatException">A line of it is malformed; the message names its number.</exception>
+    public SceneEngineBuilder WithInputTape(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _inputTape = InputTape.Parse(File.ReadAllText(path));
+        return this;
+    }
+
+    /// <summary>
+    /// Runs <typeparamref name="TScene"/> from <paramref name="tape"/> with no window, no graphics
+    /// device and no textures: everything this builder configures below the window — bindings, the
+    /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and one
+    /// fixed step runs per tape entry until the tape is spent or the game requests exit. Replaces
+    /// any tape <see cref="WithInputTape(InputTape)"/> set, and honours
+    /// <see cref="WithInputRecording"/>.
+    /// </summary>
+    /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
+    /// <param name="tape">The run's input, one snapshot per fixed step.</param>
+    /// <param name="payload">Boot state, exactly as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
+    /// <exception cref="ArgumentNullException">The tape is null.</exception>
+    /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public HeadlessRunResult RunHeadless<TScene>(InputTape tape, object? payload = null)
+        where TScene : Scene
+        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), tape);
+
+    /// <summary>
+    /// Runs the scene the named document backs from <paramref name="tape"/>, exactly as
+    /// <see cref="RunHeadless{TScene}(InputTape, object?)"/> runs a class.
+    /// </summary>
+    /// <param name="sceneName">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    /// <param name="tape">The run's input, one snapshot per fixed step.</param>
+    /// <param name="payload">Boot state, exactly as <see cref="RunScene(string, object?)"/> takes it.</param>
+    /// <exception cref="ArgumentNullException">The tape is null.</exception>
+    /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public HeadlessRunResult RunHeadless(string sceneName, InputTape tape, object? payload = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
+
+        return RunHeadless(SceneTransition.ToName(sceneName, payload), tape);
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
     /// composing it from the document that backs it when one does.
     /// </summary>
@@ -319,7 +401,8 @@ public sealed class SceneEngineBuilder
             _maxStepsPerFrame,
             _stickDeadzone,
             _triggerDeadzone,
-            _bindings);
+            _bindings,
+            _inputTape);
 
         try
         {
@@ -357,6 +440,30 @@ public sealed class SceneEngineBuilder
         Run(host, host);
     }
 
+    // No window, no device, no residency: the scene host is the same one a windowed run drives, so
+    // transitions, the seed and the scene defaults behave identically.
+    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, InputTape tape)
+    {
+        ArgumentNullException.ThrowIfNull(tape);
+
+        InstallLogging();
+
+        SceneComposer composer = new(_scenes);
+
+        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
+
+        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, tape, recorder);
+
+        // Exactly one step's worth of time per call, so the accumulator drains one step and the
+        // per-frame step bound never binds.
+        while (!scheduler.Advance(_stepSeconds, DeviceSnapshot.Empty, host))
+        {
+        }
+
+        return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);
+    }
+
     private void InstallLogging()
     {
         if (_loggingSilenced)
@@ -375,7 +482,8 @@ public sealed class SceneEngineBuilder
             ? null
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
 
-        using CapsuleGame game = new(options, simulation, scenes, diagnostics);
+        using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
+        using CapsuleGame game = new(options, simulation, scenes, diagnostics, recorder);
 
         if (_consoleSink is not null)
         {

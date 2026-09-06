@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Runtime.Input;
 
 namespace Capsule.Runtime;
 
@@ -9,9 +10,19 @@ internal sealed class FixedStepScheduler
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
+    // Null unless the run is replaying. A tape supplies one snapshot per fixed step, so what the
+    // simulation sees is independent of how many frames the host drew to reach that step.
+    private readonly InputTape? _tape;
+    private readonly InputRecorder? _recorder;
+
     private double _accumulatorSeconds;
 
-    internal FixedStepScheduler(double stepSeconds, int maxStepsPerFrame, ActionBindings bindings)
+    internal FixedStepScheduler(
+        double stepSeconds,
+        int maxStepsPerFrame,
+        ActionBindings bindings,
+        InputTape? tape = null,
+        InputRecorder? recorder = null)
     {
         ArgumentNullException.ThrowIfNull(bindings);
 
@@ -25,6 +36,8 @@ internal sealed class FixedStepScheduler
         _stepSeconds = stepSeconds;
         _maxStepsPerFrame = maxStepsPerFrame;
         _input = new InputState(bindings);
+        _tape = tape;
+        _recorder = recorder;
     }
 
     internal long Tick { get; private set; }
@@ -33,6 +46,9 @@ internal sealed class FixedStepScheduler
 
     internal float InterpolationAlpha => (float)(_accumulatorSeconds / _stepSeconds);
 
+    // Whether a replay has run every step its tape holds, which is where the run ends.
+    private bool TapeSpent => _tape is { } tape && Tick >= tape.Count;
+
     internal bool Advance(double elapsedSeconds, in DeviceSnapshot snapshot, ISimulation simulation)
     {
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
@@ -40,7 +56,17 @@ internal sealed class FixedStepScheduler
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time must be finite and non-negative.");
         }
 
-        _latch.Observe(snapshot);
+        // Under a tape the sampled device is not input at all: the host still samples it for its
+        // own fullscreen chord, and nothing of it reaches the simulation.
+        if (_tape is null)
+        {
+            _latch.Observe(snapshot);
+        }
+        else if (TapeSpent)
+        {
+            return true;
+        }
+
         _accumulatorSeconds += elapsedSeconds;
 
         double stepEpsilon = _stepSeconds * 1e-12;
@@ -56,7 +82,9 @@ internal sealed class FixedStepScheduler
                 return false;
             }
 
-            _input.Advance(_latch.ConsumeStepSnapshot());
+            DeviceSnapshot stepped = _tape is { } tape ? tape[(int)Tick] : _latch.ConsumeStepSnapshot();
+            _recorder?.Record(stepped);
+            _input.Advance(stepped);
             simulation.Step(new StepContext(_stepSeconds, _input, Tick));
 
             _accumulatorSeconds -= _stepSeconds;
@@ -68,7 +96,7 @@ internal sealed class FixedStepScheduler
             stepsRun++;
             Tick++;
 
-            if (simulation.ExitRequested)
+            if (simulation.ExitRequested || TapeSpent)
             {
                 return true;
             }

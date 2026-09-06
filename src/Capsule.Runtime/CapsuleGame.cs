@@ -31,14 +31,14 @@ internal sealed class CapsuleGame : Game
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
-    internal CapsuleGame(EngineOptions options, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics)
+    internal CapsuleGame(EngineOptions options, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics, InputRecorder? recorder)
     {
         _options = options;
         _diagnostics = diagnostics;
         _simulation = simulation;
         _scenes = scenes;
         _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
-        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings);
+        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings, options.Tape, recorder);
 
         _graphics = new GraphicsDeviceManager(this)
         {
