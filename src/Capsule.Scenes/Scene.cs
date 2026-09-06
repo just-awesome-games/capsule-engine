@@ -883,7 +883,7 @@ public class Scene
         bool banded = false;
         foreach (Entity entity in Entities)
         {
-            int band = entity.ZIndex;
+            long band = entity.ZIndex;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)
@@ -904,8 +904,10 @@ public class Scene
         }
     }
 
-    // Each key carries its renderer's walk position in its low half, so no two keys are equal and
-    // the runtime's unstable sort lands where a stable one would.
+    // Each key carries its renderer's walk position in its low bits, so no two keys are equal and
+    // the runtime's unstable sort lands where a stable one would. The widened sum of two ints
+    // spans exactly 33 signed bits, which leaves 31 for the position: a scene of 2^31 or more
+    // renderers would collide two of them and lose the tie-break.
     private void SortRenderers()
     {
         int count = _renderers.Count;
@@ -919,10 +921,14 @@ public class Scene
         for (int index = 0; index < count; index++)
         {
             Renderer renderer = renderers[index];
-            long key = renderer.Entity!.ZIndex + renderer.ZIndex;
-            keys[index] = (key << 32) | (uint)index;
+            keys[index] = (EffectiveKey(renderer) << 31) | (long)index;
         }
 
         keys.Sort(renderers);
     }
+
+    // Widened before the addition: two ints at the far end of their range sum past what an int
+    // holds, and a wrapped key would sort a foreground band under a background one.
+    private static long EffectiveKey(Renderer renderer) =>
+        (long)renderer.Entity!.ZIndex + renderer.ZIndex;
 }

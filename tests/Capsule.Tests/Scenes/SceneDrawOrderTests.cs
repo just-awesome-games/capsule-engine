@@ -94,6 +94,47 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1, 2, 3], Order(simulation));
     }
 
+    // The sum is widened, not wrapped: an int would carry int.MaxValue + 1 round to int.MinValue
+    // and draw the nearer renderer under everything.
+    [Fact]
+    public void ASumPastAnInt_StillDrawsOverTheBandBelowIt()
+    {
+        Marker ceiling = new() { ZIndex = int.MaxValue };
+        ceiling.Add(Tag(1));
+
+        Marker beyond = new() { ZIndex = int.MaxValue };
+        beyond.Add(Tag(2, zIndex: 1));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(ceiling);
+        scene.Add(beyond);
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([1, 2], Order(simulation));
+    }
+
+    // The same pair the other way round: the larger key draws last whatever order they arrived in.
+    [Fact]
+    public void ASumPastAnInt_SortsAboveItsBandFromEitherInsertionOrder()
+    {
+        Marker beyond = new() { ZIndex = int.MaxValue };
+        beyond.Add(Tag(2, zIndex: 1));
+
+        Marker ceiling = new() { ZIndex = int.MaxValue };
+        ceiling.Add(Tag(1));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(beyond);
+        scene.Add(ceiling);
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([1, 2], Order(simulation));
+    }
+
     [Fact]
     public void AnAuthoredBand_LandsOnEveryComposedEntity()
     {
