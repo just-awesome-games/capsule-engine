@@ -166,7 +166,7 @@ A source build compiles the engine clone's own projects optimised — `Release`,
 
 ### Release schedule
 
-A game develops in source mode against the engine clone and its CI builds the same way, at the engine commit a pin file in the game names; an engine change lands on the engine's `main` first, then the game bumps its pin in the change that needs it. Capsule and its modules publish to NuGet only when the Creative Director promotes a release — a batch worth shipping, or a consumer that must bump — so a package pin is expected to lag `main` between releases (D-studio-technical-021).
+A game develops in source mode against the engine clone and its CI builds the same way, at the engine commit a pin file in the game names; an engine change lands on the engine's `main` first, then the game bumps its pin in the change that needs it. Capsule and its modules publish to NuGet only on a deliberate release, so a package pin is expected to lag `main` between releases.
 
 ### The API reference
 
@@ -280,13 +280,9 @@ Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 
 `WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
 
-## Measuring the host
-
-`WithFrameDiagnostics(path)` on the engine builder writes a CSV of what the host spent its time on. It opens with a commented boot trace — the milliseconds from process start to builder entry, host construction, device readiness, texture residency, the first update and the first submitted frame — and then holds one row per frame: the interval since the previous frame began, the time spent in the update, and the time spent submitting the draw, all in milliseconds. Present is excluded, because the wait for the display happens after the host's draw returns. A second argument exits the run that many seconds after the first frame, for an unattended capture. It is off unless the call is made; the shell decides where the path comes from.
-
 ## Controllers
 
-The host reaches controllers through every SDL backend, DirectInput included, so generic HID pads in DirectInput mode, fight sticks, and flight sticks work without configuration. Enumerating DirectInput costs about 200 ms of every boot on Windows; a developer measuring boot can set SDL's own `SDL_DIRECTINPUT_ENABLED=0` in the environment to see the host without it. The engine's ledger records why the default stays on (D-capsule-071).
+The host reaches controllers through every SDL backend, DirectInput included, so generic HID pads in DirectInput mode, fight sticks, and flight sticks work without configuration. A developer isolating DirectInput's contribution to Windows boot time can set SDL's `SDL_DIRECTINPUT_ENABLED=0` in the environment.
 
 ## Build configuration reference
 

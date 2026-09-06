@@ -22,7 +22,7 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
-The shell's entry point is generated, and it starts a scene:
+The shell's entry point is handwritten against the generated `CapsuleBoot` builder:
 
 ```csharp
 using Capsule.Runtime.Generated;
