@@ -129,9 +129,8 @@ steps.
 
 ### The state trace
 
-`.WithStateTrace(path)` records the world at the end of every fixed step and writes it as one CSV
-when the run ends. One trace spans every scene the run passes through, so a transition does not
-restart the tick count or the file:
+To read back what a run did to the world, ask it for a state trace — see
+`SceneEngineBuilder.WithStateTrace` for what is recorded and when it is written:
 
 ```csharp
 CapsuleEngine.Configure("My Game", GameScenes.Registry)
@@ -159,14 +158,13 @@ tick,subject,column,value
 0,camera,x,64.5
 ```
 
-An entity or component implementing `Capsule.Scenes.ITraceSource` adds its own columns under its
-subject; `SpriteAnimator` already writes `clip` and `frame`.
+To get columns of a game's own into those rows, implement `Capsule.Scenes.ITraceSource` on the
+entity or component that knows them; `SpriteAnimator` already writes `clip` and `frame`.
 
 ### Frame captures
 
-`.WithFrameCapture(directory, ticks)` saves the frame drawn after each named tick as
-`frame-<tick>.png`. It needs a device, so it is a windowed run only — a headless run has no
-surface to save:
+To see a run rather than read it, ask a windowed run to save PNGs of named ticks — see
+`SceneEngineBuilder.WithFrameCapture` for which surface is saved and when:
 
 ```csharp
 CapsuleBoot.Configure("My Game")
@@ -175,6 +173,3 @@ CapsuleBoot.Configure("My Game")
     .WithFrameCapture("artifacts/frames", 0, 60, 240)
     .RunScene<FirstRoom>();
 ```
-
-With a render resolution declared the image is that surface, ahead of the letterbox blit, so its
-size is the same whatever the window is doing.
