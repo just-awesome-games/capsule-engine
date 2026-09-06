@@ -320,6 +320,10 @@ public sealed class SceneEngineBuilder
     /// any tape <see cref="WithInputTape(InputTape)"/> set, and honours
     /// <see cref="WithInputRecording"/>.
     /// </summary>
+    /// <remarks>
+    /// A headless run writes no crash log whatever <see cref="WithCrashLog"/> configured: an
+    /// exception escaping the scene propagates to the caller, which is a test or a CI job.
+    /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="tape">The run's input, one snapshot per fixed step.</param>
     /// <param name="payload">Boot state, exactly as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
