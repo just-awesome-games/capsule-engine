@@ -32,11 +32,15 @@ The grammar is:
 ```text
 line   := repeat (' ' token)*
 repeat := a decimal count of consecutive identical steps, at least 1
-token  := key | "Pad." pad-button | "Axis." axis '=' value
+token  := key | pad-button | "Axis." axis '=' value
+key    := a `Key` name, or "Key." and the decimal value of one the enum does not name
+pad-button := "Pad." and either a `PadButton` name or the decimal value of one the enum does not name
 ```
 
 - A token names a member of `Key`, `PadButton` or `PadAxis` by its enum name. `None` names no
   token on any of them.
+- A `DeviceSnapshot` also holds values below its capacity that the enums do not name, so those are
+  written and read in their decimal form — `Key.127`, `Pad.31`.
 - An axis at rest is written as no token, and an axis value is written as the shortest text that
   round-trips it, in the invariant culture.
 - A line with a repeat count and no tokens is that many idle steps.
@@ -64,10 +68,6 @@ InputTape tape = new InputScript()
     .Build();
 ```
 
-`Down`, `Up` and `Axis` edit the held state and emit nothing of their own, so a chord is several
-`Down` calls before one `Wait`. `Tap` emits exactly one step with the key or button held on top of
-the held state; tapping something already held is refused, because it would read as a release.
-
 ## Recording and replaying a run
 
 Both are builder configuration, so any run — windowed or headless — takes them:
@@ -82,22 +82,12 @@ CapsuleBoot.Configure("My Game")
     .RunScene<MainMenu>();
 ```
 
-`WithInputRecording` records the snapshot the scheduler handed to each fixed step — what the
-simulation actually saw — and writes the tape when the run ends, overwriting the file. The host's
-Alt+Enter fullscreen chord is withheld from the simulation and so never enters a tape.
-
-`WithInputTape` replaces device sampling entirely: one snapshot per fixed step whatever the frame
-rate, and the run exits itself once the tape's last step has run. `WithInputTape(InputTape)` takes
-a tape in hand; `WithInputTape(string)` reads the file at build time and throws there if it is
-malformed.
-
 The two combine: recording a replay writes back the tape it replayed, which is how a recording is
 checked for having captured the run.
 
 ## Running headlessly
 
-`RunHeadless` runs a tape through the same scene host a windowed run drives — scene transitions,
-the random seed, bindings, the fixed step and scene defaults all apply — with no MonoGame, no
+`RunHeadless` runs a tape through the same scene host a windowed run drives, with no MonoGame, no
 window, no graphics device and no texture residency:
 
 ```csharp
@@ -105,14 +95,6 @@ HeadlessRunResult result = CapsuleBoot.Configure("My Game")
     .WithRandomSeed(7)
     .RunHeadless<MainMenu>(tape);
 ```
-
-One fixed step runs per tape entry until the tape is spent or game logic requests exit. The result
-carries the steps run, whether the game asked to exit, and the last step's `RenderMetrics` —
-render intent counted rather than drawn. `RunHeadless(string sceneName, ...)` runs a scene named
-by its document instead of by its class.
-
-`RunHeadless` writes no crash log: an exception escaping the run reaches the caller, which is a
-test or a CI job.
 
 ## Driving a game without a keyboard
 
@@ -136,8 +118,8 @@ Assert.Equal(tape.Count, result.Steps);
 ```
 
 `CapsuleBoot` is generated into the shell, so a project that is not the shell — a test project, a
-CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly and reaches the same
-builder through `CapsuleEngine.Configure(gameName, GameScenes.Registry)`.
+CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly and enters through
+`CapsuleEngine.Configure(gameName, GameScenes.Registry)`, which returns the same builder.
 
 For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
 over the tape: it is substrate-free, so a test holds the scene and reads its entities between
