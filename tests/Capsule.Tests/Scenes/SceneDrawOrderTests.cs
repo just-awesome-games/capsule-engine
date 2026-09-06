@@ -215,6 +215,64 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([3, 1, 2], Order(simulation));
     }
 
+    // Both mutations from one Draw: the lowered peer must still draw, and the detached one must
+    // not. A list rebuilt mid-traversal would reorder around the cursor and lose the first.
+    [Fact]
+    public void ARendererLoweringOnePeerAndDetachingAnother_DrawsEveryRendererThatRemains()
+    {
+        Marker first = new();
+        first.Add(Tag(1));
+
+        Marker third = new() { ZIndex = 2 };
+        SpriteRenderer lowered = Tag(3);
+        third.Add(lowered);
+
+        Marker fourth = new() { ZIndex = 3 };
+        SpriteRenderer detached = Tag(4);
+        fourth.Add(detached);
+
+        Marker second = new() { ZIndex = 1 };
+        second.Add(new Lowering(2, lowered, loweredTo: -10, detaches: detached));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(first);
+        scene.Add(second);
+        scene.Add(third);
+        scene.Add(fourth);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal([1, 2, 3], Order(simulation));
+
+        // Both writes landed, and they order the next frame.
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([3, 1, 2], Order(simulation));
+    }
+
+    // The draw bookkeeping is the scene's, not the renderer's: an entity that drew under one
+    // simulation must not be suppressed by the next one's first frame.
+    [Fact]
+    public void AnEntityMovedToAnotherSimulation_DrawsInThatSimulationsFirstFrame()
+    {
+        Marker traveller = new();
+        traveller.Add(Tag(1));
+
+        SceneFixtures.HookScene origin = new();
+        origin.Add(traveller);
+        using (SceneSimulation first = new(origin))
+        {
+            Assert.Equal([1], Order(first));
+            origin.Remove(traveller);
+        }
+
+        SceneFixtures.HookScene destination = new();
+        destination.Add(traveller);
+        using SceneSimulation second = new(destination);
+
+        Assert.Equal([1], Order(second));
+    }
+
     [Fact]
     public void AnAuthoredBand_LandsOnEveryComposedEntity()
     {
@@ -299,12 +357,13 @@ public sealed class SceneDrawOrderTests
         }
     }
 
-    /// <summary>Lowers a peer's key from inside its own Draw, before that peer has drawn.</summary>
-    private sealed class Lowering(int tag, Renderer peer, int loweredTo) : Renderer
+    /// <summary>Lowers a peer's key, and optionally detaches another, from inside its own Draw.</summary>
+    private sealed class Lowering(int tag, Renderer peer, int loweredTo, Renderer? detaches = null) : Renderer
     {
         public override void Draw(FrameView view)
         {
             peer.ZIndex = loweredTo;
+            detaches?.Entity?.Remove(detaches);
             Emit(view, tag);
         }
     }

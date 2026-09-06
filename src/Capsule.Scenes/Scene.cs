@@ -57,7 +57,7 @@ public class Scene
     private bool _stopped;
     private bool _renderersStale = true;
     private bool _drawing;
-    private bool _rendererOrderDeferred;
+    private bool _rebuildDeferred;
     private bool _exitRequested;
     private SceneTransition? _transition;
     private TextureSampling? _sampling;
@@ -532,7 +532,8 @@ public class Scene
     }
 
     // Draw order is the entity's ZIndex plus the renderer's, then entity order, then component
-    // attachment order. Sorted when the list or a key changes, never per step.
+    // attachment order. Sorted when the list or a key changes, never per step, and never while a
+    // frame is being drawn — the traversal is handed this list and walks it to the end.
     internal ReadOnlySpan<Renderer> RenderersInDrawOrder()
     {
         if (_renderersStale)
@@ -543,16 +544,14 @@ public class Scene
         return CollectionsMarshal.AsSpan(_renderers);
     }
 
-    internal void InvalidateRenderers() => _renderersStale = true;
-
-    // A key change, as opposed to a change of which renderers exist. Held back while the frame is
-    // being drawn: the traversal walks the sorted list against a cursor, so re-sorting under it
-    // would move a renderer it has already passed. The rebuild lands at the end of the draw.
-    internal void InvalidateRendererOrder()
+    // Held back while the frame is being drawn, whether it is a key or the set of renderers that
+    // changed: the traversal walks the list it was handed, so rebuilding under it would drop a
+    // renderer it has not reached or repeat one it has. The rebuild lands at the end of the draw.
+    internal void InvalidateRenderers()
     {
         if (_drawing)
         {
-            _rendererOrderDeferred = true;
+            _rebuildDeferred = true;
             return;
         }
 
@@ -565,12 +564,18 @@ public class Scene
     {
         _drawing = false;
 
-        if (_rendererOrderDeferred)
+        // Marked, not rebuilt: the next read does it, so a frame nothing reads costs no sort.
+        if (_rebuildDeferred)
         {
-            _rendererOrderDeferred = false;
+            _rebuildDeferred = false;
             _renderersStale = true;
         }
     }
+
+    // Whether a renderer from the frozen draw list is still this scene's to draw. An earlier Draw
+    // this frame may have detached it or taken its entity out of the scene, and the frozen list
+    // still holds it.
+    internal bool Draws(Renderer renderer) => renderer.Entity is { } entity && Keeps(entity);
 
     // Held and not on its way out. An entity queued for removal never steps, so it must never
     // start either — nor start the components it holds.
@@ -878,7 +883,7 @@ public class Scene
         _renderers.Clear();
         _contactReporters.Clear();
         _renderersStale = false;
-        _rendererOrderDeferred = false;
+        _rebuildDeferred = false;
     }
 
     private static void ThrowCleanupFailures(List<Exception>? failures)

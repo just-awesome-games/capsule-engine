@@ -82,9 +82,9 @@ public class Entity
     /// it. Each attached <see cref="Rendering.Renderer"/> draws at this plus its own
     /// <see cref="Rendering.Renderer.ZIndex"/>, summed as a <see cref="long"/> with neither side
     /// clamped, and the higher sum draws later. Renderers whose sums are equal keep entity
-    /// insertion order and then attachment order. Zero by default. Set from inside a
-    /// <see cref="Rendering.Renderer.Draw"/>, it orders the next step's frame rather than the one
-    /// being drawn.
+    /// insertion order and then attachment order. Zero by default. Written from inside a
+    /// <see cref="Rendering.Renderer.Draw"/> — like any change to what the scene holds — it orders
+    /// the next step's frame rather than the one being drawn.
     /// </summary>
     public int ZIndex
     {
@@ -98,7 +98,7 @@ public class Entity
             }
 
             field = value;
-            Scene?.InvalidateRendererOrder();
+            Scene?.InvalidateRenderers();
         }
     }
 

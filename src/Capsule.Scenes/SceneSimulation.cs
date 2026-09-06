@@ -7,9 +7,6 @@ namespace Capsule.Scenes;
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();
-
-    // Counts frames drawn, never steps, and starts at 1 so a renderer's unset stamp is not a claim.
-    private long _drawPass;
     private bool _disposed;
 
     /// <summary>Starts <paramref name="scene"/> under <paramref name="defaults"/> and builds its first frame.</summary>
@@ -112,30 +109,22 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
-        // Drawing runs past EndStep, so a Draw that detaches a renderer or removes an entity
-        // reaches the scene directly rather than queueing. The set is re-read each turn against a
-        // cursor: a renderer detached here is no longer part of this frame and must not draw, and
-        // staying at an index whose occupant changed keeps the renderer shifted into it drawing.
-        // A key written from inside a Draw is deferred to the next step, so the sort cannot move
-        // under the cursor; the pass claim holds the once-per-step contract for the case a Draw
-        // also rebuilds the list structurally, which re-sorts it with that key already written.
-        _drawPass++;
+        // Drawing runs past EndStep, so a Draw that writes a key, detaches a renderer or removes an
+        // entity reaches the scene directly rather than queueing. The list is frozen for the length
+        // of the traversal and walked once by index: every renderer it holds is offered exactly
+        // once, in the order the frame opened with, and each is checked against the scene before it
+        // draws so one detached or removed by an earlier Draw is skipped. Whatever was invalidated
+        // rebuilds at EndDraw, which is why a renderer attached here first draws next step.
         Scene.BeginDraw();
         try
         {
             ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
-            for (int index = 0; index < renderers.Length;)
+            for (int index = 0; index < renderers.Length; index++)
             {
                 Renderer renderer = renderers[index];
-                if (renderer.TryClaimDraw(_drawPass))
+                if (Scene.Draws(renderer))
                 {
                     renderer.Draw(_view);
-                    renderers = Scene.RenderersInDrawOrder();
-                }
-
-                if (index < renderers.Length && ReferenceEquals(renderers[index], renderer))
-                {
-                    index++;
                 }
             }
         }
