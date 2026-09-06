@@ -27,9 +27,13 @@ internal sealed class FrameCapture
 
     // The path of the next capture due once completedTick has been simulated, or false when none
     // is. Called until it says no: one frame may pass several listed ticks, and each owes a file.
-    internal bool TryTakeDue(long completedTick, out string path)
+    //
+    // drawable: Whether the frame this would save has a surface to save. A false consumes nothing,
+    // so a tick falling due while the window is minimised stays pending and is taken, once, on the
+    // next frame that drew.
+    internal bool TryTakeDue(long completedTick, bool drawable, out string path)
     {
-        if (_next >= _ticks.Length || completedTick < _ticks[_next])
+        if (!drawable || _next >= _ticks.Length || completedTick < _ticks[_next])
         {
             path = "";
             return false;

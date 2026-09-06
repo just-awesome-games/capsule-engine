@@ -142,7 +142,7 @@ internal sealed class CapsuleGame : Game
         // run, so the latest completed one is the step before it.
         if (_capture is { } capture)
         {
-            while (capture.TryTakeDue(_scheduler.Tick - 1, out string path))
+            while (capture.TryTakeDue(_scheduler.Tick - 1, _renderer.CanSaveSurface, out string path))
             {
                 _renderer.SaveSurface(path);
             }

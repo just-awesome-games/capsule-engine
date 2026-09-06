@@ -333,8 +333,10 @@ public sealed class SceneEngineBuilder
     /// <summary>
     /// Saves the frame drawn after each of <paramref name="ticks"/> has been simulated as
     /// <c>frame-&lt;tick&gt;.png</c> under <paramref name="directory"/>, which is created if it is
-    /// absent. Each listed tick is captured once, on the first frame whose latest completed
-    /// simulation step is at or past it; a tick the run never reaches is never captured.
+    /// absent. Each listed tick is captured once, on the first frame that drew to a surface with
+    /// area and whose latest completed simulation step is at or past it: a minimised window leaves
+    /// the tick pending rather than writing an empty file, and a tick the run never reaches or
+    /// never draws for is never captured.
     /// <para>
     /// What is saved is the surface the world was drawn on, ahead of the letterbox blit into the
     /// window: the render target where <see cref="WithRenderResolution"/> declared one, so the
