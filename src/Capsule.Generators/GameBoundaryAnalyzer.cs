@@ -73,9 +73,12 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
         context.RegisterOperationAction(AnalyzeObjectCreation, OperationKind.ObjectCreation);
         context.RegisterOperationAction(AnalyzeProperty, OperationKind.PropertyReference);
+        context.RegisterOperationAction(AnalyzeField, OperationKind.FieldReference);
         context.RegisterOperationAction(AnalyzeAwait, OperationKind.Await);
+        context.RegisterOperationAction(AnalyzeLock, OperationKind.Lock);
         context.RegisterOperationAction(AnalyzeMethodReference, OperationKind.MethodReference);
         context.RegisterSymbolAction(AnalyzeStoredRandom, SymbolKind.Field, SymbolKind.Property);
+        context.RegisterSymbolAction(AnalyzeNativeImport, SymbolKind.Method);
     }
 
     private static void AnalyzeReferences(CompilationAnalysisContext context, bool logic)
@@ -105,23 +108,14 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     {
         IInvocationOperation operation = (IInvocationOperation)context.Operation;
         IMethodSymbol method = operation.TargetMethod;
-        string display = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-
-        if (IsExternalIo(method.ContainingNamespace) || IsExternalState(method))
+        DiagnosticDescriptor? rule = ClassifyMethod(method);
+        if (rule is not null && (rule != Concurrency || operation.Parent is not IAwaitOperation))
         {
-            Report(context, ExternalIo, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsConcurrency(method.ContainingNamespace) && operation.Parent is not IAwaitOperation)
-        {
-            Report(context, Concurrency, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsAmbientTime(method))
-        {
-            Report(context, AmbientTime, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsAmbientRandom(method))
-        {
-            Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
+            Report(
+                context,
+                rule,
+                operation.Syntax.GetLocation(),
+                method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
         }
     }
 
@@ -135,11 +129,11 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         }
 
         string display = constructor.ContainingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        if (IsExternalIo(constructor.ContainingNamespace) || IsExternalState(constructor))
+        if (IsExternalIo(constructor) || IsExternalState(constructor))
         {
             Report(context, ExternalIo, operation.Syntax.GetLocation(), display);
         }
-        else if (IsConcurrency(constructor.ContainingNamespace))
+        else if (IsConcurrency(constructor))
         {
             Report(context, Concurrency, operation.Syntax.GetLocation(), display);
         }
@@ -153,25 +147,65 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // A method group is a use with no invocation to catch: `Func<int> draw = random.Next;` reads
-    // here and nowhere else. Delegate creation wraps this operation, so both forms arrive.
     private static void AnalyzeMethodReference(OperationAnalysisContext context)
     {
         IMethodReferenceOperation operation = (IMethodReferenceOperation)context.Operation;
-        if (IsAmbientRandom(operation.Method))
+        IMethodSymbol method = operation.Method;
+        DiagnosticDescriptor? rule = ClassifyMethod(method);
+        if (rule is not null)
         {
             Report(
                 context,
-                AmbientRandom,
+                rule,
                 operation.Syntax.GetLocation(),
-                operation.Method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+                method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
         }
+    }
+
+    private static DiagnosticDescriptor? ClassifyMethod(IMethodSymbol method)
+    {
+        if (IsExternalIo(method) || IsExternalState(method))
+        {
+            return ExternalIo;
+        }
+
+        if (IsConcurrency(method))
+        {
+            return Concurrency;
+        }
+
+        if (IsAmbientTime(method))
+        {
+            return AmbientTime;
+        }
+
+        return IsAmbientRandom(method) ? AmbientRandom : null;
     }
 
     private static void AnalyzeAwait(OperationAnalysisContext context)
     {
         IAwaitOperation operation = (IAwaitOperation)context.Operation;
         Report(context, Concurrency, operation.Syntax.GetLocation(), "await");
+    }
+
+    private static void AnalyzeLock(OperationAnalysisContext context)
+    {
+        ILockOperation operation = (ILockOperation)context.Operation;
+        Report(context, Concurrency, operation.Syntax.GetLocation(), "lock");
+    }
+
+    private static void AnalyzeNativeImport(SymbolAnalysisContext context)
+    {
+        IMethodSymbol method = (IMethodSymbol)context.Symbol;
+        if (!method.GetAttributes().Any(attribute => IsNativeImportAttribute(attribute.AttributeClass)))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            ExternalIo,
+            method.Locations.FirstOrDefault() ?? Location.None,
+            method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)));
     }
 
     // Construction is caught at its own site, but a seeded instance can also arrive from
@@ -208,9 +242,26 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         {
             Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
         }
-        else if (IsExternalState(property))
+        else if (IsExternalIo(property) || IsExternalState(property))
         {
             Report(context, ExternalIo, operation.Syntax.GetLocation(), display);
+        }
+        else if (IsConcurrency(property))
+        {
+            Report(context, Concurrency, operation.Syntax.GetLocation(), display);
+        }
+    }
+
+    private static void AnalyzeField(OperationAnalysisContext context)
+    {
+        IFieldReferenceOperation operation = (IFieldReferenceOperation)context.Operation;
+        if (IsExternalIo(operation.Field))
+        {
+            Report(
+                context,
+                ExternalIo,
+                operation.Syntax.GetLocation(),
+                operation.Field.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
         }
     }
 
@@ -222,18 +273,100 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         assemblyName.StartsWith("MonoGame.Framework", StringComparison.Ordinal)
         || string.Equals(assemblyName, "Microsoft.Xna.Framework", StringComparison.Ordinal);
 
-    private static bool IsExternalIo(INamespaceSymbol? value)
+    // The whole namespace tree is banned, so a sub-namespace nobody anticipated stays closed;
+    // only members proven to have no external effect are carved back out.
+    private static bool IsExternalIo(ISymbol symbol)
     {
-        string name = value?.ToDisplayString() ?? string.Empty;
-        return name == "System.IO" || name.StartsWith("System.IO.", StringComparison.Ordinal)
-            || name == "System.Net" || name.StartsWith("System.Net.", StringComparison.Ordinal);
+        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
+        bool external = namespaceName is "System.IO" or "System.Net"
+            || namespaceName.StartsWith("System.IO.", StringComparison.Ordinal)
+            || namespaceName.StartsWith("System.Net.", StringComparison.Ordinal);
+
+        return external && !TouchesNothingOutside(symbol);
     }
 
-    private static bool IsConcurrency(INamespaceSymbol? value)
+    private static bool TouchesNothingOutside(ISymbol symbol)
     {
-        string name = value?.ToDisplayString() ?? string.Empty;
-        return name == "System.Threading" || name.StartsWith("System.Threading.", StringComparison.Ordinal);
+        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
+        INamedTypeSymbol? type = symbol.ContainingType;
+        if (namespaceName == "System.IO.Enumeration")
+        {
+            return type?.Name == "FileSystemName";
+        }
+
+        if (namespaceName != "System.IO")
+        {
+            return false;
+        }
+
+        // GetRandomFileName is exempt here so CAP105 reports it as ambient randomness instead.
+        if (type?.Name == "Path")
+        {
+            return !IsAmbientPath(symbol);
+        }
+
+        if (type?.Name is "MemoryStream" or "StringReader" or "StringWriter" or "BufferedStream"
+            or "Stream" or "TextReader" or "TextWriter")
+        {
+            return true;
+        }
+
+        // A reader or writer over a stream is only as external as that stream, which is judged
+        // where it is created; one opened from a path opens the file itself.
+        return type?.Name is "BinaryReader" or "BinaryWriter" or "StreamReader" or "StreamWriter"
+            && (symbol is not IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
+                || constructor.Parameters.Length == 0
+                || constructor.Parameters[0].Type.SpecialType != SpecialType.System_String);
     }
+
+    private static bool IsAmbientPath(ISymbol symbol)
+    {
+        if (symbol is IFieldSymbol)
+        {
+            return symbol.Name is "DirectorySeparatorChar" or "AltDirectorySeparatorChar"
+                or "VolumeSeparatorChar" or "PathSeparator";
+        }
+
+        return symbol is IMethodSymbol method
+            && (method.Name is "Exists" or "GetTempFileName" or "GetTempPath"
+                or "GetInvalidFileNameChars" or "GetInvalidPathChars"
+                || (method.Name == "GetFullPath" && method.Parameters.Length == 1));
+    }
+
+    private static bool IsConcurrency(ISymbol symbol)
+    {
+        INamedTypeSymbol? type = symbol.ContainingType;
+        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
+        if (namespaceName == "System.Timers")
+        {
+            return type?.Name == "Timer";
+        }
+
+        bool threading = namespaceName == "System.Threading"
+            || namespaceName.StartsWith("System.Threading.", StringComparison.Ordinal);
+
+        return threading && !NeitherSchedulesNorBlocks(symbol);
+    }
+
+    private static bool NeitherSchedulesNorBlocks(ISymbol symbol)
+    {
+        INamedTypeSymbol? type = symbol.ContainingType;
+        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
+        if (namespaceName == "System.Threading")
+        {
+            return type?.Name is "Interlocked" or "Volatile" or "CancellationToken" or "CancellationTokenSource";
+        }
+
+        // Every other Task member either queues work or waits on it; construction does both.
+        return namespaceName == "System.Threading.Tasks"
+            && type?.Name == "Task"
+            && symbol.Name is "FromResult" or "CompletedTask" or "FromException" or "FromCanceled"
+                or "WhenAll" or "WhenAny";
+    }
+
+    private static bool IsNativeImportAttribute(INamedTypeSymbol? type) =>
+        type?.Name is "DllImportAttribute" or "LibraryImportAttribute"
+        && type.ContainingNamespace.ToDisplayString() == "System.Runtime.InteropServices";
 
     private static bool IsAmbientTime(ISymbol symbol)
     {
@@ -260,6 +393,9 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static bool IsAmbientRandom(ISymbol symbol) =>
         IsSystemType(symbol.ContainingType, "Random")
+        || (symbol.ContainingType?.Name == "Path"
+            && symbol.ContainingNamespace.ToDisplayString() == "System.IO"
+            && symbol.Name == "GetRandomFileName")
         || (IsSystemType(symbol.ContainingType, "Guid") && symbol.Name == "NewGuid")
         || (symbol.ContainingType?.Name == "RandomNumberGenerator"
             && symbol.ContainingNamespace.ToDisplayString() == "System.Security.Cryptography");

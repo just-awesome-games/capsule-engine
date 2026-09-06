@@ -62,6 +62,136 @@ public sealed class GameBoundaryAnalyzerTests
         Assert.Empty(diagnostics);
     }
 
+    [Fact]
+    public async Task Logic_rejects_locks_native_imports_and_property_based_io()
+    {
+        const string source = """
+            using System.IO;
+            using System.Runtime.InteropServices;
+            using System.Threading;
+
+            public static partial class Logic
+            {
+                private static readonly object Gate = new();
+
+                [DllImport("native")]
+                private static extern int ReadNative();
+
+                [LibraryImport("native")]
+                private static partial int ReadGenerated();
+
+                public static long Read(FileInfo file)
+                {
+                    lock (Gate) { }
+                    Monitor.Enter(Gate);
+                    return file.Length;
+                }
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId));
+    }
+
+    [Fact]
+    public async Task Logic_accepts_in_memory_io_and_non_scheduling_threading_helpers()
+    {
+        const string source = """
+            using System.IO;
+            using System.Threading;
+
+            public static class Logic
+            {
+                private static int value;
+
+                public static string Run()
+                {
+                    using MemoryStream stream = new();
+                    stream.WriteByte(42);
+                    stream.Position = 0;
+                    using StringWriter writer = new();
+                    writer.Write(Path.Combine("maps", "room"));
+                    Interlocked.Increment(ref value);
+                    CancellationToken.None.ThrowIfCancellationRequested();
+                    return writer.ToString();
+                }
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Logic_classifies_path_enumeration_and_timer_operations_by_behavior()
+    {
+        const string source = """
+            using System.IO;
+            using System.IO.Enumeration;
+            using System.Timers;
+
+            public static class Logic
+            {
+                public static (string Path, bool Matches) Run()
+                {
+                    _ = Path.GetTempFileName();
+                    _ = Path.GetTempPath();
+                    _ = Path.GetFullPath("save.dat");
+                    _ = Path.GetInvalidFileNameChars();
+                    _ = Path.GetInvalidPathChars();
+                    _ = Path.Exists("save.dat");
+                    _ = Path.GetRandomFileName();
+                    _ = Path.DirectorySeparatorChar;
+                    _ = Path.AltDirectorySeparatorChar;
+                    _ = Path.VolumeSeparatorChar;
+                    _ = Path.PathSeparator;
+                    using Timer timer = new();
+                    return (
+                        Path.GetFullPath("save.dat", "/game"),
+                        FileSystemName.MatchesSimpleExpression("*.dat", "save.dat"));
+                }
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Equal(10, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId);
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId);
+    }
+
+    // Sub-namespaces and members no denylist anticipated stay closed by default.
+    [Fact]
+    public async Task Logic_rejects_unlisted_io_namespaces_and_blocking_task_use()
+    {
+        const string source = """
+            using System.IO.Compression;
+            using System.IO.MemoryMappedFiles;
+            using System.Threading.Channels;
+            using System.Threading.Tasks;
+
+            public static class Logic
+            {
+                public static void Run()
+                {
+                    ZipFile.ExtractToDirectory("pack.zip", "out");
+                    _ = MemoryMappedFile.CreateFromFile("save.dat");
+                    _ = Channel.CreateUnbounded<int>();
+                    Task task = new(() => { });
+                    task.Wait();
+                }
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId));
+    }
+
     // CAP105 closes the ambient APIs, so the seam it leaves open has to stay open.
     [Fact]
     public async Task Logic_accepts_the_seeded_random_source_reached_through_the_scene()
@@ -109,6 +239,32 @@ public sealed class GameBoundaryAnalyzerTests
 
         // Three method groups, and the Random.Shared read one of them is taken from.
         Assert.Equal(4, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
+    }
+
+    [Fact]
+    public async Task Logic_rejects_blocked_operations_taken_as_method_groups()
+    {
+        const string source = """
+            using System;
+            using System.Diagnostics;
+            using System.IO;
+            using System.Threading;
+
+            public static class Logic
+            {
+                public static Func<string, bool> Io() => File.Exists;
+                public static Action<object> Concurrency() => Monitor.Enter;
+                public static Func<long> Time() => Stopwatch.GetTimestamp;
+                public static Func<Guid> Random() => Guid.NewGuid;
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId);
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId);
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientTimeId);
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId);
     }
 
     // System.Random's seeded sequence is not stable across runtime versions.
