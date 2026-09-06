@@ -175,6 +175,7 @@ internal static class SpriteRegistrySource
             // every entity playing it reads one instance.
             source.Append(member).Append("public static ").Append(ClipType).Append(' ')
                 .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(ClipType).AppendLine("(");
+            source.Append(member).Append("    ").Append(Literal(clip.Name)).AppendLine(",");
             source.Append(member).Append("    new ").Append(SpriteType).Append("[] { ");
             for (int j = 0; j < clip.Frames.Count; j++)
             {

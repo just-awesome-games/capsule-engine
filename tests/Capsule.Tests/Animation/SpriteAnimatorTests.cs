@@ -14,14 +14,15 @@ public sealed class SpriteAnimatorTests
     private static readonly TextureHandle Sheet = new("player", ".png");
 
     private static readonly SpriteClip Walk = new(
+        "walk",
         [Frame(0), Frame(1), Frame(2)],
         [2, 2, 2],
         loop: true);
 
-    private static readonly SpriteClip Land = new([Frame(3), Frame(4)], [1, 1]);
+    private static readonly SpriteClip Land = new("land", [Frame(3), Frame(4)], [1, 1]);
 
     // A one-tick first frame is the case a step that advanced too early would erase entirely.
-    private static readonly SpriteClip Blink = new([Frame(5), Frame(6)], [1, 3]);
+    private static readonly SpriteClip Blink = new("blink", [Frame(5), Frame(6)], [1, 3]);
 
     [Fact]
     public void PlayingDrawsTheFirstFrameBeforeAnyStepRuns()

@@ -40,7 +40,7 @@ internal static class CrowdWorkload
         new(Atlas, new TextureRegion(48, 0, 16, 24)),
     ];
 
-    private static readonly SpriteClip Clip = new(Walk, [4, 4, 4, 4], loop: true);
+    private static readonly SpriteClip Clip = new("walk", Walk, [4, 4, 4, 4], loop: true);
 
     private static readonly TileDefinition[] Palette =
     [

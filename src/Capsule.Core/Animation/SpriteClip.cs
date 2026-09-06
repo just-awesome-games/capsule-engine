@@ -17,16 +17,23 @@ public sealed class SpriteClip
     private readonly Sprite[] _frames;
     private readonly int[] _frameTicks;
 
+    /// <param name="name">
+    /// What the clip is called; the sheet's authored name for a generated clip. Identity is still
+    /// the instance — two clips may share a name — and this is what a diagnostic reads it out as.
+    /// </param>
     /// <param name="frames">The frames in play order; at least one.</param>
     /// <param name="frameTicks">
     /// How many fixed steps each frame is held for, one per frame and every one positive.
     /// </param>
     /// <param name="loop">Whether the last frame wraps back to the first instead of finishing.</param>
     /// <exception cref="ArgumentException">
-    /// There are no frames, the two runs differ in length, or a duration is not positive.
+    /// The name is null or blank, there are no frames, the two runs differ in length, or a
+    /// duration is not positive.
     /// </exception>
-    public SpriteClip(ReadOnlySpan<Sprite> frames, ReadOnlySpan<int> frameTicks, bool loop = false)
+    public SpriteClip(string name, ReadOnlySpan<Sprite> frames, ReadOnlySpan<int> frameTicks, bool loop = false)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
         if (frames.IsEmpty)
         {
             throw new ArgumentException("a clip has at least one frame.", nameof(frames));
@@ -49,10 +56,14 @@ public sealed class SpriteClip
             }
         }
 
+        Name = name;
         _frames = frames.ToArray();
         _frameTicks = frameTicks.ToArray();
         Loop = loop;
     }
+
+    /// <summary>What the clip is called; never blank, and not an identity.</summary>
+    public string Name { get; }
 
     /// <summary>Whether the clip wraps from its last frame back to its first.</summary>
     public bool Loop { get; }
