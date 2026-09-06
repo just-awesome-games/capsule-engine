@@ -41,9 +41,6 @@ public sealed class StateTrace
 
     private int _nextOrdinal;
 
-    /// <summary>Rows recorded so far, across every scene the trace has spanned.</summary>
-    public int Count => _rows.Count;
-
     /// <summary>
     /// Writes the header row and every row recorded so far, each line terminated with <c>\n</c> in
     /// the invariant culture. A field holding a comma, a quote or a newline is quoted per RFC 4180.
