@@ -8,8 +8,9 @@ namespace Capsule.Input;
 //   line   := repeat (' ' token)*
 //   repeat := a decimal count of consecutive identical steps, at least 1
 //   token  := key | "Pad." pad-button | "Axis." axis '=' value
+//   key    := a Key name, or "Key." and the decimal value of one the enum does not name
 //
-// Tokens are written in enum order — keys, then pad buttons, then axes — so the same tape always
+// Tokens are written in value order — keys, then pad buttons, then axes — so the same tape always
 // produces the same bytes; they are read in any order. An axis at rest is written as no token.
 internal static class InputTapeText
 {
@@ -17,35 +18,48 @@ internal static class InputTapeText
 
     private const char Separator = ' ';
     private const char Assign = '=';
+    private const string KeyPrefix = "Key.";
     private const string PadPrefix = "Pad.";
     private const string AxisPrefix = "Axis.";
 
-    // None is the empty set on each enum, never a member, so it is written and read by no token.
-    private static readonly Key[] Keys = Without(Enum.GetValues<Key>(), Key.None);
-    private static readonly PadButton[] PadButtons = Without(Enum.GetValues<PadButton>(), PadButton.None);
-    private static readonly PadAxis[] Axes = Without(Enum.GetValues<PadAxis>(), PadAxis.None);
+    // One token per value DeviceSnapshot can hold, indexed by that value, so the text is total over
+    // what a snapshot accepts: a value the enum does not name is written in its decimal form.
+    private static readonly string[] KeyTokens = Tokens<Key>(DeviceSnapshot.Capacity, string.Empty, KeyPrefix);
+    private static readonly string[] PadTokens = Tokens<PadButton>(DeviceSnapshot.PadCapacity, PadPrefix, PadPrefix);
 
-    private static readonly Dictionary<string, Key> KeysByName = ByName(Keys);
-    private static readonly Dictionary<string, PadButton> PadButtonsByName = ByName(PadButtons);
+    // Index 0 is None on each enum: the empty set, never a member, so it is read by no token.
+    private static readonly Dictionary<string, int> KeyValuesByToken = ByToken(KeyTokens);
+    private static readonly Dictionary<string, int> PadValuesByToken = ByToken(PadTokens);
+
+    private static readonly Dictionary<string, int>.AlternateLookup<ReadOnlySpan<char>> KeyValues =
+        KeyValuesByToken.GetAlternateLookup<ReadOnlySpan<char>>();
+
+    private static readonly Dictionary<string, int>.AlternateLookup<ReadOnlySpan<char>> PadValues =
+        PadValuesByToken.GetAlternateLookup<ReadOnlySpan<char>>();
+
+    private static readonly PadAxis[] Axes = Without(Enum.GetValues<PadAxis>(), PadAxis.None);
     private static readonly Dictionary<string, PadAxis> AxesByName = ByName(Axes);
+
+    private static readonly Dictionary<string, PadAxis>.AlternateLookup<ReadOnlySpan<char>> AxisValues =
+        AxesByName.GetAlternateLookup<ReadOnlySpan<char>>();
 
     internal static void WriteLine(StringBuilder builder, in DeviceSnapshot snapshot, int repeat)
     {
         builder.Append(repeat.ToString(CultureInfo.InvariantCulture));
 
-        foreach (Key key in Keys)
+        for (int value = 1; value < KeyTokens.Length; value++)
         {
-            if (snapshot.IsDown(key))
+            if (snapshot.IsDown((Key)value))
             {
-                builder.Append(Separator).Append(key.ToString());
+                builder.Append(Separator).Append(KeyTokens[value]);
             }
         }
 
-        foreach (PadButton button in PadButtons)
+        for (int value = 1; value < PadTokens.Length; value++)
         {
-            if (snapshot.IsDown(button))
+            if (snapshot.IsDown((PadButton)value))
             {
-                builder.Append(Separator).Append(PadPrefix).Append(button.ToString());
+                builder.Append(Separator).Append(PadTokens[value]);
             }
         }
 
@@ -81,9 +95,14 @@ internal static class InputTapeText
         }
 
         DeviceSnapshot snapshot = DeviceSnapshot.Empty;
+
+        // Axes are tracked apart from the snapshot: an axis placed at rest leaves no trace in it,
+        // and would otherwise be assignable a second time.
+        int axesPlaced = 0;
+
         while (tokens.MoveNext())
         {
-            snapshot = Apply(snapshot, tokens.Current, number);
+            snapshot = Apply(snapshot, ref axesPlaced, tokens.Current, number);
         }
 
         for (int i = 0; i < repeat; i++)
@@ -92,20 +111,21 @@ internal static class InputTapeText
         }
     }
 
-    private static DeviceSnapshot Apply(in DeviceSnapshot snapshot, ReadOnlySpan<char> token, int number)
+    private static DeviceSnapshot Apply(in DeviceSnapshot snapshot, ref int axesPlaced, ReadOnlySpan<char> token, int number)
     {
         if (token.StartsWith(AxisPrefix, StringComparison.Ordinal))
         {
-            return ApplyAxis(snapshot, token[AxisPrefix.Length..], number);
+            return ApplyAxis(snapshot, ref axesPlaced, token[AxisPrefix.Length..], number);
         }
 
         if (token.StartsWith(PadPrefix, StringComparison.Ordinal))
         {
-            if (!PadButtonsByName.TryGetValue(token[PadPrefix.Length..].ToString(), out PadButton button))
+            if (!PadValues.TryGetValue(token, out int value))
             {
                 throw Malformed(number, $"'{token}' names no pad button.");
             }
 
+            PadButton button = (PadButton)value;
             if (snapshot.IsDown(button))
             {
                 throw Malformed(number, $"'{token}' is held twice.");
@@ -114,11 +134,12 @@ internal static class InputTapeText
             return snapshot.With(button);
         }
 
-        if (!KeysByName.TryGetValue(token.ToString(), out Key key))
+        if (!KeyValues.TryGetValue(token, out int keyValue))
         {
             throw Malformed(number, $"'{token}' names no key, and is prefixed '{PadPrefix}' for no pad button and '{AxisPrefix}' for no axis.");
         }
 
+        Key key = (Key)keyValue;
         if (snapshot.IsDown(key))
         {
             throw Malformed(number, $"'{token}' is held twice.");
@@ -127,7 +148,7 @@ internal static class InputTapeText
         return snapshot.With(key);
     }
 
-    private static DeviceSnapshot ApplyAxis(in DeviceSnapshot snapshot, ReadOnlySpan<char> token, int number)
+    private static DeviceSnapshot ApplyAxis(in DeviceSnapshot snapshot, ref int axesPlaced, ReadOnlySpan<char> token, int number)
     {
         int assign = token.IndexOf(Assign);
         if (assign < 0)
@@ -135,7 +156,7 @@ internal static class InputTapeText
             throw Malformed(number, $"'{AxisPrefix}{token}' carries no '{Assign}' and its value.");
         }
 
-        if (!AxesByName.TryGetValue(token[..assign].ToString(), out PadAxis axis))
+        if (!AxisValues.TryGetValue(token[..assign], out PadAxis axis))
         {
             throw Malformed(number, $"'{AxisPrefix}{token[..assign]}' names no axis.");
         }
@@ -145,10 +166,13 @@ internal static class InputTapeText
             throw Malformed(number, $"'{token[(assign + 1)..]}' is no axis value.");
         }
 
-        if (snapshot.Axis(axis) != 0f)
+        int placed = 1 << (int)axis;
+        if ((axesPlaced & placed) != 0)
         {
             throw Malformed(number, $"'{AxisPrefix}{token[..assign]}' is placed twice.");
         }
+
+        axesPlaced |= placed;
 
         try
         {
@@ -162,6 +186,41 @@ internal static class InputTapeText
 
     private static FormatException Malformed(int number, string reason) =>
         new($"Input tape line {number}: {reason}");
+
+    private static string[] Tokens<TEnum>(int capacity, string named, string unnamed)
+        where TEnum : struct, Enum
+    {
+        string[] tokens = new string[capacity];
+
+        TEnum[] values = Enum.GetValues<TEnum>();
+        string[] names = Enum.GetNames<TEnum>();
+        for (int i = 0; i < values.Length; i++)
+        {
+            int value = Convert.ToInt32(values[i], CultureInfo.InvariantCulture);
+            if (value >= 0 && value < capacity)
+            {
+                tokens[value] = named + names[i];
+            }
+        }
+
+        for (int value = 0; value < capacity; value++)
+        {
+            tokens[value] ??= unnamed + value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return tokens;
+    }
+
+    private static Dictionary<string, int> ByToken(string[] tokens)
+    {
+        Dictionary<string, int> byToken = new(tokens.Length - 1, StringComparer.Ordinal);
+        for (int value = 1; value < tokens.Length; value++)
+        {
+            byToken.Add(tokens[value], value);
+        }
+
+        return byToken;
+    }
 
     private static TEnum[] Without<TEnum>(TEnum[] values, TEnum excluded)
         where TEnum : struct, Enum =>

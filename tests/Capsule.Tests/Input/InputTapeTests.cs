@@ -48,6 +48,22 @@ public sealed class InputTapeTests
         Assert.Equal(tape, parsed);
     }
 
+    // A snapshot accepts every value below its capacity, named by the enum or not, so the text has
+    // to carry the unnamed ones too or a round trip would silently drop them.
+    [Fact]
+    public void ToText_RoundTripsValuesTheEnumsDoNotName()
+    {
+        InputTape tape = InputTape.Of(
+            DeviceSnapshot.Empty
+                .With((Key)(DeviceSnapshot.Capacity - 1))
+                .With((PadButton)(DeviceSnapshot.PadCapacity - 1)));
+
+        string text = tape.ToText();
+
+        Assert.Equal("1 Key.127 Pad.31\n", text);
+        Assert.Equal(tape, InputTape.Parse(text));
+    }
+
     [Fact]
     public void ToText_OfAnEmptyTape_IsEmptyText()
     {
@@ -84,6 +100,9 @@ public sealed class InputTapeTests
     [InlineData("1 Axis.LeftTrigger=-0.5\n", 1)]
     [InlineData("1 A A\n", 1)]
     [InlineData("1 Axis.LeftStickX=0.5 Axis.LeftStickX=0.5\n", 1)]
+    [InlineData("1 Axis.LeftStickX=0 Axis.LeftStickX=1\n", 1)]
+    [InlineData("1 Key.128\n", 1)]
+    [InlineData("1 Pad.32\n", 1)]
     public void Parse_OfAMalformedLine_NamesItsNumber(string text, int line)
     {
         FormatException failure = Assert.Throws<FormatException>(() => InputTape.Parse(text));
