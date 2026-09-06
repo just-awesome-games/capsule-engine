@@ -72,10 +72,16 @@ internal sealed class SceneEntryJson
     [JsonIgnore]
     public bool HasScale { get; private set; }
 
+    // Absent on an unbanded entry; WhenWritingNull keeps it out. Nullable only so an omitted band
+    // and an authored 0 write back the same way, which the canonical form requires.
+    [JsonPropertyName("zIndex")]
+    [JsonPropertyOrder(5)]
+    public int? ZIndex { get; set; }
+
     // Raw JSON, not a member of this shape: properties are a contract per entry type. The reader
     // deserializes the tile-map's against TileGridJson and rejects properties on any other type.
     [JsonPropertyName("properties")]
-    [JsonPropertyOrder(5)]
+    [JsonPropertyOrder(6)]
     public JsonElement? Properties { get; set; }
 }
 

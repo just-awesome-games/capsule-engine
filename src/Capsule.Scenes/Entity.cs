@@ -77,6 +77,28 @@ public class Entity
     /// </summary>
     public Vector2 PreviousPosition { get; internal set; }
 
+    /// <summary>
+    /// The band this entity draws in: an ordering key, never a coordinate, and nothing else reads
+    /// it. Higher draws later, so it covers what drew before it; entities sharing a band keep the
+    /// order the scene took them in. Each attached <see cref="Rendering.Renderer"/> draws at this
+    /// plus its own <see cref="Rendering.Renderer.ZIndex"/>. Zero by default.
+    /// </summary>
+    public int ZIndex
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            Scene?.InvalidateRenderers();
+        }
+    }
+
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
 

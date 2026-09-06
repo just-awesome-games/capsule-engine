@@ -37,6 +37,10 @@ public class Scene
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
+    // Sort keys for the list above, retained across rebuilds so a banded scene does not allocate
+    // one per rebuild. Only the first _renderers.Count entries mean anything.
+    private long[] _rendererKeys = [];
+
     // What composing this scene's document asked for: its grids' textures, and the groups the
     // build derived for every spawn type it placed. The class's own groups join at DeclareTextures.
     private readonly List<TextureHandle> _composedTextures = [];
@@ -76,7 +80,7 @@ public class Scene
         {
             if (entry.TileMap is { } tileMap)
             {
-                TileMap tiles = new(tileMap.Grid);
+                TileMap tiles = new(tileMap.Grid) { ZIndex = tileMap.ZIndex };
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
 
@@ -89,11 +93,16 @@ public class Scene
             {
                 content.Entities.TexturesFor(placed.Type)?.Invoke(_composedTextures);
 
-                Add(content.Entities.Create(new EntitySpawn(
+                Entity spawned = content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
                     new Vector2(placed.X, placed.Y),
-                    new Vector2(placed.ScaleX, placed.ScaleY))));
+                    new Vector2(placed.ScaleX, placed.ScaleY)));
+
+                // After construction, so the authored band is what the entity ends up in whatever
+                // its constructor set.
+                spawned.ZIndex = placed.ZIndex;
+                Add(spawned);
             }
         }
     }
@@ -511,7 +520,8 @@ public class Scene
         return true;
     }
 
-    // Draw order is entity order, then component attachment order.
+    // Draw order is the entity's ZIndex plus the renderer's, then entity order, then component
+    // attachment order. Sorted when the list or a key changes, never per step.
     internal ReadOnlySpan<Renderer> RenderersInDrawOrder()
     {
         if (_renderersStale)
@@ -870,17 +880,49 @@ public class Scene
     {
         _renderers.Clear();
 
+        bool banded = false;
         foreach (Entity entity in Entities)
         {
+            int band = entity.ZIndex;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)
                 {
+                    banded |= band + renderer.ZIndex != 0;
                     _renderers.Add(renderer);
                 }
             }
         }
 
         _renderersStale = false;
+
+        // The walk yields entity order and then attachment order, which is exactly what an equal
+        // key keeps, so a scene that bands nothing is already in draw order.
+        if (banded)
+        {
+            SortRenderers();
+        }
+    }
+
+    // Each key carries its renderer's walk position in its low half, so no two keys are equal and
+    // the runtime's unstable sort lands where a stable one would.
+    private void SortRenderers()
+    {
+        int count = _renderers.Count;
+        if (_rendererKeys.Length < count)
+        {
+            Array.Resize(ref _rendererKeys, Math.Max(count, _rendererKeys.Length * 2));
+        }
+
+        Span<Renderer> renderers = CollectionsMarshal.AsSpan(_renderers);
+        Span<long> keys = _rendererKeys.AsSpan(0, count);
+        for (int index = 0; index < count; index++)
+        {
+            Renderer renderer = renderers[index];
+            long key = renderer.Entity!.ZIndex + renderer.ZIndex;
+            keys[index] = (key << 32) | (uint)index;
+        }
+
+        keys.Sort(renderers);
     }
 }

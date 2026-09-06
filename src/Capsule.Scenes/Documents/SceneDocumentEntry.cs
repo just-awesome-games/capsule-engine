@@ -19,6 +19,7 @@ public readonly record struct SceneDocumentEntry
         Y = entity.Y;
         _scaleX = entity.ScaleX;
         _scaleY = entity.ScaleY;
+        ZIndex = entity.ZIndex;
         _type = entity.Type;
         _grid = null;
     }
@@ -33,6 +34,7 @@ public readonly record struct SceneDocumentEntry
         // A tile map is anchored and unscaled; identity keeps it out of every scale check.
         _scaleX = 1f;
         _scaleY = 1f;
+        ZIndex = tileMap.ZIndex;
         _type = null;
         _grid = tileMap.Grid;
     }
@@ -46,13 +48,16 @@ public readonly record struct SceneDocumentEntry
     /// <summary>The entry's authored world-space Y coordinate.</summary>
     public float Y { get; }
 
+    /// <summary>The entry's authored draw band; 0 is the unbanded default.</summary>
+    public int ZIndex { get; }
+
     /// <summary>The game-defined entity placement, or null when this is a tile map.</summary>
     public EntityPlacement? Entity =>
-        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY) : null;
+        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY, ZIndex) : null;
 
     /// <summary>The engine-native tile-map placement, or null when this is a game entity.</summary>
     public TileMapPlacement? TileMap =>
-        _kind == EntryKind.TileMap ? new TileMapPlacement(Id, _grid!) : null;
+        _kind == EntryKind.TileMap ? new TileMapPlacement(Id, _grid!, ZIndex) : null;
 
     /// <summary>Wraps a game-defined entity placement as an ordered document entry.</summary>
     public static implicit operator SceneDocumentEntry(EntityPlacement entity) => new(entity);
