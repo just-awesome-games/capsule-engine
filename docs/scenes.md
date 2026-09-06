@@ -32,11 +32,11 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 4 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
+`SceneDocumentFile` reads and writes format version 5 as two-space-indented UTF-8 JSON with LF endings and one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform list of entries:
 
 ```json
 {
-  "formatVersion": 4,
+  "formatVersion": 5,
   "entities": [
     {
       "id": 1,
@@ -55,18 +55,20 @@ Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestS
           { "type": "ledge", "cell": 2, "layer": "ledge", "collidableFaces": ["top"] }
         ],
         "tiles": [0, 1]
-      }
+      },
+      "zIndex": -10
     },
     { "id": 2, "type": "coin", "x": 8, "y": 0 },
-    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3] }
+    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3], "zIndex": 10 }
   ],
   "nextEntityId": 4
 }
 ```
 
 - `formatVersion` is required and must be supported.
-- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `scale` and then `properties` follow where the entry carries them.
+- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `scale`, `zIndex` and then `properties` follow where the entry carries them.
 - `scale` is `[x, y]`, both components finite and greater than zero. Absent is identity, which is what the writer emits for an entry at its authored size. It is the raw authored factor: what it scales — a sprite, a collider through `Shape2D.Scaled`, or nothing — is the entity's constructor's decision. A `scale` on the `tile-map` entry is rejected, since terrain is anchored and unscaled.
+- `zIndex` is the entry's draw band, applied to the spawned entity's `ZIndex` after it is constructed. It is an ordering key, not a coordinate. What draws later is the higher sum of an entry's band and the renderer's own offset within it, and renderers whose sums are equal draw in file order and then in attachment order within an entry. Absent leaves the band the entity class gave itself, so the class owns the default; a value present in the document overrides it, and `0` is such a value — an authored `0` bands the entity at 0 even where its class would have chosen otherwise. The writer keeps that distinction, emitting the field only where the entry authors one. Both entry types carry it, and a tile map's is the band every one of its tiles draws in.
 - IDs are unique, positive, and lower than `nextEntityId`, across every entry. Deleted IDs are not reused.
 - `entities` may be empty: that is a valid empty scene.
 - A `source` block records tool, relative source path, and SHA-256 of the source closure. Its presence marks a derived file, so an authoring source omits it.
@@ -89,7 +91,7 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 ### Entries and composition
 
-`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin and file order determines draw order. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and `[SpawnType("key")]` names another whole key. That key is the type's namespace under the assembly's root namespace, minus a leading `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`. A type outside the root namespace claims its kebab-cased name alone. A type no class claims fails the scene at load.
+`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin, and draw order is the sum of each entry's `zIndex` and the drawing component's own offset, over file order where those sums are equal. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and `[SpawnType("key")]` names another whole key. That key is the type's namespace under the assembly's root namespace, minus a leading `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`. A type outside the root namespace claims its kebab-cased name alone. A type no class claims fails the scene at load.
 
 ## From source to game
 

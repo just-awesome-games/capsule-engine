@@ -14,7 +14,7 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -87,7 +87,7 @@ public static class SceneDocumentFile
             }
 
             Scale(entry, i, out float scaleX, out float scaleY);
-            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY);
+            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex);
         }
 
         return new SceneDocument(documentEntries, file.NextEntityId, ToSource(file.Source));
@@ -114,6 +114,7 @@ public static class SceneDocumentFile
                     Type = SceneDocument.TileMapType,
                     X = entry.X,
                     Y = entry.Y,
+                    ZIndex = tileMap.ZIndex,
                     Properties = JsonSerializer.SerializeToElement(
                         ToJson(tileMap.Grid),
                         SceneDocumentJsonContext.Default.TileGridJson),
@@ -133,6 +134,7 @@ public static class SceneDocumentFile
                     Scale = placed.ScaleX == 1f && placed.ScaleY == 1f
                         ? null
                         : [placed.ScaleX, placed.ScaleY],
+                    ZIndex = placed.ZIndex,
                 };
             }
             else
@@ -228,7 +230,7 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry declares no properties; its grid — tileSize, width, height, tileTypes, tiles, and the texture and columns a drawn grid adds — is written there.");
         }
 
-        return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)));
+        return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)), entry.ZIndex);
     }
 
     private static TileGridJson DeserializeGrid(JsonElement properties)

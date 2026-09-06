@@ -29,14 +29,14 @@ public sealed class SceneDocumentFileTests
             () => SceneDocumentFile.Parse(json));
 
         Assert.Contains(expectedMessage, error.Message, StringComparison.Ordinal);
-        Assert.Contains("supports formatVersion 4", error.Message, StringComparison.Ordinal);
+        Assert.Contains("supports formatVersion 5", error.Message, StringComparison.Ordinal);
     }
 
     // An explicit null arrives as a null the property's own initializer never answers for, so an
     // omitted list passing says nothing about this one.
     [Theory]
-    [InlineData("""{"formatVersion": 4, "nextEntityId": 1}""")]
-    [InlineData("""{"formatVersion": 4, "entities": null, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 5, "nextEntityId": 1}""")]
+    [InlineData("""{"formatVersion": 5, "entities": null, "nextEntityId": 1}""")]
     public void Parse_RejectsADocumentWithNoEntities(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -51,7 +51,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 4,
+              "formatVersion": 5,
               "entities": [
                 {
                   "id": 1,
@@ -71,10 +71,76 @@ public sealed class SceneDocumentFileTests
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 
+    // A band is the one field both entry types carry, and an unbanded entry carries none.
+    [Fact]
+    public void AnAuthoredBand_RoundTripsOnBothEntryTypes()
+    {
+        string json = """
+            {
+              "formatVersion": 5,
+              "entities": [
+                {
+                  "id": 1,
+                  "type": "tile-map",
+                  "x": 0,
+                  "y": 0,
+                  "zIndex": -20,
+                  "properties": {
+                    "tileSize": 16,
+                    "width": 1,
+                    "height": 1,
+                    "tileTypes": [
+                      {
+                        "type": "empty"
+                      }
+                    ],
+                    "tiles": [
+                      0
+                    ]
+                  }
+                },
+                {
+                  "id": 2,
+                  "type": "coin",
+                  "x": 8,
+                  "y": 0,
+                  "zIndex": 7
+                },
+                {
+                  "id": 3,
+                  "type": "coin",
+                  "x": 0,
+                  "y": 0,
+                  "zIndex": 0
+                },
+                {
+                  "id": 4,
+                  "type": "coin",
+                  "x": 0,
+                  "y": 0
+                }
+              ],
+              "nextEntityId": 5
+            }
+
+            """.ReplaceLineEndings("\n");
+
+        SceneDocument document = SceneDocumentFile.Parse(json);
+
+        Assert.Equal(-20, document.Entries[0].TileMap!.Value.ZIndex);
+        Assert.Equal(new EntityPlacement(2, "coin", 8f, 0f, ZIndex: 7), document.Entries[1].Entity);
+
+        // An authored 0 is a band, an absent field is no band, and the two survive the round trip
+        // as the different documents they are.
+        Assert.Equal(0, document.Entries[2].ZIndex);
+        Assert.Null(document.Entries[3].ZIndex);
+        Assert.Equal(json, SceneDocumentFile.ToJson(document));
+    }
+
     [Fact]
     public void ADocumentWithNoEntries_IsAnEmptyScene()
     {
-        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 4, "entities": [], "nextEntityId": 1}""");
+        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 5, "entities": [], "nextEntityId": 1}""");
 
         Assert.Empty(document.Entries.ToArray());
     }
@@ -84,7 +150,7 @@ public sealed class SceneDocumentFileTests
     {
         string json = """
             {
-              "formatVersion": 4,
+              "formatVersion": 5,
               "entities": [
                 { "id": 1, "type": "coin", "x": 0, "y": 0 },
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
@@ -123,8 +189,8 @@ public sealed class SceneDocumentFileTests
     }
 
     [Theory]
-    [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
-    [InlineData("""{"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 5, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""")]
+    [InlineData("""{"formatVersion": 5, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""")]
     public void Parse_RejectsATileMapEntryWithMissingOrNullProperties(string json)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
@@ -140,7 +206,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
+                {"formatVersion": 5, "entities": [{"id": 1, "type": "tile-map", "x": 8, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -274,7 +340,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$$"""
-                {"formatVersion": 4, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 5, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1, "columns": {{{columns}}},
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -346,7 +412,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse("""
-                {"formatVersion": 4, "entities": [{"type": "tile-map", "x": 0, "y": 0,
+                {"formatVersion": 5, "entities": [{"type": "tile-map", "x": 0, "y": 0,
                   "properties": {"tileSize": 16, "width": 1, "height": 1,
                                  "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
                 """));
@@ -392,7 +458,7 @@ public sealed class SceneDocumentFileTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 4,",
+            "  \"formatVersion\": 5,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -587,7 +653,7 @@ public sealed class SceneDocumentFileTests
         string scale = "") =>
         $$"""
         {
-          "formatVersion": 4,
+          "formatVersion": 5,
           "entities": [
             {
               "id": 1,

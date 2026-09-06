@@ -109,21 +109,28 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
-        // Drawing runs past EndStep, so a Draw that detaches a renderer or removes an entity
-        // reaches the scene directly rather than queueing. The set is re-read each turn against a
-        // cursor: a renderer detached here is no longer part of this frame and must not draw, and
-        // staying at an index whose occupant changed keeps the renderer shifted into it drawing.
-        ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
-        for (int index = 0; index < renderers.Length;)
+        // Drawing runs past EndStep, so a Draw that writes a key, detaches a renderer or removes an
+        // entity reaches the scene directly rather than queueing. The list is frozen for the length
+        // of the traversal and walked once by index: every renderer it holds is offered exactly
+        // once, in the order the frame opened with, and each is checked against the scene before it
+        // draws so one detached or removed by an earlier Draw is skipped. Whatever was invalidated
+        // rebuilds at EndDraw, which is why a renderer attached here first draws next step.
+        Scene.BeginDraw();
+        try
         {
-            Renderer renderer = renderers[index];
-            renderer.Draw(_view);
-
-            renderers = Scene.RenderersInDrawOrder();
-            if (index < renderers.Length && ReferenceEquals(renderers[index], renderer))
+            ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
+            for (int index = 0; index < renderers.Length; index++)
             {
-                index++;
+                Renderer renderer = renderers[index];
+                if (Scene.Draws(renderer))
+                {
+                    renderer.Draw(_view);
+                }
             }
+        }
+        finally
+        {
+            Scene.EndDraw();
         }
     }
 }

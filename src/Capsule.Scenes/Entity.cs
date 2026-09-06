@@ -77,6 +77,31 @@ public class Entity
     /// </summary>
     public Vector2 PreviousPosition { get; internal set; }
 
+    /// <summary>
+    /// The band this entity draws in: an ordering key, never a coordinate, and nothing else reads
+    /// it. Each attached <see cref="Rendering.Renderer"/> draws at this plus its own
+    /// <see cref="Rendering.Renderer.ZIndex"/>, summed as a <see cref="long"/> with neither side
+    /// clamped, and the higher sum draws later. Renderers whose sums are equal keep entity
+    /// insertion order and then attachment order. Zero by default. Written from inside a
+    /// <see cref="Rendering.Renderer.Draw"/> — like any change to what the scene holds — it orders
+    /// the next step's frame rather than the one being drawn.
+    /// </summary>
+    public int ZIndex
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            Scene?.InvalidateRenderers();
+        }
+    }
+
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
 

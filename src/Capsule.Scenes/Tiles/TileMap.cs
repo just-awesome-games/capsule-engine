@@ -9,7 +9,9 @@ namespace Capsule.Scenes.Tiles;
 /// A tile grid anchored at the world origin — its cells are world coordinates, so its
 /// <see cref="Entity.Position"/> cannot be written. It draws every palette entry that names a cell
 /// of the grid's texture and, where any tile type collides, registers one
-/// <see cref="GridCollider2D"/> with the scene's world.
+/// <see cref="GridCollider2D"/> with the scene's world. Every tile draws in the map's own
+/// <see cref="Entity.ZIndex"/> band, so that one value is what puts a grid behind or in front of
+/// what shares the scene with it.
 /// </summary>
 public sealed class TileMap : Entity
 {

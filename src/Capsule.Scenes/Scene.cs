@@ -37,6 +37,10 @@ public class Scene
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
 
+    // Sort keys for the list above, retained across rebuilds so a banded scene does not allocate
+    // one per rebuild. Only the first _renderers.Count entries mean anything.
+    private long[] _rendererKeys = [];
+
     // What composing this scene's document asked for: its grids' textures, and the groups the
     // build derived for every spawn type it placed. The class's own groups join at DeclareTextures.
     private readonly List<TextureHandle> _composedTextures = [];
@@ -52,6 +56,8 @@ public class Scene
 
     private bool _stopped;
     private bool _renderersStale = true;
+    private bool _drawing;
+    private bool _rebuildDeferred;
     private bool _exitRequested;
     private SceneTransition? _transition;
     private TextureSampling? _sampling;
@@ -77,6 +83,11 @@ public class Scene
             if (entry.TileMap is { } tileMap)
             {
                 TileMap tiles = new(tileMap.Grid);
+                if (tileMap.ZIndex is { } band)
+                {
+                    tiles.ZIndex = band;
+                }
+
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
 
@@ -89,11 +100,20 @@ public class Scene
             {
                 content.Entities.TexturesFor(placed.Type)?.Invoke(_composedTextures);
 
-                Add(content.Entities.Create(new EntitySpawn(
+                Entity spawned = content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
                     new Vector2(placed.X, placed.Y),
-                    new Vector2(placed.ScaleX, placed.ScaleY))));
+                    new Vector2(placed.ScaleX, placed.ScaleY)));
+
+                // Only where the placement authors one, and after construction: the class owns the
+                // default, and an authored band — 0 included — is what overrides it.
+                if (placed.ZIndex is { } band)
+                {
+                    spawned.ZIndex = band;
+                }
+
+                Add(spawned);
             }
         }
     }
@@ -511,7 +531,9 @@ public class Scene
         return true;
     }
 
-    // Draw order is entity order, then component attachment order.
+    // Draw order is the entity's ZIndex plus the renderer's, then entity order, then component
+    // attachment order. Sorted when the list or a key changes, never per step, and never while a
+    // frame is being drawn — the traversal is handed this list and walks it to the end.
     internal ReadOnlySpan<Renderer> RenderersInDrawOrder()
     {
         if (_renderersStale)
@@ -522,7 +544,38 @@ public class Scene
         return CollectionsMarshal.AsSpan(_renderers);
     }
 
-    internal void InvalidateRenderers() => _renderersStale = true;
+    // Held back while the frame is being drawn, whether it is a key or the set of renderers that
+    // changed: the traversal walks the list it was handed, so rebuilding under it would drop a
+    // renderer it has not reached or repeat one it has. The rebuild lands at the end of the draw.
+    internal void InvalidateRenderers()
+    {
+        if (_drawing)
+        {
+            _rebuildDeferred = true;
+            return;
+        }
+
+        _renderersStale = true;
+    }
+
+    internal void BeginDraw() => _drawing = true;
+
+    internal void EndDraw()
+    {
+        _drawing = false;
+
+        // Marked, not rebuilt: the next read does it, so a frame nothing reads costs no sort.
+        if (_rebuildDeferred)
+        {
+            _rebuildDeferred = false;
+            _renderersStale = true;
+        }
+    }
+
+    // Whether a renderer from the frozen draw list is still this scene's to draw. An earlier Draw
+    // this frame may have detached it or taken its entity out of the scene, and the frozen list
+    // still holds it.
+    internal bool Draws(Renderer renderer) => renderer.Entity is { } entity && Keeps(entity);
 
     // Held and not on its way out. An entity queued for removal never steps, so it must never
     // start either — nor start the components it holds.
@@ -830,6 +883,7 @@ public class Scene
         _renderers.Clear();
         _contactReporters.Clear();
         _renderersStale = false;
+        _rebuildDeferred = false;
     }
 
     private static void ThrowCleanupFailures(List<Exception>? failures)
@@ -870,17 +924,55 @@ public class Scene
     {
         _renderers.Clear();
 
+        bool banded = false;
         foreach (Entity entity in Entities)
         {
+            long band = entity.ZIndex;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)
                 {
+                    banded |= band + renderer.ZIndex != 0;
                     _renderers.Add(renderer);
                 }
             }
         }
 
         _renderersStale = false;
+
+        // The walk yields entity order and then attachment order, which is exactly what an equal
+        // key keeps, so a scene that bands nothing is already in draw order.
+        if (banded)
+        {
+            SortRenderers();
+        }
     }
+
+    // Each key carries its renderer's walk position in its low bits, so no two keys are equal and
+    // the runtime's unstable sort lands where a stable one would. The widened sum of two ints
+    // spans exactly 33 signed bits, which leaves 31 for the position: a scene of 2^31 or more
+    // renderers would collide two of them and lose the tie-break.
+    private void SortRenderers()
+    {
+        int count = _renderers.Count;
+        if (_rendererKeys.Length < count)
+        {
+            Array.Resize(ref _rendererKeys, Math.Max(count, _rendererKeys.Length * 2));
+        }
+
+        Span<Renderer> renderers = CollectionsMarshal.AsSpan(_renderers);
+        Span<long> keys = _rendererKeys.AsSpan(0, count);
+        for (int index = 0; index < count; index++)
+        {
+            Renderer renderer = renderers[index];
+            keys[index] = (EffectiveKey(renderer) << 31) | (long)index;
+        }
+
+        keys.Sort(renderers);
+    }
+
+    // Widened before the addition: two ints at the far end of their range sum past what an int
+    // holds, and a wrapped key would sort a foreground band under a background one.
+    private static long EffectiveKey(Renderer renderer) =>
+        (long)renderer.Entity!.ZIndex + renderer.ZIndex;
 }
