@@ -1,3 +1,4 @@
+using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
@@ -129,5 +130,16 @@ public sealed class LetterboxTests
     public void FitPixels_IsEmptyForDegenerateGeometry(int contentWidth, int contentHeight, int containerWidth, int containerHeight)
     {
         Assert.True(Letterbox.FitPixels(contentWidth, contentHeight, containerWidth, containerHeight).IsEmpty);
+    }
+
+    [Fact]
+    public void PresentFit_TakesTheWholeScaleForPointAndTheFractionalOneForLinear()
+    {
+        Assert.Equal(
+            Letterbox.FitPixels(320, 180, 1366, 768),
+            FrameRenderer.PresentFit(TextureSampling.Point, 320, 180, 1366, 768));
+        Assert.Equal(
+            Letterbox.Fit(320, 180, 1366, 768),
+            FrameRenderer.PresentFit(TextureSampling.Linear, 320, 180, 1366, 768));
     }
 }

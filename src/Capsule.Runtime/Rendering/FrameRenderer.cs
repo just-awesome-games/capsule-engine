@@ -66,7 +66,7 @@ internal sealed class FrameRenderer : IDisposable
         _device.SetRenderTarget(_target);
         DrawWorld(view, alpha, _target.Width, _target.Height);
         _device.SetRenderTarget(null);
-        Present(_target);
+        Present(_target, view.Sampling);
     }
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
@@ -189,8 +189,8 @@ internal sealed class FrameRenderer : IDisposable
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
-    // Letterboxed a second time, into the back buffer, at a whole scale wherever one fits.
-    private void Present(RenderTarget2D target)
+    // Letterboxed a second time, into the back buffer, on the fit its sampling mode calls for.
+    private void Present(RenderTarget2D target, TextureSampling sampling)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
         PresentationParameters backBuffer = _device.PresentationParameters;
@@ -201,7 +201,7 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Clear(BarColor);
 
-        Letterbox fit = Letterbox.FitPixels(target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        Letterbox fit = PresentFit(sampling, target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
         if (fit.IsEmpty)
         {
             return;
@@ -213,7 +213,7 @@ internal sealed class FrameRenderer : IDisposable
             (backBuffer.BackBufferWidth - (target.Width * fit.Scale)) / 2f,
             (backBuffer.BackBufferHeight - (target.Height * fit.Scale)) / 2f);
 
-        _batch.Begin(samplerState: SamplerState.PointClamp);
+        _batch.Begin(samplerState: Sampler(sampling));
         _batch.Draw(
             target,
             position,
@@ -226,6 +226,19 @@ internal sealed class FrameRenderer : IDisposable
             layerDepth: 0f);
         _batch.End();
     }
+
+    // Which fit the render surface takes into the back buffer. Point sampling owes its source
+    // pixels a square block each, so it takes the whole scale and lets the bars absorb the
+    // remainder; linear sampling answers to no pixel grid and fills the window.
+    internal static Letterbox PresentFit(
+        TextureSampling sampling,
+        int targetWidth,
+        int targetHeight,
+        int containerWidth,
+        int containerHeight) =>
+        sampling == TextureSampling.Point
+            ? Letterbox.FitPixels(targetWidth, targetHeight, containerWidth, containerHeight)
+            : Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
 
     private static SamplerState Sampler(TextureSampling sampling) => sampling switch
     {
