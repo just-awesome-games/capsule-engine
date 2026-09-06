@@ -171,19 +171,16 @@ public sealed class RandomSource
     public bool Chance(float probability) => NextFloat() < probability;
 
     /// <summary>
-    /// Draws from a normal distribution of <paramref name="mean"/> and
-    /// <paramref name="standardDeviation"/>. Always two draws.
+    /// Draws from an approximately normal distribution of <paramref name="mean"/> and
+    /// <paramref name="standardDeviation"/>. Always two draws and produces the same result bits
+    /// for the same source position on every supported platform.
     /// </summary>
     /// <param name="mean">The distribution's centre.</param>
     /// <param name="standardDeviation">The distribution's spread; 0 returns the mean, having drawn.</param>
     /// <returns>
-    /// A finite value, unbounded in principle and within about five deviations in practice; one
-    /// beyond what a float can hold saturates at <see cref="float.MaxValue"/>.
+    /// A finite value within six deviations of the mean; one beyond what a float can hold
+    /// saturates at <see cref="float.MaxValue"/>.
     /// </returns>
-    /// <remarks>
-    /// The value passes through a logarithm and a cosine, whose last bit is not guaranteed
-    /// identical across platforms; the draw cost is, so streams stay aligned.
-    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Either argument is not finite, or the deviation is negative.</exception>
     public float Normal(float mean = 0, float standardDeviation = 1)
     {
@@ -191,30 +188,74 @@ public sealed class RandomSource
         RequireFinite(standardDeviation, nameof(standardDeviation));
         ArgumentOutOfRangeException.ThrowIfNegative(standardDeviation);
 
-        // 1 - u is in (0, 1]: the logarithm of a drawn zero is negative infinity.
-        double radius = Math.Sqrt(-2.0 * Math.Log(1.0 - NextFloat()));
-        double angle = 2.0 * Math.PI * NextFloat();
+        ulong first = NextUInt64();
+        ulong second = NextUInt64();
+        int sum = 0;
+        for (int sample = 0; sample < 6; sample++)
+        {
+            sum += (int)(first & 0x3ff);
+            sum += (int)(second & 0x3ff);
+            first >>= 10;
+            second >>= 10;
+        }
 
-        // In double to the end: a wide mean and deviation overflow a float scale-and-add.
-        return Saturate(mean + (standardDeviation * radius * Math.Cos(angle)));
+        // Twelve independent uniforms have mean 6138 and variance 1048575; division by 1024
+        // gives a unit normal approximation with exact binary scaling and a six-sigma bound.
+        double deviation = (sum - 6138) * (1.0 / 1024.0);
+        return Saturate(Math.FusedMultiplyAdd(standardDeviation, deviation, mean));
     }
 
     /// <summary>
     /// Draws a point uniformly distributed over the unit disc, by area rather than by radius, so
-    /// it does not cluster at the centre. Always two draws.
+    /// it does not cluster at the centre. Always two draws and produces the same component bits
+    /// for the same source position on every supported platform.
     /// </summary>
     /// <returns>A point inside or on the unit circle: its magnitude is at most 1.</returns>
-    /// <remarks>
-    /// The point passes through a sine and a cosine, whose last bit is not guaranteed identical
-    /// across platforms; the draw cost is, so streams stay aligned.
-    /// </remarks>
     public Vector2 InsideUnitCircle()
     {
-        // The square root is what spreads the points by area.
-        double radius = Math.Sqrt(NextFloat());
-        double angle = 2.0 * Math.PI * NextFloat();
+        double horizontal = Math.FusedMultiplyAdd(NextFloat(), 2.0, -1.0);
+        double vertical = Math.FusedMultiplyAdd(NextFloat(), 2.0, -1.0);
+        if (horizontal == 0 && vertical == 0)
+        {
+            return Vector2.Zero;
+        }
 
-        return new Vector2((float)(radius * Math.Cos(angle)), (float)(radius * Math.Sin(angle)));
+        double radius;
+        double angle;
+        bool rotate;
+        if (Math.Abs(horizontal) > Math.Abs(vertical))
+        {
+            radius = horizontal;
+            angle = 0.7853981633974483 * (vertical / horizontal);
+            rotate = false;
+        }
+        else
+        {
+            radius = vertical;
+            angle = 0.7853981633974483 * (horizontal / vertical);
+            rotate = true;
+        }
+
+        (double sine, double cosine) = SinCosQuarterTurn(angle);
+        Vector2 point = rotate
+            ? new Vector2((float)(radius * sine), (float)(radius * cosine))
+            : new Vector2((float)(radius * cosine), (float)(radius * sine));
+
+        // The polynomial lies inside the unit circle, but rounding its components to float can
+        // move a boundary point just outside it. Move only such a point inward by float steps.
+        while (Math.FusedMultiplyAdd(point.X, point.X, (double)point.Y * point.Y) > 1)
+        {
+            if (Math.Abs(point.X) >= Math.Abs(point.Y))
+            {
+                point.X = StepTowardZero(point.X);
+            }
+            else
+            {
+                point.Y = StepTowardZero(point.Y);
+            }
+        }
+
+        return point;
     }
 
     /// <summary>Draws one of <paramref name="values"/> uniformly. Costs one <see cref="Range(int, int)"/>.</summary>
@@ -312,6 +353,31 @@ public sealed class RandomSource
         z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
         return z ^ (z >> 31);
     }
+
+    private static (double Sine, double Cosine) SinCosQuarterTurn(double angle)
+    {
+        double square = angle * angle;
+        double sinePolynomial = -(1.0 / 39916800.0);
+        sinePolynomial = Math.FusedMultiplyAdd(square, sinePolynomial, 1.0 / 362880.0);
+        sinePolynomial = Math.FusedMultiplyAdd(square, sinePolynomial, -(1.0 / 5040.0));
+        sinePolynomial = Math.FusedMultiplyAdd(square, sinePolynomial, 1.0 / 120.0);
+        sinePolynomial = Math.FusedMultiplyAdd(square, sinePolynomial, -(1.0 / 6.0));
+
+        double cosinePolynomial = -(1.0 / 3628800.0);
+        cosinePolynomial = Math.FusedMultiplyAdd(square, cosinePolynomial, 1.0 / 40320.0);
+        cosinePolynomial = Math.FusedMultiplyAdd(square, cosinePolynomial, -(1.0 / 720.0));
+        cosinePolynomial = Math.FusedMultiplyAdd(square, cosinePolynomial, 1.0 / 24.0);
+        cosinePolynomial = Math.FusedMultiplyAdd(square, cosinePolynomial, -(1.0 / 2.0));
+
+        double sine = angle * Math.FusedMultiplyAdd(square, sinePolynomial, 1);
+        double cosine = Math.FusedMultiplyAdd(square, cosinePolynomial, 1);
+
+        return (sine, cosine);
+    }
+
+    private static float StepTowardZero(float value) => value > 0
+        ? MathF.BitDecrement(value)
+        : MathF.BitIncrement(value);
 
     private static void RequireFinite(float value, string parameterName)
     {

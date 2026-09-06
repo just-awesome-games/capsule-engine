@@ -8,6 +8,35 @@ namespace Capsule.Tests.Runtime;
 public sealed class RandomSourceTests
 {
     [Fact]
+    public void ReplayOutputsAreStable()
+    {
+        RandomSource raw = new(0, 0);
+        ulong[] rawExpected =
+        [
+            6214935894119219593, 17444575831771567405, 16051968927679601219, 2122169594285274152,
+        ];
+        Assert.Equal(rawExpected, Enumerable.Range(0, rawExpected.Length).Select(_ => raw.NextUInt64()));
+
+        RandomSource transformed = new(0x9E3779B97F4A7C15, 0xD1342543DE82EF95);
+        uint[] normalExpected = [3199893504, 3225403392, 3209822208, 3187736576];
+        Assert.Equal(normalExpected, Enumerable.Range(0, normalExpected.Length)
+            .Select(_ => BitConverter.SingleToUInt32Bits(transformed.Normal())));
+
+        uint[] circleExpected =
+        [
+            3204134063, 3210200131, 1058200721, 1055484926,
+            1057237927, 3190291420, 3205715381, 1034720418,
+        ];
+        uint[] circleActual = [.. Enumerable.Range(0, circleExpected.Length / 2)
+            .SelectMany(_ =>
+            {
+                Vector2 point = transformed.InsideUnitCircle();
+                return new[] { BitConverter.SingleToUInt32Bits(point.X), BitConverter.SingleToUInt32Bits(point.Y) };
+            })];
+        Assert.Equal(circleExpected, circleActual);
+    }
+
+    [Fact]
     public void TheSameSeedAndDrawsReplayTheSameSequence()
     {
         static (int Int, float Float, bool Bool)[] Draw(RandomSource random) =>
@@ -321,13 +350,14 @@ public sealed class RandomSourceTests
     }
 
     [Fact]
-    public void APointInTheUnitCircleStaysInsideOrOnIt()
+    public void InitialPointsAcrossTheSixteenBitSeedSpaceStayInsideOrOnTheUnitCircle()
     {
-        RandomSource random = new(23);
-
-        foreach (Vector2 point in Enumerable.Range(0, 10_000).Select(_ => random.InsideUnitCircle()))
+        for (ulong seed = 0; seed <= ushort.MaxValue; seed++)
         {
-            Assert.True(point.Length() <= 1f, $"{point} is outside the unit circle.");
+            Vector2 point = new RandomSource(seed).InsideUnitCircle();
+            double lengthSquared = Math.FusedMultiplyAdd(point.X, point.X, (double)point.Y * point.Y);
+
+            Assert.True(lengthSquared <= 1, $"seed {seed} produced {point} outside the unit circle.");
         }
     }
 
