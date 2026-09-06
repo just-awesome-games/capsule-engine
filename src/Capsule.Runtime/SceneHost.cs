@@ -97,9 +97,29 @@ internal sealed class SceneHost : ISimulation, IDisposable
     {
         Scene next = _resolve(target);
 
-        // Before the outgoing scene is torn down: composing the incoming one is what settles its
-        // set, and a set that cannot be made resident must leave the run on the scene it was on.
-        Residency?.MakeResident(next.GetType().Name, next.TextureSet);
+        try
+        {
+            // Before the outgoing scene is torn down: composing the incoming one is what settles
+            // its set, and a set that cannot be made resident must leave the run on the scene it
+            // was on.
+            Residency?.MakeResident(next.GetType().Name, next.TextureSet);
+        }
+        catch (Exception residencyFailure)
+        {
+            try
+            {
+                next.Abandon();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    $"Making {next.GetType().Name} resident and then releasing it both failed.",
+                    residencyFailure,
+                    cleanupFailure);
+            }
+
+            throw;
+        }
 
         _current.Dispose();
         _current = new SceneSimulation(next, target.Payload, _defaults, _random);

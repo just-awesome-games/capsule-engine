@@ -238,8 +238,7 @@ public sealed class SceneEngineBuilder
     /// readiness, texture residency, the first update and the first submitted frame, then one row
     /// per frame holding the interval since the previous frame began, the time spent updating and
     /// the time spent submitting the draw, all in milliseconds. Present is excluded: the backend
-    /// waits for the display after the host's draw returns. Off unless this is called, and then
-    /// costs one null check per frame.
+    /// waits for the display after the host's draw returns. Off unless this is called.
     /// </summary>
     /// <param name="path">The CSV to write; an existing file is overwritten.</param>
     /// <param name="exitAfterSeconds">
@@ -289,7 +288,7 @@ public sealed class SceneEngineBuilder
     /// <see cref="Scene"/> composed from it when no class claims it. A restart reuses the parsed
     /// document rather than reading it again.
     /// </summary>
-    /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
     /// <param name="payload">
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
     /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.

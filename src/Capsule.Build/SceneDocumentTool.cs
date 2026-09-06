@@ -58,7 +58,9 @@ internal static class SceneDocumentTool
             DocumentExtension,
             IsReportable,
             (source, documentPath) =>
-                SceneDocumentFile.Save(NativeSceneImporter.Import(source.Path, tileSize), documentPath),
+                AtomicFile.Write(
+                    documentPath,
+                    path => SceneDocumentFile.Save(NativeSceneImporter.Import(source.Path, tileSize), path)),
             output,
             error);
     }

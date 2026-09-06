@@ -370,7 +370,7 @@ public class Scene
     /// Asks the host to replace this scene with the scene the named document backs, or a plain
     /// <see cref="Scene"/> composed from it when no class claims it.
     /// </summary>
-    /// <param name="name">A scene document's bare name, as its authoring source is named.</param>
+    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
     /// <param name="payload">State offered to the next scene.</param>
     /// <exception cref="ArgumentException">The name is null or blank.</exception>
     /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
@@ -472,36 +472,30 @@ public class Scene
             }
         }
 
-        for (int index = _entities.Count - 1; index >= 0; index--)
+        ReleaseEntities(ref failures);
+        ClearPendingState();
+        ThrowCleanupFailures(failures);
+    }
+
+    // Releases a composed scene the host rejected before start. Composition has already run the
+    // structural entry hooks, so their removal counterparts still run; temporal hooks do not.
+    internal void Abandon()
+    {
+        if (_started)
         {
-            try
-            {
-                DetachAt(index);
-            }
-            catch (Exception exception)
-            {
-                (failures ??= []).Add(exception);
-            }
+            throw new InvalidOperationException($"A started {GetType().Name} must be stopped, not abandoned.");
         }
 
-        _pendingStarts.Clear();
-        _pendingAdds.Clear();
-        _pendingAddSet.Clear();
-        _pendingRemoves.Clear();
-        _pendingRemoveSet.Clear();
-        _renderers.Clear();
-        _contactReporters.Clear();
-        _renderersStale = false;
-
-        if (failures is [Exception failure])
+        if (_stopped)
         {
-            ExceptionDispatchInfo.Capture(failure).Throw();
+            return;
         }
 
-        if (failures is not null)
-        {
-            throw new AggregateException("One or more scene cleanup hooks failed.", failures);
-        }
+        _stopped = true;
+        List<Exception>? failures = null;
+        ReleaseEntities(ref failures);
+        ClearPendingState();
+        ThrowCleanupFailures(failures);
     }
 
     internal bool TryTakeTransition(out SceneTransition transition)
@@ -809,6 +803,46 @@ public class Scene
         entity.Scene = null;
         entity.OnRemovedFromScene();
         entity.LeaveScene();
+    }
+
+    private void ReleaseEntities(ref List<Exception>? failures)
+    {
+        for (int index = _entities.Count - 1; index >= 0; index--)
+        {
+            try
+            {
+                DetachAt(index);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+    }
+
+    private void ClearPendingState()
+    {
+        _pendingStarts.Clear();
+        _pendingAdds.Clear();
+        _pendingAddSet.Clear();
+        _pendingRemoves.Clear();
+        _pendingRemoveSet.Clear();
+        _renderers.Clear();
+        _contactReporters.Clear();
+        _renderersStale = false;
+    }
+
+    private static void ThrowCleanupFailures(List<Exception>? failures)
+    {
+        if (failures is [Exception failure])
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("One or more scene cleanup hooks failed.", failures);
+        }
     }
 
     private bool TryRequest(in SceneTransition transition)

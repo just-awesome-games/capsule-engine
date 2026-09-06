@@ -3,61 +3,94 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Rendering;
 
-// The textures resident on the device, keyed by handle. The current scene's set decides what is
-// here; nothing is loaded on demand from the frame path.
-internal sealed class TextureStore(GraphicsDevice device) : IDisposable
+// The textures resident on the device. The current scene's set decides what is here; nothing is
+// loaded on demand from the frame path.
+internal sealed class TextureStore : IDisposable
 {
-    private readonly Dictionary<TextureHandle, Texture2D> _textures = [];
+    private readonly ResidentTextureStore<Texture2D> _textures;
 
-    // Whose set is resident, so a draw naming a handle it does not hold can say where the wiring
-    // broke. The window title until a scene has one, which is the deviceless host's case.
-    private string _scene = "the game";
+    internal TextureStore(GraphicsDevice device)
+    {
+        _textures = new(path =>
+        {
+            // The batch blends premultiplied, so a straight-alpha atlas would fringe dark along
+            // every soft edge.
+            using FileStream file = File.OpenRead(path);
+            return Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
+        });
+    }
 
-    // Decodes each added handle's file once and disposes each dropped one's texture, or leaves the
-    // device exactly as it was. Throws FileNotFoundException when an added handle's file is not
-    // beside the executable.
+    // Throws FileNotFoundException when an added handle's file is not beside the executable.
     internal void Change(string scene, IReadOnlyList<TextureHandle> load, IReadOnlyList<TextureHandle> release)
     {
-        // Located ahead of every release, so a missing file costs neither device memory nor the
-        // set the last scene was drawing.
         (TextureHandle Handle, string Path)[] resolved = TextureFiles.Resolve(AppContext.BaseDirectory, load);
+        _textures.Change(scene, resolved, release);
+    }
+
+    // Throws InvalidOperationException when the current scene's set does not hold the handle.
+    internal Texture2D Get(in TextureHandle handle) => _textures.Get(handle);
+
+    public void Dispose() => _textures.Dispose();
+}
+
+// Stages every decode before committing a scene exchange. Generic only to keep device-free failure
+// coverage over the ownership boundary; production closes it over Texture2D.
+internal sealed class ResidentTextureStore<TTexture>(Func<string, TTexture> decode) : IDisposable
+    where TTexture : class, IDisposable
+{
+    private readonly Dictionary<TextureHandle, TTexture> _textures = [];
+    private string _scene = "the game";
+
+    internal void Change(
+        string scene,
+        IReadOnlyList<(TextureHandle Handle, string Path)> load,
+        IReadOnlyList<TextureHandle> release)
+    {
+        // Additions decode before releases are disposed, so device memory peaks at both sets at once.
+        _textures.EnsureCapacity(_textures.Count + load.Count);
+        List<(TextureHandle Handle, TTexture Texture)> staged = new(load.Count);
+
+        try
+        {
+            foreach ((TextureHandle handle, string path) in load)
+            {
+                staged.Add((handle, decode(path)));
+            }
+        }
+        catch
+        {
+            foreach ((TextureHandle _, TTexture texture) in staged)
+            {
+                texture.Dispose();
+            }
+
+            throw;
+        }
 
         foreach (TextureHandle handle in release)
         {
-            if (_textures.Remove(handle, out Texture2D? dropped))
+            if (_textures.Remove(handle, out TTexture? dropped))
             {
                 dropped.Dispose();
             }
         }
 
-        _scene = scene;
+        foreach ((TextureHandle handle, TTexture texture) in staged)
+        {
+            _textures.Add(handle, texture);
+        }
 
-        try
-        {
-            foreach ((TextureHandle handle, string path) in resolved)
-            {
-                // The batch blends premultiplied, so a straight-alpha atlas would fringe dark
-                // along every soft edge.
-                using FileStream file = File.OpenRead(path);
-                _textures[handle] = Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
-            }
-        }
-        catch
-        {
-            Dispose();
-            throw;
-        }
+        _scene = scene;
     }
 
-    // Throws InvalidOperationException when the current scene's set does not hold the handle.
-    internal Texture2D Get(in TextureHandle handle) =>
-        _textures.TryGetValue(handle, out Texture2D? texture)
+    internal TTexture Get(in TextureHandle handle) =>
+        _textures.TryGetValue(handle, out TTexture? texture)
             ? texture
             : throw new InvalidOperationException(SceneResidency.NotResident(_scene, handle));
 
     public void Dispose()
     {
-        foreach (Texture2D texture in _textures.Values)
+        foreach (TTexture texture in _textures.Values)
         {
             texture.Dispose();
         }

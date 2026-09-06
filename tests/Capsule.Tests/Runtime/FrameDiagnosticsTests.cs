@@ -66,17 +66,14 @@ public sealed class FrameDiagnosticsTests
     [Fact]
     public void EndDraw_ReportsTheBudgetSpentOnceTheDurationHasElapsedSinceTheFirstFrame()
     {
-        using Capture capture = new(exitAfterSeconds: 0.05);
+        ManualClock clock = new();
+        using Capture capture = new(exitAfterSeconds: 0.05, clock);
 
         Assert.False(capture.Frame());
-
-        Stopwatch clock = Stopwatch.StartNew();
-        while (!capture.Frame())
-        {
-            Assert.InRange(clock.Elapsed.TotalSeconds, 0d, 10d);
-        }
-
-        Assert.InRange(clock.Elapsed.TotalSeconds, 0.04d, 10d);
+        clock.Advance(0.049);
+        Assert.False(capture.Frame());
+        clock.Advance(0.001);
+        Assert.True(capture.Frame());
     }
 
     private static bool IsRow(string line) => line.Length > 0 && char.IsAsciiDigit(line[0]);
@@ -89,10 +86,12 @@ public sealed class FrameDiagnosticsTests
 
         private FrameDiagnostics? _diagnostics;
 
-        internal Capture(double? exitAfterSeconds = null)
+        internal Capture(double? exitAfterSeconds = null, ManualClock? clock = null)
         {
             _path = Path.Combine(_directory.FullName, "frames.csv");
-            _diagnostics = new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds);
+            _diagnostics = clock is null
+                ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds)
+                : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
 
             // The host marks each of these before it submits a frame; the rest are taken here.
             _diagnostics.Mark(FrameDiagnostics.Stage.HostConstructed);
@@ -131,5 +130,15 @@ public sealed class FrameDiagnosticsTests
             Close();
             _directory.Delete(recursive: true);
         }
+    }
+
+    private sealed class ManualClock
+    {
+        internal long Timestamp { get; private set; }
+
+        internal long GetTimestamp() => Timestamp;
+
+        internal void Advance(double seconds) =>
+            Timestamp += (long)(seconds * Stopwatch.Frequency);
     }
 }

@@ -102,7 +102,7 @@ internal static class SpriteSheetTool
                         $"cuts from texture \"{texture}\", which this game does not ship; author it at asset-sources/textures/{texture}.");
                 }
 
-                SpriteSheetDocumentFile.Save(document, documentPath);
+                AtomicFile.Write(documentPath, path => SpriteSheetDocumentFile.Save(document, path));
                 sheets.Add((source.Key, document));
             },
             output,
@@ -117,7 +117,9 @@ internal static class SpriteSheetTool
         {
             // Written whole every time, so a sheet deleted since the last build leaves nothing
             // behind for a game to still compile against.
-            File.WriteAllText(generatedPath, SpriteRegistrySource.Render(sheets), Utf8NoBom);
+            AtomicFile.Write(
+                generatedPath,
+                path => File.WriteAllText(path, SpriteRegistrySource.Render(sheets), Utf8NoBom));
         }
         catch (Exception ex) when (IsReportable(ex))
         {

@@ -339,9 +339,8 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Adds a grid of collidable cells anchored at the world origin. The cell array is held rather
-    /// than copied and its faces are derived once, so repainting cells afterwards requires a new
-    /// collider.
+    /// Adds a grid of collidable cells anchored at the world origin. The cell array is copied, and
+    /// its faces are derived once.
     /// </summary>
     /// <param name="cellSize">World units a cell spans on each axis.</param>
     /// <param name="width">Cells across.</param>
@@ -441,7 +440,7 @@ public sealed partial class CollisionWorld2D
             cellSize,
             width,
             height,
-            cells,
+            (int[])cells.Clone(),
             layers,
             faces);
 
@@ -576,7 +575,7 @@ public sealed partial class CollisionWorld2D
     /// <summary>
     /// Everything a shape at <paramref name="origin"/> is inside or touching, written into
     /// <paramref name="contacts"/>. Grid cells come first, in the order their grids were added and
-    /// then row-major within each; colliders follow, in the order they were added.
+    /// then row-major within each; colliders follow in collider-handle slot order.
     /// </summary>
     /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The origin is not finite.</exception>

@@ -27,6 +27,7 @@ internal sealed class FrameDiagnostics : IDisposable
     private readonly long[] _stages;
     private readonly Row[] _rows = new Row[FlushEvery];
     private readonly long _exitAfterTicks;
+    private readonly Func<long> _timestamp;
 
     private int _count;
     private long _sectionStart;
@@ -43,9 +44,15 @@ internal sealed class FrameDiagnostics : IDisposable
     // exitAfterSeconds: Real seconds after the first submitted frame at which the host requests
     // exit, or null to run until the game does.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds)
+        : this(path, builderEntered, exitAfterSeconds, Stopwatch.GetTimestamp)
+    {
+    }
+
+    internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
     {
         _stages = [builderEntered, -1, -1, -1, -1, -1];
         _exitAfterTicks = exitAfterSeconds is { } seconds ? (long)(seconds * Stopwatch.Frequency) : 0;
+        _timestamp = timestamp;
         _writer = new StreamWriter(path, append: false) { AutoFlush = false };
     }
 
@@ -66,13 +73,13 @@ internal sealed class FrameDiagnostics : IDisposable
         int index = (int)stage;
         if (_stages[index] < 0)
         {
-            _stages[index] = Stopwatch.GetTimestamp();
+            _stages[index] = _timestamp();
         }
     }
 
     internal void BeginUpdate()
     {
-        long now = Stopwatch.GetTimestamp();
+        long now = _timestamp();
 
         if (_previousUpdateStart < 0)
         {
@@ -90,14 +97,14 @@ internal sealed class FrameDiagnostics : IDisposable
         _sectionStart = now;
     }
 
-    internal void EndUpdate() => _updateMs = Milliseconds(Stopwatch.GetTimestamp() - _sectionStart);
+    internal void EndUpdate() => _updateMs = Milliseconds(_timestamp() - _sectionStart);
 
-    internal void BeginDraw() => _sectionStart = Stopwatch.GetTimestamp();
+    internal void BeginDraw() => _sectionStart = _timestamp();
 
     // Closes the frame's row; returns whether the run's time budget is spent.
     internal bool EndDraw()
     {
-        long now = Stopwatch.GetTimestamp();
+        long now = _timestamp();
         _rows[_count++] = new Row(_intervalMs, _updateMs, Milliseconds(now - _sectionStart));
 
         if (_firstDraw < 0)

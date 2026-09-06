@@ -37,7 +37,7 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
     }
 
     /// <summary>The box's midpoint.</summary>
-    public Vector2 Center => (Min + Max) * 0.5f;
+    public Vector2 Center => new(Midpoint(Min.X, Max.X), Midpoint(Min.Y, Max.Y));
 
     /// <summary>The box's extent on each axis.</summary>
     public Vector2 Size => Max - Min;
@@ -80,4 +80,7 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
     internal Aabb2D Swept(Vector2 translation) => Union(Translated(translation));
 
     internal static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
+
+    private static float Midpoint(float min, float max) =>
+        (min < 0f) != (max < 0f) ? (min + max) * 0.5f : min + ((max - min) * 0.5f);
 }

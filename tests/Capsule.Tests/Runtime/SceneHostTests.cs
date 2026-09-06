@@ -219,6 +219,36 @@ public sealed class SceneHostTests
             changes);
     }
 
+    [Fact]
+    public void ATransitionWhoseTexturesCannotBecomeResident_ReleasesTheResolvedSceneAndKeepsTheCurrentOne()
+    {
+        List<string> lifecycle = [];
+        RejectedArenaTextures? resolved = null;
+
+        Scene Resolve(in SceneTransition target)
+        {
+            if (target.SceneType == typeof(MenuTextures))
+            {
+                return new MenuTextures();
+            }
+
+            resolved = new RejectedArenaTextures(lifecycle);
+            return resolved;
+        }
+
+        using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
+        host.Residency = new SceneResidency(
+            static (_, _, _) => throw new InvalidDataException("decode failed"));
+
+        Assert.Throws<InvalidDataException>(() => host.Step(SceneStep(0)));
+
+        Assert.IsType<MenuTextures>(host.Scene);
+        Assert.NotNull(resolved);
+        Assert.Empty(resolved.Entities.ToArray());
+        Assert.Null(resolved.Entity.Scene);
+        Assert.Equal(["component+", "entity+", "entity-", "component-"], lifecycle);
+    }
+
     // A scene declaring a set replaces the derivation the build handed its registration.
     [Fact]
     public void ADeclaredSet_ReplacesTheOneTheRegistrationCarries()
@@ -251,6 +281,38 @@ public sealed class SceneHostTests
     private sealed class ArenaTextures : Scene
     {
         protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Shared, Bat];
+    }
+
+    private sealed class RejectedArenaTextures : Scene
+    {
+        internal RejectedArenaTextures(List<string> lifecycle)
+        {
+            Entity = new LifecycleEntity(lifecycle);
+            Entity.Add(new LifecycleComponent(lifecycle));
+            Add(Entity);
+        }
+
+        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Shared, Bat];
+
+        internal LifecycleEntity Entity { get; }
+
+        protected override void OnStart() => throw new InvalidOperationException("A rejected scene must not start.");
+
+        protected override void OnStop() => throw new InvalidOperationException("A rejected scene must not stop.");
+    }
+
+    private sealed class LifecycleEntity(List<string> lifecycle) : Entity(Vector2.Zero)
+    {
+        protected internal override void OnAddedToScene() => lifecycle.Add("entity+");
+
+        protected internal override void OnRemovedFromScene() => lifecycle.Add("entity-");
+    }
+
+    private sealed class LifecycleComponent(List<string> lifecycle) : Component
+    {
+        protected internal override void OnAddedToScene() => lifecycle.Add("component+");
+
+        protected internal override void OnRemovedFromScene() => lifecycle.Add("component-");
     }
 
     private static SceneTransition ToScene<TScene>(object? payload = null)

@@ -34,16 +34,26 @@ public sealed class GridCollider2DTests
     }
 
     [Fact]
-    public void AddGrid_SharesTheCallersCellArrayRatherThanCopyingIt()
+    public void AddGrid_OwnsItsCellsAfterRegistration()
     {
         CollisionWorld2D world = new();
         int[] cells = [0, 1];
 
         GridCollider2D map = world.AddGrid(16, 2, 1, cells, CollisionFixtures.Profiles(world));
+        cells[0] = 1;
+        cells[1] = 0;
 
         Assert.Null(map.LayerAt(0, 0));
         Assert.Equal(world.Layer(CollisionFixtures.Solid), map.LayerAt(1, 0));
         Assert.Equal(CellFaces2D.All, map.FacesAt(1, 0));
+
+        Assert.True(world.Raycast(
+            new Vector2(24f, -8f),
+            Vector2.UnitY,
+            32f,
+            CollisionFilter.Everything,
+            out RayHit2D hit));
+        Assert.Equal((1, 0), (hit.Target.CellX, hit.Target.CellY));
     }
 
     // A cell is on one layer, and a filter reaches it by naming that layer and no other.

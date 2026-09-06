@@ -5,6 +5,14 @@ namespace Capsule.Tests.Collision;
 
 public sealed class Shape2DTests
 {
+    [Fact]
+    public void AabbCenter_StaysFiniteForSameSignExtremeCorners()
+    {
+        Aabb2D box = new(new Vector2(2e38f, -3e38f), new Vector2(3e38f, -2e38f));
+
+        Assert.Equal(new Vector2(2.5e38f, -2.5e38f), box.Center);
+    }
+
     // Corners within range are not enough: the width between them is what the mover's inset and the
     // tree's area heuristic compute with, and an infinity there is computed with silently.
     [Fact]

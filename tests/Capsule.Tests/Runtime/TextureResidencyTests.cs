@@ -103,21 +103,46 @@ public sealed class TextureResidencyTests
         Assert.Equal([("Menu", "hero", ""), ("Arena", "", "")], recorded.Changes);
     }
 
-    // A decode that fails leaves the last scene's set accounted for, so the next set diffs against
-    // what is actually on the device.
     [Fact]
-    public void ASetTheDeviceRefuses_LeavesNothingRecorded()
+    public void ADecodeThatFailsMidExchange_LeavesThePriorSetOwnedAndDisposesOnlyStagedAdditions()
     {
-        Recorded recorded = new();
-        recorded.Residency.MakeResident("Menu", [Hero]);
-        recorded.Fails = true;
+        TextureHandle stagedHandle = new("staged", ".png");
+        List<FakeTexture> decoded = [];
+        bool fail = false;
+        using ResidentTextureStore<FakeTexture> store = new(path =>
+        {
+            if (fail && path == "tiles")
+            {
+                throw new InvalidDataException("decode failed");
+            }
 
-        Assert.Throws<FileNotFoundException>(() => recorded.Residency.MakeResident("Arena", [Tiles]));
+            FakeTexture texture = new(path);
+            decoded.Add(texture);
+            return texture;
+        });
+        SceneResidency residency = new((scene, load, release) =>
+            store.Change(scene, load.Select(static handle => (handle, handle.Name)).ToArray(), release));
 
-        recorded.Fails = false;
-        recorded.Residency.MakeResident("Arena", [Tiles]);
+        residency.MakeResident("Menu", [Hero]);
+        FakeTexture menuHero = store.Get(Hero);
+        fail = true;
 
-        Assert.Equal(("Arena", "tiles", "hero"), recorded.Changes[^1]);
+        Assert.Throws<InvalidDataException>(
+            () => residency.MakeResident("Arena", [stagedHandle, Tiles]));
+
+        Assert.Same(menuHero, store.Get(Hero));
+        Assert.False(menuHero.Disposed);
+        Assert.True(decoded.Single(texture => texture.Name == "staged").Disposed);
+
+        InvalidOperationException missing = Assert.Throws<InvalidOperationException>(() => store.Get(Tiles));
+        Assert.Contains("'Menu'", missing.Message, StringComparison.Ordinal);
+
+        fail = false;
+        residency.MakeResident("Arena", [stagedHandle, Tiles]);
+
+        Assert.True(menuHero.Disposed);
+        Assert.Equal("tiles", store.Get(Tiles).Name);
+
     }
 
     [Fact]
@@ -139,15 +164,8 @@ public sealed class TextureResidencyTests
         /// <summary>Each change as (scene, loaded, released), the handles ordinal-joined.</summary>
         internal List<(string Scene, string Load, string Release)> Changes { get; } = [];
 
-        internal bool Fails { get; set; }
-
         private void Apply(string scene, IReadOnlyList<TextureHandle> load, IReadOnlyList<TextureHandle> release)
         {
-            if (Fails)
-            {
-                throw new FileNotFoundException("the device refused the set");
-            }
-
             Changes.Add((scene, Names(load), Names(release)));
         }
 
@@ -175,5 +193,14 @@ public sealed class TextureResidencyTests
         internal string Path { get; private set; } = string.Empty;
 
         public void Dispose() => _directory.Delete(recursive: true);
+    }
+
+    private sealed class FakeTexture(string name) : IDisposable
+    {
+        internal string Name => name;
+
+        internal bool Disposed { get; private set; }
+
+        public void Dispose() => Disposed = true;
     }
 }
