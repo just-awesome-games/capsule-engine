@@ -36,7 +36,16 @@ public sealed class InputTape : IReadOnlyList<DeviceSnapshot>, IEquatable<InputT
 
     /// <summary>The snapshot the step at <paramref name="index"/> is driven by.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The index is outside the tape.</exception>
-    public DeviceSnapshot this[int index] => _snapshots[index];
+    public DeviceSnapshot this[int index]
+    {
+        get
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(index);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _snapshots.Length);
+
+            return _snapshots[index];
+        }
+    }
 
     /// <summary>
     /// Reads the line-oriented tape text <see cref="ToText"/> writes. Blank lines and lines whose
