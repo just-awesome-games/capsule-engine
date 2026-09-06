@@ -50,6 +50,13 @@ jobs:
           --no-build
           --output artifacts/packages
 
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/packages/*.*nupkg
+          if-no-files-found: error
+
       # Source mode is covered by the root builds above, which the sample is a solution member of.
       # This lane is the packaged one: the same sample resolved from the packages just produced.
       - name: Restore sample (package mode)
@@ -123,6 +130,7 @@ jobs:
           if-no-files-found: warn
 
   platform-and-aot:
+    needs: build-and-test
     strategy:
       fail-fast: false
       matrix:
@@ -147,6 +155,12 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Download packages
+        uses: actions/download-artifact@v7
+        with:
+          name: packages
+          path: artifacts/packages
+
       # Windows only. The Linux leg's restore, build and tests are already build-and-test's on the
       # same runner image, and each publish below restores and compiles for its own runtime. The
       # Windows leg keeps them because the specs are platform-agnostic while what some of them
@@ -166,12 +180,21 @@ jobs:
 
       # The shell links the graphics backend, so publishing it is the compile-level check that
       # a whole game — window and all — stays ILC-analyzable.
-      - name: Publish sample shell with NativeAOT
+      - name: Restore sample from local packages
+        run: >
+          dotnet restore samples/MinimalGame/MinimalGame.slnx
+          --configfile samples/MinimalGame/NuGet.config
+          --runtime ${{ matrix.runtime }}
+          -p:CapsuleUsePackages=true
+
+      - name: Publish sample shell from local packages with NativeAOT
         run: >
           dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
           --configuration Release
           --runtime ${{ matrix.runtime }}
           --self-contained true
+          --no-restore
+          -p:CapsuleUsePackages=true
           -p:PublishAot=true
 
       # Publishing proves the graph is analyzable. Only running the result proves the game

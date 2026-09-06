@@ -38,18 +38,19 @@ last binaries that did build and reports green.
 git tag --sort=-v:refname | head -1      # the current release
 ```
 
-Bump per SemVer: patch for fixes, minor for additive engine surface, major for a break in
-`docs/consuming-capsule.md`'s contract. A version pushed to NuGet.org can never be reused or
+Before 1.0, bump patch for compatible fixes and minor for additions or breaking public-contract
+changes. At and after 1.0, bump per SemVer. A version pushed to NuGet.org can never be reused or
 overwritten, only unlisted, so a broken release is followed by a new patch, never re-tagged.
 
 ## 4. Tag and push
 
 ```bash
-git tag -a v0.6.0 -m "Capsule 0.6.0"
-git push origin v0.6.0
+VERSION=0.x.y
+git tag -a "v$VERSION" -m "Capsule $VERSION"
+git push origin "v$VERSION"
 ```
 
-If the push fails, delete the local tag (`git tag -d v0.6.0`) before retrying.
+If the push fails, delete the local tag (`git tag -d "v$VERSION"`) before retrying.
 
 ## 5. Validate the publish
 
@@ -64,7 +65,7 @@ package is downloadable before pointing a consumer at it (HTTP 200; 404 means st
 
 ```bash
 for p in jag.capsule jag.capsule.build jag.capsule.runtime; do
-  curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/0.6.0/$p.0.6.0.nupkg"
+  curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/$VERSION/$p.$VERSION.nupkg"
 done
 ```
 
@@ -82,6 +83,6 @@ Each consumer pins an exact `CapsuleVersion`. After a release:
 
 - **Tag pushed, workflow failed:** fix `main`, then release the next patch. Delete the failed tag
   locally and remotely only if nothing was pushed to NuGet.org (`gh run view <run-id> --log` shows
-  no "Your package was pushed" line): `git push origin :refs/tags/v0.6.0 && git tag -d v0.6.0`.
+  no "Your package was pushed" line): `git push origin ":refs/tags/v$VERSION" && git tag -d "v$VERSION"`.
 - **Packages published but broken:** unlist them on NuGet.org and release the next patch. Never
   delete a tag that has published.

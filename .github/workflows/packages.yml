@@ -3,12 +3,6 @@ name: Publish public packages
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: SemVer package version (for example, 0.1.0)
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -24,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -31,14 +27,14 @@ jobs:
 
       - name: Resolve package version
         shell: bash
-        env:
-          CAPSULE_DISPATCH_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            version="$CAPSULE_DISPATCH_VERSION"
-          else
-            version="${GITHUB_REF_NAME#v}"
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Capsule releases require a tag on main." >&2
+            exit 1
           fi
+
+          version="${GITHUB_REF_NAME#v}"
 
           semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))(\.((0|[1-9][0-9]*)|([0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)))*)?$'
           if [[ ! "$version" =~ $semver ]]; then
@@ -68,6 +64,25 @@ jobs:
           --no-build
           --output artifacts/packages
           -p:Version=$CAPSULE_PACKAGE_VERSION
+
+      - name: Restore sample from release packages
+        run: >
+          dotnet restore samples/MinimalGame/MinimalGame.slnx
+          --configfile samples/MinimalGame/NuGet.config
+          --runtime linux-x64
+          -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
+          -p:CapsuleUsePackages=true
+
+      - name: Validate release packages with NativeAOT
+        run: >
+          dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
+          --configuration Release
+          --runtime linux-x64
+          --self-contained true
+          --no-restore
+          -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
+          -p:CapsuleUsePackages=true
+          -p:PublishAot=true
 
       - name: Report package storage
         shell: bash

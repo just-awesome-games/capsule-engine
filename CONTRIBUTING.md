@@ -24,7 +24,7 @@ The gates are the four commands in `.githooks/pre-commit`; CI in `.github/workfl
 - A behavior change includes the test that would have caught its absence; a fix includes the test that would have caught the bug.
 - Game-specific policy and speculative generalization do not belong in the engine.
 - Warnings are errors. A necessary suppression includes its reason at the suppression site.
-- Pull requests stay focused and state breaking changes plainly. Capsule is pre-1.0, so public APIs may change.
+- Pull requests stay focused and state breaking changes plainly. Before 1.0, breaking public API changes require a minor-version release; compatibility is not implied across minor versions.
 
 Additional repository rules are in [`AGENTS.md`](AGENTS.md).
 
