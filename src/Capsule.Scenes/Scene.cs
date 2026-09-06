@@ -56,6 +56,8 @@ public class Scene
 
     private bool _stopped;
     private bool _renderersStale = true;
+    private bool _drawing;
+    private bool _rendererOrderDeferred;
     private bool _exitRequested;
     private SceneTransition? _transition;
     private TextureSampling? _sampling;
@@ -543,6 +545,33 @@ public class Scene
 
     internal void InvalidateRenderers() => _renderersStale = true;
 
+    // A key change, as opposed to a change of which renderers exist. Held back while the frame is
+    // being drawn: the traversal walks the sorted list against a cursor, so re-sorting under it
+    // would move a renderer it has already passed. The rebuild lands at the end of the draw.
+    internal void InvalidateRendererOrder()
+    {
+        if (_drawing)
+        {
+            _rendererOrderDeferred = true;
+            return;
+        }
+
+        _renderersStale = true;
+    }
+
+    internal void BeginDraw() => _drawing = true;
+
+    internal void EndDraw()
+    {
+        _drawing = false;
+
+        if (_rendererOrderDeferred)
+        {
+            _rendererOrderDeferred = false;
+            _renderersStale = true;
+        }
+    }
+
     // Held and not on its way out. An entity queued for removal never steps, so it must never
     // start either — nor start the components it holds.
     internal bool Keeps(Entity entity) =>
@@ -849,6 +878,7 @@ public class Scene
         _renderers.Clear();
         _contactReporters.Clear();
         _renderersStale = false;
+        _rendererOrderDeferred = false;
     }
 
     private static void ThrowCleanupFailures(List<Exception>? failures)

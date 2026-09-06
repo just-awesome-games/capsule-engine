@@ -79,9 +79,12 @@ public class Entity
 
     /// <summary>
     /// The band this entity draws in: an ordering key, never a coordinate, and nothing else reads
-    /// it. Higher draws later, so it covers what drew before it; entities sharing a band keep the
-    /// order the scene took them in. Each attached <see cref="Rendering.Renderer"/> draws at this
-    /// plus its own <see cref="Rendering.Renderer.ZIndex"/>. Zero by default.
+    /// it. Each attached <see cref="Rendering.Renderer"/> draws at this plus its own
+    /// <see cref="Rendering.Renderer.ZIndex"/>, summed as a <see cref="long"/> with neither side
+    /// clamped, and the higher sum draws later. Renderers whose sums are equal keep entity
+    /// insertion order and then attachment order. Zero by default. Set from inside a
+    /// <see cref="Rendering.Renderer.Draw"/>, it orders the next step's frame rather than the one
+    /// being drawn.
     /// </summary>
     public int ZIndex
     {
@@ -95,7 +98,7 @@ public class Entity
             }
 
             field = value;
-            Scene?.InvalidateRenderers();
+            Scene?.InvalidateRendererOrder();
         }
     }
 

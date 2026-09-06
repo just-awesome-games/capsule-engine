@@ -135,6 +135,86 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1, 2], Order(simulation));
     }
 
+    // The traversal walks the sorted list against a cursor, so a key raised from inside a Draw
+    // must not re-sort under it and hand the same renderer to the cursor a second time.
+    [Fact]
+    public void ARendererRaisingItsOwnKeyWhileDrawing_DrawsOnceThatStepAndLastOnTheNext()
+    {
+        Marker raising = new();
+        raising.Add(new Raising(1, raisedTo: 5));
+
+        Marker above = new() { ZIndex = 1 };
+        above.Add(Tag(2));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(raising);
+        scene.Add(above);
+
+        // The first frame is the one the raise is written during: it draws in the order that held
+        // before the write, and exactly once.
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal([1, 2], Order(simulation));
+
+        // The raise landed; it just did not reorder the frame it was written during.
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([2, 1], Order(simulation));
+    }
+
+    // The same write, alongside a detach that rebuilds the list mid-traversal: the rebuild re-sorts
+    // with the new key already written, so only the pass claim keeps the moved renderer from
+    // drawing twice.
+    [Fact]
+    public void ARendererRaisingItsKeyAndDetachingAPeer_StillDrawsOnce()
+    {
+        Marker above = new() { ZIndex = 1 };
+        SpriteRenderer detached = Tag(2);
+        above.Add(detached);
+        above.Add(Tag(3));
+
+        Marker raising = new();
+        raising.Add(new Raising(1, raisedTo: 5, detaches: detached));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(raising);
+        scene.Add(above);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal([1, 3], Order(simulation));
+    }
+
+    // Lowering a peer that has not drawn yet would, if it re-sorted at once, drop that peer behind
+    // the cursor and lose it from the frame entirely. Deferring the sort keeps every renderer.
+    [Fact]
+    public void ARendererLoweringALaterPeerWhileDrawing_StillDrawsEveryRenderer()
+    {
+        Marker first = new();
+        first.Add(Tag(1));
+
+        Marker last = new() { ZIndex = 2 };
+        SpriteRenderer lowered = Tag(3);
+        last.Add(lowered);
+
+        Marker middle = new() { ZIndex = 1 };
+        middle.Add(new Lowering(2, lowered, loweredTo: -10));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(first);
+        scene.Add(middle);
+        scene.Add(last);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal([1, 2, 3], Order(simulation));
+
+        // And the write did land: it orders the next frame.
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([3, 1, 2], Order(simulation));
+    }
+
     [Fact]
     public void AnAuthoredBand_LandsOnEveryComposedEntity()
     {
@@ -192,6 +272,42 @@ public sealed class SceneDrawOrderTests
     }
 
     private sealed class Marker() : Entity(Vector2.Zero);
+
+    private static void Emit(FrameView view, int tag)
+    {
+        Vector2 at = new(tag, 0f);
+        view.Add(new SpriteIntent(
+            SceneFixtures.Frame(1, 1),
+            at,
+            at,
+            new Vector2(1f, 1f),
+            FlipX: false,
+            FlipY: false,
+            ColorRgba.White));
+    }
+
+    /// <summary>Writes its own key, and optionally detaches a peer, from inside its own Draw.</summary>
+    private sealed class Raising(int tag, int raisedTo, Renderer? detaches = null) : Renderer
+    {
+        public override void Draw(FrameView view)
+        {
+            // Idempotent: the setter ignores a write of the value it already holds, so this
+            // raises once and does not re-invalidate on every later frame.
+            ZIndex = raisedTo;
+            detaches?.Entity?.Remove(detaches);
+            Emit(view, tag);
+        }
+    }
+
+    /// <summary>Lowers a peer's key from inside its own Draw, before that peer has drawn.</summary>
+    private sealed class Lowering(int tag, Renderer peer, int loweredTo) : Renderer
+    {
+        public override void Draw(FrameView view)
+        {
+            peer.ZIndex = loweredTo;
+            Emit(view, tag);
+        }
+    }
 
     /// <summary>An entity that bands itself, so a placement has a default to leave or to override.</summary>
     private sealed class Banded : Entity
