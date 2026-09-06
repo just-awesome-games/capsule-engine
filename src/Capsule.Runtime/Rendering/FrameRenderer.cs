@@ -69,6 +69,36 @@ internal sealed class FrameRenderer : IDisposable
         Present(_target, view.Sampling);
     }
 
+    // Saves the surface the world was drawn on as a PNG at path, overwriting what is there. Called
+    // after Draw and before the frame is presented, while that surface still holds the frame: the
+    // render target where one is configured, whose extent is the declared render resolution and so
+    // is independent of the window, and the back buffer where there is none.
+    internal void SaveSurface(string path)
+    {
+        using FileStream file = File.Create(path);
+
+        if (_target is not null)
+        {
+            _target.SaveAsPng(file, _target.Width, _target.Height);
+            return;
+        }
+
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        int width = backBuffer.BackBufferWidth;
+        int height = backBuffer.BackBufferHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        Color[] pixels = new Color[width * height];
+        _device.GetBackBufferData(pixels);
+
+        using Texture2D surface = new(_device, width, height);
+        surface.SetData(pixels);
+        surface.SaveAsPng(file, width, height);
+    }
+
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox.
     private void DrawWorld(FrameView view, float alpha, int surfaceWidth, int surfaceHeight)

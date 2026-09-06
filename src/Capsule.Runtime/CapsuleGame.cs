@@ -25,16 +25,26 @@ internal sealed class CapsuleGame : Game
     // null check.
     private readonly FrameDiagnostics? _diagnostics;
 
+    // Null unless the builder opted in; owned by it, and reached once per drawn frame.
+    private readonly FrameCapture? _capture;
+
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
     private bool _windowRaised;
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
-    internal CapsuleGame(EngineOptions options, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics, InputRecorder? recorder)
+    internal CapsuleGame(
+        EngineOptions options,
+        ISimulation simulation,
+        SceneHost? scenes,
+        FrameDiagnostics? diagnostics,
+        InputRecorder? recorder,
+        FrameCapture? capture)
     {
         _options = options;
         _diagnostics = diagnostics;
+        _capture = capture;
         _simulation = simulation;
         _scenes = scenes;
         _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
@@ -127,6 +137,16 @@ internal sealed class CapsuleGame : Game
 
         // alpha is in [0, 1) because Update drains the accumulator below one step.
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+
+        // Before the frame is presented, while the surface still holds it. Tick counts the steps
+        // run, so the latest completed one is the step before it.
+        if (_capture is { } capture)
+        {
+            while (capture.TryTakeDue(_scheduler.Tick - 1, out string path))
+            {
+                _renderer.SaveSurface(path);
+            }
+        }
 
         base.Draw(gameTime);
 

@@ -46,6 +46,9 @@ public sealed class SceneEngineBuilder
     private double? _frameDiagnosticsExitAfterSeconds;
     private string? _inputRecordingPath;
     private InputTape? _inputTape;
+    private string? _stateTracePath;
+    private string? _frameCaptureDirectory;
+    private long[]? _frameCaptureTicks;
 
     internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
     {
@@ -313,6 +316,62 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Records what the world looked like at the end of every fixed step and writes it to
+    /// <paramref name="path"/> as the CSV a <see cref="StateTrace"/> produces when the run ends.
+    /// One trace spans every scene the run passes through. Windowed or headless alike; off unless
+    /// this is called, and a run that does not call it pays one null check per step.
+    /// </summary>
+    /// <param name="path">The CSV to write; an existing file is overwritten.</param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    public SceneEngineBuilder WithStateTrace(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _stateTracePath = path;
+        return this;
+    }
+
+    /// <summary>
+    /// Saves the frame drawn after each of <paramref name="ticks"/> has been simulated as
+    /// <c>frame-&lt;tick&gt;.png</c> under <paramref name="directory"/>, which is created if it is
+    /// absent. Each listed tick is captured once, on the first frame whose latest completed
+    /// simulation step is at or past it; a tick the run never reaches is never captured.
+    /// <para>
+    /// What is saved is the surface the world was drawn on, ahead of the letterbox blit into the
+    /// window: the render target where <see cref="WithRenderResolution"/> declared one, so the
+    /// image's size is that resolution however the window is sized or shaped, and the back buffer
+    /// where it did not, which follows the window.
+    /// </para>
+    /// <para>
+    /// A windowed run only. <see cref="RunHeadless{TScene}(InputTape, object?)"/> has no graphics
+    /// device and draws nothing, so there is no surface to save and it captures nothing.
+    /// </para>
+    /// </summary>
+    /// <param name="directory">Where the images go; existing files of the same names are overwritten.</param>
+    /// <param name="ticks">The simulation ticks to capture, in any order; repeats capture once.</param>
+    /// <exception cref="ArgumentException">The directory is null or blank, or no tick was given.</exception>
+    /// <exception cref="ArgumentNullException">The tick array is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A tick is negative; the first step ever run is tick 0.</exception>
+    public SceneEngineBuilder WithFrameCapture(string directory, params long[] ticks)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        ArgumentNullException.ThrowIfNull(ticks);
+
+        if (ticks.Length == 0)
+        {
+            throw new ArgumentException("A frame capture names at least one tick to capture.", nameof(ticks));
+        }
+
+        foreach (long tick in ticks)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(tick, nameof(ticks));
+        }
+
+        _frameCaptureDirectory = directory;
+        _frameCaptureTicks = [.. ticks];
+        return this;
+    }
+
+    /// <summary>
     /// Runs <typeparamref name="TScene"/> from <paramref name="tape"/> with no window, no graphics
     /// device and no textures: everything this builder configures below the window — bindings, the
     /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and one
@@ -440,7 +499,16 @@ public sealed class SceneEngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        // Declared ahead of the host so the trace is written after the last scene has stopped.
+        using StateTraceFile? trace = NewStateTrace();
+
+        using SceneHost host = new(
+            initialTarget,
+            composer.Resolve,
+            new SceneDefaults(_sampling),
+            new RandomSource(_randomSeed),
+            trace?.Trace);
+
         Run(host, host);
     }
 
@@ -454,7 +522,15 @@ public sealed class SceneEngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        using StateTraceFile? trace = NewStateTrace();
+
+        using SceneHost host = new(
+            initialTarget,
+            composer.Resolve,
+            new SceneDefaults(_sampling),
+            new RandomSource(_randomSeed),
+            trace?.Trace);
+
         using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
 
         FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, tape, recorder);
@@ -467,6 +543,9 @@ public sealed class SceneEngineBuilder
 
         return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);
     }
+
+    private StateTraceFile? NewStateTrace() =>
+        _stateTracePath is null ? null : new StateTraceFile(_stateTracePath, new StateTrace());
 
     private void InstallLogging()
     {
@@ -487,7 +566,12 @@ public sealed class SceneEngineBuilder
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
 
         using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
-        using CapsuleGame game = new(options, simulation, scenes, diagnostics, recorder);
+
+        FrameCapture? capture = _frameCaptureDirectory is null
+            ? null
+            : new FrameCapture(_frameCaptureDirectory, _frameCaptureTicks!);
+
+        using CapsuleGame game = new(options, simulation, scenes, diagnostics, recorder, capture);
 
         if (_consoleSink is not null)
         {

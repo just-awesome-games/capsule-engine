@@ -15,19 +15,29 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private readonly SceneDefaults _defaults;
     private readonly RandomSource _random;
 
+    // Null unless the run asked for one. Held by the host rather than by a simulation so one trace
+    // spans every scene the run passes through, with tick numbers continuing across a transition.
+    private readonly StateTrace? _trace;
+
     private SceneTransition _target;
     private SceneSimulation _current;
     private bool _disposed;
 
     // random is one source for the whole run: every scene the host opens draws from it, so a
     // transition neither reseeds nor rewinds the sequence.
-    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, SceneDefaults defaults = default, RandomSource? random = null)
+    internal SceneHost(
+        in SceneTransition initialTarget,
+        SceneResolver resolve,
+        SceneDefaults defaults = default,
+        RandomSource? random = null,
+        StateTrace? trace = null)
     {
         _resolve = resolve;
         _defaults = defaults;
         _random = random ?? new RandomSource();
+        _trace = trace;
         _target = initialTarget;
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random);
+        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random, trace);
     }
 
     public bool ExitRequested { get; private set; }
@@ -122,7 +132,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
 
         _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload, _defaults, _random);
+        _current = new SceneSimulation(next, target.Payload, _defaults, _random, _trace);
         _target = target;
     }
 }
