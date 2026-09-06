@@ -124,3 +124,57 @@ CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly an
 For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
 over the tape: it is substrate-free, so a test holds the scene and reads its entities between
 steps.
+
+## Reading what happened
+
+### The state trace
+
+`.WithStateTrace(path)` records the world at the end of every fixed step and writes it as one CSV
+when the run ends. One trace spans every scene the run passes through, so a transition does not
+restart the tick count or the file:
+
+```csharp
+CapsuleEngine.Configure("My Game", GameScenes.Registry)
+    .WithRandomSeed(7)
+    .WithStateTrace("artifacts/first-room.csv")
+    .RunHeadless<FirstRoom>(tape);
+```
+
+Rows are long-form — one value per line — so two runs diff line by line and any reader pivots them:
+
+| Column | Holds |
+| --- | --- |
+| `tick` | The fixed step the row was taken at the end of; 0 is the first step of the run. |
+| `subject` | What the row is about: `#12` for an entity spawned from that document placement, `e3` for one created in code, `camera` for the scene's camera. |
+| `column` | What is being recorded: `x`, `y` and `type` for every entity, `x` and `y` for the camera, plus whatever the subject's own trace sources write. |
+| `value` | The value, in the invariant culture; floats in the shortest text that round-trips. |
+
+```text
+tick,subject,column,value
+0,#12,x,64.5
+0,#12,y,112
+0,#12,type,Player
+0,#12,clip,run
+0,#12,frame,2
+0,camera,x,64.5
+```
+
+An entity or component implementing `Capsule.Scenes.ITraceSource` adds its own columns under its
+subject; `SpriteAnimator` already writes `clip` and `frame`.
+
+### Frame captures
+
+`.WithFrameCapture(directory, ticks)` saves the frame drawn after each named tick as
+`frame-<tick>.png`. It needs a device, so it is a windowed run only — a headless run has no
+surface to save:
+
+```csharp
+CapsuleBoot.Configure("My Game")
+    .WithRenderResolution(480, 270)
+    .WithInputTape("assets/tapes/first-room.tape")
+    .WithFrameCapture("artifacts/frames", 0, 60, 240)
+    .RunScene<FirstRoom>();
+```
+
+With a render resolution declared the image is that surface, ahead of the letterbox blit, so its
+size is the same whatever the window is doing.

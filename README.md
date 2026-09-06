@@ -49,7 +49,7 @@ Logic projects cannot reference the runtime, backend, file IO, ambient clocks, a
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-That snapshot sequence is a value in its own right — an input tape — so a run is recorded, replayed and run without a window; see [`docs/headless-play.md`](docs/headless-play.md).
+That snapshot sequence is a value in its own right — an input tape — so a run is recorded, replayed and run without a window, and what the run did is read back as a per-step state trace and as captured frames; see [`docs/headless-play.md`](docs/headless-play.md).
 
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 
