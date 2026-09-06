@@ -123,6 +123,10 @@ public class Entity
     // rather than a move.
     internal bool Anchored { get; init; }
 
+    // The id of the document placement this entity was spawned from, in that document's id space;
+    // null for an entity created in code. What a StateTrace names it by.
+    internal int? DocumentId { get; set; }
+
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
     // Every walk of the component list goes through this. A hook may detach the component being

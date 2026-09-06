@@ -106,6 +106,8 @@ public class Scene
                     new Vector2(placed.X, placed.Y),
                     new Vector2(placed.ScaleX, placed.ScaleY)));
 
+                spawned.DocumentId = placed.Id;
+
                 // Only where the placement authors one, and after construction: the class owns the
                 // default, and an authored band — 0 included — is what overrides it.
                 if (placed.ZIndex is { } band)

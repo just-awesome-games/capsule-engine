@@ -7,6 +7,10 @@ namespace Capsule.Scenes;
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();
+
+    // Null unless the run asked for a trace, which is the only cost a run that did not ask pays.
+    private readonly StateTrace? _trace;
+
     private bool _disposed;
 
     /// <summary>Starts <paramref name="scene"/> under <paramref name="defaults"/> and builds its first frame.</summary>
@@ -17,14 +21,24 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// The run's random source, which becomes the scene's <see cref="Scenes.Scene.Random"/> before
     /// it starts; omitted, it is the default seed's stream 0.
     /// </param>
+    /// <param name="trace">
+    /// Where the end of every step is recorded, or null to record nothing. One trace may be handed
+    /// to a succession of simulations, which is how a trace spans a run of scenes.
+    /// </param>
     /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
     /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too; both are inner exceptions.</exception>
-    public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default, RandomSource? random = null)
+    public SceneSimulation(
+        Scene scene,
+        object? entryPayload = null,
+        SceneDefaults defaults = default,
+        RandomSource? random = null,
+        StateTrace? trace = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
         Scene = scene;
+        _trace = trace;
         scene.Random = random ?? new RandomSource();
         try
         {
@@ -78,6 +92,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.EndStep();
 
         RewriteView();
+
+        // Past the drain, so a subject that joined or left during the step is recorded as the step
+        // left it rather than as it stood mid-way through.
+        _trace?.Capture(Scene, context.Tick);
     }
 
     /// <summary>Takes the deferred transition requested by the last step, if one was requested.</summary>

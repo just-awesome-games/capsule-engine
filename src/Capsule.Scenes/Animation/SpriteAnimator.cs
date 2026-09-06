@@ -12,7 +12,7 @@ namespace Capsule.Scenes.Animation;
 /// simulation state.
 /// </summary>
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
-public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
+public sealed class SpriteAnimator(SpriteRenderer renderer) : Component, ITraceSource
 {
     private readonly SpriteRenderer _renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
 
@@ -64,6 +64,16 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _pendingStart = true;
         _startedOnTick = Entity?.Scene?.SteppingTick;
         _renderer.Sprite = clip.Frames[0];
+    }
+
+    /// <summary>
+    /// Writes <c>clip</c>, the name of the clip playing or <c>none</c>, and <c>frame</c>, its
+    /// current frame index.
+    /// </summary>
+    public void WriteTrace(TraceWriter writer)
+    {
+        writer.Write("clip", Clip is { } clip ? clip.Name : "none");
+        writer.Write("frame", FrameIndex);
     }
 
     /// <inheritdoc/>
