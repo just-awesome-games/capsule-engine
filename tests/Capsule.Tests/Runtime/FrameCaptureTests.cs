@@ -89,6 +89,32 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.False(File.Exists(BoundPath));
     }
 
+    // The advance that spends the tape runs the final step itself, so a request that step raised is
+    // only reachable after the loop the run drives.
+    [Fact]
+    public void RunHeadless_ClearsARequestRaisedOnTheFinalStep()
+    {
+        BoundPath = Path.Combine(_directory, "final.png");
+        InputTape tape = new InputScript().Wait(3).Tap(Key.Space).Build();
+
+        BoundCaptureScene? scene = null;
+
+        HeadlessRunResult result = CapsuleEngine.Configure(
+                "Capture Game",
+                new SceneRegistry(
+                    new EntityRegistry([]),
+                    [SceneRegistration.Plain(typeof(BoundCaptureScene), () => scene = new BoundCaptureScene())]))
+            .WithFixedStep(10)
+            .WithBindings(static bindings => bindings.Bind(Shoot, Key.Space))
+            .WithoutCrashLog()
+            .WithoutLogging()
+            .RunHeadless<BoundCaptureScene>(tape);
+
+        Assert.Equal(tape.Count, result.Steps);
+        Assert.Null(Assert.IsType<BoundCaptureScene>(scene).FrameCaptureRequested);
+        Assert.False(File.Exists(BoundPath));
+    }
+
     private static SceneTransition ToScene<TScene>()
         where TScene : Scene
         => SceneTransition.ToScene(typeof(TScene), null);

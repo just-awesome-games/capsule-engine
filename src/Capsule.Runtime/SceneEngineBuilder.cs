@@ -704,6 +704,10 @@ public sealed class SceneEngineBuilder
             host.TryTakeFrameCapture(out _);
         }
 
+        // The advance that ends the run executed a step of its own, whose request the loop body
+        // never reaches.
+        host.TryTakeFrameCapture(out _);
+
         return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);
     }
 
