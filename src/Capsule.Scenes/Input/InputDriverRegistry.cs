@@ -29,8 +29,8 @@ public readonly record struct InputDriverRegistration
         _factory = factory;
     }
 
-    /// <summary>The name this driver is registered under.</summary>
-    public string Name { get; }
+    // The name this driver is registered under, read only by the registry that keys on it.
+    internal string Name { get; }
 
     // Reached only through InputDriverRegistry, which rejects a registration carrying no factory.
     internal IInputDriver Create() => _factory!();
@@ -68,8 +68,8 @@ public sealed class InputDriverRegistry
         }
     }
 
-    /// <summary>A registry holding no driver.</summary>
-    public static InputDriverRegistry Empty { get; } = new([]);
+    // A registry holding no driver, which is what a game declaring none configures with.
+    internal static InputDriverRegistry Empty { get; } = new([]);
 
     // Constructs the driver registered under name, or reports that none is.
     internal bool TryCreate(string name, [NotNullWhen(true)] out IInputDriver? driver)

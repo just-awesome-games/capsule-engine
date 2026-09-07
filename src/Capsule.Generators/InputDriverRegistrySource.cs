@@ -154,7 +154,7 @@ internal static class InputDriverRegistrySource
         source.AppendLine("{");
         source.AppendLine("    /// <summary>Every input driver this assembly declares. Generated; do not edit.</summary>");
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class GameInputDrivers");
+        source.AppendLine("    internal static class GameInputDrivers");
         source.AppendLine("    {");
         source.AppendLine("        internal static global::Capsule.Scenes.Input.InputDriverRegistration[] Registrations { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.Input.InputDriverRegistration[]");
