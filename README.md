@@ -49,7 +49,7 @@ Logic projects cannot reference the runtime, backend, file IO, ambient clocks, a
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-That snapshot sequence is a value in its own right — an input tape — so a run is recorded, replayed and run without a window. `WithCommandLine(args)` gives a game the standard flags that drive all three, and a scene that wants a screenshot raises the intent for the host to fulfil rather than writing a file itself; see [`docs/headless-play.md`](docs/headless-play.md).
+That snapshot sequence comes from an input driver — a class the build discovers and the command line names — so a run is played with no window and no keyboard, and it reads the scene it is playing. `WithCommandLine(args)` gives a game the standard flags that drive it, and a scene that wants a screenshot raises the intent for the host to fulfil rather than writing a file itself; see [`docs/headless-play.md`](docs/headless-play.md).
 
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 

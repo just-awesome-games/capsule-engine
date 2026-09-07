@@ -6,7 +6,7 @@ These rules cover judgments the build cannot enforce. Read diagnostics before ad
 
 Consuming Capsule is documented in [`docs/consuming-capsule.md`](docs/consuming-capsule.md); the runnable minimal game is [`samples/MinimalGame/`](samples/MinimalGame/), which is frozen: it changes only to migrate a break an engine change caused in it, or when the Creative Director asks for it, and never to demonstrate a new engine feature.
 
-A run is driven by an input tape, never by asking a person to play it: see [`docs/headless-play.md`](docs/headless-play.md) for recording one, scripting one, and replaying it headlessly.
+A run is driven by an input driver, never by asking a person to play it: see [`docs/headless-play.md`](docs/headless-play.md) for writing one, naming it on the command line, and running it headlessly.
 
 The standard command line is Capsule's: a game opts in with `WithCommandLine(args)` and never re-implements a flag the engine already declares.
 

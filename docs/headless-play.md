@@ -1,71 +1,80 @@
 # Headless play
 
 A Capsule run is determined by its initial state, its fixed step, and the sequence of
-`DeviceSnapshot` values the simulation sees. That sequence is a first-class value — an
-`InputTape` — so a run can be recorded, replayed, and driven with no window, no graphics device
-and no person at the keyboard.
+`DeviceSnapshot` values the simulation sees. That sequence comes from a class — an input driver — so
+a run is played with no window, no graphics device and no person at the keyboard, and plays the same
+way every time.
 
-## Input tapes
+## Input drivers
 
-`Capsule.Input.InputTape` is an immutable sequence holding exactly one `DeviceSnapshot` per fixed
-step. Tapes compare by content, so a replay's recording can be asserted equal to the tape it
-replayed.
+`Capsule.Scenes.Input.IInputDriver` has one method:
 
-Everything a tape measures is counted in fixed steps, never in seconds. At the default 60 Hz, one
+```csharp
+bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot);
+```
+
+The driver is asked once per fixed step, before that step runs, whatever the frame rate; `scene` is
+the scene about to be stepped, so a driver reads the world it is playing and a transition hands it
+the new scene. Returning false ends the run, and the step it declined never runs. A driver that ends
+the run on a condition of its own presses whatever key the game exits on instead.
+
+Everything a driver measures is counted in fixed steps, never in seconds. At the default 60 Hz, one
 second of play is 60 steps.
 
-## Scripting a tape
+A driver with a public parameterless constructor is registered by the build under its class name,
+which is what `--driver` takes. One that takes constructor arguments registers under no name and
+reaches a run through `WithInputDriver` or `RunHeadless`.
 
-`Capsule.Input.InputScript` builds a tape the way a device produces one: a held state that edits
-change, and calls that emit steps of it.
+## Scripting a driver
 
-```csharp
-InputTape tape = new InputScript()
-    .Wait(30)                             // 30 idle steps
-    .Down(Key.D)                          // held from the next emitted step on
-    .Wait(60)                             // 60 steps walking right
-    .Tap(Key.Space)                       // one step with Space down, then up again
-    .Wait(60)
-    .Up(Key.D)
-    .Axis(PadAxis.LeftStickX, -1f)
-    .Wait(30)
-    .Build();
-```
-
-## The tape file
-
-A recorded tape is a small binary file: a four-byte magic, a version, and then one fixed-size
-record per step holding exactly what a `DeviceSnapshot` holds — nothing compressed, nothing
-run-length encoded, every field little-endian. It is written and read only by the engine. Reading
-one that is not a Capsule tape, is of a version this engine does not read, ends mid-step, or holds
-a record no device could have reported — a bit no member names, or an axis outside its range —
-raises `Capsule.Runtime.InputTapeFormatException`, whose message says which.
-
-The file is not a format to author in. A tape written by hand is written in code, with
-`InputScript`.
-
-## Recording and replaying a run
-
-Both are builder configuration, so any run — windowed or headless — takes them:
+`Capsule.Scenes.Input.InputScript` builds a driver of a fixed sequence the way a device produces
+one: a held state that edits change, and calls that emit steps of it.
 
 ```csharp
-CapsuleBoot.Configure("My Game")
-    .WithInputRecording("run.tape")       // write what every fixed step consumed, on exit
-    .RunScene<MainMenu>();
+public sealed class Walkthrough : IInputDriver
+{
+    private readonly IInputDriver _script = new InputScript()
+        .Wait(30)                             // 30 idle steps
+        .Down(Key.D)                          // held from the next emitted step on
+        .Wait(60)                             // 60 steps walking right
+        .Tap(Key.Space)                       // one step with Space down, then up again
+        .Wait(60)
+        .Up(Key.D)
+        .Axis(PadAxis.LeftStickX, -1f)
+        .Wait(30)
+        .Build();
 
-CapsuleBoot.Configure("My Game")
-    .WithInputTape("run.tape")            // drive the run from it instead of the devices
-    .RunScene<MainMenu>();
+    public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot) =>
+        _script.TryNext(scene, tick, out snapshot);
+}
 ```
 
-The two combine: recording a replay writes back the tape it replayed, which is how a recording is
-checked for having captured the run.
+## Writing a driver by hand
+
+A driver that reacts to the game reads the scene it is handed:
+
+```csharp
+public sealed class ReachTheDoor : IInputDriver
+{
+    public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+    {
+        snapshot = scene switch
+        {
+            Hall hall when hall.Player.Position.X < 240f => DeviceSnapshot.Of(Key.D),
+            Hall => DeviceSnapshot.Of(Key.Space),
+            _ => DeviceSnapshot.Empty,
+        };
+
+        // A ceiling on the run, so a game that never reaches the door still ends.
+        return tick < 600;
+    }
+}
+```
 
 ## The standard command line
 
-Capsule owns the flags that drive recording, replay, headless play and frame timing, so a game
-never writes a parser for them. One call hands the process arguments over, and `RunScene` returns
-the exit code:
+Capsule owns the flags that drive input, headless play and frame timing, so a game never writes a
+parser for them. One call hands the process arguments over, and `RunScene` returns the exit code:
 
 ```csharp
 return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
@@ -73,60 +82,52 @@ return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>
 
 Nothing is read ambiently: a shell that does not pass `args` has no command line at all.
 
-| Flag                       | Effect                                                            |
+| Flag                       | Effect                                                             |
 | -------------------------- | ------------------------------------------------------------------ |
-| `--record <tape>`          | Writes the snapshot every fixed step consumed, on exit.            |
-| `--replay <tape>`          | Drives the run from a tape file instead of the devices.            |
-| `--headless <tape>`        | Runs the tape with no window; the exit code is the run's.          |
+| `--driver <Name>`          | Drives the run from the input driver of that class name.           |
+| `--headless`               | Runs with no window, which needs a driver.                         |
 | `--frames <csv> [seconds]` | Writes host frame timing, exiting after `seconds` when given.      |
 | `--help`                   | Prints the usage block on standard output and exits.               |
 
 Flags combine, every value is required, and repeating one is an error. A game with flags of its own
 removes them before handing the rest over, since anything Capsule does not declare is rejected.
 
-`RunScene` returns 2 for a rejected command line or a tape file it cannot read, reporting the defect
-and the usage block on standard error; a headless run that neither spent its tape nor was asked to
-exit returns 1; everything else returns 0.
+`--driver X` alone opens the window and plays the driver in it; `--headless --driver X` opens no
+window at all. `RunScene` returns 2 for a rejected command line, a driver name nothing answers to —
+reported with the names that are registered — or `--headless` with no driver; everything else
+returns 0.
 
-## Running headlessly
+Drivers are discovered wherever the game declares them: the shell project, the logic project, or any
+logic assembly the shell references.
 
-`RunHeadless` runs a tape through the same scene host a windowed run drives, with no MonoGame, no
+## Running headlessly from a test
+
+`RunHeadless` runs a driver through the same scene host a windowed run drives, with no MonoGame, no
 window, no graphics device and no texture residency:
 
 ```csharp
-HeadlessRunResult result = CapsuleBoot.Configure("My Game")
-    .WithRandomSeed(7)
-    .RunHeadless<MainMenu>(tape);
-```
-
-## Driving a game without a keyboard
-
-An agent or a CI job that needs to see what a change does to a real run authors the tape in code
-and runs it headlessly, with no file in between:
-
-```csharp
-InputTape tape = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();
+IInputDriver driver = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();
 
 HeadlessRunResult result = CapsuleEngine.Configure("My Game", GameScenes.Registry)
     .WithRandomSeed(7)
-    .RunHeadless<FirstRoom>(tape);
+    .RunHeadless<FirstRoom>(driver);
 
 Assert.True(result.ExitRequested);
-Assert.Equal(tape.Count, result.Steps);
+Assert.Equal(122, result.Steps);
 ```
 
 `CapsuleBoot` is generated into the shell, so a project that is not the shell — a test project, a
 CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly and enters through
-`CapsuleEngine.Configure(gameName, GameScenes.Registry)`, which returns the same builder.
+`CapsuleEngine.Configure(gameName, GameScenes.Registry)`, which returns the same builder. That
+overload registers no driver names, which is what a caller passing its own driver wants.
 
-A tape recorded from a play session is replayed through `WithInputTape(path)` on a windowed run;
-`RunHeadless` takes the tape itself and replaces anything `WithInputTape` set.
+`RunHeadless` takes the driver itself and replaces anything `WithInputDriver` set.
 
 ## Screenshots
 
 Game logic cannot write a file, so a screenshot is an intent the scene raises and the host fulfils
 on its next drawn frame. Bind an action, call `CaptureFrame` on the press, and press the key from a
-tape:
+driver:
 
 ```csharp
 protected override void OnStep(in StepContext context)
@@ -139,12 +140,12 @@ protected override void OnStep(in StepContext context)
 ```
 
 ```csharp
-InputTape tape = new InputScript().Wait(60).Tap(Key.F12).Wait(1).Build();
+IInputDriver driver = new InputScript().Wait(60).Tap(Key.F12).Wait(1).Build();
 ```
 
-A windowed run replaying that tape writes the PNG. A headless run has no surface to save, so it
-clears the request and writes nothing.
+A windowed run under that driver writes the PNG. A headless run has no surface to save, so it clears
+the request and writes nothing.
 
 For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
-over the tape: it is substrate-free, so a test holds the scene and reads its entities between
+over the snapshots: it is substrate-free, so a test holds the scene and reads its entities between
 steps.
