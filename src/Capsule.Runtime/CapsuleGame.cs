@@ -128,6 +128,14 @@ internal sealed class CapsuleGame : Game
         // alpha is in [0, 1) because Update drains the accumulator below one step.
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
+        // While the surface still holds the frame, ahead of the present. The request is taken only
+        // once there is a surface to save, so one raised while the window is minimised stands until
+        // a frame draws.
+        if (_scenes is { } scenes && _renderer.CanSaveSurface && scenes.TryTakeFrameCapture(out string capturePath))
+        {
+            _renderer.SaveSurface(capturePath);
+        }
+
         base.Draw(gameTime);
 
         // Present is not inside the measured section: Game.Tick calls EndDraw after this returns,

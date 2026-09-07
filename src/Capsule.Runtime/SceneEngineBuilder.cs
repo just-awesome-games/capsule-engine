@@ -699,6 +699,9 @@ public sealed class SceneEngineBuilder
         // per-frame step bound never binds.
         while (!scheduler.Advance(_stepSeconds, DeviceSnapshot.Empty, host))
         {
+            // No surface is ever drawn here, so a capture request is taken and dropped rather than
+            // standing for a frame that never comes.
+            host.TryTakeFrameCapture(out _);
         }
 
         return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);

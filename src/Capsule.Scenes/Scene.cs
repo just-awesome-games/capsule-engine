@@ -59,6 +59,7 @@ public class Scene
     private bool _drawing;
     private bool _rebuildDeferred;
     private bool _exitRequested;
+    private string? _frameCapturePath;
     private SceneTransition? _transition;
     private TextureSampling? _sampling;
 
@@ -248,6 +249,12 @@ public class Scene
     /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>
     public bool ExitRequested => _exitRequested;
 
+    /// <summary>
+    /// The path <see cref="CaptureFrame"/> asked the host to save the next drawn frame to, or
+    /// null when no request is pending. Cleared when the host takes the request.
+    /// </summary>
+    public string? FrameCaptureRequested => _frameCapturePath;
+
     /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
@@ -367,6 +374,32 @@ public class Scene
 
         _transition = SceneTransition.Exit();
         _exitRequested = true;
+    }
+
+    /// <summary>
+    /// Asks the host to save the next frame it draws as a PNG at <paramref name="path"/>,
+    /// overwriting whatever is there and creating the directory the path names.
+    /// </summary>
+    /// <param name="path">
+    /// Where to write the PNG; a relative path resolves against the process working directory.
+    /// </param>
+    /// <remarks>
+    /// What is saved is the surface the world was drawn on: the declared render resolution where
+    /// the run has one, and the back buffer where it has none, so the image does not follow the
+    /// window's own size. Requesting again before the host takes the request replaces the path —
+    /// the last request standing when a frame draws is the one served. A frame with no surface to
+    /// draw on, as a minimised window has, leaves the request pending for the next frame that
+    /// draws. A run with no graphics device at all — <c>RunHeadless</c>, or <c>--headless</c> —
+    /// clears the request and writes nothing.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The path is null, empty or blank.</exception>
+    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
+    public void CaptureFrame(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ThrowIfStopped();
+
+        _frameCapturePath = path;
     }
 
     /// <summary>Asks the host to reconstruct this scene once the current step finishes.</summary>
@@ -516,6 +549,22 @@ public class Scene
         ReleaseEntities(ref failures);
         ClearPendingState();
         ThrowCleanupFailures(failures);
+    }
+
+    // Takes the pending capture request, clearing it. Unlike a transition this is not bound to a
+    // step: the host calls it from the frame that will serve it, so an unserved request stands
+    // across steps until one does.
+    internal bool TryTakeFrameCapture(out string path)
+    {
+        if (_frameCapturePath is not { } requested)
+        {
+            path = "";
+            return false;
+        }
+
+        _frameCapturePath = null;
+        path = requested;
+        return true;
     }
 
     internal bool TryTakeTransition(out SceneTransition transition)

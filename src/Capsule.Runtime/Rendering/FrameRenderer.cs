@@ -69,6 +69,50 @@ internal sealed class FrameRenderer : IDisposable
         Present(_target, view.Sampling);
     }
 
+    // Whether the surface the world draws on has any area to save. A render target always has; a
+    // minimised window can present a back buffer with none.
+    internal bool CanSaveSurface =>
+        _target is not null ||
+        (_device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0);
+
+    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
+    // and overwriting the file. Called after Draw and before the frame is presented, while that
+    // surface still holds the frame: the render target where one is configured, whose extent is
+    // the declared render resolution and so is independent of the window, and the back buffer
+    // where there is none. Requires CanSaveSurface; nothing, not even an empty file, is written
+    // without it.
+    internal void SaveSurface(string path)
+    {
+        if (!CanSaveSurface)
+        {
+            return;
+        }
+
+        if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        using FileStream file = File.Create(path);
+
+        if (_target is not null)
+        {
+            _target.SaveAsPng(file, _target.Width, _target.Height);
+            return;
+        }
+
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        int width = backBuffer.BackBufferWidth;
+        int height = backBuffer.BackBufferHeight;
+
+        Color[] pixels = new Color[width * height];
+        _device.GetBackBufferData(pixels);
+
+        using Texture2D surface = new(_device, width, height);
+        surface.SetData(pixels);
+        surface.SaveAsPng(file, width, height);
+    }
+
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox.
     private void DrawWorld(FrameView view, float alpha, int surfaceWidth, int surfaceHeight)
