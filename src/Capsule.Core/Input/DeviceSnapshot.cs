@@ -79,12 +79,9 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public DeviceSnapshot WithAxis(PadAxis axis, float value)
     {
         int index = AxisIndex(axis);
-        float minimum = axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;
-
-        // Negated so that NaN, which compares false either way, is rejected with the rest.
-        if (!(value >= minimum && value <= 1f))
+        if (!IsInRange(axis, value))
         {
-            throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(PadAxis)}.{axis} is in [{minimum}, 1].");
+            throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(PadAxis)}.{axis} is in [{Minimum(axis)}, 1].");
         }
 
         AxisSet axes = _axes;
@@ -112,21 +109,48 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         }
     }
 
-    // Reads back what WriteTo wrote. Bits from a file are taken verbatim: a snapshot holds every
-    // value below its capacity, and every float is a position some device could have reported.
-    internal static DeviceSnapshot ReadFrom(ReadOnlySpan<byte> source)
+    // Reads back what WriteTo wrote, holding decoded bits to the invariants the mutators enforce:
+    // bits no member names are refused, and axes must be in range. On failure defect names the
+    // offending field, for the caller to report against the record it came from.
+    internal static bool TryReadFrom(ReadOnlySpan<byte> source, out DeviceSnapshot snapshot, out string? defect)
     {
+        snapshot = default;
+
+        UInt128 down = BinaryPrimitives.ReadUInt128LittleEndian(source);
+        uint padDown = BinaryPrimitives.ReadUInt32LittleEndian(source[DownBytes..]);
+
+        // Bit 0 is the None of each set, which is the empty set and so never a member.
+        if ((down & UInt128.One) != UInt128.Zero)
+        {
+            defect = $"a key bit is set that no {nameof(Key)} names";
+            return false;
+        }
+
+        if ((padDown & 1u) != 0)
+        {
+            defect = $"a button bit is set that no {nameof(PadButton)} names";
+            return false;
+        }
+
         ReadOnlySpan<byte> rest = source[(DownBytes + sizeof(uint))..];
         AxisSet axes = default;
         for (int i = 0; i < AxisCount; i++)
         {
-            axes[i] = BinaryPrimitives.ReadSingleLittleEndian(rest[(i * sizeof(float))..]);
+            float value = BinaryPrimitives.ReadSingleLittleEndian(rest[(i * sizeof(float))..]);
+            PadAxis axis = (PadAxis)(i + 1);
+            if (!IsInRange(axis, value))
+            {
+                defect = $"{nameof(PadAxis)}.{axis} holds {value}, outside [{Minimum(axis)}, 1]";
+                return false;
+            }
+
+            axes[i] = value;
         }
 
-        return new DeviceSnapshot(
-            BinaryPrimitives.ReadUInt128LittleEndian(source),
-            BinaryPrimitives.ReadUInt32LittleEndian(source[DownBytes..]),
-            axes);
+        snapshot = new DeviceSnapshot(down, padDown, axes);
+        defect = null;
+
+        return true;
     }
 
     /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
@@ -190,6 +214,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         // PadButton.None is the empty set, never a member, so bit 0 is deliberately unused.
         return button == PadButton.None ? 0u : 1u << index;
     }
+
+    private static float Minimum(PadAxis axis) => axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;
+
+    // Written as an accept, not a reject, so that NaN — false against either bound — falls out.
+    private static bool IsInRange(PadAxis axis, float value) => value >= Minimum(axis) && value <= 1f;
 
     private static int AxisIndex(PadAxis axis)
     {

@@ -75,7 +75,13 @@ internal static class InputTapeFile
                     $"This input tape is truncated: step {steps.Count} holds {read} of {DeviceSnapshot.ByteCount} bytes.");
             }
 
-            steps.Add(DeviceSnapshot.ReadFrom(step));
+            if (!DeviceSnapshot.TryReadFrom(step, out DeviceSnapshot snapshot, out string? defect))
+            {
+                throw new InputTapeFormatException(
+                    $"This input tape is malformed at step {steps.Count}: {defect}. Record the run again.");
+            }
+
+            steps.Add(snapshot);
         }
 
         return InputTape.Of(CollectionsMarshal.AsSpan(steps));

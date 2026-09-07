@@ -37,8 +37,9 @@ InputTape tape = new InputScript()
 A recorded tape is a small binary file: a four-byte magic, a version, and then one fixed-size
 record per step holding exactly what a `DeviceSnapshot` holds — nothing compressed, nothing
 run-length encoded, every field little-endian. It is written and read only by the engine. Reading
-one that is not a Capsule tape, is of a version this engine does not read, or ends mid-step raises
-`Capsule.Runtime.InputTapeFormatException`, whose message says which.
+one that is not a Capsule tape, is of a version this engine does not read, ends mid-step, or holds
+a record no device could have reported — a bit no member names, or an axis outside its range —
+raises `Capsule.Runtime.InputTapeFormatException`, whose message says which.
 
 The file is not a format to author in. A tape written by hand is written in code, with
 `InputScript`.

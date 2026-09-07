@@ -1,8 +1,8 @@
 namespace Capsule.Runtime;
 
 /// <summary>
-/// A tape file is not one Capsule wrote, is of a version this engine does not read, or ends
-/// mid-step. The message states which.
+/// A tape file is not one Capsule wrote, is of a version this engine does not read, ends
+/// mid-step, or holds a step no device could have reported. The message states which.
 /// </summary>
 public sealed class InputTapeFormatException : Exception
 {

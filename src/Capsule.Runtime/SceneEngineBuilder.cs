@@ -329,7 +329,7 @@ public sealed class SceneEngineBuilder
     /// </param>
     /// <exception cref="ArgumentException">The path is null or blank.</exception>
     /// <exception cref="IOException">The file could not be read.</exception>
-    /// <exception cref="InputTapeFormatException">The file is no tape, is of an unread version, or ends mid-step.</exception>
+    /// <exception cref="InputTapeFormatException">The file is no tape, is of an unread version, ends mid-step, or holds a malformed step.</exception>
     public SceneEngineBuilder WithInputTape(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
