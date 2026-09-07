@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 namespace Capsule.Input;
@@ -13,11 +12,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public const int PadCapacity = 32;
 
     private const int AxisCount = 6;
-    private const int DownBytes = 16;
-
-    // Bytes one snapshot occupies in a tape file. Fixed, so a tape body that is not a whole
-    // multiple of it is truncated.
-    internal const int ByteCount = DownBytes + sizeof(uint) + (AxisCount * sizeof(float));
 
     private readonly UInt128 _down;
     private readonly uint _padDown;
@@ -93,65 +87,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Unions held buttons with a newer sample and takes its axis values.</summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(_down | newer._down, _padDown | newer._padDown, newer._axes);
-
-    // Writes this snapshot's bits little-endian into the first ByteCount bytes of destination.
-    // The layout is the file form of a tape, so it may not change under a tape version.
-    internal readonly void WriteTo(Span<byte> destination)
-    {
-        BinaryPrimitives.WriteUInt128LittleEndian(destination, _down);
-        Span<byte> rest = destination[DownBytes..];
-        BinaryPrimitives.WriteUInt32LittleEndian(rest, _padDown);
-        rest = rest[sizeof(uint)..];
-
-        for (int i = 0; i < AxisCount; i++)
-        {
-            BinaryPrimitives.WriteSingleLittleEndian(rest[(i * sizeof(float))..], _axes[i]);
-        }
-    }
-
-    // Reads back what WriteTo wrote, holding decoded bits to the invariants the mutators enforce:
-    // bits no member names are refused, and axes must be in range. On failure defect names the
-    // offending field, for the caller to report against the record it came from.
-    internal static bool TryReadFrom(ReadOnlySpan<byte> source, out DeviceSnapshot snapshot, out string? defect)
-    {
-        snapshot = default;
-
-        UInt128 down = BinaryPrimitives.ReadUInt128LittleEndian(source);
-        uint padDown = BinaryPrimitives.ReadUInt32LittleEndian(source[DownBytes..]);
-
-        // Bit 0 is the None of each set, which is the empty set and so never a member.
-        if ((down & UInt128.One) != UInt128.Zero)
-        {
-            defect = $"a key bit is set that no {nameof(Key)} names";
-            return false;
-        }
-
-        if ((padDown & 1u) != 0)
-        {
-            defect = $"a button bit is set that no {nameof(PadButton)} names";
-            return false;
-        }
-
-        ReadOnlySpan<byte> rest = source[(DownBytes + sizeof(uint))..];
-        AxisSet axes = default;
-        for (int i = 0; i < AxisCount; i++)
-        {
-            float value = BinaryPrimitives.ReadSingleLittleEndian(rest[(i * sizeof(float))..]);
-            PadAxis axis = (PadAxis)(i + 1);
-            if (!IsInRange(axis, value))
-            {
-                defect = $"{nameof(PadAxis)}.{axis} holds {value}, outside [{Minimum(axis)}, 1]";
-                return false;
-            }
-
-            axes[i] = value;
-        }
-
-        snapshot = new DeviceSnapshot(down, padDown, axes);
-        defect = null;
-
-        return true;
-    }
 
     /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
     public bool Equals(DeviceSnapshot other)

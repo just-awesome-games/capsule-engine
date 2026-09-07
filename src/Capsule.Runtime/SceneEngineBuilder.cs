@@ -7,6 +7,7 @@ using Capsule.Rendering;
 using Capsule.Runtime.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
@@ -25,9 +26,8 @@ public sealed class SceneEngineBuilder
     // Capsule's standard command line, in one place: what WithCommandLine parses, what --help
     // prints, and what a rejected command line is answered with.
     private const string StandardFlags = """
-          --record <tape>            write the snapshot every fixed step consumed, on exit
-          --replay <tape>            drive the run from a tape file instead of the devices
-          --headless <tape>          run the tape with no window; the exit code is the run's
+          --driver <Name>            drive the run from the input driver of that class name
+          --headless                 run with no window, which needs a driver
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --help                     print this and exit
         """;
@@ -38,6 +38,7 @@ public sealed class SceneEngineBuilder
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
+    private readonly InputDriverRegistry _drivers;
     private readonly string _gameName;
 
     private string _windowTitle;
@@ -58,19 +59,20 @@ public sealed class SceneEngineBuilder
     private ulong _randomSeed = RandomSource.DefaultSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
-    private string? _inputRecordingPath;
-    private InputTape? _inputTape;
-    private string? _replayPath;
-    private string? _headlessPath;
+    private IInputDriver? _driver;
+    private string? _driverName;
+    private bool _headless;
     private string? _commandLineError;
     private bool _helpRequested;
 
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
+    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
+        ArgumentNullException.ThrowIfNull(drivers);
 
         _scenes = scenes;
+        _drivers = drivers;
         _gameName = gameName;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
@@ -291,58 +293,22 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
-    /// Records the snapshot every fixed step consumed and writes it to <paramref name="path"/> as
-    /// Capsule's binary tape file when the run ends, so a play session becomes an
-    /// <see cref="InputTape"/> that replays it. What is recorded is what the simulation saw, past
-    /// the host's own fullscreen chord, so recording a replay reproduces the tape it replayed. Off
-    /// unless this is called.
+    /// Drives the run from <paramref name="driver"/> rather than from the keyboard and gamepad: the
+    /// driver is asked once per fixed step whatever the frame rate, and the run exits itself once
+    /// the driver reports it is finished. The fullscreen chord stays the host's and never reaches
+    /// the driver or the simulation.
     /// </summary>
-    /// <param name="path">The tape to write; an existing file is overwritten.</param>
-    /// <exception cref="ArgumentException">The path is null or blank.</exception>
-    public SceneEngineBuilder WithInputRecording(string path)
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
+    public SceneEngineBuilder WithInputDriver(IInputDriver driver)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _inputRecordingPath = path;
-        return this;
-    }
-
-    /// <summary>
-    /// Drives the run from <paramref name="tape"/> rather than from the keyboard and gamepad: one
-    /// snapshot per fixed step whatever the frame rate, and the run exits itself once the tape's
-    /// last step has run. The fullscreen chord stays the host's and never enters the tape.
-    /// </summary>
-    /// <exception cref="ArgumentNullException">The tape is null.</exception>
-    public SceneEngineBuilder WithInputTape(InputTape tape)
-    {
-        ArgumentNullException.ThrowIfNull(tape);
-        _inputTape = tape;
-        return this;
-    }
-
-    /// <summary>
-    /// Reads the tape file at <paramref name="path"/> now and drives the run from it, exactly as
-    /// <see cref="WithInputTape(InputTape)"/> does.
-    /// </summary>
-    /// <param name="path">
-    /// Capsule's binary tape file, as <see cref="WithInputRecording"/> writes it; it is not
-    /// hand-authored, and a tape written in code is built with <see cref="InputScript"/>.
-    /// </param>
-    /// <exception cref="ArgumentException">The path is null or blank.</exception>
-    /// <exception cref="IOException">The file could not be read.</exception>
-    /// <exception cref="InputTapeFormatException">The file is no tape, is of an unread version, ends mid-step, or holds a malformed step.</exception>
-    public SceneEngineBuilder WithInputTape(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        using FileStream file = File.OpenRead(path);
-        _inputTape = InputTapeFile.Read(file);
-
+        ArgumentNullException.ThrowIfNull(driver);
+        _driver = driver;
         return this;
     }
 
     /// <summary>
     /// Applies Capsule's standard command line — the flags <c>--help</c> prints — so a game gets
-    /// recording, replay, headless play and frame timing without writing a parser. Nothing is read
+    /// driven play, headless play and frame timing without writing a parser. Nothing is read
     /// ambiently: a shell that never passes its <c>args</c> has no command line at all.
     /// </summary>
     /// <param name="args">
@@ -350,8 +316,9 @@ public sealed class SceneEngineBuilder
     /// them first, since anything Capsule does not declare is rejected here.
     /// </param>
     /// <remarks>
-    /// Nothing is thrown and no file is read: a malformed command line is recorded so the fluent
-    /// chain completes, and <c>RunScene</c> reports it and returns 2.
+    /// Nothing is thrown and no driver is built: a malformed command line, and a driver name no
+    /// registered driver answers to, are held so the fluent chain completes, and <c>RunScene</c>
+    /// reports the defect and returns 2.
     /// </remarks>
     /// <exception cref="ArgumentNullException">The argument array is null.</exception>
     public SceneEngineBuilder WithCommandLine(string[] args)
@@ -375,31 +342,17 @@ public sealed class SceneEngineBuilder
                     _helpRequested = true;
                     break;
 
-                case "--record":
-                    if (!TryValue(args, ref index, out string record))
+                case "--driver":
+                    if (!TryValue(args, ref index, out string driver))
                     {
-                        return RejectCommandLine("--record needs a path.");
+                        return RejectCommandLine("--driver needs a driver name.");
                     }
 
-                    WithInputRecording(record);
-                    break;
-
-                case "--replay":
-                    if (!TryValue(args, ref index, out string replay))
-                    {
-                        return RejectCommandLine("--replay needs a path.");
-                    }
-
-                    _replayPath = replay;
+                    _driverName = driver;
                     break;
 
                 case "--headless":
-                    if (!TryValue(args, ref index, out string headless))
-                    {
-                        return RejectCommandLine("--headless needs a path.");
-                    }
-
-                    _headlessPath = headless;
+                    _headless = true;
                     break;
 
                 case "--frames":
@@ -425,44 +378,43 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
-    /// Runs <typeparamref name="TScene"/> from <paramref name="tape"/> with no window, no graphics
+    /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no graphics
     /// device and no textures: everything this builder configures below the window — bindings, the
-    /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and one
-    /// fixed step runs per tape entry until the tape is spent or the game requests exit. Replaces
-    /// any tape <see cref="WithInputTape(InputTape)"/> set, and honours
-    /// <see cref="WithInputRecording"/>.
+    /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and the
+    /// driver is asked for one snapshot per fixed step until it reports it is finished or the game
+    /// requests exit. Replaces any driver <see cref="WithInputDriver"/> set.
     /// </summary>
     /// <remarks>
     /// A headless run writes no crash log whatever <see cref="WithCrashLog"/> configured: an
     /// exception escaping the scene propagates to the caller, which is a test or a CI job.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
-    /// <param name="tape">The run's input, one snapshot per fixed step.</param>
+    /// <param name="driver">The run's input, one snapshot per fixed step.</param>
     /// <param name="payload">Boot state, exactly as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
-    /// <exception cref="ArgumentNullException">The tape is null.</exception>
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public HeadlessRunResult RunHeadless<TScene>(InputTape tape, object? payload = null)
+    public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, object? payload = null)
         where TScene : Scene
-        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), tape);
+        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver);
 
     /// <summary>
-    /// Runs the scene the named document backs from <paramref name="tape"/>, exactly as
-    /// <see cref="RunHeadless{TScene}(InputTape, object?)"/> runs a class.
+    /// Runs the scene the named document backs from <paramref name="driver"/>, exactly as
+    /// <see cref="RunHeadless{TScene}(IInputDriver, object?)"/> runs a class.
     /// </summary>
     /// <param name="sceneName">The document's key under the scene root, without <c>.scene.json</c>.</param>
-    /// <param name="tape">The run's input, one snapshot per fixed step.</param>
+    /// <param name="driver">The run's input, one snapshot per fixed step.</param>
     /// <param name="payload">Boot state, exactly as <see cref="RunScene(string, object?)"/> takes it.</param>
-    /// <exception cref="ArgumentNullException">The tape is null.</exception>
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public HeadlessRunResult RunHeadless(string sceneName, InputTape tape, object? payload = null)
+    public HeadlessRunResult RunHeadless(string sceneName, IInputDriver driver, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
 
-        return RunHeadless(SceneTransition.ToName(sceneName, payload), tape);
+        return RunHeadless(SceneTransition.ToName(sceneName, payload), driver);
     }
 
     /// <summary>
@@ -493,10 +445,9 @@ public sealed class SceneEngineBuilder
     /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
     /// </param>
     /// <returns>
-    /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line or a
-    /// tape file it named cannot be read, which is reported on standard error with the usage block;
-    /// otherwise 0, except a headless run that stopped before its tape was spent without the game
-    /// asking to exit, which is 1.
+    /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line, or
+    /// named a driver no registered driver answers to, or asked for a headless run with no driver —
+    /// each reported on standard error with the usage block; otherwise 0.
     /// </returns>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
@@ -525,7 +476,7 @@ public sealed class SceneEngineBuilder
             _stickDeadzone,
             _triggerDeadzone,
             _bindings,
-            _inputTape);
+            _driver);
 
         try
         {
@@ -566,27 +517,26 @@ public sealed class SceneEngineBuilder
             return 0;
         }
 
-        if (_replayPath is not null)
+        if (_driverName is not null)
         {
-            if (!TryLoadTape(_replayPath, out InputTape replay, out string replayError))
+            if (!_drivers.TryCreate(_driverName, out IInputDriver? named))
             {
-                return Reject(replayError);
+                return Reject($"no input driver is named '{_driverName}'. Registered: {_drivers.RegisteredNames()}.");
             }
 
-            _inputTape = replay;
+            _driver = named;
         }
 
-        if (_headlessPath is not null)
+        if (_headless)
         {
-            if (!TryLoadTape(_headlessPath, out InputTape tape, out string headlessError))
+            if (_driver is null)
             {
-                return Reject(headlessError);
+                return Reject("--headless has no one to play the game: name an input driver with --driver.");
             }
 
-            HeadlessRunResult result = RunHeadless(initialTarget, tape);
+            RunHeadless(initialTarget, _driver);
 
-            // A run that neither spent its tape nor was asked to end stopped for a reason the caller wants.
-            return result.ExitRequested || result.Steps >= tape.Count ? 0 : 1;
+            return 0;
         }
 
         // Before composing, not inside Run: a scene's OnStart logs while the host is built here.
@@ -613,27 +563,6 @@ public sealed class SceneEngineBuilder
         Console.Error.WriteLine(Usage);
 
         return BadArgumentExitCode;
-    }
-
-    // A tape file the command line named and the run cannot read is a bad argument, answered like
-    // one rather than escaping the entry point as an exception.
-    private static bool TryLoadTape(string path, out InputTape tape, out string error)
-    {
-        try
-        {
-            using FileStream file = File.OpenRead(path);
-            tape = InputTapeFile.Read(file);
-            error = string.Empty;
-
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InputTapeFormatException)
-        {
-            tape = InputTape.Empty;
-            error = $"Tape {path}: {exception.Message}";
-
-            return false;
-        }
     }
 
     // A value never starts with the flag prefix, so a missing one is caught here rather than
@@ -682,18 +611,17 @@ public sealed class SceneEngineBuilder
 
     // No window, no device, no residency: the scene host is the same one a windowed run drives, so
     // transitions, the seed and the scene defaults behave identically.
-    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, InputTape tape)
+    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
     {
-        ArgumentNullException.ThrowIfNull(tape);
+        ArgumentNullException.ThrowIfNull(driver);
 
         InstallLogging();
 
         SceneComposer composer = new(_scenes);
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
-        using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
 
-        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, tape, recorder);
+        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, driver, host);
 
         // Exactly one step's worth of time per call, so the accumulator drains one step and the
         // per-frame step bound never binds.
@@ -704,8 +632,8 @@ public sealed class SceneEngineBuilder
             host.TryTakeFrameCapture(out _);
         }
 
-        // The advance that ends the run executed a step of its own, whose request the loop body
-        // never reaches.
+        // The advance that ends the run may have executed a step of its own, whose request the loop
+        // body never reaches.
         host.TryTakeFrameCapture(out _);
 
         return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);
@@ -729,8 +657,7 @@ public sealed class SceneEngineBuilder
             ? null
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
 
-        using InputRecorder? recorder = _inputRecordingPath is null ? null : new InputRecorder(_inputRecordingPath);
-        using CapsuleGame game = new(options, simulation, scenes, diagnostics, recorder);
+        using CapsuleGame game = new(options, simulation, scenes, diagnostics);
 
         if (_consoleSink is not null)
         {

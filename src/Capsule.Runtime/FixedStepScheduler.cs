@@ -1,5 +1,5 @@
 using Capsule.Input;
-using Capsule.Runtime.Input;
+using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 
@@ -10,21 +10,29 @@ internal sealed class FixedStepScheduler
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
-    // Null unless the run is replaying. A tape supplies one snapshot per fixed step, so what the
+    // Null unless the run is driven. A driver supplies one snapshot per fixed step, so what the
     // simulation sees is independent of how many frames the host drew to reach that step.
-    private readonly InputTape? _tape;
-    private readonly InputRecorder? _recorder;
+    private readonly IInputDriver? _driver;
+
+    // The scene a driver is shown, which a transition replaces under it.
+    private readonly SceneHost? _scenes;
 
     private double _accumulatorSeconds;
+    private bool _driverFinished;
 
     internal FixedStepScheduler(
         double stepSeconds,
         int maxStepsPerFrame,
         ActionBindings bindings,
-        InputTape? tape = null,
-        InputRecorder? recorder = null)
+        IInputDriver? driver = null,
+        SceneHost? scenes = null)
     {
         ArgumentNullException.ThrowIfNull(bindings);
+
+        if (driver is not null && scenes is null)
+        {
+            throw new ArgumentNullException(nameof(scenes), "An input driver is shown the scene it drives, so a driven run is a run of scenes.");
+        }
 
         if (!double.IsFinite(stepSeconds) || stepSeconds <= 0)
         {
@@ -36,8 +44,8 @@ internal sealed class FixedStepScheduler
         _stepSeconds = stepSeconds;
         _maxStepsPerFrame = maxStepsPerFrame;
         _input = new InputState(bindings);
-        _tape = tape;
-        _recorder = recorder;
+        _driver = driver;
+        _scenes = scenes;
     }
 
     internal long Tick { get; private set; }
@@ -46,9 +54,6 @@ internal sealed class FixedStepScheduler
 
     internal float InterpolationAlpha => (float)(_accumulatorSeconds / _stepSeconds);
 
-    // Whether a replay has run every step its tape holds, which is where the run ends.
-    private bool TapeSpent => _tape is { } tape && Tick >= tape.Count;
-
     internal bool Advance(double elapsedSeconds, in DeviceSnapshot snapshot, ISimulation simulation)
     {
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
@@ -56,13 +61,13 @@ internal sealed class FixedStepScheduler
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time must be finite and non-negative.");
         }
 
-        // Under a tape the sampled device is not input at all: the host still samples it for its
+        // Under a driver the sampled device is not input at all: the host still samples it for its
         // own fullscreen chord, and nothing of it reaches the simulation.
-        if (_tape is null)
+        if (_driver is null)
         {
             _latch.Observe(snapshot);
         }
-        else if (TapeSpent)
+        else if (_driverFinished)
         {
             return true;
         }
@@ -82,8 +87,22 @@ internal sealed class FixedStepScheduler
                 return false;
             }
 
-            DeviceSnapshot stepped = _tape is { } tape ? tape[(int)Tick] : _latch.ConsumeStepSnapshot();
-            _recorder?.Record(stepped);
+            DeviceSnapshot stepped;
+            if (_driver is { } driver)
+            {
+                // Asked once per step, holding the scene the step is about to run.
+                if (!driver.TryNext(_scenes!.Scene, Tick, out stepped))
+                {
+                    _driverFinished = true;
+
+                    return true;
+                }
+            }
+            else
+            {
+                stepped = _latch.ConsumeStepSnapshot();
+            }
+
             _input.Advance(stepped);
             simulation.Step(new StepContext(_stepSeconds, _input, Tick));
 
@@ -96,7 +115,7 @@ internal sealed class FixedStepScheduler
             stepsRun++;
             Tick++;
 
-            if (simulation.ExitRequested || TapeSpent)
+            if (simulation.ExitRequested)
             {
                 return true;
             }

@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 
@@ -15,5 +16,5 @@ internal sealed record EngineOptions(
     float StickDeadzone,
     float TriggerDeadzone,
     ActionBindings Bindings,
-    // Null unless the run replays a tape instead of sampling the devices.
-    InputTape? Tape);
+    // Null unless the run is driven in code instead of sampling the devices.
+    IInputDriver? Driver);

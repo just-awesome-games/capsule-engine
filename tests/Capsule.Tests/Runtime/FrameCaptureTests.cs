@@ -2,6 +2,7 @@ using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 
@@ -10,6 +11,8 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class FrameCaptureTests : IDisposable
 {
+    private const int DrivenSteps = 4;
+
     private static readonly InputAction Shoot = new("Shoot");
 
     // Where BoundCaptureScene asks for its capture: the registry builds it from a parameterless
@@ -72,7 +75,7 @@ public sealed class FrameCaptureTests : IDisposable
     public void RunHeadless_CompletesWithARequestPendingAndWritesNoFile()
     {
         BoundPath = Path.Combine(_directory, "shots", "headless.png");
-        InputTape tape = new InputScript().Tap(Key.Space).Wait(3).Build();
+        IInputDriver driver = new InputScript().Tap(Key.Space).Wait(3).Build();
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Capture Game",
@@ -83,20 +86,20 @@ public sealed class FrameCaptureTests : IDisposable
             .WithBindings(static bindings => bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging()
-            .RunHeadless<BoundCaptureScene>(tape);
+            .RunHeadless<BoundCaptureScene>(driver);
 
-        Assert.Equal(tape.Count, result.Steps);
+        Assert.Equal(DrivenSteps, result.Steps);
         Assert.False(Directory.Exists(Path.GetDirectoryName(BoundPath)!));
         Assert.False(File.Exists(BoundPath));
     }
 
-    // The advance that spends the tape runs the final step itself, so a request that step raised is
-    // only reachable after the loop the run drives.
+    // A request the run's final step raised is taken by the loop the run drives, which is what
+    // leaves nothing pending on a scene no frame will ever draw.
     [Fact]
     public void RunHeadless_ClearsARequestRaisedOnTheFinalStep()
     {
         BoundPath = Path.Combine(_directory, "final.png");
-        InputTape tape = new InputScript().Wait(3).Tap(Key.Space).Build();
+        IInputDriver driver = new InputScript().Wait(3).Tap(Key.Space).Build();
 
         BoundCaptureScene? scene = null;
 
@@ -109,9 +112,9 @@ public sealed class FrameCaptureTests : IDisposable
             .WithBindings(static bindings => bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging()
-            .RunHeadless<BoundCaptureScene>(tape);
+            .RunHeadless<BoundCaptureScene>(driver);
 
-        Assert.Equal(tape.Count, result.Steps);
+        Assert.Equal(DrivenSteps, result.Steps);
         Assert.Null(Assert.IsType<BoundCaptureScene>(scene).FrameCaptureRequested);
         Assert.False(File.Exists(BoundPath));
     }

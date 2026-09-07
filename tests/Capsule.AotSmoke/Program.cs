@@ -5,6 +5,7 @@ using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
+using Capsule.Scenes.Input;
 using MinimalGame.Game;
 using MinimalGame.Game.Scenes;
 
@@ -13,6 +14,8 @@ namespace Capsule.AotSmoke;
 internal static class Program
 {
     private const int IdleSteps = 60;
+
+    private const int DrivenSteps = IdleSteps + 1;
 
     private const string NativeScenePath = "assets/scenes/halls/hall.scene.json";
 
@@ -31,7 +34,7 @@ internal static class Program
 
     private static int Run()
     {
-        InputTape tape = new InputScript()
+        IInputDriver driver = new InputScript()
             .Wait(IdleSteps)
             .Tap(Key.Escape)
             .Build();
@@ -41,11 +44,11 @@ internal static class Program
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
             .WithoutLogging()
-            .RunHeadless<Room>(tape);
+            .RunHeadless<Room>(driver);
 
         bool contentShipped = ContentShipped();
         bool booted =
-            result.Steps == tape.Count &&
+            result.Steps == DrivenSteps &&
             result.ExitRequested &&
             result.Metrics.Visible > 0 &&
             contentShipped;
@@ -54,7 +57,7 @@ internal static class Program
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {result.Steps}/{tape.Count} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content {contentShipped}."));
+                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content {contentShipped}."));
             return 1;
         }
 

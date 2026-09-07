@@ -1,7 +1,7 @@
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Input;
 using Capsule.Scenes;
+using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
@@ -9,8 +9,6 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class CommandLineTests : IDisposable
 {
-    private static readonly InputTape Tape = new InputScript().Tap(Key.Space).Wait(3).Build();
-
     private readonly string _directory =
         Directory.CreateTempSubdirectory(nameof(CommandLineTests)).FullName;
 
@@ -29,47 +27,33 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Record_WritesTheTapeTheHeadlessRunConsumed()
+    public void Headless_RunsTheNamedDriverToItsEnd()
     {
-        string recorded = Path.Combine(_directory, "recorded.tape");
-
-        Assert.Equal(0, Builder().WithCommandLine(["--record", recorded, "--headless", WrittenTape()]).RunScene<Idle>());
-
-        using FileStream file = File.OpenRead(recorded);
-        Assert.Equal(Tape, InputTapeFile.Read(file));
+        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<Idle>());
     }
 
     [Fact]
-    public void Headless_OfARecordedFile_RunsIt()
+    public void Headless_OfADriverThatExitsTheGame_Succeeds()
     {
-        string recorded = Path.Combine(_directory, "recorded.tape");
-        Builder().WithCommandLine(["--record", recorded, "--headless", WrittenTape()]).RunScene<Idle>();
-
-        Assert.Equal(0, Builder().WithCommandLine(["--headless", recorded]).RunScene<Idle>());
+        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<Exiting>());
     }
 
     [Fact]
-    public void Headless_OfATapeThatExitsTheGame_Succeeds()
+    public void ADriverNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered()
     {
-        Assert.Equal(0, Builder().WithCommandLine(["--headless", WrittenTape()]).RunScene<Exiting>());
+        Assert.Equal(2, Builder().WithCommandLine(["--headless", "--driver", "Wanderer"]).RunScene<Idle>());
+
+        string reported = Captured();
+        Assert.Contains("Wanderer", reported, StringComparison.Ordinal);
+        Assert.Contains("Idler, Presser", reported, StringComparison.Ordinal);
+        Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Replay_ReadsItsTapeFileAtRunTime()
+    public void Headless_WithNoDriver_IsReportedLikeABadArgument()
     {
-        string malformed = Path.Combine(_directory, "malformed.tape");
-        File.WriteAllBytes(malformed, [1, 2, 3, 4]);
-
-        // The replay tape is read even though the headless tape is the one that runs, so the
-        // malformed one is what decides the exit code.
-        Assert.Equal(2, Builder().WithCommandLine(["--replay", malformed, "--headless", WrittenTape()]).RunScene<Idle>());
-        Assert.Contains(malformed, Captured(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Replay_OfAReadableTape_IsAccepted()
-    {
-        Assert.Equal(0, Builder().WithCommandLine(["--replay", WrittenTape(), "--headless", WrittenTape()]).RunScene<Idle>());
+        Assert.Equal(2, Builder().WithCommandLine(["--headless"]).RunScene<Idle>());
+        Assert.Contains("--driver", Captured(), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -81,7 +65,7 @@ public sealed class CommandLineTests : IDisposable
             ? ["--frames", Path.Combine(_directory, "frames.csv")]
             : ["--frames", Path.Combine(_directory, "frames.csv"), seconds];
 
-        Assert.Equal(0, Builder().WithCommandLine([.. frames, "--headless", WrittenTape()]).RunScene<Idle>());
+        Assert.Equal(0, Builder().WithCommandLine([.. frames, "--headless", "--driver", "Idler"]).RunScene<Idle>());
     }
 
     [Fact]
@@ -101,43 +85,24 @@ public sealed class CommandLineTests : IDisposable
         Assert.Equal(2, Builder().WithCommandLine(args).RunScene<Idle>());
 
         string reported = Captured();
-        Assert.Contains("--record <tape>", reported, StringComparison.Ordinal);
+        Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
         Assert.Contains("--frames <csv> [seconds]", reported, StringComparison.Ordinal);
     }
 
     public static TheoryData<string[]> MalformedCommandLines() =>
     [
-        ["--record"],
-        ["--record", "   "],
-        ["--record", "--headless", "run.tape"],
+        ["--driver"],
+        ["--driver", "   "],
+        ["--driver", "--headless"],
         ["--frames", "frames.csv", "0"],
         ["--frames", "frames.csv", "-1"],
         ["--frames", "frames.csv", "NaN"],
         ["--frames", "frames.csv", "Infinity"],
-        ["--rewind", "run.tape"],
-        ["--headless", "run.tape", "--headless", "run.tape"],
+        ["--rewind", "Idler"],
+        ["--headless", "--headless"],
     ];
 
-    [Fact]
-    public void AHeadlessTapeThatIsMissing_IsReportedLikeABadArgument()
-    {
-        string missing = Path.Combine(_directory, "absent.tape");
-
-        Assert.Equal(2, Builder().WithCommandLine(["--headless", missing]).RunScene<Idle>());
-        Assert.Contains(missing, Captured(), StringComparison.Ordinal);
-    }
-
     private string Captured() => _captured.ToString();
-
-    private string WrittenTape()
-    {
-        string path = Path.Combine(_directory, $"{Guid.NewGuid():N}.tape");
-
-        using FileStream file = File.Create(path);
-        InputTapeFile.Write(file, Tape);
-
-        return path;
-    }
 
     private static SceneEngineBuilder Builder() =>
         CapsuleEngine.Configure(
@@ -147,6 +112,11 @@ public sealed class CommandLineTests : IDisposable
                     [
                         SceneRegistration.Plain(typeof(Idle), static () => new Idle()),
                         SceneRegistration.Plain(typeof(Exiting), static () => new Exiting()),
+                    ]),
+                new InputDriverRegistry(
+                    [
+                        new InputDriverRegistration("Idler", static () => new InputScript().Wait(3).Build()),
+                        new InputDriverRegistration("Presser", static () => new InputScript().Tap(Key.Space).Build()),
                     ]))
             .WithFixedStep(10)
             .WithoutCrashLog()

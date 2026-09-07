@@ -1,4 +1,5 @@
 using Capsule.Scenes;
+using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 
@@ -19,7 +20,13 @@ public static class CapsuleEngine
     /// Every scene the game declares, plain and document-backed alike. Each carries the residency
     /// groups the build derived for it, so the host has no separate texture list to be handed.
     /// </param>
+    /// <param name="drivers">
+    /// Every input driver the game declares, which is what <c>--driver</c> resolves a name through;
+    /// null registers none, which is the case for a caller handing <c>RunHeadless</c> a driver of
+    /// its own.
+    /// </param>
     /// <exception cref="ArgumentException">The name is blank, or slugs to no safe directory name.</exception>
-    /// <exception cref="ArgumentNullException">The registry is null.</exception>
-    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes) => new(gameName, scenes);
+    /// <exception cref="ArgumentNullException">The scene registry is null.</exception>
+    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
+        new(gameName, scenes, drivers ?? InputDriverRegistry.Empty);
 }

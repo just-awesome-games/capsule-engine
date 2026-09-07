@@ -13,8 +13,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
 
-    <!-- Also DeviceSnapshot's bits and InputTape.Of: the tape file's codec is the host's, and a
-         game reaches a recorded tape by path, never by decoding bytes itself. -->
+    <!-- Also SnapshotLatch, which carries a frame's sample to the step that consumes it. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 
