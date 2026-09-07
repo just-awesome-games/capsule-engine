@@ -1,6 +1,7 @@
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 
@@ -71,7 +72,9 @@ public sealed class InputTapePlaybackTests : IDisposable
             .RunHeadless<Idle>(Tape);
 
         Assert.Equal(Tape.Count, result.Steps);
-        Assert.Equal(Tape, InputTape.Parse(File.ReadAllText(path)));
+
+        using FileStream recorded = File.OpenRead(path);
+        Assert.Equal(Tape, InputTapeFile.Read(recorded));
     }
 
     [Fact]

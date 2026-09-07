@@ -14,42 +14,6 @@ replayed.
 Everything a tape measures is counted in fixed steps, never in seconds. At the default 60 Hz, one
 second of play is 60 steps.
 
-## Tape text
-
-`ToText()` writes a tape as line-oriented, run-length encoded text and `Parse` reads it back
-exactly, axis values included. One line describes a run of identical consecutive steps, so an idle
-minute is one line:
-
-```text
-# stand still, then walk right and jump
-3600
-2 W Pad.South Axis.LeftStickX=-0.3
-1 Escape Pad.South Axis.LeftStickX=-0.3
-```
-
-The grammar is:
-
-```text
-line   := repeat (' ' token)*
-repeat := a decimal count of consecutive identical steps, at least 1
-token  := key | pad-button | "Axis." axis '=' value
-key    := a `Key` name, or "Key." and the decimal value of one the enum does not name
-pad-button := "Pad." and either a `PadButton` name or the decimal value of one the enum does not name
-```
-
-- A token names a member of `Key`, `PadButton` or `PadAxis` by its enum name. `None` names no
-  token on any of them.
-- A `DeviceSnapshot` also holds values below its capacity that the enums do not name, so those are
-  written and read in their decimal form — `Key.127`, `Pad.31`.
-- An axis at rest is written as no token, and an axis value is written as the shortest text that
-  round-trips it, in the invariant culture.
-- A line with a repeat count and no tokens is that many idle steps.
-- Written tokens are ordered keys, then pad buttons, then axes, each in enum order, so the same
-  tape always writes the same bytes and two tapes diff line by line. Tokens are read in any order.
-- Blank lines, and lines whose first non-blank character is `#`, are ignored. Lines end with `\n`.
-
-A malformed line raises `FormatException` naming its 1-based number.
-
 ## Scripting a tape
 
 `Capsule.Input.InputScript` builds a tape the way a device produces one: a held state that edits
@@ -67,6 +31,17 @@ InputTape tape = new InputScript()
     .Wait(30)
     .Build();
 ```
+
+## The tape file
+
+A recorded tape is a small binary file: a four-byte magic, a version, and then one fixed-size
+record per step holding exactly what a `DeviceSnapshot` holds — nothing compressed, nothing
+run-length encoded, every field little-endian. It is written and read only by the engine. Reading
+one that is not a Capsule tape, is of a version this engine does not read, or ends mid-step raises
+`Capsule.Runtime.InputTapeFormatException`, whose message says which.
+
+The file is not a format to author in. A tape written by hand is written in code, with
+`InputScript`.
 
 ## Recording and replaying a run
 
@@ -98,18 +73,13 @@ HeadlessRunResult result = CapsuleBoot.Configure("My Game")
 
 ## Driving a game without a keyboard
 
-An agent or a CI job that needs to see what a change does to a real run:
-
-1. Record a play session once, by hand or from a script:
-   `.WithInputRecording("assets/tapes/first-room.tape")` on the windowed run.
-2. Read the tape. It is short, human-readable text — trim it to the part that matters, or write it
-   by hand with `InputScript` in the first place.
-3. Replay it headlessly and assert the result:
+An agent or a CI job that needs to see what a change does to a real run authors the tape in code
+and runs it headlessly, with no file in between:
 
 ```csharp
-InputTape tape = InputTape.Parse(File.ReadAllText("assets/tapes/first-room.tape"));
+InputTape tape = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();
 
-HeadlessRunResult result = CapsuleBoot.Configure("My Game")
+HeadlessRunResult result = CapsuleEngine.Configure("My Game", GameScenes.Registry)
     .WithRandomSeed(7)
     .RunHeadless<FirstRoom>(tape);
 
@@ -120,6 +90,9 @@ Assert.Equal(tape.Count, result.Steps);
 `CapsuleBoot` is generated into the shell, so a project that is not the shell — a test project, a
 CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly and enters through
 `CapsuleEngine.Configure(gameName, GameScenes.Registry)`, which returns the same builder.
+
+A tape recorded from a play session is replayed through `WithInputTape(path)` on a windowed run;
+`RunHeadless` takes the tape itself and replaces anything `WithInputTape` set.
 
 For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
 over the tape: it is substrate-free, so a test holds the scene and reads its entities between

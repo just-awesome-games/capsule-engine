@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 namespace Capsule.Input;
@@ -12,6 +13,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public const int PadCapacity = 32;
 
     private const int AxisCount = 6;
+    private const int DownBytes = 16;
+
+    // Bytes one snapshot occupies in a tape file. Fixed, so a tape body that is not a whole
+    // multiple of it is truncated.
+    internal const int ByteCount = DownBytes + sizeof(uint) + (AxisCount * sizeof(float));
 
     private readonly UInt128 _down;
     private readonly uint _padDown;
@@ -90,6 +96,38 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Unions held buttons with a newer sample and takes its axis values.</summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(_down | newer._down, _padDown | newer._padDown, newer._axes);
+
+    // Writes this snapshot's bits little-endian into the first ByteCount bytes of destination.
+    // The layout is the file form of a tape, so it may not change under a tape version.
+    internal readonly void WriteTo(Span<byte> destination)
+    {
+        BinaryPrimitives.WriteUInt128LittleEndian(destination, _down);
+        Span<byte> rest = destination[DownBytes..];
+        BinaryPrimitives.WriteUInt32LittleEndian(rest, _padDown);
+        rest = rest[sizeof(uint)..];
+
+        for (int i = 0; i < AxisCount; i++)
+        {
+            BinaryPrimitives.WriteSingleLittleEndian(rest[(i * sizeof(float))..], _axes[i]);
+        }
+    }
+
+    // Reads back what WriteTo wrote. Bits from a file are taken verbatim: a snapshot holds every
+    // value below its capacity, and every float is a position some device could have reported.
+    internal static DeviceSnapshot ReadFrom(ReadOnlySpan<byte> source)
+    {
+        ReadOnlySpan<byte> rest = source[(DownBytes + sizeof(uint))..];
+        AxisSet axes = default;
+        for (int i = 0; i < AxisCount; i++)
+        {
+            axes[i] = BinaryPrimitives.ReadSingleLittleEndian(rest[(i * sizeof(float))..]);
+        }
+
+        return new DeviceSnapshot(
+            BinaryPrimitives.ReadUInt128LittleEndian(source),
+            BinaryPrimitives.ReadUInt32LittleEndian(source[DownBytes..]),
+            axes);
+    }
 
     /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
     public bool Equals(DeviceSnapshot other)

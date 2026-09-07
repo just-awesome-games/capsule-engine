@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Text;
 
 namespace Capsule.Input;
 
@@ -10,7 +9,7 @@ namespace Capsule.Input;
 /// </summary>
 /// <remarks>
 /// Two tapes are equal when they hold the same snapshots in the same order. Build one with
-/// <see cref="InputScript"/>, or read one back with <see cref="Parse"/>.
+/// <see cref="InputScript"/>.
 /// </remarks>
 public sealed class InputTape : IReadOnlyList<DeviceSnapshot>, IEquatable<InputTape>
 {
@@ -30,8 +29,9 @@ public sealed class InputTape : IReadOnlyList<DeviceSnapshot>, IEquatable<InputT
     /// <summary>The number of fixed steps this tape drives.</summary>
     public int Count => _snapshots.Length;
 
-    /// <summary>A tape holding <paramref name="snapshots"/>, one per step, copied on the way in.</summary>
-    public static InputTape Of(params ReadOnlySpan<DeviceSnapshot> snapshots) =>
+    // A tape holding snapshots, one per step, copied on the way in. Internal because a game
+    // authors a tape with InputScript or replays a recorded one; nothing else builds one.
+    internal static InputTape Of(params ReadOnlySpan<DeviceSnapshot> snapshots) =>
         snapshots.IsEmpty ? EmptyTape : new InputTape(snapshots.ToArray());
 
     /// <summary>The snapshot the step at <paramref name="index"/> is driven by.</summary>
@@ -45,60 +45,6 @@ public sealed class InputTape : IReadOnlyList<DeviceSnapshot>, IEquatable<InputT
 
             return _snapshots[index];
         }
-    }
-
-    /// <summary>
-    /// Reads the line-oriented tape text <see cref="ToText"/> writes. Blank lines and lines whose
-    /// first non-blank character is <c>#</c> are ignored.
-    /// </summary>
-    /// <param name="text">Tape text; empty text is <see cref="Empty"/>.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="text"/> is null.</exception>
-    /// <exception cref="FormatException">A line is malformed; the message names its 1-based number.</exception>
-    public static InputTape Parse(string text)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-
-        List<DeviceSnapshot> steps = [];
-        int line = 0;
-
-        foreach (ReadOnlySpan<char> raw in text.AsSpan().EnumerateLines())
-        {
-            line++;
-            ReadOnlySpan<char> content = raw.Trim();
-            if (content.IsEmpty || content[0] == InputTapeText.Comment)
-            {
-                continue;
-            }
-
-            InputTapeText.ParseLine(content, line, steps);
-        }
-
-        return steps.Count == 0 ? EmptyTape : new InputTape([.. steps]);
-    }
-
-    /// <summary>
-    /// Writes this tape as line-oriented, run-length encoded text: one line per run of identical
-    /// consecutive steps, holding the run's length and then the held keys, held pad buttons and
-    /// non-zero axes of the step it repeats. Lines end with <c>\n</c>, and axis values round-trip
-    /// exactly. <see cref="Parse"/> of the result equals this tape.
-    /// </summary>
-    public string ToText()
-    {
-        StringBuilder builder = new();
-
-        for (int start = 0; start < _snapshots.Length;)
-        {
-            int end = start + 1;
-            while (end < _snapshots.Length && _snapshots[end].Equals(_snapshots[start]))
-            {
-                end++;
-            }
-
-            InputTapeText.WriteLine(builder, _snapshots[start], end - start);
-            start = end;
-        }
-
-        return builder.ToString();
     }
 
     /// <summary>An allocation-free enumerator over the tape's steps.</summary>

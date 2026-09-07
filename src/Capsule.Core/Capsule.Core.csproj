@@ -12,6 +12,9 @@
   <!-- ISimulation is the host's seam, not a surface a game implements. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
+
+    <!-- Also DeviceSnapshot's bits and InputTape.Of: the tape file's codec is the host's, and a
+         game reaches a recorded tape by path, never by decoding bytes itself. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 

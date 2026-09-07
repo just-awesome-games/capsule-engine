@@ -271,9 +271,10 @@ public sealed class SceneEngineBuilder
 
     /// <summary>
     /// Records the snapshot every fixed step consumed and writes it to <paramref name="path"/> as
-    /// tape text when the run ends, so a play session becomes an <see cref="InputTape"/> that
-    /// replays it. What is recorded is what the simulation saw, past the host's own fullscreen
-    /// chord, so recording a replay reproduces the tape it replayed. Off unless this is called.
+    /// Capsule's binary tape file when the run ends, so a play session becomes an
+    /// <see cref="InputTape"/> that replays it. What is recorded is what the simulation saw, past
+    /// the host's own fullscreen chord, so recording a replay reproduces the tape it replayed. Off
+    /// unless this is called.
     /// </summary>
     /// <param name="path">The tape to write; an existing file is overwritten.</param>
     /// <exception cref="ArgumentException">The path is null or blank.</exception>
@@ -298,17 +299,23 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
-    /// Reads the tape text at <paramref name="path"/> now and drives the run from it, exactly as
+    /// Reads the tape file at <paramref name="path"/> now and drives the run from it, exactly as
     /// <see cref="WithInputTape(InputTape)"/> does.
     /// </summary>
-    /// <param name="path">A file of the tape text <see cref="WithInputRecording"/> writes.</param>
+    /// <param name="path">
+    /// Capsule's binary tape file, as <see cref="WithInputRecording"/> writes it; it is not
+    /// hand-authored, and a tape written in code is built with <see cref="InputScript"/>.
+    /// </param>
     /// <exception cref="ArgumentException">The path is null or blank.</exception>
     /// <exception cref="IOException">The file could not be read.</exception>
-    /// <exception cref="FormatException">A line of it is malformed; the message names its number.</exception>
+    /// <exception cref="InputTapeFormatException">The file is no tape, is of an unread version, or ends mid-step.</exception>
     public SceneEngineBuilder WithInputTape(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _inputTape = InputTape.Parse(File.ReadAllText(path));
+
+        using FileStream file = File.OpenRead(path);
+        _inputTape = InputTapeFile.Read(file);
+
         return this;
     }
 
