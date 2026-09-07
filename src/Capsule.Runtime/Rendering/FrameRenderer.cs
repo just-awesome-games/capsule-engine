@@ -76,8 +76,8 @@ internal sealed class FrameRenderer : IDisposable
     internal bool CanCaptureFrame =>
         _device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0;
 
-    // The capture is staged under this suffix beside its destination. One frame loop writes
-    // captures, so the name is fixed rather than unique.
+    // The capture is staged beside its destination under a name ending in this suffix. A random
+    // segment precedes it, so a capture never touches a file it did not create.
     internal const string TemporarySuffix = ".tmp";
 
     // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
@@ -111,27 +111,43 @@ internal sealed class FrameRenderer : IDisposable
         WriteCapture(png, path);
     }
 
-    // Encoded PNG lands on a temporary sibling and moves onto the destination only once it is
-    // whole: neither a partial write nor a denied one touches the file already at path.
+    // Encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
+    // destination only once it is whole: neither a partial write nor a denied one touches the file
+    // already at path, nor any other file already beside it. Resolving path is part of the
+    // protected operation, so a path the file system rejects is logged rather than thrown.
     internal static void WriteCapture(byte[] png, string path)
     {
-        string full = Path.GetFullPath(path);
-        string temporary = full + TemporarySuffix;
+        // Null until this call owns a staging file, so cleanup never deletes a sibling it found.
+        string? created = null;
 
         try
         {
+            string full = Path.GetFullPath(path);
+
             if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
             {
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllBytes(temporary, png);
+            string temporary = full + '.' + Path.GetRandomFileName() + TemporarySuffix;
+
+            using (FileStream staging = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                created = temporary;
+                staging.Write(png);
+            }
+
             File.Move(temporary, full, overwrite: true);
+            created = null;
         }
         catch (Exception error)
         {
             Log.Warning($"Frame capture to '{path}' failed while writing: {error.Message}");
-            Discard(temporary);
+
+            if (created is not null)
+            {
+                Discard(created);
+            }
         }
     }
 
@@ -139,11 +155,6 @@ internal sealed class FrameRenderer : IDisposable
     // read is worse than none.
     private static void Discard(string temporary)
     {
-        if (!File.Exists(temporary))
-        {
-            return;
-        }
-
         try
         {
             File.Delete(temporary);

@@ -117,19 +117,48 @@ public sealed class FrameCaptureTests : IDisposable
     }
 
     // A capture stages beside its destination, so a write that cannot land leaves the file already
-    // there whole and leaves no temporary behind. A directory squatting on the staging path denies
-    // the write without depending on a device or on file permissions.
+    // there whole and leaves no temporary behind. Holding the destination open exclusively denies
+    // the move without depending on a device or on file permissions.
     [Fact]
     public void WriteCapture_ThatCannotWrite_KeepsTheExistingFileAndLeavesNoTemporary()
     {
         string path = Path.Combine(_directory, "shot.png");
         File.WriteAllText(path, "an earlier capture");
-        Directory.CreateDirectory(path + FrameRenderer.TemporarySuffix);
 
-        FrameRenderer.WriteCapture([1, 2, 3], path);
+        using (FileStream held = new(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            FrameRenderer.WriteCapture([1, 2, 3], path);
+        }
 
         Assert.Equal("an earlier capture", File.ReadAllText(path));
         Assert.Equal(new[] { path }, Directory.GetFiles(_directory));
+    }
+
+    // A path the file system rejects is a warning, not an exception thrown into the frame loop. A
+    // null character passes the scene's non-blank check and fails path resolution.
+    [Fact]
+    public void WriteCapture_ToAPathTheFileSystemRejects_WritesNothingAndDoesNotThrow()
+    {
+        string path = _directory + Path.DirectorySeparatorChar + "sh\0t.png";
+
+        FrameRenderer.WriteCapture([1, 2, 3], path);
+
+        Assert.Empty(Directory.GetFiles(_directory));
+    }
+
+    // The staging name is unique per capture, so a file already sitting on the plain staging name
+    // is neither overwritten by a capture nor deleted by one.
+    [Fact]
+    public void WriteCapture_LeavesAFileOnThePlainStagingNameUntouched()
+    {
+        string path = Path.Combine(_directory, "shot.png");
+        string staging = path + FrameRenderer.TemporarySuffix;
+        File.WriteAllText(staging, "an unrelated file");
+
+        FrameRenderer.WriteCapture([1, 2, 3], path);
+
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
+        Assert.Equal("an unrelated file", File.ReadAllText(staging));
     }
 
     private static SceneTransition ToScene<TScene>()
