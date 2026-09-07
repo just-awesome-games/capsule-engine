@@ -384,6 +384,7 @@ public class Scene
     /// Where to write the PNG; a relative path resolves against the process working directory.
     /// </param>
     /// <remarks>
+    /// <para>
     /// What is saved is the surface the world was drawn on: the declared render resolution where
     /// the run has one, and the back buffer where it has none, so the image does not follow the
     /// window's own size. Requesting again before the host takes the request replaces the path —
@@ -391,6 +392,14 @@ public class Scene
     /// draw on, as a minimised window has, leaves the request pending for the next frame that
     /// draws. A run with no graphics device at all — <c>RunHeadless</c>, or <c>--headless</c> —
     /// clears the request and writes nothing.
+    /// </para>
+    /// <para>
+    /// The host creates the directories the path names. A save that fails — a device read-back or
+    /// an encoding the backend refuses — writes no file, leaving whatever is at the path as it
+    /// was, reports itself through <see cref="Capsule.Diagnostics.Log"/> at
+    /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request rather than
+    /// throwing into the frame loop or standing for another frame.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentException">The path is null, empty or blank.</exception>
     /// <exception cref="InvalidOperationException">The scene has stopped.</exception>

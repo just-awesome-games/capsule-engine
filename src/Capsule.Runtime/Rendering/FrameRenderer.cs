@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -69,35 +70,75 @@ internal sealed class FrameRenderer : IDisposable
         Present(_target, view.Sampling);
     }
 
-    // Whether the surface the world draws on has any area to save. A render target always has; a
-    // minimised window can present a back buffer with none.
-    internal bool CanSaveSurface =>
-        _target is not null ||
-        (_device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0);
+    // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
+    // presents nothing and leaves no frame to save — including behind a render target, which is
+    // drawn but never presented.
+    internal bool CanCaptureFrame =>
+        _device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0;
 
     // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
     // and overwriting the file. Called after Draw and before the frame is presented, while that
     // surface still holds the frame: the render target where one is configured, whose extent is
     // the declared render resolution and so is independent of the window, and the back buffer
-    // where there is none. Requires CanSaveSurface; nothing, not even an empty file, is written
-    // without it.
+    // where there is none. Read-back and encoding failures are logged rather than thrown into the
+    // frame loop, and the destination is opened only once a whole PNG is in hand, so nothing —
+    // not even an empty file — replaces what is there unless the capture succeeded.
     internal void SaveSurface(string path)
     {
-        if (!CanSaveSurface)
+        if (!CanCaptureFrame)
         {
             return;
         }
 
-        if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
+        byte[] png;
+
+        try
         {
-            Directory.CreateDirectory(directory);
+            using MemoryStream encoded = new();
+            EncodeSurface(encoded);
+            png = encoded.ToArray();
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Frame capture to '{path}' failed before writing: {error.Message}");
+            return;
         }
 
-        using FileStream file = File.Create(path);
+        try
+        {
+            if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
+            {
+                Directory.CreateDirectory(directory);
+            }
 
+            File.WriteAllBytes(path, png);
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Frame capture to '{path}' failed while writing: {error.Message}");
+            Discard(path);
+        }
+    }
+
+    // A write that failed part way leaves a truncated file behind; a PNG nobody can read is worse
+    // than none.
+    private static void Discard(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Removing the failed frame capture at '{path}' failed: {error.Message}");
+        }
+    }
+
+    private void EncodeSurface(Stream destination)
+    {
         if (_target is not null)
         {
-            _target.SaveAsPng(file, _target.Width, _target.Height);
+            _target.SaveAsPng(destination, _target.Width, _target.Height);
             return;
         }
 
@@ -110,7 +151,7 @@ internal sealed class FrameRenderer : IDisposable
 
         using Texture2D surface = new(_device, width, height);
         surface.SetData(pixels);
-        surface.SaveAsPng(file, width, height);
+        surface.SaveAsPng(destination, width, height);
     }
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no

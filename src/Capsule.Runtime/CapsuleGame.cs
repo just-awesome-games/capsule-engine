@@ -129,9 +129,8 @@ internal sealed class CapsuleGame : Game
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
         // While the surface still holds the frame, ahead of the present. The request is taken only
-        // once there is a surface to save, so one raised while the window is minimised stands until
-        // a frame draws.
-        if (_scenes is { } scenes && _renderer.CanSaveSurface && scenes.TryTakeFrameCapture(out string capturePath))
+        // once a frame has drawn, so one raised while the window is minimised stands until one does.
+        if (_scenes is { } scenes && _renderer.CanCaptureFrame && scenes.TryTakeFrameCapture(out string capturePath))
         {
             _renderer.SaveSurface(capturePath);
         }
