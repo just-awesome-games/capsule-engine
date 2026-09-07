@@ -116,22 +116,23 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.False(File.Exists(BoundPath));
     }
 
-    // A capture stages beside its destination, so a write that cannot land leaves the file already
-    // there whole and leaves no temporary behind. Holding the destination open exclusively denies
-    // the move without depending on a device or on file permissions.
+    // A capture stages beside its destination, so a write that cannot land leaves what is already
+    // there whole and leaves no temporary behind. A directory on the destination path denies the
+    // move on every platform, where an exclusive handle on a file only denies it where locks are
+    // mandatory.
     [Fact]
-    public void WriteCapture_ThatCannotWrite_KeepsTheExistingFileAndLeavesNoTemporary()
+    public void WriteCapture_ThatCannotReplaceTheDestination_LeavesItIntactAndNoTemporary()
     {
         string path = Path.Combine(_directory, "shot.png");
-        File.WriteAllText(path, "an earlier capture");
+        Directory.CreateDirectory(path);
 
-        using (FileStream held = new(path, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            FrameRenderer.WriteCapture([1, 2, 3], path);
-        }
+        string occupant = Path.Combine(path, "occupant");
+        File.WriteAllText(occupant, "an earlier capture");
 
-        Assert.Equal("an earlier capture", File.ReadAllText(path));
-        Assert.Equal(new[] { path }, Directory.GetFiles(_directory));
+        FrameRenderer.WriteCapture([1, 2, 3], path);
+
+        Assert.Equal("an earlier capture", File.ReadAllText(occupant));
+        Assert.Empty(Directory.GetFiles(_directory));
     }
 
     // A path the file system rejects is a warning, not an exception thrown into the frame loop. A
