@@ -17,6 +17,7 @@ internal static class GeneratorHarness
     internal const string GameScenesFile = "CapsuleGameScenes.g.cs";
     internal const string GameAssetsFile = "CapsuleGameAssets.g.cs";
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
+    internal const string GameInputDriversFile = "CapsuleGameInputDrivers.g.cs";
 
     internal const string Preamble = """
         using System.Numerics;

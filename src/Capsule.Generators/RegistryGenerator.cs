@@ -48,6 +48,14 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value);
 
+        IncrementalValuesProvider<InputDriverModel> drivers = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => Symbols.MayBeRegistered(node),
+                static (syntax, cancellation) => InputDriverRegistrySource.Describe(syntax, cancellation))
+            .Where(static model => model.HasValue)
+            .Select(static (model, _) => model!.Value);
+
+
         IncrementalValuesProvider<SceneModel> scenes = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => Symbols.MayBeRegistered(node),
@@ -89,8 +97,16 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             static (production, input) =>
                 SceneRegistrySource.Emit(production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 
+        // A logic assembly hands its drivers to the shell through its registry provider; a driver
+        // the shell itself declares is emitted straight into the entry point instead.
+        context.RegisterSourceOutput(
+            drivers.Collect().Combine(registries),
+            static (production, input) => InputDriverRegistrySource.Emit(production, input.Left, input.Right));
+
         context.RegisterSourceOutput(provider, static (production, providerName) => RegistryProviderSource.Emit(production, providerName));
-        context.RegisterSourceOutput(boot, static (production, wiring) => CapsuleBootSource.Emit(production, wiring));
+        context.RegisterSourceOutput(
+            boot.Combine(drivers.Collect()),
+            static (production, input) => CapsuleBootSource.Emit(production, input.Left, input.Right));
         context.RegisterSourceOutput(configuration, static (production, configured) =>
         {
             if (configured.Logic && configured.Shell)

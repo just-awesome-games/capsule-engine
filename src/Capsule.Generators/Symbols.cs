@@ -16,6 +16,7 @@ internal static class Symbols
     internal const string Scene = "Capsule.Scenes.Scene";
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
     internal const string SceneDocumentAttribute = "Capsule.Scenes.SceneDocumentAttribute";
+    internal const string InputDriver = "Capsule.Scenes.Input.IInputDriver";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
     internal const string RegistryProviderAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryProviderAttribute";
     internal const string RegistryClaimAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute";
@@ -45,6 +46,25 @@ internal static class Symbols
         for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType)
         {
             if (SymbolEqualityComparer.Default.Equals(current, baseType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool Implements(INamedTypeSymbol type, Compilation compilation, string interfaceName)
+    {
+        INamedTypeSymbol? contract = compilation.GetTypeByMetadataName(interfaceName);
+        if (contract is null)
+        {
+            return false;
+        }
+
+        foreach (INamedTypeSymbol implemented in type.AllInterfaces)
+        {
+            if (SymbolEqualityComparer.Default.Equals(implemented, contract))
             {
                 return true;
             }
