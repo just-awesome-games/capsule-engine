@@ -636,7 +636,7 @@ public sealed class SceneEngineBuilder
         // body never reaches.
         host.TryTakeFrameCapture(out _);
 
-        return new HeadlessRunResult((int)scheduler.Tick, host.ExitRequested, host.View.Metrics);
+        return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
     }
 
     private void InstallLogging()

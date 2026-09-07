@@ -15,7 +15,7 @@ internal static class Program
 {
     private const int IdleSteps = 60;
 
-    private const int DrivenSteps = IdleSteps + 1;
+    private const long DrivenSteps = IdleSteps + 1;
 
     private const string NativeScenePath = "assets/scenes/halls/hall.scene.json";
 

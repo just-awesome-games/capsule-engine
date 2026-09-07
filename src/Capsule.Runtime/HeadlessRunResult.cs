@@ -9,4 +9,4 @@ namespace Capsule.Runtime;
 /// </param>
 /// <param name="ExitRequested">Whether game logic asked the run to end rather than the driver finishing.</param>
 /// <param name="Metrics">The last step's render intent, counted rather than drawn.</param>
-public readonly record struct HeadlessRunResult(int Steps, bool ExitRequested, RenderMetrics Metrics);
+public readonly record struct HeadlessRunResult(long Steps, bool ExitRequested, RenderMetrics Metrics);
