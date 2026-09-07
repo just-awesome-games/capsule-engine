@@ -142,7 +142,16 @@ Exactly one project takes the shell role:
 </Project>
 ```
 
-The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons.
+The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons. Its entry point is the whole of the shell's hand-written code:
+
+```csharp
+using Capsule.Runtime.Generated;
+using MyGame.Game;
+
+return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
+```
+
+`WithCommandLine` applies Capsule's standard flags, tabulated in [`headless-play.md`](headless-play.md); `RunScene` returns the process's exit code.
 
 A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportSprites>` independently.
 

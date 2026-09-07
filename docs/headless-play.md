@@ -60,6 +60,33 @@ CapsuleBoot.Configure("My Game")
 The two combine: recording a replay writes back the tape it replayed, which is how a recording is
 checked for having captured the run.
 
+## The standard command line
+
+Capsule owns the flags that drive recording, replay, headless play and frame timing, so a game
+never writes a parser for them. One call hands the process arguments over, and `RunScene` returns
+the exit code:
+
+```csharp
+return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
+```
+
+Nothing is read ambiently: a shell that does not pass `args` has no command line at all.
+
+| Flag                       | Effect                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `--record <tape>`          | Writes the snapshot every fixed step consumed, on exit.            |
+| `--replay <tape>`          | Drives the run from a tape file instead of the devices.            |
+| `--headless <tape>`        | Runs the tape with no window; the exit code is the run's.          |
+| `--frames <csv> [seconds]` | Writes host frame timing, exiting after `seconds` when given.      |
+| `--help`                   | Prints the usage block on standard output and exits.               |
+
+Flags combine, every value is required, and repeating one is an error. A game with flags of its own
+removes them before handing the rest over, since anything Capsule does not declare is rejected.
+
+`RunScene` returns 2 for a rejected command line or a tape file it cannot read, reporting the defect
+and the usage block on standard error; a headless run that neither spent its tape nor was asked to
+exit returns 1; everything else returns 0.
+
 ## Running headlessly
 
 `RunHeadless` runs a tape through the same scene host a windowed run drives, with no MonoGame, no

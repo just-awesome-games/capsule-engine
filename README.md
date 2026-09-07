@@ -28,7 +28,7 @@ The shell's entry point is handwritten against the generated `CapsuleBoot` build
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-CapsuleBoot.Configure("My Game").RunScene<MainMenu>();
+return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
 ```
 
 ```csharp
@@ -49,7 +49,7 @@ Logic projects cannot reference the runtime, backend, file IO, ambient clocks, a
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
-That snapshot sequence is a value in its own right — an input tape — so a run is recorded, replayed and run without a window; see [`docs/headless-play.md`](docs/headless-play.md).
+That snapshot sequence is a value in its own right — an input tape — so a run is recorded, replayed and run without a window. `WithCommandLine(args)` gives a game the standard flags that drive all three; see [`docs/headless-play.md`](docs/headless-play.md).
 
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 

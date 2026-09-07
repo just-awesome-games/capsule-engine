@@ -8,6 +8,8 @@ Consuming Capsule is documented in [`docs/consuming-capsule.md`](docs/consuming-
 
 A run is driven by an input tape, never by asking a person to play it: see [`docs/headless-play.md`](docs/headless-play.md) for recording one, scripting one, and replaying it headlessly.
 
+The standard command line is Capsule's: a game opts in with `WithCommandLine(args)` and never re-implements a flag the engine already declares.
+
 ## Scope
 
 Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. That bar is not a compatibility ceremony: JAG's own games are the only considered consumers, so break a public API whenever the better design needs it and migrate the consuming game in the same wave. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.

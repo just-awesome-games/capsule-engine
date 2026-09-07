@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -12,7 +13,7 @@ namespace Capsule.Runtime;
 
 /// <summary>
 /// Fluent, eagerly validated host configuration for a game's generated scene registry. A
-/// <c>RunScene</c> blocks until the game requests exit.
+/// <c>RunScene</c> blocks until the game requests exit and returns the process's exit code.
 /// </summary>
 public sealed class SceneEngineBuilder
 {
@@ -21,10 +22,23 @@ public sealed class SceneEngineBuilder
     private const int DefaultStepHertz = 60;
     private const int DefaultMaxStepsPerFrame = 8;
 
+    // Capsule's standard command line, in one place: what WithCommandLine parses, what --help
+    // prints, and what a rejected command line is answered with.
+    private const string StandardFlags = """
+          --record <tape>            write the snapshot every fixed step consumed, on exit
+          --replay <tape>            drive the run from a tape file instead of the devices
+          --headless <tape>          run the tape with no window; the exit code is the run's
+          --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
+          --help                     print this and exit
+        """;
+
+    private const int BadArgumentExitCode = 2;
+
     // The boot trace's first stage after process start, so it is taken before any configuration.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
+    private readonly string _gameName;
 
     private string _windowTitle;
     private int _windowWidth = DefaultWindowWidth;
@@ -46,6 +60,10 @@ public sealed class SceneEngineBuilder
     private double? _frameDiagnosticsExitAfterSeconds;
     private string? _inputRecordingPath;
     private InputTape? _inputTape;
+    private string? _replayPath;
+    private string? _headlessPath;
+    private string? _commandLineError;
+    private bool _helpRequested;
 
     internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
     {
@@ -53,6 +71,7 @@ public sealed class SceneEngineBuilder
         ArgumentNullException.ThrowIfNull(scenes);
 
         _scenes = scenes;
+        _gameName = gameName;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -60,6 +79,8 @@ public sealed class SceneEngineBuilder
                 + "it holds no letter or digit, or what remains is a reserved device name.",
                 nameof(gameName));
     }
+
+    internal string Usage => $"usage: {_gameName} [options]{Environment.NewLine}{StandardFlags}";
 
     /// <summary>The window's title, which is the game's name unless this replaces it.</summary>
     /// <exception cref="ArgumentException">The title is null or blank.</exception>
@@ -320,6 +341,90 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Applies Capsule's standard command line — the flags <c>--help</c> prints — so a game gets
+    /// recording, replay, headless play and frame timing without writing a parser. Nothing is read
+    /// ambiently: a shell that never passes its <c>args</c> has no command line at all.
+    /// </summary>
+    /// <param name="args">
+    /// The process arguments, holding standard flags only: a game with flags of its own removes
+    /// them first, since anything Capsule does not declare is rejected here.
+    /// </param>
+    /// <remarks>
+    /// Nothing is thrown and no file is read: a malformed command line is recorded so the fluent
+    /// chain completes, and <c>RunScene</c> reports it and returns 2.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The argument array is null.</exception>
+    public SceneEngineBuilder WithCommandLine(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        HashSet<string> given = new(StringComparer.Ordinal);
+
+        for (int index = 0; index < args.Length; index++)
+        {
+            string flag = args[index];
+
+            if (!given.Add(flag))
+            {
+                return RejectCommandLine($"{flag} was given more than once.");
+            }
+
+            switch (flag)
+            {
+                case "--help":
+                    _helpRequested = true;
+                    break;
+
+                case "--record":
+                    if (!TryValue(args, ref index, out string record))
+                    {
+                        return RejectCommandLine("--record needs a path.");
+                    }
+
+                    WithInputRecording(record);
+                    break;
+
+                case "--replay":
+                    if (!TryValue(args, ref index, out string replay))
+                    {
+                        return RejectCommandLine("--replay needs a path.");
+                    }
+
+                    _replayPath = replay;
+                    break;
+
+                case "--headless":
+                    if (!TryValue(args, ref index, out string headless))
+                    {
+                        return RejectCommandLine("--headless needs a path.");
+                    }
+
+                    _headlessPath = headless;
+                    break;
+
+                case "--frames":
+                    if (!TryValue(args, ref index, out string frames))
+                    {
+                        return RejectCommandLine("--frames needs a path.");
+                    }
+
+                    if (!TrySeconds(args, ref index, out double? seconds))
+                    {
+                        return RejectCommandLine("--frames takes a finite duration in seconds above zero.");
+                    }
+
+                    WithFrameDiagnostics(frames, seconds);
+                    break;
+
+                default:
+                    return RejectCommandLine($"unknown option '{flag}'.");
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
     /// Runs <typeparamref name="TScene"/> from <paramref name="tape"/> with no window, no graphics
     /// device and no textures: everything this builder configures below the window — bindings, the
     /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and one
@@ -369,10 +474,11 @@ public sealed class SceneEngineBuilder
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
     /// <see cref="Scene.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
     /// </param>
+    /// <returns>The process's exit code, as <see cref="RunScene(string, object?)"/> defines it.</returns>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene<TScene>(object? payload = null)
+    public int RunScene<TScene>(object? payload = null)
         where TScene : Scene
         => RunScene(SceneTransition.ToScene(typeof(TScene), payload));
 
@@ -386,14 +492,20 @@ public sealed class SceneEngineBuilder
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
     /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
     /// </param>
+    /// <returns>
+    /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line or a
+    /// tape file it named cannot be read, which is reported on standard error with the usage block;
+    /// otherwise 0, except a headless run that stopped before its tape was spent without the game
+    /// asking to exit, which is 1.
+    /// </returns>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene(string name, object? payload = null)
+    public int RunScene(string name, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTransition.ToName(name, payload));
+        return RunScene(SceneTransition.ToName(name, payload));
     }
 
     // Opens the window and runs simulation until it requests exit.
@@ -440,8 +552,43 @@ public sealed class SceneEngineBuilder
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
-    private void RunScene(in SceneTransition initialTarget)
+    private int RunScene(in SceneTransition initialTarget)
     {
+        if (_commandLineError is not null)
+        {
+            return Reject(_commandLineError);
+        }
+
+        if (_helpRequested)
+        {
+            Console.Out.WriteLine(Usage);
+
+            return 0;
+        }
+
+        if (_replayPath is not null)
+        {
+            if (!TryLoadTape(_replayPath, out InputTape replay, out string replayError))
+            {
+                return Reject(replayError);
+            }
+
+            _inputTape = replay;
+        }
+
+        if (_headlessPath is not null)
+        {
+            if (!TryLoadTape(_headlessPath, out InputTape tape, out string headlessError))
+            {
+                return Reject(headlessError);
+            }
+
+            HeadlessRunResult result = RunHeadless(initialTarget, tape);
+
+            // A run that neither spent its tape nor was asked to end stopped for a reason the caller wants.
+            return result.ExitRequested || result.Steps >= tape.Count ? 0 : 1;
+        }
+
         // Before composing, not inside Run: a scene's OnStart logs while the host is built here.
         InstallLogging();
 
@@ -449,6 +596,88 @@ public sealed class SceneEngineBuilder
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
         Run(host, host);
+
+        return 0;
+    }
+
+    private SceneEngineBuilder RejectCommandLine(string error)
+    {
+        _commandLineError ??= error;
+
+        return this;
+    }
+
+    private int Reject(string message)
+    {
+        Console.Error.WriteLine(message);
+        Console.Error.WriteLine(Usage);
+
+        return BadArgumentExitCode;
+    }
+
+    // A tape file the command line named and the run cannot read is a bad argument, answered like
+    // one rather than escaping the entry point as an exception.
+    private static bool TryLoadTape(string path, out InputTape tape, out string error)
+    {
+        try
+        {
+            using FileStream file = File.OpenRead(path);
+            tape = InputTapeFile.Read(file);
+            error = string.Empty;
+
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InputTapeFormatException)
+        {
+            tape = InputTape.Empty;
+            error = $"Tape {path}: {exception.Message}";
+
+            return false;
+        }
+    }
+
+    // A value never starts with the flag prefix, so a missing one is caught here rather than
+    // swallowing the flag that follows it. Blank is missing too: every value reaches a setter that
+    // rejects a blank path.
+    private static bool TryValue(string[] args, ref int index, out string value)
+    {
+        if (index + 1 >= args.Length
+            || args[index + 1].StartsWith("--", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(args[index + 1]))
+        {
+            value = string.Empty;
+
+            return false;
+        }
+
+        value = args[++index];
+
+        return true;
+    }
+
+    // --frames takes an optional duration, so a following token is only its own when it parses as a
+    // number; one that does but is not a duration the builder accepts is a malformed command line,
+    // not a run that fails late.
+    private static bool TrySeconds(string[] args, ref int index, out double? seconds)
+    {
+        seconds = null;
+
+        if (index + 1 >= args.Length
+            || !double.TryParse(args[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+        {
+            return true;
+        }
+
+        index++;
+
+        if (!double.IsFinite(parsed) || parsed <= 0d)
+        {
+            return false;
+        }
+
+        seconds = parsed;
+
+        return true;
     }
 
     // No window, no device, no residency: the scene host is the same one a windowed run drives, so
