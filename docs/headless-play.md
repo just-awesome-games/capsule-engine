@@ -122,6 +122,29 @@ CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly an
 A tape recorded from a play session is replayed through `WithInputTape(path)` on a windowed run;
 `RunHeadless` takes the tape itself and replaces anything `WithInputTape` set.
 
+## Screenshots
+
+Game logic cannot write a file, so a screenshot is an intent the scene raises and the host fulfils
+on its next drawn frame. Bind an action, call `CaptureFrame` on the press, and press the key from a
+tape:
+
+```csharp
+protected override void OnStep(in StepContext context)
+{
+    if (context.Input.WasPressed(Screenshot))
+    {
+        CaptureFrame("shots/room.png");
+    }
+}
+```
+
+```csharp
+InputTape tape = new InputScript().Wait(60).Tap(Key.F12).Wait(1).Build();
+```
+
+A windowed run replaying that tape writes the PNG. A headless run has no surface to save, so it
+clears the request and writes nothing.
+
 For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
 over the tape: it is substrate-free, so a test holds the scene and reads its entities between
 steps.
