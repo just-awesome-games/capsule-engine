@@ -76,13 +76,17 @@ internal sealed class FrameRenderer : IDisposable
     internal bool CanCaptureFrame =>
         _device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0;
 
+    // The capture is staged under this suffix beside its destination. One frame loop writes
+    // captures, so the name is fixed rather than unique.
+    internal const string TemporarySuffix = ".tmp";
+
     // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
     // and overwriting the file. Called after Draw and before the frame is presented, while that
     // surface still holds the frame: the render target where one is configured, whose extent is
     // the declared render resolution and so is independent of the window, and the back buffer
     // where there is none. Read-back and encoding failures are logged rather than thrown into the
-    // frame loop, and the destination is opened only once a whole PNG is in hand, so nothing —
-    // not even an empty file — replaces what is there unless the capture succeeded.
+    // frame loop, and the destination is replaced only once a whole PNG is in hand, so whatever is
+    // already there survives a capture that failed.
     internal void SaveSurface(string path)
     {
         if (!CanCaptureFrame)
@@ -104,33 +108,49 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
+        WriteCapture(png, path);
+    }
+
+    // Encoded PNG lands on a temporary sibling and moves onto the destination only once it is
+    // whole: neither a partial write nor a denied one touches the file already at path.
+    internal static void WriteCapture(byte[] png, string path)
+    {
+        string full = Path.GetFullPath(path);
+        string temporary = full + TemporarySuffix;
+
         try
         {
-            if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
+            if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
             {
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllBytes(path, png);
+            File.WriteAllBytes(temporary, png);
+            File.Move(temporary, full, overwrite: true);
         }
         catch (Exception error)
         {
             Log.Warning($"Frame capture to '{path}' failed while writing: {error.Message}");
-            Discard(path);
+            Discard(temporary);
         }
     }
 
-    // A write that failed part way leaves a truncated file behind; a PNG nobody can read is worse
-    // than none.
-    private static void Discard(string path)
+    // The temporary is all a failed write can have left behind, and a truncated PNG nobody can
+    // read is worse than none.
+    private static void Discard(string temporary)
     {
+        if (!File.Exists(temporary))
+        {
+            return;
+        }
+
         try
         {
-            File.Delete(path);
+            File.Delete(temporary);
         }
         catch (Exception error)
         {
-            Log.Warning($"Removing the failed frame capture at '{path}' failed: {error.Message}");
+            Log.Warning($"Removing the failed frame capture at '{temporary}' failed: {error.Message}");
         }
     }
 

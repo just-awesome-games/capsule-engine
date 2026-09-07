@@ -1,5 +1,6 @@
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
@@ -113,6 +114,22 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.Equal(tape.Count, result.Steps);
         Assert.Null(Assert.IsType<BoundCaptureScene>(scene).FrameCaptureRequested);
         Assert.False(File.Exists(BoundPath));
+    }
+
+    // A capture stages beside its destination, so a write that cannot land leaves the file already
+    // there whole and leaves no temporary behind. A directory squatting on the staging path denies
+    // the write without depending on a device or on file permissions.
+    [Fact]
+    public void WriteCapture_ThatCannotWrite_KeepsTheExistingFileAndLeavesNoTemporary()
+    {
+        string path = Path.Combine(_directory, "shot.png");
+        File.WriteAllText(path, "an earlier capture");
+        Directory.CreateDirectory(path + FrameRenderer.TemporarySuffix);
+
+        FrameRenderer.WriteCapture([1, 2, 3], path);
+
+        Assert.Equal("an earlier capture", File.ReadAllText(path));
+        Assert.Equal(new[] { path }, Directory.GetFiles(_directory));
     }
 
     private static SceneTransition ToScene<TScene>()
