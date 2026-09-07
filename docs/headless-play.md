@@ -7,16 +7,8 @@ way every time.
 
 ## Input drivers
 
-`Capsule.Scenes.Input.IInputDriver` has one method:
-
-```csharp
-bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot);
-```
-
-The driver is asked once per fixed step, before that step runs, whatever the frame rate; `scene` is
-the scene about to be stepped, so a driver reads the world it is playing and a transition hands it
-the new scene. Returning false ends the run, and the step it declined never runs. A driver that ends
-the run on a condition of its own presses whatever key the game exits on instead.
+A driver implements the one method of `Capsule.Scenes.Input.IInputDriver`, which documents its
+contract.
 
 Everything a driver measures is counted in fixed steps, never in seconds. At the default 60 Hz, one
 second of play is 60 steps.
