@@ -28,6 +28,11 @@ internal sealed class CapsuleGame : Game
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
     private bool _windowRaised;
+
+    // Whether the host is inside a device operation of its own. The resize watch fires for the
+    // window events that operation raises, so it stands off rather than reaching a device that is
+    // half-applied — and rather than recursing into itself.
+    private bool _deviceHeld;
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
@@ -84,6 +89,9 @@ internal sealed class CapsuleGame : Game
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.TexturesResident);
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
+
+        // Installed once the renderer exists, since the watch can fire before the next frame does.
+        SdlPlatform.WatchWindowRedraw(RedrawWindow);
 
         base.LoadContent();
     }
@@ -149,12 +157,76 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
+            // Ahead of the renderer: the watch draws through it.
+            SdlPlatform.StopWatchingWindowRedraw();
+
             // Null when construction failed before LoadContent ran.
             _renderer?.Dispose();
             _textures?.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    // Draws the settled frame again at the window's current extent, from inside SDL's own event
+    // handling. Windows blocks the game loop for the whole of a window drag, so this is the only
+    // point the view can refit while the edge is moving. No step runs and no capture is taken: a
+    // drag advances no simulation time and produces no frame the game asked for.
+    private void RedrawWindow()
+    {
+        // The device is only the frame loop's between frames, and applying the new extent raises
+        // the very window events this is watching for. The extent is read fresh below rather than
+        // carried on the event, so an event this guard drops costs a frame and not the fit.
+        if (_deviceHeld || !_windowRaised)
+        {
+            return;
+        }
+
+        _deviceHeld = true;
+
+        try
+        {
+            SdlPlatform.WindowSize(Window.Handle, out int width, out int height);
+
+            // The preferred extent is the windowed one, and fullscreen is the desktop's: writing
+            // the monitor's extent into it would make that the window Alt+Enter returns to. A
+            // fullscreen transition changes the fit, so the frame is still redrawn.
+            if (!_graphics.IsFullScreen
+                && width > 0
+                && height > 0
+                && (_graphics.PreferredBackBufferWidth != width || _graphics.PreferredBackBufferHeight != height))
+            {
+                _graphics.PreferredBackBufferWidth = width;
+                _graphics.PreferredBackBufferHeight = height;
+                _graphics.ApplyChanges();
+            }
+
+            _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+            GraphicsDevice.Present();
+        }
+        finally
+        {
+            _deviceHeld = false;
+        }
+    }
+
+    // Enters or leaves borderless fullscreen. The preferred back buffer is left alone throughout:
+    // it is the windowed extent, which is what leaving fullscreen restores.
+    private void ToggleFullscreen()
+    {
+        // Held across the whole transition: it raises the window events the resize watch answers,
+        // and a redraw landing inside it would reach a half-applied device.
+        _deviceHeld = true;
+
+        try
+        {
+            _graphics.IsFullScreen = !_graphics.IsFullScreen;
+            _graphics.ApplyChanges();
+        }
+        finally
+        {
+            _deviceHeld = false;
+        }
     }
 
     // Toggles the window on the chord's leading edge; returns whether Alt and Enter are still
@@ -167,8 +239,7 @@ internal sealed class CapsuleGame : Game
 
         if (held && !_fullscreenChordHeld)
         {
-            _graphics.IsFullScreen = !_graphics.IsFullScreen;
-            _graphics.ApplyChanges();
+            ToggleFullscreen();
         }
 
         _fullscreenChordHeld = held;

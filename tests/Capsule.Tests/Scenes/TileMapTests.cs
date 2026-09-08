@@ -105,6 +105,25 @@ public sealed class TileMapTests
         Assert.Equal(4, simulation.View.Sprites.Length);
     }
 
+    // The camera's centre stays the raw framing target and the bounds confine only what is drawn,
+    // so culling has to confine the same way: the tile at X 8 is on screen and reachable only
+    // because the view was pushed right off the room's left edge.
+    [Fact]
+    public void TerrainEmitsTheTilesConfinementBringsIntoView()
+    {
+        Scene scene = new();
+        scene.Camera.Center = new Vector2(0, 4);
+        scene.Camera.ViewportSize = new Vector2(16, 8);
+        scene.Camera.Bounds = new ViewBounds(0f, 0f, 32f, 8f);
+        scene.Add(new TileMap(Run()));
+
+        SceneSimulation simulation = new(scene);
+
+        Assert.Equal(
+            [new Vector2(0, 0), new Vector2(8, 0)],
+            simulation.View.Sprites.ToArray().Select(tile => tile.Position));
+    }
+
     [Fact]
     public void TerrainEmitsNothingBeforeTheCameraOpens()
     {

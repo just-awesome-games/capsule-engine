@@ -92,6 +92,24 @@ public sealed class SceneCameraTests
         Assert.Equal(new Vector2(51, 0), Assert.Single(simulation.View.Sprites.ToArray()).Position);
     }
 
+    // Bounds confine what is drawn without moving the centre, so culling has to confine the same
+    // way: this sprite is on screen only because the view was pushed right off the room's left
+    // edge, and the raw sweep around the centre excludes it.
+    [Fact]
+    public void ASpriteConfinementBringsIntoView_SurvivesCulling()
+    {
+        SceneFixtures.Drifter standing = new(new Vector2(14, 4));
+        standing.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
+
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(0, 4), new Vector2(16, 8)));
+        scene.Camera.Bounds = new ViewBounds(0f, 0f, 32f, 8f);
+        scene.Add(standing);
+
+        using SceneSimulation simulation = new(scene);
+
+        Assert.Equal(new Vector2(14, 4), Assert.Single(simulation.View.Sprites.ToArray()).Position);
+    }
+
     // The ordering the camera's own late hook exists for: the subject moves in the entity pass and
     // the camera reads it after that pass, so entity order cannot decide whether it frames this
     // step's position or the last one's.
@@ -277,6 +295,34 @@ public sealed class SceneCameraTests
         Assert.Throws<InvalidOperationException>(() => other.Install(shared));
         Assert.Same(framed, shared.Scene);
         Assert.NotSame(shared, other.Camera);
+    }
+
+    // Framing is the camera's and resolution is the renderer's, so what the scene sets has to reach
+    // the frame view unread by the step that produced it.
+    [Fact]
+    public void ACamerasFitAndBounds_ReachTheFrameViewWithTheCentreItSettled()
+    {
+        ViewBounds room = new(0f, 0f, 1000f, 500f);
+        Camera camera = new()
+        {
+            Center = new Vector2(-400f, 250f),
+            ViewportSize = new Vector2(320f, 180f),
+            Fit = ViewportFit.Expand,
+            Bounds = room,
+        };
+
+        SceneFixtures.HookScene scene = new(start: Install(camera));
+
+        using SceneSimulation simulation = new(scene);
+
+        CameraView view = simulation.View.Camera;
+
+        Assert.Equal(ViewportFit.Expand, view.Fit);
+        Assert.Equal(room, view.Bounds);
+        Assert.Equal(new Vector2(-400f, 250f), view.Center);
+
+        // The clamp lives in resolution alone: the camera still frames where it was pointed.
+        Assert.Equal(new ViewBounds(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
     }
 
     private static Action<Scene> Install(Camera camera) =>

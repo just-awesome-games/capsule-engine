@@ -82,6 +82,7 @@ Nothing is read ambiently: a shell that does not pass `args` has no command line
 | -------------------------- | ------------------------------------------------------------------ |
 | `--driver <Name>`          | Drives the run from the input driver of that class name.           |
 | `--headless`               | Runs with no window, which needs a driver.                         |
+| `--scene <Name>`           | Boots the registered scene of that class name.                     |
 | `--frames <csv> [seconds]` | Writes host frame timing, exiting after `seconds` when given.      |
 | `--help`                   | Prints the usage block on standard output and exits.               |
 
@@ -89,9 +90,11 @@ Flags combine, every value is required, and repeating one is an error. A game wi
 removes them before handing the rest over, since anything Capsule does not declare is rejected.
 
 `--driver X` alone opens the window and plays the driver in it; `--headless --driver X` opens no
-window at all. `RunScene` returns 2 for a rejected command line, a driver name nothing answers to —
-reported with the names that are registered — or `--headless` with no driver; everything else
-returns 0.
+window at all. `--scene X` replaces the scene the `RunScene` call names with the registered scene
+whose class is named `X`, keeping that call's boot payload; a scene composed from a document is
+opened through that document. `RunScene` returns 2 for a rejected command line, a driver name
+nothing answers to or a scene name no one registered class answers to — each reported with the names
+that are registered — or `--headless` with no driver; everything else returns 0.
 
 Drivers are discovered wherever the game declares them: the shell project, the logic project, or any
 logic assembly the shell references.

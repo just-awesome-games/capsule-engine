@@ -26,9 +26,13 @@ internal sealed class FrameRenderer : IDisposable
     // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
 
-    // Null when no render resolution is declared: the world then rasterises straight into the
-    // back buffer at whatever size the window is.
-    private readonly RenderTarget2D? _target;
+    // The declared canvas, or null when the world rasterises straight into the back buffer at
+    // whatever size the window is.
+    private readonly (int Width, int Height)? _canvas;
+
+    // Null exactly when no canvas is declared. Its extent is the canvas under Letterbox and grows
+    // with the resolved world rect under a fit that reveals more of it.
+    private RenderTarget2D? _target;
 
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
@@ -40,11 +44,12 @@ internal sealed class FrameRenderer : IDisposable
         _textures = textures;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
+        _canvas = renderResolution;
 
-        // Fixed size, so neither a window resize nor a fullscreen toggle ever churns it.
-        _target = renderResolution is { } resolution
-            ? new RenderTarget2D(device, resolution.Width, resolution.Height)
-            : null;
+        if (renderResolution is { } resolution)
+        {
+            _target = new RenderTarget2D(device, resolution.Width, resolution.Height);
+        }
     }
 
     // Draws one frame. Allocation-free at steady state.
@@ -56,19 +61,83 @@ internal sealed class FrameRenderer : IDisposable
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);
 
-        if (_target is null)
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        int outputWidth = backBuffer.BackBufferWidth;
+        int outputHeight = backBuffer.BackBufferHeight;
+
+        // The window is the output the fit answers to on both paths: a declared canvas is derived
+        // from the resolved rect rather than being the thing that shapes it. The span travels
+        // beside the rect because subtracting the rect's edges loses precision far from the
+        // origin, and the scale it feeds is what quantises every sprite to the pixel grid.
+        Vector2 output = new(outputWidth, outputHeight);
+        Vector2 span = view.Camera.ResolveSpan(output);
+        ViewBounds world = view.Camera.Resolve(alpha, output);
+
+        if (_canvas is not { } canvas)
         {
-            PresentationParameters backBuffer = _device.PresentationParameters;
-            DrawWorld(view, alpha, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+            DrawWorld(view, alpha, world, span, outputWidth, outputHeight);
 
             return;
         }
 
-        _device.SetRenderTarget(_target);
-        DrawWorld(view, alpha, _target.Width, _target.Height);
+        RenderTarget2D target = Surface(canvas, view.Camera.Size, span, outputWidth, outputHeight);
+
+        _device.SetRenderTarget(target);
+        DrawWorld(view, alpha, world, span, target.Width, target.Height);
         _device.SetRenderTarget(null);
-        Present(_target, view.Sampling);
+        Present(target, view.Sampling);
     }
+
+    private RenderTarget2D Surface(
+        (int Width, int Height) canvas,
+        Vector2 declaredSpan,
+        Vector2 resolvedSpan,
+        int outputWidth,
+        int outputHeight)
+    {
+        RenderTarget2D target = _target!;
+        (int width, int height) = SurfaceSize(canvas, declaredSpan, resolvedSpan, outputWidth, outputHeight);
+
+        if (target.Width == width && target.Height == height)
+        {
+            return target;
+        }
+
+        // Rebound before the old surface goes, or the device keeps a disposed target bound.
+        _device.SetRenderTarget(null);
+        target.Dispose();
+        _target = new RenderTarget2D(_device, width, height);
+
+        return _target;
+    }
+
+    // The surface a declared canvas draws on for a resolved world rect. Pixels per world unit are
+    // whatever the canvas and the camera's declared span give, so the fit changes how much world is
+    // on the surface and never how large a world unit is on it. Under Letterbox the resolved rect
+    // is that declared span, so the surface is the canvas exactly. It never shrinks below the
+    // canvas, and never exceeds the back buffer on an axis: past that the present can only scale
+    // the extra pixels back down, so they buy nothing and cost the whole surface every frame.
+    internal static (int Width, int Height) SurfaceSize(
+        (int Width, int Height) canvas,
+        Vector2 declaredSpan,
+        Vector2 resolvedSpan,
+        int outputWidth,
+        int outputHeight)
+    {
+        if (!(declaredSpan.X > 0f) || !(declaredSpan.Y > 0f) || !(resolvedSpan.X > 0f) || !(resolvedSpan.Y > 0f))
+        {
+            return canvas;
+        }
+
+        float pixelsPerUnit = MathF.Min(canvas.Width / declaredSpan.X, canvas.Height / declaredSpan.Y);
+
+        return (
+            Extent(resolvedSpan.X, pixelsPerUnit, canvas.Width, outputWidth),
+            Extent(resolvedSpan.Y, pixelsPerUnit, canvas.Height, outputHeight));
+    }
+
+    private static int Extent(float span, float pixelsPerUnit, int canvas, int output) =>
+        Math.Clamp((int)MathF.Round(span * pixelsPerUnit), canvas, Math.Max(canvas, output));
 
     // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
     // presents nothing and leaves no frame to save — including behind a render target, which is
@@ -187,7 +256,7 @@ internal sealed class FrameRenderer : IDisposable
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox.
-    private void DrawWorld(FrameView view, float alpha, int surfaceWidth, int surfaceHeight)
+    private void DrawWorld(FrameView view, float alpha, in ViewBounds world, Vector2 span, int surfaceWidth, int surfaceHeight)
     {
         // A minimised window can present a back buffer with no area.
         if (surfaceWidth <= 0 || surfaceHeight <= 0)
@@ -199,13 +268,12 @@ internal sealed class FrameRenderer : IDisposable
         _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
         _device.Clear(BarColor);
 
-        CameraView camera = view.Camera;
-        if (camera.Size.X <= 0f || camera.Size.Y <= 0f)
+        if (world.IsEmpty)
         {
             return;
         }
 
-        Letterbox fit = Letterbox.Fit(camera.Size.X, camera.Size.Y, surfaceWidth, surfaceHeight);
+        Letterbox fit = Letterbox.Fit(span.X, span.Y, surfaceWidth, surfaceHeight);
         if (fit.IsEmpty)
         {
             return;
@@ -213,10 +281,9 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        // The camera interpolates on the same clock as what it looks at; snapping it to the step's
+        // The camera interpolated on the same clock as what it looks at; snapping it to the step's
         // end instead would slide the whole world back once per step.
-        Vector2 center = Vector2.Lerp(camera.PreviousCenter, camera.Center, alpha);
-        Vector2 topLeft = center - (camera.Size / 2f);
+        Vector2 topLeft = new(world.Left, world.Top);
 
         // Camera and sprites quantise to the same grid, so the two never disagree by a pixel. The
         // simulation keeps its fractional positions.
@@ -240,7 +307,7 @@ internal sealed class FrameRenderer : IDisposable
             ToBackendColor(view.ClearColor),
             rotation: 0f,
             origin: XnaVector2.Zero,
-            scale: new XnaVector2(camera.Size.X, camera.Size.Y),
+            scale: new XnaVector2(span.X, span.Y),
             effects: SpriteEffects.None,
             layerDepth: 0f);
 

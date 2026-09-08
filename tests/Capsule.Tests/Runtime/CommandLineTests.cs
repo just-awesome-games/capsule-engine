@@ -69,6 +69,26 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Scene_BootsTheNamedClassRatherThanTheOneRunSceneNames()
+    {
+        int before = Selected.Openings;
+
+        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Selected"]).RunScene<Idle>());
+        Assert.Equal(before + 1, Selected.Openings);
+    }
+
+    [Fact]
+    public void ASceneNoRegistryHolds_IsReportedWithTheScenesThatAreRegistered()
+    {
+        Assert.Equal(2, Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Nowhere"]).RunScene<Idle>());
+
+        string reported = Captured();
+        Assert.Contains("Nowhere", reported, StringComparison.Ordinal);
+        Assert.Contains(nameof(Selected), reported, StringComparison.Ordinal);
+        Assert.Contains("--scene <Name>", reported, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Help_PrintsTheUsageAndStops()
     {
         StringWriter stdout = new();
@@ -98,6 +118,8 @@ public sealed class CommandLineTests : IDisposable
         ["--frames", "frames.csv", "-1"],
         ["--frames", "frames.csv", "NaN"],
         ["--frames", "frames.csv", "Infinity"],
+        ["--scene"],
+        ["--scene", "--headless"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
     ];
@@ -112,6 +134,7 @@ public sealed class CommandLineTests : IDisposable
                     [
                         SceneRegistration.Plain(typeof(Idle), static () => new Idle()),
                         SceneRegistration.Plain(typeof(Exiting), static () => new Exiting()),
+                        SceneRegistration.Plain(typeof(Selected), static () => new Selected()),
                     ]),
                 new InputDriverRegistry(
                     [
@@ -126,6 +149,16 @@ public sealed class CommandLineTests : IDisposable
 
     private sealed class Exiting : Scene
     {
+        protected override void OnStep(in StepContext context) => RequestExit();
+    }
+
+    // Registered but never named by a RunScene call, so only --scene can open it.
+    private sealed class Selected : Scene
+    {
+        internal static int Openings { get; private set; }
+
+        protected override void OnStart() => Openings++;
+
         protected override void OnStep(in StepContext context) => RequestExit();
     }
 }

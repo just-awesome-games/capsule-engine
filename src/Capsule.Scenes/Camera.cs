@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
@@ -23,6 +24,20 @@ public class Camera
     /// non-positive span draws nothing.
     /// </summary>
     public Vector2 ViewportSize { get; set; }
+
+    /// <summary>
+    /// How <see cref="ViewportSize"/> answers an output whose aspect ratio differs from it.
+    /// Defaults to <see cref="ViewportFit.Letterbox"/>, which shows that span and nothing else.
+    /// </summary>
+    public ViewportFit Fit { get; set; }
+
+    /// <summary>
+    /// A world rect the visible region may never leave, applied after the fit resolves it: the
+    /// region is clamped inside these bounds on each axis, and centred on them along an axis it is
+    /// larger than. Null, the default, leaves the view free. <see cref="Center"/> is unaffected —
+    /// it stays the raw framing target, and the confinement lives only in what is drawn.
+    /// </summary>
+    public ViewBounds? Bounds { get; set; }
 
     /// <summary>
     /// The scene this camera frames; null before <see cref="OnAddedToScene"/> and after

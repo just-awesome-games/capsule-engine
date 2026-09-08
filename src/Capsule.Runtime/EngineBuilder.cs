@@ -27,6 +27,7 @@ public sealed class EngineBuilder
     private const string StandardFlags = """
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, which needs a driver
+          --scene <Name>             boot the registered scene of that class name
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --help                     print this and exit
         """;
@@ -58,6 +59,7 @@ public sealed class EngineBuilder
     private double? _frameDiagnosticsExitAfterSeconds;
     private IInputDriver? _driver;
     private string? _driverName;
+    private string? _sceneName;
     private bool _headless;
     private string? _commandLineError;
     private bool _helpRequested;
@@ -299,9 +301,10 @@ public sealed class EngineBuilder
     /// them first, since anything Capsule does not declare is rejected here.
     /// </param>
     /// <remarks>
-    /// Nothing is thrown and no driver is built: a malformed command line, and a driver name no
-    /// registered driver answers to, are held so the fluent chain completes, and <c>RunScene</c>
-    /// reports the defect and returns 2.
+    /// Nothing is thrown, no driver is built and no scene is looked up: a malformed command line, a
+    /// driver name no registered driver answers to and a scene name no registered scene class
+    /// answers to are held so the fluent chain completes, and <c>RunScene</c> reports the defect and
+    /// returns 2.
     /// </remarks>
     /// <exception cref="ArgumentNullException">The argument array is null.</exception>
     public EngineBuilder WithCommandLine(string[] args)
@@ -336,6 +339,15 @@ public sealed class EngineBuilder
 
                 case "--headless":
                     _headless = true;
+                    break;
+
+                case "--scene":
+                    if (!TryValue(args, ref index, out string scene))
+                    {
+                        return RejectCommandLine("--scene needs a scene class name.");
+                    }
+
+                    _sceneName = scene;
                     break;
 
                 case "--frames":
@@ -429,8 +441,9 @@ public sealed class EngineBuilder
     /// </param>
     /// <returns>
     /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line, or
-    /// named a driver no registered driver answers to, or asked for a headless run with no driver —
-    /// each reported on standard error with the usage block; otherwise 0.
+    /// named a driver no registered driver answers to, or named a scene no one registered scene
+    /// class answers to, or asked for a headless run with no driver — each reported on standard
+    /// error with the usage block; otherwise 0.
     /// </returns>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
@@ -496,6 +509,22 @@ public sealed class EngineBuilder
             _driver = named;
         }
 
+        SceneTransition target = initialTarget;
+
+        if (_sceneName is not null)
+        {
+            if (_scenes.SceneNamed(_sceneName) is not { } selected)
+            {
+                return Reject($"no one registered scene is named '{_sceneName}'. Registered: {_scenes.RegisteredSceneNames()}.");
+            }
+
+            // A document-backed scene is composed through its document, so the flag opens it the
+            // way the scene itself would be opened rather than by its class.
+            target = _scenes.DocumentNameOf(selected) is { } document
+                ? SceneTransition.ToName(document, initialTarget.Payload)
+                : SceneTransition.ToScene(selected, initialTarget.Payload);
+        }
+
         if (_headless)
         {
             if (_driver is null)
@@ -503,7 +532,7 @@ public sealed class EngineBuilder
                 return Reject("--headless has no one to play the game: name an input driver with --driver.");
             }
 
-            RunHeadless(initialTarget, _driver);
+            RunHeadless(target, _driver);
 
             return 0;
         }
@@ -513,7 +542,7 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        using SceneHost host = new(target, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
         Run(host, host);
 
         return 0;

@@ -48,6 +48,33 @@ public sealed class SceneRegistry
     // The scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 
+    // The registered scene whose class is named className, or null when none is — including when
+    // two namespaces both carry that class name, which names no one scene.
+    internal Type? SceneNamed(string className)
+    {
+        Type? found = null;
+
+        foreach (Type candidate in _byType.Keys)
+        {
+            if (!string.Equals(candidate.Name, className, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (found is not null)
+            {
+                return null;
+            }
+
+            found = candidate;
+        }
+
+        return found;
+    }
+
+    // Every registered scene class, for a message naming what a caller could have asked for.
+    internal string RegisteredSceneNames() => RegisteredTypes();
+
     internal Scene Create(Type sceneType)
     {
         SceneRegistration registration = Registered(sceneType);
