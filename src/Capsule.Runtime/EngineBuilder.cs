@@ -4,7 +4,6 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
-using Capsule.Runtime.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Input;
@@ -16,7 +15,7 @@ namespace Capsule.Runtime;
 /// Fluent, eagerly validated host configuration for a game's generated scene registry. A
 /// <c>RunScene</c> blocks until the game requests exit and returns the process's exit code.
 /// </summary>
-public sealed class SceneEngineBuilder
+public sealed class EngineBuilder
 {
     private const int DefaultWindowWidth = 1280;
     private const int DefaultWindowHeight = 720;
@@ -36,7 +35,7 @@ public sealed class SceneEngineBuilder
 
     // The boot trace's first stage after process start, so it is taken before any configuration.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
-    private readonly ActionBindings _bindings = new();
+    private readonly InputConfiguration _input = new();
     private readonly SceneRegistry _scenes;
     private readonly InputDriverRegistry _drivers;
     private readonly string _gameName;
@@ -49,8 +48,6 @@ public sealed class SceneEngineBuilder
     private (int Width, int Height)? _renderResolution;
     private double _stepSeconds = 1.0 / DefaultStepHertz;
     private int _maxStepsPerFrame = DefaultMaxStepsPerFrame;
-    private float _stickDeadzone = PadFilter.DefaultStickDeadzone;
-    private float _triggerDeadzone = PadFilter.DefaultTriggerDeadzone;
     private string? _crashLogAppName;
     private ILogSink? _logSink;
     private ConsoleLogSink? _consoleSink;
@@ -65,7 +62,7 @@ public sealed class SceneEngineBuilder
     private string? _commandLineError;
     private bool _helpRequested;
 
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
+    internal EngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
@@ -86,7 +83,7 @@ public sealed class SceneEngineBuilder
 
     /// <summary>The window's title, which is the game's name unless this replaces it.</summary>
     /// <exception cref="ArgumentException">The title is null or blank.</exception>
-    public SceneEngineBuilder WithWindowTitle(string title)
+    public EngineBuilder WithWindowTitle(string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         _windowTitle = title;
@@ -101,7 +98,7 @@ public sealed class SceneEngineBuilder
     /// <param name="height">Client height in pixels.</param>
     /// <param name="resizable">Whether the player may drag the window's edges; windowed mode only.</param>
     /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
-    public SceneEngineBuilder WithWindow(int width, int height, bool resizable = true)
+    public EngineBuilder WithWindow(int width, int height, bool resizable = true)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -112,7 +109,7 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>Boots borderless fullscreen at the desktop's resolution; Alt+Enter toggles from there.</summary>
-    public SceneEngineBuilder WithFullscreen()
+    public EngineBuilder WithFullscreen()
     {
         _fullscreen = true;
         return this;
@@ -125,7 +122,7 @@ public sealed class SceneEngineBuilder
     /// <param name="width">Render-target width in pixels.</param>
     /// <param name="height">Render-target height in pixels.</param>
     /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
-    public SceneEngineBuilder WithRenderResolution(int width, int height)
+    public EngineBuilder WithRenderResolution(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -136,7 +133,7 @@ public sealed class SceneEngineBuilder
     /// <summary>The simulation's fixed step rate. Defaults to 60 Hz.</summary>
     /// <param name="hertz">Simulation steps per second of simulated time; positive.</param>
     /// <exception cref="ArgumentOutOfRangeException">The rate is not positive.</exception>
-    public SceneEngineBuilder WithFixedStep(int hertz)
+    public EngineBuilder WithFixedStep(int hertz)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hertz);
         _stepSeconds = 1.0 / hertz;
@@ -151,27 +148,10 @@ public sealed class SceneEngineBuilder
     /// </summary>
     /// <param name="steps">Steps per frame; positive.</param>
     /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
-    public SceneEngineBuilder WithMaxStepsPerFrame(int steps)
+    public EngineBuilder WithMaxStepsPerFrame(int steps)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(steps);
         _maxStepsPerFrame = steps;
-        return this;
-    }
-
-    /// <summary>
-    /// A stick reading inside <paramref name="stick"/> radially reads centred and a trigger pull
-    /// below <paramref name="trigger"/> reads released; past either, what remains is remapped onto
-    /// [0, 1]. Defaults to 0.25 and 0.12.
-    /// </summary>
-    /// <param name="stick">Stick radius, in [0, 1); 0 applies no stick deadzone.</param>
-    /// <param name="trigger">Trigger pull, in [0, 1); 0 applies no trigger deadzone.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A radius is NaN or outside [0, 1).</exception>
-    public SceneEngineBuilder WithGamepadDeadzones(float stick, float trigger)
-    {
-        RequireDeadzone(stick, nameof(stick));
-        RequireDeadzone(trigger, nameof(trigger));
-        _stickDeadzone = stick;
-        _triggerDeadzone = trigger;
         return this;
     }
 
@@ -181,7 +161,7 @@ public sealed class SceneEngineBuilder
     /// </summary>
     /// <param name="appName">Used verbatim as one directory name, so it must be exactly that.</param>
     /// <exception cref="ArgumentException">It is not a single safe directory name.</exception>
-    public SceneEngineBuilder WithCrashLog(string appName)
+    public EngineBuilder WithCrashLog(string appName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
 
@@ -197,7 +177,7 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>Disables crash-log writes for escaping exceptions.</summary>
-    public SceneEngineBuilder WithoutCrashLog()
+    public EngineBuilder WithoutCrashLog()
     {
         _crashLogAppName = null;
         return this;
@@ -205,7 +185,7 @@ public sealed class SceneEngineBuilder
 
     /// <summary>Sends <see cref="Log"/> output to <paramref name="sink"/> rather than the console.</summary>
     /// <exception cref="ArgumentNullException">The sink is null.</exception>
-    public SceneEngineBuilder WithLogSink(ILogSink sink)
+    public EngineBuilder WithLogSink(ILogSink sink)
     {
         ArgumentNullException.ThrowIfNull(sink);
         _logSink = sink;
@@ -214,19 +194,22 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>Silences <see cref="Log"/> entirely.</summary>
-    public SceneEngineBuilder WithoutLogging()
+    public EngineBuilder WithoutLogging()
     {
         _logSink = null;
         _loggingSilenced = true;
         return this;
     }
 
-    /// <summary>Registers action bindings; repeated calls accumulate.</summary>
+    /// <summary>
+    /// Registers the game's input — its bindings and its gamepad deadzones; repeated calls
+    /// accumulate.
+    /// </summary>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>
-    public SceneEngineBuilder WithBindings(Action<ActionBindings> configure)
+    public EngineBuilder WithInput(Action<InputConfiguration> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        configure(_bindings);
+        configure(_input);
         return this;
     }
 
@@ -235,7 +218,7 @@ public sealed class SceneEngineBuilder
     /// <see cref="TextureSampling.Linear"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The mode is not a declared one.</exception>
-    public SceneEngineBuilder WithSampling(TextureSampling sampling)
+    public EngineBuilder WithSampling(TextureSampling sampling)
     {
         if (sampling is not TextureSampling.Linear and not TextureSampling.Point)
         {
@@ -251,7 +234,7 @@ public sealed class SceneEngineBuilder
     /// <see cref="Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
     /// game that never calls this replays identically run to run.
     /// </summary>
-    public SceneEngineBuilder WithRandomSeed(ulong seed)
+    public EngineBuilder WithRandomSeed(ulong seed)
     {
         _randomSeed = seed;
         return this;
@@ -272,7 +255,7 @@ public sealed class SceneEngineBuilder
     /// </param>
     /// <exception cref="ArgumentException">The path is null or blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The duration is not finite and positive.</exception>
-    public SceneEngineBuilder WithFrameDiagnostics(string path, double? exitAfterSeconds = null)
+    public EngineBuilder WithFrameDiagnostics(string path, double? exitAfterSeconds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -299,7 +282,7 @@ public sealed class SceneEngineBuilder
     /// the driver or the simulation.
     /// </summary>
     /// <exception cref="ArgumentNullException">The driver is null.</exception>
-    public SceneEngineBuilder WithInputDriver(IInputDriver driver)
+    public EngineBuilder WithInputDriver(IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);
         _driver = driver;
@@ -321,7 +304,7 @@ public sealed class SceneEngineBuilder
     /// reports the defect and returns 2.
     /// </remarks>
     /// <exception cref="ArgumentNullException">The argument array is null.</exception>
-    public SceneEngineBuilder WithCommandLine(string[] args)
+    public EngineBuilder WithCommandLine(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
 
@@ -473,9 +456,7 @@ public sealed class SceneEngineBuilder
             _renderResolution,
             _stepSeconds,
             _maxStepsPerFrame,
-            _stickDeadzone,
-            _triggerDeadzone,
-            _bindings,
+            _input,
             _driver);
 
         try
@@ -489,18 +470,6 @@ public sealed class SceneEngineBuilder
             CrashLog.TryWrite(_crashLogAppName, exception);
             throw;
         }
-    }
-
-    private static void RequireDeadzone(float value, string parameterName)
-    {
-        // NaN compares false to everything, so the range guards below cannot reject it.
-        if (float.IsNaN(value))
-        {
-            throw new ArgumentOutOfRangeException(parameterName, value, "A deadzone radius cannot be NaN.");
-        }
-
-        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
     private int RunScene(in SceneTransition initialTarget)
@@ -550,7 +519,7 @@ public sealed class SceneEngineBuilder
         return 0;
     }
 
-    private SceneEngineBuilder RejectCommandLine(string error)
+    private EngineBuilder RejectCommandLine(string error)
     {
         _commandLineError ??= error;
 
@@ -621,7 +590,7 @@ public sealed class SceneEngineBuilder
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
 
-        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, driver, host);
+        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _input.Bindings, driver, host);
 
         // Exactly one step's worth of time per call, so the accumulator drains one step and the
         // per-frame step bound never binds.

@@ -27,6 +27,6 @@ public static class CapsuleEngine
     /// </param>
     /// <exception cref="ArgumentException">The name is blank, or slugs to no safe directory name.</exception>
     /// <exception cref="ArgumentNullException">The scene registry is null.</exception>
-    public static SceneEngineBuilder Configure(string gameName, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
+    public static EngineBuilder Configure(string gameName, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
         new(gameName, scenes, drivers ?? InputDriverRegistry.Empty);
 }

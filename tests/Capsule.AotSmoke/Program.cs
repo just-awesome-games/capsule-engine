@@ -40,7 +40,7 @@ internal static class Program
             .Build();
 
         HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", GameScenes.Registry)
-            .WithBindings(GameInput.Bind)
+            .WithInput(GameInput.Configure)
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
             .WithoutLogging()

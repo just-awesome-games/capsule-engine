@@ -220,7 +220,7 @@ internal static class CapsuleBootSource
         source.AppendLine();
         source.AppendLine("        /// <summary>The engine, configured with every registry this game generates.</summary>");
         source.AppendLine("        /// <param name=\"gameName\">The game's display name: its window title, and its crash-log folder as a slug.</param>");
-        source.AppendLine("        public static global::Capsule.Runtime.SceneEngineBuilder Configure(string gameName) =>");
+        source.AppendLine("        public static global::Capsule.Runtime.EngineBuilder Configure(string gameName) =>");
         source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes, Drivers);");
         source.AppendLine();
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry CreateScenes()");

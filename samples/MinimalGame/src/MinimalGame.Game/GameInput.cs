@@ -4,8 +4,8 @@ namespace MinimalGame.Game;
 
 /// <summary>
 /// The game's actions, and the one place devices are named. An action is the seam between a device
-/// and the logic that reacts to it: the shell installs these bindings once through
-/// <c>WithBindings</c>, and everything else in the game reads actions, never keys or pad buttons.
+/// and the logic that reacts to it: the shell installs this configuration once through
+/// <c>WithInput</c>, and everything else in the game reads actions, never keys or pad buttons.
 /// </summary>
 public static class GameInput
 {
@@ -21,10 +21,14 @@ public static class GameInput
     /// <summary>Leaves the game.</summary>
     public static readonly InputAction Quit = new("quit");
 
-    /// <summary>Binds every action to the devices the game supports.</summary>
-    public static void Bind(ActionBindings bindings)
+    /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
+    public static void Configure(InputConfiguration input)
     {
-        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(input);
+
+        input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
+
+        ActionBindings bindings = input.Bindings;
 
         // Axis contributions accumulate, so each pair adds another way to push the same axis.
         bindings.BindAxis(Move, Key.A, Key.D);

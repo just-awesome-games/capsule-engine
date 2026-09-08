@@ -117,7 +117,7 @@ public sealed class InputDriverPlaybackTests
         return (new FixedStepScheduler(StepSeconds, 32, new ActionBindings().Bind(Jump, Key.Space), driver, host), host, scene);
     }
 
-    private static SceneEngineBuilder Builder() =>
+    private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Driven Game",
                 new SceneRegistry(
@@ -129,7 +129,7 @@ public sealed class InputDriverPlaybackTests
                         SceneRegistration.Plain(typeof(Patrol), static () => new Patrol()),
                     ]))
             .WithFixedStep(10)
-            .WithBindings(static bindings => bindings.Bind(Jump, Key.Space))
+            .WithInput(static input => input.Bindings.Bind(Jump, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging();
 

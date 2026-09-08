@@ -104,7 +104,7 @@ public sealed class CommandLineTests : IDisposable
 
     private string Captured() => _captured.ToString();
 
-    private static SceneEngineBuilder Builder() =>
+    private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Command Line Game",
                 new SceneRegistry(

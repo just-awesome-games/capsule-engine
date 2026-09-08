@@ -1,3 +1,4 @@
+using Capsule.Input;
 using Capsule.Runtime.Input;
 
 namespace Capsule.Tests.Runtime;
@@ -10,12 +11,12 @@ public sealed class PadFilterTests
     private const float ConfiguredTriggerDeadzone = 0.4f;
 
     private static readonly PadFilter Default =
-        new(PadFilter.DefaultStickDeadzone, PadFilter.DefaultTriggerDeadzone);
+        new(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
     [Theory]
     [InlineData(0f, 0f)]
     [InlineData(0.17f, 0.17f)]
-    [InlineData(PadFilter.DefaultStickDeadzone, 0f)]
+    [InlineData(InputConfiguration.DefaultStickDeadzone, 0f)]
     public void AStickInsideTheDeadzone_ReadsCentred(float x, float y)
     {
         (float filteredX, float filteredY) = Default.Stick(x, y);
@@ -27,7 +28,7 @@ public sealed class PadFilterTests
     [Fact]
     public void AStickJustOutsideTheDeadzone_ReadsNearZero()
     {
-        (float x, float y) = Default.Stick(PadFilter.DefaultStickDeadzone + 0.001f, 0f);
+        (float x, float y) = Default.Stick(InputConfiguration.DefaultStickDeadzone + 0.001f, 0f);
 
         Assert.InRange(x, 0f, 0.01f);
         Assert.Equal(0f, y);
@@ -43,11 +44,11 @@ public sealed class PadFilterTests
     }
 
     [Theory]
-    [InlineData(PadFilter.DefaultStickDeadzone)]
+    [InlineData(InputConfiguration.DefaultStickDeadzone)]
     [InlineData(ConfiguredStickDeadzone)]
     public void TheRemap_SpansTheDeadzoneToOne(float deadzone)
     {
-        PadFilter filter = new(deadzone, PadFilter.DefaultTriggerDeadzone);
+        PadFilter filter = new(deadzone, InputConfiguration.DefaultTriggerDeadzone);
 
         float halfway = deadzone + ((1f - deadzone) / 2f);
 
@@ -84,18 +85,18 @@ public sealed class PadFilterTests
 
     [Theory]
     [InlineData(0f)]
-    [InlineData(PadFilter.DefaultTriggerDeadzone)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone)]
     public void ATriggerInsideTheDeadzone_ReadsReleased(float raw)
     {
         Assert.Equal(0f, Default.Trigger(raw));
     }
 
     [Theory]
-    [InlineData(PadFilter.DefaultTriggerDeadzone)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone)]
     [InlineData(ConfiguredTriggerDeadzone)]
     public void ATriggerRemapsFromTheDeadzoneToOne(float deadzone)
     {
-        PadFilter filter = new(PadFilter.DefaultStickDeadzone, deadzone);
+        PadFilter filter = new(InputConfiguration.DefaultStickDeadzone, deadzone);
 
         float halfway = deadzone + ((1f - deadzone) / 2f);
 
@@ -104,8 +105,8 @@ public sealed class PadFilterTests
 
     [Theory]
     [InlineData(0f, false)]
-    [InlineData(PadFilter.DefaultTriggerDeadzone, false)]
-    [InlineData(PadFilter.DefaultTriggerDeadzone + 0.001f, true)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone, false)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone + 0.001f, true)]
     [InlineData(1f, true)]
     public void TheTriggerButton_IsHeldExactlyPastTheDeadzone(float raw, bool held)
     {

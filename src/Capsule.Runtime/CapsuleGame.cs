@@ -37,8 +37,8 @@ internal sealed class CapsuleGame : Game
         _diagnostics = diagnostics;
         _simulation = simulation;
         _scenes = scenes;
-        _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
-        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings, options.Driver, scenes);
+        _padFilter = new PadFilter(options.Input.StickDeadzone, options.Input.TriggerDeadzone);
+        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Input.Bindings, options.Driver, scenes);
 
         _graphics = new GraphicsDeviceManager(this)
         {

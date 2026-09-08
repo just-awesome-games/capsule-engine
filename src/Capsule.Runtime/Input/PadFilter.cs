@@ -4,12 +4,6 @@ namespace Capsule.Runtime.Input;
 // radii a host was configured with.
 internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
 {
-    // Stick radius below which the stick reads as centred, absent a configured one.
-    internal const float DefaultStickDeadzone = 0.25f;
-
-    // Trigger pull below which the trigger reads as released, absent a configured one.
-    internal const float DefaultTriggerDeadzone = 0.12f;
-
     private readonly float _stickDeadzone = stickDeadzone;
     private readonly float _triggerDeadzone = triggerDeadzone;
 

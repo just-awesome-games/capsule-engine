@@ -13,8 +13,6 @@ internal sealed record EngineOptions(
     (int Width, int Height)? RenderResolution,
     double StepSeconds,
     int MaxStepsPerFrame,
-    float StickDeadzone,
-    float TriggerDeadzone,
-    ActionBindings Bindings,
+    InputConfiguration Input,
     // Null unless the run is driven in code instead of sampling the devices.
     IInputDriver? Driver);

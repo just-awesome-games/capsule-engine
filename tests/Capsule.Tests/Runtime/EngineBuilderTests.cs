@@ -13,22 +13,22 @@ public sealed class EngineBuilderTests
 
     [Theory]
     [MemberData(nameof(BadSetterActions))]
-    public void Setters_RejectBadValues(Action<SceneEngineBuilder> badSetter)
+    public void Setters_RejectBadValues(Action<EngineBuilder> badSetter)
     {
         Assert.ThrowsAny<ArgumentException>(() => badSetter(SceneBuilder()));
     }
 
     public static IEnumerable<object[]> BadSetterActions()
     {
-        yield return [new Action<SceneEngineBuilder>(b => b.WithFixedStep(0))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(0, 180))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithRenderResolution(320, 0))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(float.NaN, 0.12f))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithGamepadDeadzones(0.25f, float.NaN))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithWindowTitle("  "))];
-        yield return [new Action<SceneEngineBuilder>(b => b.WithSampling((TextureSampling)99))];
+        yield return [new Action<EngineBuilder>(b => b.WithFixedStep(0))];
+        yield return [new Action<EngineBuilder>(b => b.WithRenderResolution(0, 180))];
+        yield return [new Action<EngineBuilder>(b => b.WithRenderResolution(320, 0))];
+        yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
+        yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
+        yield return [new Action<EngineBuilder>(b => b.WithInput(i => i.GamepadDeadzones(float.NaN, 0.12f)))];
+        yield return [new Action<EngineBuilder>(b => b.WithInput(i => i.GamepadDeadzones(0.25f, float.NaN)))];
+        yield return [new Action<EngineBuilder>(b => b.WithWindowTitle("  "))];
+        yield return [new Action<EngineBuilder>(b => b.WithSampling((TextureSampling)99))];
     }
 
     [Theory]
@@ -77,23 +77,22 @@ public sealed class EngineBuilderTests
         Assert.Throws<ArgumentException>(() => ConfiguredBuilder().RunScene(documentName));
     }
 
-    private static SceneEngineBuilder SceneBuilder(string gameName = GameName) =>
+    private static EngineBuilder SceneBuilder(string gameName = GameName) =>
         CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
     // Every setter a game reaches for, so a rejection above is the run's and not a half-built
     // builder's; silent logging is where a headless run starts.
-    private static SceneEngineBuilder ConfiguredBuilder() =>
+    private static EngineBuilder ConfiguredBuilder() =>
         SceneBuilder()
             .WithWindowTitle("Spec")
             .WithWindow(1280, 720, resizable: false)
             .WithFullscreen()
             .WithRenderResolution(320, 180)
             .WithSampling(TextureSampling.Point)
-            .WithGamepadDeadzones(0.25f, 0.12f)
             .WithRandomSeed(7)
             .WithoutCrashLog()
             .WithoutLogging()
-            .WithBindings(static _ => { });
+            .WithInput(static input => input.GamepadDeadzones(0.25f, 0.12f));
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());
