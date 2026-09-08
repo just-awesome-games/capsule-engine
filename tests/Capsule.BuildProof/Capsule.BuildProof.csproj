@@ -25,6 +25,14 @@
   <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
   <Import Project="$(MSBuildThisFileDirectory)BuildProof.targets" />
 
+  <!-- The compile carries one marked source as an absolute spec, which is what a project disabling
+       the SDK's default items and globbing from $(MSBuildProjectDirectory) writes. Removed from the
+       relative glob first, so the file reaches the compile once, under the other spelling. -->
+  <ItemGroup>
+    <Compile Remove="AbsoluteDrivers/**/*.cs" />
+    <Compile Include="$(MSBuildProjectDirectory)/AbsoluteDrivers/**/*.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>

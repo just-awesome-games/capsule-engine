@@ -11,6 +11,7 @@
           BeforeTargets="CoreCompile">
     <ItemGroup>
       <_ProofMarkedSource Include="@(Compile)" Condition="'%(Filename)' == 'DevelopmentOnlyDriver'" />
+      <_ProofMarkedAbsoluteSource Include="@(Compile)" Condition="'%(Filename)' == 'AbsoluteDriver'" />
       <_ProofKeptSource Include="@(Compile)" Condition="'%(Filename)' == 'KeptDriver'" />
     </ItemGroup>
 
@@ -20,6 +21,10 @@
            Text="BuildProof: a shipping build still compiles Drivers/DevelopmentOnlyDriver.cs, under a .capsuleignore marker." />
     <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedSource)' == ''"
            Text="BuildProof: an ordinary build does not compile Drivers/DevelopmentOnlyDriver.cs, which a marker must not remove." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and '@(_ProofMarkedAbsoluteSource)' != ''"
+           Text="BuildProof: a shipping build still compiles AbsoluteDrivers/AbsoluteDriver.cs, which reaches the compile as an absolute spec under a .capsuleignore marker." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedAbsoluteSource)' == ''"
+           Text="BuildProof: an ordinary build does not compile AbsoluteDrivers/AbsoluteDriver.cs, which a marker must not remove." />
   </Target>
 
   <Target Name="CapsuleProveDevelopmentOnlyAssets" BeforeTargets="CoreCompile">
@@ -60,6 +65,10 @@
            Text="BuildProof: a shipping build's driver registry still names DevelopmentOnlyDriver, so --driver would answer to it." />
     <Error Condition="'$(CapsuleShipping)' != 'true' and !$(_ProofDriverRegistryText.Contains('DevelopmentOnlyDriver'))"
            Text="BuildProof: an ordinary build's driver registry does not name DevelopmentOnlyDriver." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and $(_ProofDriverRegistryText.Contains('AbsoluteDriver'))"
+           Text="BuildProof: a shipping build's driver registry still names AbsoluteDriver, so an absolute Compile spec escaped the marker." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and !$(_ProofDriverRegistryText.Contains('AbsoluteDriver'))"
+           Text="BuildProof: an ordinary build's driver registry does not name AbsoluteDriver." />
   </Target>
 
 </Project>
