@@ -18,11 +18,11 @@ indent_size = 2
 trim_trailing_whitespace = false
 
 [*.cs]
-# Namespaces mirror folders; declarations are file-scoped.
+# Namespace declarations are file-scoped.
 csharp_style_namespace_declarations = file_scoped:warning
 dotnet_diagnostic.IDE0161.severity = warning
-dotnet_style_namespace_match_folder = true
-dotnet_diagnostic.IDE0130.severity = warning
+# Folders may subdivide an API namespace without renaming its types.
+dotnet_style_namespace_match_folder = false
 
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false

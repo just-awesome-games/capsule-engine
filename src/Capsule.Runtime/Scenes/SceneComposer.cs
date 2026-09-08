@@ -3,7 +3,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
-namespace Capsule.Runtime;
+namespace Capsule.Runtime.Scenes;
 
 // Holds only the current parsed document so restarts do not touch disk.
 internal sealed class SceneComposer(SceneRegistry scenes)

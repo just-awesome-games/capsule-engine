@@ -1,4 +1,6 @@
 using System.Globalization;
+using Capsule.Build.Scenes;
+using Capsule.Build.Sprites;
 
 namespace Capsule.Build;
 

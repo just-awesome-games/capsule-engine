@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Capsule.Tests.Scenes;
+namespace Capsule.Tests.Generators;
 
 internal static class GeneratorHarness
 {

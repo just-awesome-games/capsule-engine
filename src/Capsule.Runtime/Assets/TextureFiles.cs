@@ -1,6 +1,6 @@
 using Capsule.Assets;
 
-namespace Capsule.Runtime.Rendering;
+namespace Capsule.Runtime.Assets;
 
 // Where a texture handle's file is, as a path and nothing else. Separate from the store so the
 // resolution and its failure are testable without a graphics device.

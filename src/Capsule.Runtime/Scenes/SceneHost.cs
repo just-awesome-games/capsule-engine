@@ -2,7 +2,7 @@ using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
-namespace Capsule.Runtime;
+namespace Capsule.Runtime.Scenes;
 
 internal delegate Scene SceneResolver(in SceneTransition target);
 

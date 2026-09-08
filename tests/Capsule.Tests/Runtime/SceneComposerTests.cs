@@ -1,4 +1,4 @@
-using Capsule.Runtime;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;

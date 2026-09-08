@@ -1,8 +1,7 @@
 using Capsule.Assets;
-using Capsule.Runtime.Assets;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Capsule.Runtime.Rendering;
+namespace Capsule.Runtime.Assets;
 
 // The textures owned by the current scene, preloaded where declared and otherwise loaded on first
 // draw.

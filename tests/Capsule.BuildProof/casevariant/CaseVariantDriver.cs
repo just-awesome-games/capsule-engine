@@ -1,6 +1,5 @@
 // The template for the case-variant proof, copied to casevariant/drivers/ on a case-sensitive
 // filesystem and compiled from there. It is never compiled where it sits: see BuildProof.targets.
-#pragma warning disable IDE0130 // Its directory is the assertion, so the folder name cannot match a namespace.
 
 using Capsule.Input;
 using Capsule.Scenes;

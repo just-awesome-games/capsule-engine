@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
-namespace Capsule.Tests.Scenes;
+namespace Capsule.Tests.Generators;
 
 /// <summary>
 /// Where a type is declared is the key it claims: its namespace under the assembly's root, minus

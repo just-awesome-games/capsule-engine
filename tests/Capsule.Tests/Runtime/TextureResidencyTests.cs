@@ -1,6 +1,5 @@
 using Capsule.Assets;
 using Capsule.Runtime.Assets;
-using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 

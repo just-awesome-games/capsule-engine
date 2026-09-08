@@ -4,6 +4,7 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Input;
@@ -233,7 +234,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
-    /// <see cref="Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
+    /// <see cref="global::Capsule.Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
     /// game that never calls this replays identically run to run.
     /// </summary>
     public EngineBuilder WithRandomSeed(ulong seed)

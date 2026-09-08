@@ -1,5 +1,3 @@
-#pragma warning disable IDE0130 // Its directory is the assertion, so the folder name cannot match a namespace.
-
 using Capsule.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Input;

@@ -1,6 +1,7 @@
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
+using Capsule.Runtime.Assets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Vector2 = System.Numerics.Vector2;

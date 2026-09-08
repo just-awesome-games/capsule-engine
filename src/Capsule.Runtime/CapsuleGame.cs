@@ -1,6 +1,8 @@
 using Capsule.Input;
+using Capsule.Runtime.Assets;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
+using Capsule.Runtime.Scenes;
 using Microsoft.Xna.Framework;
 
 namespace Capsule.Runtime;

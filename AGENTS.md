@@ -28,6 +28,8 @@ Comments explain invariants and hazards the code cannot state. Delete walkthroug
 
 The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats do not live in this repository; they are external modules feeding `*.scene.json` to the build.
 
+Choose the existing assembly by dependency boundary, then group source and tests by the subsystem that owns the behavior: for example, rendering contracts belong under `Core/Rendering`, renderer components under `Scenes/Rendering`, device rendering under `Runtime/Rendering`, loading/cache/lifetime code under `Runtime/Assets`, and generator tests under `Generators`. Match namespaces to domain folders by default; organizational subfolders need not rename API types. Foundational entry points may remain at an assembly root. Do not create speculative folders or new assemblies merely to reduce a directory's file count; `docs/project-layout.md` governs game layout, not engine layout.
+
 Warnings are fixed or suppressed with the reason at the suppression site. Every commit must remain publishable without studio-only context.
 
 ## Public surface

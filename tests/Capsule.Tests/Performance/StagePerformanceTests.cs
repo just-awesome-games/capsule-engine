@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
-using Capsule.Runtime;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;

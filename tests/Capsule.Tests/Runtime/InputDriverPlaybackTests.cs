@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;

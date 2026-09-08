@@ -1,7 +1,7 @@
 using System.Text;
 using Capsule.Scenes.Documents;
 
-namespace Capsule.Build;
+namespace Capsule.Build.Scenes;
 
 internal static class SceneDocumentTool
 {

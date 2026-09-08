@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
-namespace Capsule.Tests.Scenes;
+namespace Capsule.Tests.Generators;
 
 public sealed class AssetGeneratorTests
 {

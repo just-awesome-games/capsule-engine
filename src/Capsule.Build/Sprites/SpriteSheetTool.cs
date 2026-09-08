@@ -1,7 +1,6 @@
 using System.Text;
-using Capsule.Build.Sprites;
 
-namespace Capsule.Build;
+namespace Capsule.Build.Sprites;
 
 /// <summary>
 /// The sheet half of the build hook: validates every authored <c>*.sheet.json</c>, re-emits it
