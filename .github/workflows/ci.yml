@@ -72,6 +72,18 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
 
+      # Capsule.BuildProof asserts one direction of the development-only marker per build: the
+      # builds above are the ordinary one, where a marked directory is kept, and this is the
+      # shipping one a publish gets. Alone, so the property this build carries reaches no other
+      # project's output before the tests below read it.
+      - name: Development-only exclusion (shipping)
+        run: >
+          dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
+          --configuration Release
+          --no-restore
+          --no-dependencies
+          -p:CapsuleShipping=true
+
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
 

@@ -1,0 +1,65 @@
+<Project>
+
+  <!-- What this project exists to assert. Each check names both directions, so a hook that stopped
+       excluding and one that started excluding everything both fail here rather than downstream.
+
+       The kept halves are not ceremony: without them a glob that matched nothing at all would let
+       every shipping assertion pass. -->
+
+  <Target Name="CapsuleProveDevelopmentOnlyCompile"
+          DependsOnTargets="CapsuleRemoveDevelopmentOnlySources"
+          BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_ProofMarkedSource Include="@(Compile)" Condition="'%(Filename)' == 'DevelopmentOnlyDriver'" />
+      <_ProofKeptSource Include="@(Compile)" Condition="'%(Filename)' == 'KeptDriver'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProofKeptSource)' == ''"
+           Text="BuildProof: KeptDriver.cs is not in the compile, so nothing here proves anything." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and '@(_ProofMarkedSource)' != ''"
+           Text="BuildProof: a shipping build still compiles Drivers/DevelopmentOnlyDriver.cs, under a .capsuleignore marker." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedSource)' == ''"
+           Text="BuildProof: an ordinary build does not compile Drivers/DevelopmentOnlyDriver.cs, which a marker must not remove." />
+  </Target>
+
+  <Target Name="CapsuleProveDevelopmentOnlyAssets" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_ProofMarkedAsset Include="@(CapsuleAsset)" Condition="'%(Filename)' == 'scratch'" />
+      <_ProofKeptAsset Include="@(CapsuleAsset)" Condition="'%(Filename)' == 'kept'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProofKeptAsset)' == ''"
+           Text="BuildProof: asset-sources/textures/kept.png is not an asset, so nothing here proves anything." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and '@(_ProofMarkedAsset)' != ''"
+           Text="BuildProof: a shipping build still admits asset-sources/textures/development/scratch.png, under a .capsuleignore marker." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedAsset)' == ''"
+           Text="BuildProof: an ordinary build does not admit asset-sources/textures/development/scratch.png, which a marker must not remove." />
+  </Target>
+
+  <!-- The registry the compiler actually emitted, rather than the compile item list it was built
+       from: this is what says a marked driver is unreachable by name in a shipped game. -->
+  <Target Name="CapsuleProveDriverRegistry" AfterTargets="CoreCompile">
+    <ItemGroup>
+      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleGameInputDrivers.g.cs" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProofDriverRegistry)' == ''"
+           Text="BuildProof: no generated CapsuleGameInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
+
+    <ReadLinesFromFile File="@(_ProofDriverRegistry)">
+      <Output TaskParameter="Lines" ItemName="_ProofDriverRegistryLine" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <_ProofDriverRegistryText>@(_ProofDriverRegistryLine, '%0A')</_ProofDriverRegistryText>
+    </PropertyGroup>
+
+    <Error Condition="!$(_ProofDriverRegistryText.Contains('KeptDriver'))"
+           Text="BuildProof: the generated driver registry does not register KeptDriver." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and $(_ProofDriverRegistryText.Contains('DevelopmentOnlyDriver'))"
+           Text="BuildProof: a shipping build's driver registry still names DevelopmentOnlyDriver, so --driver would answer to it." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and !$(_ProofDriverRegistryText.Contains('DevelopmentOnlyDriver'))"
+           Text="BuildProof: an ordinary build's driver registry does not name DevelopmentOnlyDriver." />
+  </Target>
+
+</Project>
