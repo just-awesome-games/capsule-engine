@@ -22,6 +22,11 @@
          running one. -->
     <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">$(_IsPublishing)</CapsuleShipping>
     <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">false</CapsuleShipping>
+
+    <!-- Whether two path spellings differing only in case name the same file. This is MSBuild's own
+         path rule, which folds case on every host but Linux. -->
+    <_CapsulePathFoldsCase>true</_CapsulePathFoldsCase>
+    <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleShipping)' == 'true'">
@@ -49,8 +54,12 @@
        scene registries hold nothing a marked directory declared.
 
        Batched over the marked directories: each pass drops the compile items resolving under one.
-       Comparison is on %(FullPath), lowercased with separators normalised, so a relative spec, an
-       absolute one and a mixture of the two all match the file they name. -->
+       Comparison is on %(FullPath) with separators normalised, so a relative spec, an absolute one
+       and a mixture of the two all match the file they name. It is ordinal, and blind to case only
+       where the filesystem is: MSBuild's own path rule, which treats Linux as the one case-sensitive
+       host. Folding case unconditionally would conflate sibling directories a case-sensitive
+       filesystem holds apart, so an unmarked `drivers/` would leave a shipping build alongside a
+       marked `Drivers/`. -->
   <Target Name="CapsuleRemoveDevelopmentOnlySources"
           Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySourceDir)' != ''"
           Outputs="%(_CapsuleDevelopmentOnlySourceDir.Identity)"
@@ -58,12 +67,19 @@
     <!-- Through a property: a metadata reference inside the item condition below would batch it
          over this list as well as over Compile. -->
     <PropertyGroup>
-      <_CapsuleDevelopmentOnlyDirectory>$([System.String]::Copy('%(_CapsuleDevelopmentOnlySourceDir.Identity)').Replace('\', '/').ToLowerInvariant())</_CapsuleDevelopmentOnlyDirectory>
+      <_CapsuleDevelopmentOnlyDirectory>$([System.String]::Copy('%(_CapsuleDevelopmentOnlySourceDir.Identity)').Replace('\', '/'))</_CapsuleDevelopmentOnlyDirectory>
+      <_CapsuleDevelopmentOnlyDirectory Condition="'$(_CapsulePathFoldsCase)' == 'true'">$(_CapsuleDevelopmentOnlyDirectory.ToUpperInvariant())</_CapsuleDevelopmentOnlyDirectory>
+      <_CapsuleDevelopmentOnlyDirectoryLength>$(_CapsuleDevelopmentOnlyDirectory.Length)</_CapsuleDevelopmentOnlyDirectoryLength>
     </PropertyGroup>
 
+    <!-- CompareOrdinal over the directory's length is the prefix test; a candidate shorter than the
+         directory compares unequal rather than throwing. Two passes with exclusive conditions
+         because which folding a match uses cannot be chosen inside one expression. -->
     <ItemGroup Condition="'$(_CapsuleDevelopmentOnlyDirectory)' != ''">
       <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
-                                      Condition="$([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/').ToLowerInvariant().StartsWith('$(_CapsuleDevelopmentOnlyDirectory)'))" />
+                                      Condition="'$(_CapsulePathFoldsCase)' != 'true' and $([System.String]::CompareOrdinal($([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/')), 0, '$(_CapsuleDevelopmentOnlyDirectory)', 0, $(_CapsuleDevelopmentOnlyDirectoryLength))) == 0" />
+      <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
+                                      Condition="'$(_CapsulePathFoldsCase)' == 'true' and $([System.String]::CompareOrdinal($([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/').ToUpperInvariant()), 0, '$(_CapsuleDevelopmentOnlyDirectory)', 0, $(_CapsuleDevelopmentOnlyDirectoryLength))) == 0" />
     </ItemGroup>
 
     <ItemGroup>

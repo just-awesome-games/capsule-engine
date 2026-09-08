@@ -6,6 +6,23 @@
        The kept halves are not ceremony: without them a glob that matched nothing at all would let
        every shipping assertion pass. -->
 
+  <PropertyGroup>
+    <!-- The case-variant checks below need drivers/ and Drivers/ to be two directories, which only
+         a case-sensitive filesystem grants. MSBuild names Linux as the one such host, and CI runs
+         there; elsewhere the checks announce themselves skipped rather than passing quietly. -->
+    <_CapsuleProofCaseSensitiveFileSystem>$([MSBuild]::IsOSPlatform('Linux'))</_CapsuleProofCaseSensitiveFileSystem>
+  </PropertyGroup>
+
+  <!-- The compile item for this file is declared in the csproj, at evaluation; only the file itself
+       has to be here by the time the compiler reads it. -->
+  <Target Name="CapsuleProofPlaceCaseVariantSource"
+          Condition="'$(_CapsuleProofCaseSensitiveFileSystem)' == 'true'"
+          BeforeTargets="_GenerateCompileDependencyCache;CoreCompile">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)CaseVariantProof/CaseVariantDriver.cs"
+          DestinationFolder="$(MSBuildThisFileDirectory)drivers"
+          SkipUnchangedFiles="true" />
+  </Target>
+
   <Target Name="CapsuleProveDevelopmentOnlyCompile"
           DependsOnTargets="CapsuleRemoveDevelopmentOnlySources"
           BeforeTargets="CoreCompile">
@@ -13,7 +30,12 @@
       <_ProofMarkedSource Include="@(Compile)" Condition="'%(Filename)' == 'DevelopmentOnlyDriver'" />
       <_ProofMarkedAbsoluteSource Include="@(Compile)" Condition="'%(Filename)' == 'AbsoluteDriver'" />
       <_ProofKeptSource Include="@(Compile)" Condition="'%(Filename)' == 'KeptDriver'" />
+      <_ProofCaseVariantSource Include="@(Compile)" Condition="'%(Filename)' == 'CaseVariantDriver'" />
     </ItemGroup>
+
+    <Message Importance="high"
+             Condition="'$(_CapsuleProofCaseSensitiveFileSystem)' != 'true'"
+             Text="BuildProof: skipping the case-variant checks; this filesystem cannot hold drivers/ apart from Drivers/. They run on Linux." />
 
     <Error Condition="'@(_ProofKeptSource)' == ''"
            Text="BuildProof: KeptDriver.cs is not in the compile, so nothing here proves anything." />
@@ -25,6 +47,8 @@
            Text="BuildProof: a shipping build still compiles AbsoluteDrivers/AbsoluteDriver.cs, which reaches the compile as an absolute spec under a .capsuleignore marker." />
     <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedAbsoluteSource)' == ''"
            Text="BuildProof: an ordinary build does not compile AbsoluteDrivers/AbsoluteDriver.cs, which a marker must not remove." />
+    <Error Condition="'$(_CapsuleProofCaseSensitiveFileSystem)' == 'true' and '@(_ProofCaseVariantSource)' == ''"
+           Text="BuildProof: this build does not compile drivers/CaseVariantDriver.cs, an unmarked sibling of the marked Drivers/ differing only by case. Either the copy did not land or the removal folded case." />
   </Target>
 
   <Target Name="CapsuleProveDevelopmentOnlyAssets" BeforeTargets="CoreCompile">
@@ -69,6 +93,8 @@
            Text="BuildProof: a shipping build's driver registry still names AbsoluteDriver, so an absolute Compile spec escaped the marker." />
     <Error Condition="'$(CapsuleShipping)' != 'true' and !$(_ProofDriverRegistryText.Contains('AbsoluteDriver'))"
            Text="BuildProof: an ordinary build's driver registry does not name AbsoluteDriver." />
+    <Error Condition="'$(_CapsuleProofCaseSensitiveFileSystem)' == 'true' and !$(_ProofDriverRegistryText.Contains('CaseVariantDriver'))"
+           Text="BuildProof: this build's driver registry does not name CaseVariantDriver, which sits in unmarked drivers/ beside the marked Drivers/." />
   </Target>
 
 </Project>

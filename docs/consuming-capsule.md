@@ -210,6 +210,8 @@ The marker means the same thing in both planes. Sources under a marked directory
 
 The marker file's contents are not read; a line saying what the directory is helps whoever finds it.
 
+A directory is marked by where it is rather than by how a project spelled the path, so a relative glob and an absolute include of the same file are both covered. Whether a sibling differing only in case is that same directory is the filesystem's answer, as it is everywhere else in the build.
+
 `CapsuleShipping` is the switch, and a publish sets it. Set it on an ordinary build to see exactly what a publish will hold without running one.
 
 ## Model and rendering

@@ -8,6 +8,10 @@ artifacts/
 ## Crash diagnostics written beside the executable
 crash.log
 
+## Placed by the build on a case-sensitive filesystem; a case-insensitive checkout cannot hold it
+## apart from tests/Capsule.BuildProof/Drivers/.
+/tests/Capsule.BuildProof/drivers/
+
 ## Test / coverage output
 [Tt]est[Rr]esult*/
 coverage*.json

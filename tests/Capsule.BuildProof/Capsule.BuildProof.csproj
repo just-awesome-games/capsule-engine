@@ -33,6 +33,23 @@
     <Compile Include="$(MSBuildProjectDirectory)/AbsoluteDrivers/**/*.cs" />
   </ItemGroup>
 
+  <!-- The case-variant proof: drivers/ is an unmarked sibling of the marked Drivers/, which only a
+       case-sensitive filesystem can hold apart and no git checkout can carry on one that cannot.
+       So it is committed under CaseVariantProof/ and BuildProof.targets copies it into place there;
+       the compile item is declared here, at evaluation, so the removal target sees it as the SDK's
+       glob would. -->
+  <ItemGroup>
+    <Compile Remove="CaseVariantProof/**/*.cs" />
+  </ItemGroup>
+
+  <!-- The glob removal is conditional too: where case folds it would match the marked Drivers/ and
+       empty out the proof above. Where it does not fold it takes the copy's landing site out of the
+       SDK's glob, so a second build does not include the file twice. -->
+  <ItemGroup Condition="'$(_CapsuleProofCaseSensitiveFileSystem)' == 'true'">
+    <Compile Remove="drivers/**/*.cs" />
+    <Compile Include="$(MSBuildProjectDirectory)/drivers/CaseVariantDriver.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>
