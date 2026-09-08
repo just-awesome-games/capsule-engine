@@ -3,12 +3,11 @@ using System.Runtime.InteropServices;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Mutable render intent, rewritten once per fixed step and read on draw frames: an ordered stream
-/// of render commands over one typed pool per kind of thing that draws.
+/// Mutable render intent, rewritten once per fixed step and read on draw frames: an ordered list
+/// of sprites to draw.
 /// </summary>
 public sealed class FrameView
 {
-    private readonly List<RenderCommand> _commands = [];
     private readonly List<SpriteIntent> _sprites = [];
 
     private int _submitted;
@@ -55,16 +54,12 @@ public sealed class FrameView
     /// <summary>The sprites to draw, in the order added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_sprites);
 
-    /// <summary>Render-command counts from the current rewrite.</summary>
-    public RenderMetrics Metrics => new(_submitted, _commands.Count);
+    /// <summary>Sprite-submission counts from the current rewrite.</summary>
+    public RenderMetrics Metrics => new(_submitted, _sprites.Count);
 
-    // What to draw and in what order, each naming its kind's pool and its place in it.
-    internal ReadOnlySpan<RenderCommand> Commands => CollectionsMarshal.AsSpan(_commands);
-
-    // Drops every pool and the stream, and resets Metrics, retaining capacity.
+    // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
-        _commands.Clear();
         _sprites.Clear();
         _submitted = 0;
     }
@@ -80,7 +75,6 @@ public sealed class FrameView
             return;
         }
 
-        _commands.Add(new RenderCommand(RenderKind.Sprite, _sprites.Count));
         _sprites.Add(sprite);
     }
 }

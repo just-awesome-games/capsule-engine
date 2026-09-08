@@ -2,7 +2,7 @@
 
 Capsule games use two projects: a substrate-free logic library and a small executable shell. This file contains the MSBuild wiring that cannot live in API comments.
 
-> A complete minimal game is available at [`samples/MinimalGame/`](../samples/MinimalGame/): a logic project, a shell, an authoring tree, and a headless smoke binary CI publishes under NativeAOT. Copy it to start a game. The scene document format, including a tile palette with a `solid` layer and a `player` entry, is in [`scenes.md`](scenes.md).
+> A complete minimal game is available at [`samples/MinimalGame/`](../samples/MinimalGame/): a logic project, a shell and an authoring tree. Copy it to start a game. The independent NativeAOT smoke fixture lives under [`tests/Capsule.AotSmoke.Logic/`](../tests/Capsule.AotSmoke.Logic/); it does not depend on sample gameplay or assets. The scene document format is in [`scenes.md`](scenes.md).
 
 ## Repository shape
 
@@ -206,7 +206,7 @@ src/MyGame.Game/
     Walkthrough.cs
 ```
 
-The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity, and driver registries hold nothing declared there and `--driver` answers to no name from it. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is made resident, or is declared in `GameAssets`. Shipped code naming a development-only asset therefore fails to compile in a publish, which is the failure it is owed.
+The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity, and driver registries hold nothing declared there and `--driver` answers to no name from it. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is loaded, or is declared in `GameAssets`. Shipped code naming a development-only asset therefore fails to compile in a publish, which is the failure it is owed.
 
 The marker file's contents are not read; a line saying what the directory is helps whoever finds it.
 
@@ -214,39 +214,35 @@ A directory is marked by where it is rather than by how a project spelled the pa
 
 `CapsuleShipping` is the switch, and a publish sets it. Set it on an ordinary build to see exactly what a publish will hold without running one.
 
-## Model and rendering
+## Rendering and scene assets
 
-Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A handle whose file is missing fails the game where its scene is loaded, naming the handle and the path it looked in.
+`SpriteRenderer`, `SpriteAnimator`, `TileMap` and the scene camera are the presentation entry points; their behavior is documented in the shipped API reference. Rendering submits visible sprites in order, while asset collection is independent of visibility.
 
-## Texture residency
+Initial boot collection sees the already-started scene; transition and restart collection sees the composed incoming graph before `OnStart`. Sprite renderers, the clips currently held by sprite animators and tile maps contribute automatically. An asset initialized later — by a spawn, a changed sprite or a changed animation — loads synchronously on first rendered use and is then cached for the current scene. Explicit collection avoids that first-use hitch. Headless simulation never loads media.
 
-The host keeps one scene's textures on the device at a time. Entering a scene loads what its set adds and releases what the scene being left wanted alone, in one synchronous exchange before that scene is torn down; a texture in both sets is never touched. Drawing a handle the current scene's set does not hold throws, naming the scene.
-
-A set is a union of *residency groups*, and a group is one asset directory's generated `All` — `GameAssets.Textures.All`, `GameAssets.Textures.Enemies.All`. The build derives each scene's groups and you write nothing: they are the textures the scene's document names, plus, for the scene's class and for every entity its document places, the `GameAssets.Textures` members that code reaches — closed over the types those types reference, so a `Player` that spawns a `Buster` drawing `GameAssets.Textures.Fx.Shot` keeps `Fx` resident. A handle built from literals, as a sprite sheet's generated frames build theirs, counts the same. A reference from one scene class to another does not: each scene's set is its own, loaded when it is entered.
-
-Two things the derivation cannot see are a handle whose name is computed at run time and a texture reached through a `using static` or an alias of the generated tree. A scene that needs either declares its whole set instead, which replaces the derivation:
+Scene, entity and component `CollectAssets(AssetCollection)` overrides add to the engine-owned collection; they never replace assets contributed elsewhere. Collection for transitions and restarts happens before `OnStart`, so an override must use construction and composition state only:
 
 ```csharp
+using Capsule.Assets;
+using Capsule.Scenes;
+
 public sealed class BossArena : Scene
 {
-    protected internal override IReadOnlyList<TextureHandle>? ResidentTextures =>
-        [.. GameAssets.Textures.Bosses.All, .. GameAssets.Textures.Fx.All];
+    protected override void CollectAssets(AssetCollection assets)
+    {
+        assets.Add(GameAssets.Textures.Bosses.All);
+        assets.Add(GameAssets.Textures.Fx.Telegraph);
+    }
 }
 ```
 
-It is read once, before the scene starts, so it cannot depend on state the scene builds in `OnStart`. Returning `null`, which is the default, takes the derivation.
+The runtime owns collected and first-used resources for one scene. A transition keeps resources the incoming preload also uses and releases the rest; exit releases all of them. Loading is synchronous, cached and host-only. Textures are the only media decoded today; `AudioHandle` and `FontHandle` remain names, not playback or rendering APIs.
 
 ## Named assets
 
-Shipped assets are authored under `src/asset-sources/<domain>/` — `textures/`, `audio/`, `fonts/` — and a source's path under its domain root is its name everywhere. Directories nest freely and are kept: `asset-sources/textures/enemies/bat.png` ships at `assets/textures/enemies/bat.png`, hands out the handle named `enemies/bat`, and is declared as `GameAssets.Textures.Enemies.Bat`.
+Assets are authored under `src/asset-sources/<domain>/` and ship at the same relative path under `assets/<domain>/`. For example, `asset-sources/textures/enemies/bat.png` becomes `GameAssets.Textures.Enemies.Bat` and ships at `assets/textures/enemies/bat.png`. A scene or sheet document names it as `"enemies/bat.png"`.
 
-`asset-sources/sprites/` follows the same rule: `sprites/enemies/bat.sheet.json` is compiled into `GameSprites.Enemies.Bat`, whose `Frames` and `Clips` are the sheet's own.
-
-A document names a texture by that same path, extension included — `"enemies/bat.png"`, or `"tiles.png"` for a file at the root. Forward slashes only, and no empty, `.` or `..` segment.
-
-Every generated class, each domain root and each nested class, exposes a read-only `All` holding every handle beneath it, its subdirectories included: `GameAssets.Textures.All` is the whole domain, `GameAssets.Textures.Enemies.All` is that directory. It is a `ReadOnlySpan<T>` over generated constant data, so enumerating it allocates nothing.
-
-Two sources may share a stem in different directories. Names collide only within one directory, where two spellings that become one C# identifier — `a-b.png` beside `a_b.png`, or a `bat/` directory beside `bat.png` — fail the build naming both. So does a name that would shadow the class it is declared on: `textures/enemies/enemies.png`, a `textures/textures/` directory, or anything named `all`.
+Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `GameAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `GameSprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. Invalid paths and C# identifier collisions fail the build.
 
 ## Testing headlessly
 
@@ -279,7 +275,7 @@ What the step would draw is `simulation.View`, rewritten once per step, so a tes
 
 ## Seeing your game's output
 
-Game logic cannot reach `System.Console` — the analyzer stops it — so it says things out loud through `Capsule.Diagnostics.Log`:
+Game logic cannot reach `System.Console`, so it writes through `Capsule.Diagnostics.Log`:
 
 ```csharp
 using Capsule.Diagnostics;
@@ -288,16 +284,14 @@ Log.Info($"picked up {tile}");
 Log.Warning("no spawn point on this map");
 ```
 
-The shell installs a console sink at boot; every level goes to standard output in order, prefixed with the simulation tick:
+The shell writes every level to standard output in order, prefixed with the simulation tick:
 
 ```text
 [   boot] info  main menu started
 [     30] warn  no spawn point on this map
 ```
 
-Run the shell with `dotnet run --project src/MyGame.Shell` and the lines appear in that terminal. A shell launched by double-clicking its executable has no terminal attached and shows nothing.
-
-Nothing is installed until the host runs, so a headless test harness supplies its own. `CollectingLogSink` keeps what it is given:
+Run the shell from a terminal to see the lines. A headless test can install `CollectingLogSink` and assert its entries:
 
 ```csharp
 CollectingLogSink log = new();
@@ -308,11 +302,11 @@ Log.UseSink(log);
 Assert.Contains(log.Entries, entry => entry.Level == LogLevel.Warning);
 ```
 
-`WithLogSink(sink)` on the engine builder sends the game's output somewhere else instead, and `WithoutLogging()` silences it.
+`WithLogSink(sink)` replaces the host sink, and `WithoutLogging()` silences it. Ownership and failure behavior are documented on `Log`, `ILogSink` and `CollectingLogSink` in the API reference.
 
 ## Controllers
 
-The host reaches controllers through every SDL backend, DirectInput included, so generic HID pads in DirectInput mode, fight sticks, and flight sticks work without configuration. A developer isolating DirectInput's contribution to Windows boot time can set SDL's `SDL_DIRECTINPUT_ENABLED=0` in the environment.
+All SDL controller backends enumerate at boot; on Windows, set `SDL_DIRECTINPUT_ENABLED=0` to isolate DirectInput's startup cost.
 
 ## Build configuration reference
 

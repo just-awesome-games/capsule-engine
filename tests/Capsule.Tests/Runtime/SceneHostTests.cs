@@ -2,9 +2,7 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -124,10 +122,13 @@ public sealed class SceneHostTests
         Scene Resolve(in SceneTransition target) => scene;
 
         using SceneHost host = new(ToScene<ExitScene>(), Resolve);
+        List<int> preparedCounts = [];
+        host.PrepareAssets = assets => preparedCounts.Add(assets.Textures.Count);
         host.Step(SceneStep(0));
 
         Assert.True(host.ExitRequested);
         Assert.Equal(1, scene.Stops);
+        Assert.Equal([0], preparedCounts);
     }
 
     [Fact]
@@ -192,35 +193,26 @@ public sealed class SceneHostTests
         Assert.Equal(0ul, host.Scene.Random.Stream);
     }
 
-    // The transition is where residency changes: the incoming scene's set is made resident before
-    // the outgoing scene is torn down, and what only it wanted goes.
     [Fact]
-    public void ATransition_LoadsWhatTheNextSceneAddsAndReleasesWhatItDrops()
+    public void ATransition_PreparesTheIncomingScenesAssetsBeforeStoppingTheOutgoingScene()
     {
-        List<(string Scene, string Load, string Release)> changes = [];
-        SceneResidency residency = new((scene, load, release) => changes.Add((scene, Names(load), Names(release))));
+        List<string> order = [];
 
         Scene Resolve(in SceneTransition target) => target.SceneType == typeof(MenuTextures)
-            ? new MenuTextures()
+            ? new MenuTextures(order)
             : new ArenaTextures();
 
         using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
-
-        // What the game's own host does at boot, once the device is up.
-        (string scene, IReadOnlyList<TextureHandle> set) = host.TextureSet;
-        residency.MakeResident(scene, set);
-        host.Residency = residency;
+        host.PrepareAssets = assets => order.Add("prepare:" + Names(assets.Textures));
 
         host.Step(SceneStep(0));
 
         Assert.IsType<ArenaTextures>(host.Scene);
-        Assert.Equal(
-            [("MenuTextures", "hud,shared", string.Empty), ("ArenaTextures", "enemies/bat", "hud")],
-            changes);
+        Assert.Equal(["prepare:enemies/bat,shared", "menu.stop"], order);
     }
 
     [Fact]
-    public void ATransitionWhoseTexturesCannotBecomeResident_ReleasesTheResolvedSceneAndKeepsTheCurrentOne()
+    public void ATransitionWhoseAssetsCannotBePrepared_ReleasesTheResolvedSceneAndKeepsTheCurrentOne()
     {
         List<string> lifecycle = [];
         RejectedArenaTextures? resolved = null;
@@ -229,7 +221,7 @@ public sealed class SceneHostTests
         {
             if (target.SceneType == typeof(MenuTextures))
             {
-                return new MenuTextures();
+                return new MenuTextures([]);
             }
 
             resolved = new RejectedArenaTextures(lifecycle);
@@ -237,8 +229,13 @@ public sealed class SceneHostTests
         }
 
         using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
-        host.Residency = new SceneResidency(
-            static (_, _, _) => throw new InvalidDataException("decode failed"));
+        host.PrepareAssets = static assets =>
+        {
+            if (assets.Textures.Count > 0)
+            {
+                throw new InvalidDataException("decode failed");
+            }
+        };
 
         Assert.Throws<InvalidDataException>(() => host.Step(SceneStep(0)));
 
@@ -249,17 +246,16 @@ public sealed class SceneHostTests
         Assert.Equal(["component+", "entity+", "entity-", "component-"], lifecycle);
     }
 
-    // A scene declaring a set replaces the derivation the build handed its registration.
     [Fact]
-    public void ADeclaredSet_ReplacesTheOneTheRegistrationCarries()
+    public void DisposingTheHost_ReleasesItsSceneAssets()
     {
-        SceneRegistry scenes = new(
-            new EntityRegistry([]),
-            [SceneRegistration.Plain(typeof(MenuTextures), static () => new MenuTextures(), static set => set.Add(Bat))]);
+        SceneHost host = new(ToScene<PassiveScene>(), (in SceneTransition _) => new PassiveScene());
+        List<int> preparedCounts = [];
+        host.PrepareAssets = assets => preparedCounts.Add(assets.Textures.Count);
 
-        using SceneHost host = new(ToScene<MenuTextures>(), (in SceneTransition target) => scenes.Create(target.SceneType!));
+        host.Dispose();
 
-        Assert.Equal([Hud, Shared], host.TextureSet.Textures);
+        Assert.Equal([0], preparedCounts);
     }
 
     private static readonly TextureHandle Hud = new("hud", ".png");
@@ -271,16 +267,20 @@ public sealed class SceneHostTests
     private static string Names(IReadOnlyList<TextureHandle> handles) =>
         string.Join(",", handles.Select(static handle => handle.Name).Order(StringComparer.Ordinal));
 
-    private sealed class MenuTextures : Scene
+    private sealed class MenuTextures(List<string> order) : Scene
     {
-        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Hud, Shared];
+        protected internal override void CollectAssets(AssetCollection assets) =>
+            assets.Add([Hud, Shared]);
 
         protected override void OnStep(in StepContext context) => RequestScene<ArenaTextures>();
+
+        protected override void OnStop() => order.Add("menu.stop");
     }
 
     private sealed class ArenaTextures : Scene
     {
-        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Shared, Bat];
+        protected internal override void CollectAssets(AssetCollection assets) =>
+            assets.Add([Shared, Bat]);
     }
 
     private sealed class RejectedArenaTextures : Scene
@@ -292,7 +292,8 @@ public sealed class SceneHostTests
             Add(Entity);
         }
 
-        protected internal override IReadOnlyList<TextureHandle>? ResidentTextures => [Shared, Bat];
+        protected internal override void CollectAssets(AssetCollection assets) =>
+            assets.Add([Shared, Bat]);
 
         internal LifecycleEntity Entity { get; }
 

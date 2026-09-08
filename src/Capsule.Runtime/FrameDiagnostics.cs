@@ -18,7 +18,7 @@ internal sealed class FrameDiagnostics : IDisposable
         "builderEntered",
         "hostConstructed",
         "deviceReady",
-        "texturesResident",
+        "sceneAssetsLoaded",
         "firstUpdate",
         "firstDraw",
     ];
@@ -63,7 +63,7 @@ internal sealed class FrameDiagnostics : IDisposable
     {
         HostConstructed = 1,
         DeviceReady = 2,
-        TexturesResident = 3,
+        SceneAssetsLoaded = 3,
         FirstUpdate = 4,
     }
 

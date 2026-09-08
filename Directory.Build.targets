@@ -2,9 +2,7 @@
 
   <Import Project="build/Capsule.Architecture.targets" />
 
-  <!-- A project opened through another repository's solution is consumed as its reference
-       assembly rather than as source. Keep the XML API reference beside that assembly so
-       language services can attach the same IntelliSense documentation they see in packages. -->
+  <!-- Keep source-consumer IntelliSense documentation beside the reference assembly. -->
   <Target Name="CapsulePlaceDocumentationBesideReferenceAssembly"
           AfterTargets="CoreCompile"
           Condition="'$(GenerateDocumentationFile)' == 'true' and '$(TargetRefPath)' != '' and Exists('$(DocumentationFile)') and Exists('$(TargetRefPath)')">

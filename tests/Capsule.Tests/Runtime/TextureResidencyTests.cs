@@ -1,10 +1,11 @@
 using Capsule.Assets;
+using Capsule.Runtime.Assets;
 using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 
-// Where a handle's file has to be, and which handles a scene's set moves on and off the device.
-// The decode needs a graphics device; neither the path contract nor the set arithmetic does.
+// Where a handle's file has to be, and how scene-owned assets load and leave memory. Texture decode
+// needs a graphics device; neither the path contract nor generic ownership does.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
@@ -27,7 +28,7 @@ public sealed class TextureResidencyTests
         TextureHandle bat = new("enemies/bat", ".png");
         using Shipped shipped = new(bat);
 
-        Assert.Equal(shipped.Path, TextureFiles.Locate(shipped.BaseDirectory, bat));
+        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, bat));
     }
 
     [Fact]
@@ -42,135 +43,126 @@ public sealed class TextureResidencyTests
         Assert.Contains("assets/textures/hero.png", error.Message, StringComparison.Ordinal);
     }
 
-    // Registries aggregate per logic assembly, so two of them may ship under one stem. That names
-    // one file, and decoding it twice would strand the first texture on the device.
     [Fact]
-    public void Resolve_LocatesEachHandleOnce_InFirstAppearanceOrder()
+    public void Locate_RejectsAHandleThatWouldResolveOutsideTheTexturesRoot()
     {
-        using Shipped shipped = new(Hero, Tiles);
+        using Shipped shipped = new();
+        string outside = System.IO.Path.Combine(shipped.BaseDirectory, "assets", "outside.png");
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outside)!);
+        File.WriteAllBytes(outside, []);
+        TextureHandle escaping = new("../outside", ".png");
 
-        (TextureHandle Handle, string Path)[] resolved =
-            TextureFiles.Resolve(shipped.BaseDirectory, [Tiles, Hero, Tiles]);
-
-        Assert.Equal([Tiles, Hero], resolved.Select(static entry => entry.Handle));
-        Assert.All(resolved, entry => Assert.True(File.Exists(entry.Path)));
+        Assert.Throws<ArgumentException>(() => TextureFiles.Locate(shipped.BaseDirectory, escaping));
     }
 
     [Fact]
-    public void Resolve_FailsOnTheFirstHandleThatShipsNoFile()
+    public void Locate_RejectsTheDefaultHandleBeforeLookingForAFile()
     {
-        using Shipped shipped = new(Hero);
+        using Shipped shipped = new();
 
-        FileNotFoundException error = Assert.Throws<FileNotFoundException>(
-            () => TextureFiles.Resolve(shipped.BaseDirectory, [Hero, Tiles]));
-
-        Assert.Contains("'tiles'", error.Message, StringComparison.Ordinal);
-    }
-
-    // A set replaces the last one: only the difference reaches the device.
-    [Fact]
-    public void ASet_LoadsWhatItAddsAndReleasesWhatItDrops()
-    {
-        TextureHandle shared = new("shared", ".png");
-        Recorded recorded = new();
-
-        recorded.Residency.MakeResident("Menu", [Hero, shared]);
-        recorded.Residency.MakeResident("Arena", [shared, Tiles]);
-
-        Assert.Equal([("Menu", "hero,shared", ""), ("Arena", "tiles", "hero")], recorded.Changes);
+        Assert.Throws<ArgumentException>(() => TextureFiles.Locate(shipped.BaseDirectory, default));
     }
 
     [Fact]
-    public void AHandleNamedTwiceInOneSet_IsLoadedOnce()
+    public void Get_LoadsOnceAndReusesTheAssetOnHits()
     {
-        Recorded recorded = new();
+        int loads = 0;
+        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
+        {
+            loads++;
+            return new FakeTexture(handle.Name);
+        });
 
-        recorded.Residency.MakeResident("Arena", [Hero, Tiles, Hero]);
+        FakeTexture first = store.Get(Hero);
+        FakeTexture second = store.Get(Hero);
 
-        Assert.Equal([("Arena", "hero,tiles", "")], recorded.Changes);
-    }
-
-    // Two scenes over one set: the transition loads and releases nothing, and the store still
-    // learns which scene now owns the set, so a stray draw is blamed on the right one.
-    [Fact]
-    public void ASetThatChangesNothing_LoadsAndReleasesNothing()
-    {
-        Recorded recorded = new();
-
-        recorded.Residency.MakeResident("Menu", [Hero]);
-        recorded.Residency.MakeResident("Arena", [Hero]);
-
-        Assert.Equal([("Menu", "hero", ""), ("Arena", "", "")], recorded.Changes);
+        Assert.Same(first, second);
+        Assert.Equal(1, loads);
     }
 
     [Fact]
-    public void ADecodeThatFailsMidExchange_LeavesThePriorSetOwnedAndDisposesOnlyStagedAdditions()
+    public void AnAssetNotPreloaded_LoadsOnFirstUse()
+    {
+        using SceneAssetStore<TextureHandle, FakeTexture> store = new(
+            static handle => new FakeTexture(handle.Name));
+        store.ChangeScene([]);
+
+        FakeTexture loaded = store.Get(Hero);
+
+        Assert.Equal("hero", loaded.Name);
+        Assert.Same(loaded, store.Get(Hero));
+    }
+
+    [Fact]
+    public void ChangingScene_ReusesSharedAssetsAndReleasesOldPreloadsAndLazyLoads()
+    {
+        TextureHandle sharedHandle = new("shared", ".png");
+        TextureHandle nextHandle = new("next", ".png");
+        using SceneAssetStore<TextureHandle, FakeTexture> store = new(
+            static handle => new FakeTexture(handle.Name));
+        store.ChangeScene([Hero, sharedHandle]);
+        FakeTexture hero = store.Get(Hero);
+        FakeTexture shared = store.Get(sharedHandle);
+        FakeTexture lazy = store.Get(Tiles);
+
+        store.ChangeScene([sharedHandle, nextHandle]);
+
+        Assert.True(hero.Disposed);
+        Assert.True(lazy.Disposed);
+        Assert.False(shared.Disposed);
+        Assert.Same(shared, store.Get(sharedHandle));
+        Assert.Equal("next", store.Get(nextHandle).Name);
+    }
+
+    [Fact]
+    public void APreloadFailure_RetainsPriorAssetsAndDisposesStagedAssets()
     {
         TextureHandle stagedHandle = new("staged", ".png");
-        List<FakeTexture> decoded = [];
+        FakeTexture? staged = null;
         bool fail = false;
-        using ResidentTextureStore<FakeTexture> store = new(path =>
+        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
         {
-            if (fail && path == "tiles")
+            if (fail && handle == Tiles)
             {
                 throw new InvalidDataException("decode failed");
             }
 
-            FakeTexture texture = new(path);
-            decoded.Add(texture);
-            return texture;
-        });
-        SceneResidency residency = new((scene, load, release) =>
-            store.Change(scene, load.Select(static handle => (handle, handle.Name)).ToArray(), release));
+            FakeTexture loaded = new(handle.Name);
+            if (handle == stagedHandle)
+            {
+                staged = loaded;
+            }
 
-        residency.MakeResident("Menu", [Hero]);
-        FakeTexture menuHero = store.Get(Hero);
+            return loaded;
+        });
+        store.ChangeScene([Hero]);
+        FakeTexture hero = store.Get(Hero);
+        FakeTexture lazy = store.Get(new TextureHandle("lazy", ".png"));
         fail = true;
 
         Assert.Throws<InvalidDataException>(
-            () => residency.MakeResident("Arena", [stagedHandle, Tiles]));
+            () => store.ChangeScene([stagedHandle, Tiles]));
 
-        Assert.Same(menuHero, store.Get(Hero));
-        Assert.False(menuHero.Disposed);
-        Assert.True(decoded.Single(texture => texture.Name == "staged").Disposed);
-
-        InvalidOperationException missing = Assert.Throws<InvalidOperationException>(() => store.Get(Tiles));
-        Assert.Contains("'Menu'", missing.Message, StringComparison.Ordinal);
-
-        fail = false;
-        residency.MakeResident("Arena", [stagedHandle, Tiles]);
-
-        Assert.True(menuHero.Disposed);
-        Assert.Equal("tiles", store.Get(Tiles).Name);
-
+        Assert.Same(hero, store.Get(Hero));
+        Assert.Same(lazy, store.Get(new TextureHandle("lazy", ".png")));
+        Assert.False(hero.Disposed);
+        Assert.False(lazy.Disposed);
+        Assert.True(staged!.Disposed);
     }
 
     [Fact]
-    public void ADrawTheSetDoesNotCover_NamesTheSceneAndTheHandle()
+    public void Dispose_ReleasesEveryAssetOwnedByTheScene()
     {
-        string message = SceneResidency.NotResident("Arena", Hero);
+        SceneAssetStore<TextureHandle, FakeTexture> store = new(
+            static handle => new FakeTexture(handle.Name));
+        store.ChangeScene([Hero]);
+        FakeTexture preload = store.Get(Hero);
+        FakeTexture lazy = store.Get(Tiles);
 
-        Assert.Contains("'Arena'", message, StringComparison.Ordinal);
-        Assert.Contains("'hero'", message, StringComparison.Ordinal);
-        Assert.Contains("assets/textures/hero.png", message, StringComparison.Ordinal);
-    }
+        store.Dispose();
 
-    private sealed class Recorded
-    {
-        internal Recorded() => Residency = new SceneResidency(Apply);
-
-        internal SceneResidency Residency { get; }
-
-        /// <summary>Each change as (scene, loaded, released), the handles ordinal-joined.</summary>
-        internal List<(string Scene, string Load, string Release)> Changes { get; } = [];
-
-        private void Apply(string scene, IReadOnlyList<TextureHandle> load, IReadOnlyList<TextureHandle> release)
-        {
-            Changes.Add((scene, Names(load), Names(release)));
-        }
-
-        private static string Names(IReadOnlyList<TextureHandle> handles) =>
-            string.Join(",", handles.Select(static handle => handle.Name).Order(StringComparer.Ordinal));
+        Assert.True(preload.Disposed);
+        Assert.True(lazy.Disposed);
     }
 
     private sealed class Shipped : IDisposable

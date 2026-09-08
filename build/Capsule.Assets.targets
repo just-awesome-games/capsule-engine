@@ -1,25 +1,6 @@
 <Project>
 
-  <!-- Ships the game's general assets and names them for its code. asset-sources/ is the committed
-       authoring plane; assets/ beside the executable is derived and build-owned.
-
-       Three domain roots under $(CapsuleAssetSourcesDir): textures/ (.png), audio/ (.ogg, .wav) and
-       fonts/ (.ttf, .otf). A source's directory under its domain root is kept, so
-       textures/enemies/bat.png ships at assets/textures/enemies/bat.png, is handled as
-       'enemies/bat', and is declared as GameAssets.Textures.Enemies.Bat. Capsule.Generators' asset
-       registry is the one other place the domains are named, and must gain one with this.
-
-       %(CapsuleAssetPath) is that domain-relative path with the extension off. It carries the
-       platform's separator, since %(RecursiveDir) does; every consumer comparing it against
-       authored text normalises to '/' first.
-
-       <CapsuleShipAssets>true</CapsuleShipAssets> ships them; the shell role sets it. A logic
-       assembly ships nothing and gets the generated GameAssets registry instead, from the same list
-       handed to the generator as AdditionalFiles. Nothing here transforms bytes. -->
-
-  <!-- A development-only directory leaves every list here, so a shipped build neither copies its
-       files nor declares handles for them: code that names one stops compiling, which is the
-       failure a build owes a game that would otherwise ship a reference to an absent asset. -->
+  <!-- Asset paths retain their domain-relative directory and platform separator. -->
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png"
                   Exclude="@(_CapsuleDevelopmentOnly)">
@@ -37,9 +18,7 @@
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
 
-    <!-- Everything under a domain root, so whatever the lists above did not admit is caught as a
-         typo rather than silently never shipping. A file outside these roots is no asset, and
-         neither is the marker itself, which is present in the walk whenever it is not shipping. -->
+    <!-- Reject unsupported files inside known asset domains. -->
     <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/textures/**/*;$(CapsuleAssetSourcesDir)/audio/**/*;$(CapsuleAssetSourcesDir)/fonts/**/*"
                         Exclude="@(_CapsuleDevelopmentOnly);$(CapsuleAssetSourcesDir)/**/.capsuleignore" />
     <_CapsuleUnknownAsset Include="@(_CapsuleDomainFile)" Exclude="@(CapsuleAsset)" />
@@ -51,8 +30,7 @@
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetPath" />
   </ItemGroup>
 
-  <!-- Hooked in its own right, not only through the copy: the checks below must run in a logic
-       assembly too, where nothing ships. -->
+  <!-- Logic assemblies validate assets even though they ship none. -->
   <Target Name="CapsuleAssetsInit"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit"
@@ -66,8 +44,6 @@
       <_CapsuleAssetNameDistinct Include="@(_CapsuleAssetName->Distinct())" />
     </ItemGroup>
 
-    <!-- An asset ships at its path under its domain root, so a repeated path would silently
-         overwrite. A repeated stem in two directories is two assets. -->
     <Error Condition="'@(_CapsuleAssetName->Count())' != '@(_CapsuleAssetNameDistinct->Count())'"
            Text="Capsule: two assets under '$(CapsuleAssetSourcesDir)' share a path within their domain, differing only in extension. Rename one of: @(CapsuleAsset, ' ')" />
   </Target>
@@ -76,8 +52,7 @@
           Condition="'$(CapsuleShipAssets)' == 'true' and '@(CapsuleAsset)' != ''"
           DependsOnTargets="CapsuleAssetsInit"
           BeforeTargets="AssignTargetPaths">
-    <!-- Qualified metadata, not bare: %() below would otherwise batch over Content, which already
-         carries a game's own files and the derived scene documents. -->
+    <!-- Qualify metadata to avoid batching over existing Content items. -->
     <ItemGroup>
       <Content Include="@(CapsuleAsset)">
         <Link>assets/%(CapsuleAsset.CapsuleAssetDomain)/%(CapsuleAsset.CapsuleAssetPath)%(CapsuleAsset.Extension)</Link>

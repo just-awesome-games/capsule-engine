@@ -245,10 +245,10 @@ public sealed class EngineBuilder
     /// <summary>
     /// Writes host timing to a CSV at <paramref name="path"/>: a boot trace giving the
     /// milliseconds from process start to each of builder entry, host construction, device
-    /// readiness, texture residency, the first update and the first submitted frame, then one row
-    /// per frame holding the interval since the previous frame began, the time spent updating and
-    /// the time spent submitting the draw, all in milliseconds. Present is excluded: the backend
-    /// waits for the display after the host's draw returns. Off unless this is called.
+    /// readiness, initial scene assets loaded, the first update and the first submitted frame, then
+    /// one row per frame holding the interval since the previous frame began, the time spent
+    /// updating and the time spent submitting the draw, all in milliseconds. Present is excluded:
+    /// the backend waits for the display after the host's draw returns. Off unless this is called.
     /// </summary>
     /// <param name="path">The CSV to write; an existing file is overwritten.</param>
     /// <param name="exitAfterSeconds">
@@ -607,7 +607,7 @@ public sealed class EngineBuilder
         return true;
     }
 
-    // No window, no device, no residency: the scene host is the same one a windowed run drives, so
+    // No window, device or media loading: the scene host is the same one a windowed run drives, so
     // transitions, the seed and the scene defaults behave identically.
     private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
     {

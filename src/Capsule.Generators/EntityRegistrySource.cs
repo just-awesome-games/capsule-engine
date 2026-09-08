@@ -85,8 +85,7 @@ internal static class EntityRegistrySource
         SourceProductionContext context,
         ImmutableArray<EntityModel> models,
         bool enginePresent,
-        string rootNamespace,
-        TextureResidency residency)
+        string rootNamespace)
     {
         if (!enginePresent)
         {
@@ -142,7 +141,7 @@ internal static class EntityRegistrySource
             registered.Add(entry);
         }
 
-        context.AddSource(FileName, SourceText.From(Render(registered, residency), Encoding.UTF8));
+        context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }
 
     private static DiagnosticDescriptor? Reported(EntityFault fault) => fault switch
@@ -187,7 +186,7 @@ internal static class EntityRegistrySource
             fault,
             declaration.Identifier.GetLocation());
 
-    private static string Render(List<Registration> registered, TextureResidency residency)
+    private static string Render(List<Registration> registered)
     {
         StringBuilder source = new();
 
@@ -219,26 +218,21 @@ internal static class EntityRegistrySource
         source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistration[]");
         source.AppendLine("            {");
 
-        List<ImmutableArray<string>> sets = new(registered.Count);
         for (int i = 0; i < registered.Count; i++)
         {
             Registration entry = registered[i];
-            ImmutableArray<string> groups = residency.GroupsOf(entry.Model.QualifiedName);
-            sets.Add(groups);
 
             source.Append("                new global::Capsule.Scenes.Spawning.EntityRegistration(");
             source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
             source.Append(", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new ");
             source.Append(entry.Model.QualifiedName);
             source.Append("(spawn)");
-            source.Append(TextureSetSource.ArgumentFor(groups, i));
             source.AppendLine("),");
         }
 
         source.AppendLine("            };");
         source.AppendLine();
 
-        TextureSetSource.AppendBuilders(source, sets, "        ");
         source.AppendLine("        /// <summary>The registry a scene resolves its spawn types through.</summary>");
         source.AppendLine("        public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);");

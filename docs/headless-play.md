@@ -102,7 +102,7 @@ logic assembly the shell references.
 ## Running headlessly from a test
 
 `RunHeadless` runs a driver through the same scene host a windowed run drives, with no MonoGame, no
-window, no graphics device and no texture residency:
+window, no graphics device and no media loading:
 
 ```csharp
 IInputDriver driver = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();

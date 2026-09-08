@@ -1,4 +1,5 @@
 using Capsule.Animation;
+using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes.Rendering;
 
@@ -34,6 +35,25 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// and neither does an animator with nothing to play.
     /// </summary>
     public bool IsFinished => _playback.IsFinished;
+
+    /// <inheritdoc/>
+    protected internal override void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+
+        if (Clip is not { } clip)
+        {
+            return;
+        }
+
+        foreach (Sprite frame in clip.Frames)
+        {
+            if (frame.Texture != default)
+            {
+                assets.Add(frame.Texture);
+            }
+        }
+    }
 
     /// <summary>
     /// Plays <paramref name="clip"/> from its first frame and draws that frame at once, so the

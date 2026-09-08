@@ -6,20 +6,18 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 
 | Module | Charter | May reference |
 | --- | --- | --- |
-| `Capsule.Core` | The contracts a simulation is written against, and nothing beneath them. Core references no project and no package at all — that absence is what keeps a graphics type out of game logic. | nothing |
-| `Capsule.Collision` | Collision, and only collision: shapes, broadphase, queries, sweeps and a mover. No dynamics, no solver, no forces. Substrate-free — Capsule.Core only — so a world is built and asserted headlessly. | Core |
-| `Capsule.Scenes` | The world a game plays in: a scene, the entities on it, their components, the camera, and the scene document a scene is composed from. Substrate-free — Capsule.Core and Capsule.Collision only — so a scene is constructible and assertable headlessly. | Core, Collision |
-| `Capsule.Runtime` | The host: window, device, clock, sampling, renderer, crash log. | the pure modules |
-| `Capsule.Generators` | Capsule's source generators and the compile-time enforcement of Capsule's game-logic boundary. Generators read a compilation and emit the registries a game would otherwise hand-maintain, so a game keeps no registration table and uses no reflection to boot. The analyzer enforces the logic boundary; determinism is a property the engine promises, and a logic assembly that reached a device, the filesystem, an ambient clock or ambient randomness would break it silently — so the compiler refuses instead. | unconstrained |
-| `Capsule.Build` | Build-time tooling; ships in no game. The package and the document process at once: the targets run this assembly, packed unlisted under `tools/`, and nothing else references or invokes it. It validates and canonicalizes scene and sprite sheet documents, and renders the sheets as the game's generated sprite registry. | unconstrained |
+| `Capsule.Core` | Fixed-step, input, rendering, asset and diagnostic contracts. | nothing |
+| `Capsule.Collision` | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver. | Core |
+| `Capsule.Scenes` | Scenes, entities, components, cameras, scene documents and their headless simulation. | Core, Collision |
+| `Capsule.Runtime` | Window, device, clock, input sampling, rendering, scene hosting and crash reporting. | the pure modules |
+| `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
+| `Capsule.Build` | Build-time validation and canonicalization of scene and sprite documents. | unconstrained |
 
-`Capsule.Architecture.targets` enforces the reference column for the substrate-free modules, and that they take no package dependency at all.
-
-Public types whose meaning is dimension-specific carry a `2D` suffix in the collision and physics domains; dimension-free vocabulary — layers, filters, handles, targets, cell faces — and namespaces and modules do not, and the render seam keeps its names.
+`Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes` are substrate-free. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
 
 ## Logic boundary
 
-The compiler enforces the game-logic boundary with these diagnostics:
+The compiler enforces the game-logic boundary:
 
 | Id | Refuses |
 | --- | --- |
@@ -28,45 +26,28 @@ The compiler enforces the game-logic boundary with these diagnostics:
 | `CAP102` | external I/O |
 | `CAP103` | ambient concurrency and asynchronous execution |
 | `CAP104` | process or wall-clock time |
-| `CAP105` | randomness outside the seeded source a scene holds, including `System.Random` |
+| `CAP105` | randomness outside the seeded `RandomSource`, including `System.Random` |
 
 ## Determinism contract
 
-Given the same initial state, fixed-step duration, and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.
+Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.
 
-- Gameplay reads `StepContext`; it cannot access wall-clock time, external IO, ambient randomness, asynchronous execution, or the graphics backend.
-- Input edges are differences between snapshots. The host preserves input edges when render and simulation rates differ.
-- Simulation is single-threaded. Scene entities update in insertion order and draw by `ZIndex` key, stable over insertion order.
-- A step runs in one order: previous positions are retained, the scene's step runs, entities and their components step, contacts settle, the scene's late step runs, the scene's camera settles its own framing, the adds and removes requested during the step apply and everything newly attached then starts, and the frame view is rewritten. The camera is a scene-installed object rather than an entity for exactly that reason — settling after the entity pass is what lets it frame the step that just finished rather than the previous one.
-- Lifecycle runs on two axes. Structural: `OnAddedToScene` and `OnRemovedFromScene` fire as an object is attached and detached, one at a time, so peers added alongside it may not exist yet — registration belongs here. Temporal: `OnStart` runs once, before the object's first step — its first late step, for a camera, which has no step of its own — and after everything added alongside it has attached, so the scene may be searched from there. A scene opens by starting its entities and their components, then its camera, then running its own `OnStart`; a camera installed after that starts as it is installed. Removal is teardown, so there is no separate stop hook below the scene.
-- Collision is deterministic for a given sequence of operations: layers intern in registration order, casts report the nearest hit, and overlaps report tilemap cells before colliders — tilemaps in registration order and row-major within each, colliders by handle. Casts and moves write their contacts the same way: grid cells first in traversal order, then colliders by handle. `RaycastAll` fills its span with the nearest hits ordered by distance, ties broken by tiles before colliders and then by collider slot and cell, so the result never depends on the broadphase's current shape. Contacts settle after entities update and before the scene's late step, in the order colliders began reporting them, and a collider's own `Touching` set and contact events depart from that query order in one way — the contacts carried over from the previous step come before the newly entered ones, with query order holding within each group.
-- Handles, layers and filters belong to the world that issued them and are rejected by any other, so two worlds' identities are never confused for one another. `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted anywhere.
-- `TotalSeconds` is derived from the tick count rather than accumulated.
-- Randomness is a seeded seam on the scene: `Scene.Random` is one `RandomSource` (xoshiro256**, seeded at boot from `WithRandomSeed` and defaulting to `RandomSource.DefaultSeed`), created above the scene host and handed to every scene it opens, so a transition neither reseeds nor rewinds it and a run replays from its seed and its sequence of draws alone. An entity and a component reach it rather than being passed it, and only once the scene has started: randomness is discovered in `OnStart`, never registered from a constructor or from an `OnAddedToScene` that runs while the scene is still composing. The seed is run configuration, not a per-step fact, so it is not on `StepContext`. A seed carries independent streams, each a domain's own source and all of them decorrelated, so one system's draws never move another's; a source's position is its seed, stream and draw count, which is what a game persists and restores.
-- One frame runs at most `WithMaxStepsPerFrame` fixed steps, eight by default. A frame that reaches the bound drops the accumulated time it did not run, so a stall or a step costing more than the step length makes the simulation fall behind wall-clock rather than the frame time spiralling. The step sequence itself is unchanged, so determinism is untouched.
+- Simulation is single-threaded. Input edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
+- A step retains previous positions, runs the scene, entities and components, settles contacts, runs the scene's late step, settles the camera, applies deferred structural changes, starts newly attached objects and rewrites the frame.
+- Entities update in insertion order. Rendering is ordered by `ZIndex`, stable over insertion order. Collision queries and contact delivery have deterministic ordering documented on their public methods.
+- `StepContext.TotalSeconds` is derived from its tick. Randomness comes from the run's seeded `RandomSource`, which persists across scene transitions.
+- A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining accumulated wall-clock time; it does not alter the order or contents of steps that run.
 
-The Capsule.Generators analyzer enforces the logic boundary. Tests hold the scheduling, input-latching, scene-ordering, and mutation contracts.
+Lifecycle details and callback contracts are documented on `Scene`, `Entity`, `Component`, `Camera`, `Collider2D` and `SceneSimulation` in the shipped XML API reference.
 
-## Render seam
+## Rendering and media
 
-Simulation emits backend-free render intents. The host draws them at display rate, interpolating entities and camera from the previous settled step to the current one with a shared fraction. Under point sampling the host draws those interpolated positions on whole surface pixels; simulation state stays fractional. Rendering never feeds state back into simulation.
+Simulation emits backend-free `FrameView` state. The host draws its ordered sprites at display rate, interpolating entities and camera with one shared fraction; rendering never feeds state back into simulation.
 
-A frame is an ordered stream of render commands, drawn in submission order; each command names the kind of thing it draws and its place in that kind's typed pool. A sprite — a texel region of a texture, anchored at a pivot the interpolated world position lands on and mirrored about that pivot on either axis when flipped — is the first kind. Drawing needs a texture, so the host keeps the current scene's set of handles on the device as decoded textures — alpha premultiplied at decode — and a draw naming a handle that set does not hold is a wiring fault, not a fallback.
+At a scene boundary the runtime synchronously preloads media collected from the composed scene, its entities and their components. A resource not collected there loads synchronously on first rendered use and is cached for the rest of that scene. The outgoing scene's resources are released at transition or exit except where the incoming preload also uses them. Headless simulation loads no media.
 
-Residency is scoped to the scene and changed only at a transition into one: the incoming scene's set is loaded, what only the outgoing scene wanted is released, and their intersection is untouched. The whole exchange is synchronous, ahead of the outgoing scene's teardown, so no frame draws against a half-loaded set; nothing is reference counted, and nothing is fetched from the frame path. A scene's set is a union of residency groups — a group is one asset directory's generated `All` — which the build derives from the scene's document and the code its spawn types reach, or which the scene declares for itself. Residency is host policy and never reaches the simulation, so it cannot change what a run computes.
-
-The camera declares a world-unit span and a `ViewportFit` reading it, and a scene sets both for itself; there is no game-wide default. `Letterbox`, the default, makes the span exactly the visible region on both axes and turns the output's slack into bars. `Expand` makes it a minimum on both axes, so the slack axis reveals more world at the same scale. `FixedHeight` holds the vertical span exact and lets the horizontal one follow the output's aspect. The scale stays isotropic under all three: the display's shape decides how much world is visible, never how large a world unit is drawn. The camera may also carry world-space `Bounds` the visible region never leaves — clamped inside them on each axis, and centred on them along an axis it is larger than.
-
-Resolution is `CameraView.Resolve`, one pure function of the frame's interpolation fraction and the output's extent: it interpolates the centre, sizes the span against the output's aspect, and confines the result to the bounds. The host calls it once per frame and never feeds it back, so the window reaches no part of the simulation and the camera's centre stays the raw framing target. Culling still runs in the simulation, which has no window to measure, so a fit other than `Letterbox` is culled against a ceiling on how far from square an output may be. The camera's swept bounds are confined exactly as a drawn frame is, so a view the bounds pushed off its raw centre culls nothing it now shows: under `Letterbox` those bounds are what a camera whose centre the game clamped by hand would have produced, frame for frame.
-
-The resolved rect is then fitted uniformly into the surface and letterboxed. With a fixed render resolution the surface follows the fit — pixels per world unit are what the declared canvas and declared span give, and the surface is the resolved rect at that scale, never below the canvas nor above the back buffer — and is letterboxed a second time into it. Under point sampling that second fit is a whole-number scale whenever the window can hold the surface once, so a source pixel is never three columns wide beside a neighbour that is four and the bars absorb the remainder; under linear sampling it is the fractional fit, which fills the window.
-
-Windows runs a window drag in an OS modal loop that blocks the game loop until the edge is released. The host watches SDL's own events, which are still delivered synchronously inside that loop, and redraws the settled frame at the window's new extent from there, so the view refits continuously through the drag. No step runs on that path: a drag advances no simulation time.
-
-## Package boundary
-
-The same boundary is enforced for project-reference and package consumers; see [`PACKAGE.md`](../PACKAGE.md) for the package table.
+Camera fit, culling, texture sampling and pixel-grid behavior are documented on `CameraView`, `ViewportFit`, `FrameView` and `TextureSampling`.
 
 ## NativeAOT floor
 
-Every shipping assembly stays ahead-of-time analyzable: no reflection-based discovery, no `Reflection.Emit` or `dynamic`, no AOT-unsafe package, and serialization through source generators. The `platform-and-aot` job in [`ci.yml`](../.github/workflows/ci.yml) publishes a packaged consumer and the headless smoke under NativeAOT on Windows and Linux, then runs the smoke.
+Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation, `dynamic`, AOT-unsafe package or reflection-based serialization. The `platform-and-aot` CI job publishes a package-consuming game and separately publishes and runs the independent, source-backed headless smoke on Windows and Linux.

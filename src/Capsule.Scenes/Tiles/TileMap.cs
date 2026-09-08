@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Rendering;
@@ -59,6 +60,17 @@ public sealed class TileMap : Entity
     /// <summary>The tile type name at a tile coordinate.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
     public string TileTypeAt(int x, int y) => _grid.TileTypeAt(x, y);
+
+    /// <inheritdoc/>
+    protected internal override void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+
+        if (_grid.Texture is { } texture && texture != default)
+        {
+            assets.Add(texture);
+        }
+    }
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()

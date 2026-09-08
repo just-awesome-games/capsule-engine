@@ -41,14 +41,8 @@ public class Scene
     // one per rebuild. Only the first _renderers.Count entries mean anything.
     private long[] _rendererKeys = [];
 
-    // What composing this scene's document asked for: its grids' textures, and the groups the
-    // build derived for every spawn type it placed. The class's own groups join at DeclareTextures.
-    private readonly List<TextureHandle> _composedTextures = [];
-
     private Camera _camera = new();
     private RandomSource? _random;
-    private TextureSetBuilder? _declaredTextures;
-    private IReadOnlyList<TextureHandle>? _textureSet;
 
     private bool _stepping;
     private bool _starting;
@@ -91,16 +85,9 @@ public class Scene
 
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
-
-                if (tileMap.Grid.Texture is { } atlas)
-                {
-                    _composedTextures.Add(atlas);
-                }
             }
             else if (entry.Entity is { } placed)
             {
-                content.Entities.TexturesFor(placed.Type)?.Invoke(_composedTextures);
-
                 Entity spawned = content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
@@ -204,47 +191,6 @@ public class Scene
 
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
-
-    /// <summary>
-    /// The textures the host keeps on the device while this scene runs, replacing what the build
-    /// derived for it. Null, which is the default, takes that derivation: the textures its scene
-    /// document names, plus the residency groups the code its spawn types and the class itself
-    /// reach. A group is a generated directory's set — <c>GameAssets.Textures.Enemies.All</c>. An
-    /// entity the scene's code can spawn is reached, whether the document names it or not; one
-    /// chosen by data at run time is not, and its group goes here.
-    /// <para>
-    /// Read once, before the scene starts, so it cannot depend on state the scene builds in
-    /// <see cref="OnStart"/>. Drawing a texture the set does not hold is a wiring fault the host
-    /// raises by name.
-    /// </para>
-    /// </summary>
-    protected internal virtual IReadOnlyList<TextureHandle>? ResidentTextures => null;
-
-    // Everything this scene needs resident, settled on first read: the override where the scene
-    // declares one, otherwise the derivation composed into it.
-    internal IReadOnlyList<TextureHandle> TextureSet
-    {
-        get
-        {
-            if (_textureSet is not null)
-            {
-                return _textureSet;
-            }
-
-            if (ResidentTextures is { } declared)
-            {
-                return _textureSet = declared;
-            }
-
-            _declaredTextures?.Invoke(_composedTextures);
-            _declaredTextures = null;
-
-            return _textureSet = _composedTextures;
-        }
-    }
-
-    // Hands the scene the groups its registration carries, before anything reads the set.
-    internal void DeclareTextures(TextureSetBuilder? textures) => _declaredTextures = textures;
 
     /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>
     public bool ExitRequested => _exitRequested;
@@ -468,6 +414,30 @@ public class Scene
     /// </summary>
     protected virtual void OnLateStep(in StepContext context)
     {
+    }
+
+    /// <summary>
+    /// Appends assets this scene declares beyond those owned by its entities and components.
+    /// Collection may happen before <see cref="OnStart"/>, so declarations use construction-time
+    /// state only. Override only to append declarations to <paramref name="assets"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="assets"/> is null.</exception>
+    protected internal virtual void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+    }
+
+    internal AssetCollection CollectAssetPreloads()
+    {
+        AssetCollection assets = new();
+        CollectAssets(assets);
+
+        foreach (Entity entity in _entities)
+        {
+            entity.CollectAssetPreloads(assets);
+        }
+
+        return assets;
     }
 
     internal void Start(object? entryPayload, in SceneDefaults defaults)

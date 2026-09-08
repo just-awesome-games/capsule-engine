@@ -24,12 +24,10 @@ public readonly record struct SceneRegistration
         Type sceneType,
         string? documentName,
         DocumentSceneFactory? fromDocument,
-        SceneFactory? plain,
-        TextureSetBuilder? textures)
+        SceneFactory? plain)
     {
         SceneType = sceneType;
         DocumentName = documentName;
-        Textures = textures;
         _fromDocument = fromDocument;
         _plain = plain;
     }
@@ -40,46 +38,36 @@ public readonly record struct SceneRegistration
     /// <summary>The scene document backing it, or null when none does.</summary>
     public string? DocumentName { get; }
 
-    /// <summary>
-    /// The residency groups the build derived from the code this class reaches, or null when it
-    /// reaches none. What its document places is added on top, at composition.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public TextureSetBuilder? Textures { get; }
-
     /// <summary>A scene composed from the scene document named.</summary>
     /// <param name="sceneType">The class registered.</param>
     /// <param name="name">The scene document backing it.</param>
     /// <param name="factory">What constructs it from that document's content.</param>
-    /// <param name="textures">The residency groups its own code reaches; null when it reaches none.</param>
     /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
     /// <exception cref="ArgumentException">The document name is blank.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration FromDocument(
         Type sceneType,
         string name,
-        DocumentSceneFactory factory,
-        TextureSetBuilder? textures = null)
+        DocumentSceneFactory factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(factory);
 
-        return new SceneRegistration(sceneType, name, factory, null, textures);
+        return new SceneRegistration(sceneType, name, factory, null);
     }
 
     /// <summary>A scene no document backs.</summary>
     /// <param name="sceneType">The class registered.</param>
     /// <param name="factory">What constructs it.</param>
-    /// <param name="textures">The residency groups its own code reaches; null when it reaches none.</param>
     /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static SceneRegistration Plain(Type sceneType, SceneFactory factory, TextureSetBuilder? textures = null)
+    public static SceneRegistration Plain(Type sceneType, SceneFactory factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
         ArgumentNullException.ThrowIfNull(factory);
 
-        return new SceneRegistration(sceneType, null, null, factory, textures);
+        return new SceneRegistration(sceneType, null, null, factory);
     }
 
     // Reached only through SceneRegistry, which has already read DocumentName to tell the kinds

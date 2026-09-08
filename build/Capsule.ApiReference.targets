@@ -1,17 +1,9 @@
 <Project>
 
-  <!-- Stages Capsule's XML documentation where a game can read it, for source consumers only: a
-       package consumer already has it beside the assemblies in the NuGet cache.
-
-       Staged before CoreCompile, from the referenced projects' resolved output, so the reference is
-       current exactly when the compile is not — the copies reaching the game's bin/ are made after
-       CoreCompile, so the build failing on a moved API would never see them. One directory for the
-       whole repository: every role project stages the same bytes over the last. -->
+  <!-- Stage source-consumer API documentation before compilation. -->
 
   <PropertyGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <!-- The consumer's repository root: Directory.Build.targets imports this file in source mode,
-         so it is the one anchor a source consumer is guaranteed to have. An override resolves
-         against the same root, so the directory stays one directory. -->
+    <!-- Resolve overrides against the consumer repository root. -->
     <CapsuleApiReferenceDirectory Condition="'$(CapsuleApiReferenceDirectory)' == ''">artifacts/capsule-api</CapsuleApiReferenceDirectory>
     <CapsuleApiReferenceDirectory>$([MSBuild]::NormalizePath('$([System.IO.Path]::GetDirectoryName("$(DirectoryBuildTargetsPath)"))', '$(CapsuleApiReferenceDirectory)'))</CapsuleApiReferenceDirectory>
   </PropertyGroup>
@@ -21,15 +13,13 @@
           DependsOnTargets="ResolveReferences"
           BeforeTargets="CoreCompile">
 
-    <!-- Resolved rather than globbed: a game that takes no Runtime reference stages no
-         Capsule.Runtime.xml. -->
+    <!-- Stage only resolved Capsule references. -->
     <ItemGroup>
       <_CapsuleApiReferenceFile Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Extension', '.xml'))"
                                Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
     </ItemGroup>
 
-    <!-- Role projects sharing the directory build in parallel, so a copy can meet the one another
-         project is part way through writing. -->
+    <!-- Parallel role projects share this destination. -->
     <Copy SourceFiles="@(_CapsuleApiReferenceFile)"
           DestinationFolder="$(CapsuleApiReferenceDirectory)"
           SkipUnchangedFiles="true"

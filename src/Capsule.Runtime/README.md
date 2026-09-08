@@ -6,4 +6,6 @@ Contains: host bootstrapping, fixed-step scheduling, input sampling, driven play
 
 Referenced by: game shell projects, and test or CI projects driving a game headlessly (game logic must not reference it; the analyzer enforces this).
 
-See [`docs/architecture.md`](../../docs/architecture.md) for the module map and determinism contract, and [`docs/headless-play.md`](../../docs/headless-play.md) for driving a game and running it without a window.
+API starting points: `CapsuleEngine` begins configuration, `EngineBuilder` configures and runs a scene, and `HeadlessRunResult` reports a driven headless run.
+
+See [`docs/consuming-capsule.md`](../../docs/consuming-capsule.md) for project wiring, [`docs/architecture.md`](../../docs/architecture.md) for the host boundary, and [`docs/headless-play.md`](../../docs/headless-play.md) for driven and headless runs. Public behavior is in the XML documentation shipped beside the assembly.

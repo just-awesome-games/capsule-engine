@@ -51,10 +51,6 @@ public sealed class EntityRegistry
         }
     }
 
-    // What a scene spawning the type adds to its set, or null when it adds nothing.
-    internal TextureSetBuilder? TexturesFor(string spawnType) =>
-        _entities.TryGetValue(spawnType, out EntityRegistration entity) ? entity.Textures : null;
-
     // Throws SpawnException when no class claims the type, or the one that does returned nothing.
     internal Entity Create(EntitySpawn spawn)
     {

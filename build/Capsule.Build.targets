@@ -1,46 +1,22 @@
 <Project>
 
-  <!-- The one entry point for Capsule's build hooks. Capsule.Build brings it to package
-       consumers through buildTransitive; a source consumer imports it from the engine clone. -->
-
-  <!-- MSBuild unsets Configuration and Platform on a ProjectReference to a project outside the
-       solution being built, which would leave the engine's projects falling back to Debug. The
-       engine's own Directory.Build.props does the same for the modules' references to each
-       other. -->
+  <!-- Preserve parent configuration across external ProjectReference edges. -->
   <PropertyGroup>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
-  <!-- A package consumer links an optimised engine whatever it builds itself. A source consumer
-       would instead link whatever its own build is, so a Debug game ran a Debug engine: measured on
-       a thousand-entity scene that is roughly an order of magnitude of simulation cost, which is
-       the engine's inner loop lying about the shipped engine's headroom. So the engine's own
-       projects build optimised under a Debug game, and the game's code stays Debug.
-
-       Set CapsuleSourceConfiguration to Debug to step into engine source. The engine's own
-       repository is the exception: it leaves the property unset, so its source consumers inherit
-       the solution's configuration and a solution build compiles each module once. -->
+  <!-- Source consumers use Release unless explicitly overridden; repository builds inherit. -->
   <PropertyGroup>
     <CapsuleSourceConfiguration Condition="'$(CapsuleSourceConfiguration)' == '' and '$(CapsuleSourceRoot)' != '' and '$(CapsuleEngineRepository)' != 'true'">Release</CapsuleSourceConfiguration>
     <CapsuleSourceModulesDirectory Condition="'$(CapsuleSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))</CapsuleSourceModulesDirectory>
   </PropertyGroup>
 
-  <!-- Capsule's XML comments are its API reference, which a developer reads from the package or
-       from the staged source-mode directory. Shipping a copy of every module's beside the game's
-       executable serves nobody and is most of what a publish emits that a player cannot use.
-
-       Assigned unconditionally because the SDK has already defaulted it to true by the time this
-       file is imported. A publish that wants them back passes the property on the command line,
-       which no project-file assignment can override. -->
+  <!-- Imported after the SDK default; command-line overrides still win. -->
   <PropertyGroup>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- The graphics backend brings an OpenAL binary for its audio API. Capsule has no audio module,
-       so nothing in a Capsule game ever initialises it — the backend opens the library lazily, on
-       the first sound loaded — and 1.7 MB of every platform's publish is a library that is never
-       loaded. Removed by package rather than by file name, so it covers each runtime's own
-       spelling of it. This target goes when an audio module arrives. -->
+  <!-- Capsule has no audio module; remove the backend by package identity on every runtime. -->
   <Target Name="CapsuleDropUnusedAudioBackend" AfterTargets="ComputeResolvedFilesToPublishList">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
@@ -48,24 +24,15 @@
     </ItemGroup>
   </Target>
 
-  <!-- The authoring plane, resolved here because more than one hook reads it. The shipped plane
-       beside the executable is wholly derived from it, and none of it is committed.
-
-       Every path in these hooks is composed with forward slashes and canonicalised through the
-       MSBuild path intrinsics: a literal backslash survives into property functions, Exec command
-       lines and Link metadata untouched, and on Linux it names no separator. -->
+  <!-- Compose hook paths with forward slashes; backslashes are not separators on Linux. -->
   <PropertyGroup>
     <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportScenes>
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
-    <!-- On for the logic role rather than the shell: a sheet ships nothing, and what the build
-         makes of it is game code the logic assembly compiles. -->
     <CapsuleImportSprites Condition="'$(CapsuleImportSprites)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportSprites>
-    <!-- A logic assembly ships nothing, but its asset registry is named after the same tree. -->
     <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
     <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
 
-  <!-- The out-of-process document tool, shared by every hook that runs it. -->
   <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
     <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
     <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
@@ -74,8 +41,6 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
-    <!-- The tool rides the game's own restore and build graph, and contributes nothing to the
-         game's output or publish set. -->
     <ProjectReference Include="$(CapsuleBuildToolProject)"
                       Condition="'$(CapsuleBuildToolProject)' != ''"
                       ReferenceOutputAssembly="false"
@@ -86,15 +51,9 @@
                       Private="false" />
   </ItemGroup>
 
-  <!-- A dependency of every import target rather than a step inside one: a target's Inputs are
-       evaluated after its DependsOnTargets have run but before its own tasks, so asked from inside
-       an import target the tool's path would arrive after the up-to-date check that needs it.
-
-       The configuration asked for and the removed properties must match what the ProjectReference
-       above builds the tool with, or this names an output directory nothing wrote. -->
+  <!-- Resolve before import-target Inputs are evaluated; match the ProjectReference configuration. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleUsesBuildTool)' == 'true'">
-    <!-- Unset means the tool inherits this project's configuration, which is only settled by the
-         time this runs; an import-time fallback would read it before the SDK defaults it. -->
+    <!-- Configuration is settled only when this target runs. -->
     <PropertyGroup>
       <_CapsuleBuildToolConfiguration>$(CapsuleSourceConfiguration)</_CapsuleBuildToolConfiguration>
       <_CapsuleBuildToolConfiguration Condition="'$(_CapsuleBuildToolConfiguration)' == ''">$(Configuration)</_CapsuleBuildToolConfiguration>
@@ -112,26 +71,21 @@
       <_CapsuleBuildTool Include="$(CapsuleBuildToolAssembly)" />
     </ItemGroup>
 
-    <!-- The tool is the assembly graph it loads, not its entry point: reference assemblies are
-         on, so an implementation-only change in Capsule.Scenes never recompiles the entry point,
-         whose timestamp would then call every derived document current. Globbing the tool's output
-         directory derives that closure, so a dependency added later needs no line here. -->
+    <!-- The complete tool assembly graph participates in incremental Inputs. -->
     <ItemGroup>
       <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
     </ItemGroup>
   </Target>
 
   <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
-    <!-- Read before the default below fills it in: an explicit path is a promise. -->
+    <!-- Capture an explicit override before applying the default. -->
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
-    <!-- Rooted against the project, not the working directory. NormalizePath rather than
-         Path.GetFullPath: it repairs an override's separators too, and Exists() reads this raw. -->
+    <!-- Normalize overrides against the project directory before Exists checks. -->
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
   </PropertyGroup>
 
-  <!-- An absent root is a no-op, never an error: that is every game on its first build. Only a
-       path the consumer named itself has to exist. -->
+  <!-- Only an explicitly declared asset root must exist. -->
   <Target Name="CapsuleAssetSourcesInit"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           BeforeTargets="AssignTargetPaths">
@@ -139,8 +93,7 @@
            Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under scenes/, assets under textures/, audio/ and fonts/), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
   </Target>
 
-  <!-- First: the hooks below match their source globs against the development-only set it derives,
-       which reads the asset plane's root resolved above. -->
+  <!-- Development-only exclusions must exist before authoring-source globs are evaluated. -->
   <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SceneDocuments.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SpriteSheets.targets" />
@@ -149,18 +102,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
 
-  <!-- Every reference into the engine clone, the build tool above included, carries the same
-       configuration: the two consumer roles (logic references Capsule, the shell references
-       Capsule.Runtime) must resolve the shared modules to one instance, and a module reached under
-       two configurations would be compiled and copied twice into one output directory.
-
-       A target rather than an item group, hooked exactly there: the SDK adds the modules a direct
-       reference pulls in as further ProjectReference items in ResolvePackageDependenciesForBuild —
-       most of the closure, and long after this file is evaluated — and the configuration is read
-       out of them in AssignProjectConfiguration, which that target runs before.
-
-       AdditionalProperties rather than SetConfiguration: it is merged over the configuration the
-       parent hands down, so it is the value that binds. -->
+  <!-- Apply one configuration to the resolved engine graph before project assignment. -->
   <Target Name="CapsuleConfigureEngineReferences"
           Condition="'$(CapsuleSourceRoot)' != '' and '$(CapsuleSourceConfiguration)' != ''"
           AfterTargets="ResolvePackageDependenciesForBuild">

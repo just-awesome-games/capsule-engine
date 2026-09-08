@@ -8,7 +8,7 @@ A `*.sheet.json` **sprite sheet document** is the authored form. Capsule never p
 
 A sheet names one texture, the frames it cuts from it, and the clips played over those frames. Frames carry their own regions and pivots, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid is only one way to author it.
 
-Nothing is read at run time: the build turns every sheet into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable.
+The sheet itself is not read at run time: the build turns it into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable. The windowed host preloads the textures identified by a sprite renderer and its animator's current clips; a clip introduced later loads its texture on first rendered use unless `CollectAssets` preloaded it.
 
 ```csharp
 using Capsule.Scenes.Animation;

@@ -1,3 +1,4 @@
+using Capsule.AotSmoke.Logic;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
 using Capsule.Input;
@@ -6,8 +7,6 @@ using Capsule.Runtime;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
 using Capsule.Scenes.Input;
-using MinimalGame.Game;
-using MinimalGame.Game.Scenes;
 
 namespace Capsule.AotSmoke;
 
@@ -17,7 +16,7 @@ internal static class Program
 
     private const long DrivenSteps = IdleSteps + 1;
 
-    private const string NativeScenePath = "assets/scenes/halls/hall.scene.json";
+    private const string NativeScenePath = "assets/scenes/fixture.scene.json";
 
     public static int Main()
     {
@@ -40,11 +39,11 @@ internal static class Program
             .Build();
 
         HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", GameScenes.Registry)
-            .WithInput(GameInput.Configure)
+            .WithInput(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
             .WithoutLogging()
-            .RunHeadless<Room>(driver);
+            .RunHeadless<FixtureScene>(driver);
 
         bool contentShipped = ContentShipped();
         bool booted =
@@ -70,18 +69,12 @@ internal static class Program
     private static SceneDocument Document(string path) =>
         SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
 
-    // Every texture the sample's scenes make resident, so a handle the build registered with no
-    // file behind it fails here rather than in front of a window.
     private static bool ContentShipped()
     {
-        SceneDocument hall = Document(NativeScenePath);
-        AudioHandle step = GameAssets.Audio.StepSoft;
+        SceneDocument fixture = Document(NativeScenePath);
 
-        return hall.Source is { Tool: "native" }
-            && Shipped(GameAssets.Textures.Actors.Player)
-            && Shipped(GameAssets.Textures.Tiles)
-            && Shipped(GameAssets.Textures.Sensor)
-            && Shipped("audio", step.Name, step.Extension);
+        return fixture.Source is { Tool: "native" }
+            && Shipped(GameAssets.Textures.Pixel);
     }
 
     private static bool Shipped(TextureHandle texture) => Shipped("textures", texture.Name, texture.Extension);

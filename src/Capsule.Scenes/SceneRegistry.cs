@@ -85,10 +85,7 @@ public sealed class SceneRegistry
                 + $"name rather than its class: CreateFromDocument(\"{name}\", document).");
         }
 
-        Scene scene = registration.Create();
-        scene.DeclareTextures(registration.Textures);
-
-        return scene;
+        return registration.Create();
     }
 
     // Builds the scene name composes into: the class claiming that name, or a plain Scene when none
@@ -105,10 +102,7 @@ public sealed class SceneRegistry
             return new Scene(content);
         }
 
-        Scene scene = claimed.Create(content);
-        scene.DeclareTextures(claimed.Textures);
-
-        return scene;
+        return claimed.Create(content);
     }
 
     private SceneRegistration Registered(Type sceneType)

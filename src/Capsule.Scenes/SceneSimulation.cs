@@ -58,7 +58,12 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>What to draw: one held instance, rewritten once per step rather than built per read.</summary>
     public FrameView View => _view;
 
-    /// <summary>Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>.</summary>
+    /// <summary>
+    /// Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>. Exceptions
+    /// from scene, entity, component, contact, camera or renderer callbacks propagate to the
+    /// caller. A step that throws may have changed simulation state; continuing that simulation is
+    /// not supported.
+    /// </summary>
     /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
     public void Step(in StepContext context)
     {

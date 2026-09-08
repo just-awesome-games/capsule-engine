@@ -24,9 +24,11 @@ public sealed class OpeningRoom(SceneContent content) : Scene(content)
 
 A scene installs a `Camera` subclass that owns its span, its subject and its framing: it finds its subject in its own `OnStart` — where the scene is composed and searchable through the camera's `Scene` — and settles its framing in `OnLateStep`. Installing a camera cuts to it rather than sweeping from where the previous one sat.
 
-Register in `OnAddedToScene`, discover in `OnStart`; the two lifecycle axes are in [`architecture.md`](architecture.md#determinism-contract).
+Register in `OnAddedToScene` and discover in `OnStart`; the fixed-step order is in [`architecture.md`](architecture.md#determinism-contract), and each hook's exact contract is in the shipped API reference.
 
 `Scene(SceneContent)` composes one `TileMap` or game entity per entry in file order. Its `Size` spans the largest tile map it carries. The document is construction data and is not retained; a subclass queries the composed entities when it needs them.
+
+The windowed host collects assets from that composed object graph at initial host load and before `OnStart` for an incoming transition. Tile maps contribute their texture automatically; optional scene, entity and component preloads use `CollectAssets(AssetCollection)` as described in [`consuming-capsule.md` § Rendering and scene assets](consuming-capsule.md#rendering-and-scene-assets).
 
 Transitions name a scene the same two ways: `RequestScene<T>` a class, `RequestScene(name)` a document. Both resolve through `SceneRegistry`, which games never build — the source generator emits it from the assembly's own classes.
 

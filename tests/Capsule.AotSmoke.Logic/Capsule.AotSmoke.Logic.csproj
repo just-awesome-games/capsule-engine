@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.AotSmoke.Logic</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CapsuleGameLogic>true</CapsuleGameLogic>
+    <CapsuleImportSprites>false</CapsuleImportSprites>
+    <CapsuleAssetSourcesDir>../Capsule.AotSmoke/asset-sources</CapsuleAssetSourcesDir>
+    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
+  </PropertyGroup>
+
+  <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
+
+  <ItemGroup>
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
+  </ItemGroup>
+
+</Project>

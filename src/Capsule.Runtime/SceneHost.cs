@@ -1,6 +1,5 @@
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
@@ -36,14 +35,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     internal Scene Scene => _current.Scene;
 
-    // What keeps the current scene's textures on the device. Null until the device is up, which is
-    // after the first scene is composed: the host applies that scene's set itself, and every set
-    // from a transition on comes through here.
-    internal SceneResidency? Residency { get; set; }
-
-    // The current scene's texture set, and the class name a wiring fault in it names.
-    internal (string Scene, IReadOnlyList<TextureHandle> Textures) TextureSet =>
-        (_current.Scene.GetType().Name, _current.Scene.TextureSet);
+    // Null until the device is ready. Later transitions prepare their incoming scene through it.
+    internal Action<AssetCollection>? PrepareAssets { get; set; }
 
     public void Step(in StepContext context)
     {
@@ -65,7 +58,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
         {
             case SceneTransitionKind.Exit:
                 ExitRequested = true;
-                _current.Dispose();
+                try
+                {
+                    _current.Dispose();
+                }
+                finally
+                {
+                    ReleaseAssets();
+                }
                 break;
 
             case SceneTransitionKind.Restart:
@@ -104,7 +104,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
 
         _disposed = true;
-        _current.Dispose();
+        try
+        {
+            _current.Dispose();
+        }
+        finally
+        {
+            ReleaseAssets();
+        }
     }
 
     private void Replace(in SceneTransition target)
@@ -113,12 +120,11 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         try
         {
-            // Before the outgoing scene is torn down: composing the incoming one is what settles
-            // its set, and a set that cannot be made resident must leave the run on the scene it
-            // was on.
-            Residency?.MakeResident(next.GetType().Name, next.TextureSet);
+            // Before the outgoing scene is torn down: a preload that fails must leave the run on
+            // the scene it was on.
+            PrepareAssets?.Invoke(next.CollectAssetPreloads());
         }
-        catch (Exception residencyFailure)
+        catch (Exception preparationFailure)
         {
             try
             {
@@ -127,8 +133,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
             catch (Exception cleanupFailure)
             {
                 throw new AggregateException(
-                    $"Making {next.GetType().Name} resident and then releasing it both failed.",
-                    residencyFailure,
+                    $"Preparing {next.GetType().Name}'s assets and then releasing it both failed.",
+                    preparationFailure,
                     cleanupFailure);
             }
 
@@ -138,5 +144,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _current.Dispose();
         _current = new SceneSimulation(next, target.Payload, _defaults, _random);
         _target = target;
+    }
+
+    private void ReleaseAssets()
+    {
+        Action<AssetCollection>? prepare = PrepareAssets;
+        PrepareAssets = null;
+        prepare?.Invoke(new AssetCollection());
     }
 }

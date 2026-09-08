@@ -36,7 +36,7 @@ internal sealed class FrameRenderer : IDisposable
 
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
-    // textures: The resident textures to draw from; owned by the caller.
+    // textures: The scene texture cache, loading on first use; owned by the caller.
     internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
     {
         _device = device;
@@ -316,15 +316,9 @@ internal sealed class FrameRenderer : IDisposable
         TextureHandle resolved = default;
         Texture2D? texture = null;
 
-        ReadOnlySpan<SpriteIntent> sprites = view.Sprites;
-        foreach (RenderCommand command in view.Commands)
+        foreach (ref readonly SpriteIntent sprite in view.Sprites)
         {
-            if (command.Kind != RenderKind.Sprite)
-            {
-                throw new InvalidOperationException($"Unknown render kind '{command.Kind}'.");
-            }
-
-            DrawSprite(sprites[command.Index], alpha, snap, fit.Scale, ref resolved, ref texture);
+            DrawSprite(sprite, alpha, snap, fit.Scale, ref resolved, ref texture);
         }
 
         _batch.End();

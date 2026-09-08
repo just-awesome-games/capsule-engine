@@ -10,38 +10,69 @@ internal static class TextureFiles
 
     // The handle's file, relative to the executable. A handle's name is its source's path under the
     // textures root, so a nested asset resolves to a nested file.
-    internal static string RelativePathOf(in TextureHandle handle) =>
-        "assets/" + DomainDirectory + "/" + handle.Name + handle.Extension;
-
-    // Every handle's file under baseDirectory, in first-appearance order, with a handle named more
-    // than once resolved once.
-    internal static (TextureHandle Handle, string Path)[] Resolve(
-        string baseDirectory,
-        IReadOnlyList<TextureHandle> handles)
+    internal static string RelativePathOf(in TextureHandle handle)
     {
-        List<(TextureHandle Handle, string Path)> resolved = new(handles.Count);
-        HashSet<TextureHandle> seen = new(handles.Count);
+        Validate(handle);
 
-        foreach (TextureHandle handle in handles)
-        {
-            if (seen.Add(handle))
-            {
-                resolved.Add((handle, Locate(baseDirectory, handle)));
-            }
-        }
-
-        return [.. resolved];
+        return "assets/" + DomainDirectory + "/" + handle.Name + handle.Extension;
     }
 
     internal static string Locate(string baseDirectory, in TextureHandle handle)
     {
         string relative = RelativePathOf(handle);
-        string path = Path.Combine(baseDirectory, relative);
+        string root = Path.GetFullPath(Path.Combine(baseDirectory, "assets", DomainDirectory));
+        string path = Path.GetFullPath(Path.Combine(root, handle.Name + handle.Extension));
+        string containedBy = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!path.StartsWith(containedBy, comparison))
+        {
+            throw Invalid(handle);
+        }
 
         return File.Exists(path)
             ? path
             : throw new FileNotFoundException(
-                $"Texture '{handle.Name}' is registered by the build but ships no file: nothing is at '{relative}' beside the executable.",
+                $"Texture '{handle.Name}' has no shipped file at '{relative}' beside the executable.",
                 path);
     }
+
+    private static void Validate(in TextureHandle handle)
+    {
+        if (handle.Name is not { } name
+            || handle.Extension is not { } extension
+            || !AssetPaths.Joins(name, extension))
+        {
+            throw Invalid(handle);
+        }
+
+        int start = 0;
+        while (true)
+        {
+            int slash = name.IndexOf('/', start);
+            if (slash < 0)
+            {
+                if (!SafeName.IsOneSafeDirectoryName(name[start..] + extension))
+                {
+                    throw Invalid(handle);
+                }
+
+                return;
+            }
+
+            if (!SafeName.IsOneSafeDirectoryName(name[start..slash]))
+            {
+                throw Invalid(handle);
+            }
+
+            start = slash + 1;
+        }
+    }
+
+    private static ArgumentException Invalid(in TextureHandle handle) =>
+        new(
+            $"Texture handle ('{handle.Name}', '{handle.Extension}') does not name one portable file under assets/textures.",
+            nameof(handle));
 }

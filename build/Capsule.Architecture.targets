@@ -1,12 +1,9 @@
 <Project>
 
-  <!-- The substrate-free modules and the pack root that publishes them as JAG.Capsule. A package
-       reference on any of them would reach every consuming game's logic project, and a project
-       reference admitted into the pack root would ship in that package. -->
+  <!-- Enforce the JAG.Capsule package graph. -->
   <Target Name="CapsuleValidateModuleDependencies" BeforeTargets="ResolveReferences">
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Collision' or '$(MSBuildProjectName)' == 'Capsule.Scenes' or '$(MSBuildProjectName)' == 'Capsule'">
-      <!-- PublishAot injects its compiler pack as an SDK-owned PackageReference; the boundary is
-           against dependencies the module authored. -->
+      <!-- Ignore SDK-injected references such as the NativeAOT compiler pack. -->
       <_CapsuleExplicitPackageReference Include="@(PackageReference)"
           Condition="'%(PackageReference.IsImplicitlyDefined)' != 'true'" />
     </ItemGroup>
@@ -18,8 +15,6 @@
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
           Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Collision.csproj'" />
     </ItemGroup>
-    <!-- The pack root's reference list is the package's membership list, so admitting a module is
-         a deliberate edit here. -->
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule'">
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
           Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Collision.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />

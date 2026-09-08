@@ -1,9 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <!-- A source consumer inside this repository builds the engine in the solution's own
-         configuration rather than the optimised one a game outside it gets, so a solution build
-         compiles each module once. -->
+    <!-- Keep repository source consumers on the solution configuration. -->
     <CapsuleEngineRepository>true</CapsuleEngineRepository>
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
@@ -14,16 +12,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <!-- Built as an external project under a consumer's solution, an engine project hands its
-         Configuration and Platform on to the modules it references. MSBuild's default unsets them
-         there, so a Release game build also built every module in Debug, and a Debug one built each
-         module twice into one obj/ — the CS2012 "cannot open for writing" races seen from the game
-         repo. Capsule.Build.targets sets the same for the consumer's own projects. -->
+    <!-- Preserve parent configuration across external ProjectReference edges. -->
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
-    <!-- A constant, never the current release: nothing inside this repository should care what the
-         last published version was. packages.yml supplies the real number from the release tag at
-         pack time. Holding it fixed keeps release numbers out of packages.lock.json, whose
-         ProjectReference entries record it. Must equal the sample's CapsuleVersion. -->
+    <!-- Release packing overrides this constant; it must equal the sample's CapsuleVersion. -->
     <VersionPrefix>0.0.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
     <PackageTags>game-engine;2d;monogame;deterministic</PackageTags>
@@ -31,16 +22,14 @@
     <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/just-awesome-games/capsule-engine</RepositoryUrl>
-    <!-- PACKAGE.md, not README.md: nuget.org resolves neither a relative image nor a relative
-         document link, so the packed readme carries absolute ones. -->
+    <!-- PACKAGE.md uses links that resolve on nuget.org. -->
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
     <PackageIcon>capsule-package-icon.png</PackageIcon>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <!-- The XML docs are the API reference a consumer reads in their editor; CS1591 holds every
-         public member of a reference assembly to carrying one. -->
+    <!-- XML documentation is the consumer API reference. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

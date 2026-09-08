@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes.Rendering;
@@ -36,6 +37,18 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     /// <summary>Multiplied into every texel; white, which draws the texture as it is, by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
+
+    /// <inheritdoc/>
+    protected internal override void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+
+        TextureHandle texture = Sprite.Texture;
+        if (texture != default)
+        {
+            assets.Add(texture);
+        }
+    }
 
     /// <inheritdoc/>
     public override void Draw(FrameView view)

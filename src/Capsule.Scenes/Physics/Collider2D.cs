@@ -182,7 +182,7 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// This collider's identity in its scene's <see cref="Scene.Collision"/> world;
-    /// <see cref="ColliderHandle.None"/> while it is in no scene.
+    /// <see cref="ColliderHandle.None"/> while it is disabled or in no scene.
     /// </summary>
     public ColliderHandle Handle => _handle;
 

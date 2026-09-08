@@ -9,7 +9,7 @@ namespace Capsule.Tests.Runtime;
 public sealed class FrameDiagnosticsTests
 {
     private static readonly string[] BootStages =
-        ["builderEntered", "hostConstructed", "deviceReady", "texturesResident", "firstUpdate", "firstDraw"];
+        ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
 
     [Fact]
     public void TheBootTrace_PrecedesTheHeaderAndNamesEveryStageOnce()
@@ -96,7 +96,7 @@ public sealed class FrameDiagnosticsTests
             // The host marks each of these before it submits a frame; the rest are taken here.
             _diagnostics.Mark(FrameDiagnostics.Stage.HostConstructed);
             _diagnostics.Mark(FrameDiagnostics.Stage.DeviceReady);
-            _diagnostics.Mark(FrameDiagnostics.Stage.TexturesResident);
+            _diagnostics.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         }
 
         /// <summary>Runs one frame; returns whether the run's time budget is spent.</summary>

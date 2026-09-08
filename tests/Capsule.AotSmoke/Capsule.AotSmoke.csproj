@@ -1,10 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- An executable published under NativeAOT and *run* in CI: publishing proves the graph is
-       ILC-analysable, and only booting proves the trimmed JSON context, the generated registries
-       and the shipped content survive the trim. It declares no Capsule role, and it drives the
-       host through RunHeadless, which opens no window and touches no graphics device, so the
-       published binary runs on any runner. -->
+  <!-- NativeAOT publishing proves the graph is ILC-analysable; running proves the trimmed JSON,
+       generated registries, render intent, and shipped fixtures survive. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -18,7 +15,7 @@
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <CapsuleImportScenes>true</CapsuleImportScenes>
     <CapsuleShipAssets>true</CapsuleShipAssets>
-    <CapsuleAssetSourcesDir>../../samples/MinimalGame/src/asset-sources</CapsuleAssetSourcesDir>
+    <CapsuleAssetSourcesDir>asset-sources</CapsuleAssetSourcesDir>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 
@@ -27,7 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
-    <ProjectReference Include="$(CapsuleSourceRoot)/samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
+    <ProjectReference Include="../Capsule.AotSmoke.Logic/Capsule.AotSmoke.Logic.csproj" />
   </ItemGroup>
 
 </Project>

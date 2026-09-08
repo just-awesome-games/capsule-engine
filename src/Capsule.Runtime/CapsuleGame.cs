@@ -1,4 +1,3 @@
-using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
@@ -14,8 +13,7 @@ internal sealed class CapsuleGame : Game
     private readonly EngineOptions _options;
     private readonly ISimulation _simulation;
 
-    // What decides residency. Null when the simulation is not a run of scenes, which is the
-    // specs' case: that run draws nothing and keeps no texture on the device.
+    // Null when the simulation is not a run of scenes, which is the specs' case.
     private readonly SceneHost? _scenes;
 
     private readonly PadFilter _padFilter;
@@ -75,19 +73,15 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        // The first scene's set, once, before the first frame. Every later set arrives at a
-        // transition, which is the only point a run fetches from disk.
         _textures = new TextureStore(GraphicsDevice);
 
         if (_scenes is { } scenes)
         {
-            SceneResidency residency = new(_textures.Change);
-            (string scene, IReadOnlyList<TextureHandle> set) = scenes.TextureSet;
-            residency.MakeResident(scene, set);
-            scenes.Residency = residency;
+            scenes.PrepareAssets = _textures.ChangeScene;
+            _textures.ChangeScene(scenes.Scene.CollectAssetPreloads());
         }
 
-        _diagnostics?.Mark(FrameDiagnostics.Stage.TexturesResident);
+        _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
 
         // Installed once the renderer exists, since the watch can fire before the next frame does.

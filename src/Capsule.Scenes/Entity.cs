@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Capsule.Assets;
 
 namespace Capsule.Scenes;
 
@@ -264,6 +265,28 @@ public class Entity
     /// </summary>
     protected internal virtual void OnRemovedFromScene()
     {
+    }
+
+    /// <summary>
+    /// Appends assets this entity declares beyond those owned by its components. Collection may
+    /// happen before <see cref="OnStart"/>, so declarations use construction-time state only.
+    /// Override only to append declarations to <paramref name="assets"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="assets"/> is null.</exception>
+    protected internal virtual void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+    }
+
+    internal void CollectAssetPreloads(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+        CollectAssets(assets);
+
+        foreach (Component component in Components)
+        {
+            component.CollectAssets(assets);
+        }
     }
 
     // Counts the components that want telling when this entity moves.

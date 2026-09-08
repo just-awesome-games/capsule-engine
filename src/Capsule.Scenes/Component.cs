@@ -1,3 +1,5 @@
+using Capsule.Assets;
+
 namespace Capsule.Scenes;
 
 /// <summary>
@@ -63,6 +65,17 @@ public abstract class Component
     /// </summary>
     protected internal virtual void OnRemovedFromScene()
     {
+    }
+
+    /// <summary>
+    /// Appends assets this component declares. Collection may happen before <see cref="OnStart"/>,
+    /// so declarations use construction-time state only. Override only to append declarations to
+    /// <paramref name="assets"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="assets"/> is null.</exception>
+    protected internal virtual void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
     }
 
     // Runs once entity holds this component. Whatever the component registers with its entity — an

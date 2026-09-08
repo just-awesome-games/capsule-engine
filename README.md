@@ -45,7 +45,7 @@ public sealed class MainMenu : Scene;
 
 Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); see [`PACKAGE.md`](PACKAGE.md) for their contents.
 
-Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution; the randomness they may reach is the seeded `RandomSource` their scene holds. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation.
+Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution; the randomness they may reach is the seeded `RandomSource` their scene holds. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities and named assets at compile time, so games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable.
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
 
@@ -57,9 +57,9 @@ Sprite animation is authored as a sheet document and compiled into the game as t
 
 Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator` and `Camera` for presentation; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
 
-Rendering is an ordered stream of render commands; a textured sprite — a texel region of a shipped texture anchored at a pivot — is the first kind, and the host keeps the current scene's textures resident, exchanging them at each transition.
+Rendering submits sprites in order. The host preloads the media a composed scene and its contents identify, caches any other texture on first rendered use for that scene, and releases scene-owned resources at transition or exit. Headless simulation loads no media.
 
 ## Contributing
 

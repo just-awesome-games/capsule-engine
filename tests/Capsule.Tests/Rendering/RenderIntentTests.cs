@@ -23,10 +23,8 @@ public sealed class RenderIntentTests
         Assert.Equal(second, view.Sprites[1]);
     }
 
-    // The stream is what fixes draw order across kinds, so a culled submission must leave no gap
-    // in it and the survivors must still address their own pool.
     [Fact]
-    public void TheCommandStream_HoldsWhatSurvivedInOrder_IndexingItsPool()
+    public void AView_KeepsVisibleSpritesInSubmissionOrder()
     {
         FrameView view = Looking();
         SpriteIntent kept = Unit(new Vector2(2, 2), new Vector2(2, 2));
@@ -37,10 +35,7 @@ public sealed class RenderIntentTests
         view.Add(culled);
         view.Add(last);
 
-        Assert.Equal([0, 1], view.Commands.ToArray().Select(static command => command.Index));
-        Assert.All(view.Commands.ToArray(), command => Assert.Equal(RenderKind.Sprite, command.Kind));
-        Assert.Equal(kept, view.Sprites[view.Commands[0].Index]);
-        Assert.Equal(last, view.Sprites[view.Commands[1].Index]);
+        Assert.Equal([kept, last], view.Sprites.ToArray());
         Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 2), view.Metrics);
     }
 
@@ -63,7 +58,6 @@ public sealed class RenderIntentTests
         Assert.Equal(clearColor, view.ClearColor);
         Assert.Equal(TextureSampling.Point, view.Sampling);
         Assert.Equal(default, view.Metrics);
-        Assert.Empty(view.Commands.ToArray());
         Assert.Empty(view.Sprites.ToArray());
     }
 

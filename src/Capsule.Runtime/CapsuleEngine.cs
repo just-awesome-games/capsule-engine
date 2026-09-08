@@ -17,8 +17,8 @@ public static class CapsuleEngine
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.
     /// </param>
     /// <param name="scenes">
-    /// Every scene the game declares, plain and document-backed alike. Each carries the residency
-    /// groups the build derived for it, so the host has no separate texture list to be handed.
+    /// Every scene the game declares, plain and document-backed alike, so the host can resolve a
+    /// class or document name without reflection.
     /// </param>
     /// <param name="drivers">
     /// Every input driver the game declares, which is what <c>--driver</c> resolves a name through;
