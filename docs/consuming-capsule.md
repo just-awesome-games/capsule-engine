@@ -193,6 +193,25 @@ dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self
 
 Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule is in [`architecture.md`](architecture.md#nativeaot-floor).
 
+## Development-only directories
+
+A directory holding a file named `.capsuleignore` is development-only. Everything under it, recursively, is part of every ordinary build — Debug and Release alike, so a Release measurement can still run one — and part of no publish.
+
+Input drivers are the case it exists for. They live in the logic project because they read the scene, and they must not ship:
+
+```text
+src/MyGame.Game/
+  Drivers/
+    .capsuleignore
+    Walkthrough.cs
+```
+
+The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity, and driver registries hold nothing declared there and `--driver` answers to no name from it. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is made resident, or is declared in `GameAssets`. Shipped code naming a development-only asset therefore fails to compile in a publish, which is the failure it is owed.
+
+The marker file's contents are not read; a line saying what the directory is helps whoever finds it.
+
+`CapsuleShipping` is the switch, and a publish sets it. Set it on an ordinary build to see exactly what a publish will hold without running one.
+
 ## Model and rendering
 
 Rendering draws sprites: a `SpriteRenderer` — in `Capsule.Scenes.Rendering`, with the `Renderer` it derives from — holds a `Sprite` — a `TextureHandle`, a `TextureRegion` of it, and the `Pivot` the entity's position anchors — and sets `Offset`, `FlipX`, `FlipY` and `Color` on top of it; a tile map draws cells of one texture. A handle whose file is missing fails the game where its scene is loaded, naming the handle and the path it looked in.
@@ -313,6 +332,7 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 | `CapsuleShipAssets`      | `true` for the shell; otherwise `false`       | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                          |
 | `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `GameSprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size.                   |
+| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane. Set it on an ordinary build to verify a publish. |
 
 ### Application icons
 

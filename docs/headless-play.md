@@ -17,6 +17,10 @@ A driver with a public parameterless constructor is registered by the build unde
 which is what `--driver` takes. One that takes constructor arguments registers under no name and
 reaches a run through `WithInputDriver` or `RunHeadless`.
 
+Drivers live in `Drivers/`, which carries a `.capsuleignore`: they are part of every build and of no
+publish, so a shipped game holds none of them. See
+[`consuming-capsule.md`](consuming-capsule.md#development-only-directories).
+
 ## Scripting a driver
 
 `Capsule.Scenes.Input.InputScript` builds a driver of a fixed sequence the way a device produces
