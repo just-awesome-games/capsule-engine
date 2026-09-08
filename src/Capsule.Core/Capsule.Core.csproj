@@ -12,6 +12,8 @@
   <!-- ISimulation is the host's seam, not a surface a game implements. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
+
+    <!-- Also SnapshotLatch, which carries a frame's sample to the step that consumes it. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 

@@ -38,7 +38,7 @@ internal sealed class CapsuleGame : Game
         _simulation = simulation;
         _scenes = scenes;
         _padFilter = new PadFilter(options.StickDeadzone, options.TriggerDeadzone);
-        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings);
+        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Bindings, options.Driver, scenes);
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -127,6 +127,13 @@ internal sealed class CapsuleGame : Game
 
         // alpha is in [0, 1) because Update drains the accumulator below one step.
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+
+        // While the surface still holds the frame, ahead of the present. The request is taken only
+        // once a frame has drawn, so one raised while the window is minimised stands until one does.
+        if (_scenes is { } scenes && _renderer.CanCaptureFrame && scenes.TryTakeFrameCapture(out string capturePath))
+        {
+            _renderer.SaveSurface(capturePath);
+        }
 
         base.Draw(gameTime);
 

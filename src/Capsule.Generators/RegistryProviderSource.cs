@@ -68,6 +68,13 @@ internal static class RegistryProviderSource
         source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(registrations);");
         source.AppendLine("            registrations.AddRange(global::Capsule.Scenes.Generated.GameScenes.Registrations);");
         source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        source.AppendLine("        public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Scenes.Input.InputDriverRegistration> registrations)");
+        source.AppendLine("        {");
+        source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(registrations);");
+        source.AppendLine("            registrations.AddRange(global::Capsule.Scenes.Generated.GameInputDrivers.Registrations);");
+        source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");
         return source.ToString();

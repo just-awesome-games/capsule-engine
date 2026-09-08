@@ -32,7 +32,7 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
-            "CapsuleEngine.Configure(gameName, Scenes)",
+            "CapsuleEngine.Configure(gameName, Scenes, Drivers)",
             GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile),
             StringComparison.Ordinal);
     }
@@ -95,6 +95,60 @@ public sealed class CapsuleBootGeneratorTests
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
         Assert.Equal(2, generated.Split(".AddEntities(entities);", StringSplitOptions.None).Length - 1);
         Assert.Equal(2, generated.Split(".AddScenes(scenes);", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void TheShell_TakesDriversFromItsLogicAssembliesAndFromItsOwnCode()
+    {
+        const string logic = """
+            using Capsule.Input;
+            using Capsule.Scenes;
+            using Capsule.Scenes.Input;
+
+            namespace Game;
+
+            public sealed class Room01(SceneContent content) : Scene(content);
+
+            public sealed class Walkthrough : IInputDriver
+            {
+                public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+                {
+                    snapshot = DeviceSnapshot.Empty;
+                    return tick < 60;
+                }
+            }
+            """;
+        const string shell = """
+            using Capsule.Input;
+            using Capsule.Runtime.Generated;
+            using Capsule.Scenes;
+            using Capsule.Scenes.Input;
+
+            namespace Shell;
+
+            public sealed class Idler : IInputDriver
+            {
+                public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+                {
+                    snapshot = DeviceSnapshot.Empty;
+                    return tick < 1;
+                }
+            }
+
+            public static class Program
+            {
+                public static void Boot() => CapsuleBoot.Configure("Spec Game").WithWindow(320, 180);
+            }
+            """;
+
+        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(shell, logic);
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
+
+        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
+        Assert.Contains(".AddDrivers(drivers);", generated, StringComparison.Ordinal);
+        Assert.Contains("InputDriverRegistration(\"Idler\", static () => new global::Shell.Idler())", generated, StringComparison.Ordinal);
     }
 
     [Fact]

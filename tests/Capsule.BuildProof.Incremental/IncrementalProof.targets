@@ -1,0 +1,30 @@
+<Project>
+
+  <!-- The registry the compiler emitted, read off disk after CoreCompile has had its chance to
+       skip. A build that reused the other direction's assembly leaves the other direction's
+       registry beside it, so this fails on a stale one exactly as it fails on a wrong one. -->
+  <Target Name="CapsuleProveIncrementalDriverRegistry" AfterTargets="CoreCompile">
+    <ItemGroup>
+      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleGameInputDrivers.g.cs" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProofDriverRegistry)' == ''"
+           Text="IncrementalProof: no generated CapsuleGameInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
+
+    <ReadLinesFromFile File="@(_ProofDriverRegistry)">
+      <Output TaskParameter="Lines" ItemName="_ProofDriverRegistryLine" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <_ProofDriverRegistryText>@(_ProofDriverRegistryLine, '%0A')</_ProofDriverRegistryText>
+    </PropertyGroup>
+
+    <Error Condition="!$(_ProofDriverRegistryText.Contains('KeptDriver'))"
+           Text="IncrementalProof: the generated driver registry does not register KeptDriver." />
+    <Error Condition="'$(CapsuleShipping)' == 'true' and $(_ProofDriverRegistryText.Contains('DevelopmentOnlyDriver'))"
+           Text="IncrementalProof: a shipping build's driver registry still names DevelopmentOnlyDriver — the compile was skipped as up to date and the ordinary build's assembly kept." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and !$(_ProofDriverRegistryText.Contains('DevelopmentOnlyDriver'))"
+           Text="IncrementalProof: an ordinary build's driver registry does not name DevelopmentOnlyDriver — the compile was skipped as up to date and the shipping build's assembly kept." />
+  </Target>
+
+</Project>

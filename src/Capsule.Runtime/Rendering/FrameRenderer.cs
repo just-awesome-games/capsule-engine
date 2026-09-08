@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -67,6 +68,121 @@ internal sealed class FrameRenderer : IDisposable
         DrawWorld(view, alpha, _target.Width, _target.Height);
         _device.SetRenderTarget(null);
         Present(_target, view.Sampling);
+    }
+
+    // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
+    // presents nothing and leaves no frame to save — including behind a render target, which is
+    // drawn but never presented.
+    internal bool CanCaptureFrame =>
+        _device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0;
+
+    // The capture is staged beside its destination under a name ending in this suffix. A random
+    // segment precedes it, so a capture never touches a file it did not create.
+    internal const string TemporarySuffix = ".tmp";
+
+    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
+    // and overwriting the file. Called after Draw and before the frame is presented, while that
+    // surface still holds the frame: the render target where one is configured, whose extent is
+    // the declared render resolution and so is independent of the window, and the back buffer
+    // where there is none. Read-back and encoding failures are logged rather than thrown into the
+    // frame loop, and the destination is replaced only once a whole PNG is in hand, so whatever is
+    // already there survives a capture that failed.
+    internal void SaveSurface(string path)
+    {
+        if (!CanCaptureFrame)
+        {
+            return;
+        }
+
+        byte[] png;
+
+        try
+        {
+            using MemoryStream encoded = new();
+            EncodeSurface(encoded);
+            png = encoded.ToArray();
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Frame capture to '{path}' failed before writing: {error.Message}");
+            return;
+        }
+
+        WriteCapture(png, path);
+    }
+
+    // Encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
+    // destination only once it is whole: neither a partial write nor a denied one touches the file
+    // already at path, nor any other file already beside it. Resolving path is part of the
+    // protected operation, so a path the file system rejects is logged rather than thrown.
+    internal static void WriteCapture(byte[] png, string path)
+    {
+        // Null until this call owns a staging file, so cleanup never deletes a sibling it found.
+        string? created = null;
+
+        try
+        {
+            string full = Path.GetFullPath(path);
+
+            if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            string temporary = full + '.' + Path.GetRandomFileName() + TemporarySuffix;
+
+            using (FileStream staging = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                created = temporary;
+                staging.Write(png);
+            }
+
+            File.Move(temporary, full, overwrite: true);
+            created = null;
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Frame capture to '{path}' failed while writing: {error.Message}");
+
+            if (created is not null)
+            {
+                Discard(created);
+            }
+        }
+    }
+
+    // The temporary is all a failed write can have left behind, and a truncated PNG nobody can
+    // read is worse than none.
+    private static void Discard(string temporary)
+    {
+        try
+        {
+            File.Delete(temporary);
+        }
+        catch (Exception error)
+        {
+            Log.Warning($"Removing the failed frame capture at '{temporary}' failed: {error.Message}");
+        }
+    }
+
+    private void EncodeSurface(Stream destination)
+    {
+        if (_target is not null)
+        {
+            _target.SaveAsPng(destination, _target.Width, _target.Height);
+            return;
+        }
+
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        int width = backBuffer.BackBufferWidth;
+        int height = backBuffer.BackBufferHeight;
+
+        Color[] pixels = new Color[width * height];
+        _device.GetBackBufferData(pixels);
+
+        using Texture2D surface = new(_device, width, height);
+        surface.SetData(pixels);
+        surface.SaveAsPng(destination, width, height);
     }
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no

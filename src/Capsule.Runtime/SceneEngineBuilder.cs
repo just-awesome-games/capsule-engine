@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -6,13 +7,14 @@ using Capsule.Rendering;
 using Capsule.Runtime.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
 
 /// <summary>
 /// Fluent, eagerly validated host configuration for a game's generated scene registry. A
-/// <c>RunScene</c> blocks until the game requests exit.
+/// <c>RunScene</c> blocks until the game requests exit and returns the process's exit code.
 /// </summary>
 public sealed class SceneEngineBuilder
 {
@@ -21,10 +23,23 @@ public sealed class SceneEngineBuilder
     private const int DefaultStepHertz = 60;
     private const int DefaultMaxStepsPerFrame = 8;
 
+    // Capsule's standard command line, in one place: what WithCommandLine parses, what --help
+    // prints, and what a rejected command line is answered with.
+    private const string StandardFlags = """
+          --driver <Name>            drive the run from the input driver of that class name
+          --headless                 run with no window, which needs a driver
+          --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
+          --help                     print this and exit
+        """;
+
+    private const int BadArgumentExitCode = 2;
+
     // The boot trace's first stage after process start, so it is taken before any configuration.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly ActionBindings _bindings = new();
     private readonly SceneRegistry _scenes;
+    private readonly InputDriverRegistry _drivers;
+    private readonly string _gameName;
 
     private string _windowTitle;
     private int _windowWidth = DefaultWindowWidth;
@@ -44,13 +59,21 @@ public sealed class SceneEngineBuilder
     private ulong _randomSeed = RandomSource.DefaultSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
+    private IInputDriver? _driver;
+    private string? _driverName;
+    private bool _headless;
+    private string? _commandLineError;
+    private bool _helpRequested;
 
-    internal SceneEngineBuilder(string gameName, SceneRegistry scenes)
+    internal SceneEngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(scenes);
+        ArgumentNullException.ThrowIfNull(drivers);
 
         _scenes = scenes;
+        _drivers = drivers;
+        _gameName = gameName;
         _windowTitle = gameName;
         _crashLogAppName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -58,6 +81,8 @@ public sealed class SceneEngineBuilder
                 + "it holds no letter or digit, or what remains is a reserved device name.",
                 nameof(gameName));
     }
+
+    internal string Usage => $"usage: {_gameName} [options]{Environment.NewLine}{StandardFlags}";
 
     /// <summary>The window's title, which is the game's name unless this replaces it.</summary>
     /// <exception cref="ArgumentException">The title is null or blank.</exception>
@@ -268,6 +293,131 @@ public sealed class SceneEngineBuilder
     }
 
     /// <summary>
+    /// Drives the run from <paramref name="driver"/> rather than from the keyboard and gamepad: the
+    /// driver is asked once per fixed step whatever the frame rate, and the run exits itself once
+    /// the driver reports it is finished. The fullscreen chord stays the host's and never reaches
+    /// the driver or the simulation.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
+    public SceneEngineBuilder WithInputDriver(IInputDriver driver)
+    {
+        ArgumentNullException.ThrowIfNull(driver);
+        _driver = driver;
+        return this;
+    }
+
+    /// <summary>
+    /// Applies Capsule's standard command line — the flags <c>--help</c> prints — so a game gets
+    /// driven play, headless play and frame timing without writing a parser. Nothing is read
+    /// ambiently: a shell that never passes its <c>args</c> has no command line at all.
+    /// </summary>
+    /// <param name="args">
+    /// The process arguments, holding standard flags only: a game with flags of its own removes
+    /// them first, since anything Capsule does not declare is rejected here.
+    /// </param>
+    /// <remarks>
+    /// Nothing is thrown and no driver is built: a malformed command line, and a driver name no
+    /// registered driver answers to, are held so the fluent chain completes, and <c>RunScene</c>
+    /// reports the defect and returns 2.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The argument array is null.</exception>
+    public SceneEngineBuilder WithCommandLine(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+
+        HashSet<string> given = new(StringComparer.Ordinal);
+
+        for (int index = 0; index < args.Length; index++)
+        {
+            string flag = args[index];
+
+            if (!given.Add(flag))
+            {
+                return RejectCommandLine($"{flag} was given more than once.");
+            }
+
+            switch (flag)
+            {
+                case "--help":
+                    _helpRequested = true;
+                    break;
+
+                case "--driver":
+                    if (!TryValue(args, ref index, out string driver))
+                    {
+                        return RejectCommandLine("--driver needs a driver name.");
+                    }
+
+                    _driverName = driver;
+                    break;
+
+                case "--headless":
+                    _headless = true;
+                    break;
+
+                case "--frames":
+                    if (!TryValue(args, ref index, out string frames))
+                    {
+                        return RejectCommandLine("--frames needs a path.");
+                    }
+
+                    if (!TrySeconds(args, ref index, out double? seconds))
+                    {
+                        return RejectCommandLine("--frames takes a finite duration in seconds above zero.");
+                    }
+
+                    WithFrameDiagnostics(frames, seconds);
+                    break;
+
+                default:
+                    return RejectCommandLine($"unknown option '{flag}'.");
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no graphics
+    /// device and no textures: everything this builder configures below the window — bindings, the
+    /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and the
+    /// driver is asked for one snapshot per fixed step until it reports it is finished or the game
+    /// requests exit. Replaces any driver <see cref="WithInputDriver"/> set.
+    /// </summary>
+    /// <remarks>
+    /// A headless run writes no crash log whatever <see cref="WithCrashLog"/> configured: an
+    /// exception escaping the scene propagates to the caller, which is a test or a CI job.
+    /// </remarks>
+    /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
+    /// <param name="driver">The run's input, one snapshot per fixed step.</param>
+    /// <param name="payload">Boot state, exactly as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
+    /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, object? payload = null)
+        where TScene : Scene
+        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver);
+
+    /// <summary>
+    /// Runs the scene the named document backs from <paramref name="driver"/>, exactly as
+    /// <see cref="RunHeadless{TScene}(IInputDriver, object?)"/> runs a class.
+    /// </summary>
+    /// <param name="sceneName">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    /// <param name="driver">The run's input, one snapshot per fixed step.</param>
+    /// <param name="payload">Boot state, exactly as <see cref="RunScene(string, object?)"/> takes it.</param>
+    /// <exception cref="ArgumentNullException">The driver is null.</exception>
+    /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
+    /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
+    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    public HeadlessRunResult RunHeadless(string sceneName, IInputDriver driver, object? payload = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
+
+        return RunHeadless(SceneTransition.ToName(sceneName, payload), driver);
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
     /// composing it from the document that backs it when one does.
     /// </summary>
@@ -276,10 +426,11 @@ public sealed class SceneEngineBuilder
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
     /// <see cref="Scene.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
     /// </param>
+    /// <returns>The process's exit code, as <see cref="RunScene(string, object?)"/> defines it.</returns>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene<TScene>(object? payload = null)
+    public int RunScene<TScene>(object? payload = null)
         where TScene : Scene
         => RunScene(SceneTransition.ToScene(typeof(TScene), payload));
 
@@ -293,14 +444,19 @@ public sealed class SceneEngineBuilder
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
     /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
     /// </param>
+    /// <returns>
+    /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line, or
+    /// named a driver no registered driver answers to, or asked for a headless run with no driver —
+    /// each reported on standard error with the usage block; otherwise 0.
+    /// </returns>
     /// <exception cref="ArgumentException">The name is blank or is no '/'-joined key.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public void RunScene(string name, object? payload = null)
+    public int RunScene(string name, object? payload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        RunScene(SceneTransition.ToName(name, payload));
+        return RunScene(SceneTransition.ToName(name, payload));
     }
 
     // Opens the window and runs simulation until it requests exit.
@@ -319,7 +475,8 @@ public sealed class SceneEngineBuilder
             _maxStepsPerFrame,
             _stickDeadzone,
             _triggerDeadzone,
-            _bindings);
+            _bindings,
+            _driver);
 
         try
         {
@@ -346,8 +503,42 @@ public sealed class SceneEngineBuilder
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }
 
-    private void RunScene(in SceneTransition initialTarget)
+    private int RunScene(in SceneTransition initialTarget)
     {
+        if (_commandLineError is not null)
+        {
+            return Reject(_commandLineError);
+        }
+
+        if (_helpRequested)
+        {
+            Console.Out.WriteLine(Usage);
+
+            return 0;
+        }
+
+        if (_driverName is not null)
+        {
+            if (!_drivers.TryCreate(_driverName, out IInputDriver? named))
+            {
+                return Reject($"no input driver is named '{_driverName}'. Registered: {_drivers.RegisteredNames()}.");
+            }
+
+            _driver = named;
+        }
+
+        if (_headless)
+        {
+            if (_driver is null)
+            {
+                return Reject("--headless has no one to play the game: name an input driver with --driver.");
+            }
+
+            RunHeadless(initialTarget, _driver);
+
+            return 0;
+        }
+
         // Before composing, not inside Run: a scene's OnStart logs while the host is built here.
         InstallLogging();
 
@@ -355,6 +546,97 @@ public sealed class SceneEngineBuilder
 
         using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
         Run(host, host);
+
+        return 0;
+    }
+
+    private SceneEngineBuilder RejectCommandLine(string error)
+    {
+        _commandLineError ??= error;
+
+        return this;
+    }
+
+    private int Reject(string message)
+    {
+        Console.Error.WriteLine(message);
+        Console.Error.WriteLine(Usage);
+
+        return BadArgumentExitCode;
+    }
+
+    // A value never starts with the flag prefix, so a missing one is caught here rather than
+    // swallowing the flag that follows it. Blank is missing too: every value reaches a setter that
+    // rejects a blank path.
+    private static bool TryValue(string[] args, ref int index, out string value)
+    {
+        if (index + 1 >= args.Length
+            || args[index + 1].StartsWith("--", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(args[index + 1]))
+        {
+            value = string.Empty;
+
+            return false;
+        }
+
+        value = args[++index];
+
+        return true;
+    }
+
+    // --frames takes an optional duration, so a following token is only its own when it parses as a
+    // number; one that does but is not a duration the builder accepts is a malformed command line,
+    // not a run that fails late.
+    private static bool TrySeconds(string[] args, ref int index, out double? seconds)
+    {
+        seconds = null;
+
+        if (index + 1 >= args.Length
+            || !double.TryParse(args[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+        {
+            return true;
+        }
+
+        index++;
+
+        if (!double.IsFinite(parsed) || parsed <= 0d)
+        {
+            return false;
+        }
+
+        seconds = parsed;
+
+        return true;
+    }
+
+    // No window, no device, no residency: the scene host is the same one a windowed run drives, so
+    // transitions, the seed and the scene defaults behave identically.
+    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
+    {
+        ArgumentNullException.ThrowIfNull(driver);
+
+        InstallLogging();
+
+        SceneComposer composer = new(_scenes);
+
+        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+
+        FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _bindings, driver, host);
+
+        // Exactly one step's worth of time per call, so the accumulator drains one step and the
+        // per-frame step bound never binds.
+        while (!scheduler.Advance(_stepSeconds, DeviceSnapshot.Empty, host))
+        {
+            // No surface is ever drawn here, so a capture request is taken and dropped rather than
+            // standing for a frame that never comes.
+            host.TryTakeFrameCapture(out _);
+        }
+
+        // The advance that ends the run may have executed a step of its own, whose request the loop
+        // body never reaches.
+        host.TryTakeFrameCapture(out _);
+
+        return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
     }
 
     private void InstallLogging()

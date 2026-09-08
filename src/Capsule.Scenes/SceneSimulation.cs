@@ -80,6 +80,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         RewriteView();
     }
 
+    // Takes the scene's pending frame capture request, clearing it. Not step-bound: the host calls
+    // it from the frame that will serve it. Readable without taking as Scene.FrameCaptureRequested.
+    internal bool TryTakeFrameCapture(out string path) => Scene.TryTakeFrameCapture(out path);
+
     /// <summary>Takes the deferred transition requested by the last step, if one was requested.</summary>
     /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
     public bool TryTakeTransition(out SceneTransition transition)

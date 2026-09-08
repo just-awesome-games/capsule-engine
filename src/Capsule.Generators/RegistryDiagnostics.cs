@@ -99,6 +99,11 @@ internal static class RegistryDiagnostics
         "A spawn type must be a portable key",
         "'{0}' claims unsafe spawn type '{1}'; " + KeyGrammar);
 
+    internal static readonly DiagnosticDescriptor DuplicateInputDriverName = Scene(
+        "CAP020",
+        "Two input drivers claim one name",
+        "'{0}' and '{1}' are both named '{2}' on a command line; rename one, since --driver takes a class name");
+
     private const string KeyGrammar =
         "a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension";
 

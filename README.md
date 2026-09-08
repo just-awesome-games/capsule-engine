@@ -28,7 +28,7 @@ The shell's entry point is handwritten against the generated `CapsuleBoot` build
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-CapsuleBoot.Configure("My Game").RunScene<MainMenu>();
+return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
 ```
 
 ```csharp
@@ -48,6 +48,8 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution; the randomness they may reach is the seeded `RandomSource` their scene holds. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities, and shipped assets at compile time; games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable so a game is never shut out of consoles, which forbid runtime code generation.
 
 Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
+
+That snapshot sequence comes from an input driver — a class the build discovers and the command line names — so a run is played with no window and no keyboard, and it reads the scene it is playing. `WithCommandLine(args)` gives a game the standard flags that drive it, and a scene that wants a screenshot raises the intent for the host to fulfil rather than writing a file itself; see [`docs/headless-play.md`](docs/headless-play.md).
 
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 

@@ -1,11 +1,11 @@
-using System.Numerics;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Rendering;
-using Capsule.Scenes;
+using Capsule.Runtime;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
+using Capsule.Scenes.Input;
 using MinimalGame.Game;
 using MinimalGame.Game.Scenes;
 
@@ -13,11 +13,9 @@ namespace Capsule.AotSmoke;
 
 internal static class Program
 {
-    private const double StepSeconds = 1.0 / 60.0;
-
     private const int IdleSteps = 60;
 
-    private const string RoomPath = "assets/scenes/room.scene.json";
+    private const long DrivenSteps = IdleSteps + 1;
 
     private const string NativeScenePath = "assets/scenes/halls/hall.scene.json";
 
@@ -36,58 +34,37 @@ internal static class Program
 
     private static int Run()
     {
-        ActionBindings bindings = new();
-        GameInput.Bind(bindings);
-        InputState input = new(bindings);
+        IInputDriver driver = new InputScript()
+            .Wait(IdleSteps)
+            .Tap(Key.Escape)
+            .Build();
 
-        using SceneSimulation simulation = new(
-            new Room(new SceneContent(Document(RoomPath), GameEntities.Registry)),
-            null,
-            new SceneDefaults(TextureSampling.Point));
+        HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", GameScenes.Registry)
+            .WithBindings(GameInput.Bind)
+            .WithSampling(TextureSampling.Point)
+            .WithoutCrashLog()
+            .WithoutLogging()
+            .RunHeadless<Room>(driver);
 
-        DeviceSnapshot[] script = Script();
-        int steps = 0;
-        while (steps < script.Length)
-        {
-            input.Advance(script[steps]);
-            simulation.Step(new StepContext(StepSeconds, input, steps));
-            steps++;
-
-            if (simulation.ExitRequested)
-            {
-                break;
-            }
-        }
-
-        RenderMetrics render = simulation.View.Metrics;
         bool contentShipped = ContentShipped();
         bool booted =
-            steps == script.Length &&
-            simulation.ExitRequested &&
-            render.Visible > 0 &&
+            result.Steps == DrivenSteps &&
+            result.ExitRequested &&
+            result.Metrics.Visible > 0 &&
             contentShipped;
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {steps}/{script.Length} steps, exit {simulation.ExitRequested}, {render.Visible}/{render.Submitted} commands, content {contentShipped}."));
+                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content {contentShipped}."));
             return 1;
         }
 
         Console.WriteLine(
             FormattableString.Invariant(
-                $"AOT smoke passed: {steps} steps, {render.Visible}/{render.Submitted} commands, content shipped."));
+                $"AOT smoke passed: {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped."));
         return 0;
-    }
-
-    private static DeviceSnapshot[] Script()
-    {
-        DeviceSnapshot[] snapshots = new DeviceSnapshot[IdleSteps + 1];
-        Array.Fill(snapshots, DeviceSnapshot.Empty, 0, IdleSteps);
-        snapshots[^1] = DeviceSnapshot.Of(Key.Escape);
-
-        return snapshots;
     }
 
     private static SceneDocument Document(string path) =>

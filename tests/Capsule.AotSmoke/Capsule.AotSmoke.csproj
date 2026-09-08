@@ -2,8 +2,9 @@
 
   <!-- An executable published under NativeAOT and *run* in CI: publishing proves the graph is
        ILC-analysable, and only booting proves the trimmed JSON context, the generated registries
-       and the shipped content survive the trim. It declares no Capsule role and never references
-       Capsule.Runtime, so the published binary opens no window and runs headless on any runner. -->
+       and the shipped content survive the trim. It declares no Capsule role, and it drives the
+       host through RunHeadless, which opens no window and touches no graphics device, so the
+       published binary runs on any runner. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -25,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
     <ProjectReference Include="$(CapsuleSourceRoot)/samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
   </ItemGroup>
 

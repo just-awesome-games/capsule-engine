@@ -13,7 +13,8 @@
        %(CapsuleDocumentKey); docs/scenes.md, under Authoring tools, states that contract whole. -->
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json">
+    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json"
+                        Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
     </CapsuleNativeScene>
   </ItemGroup>

@@ -73,12 +73,9 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public DeviceSnapshot WithAxis(PadAxis axis, float value)
     {
         int index = AxisIndex(axis);
-        float minimum = axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;
-
-        // Negated so that NaN, which compares false either way, is rejected with the rest.
-        if (!(value >= minimum && value <= 1f))
+        if (!IsInRange(axis, value))
         {
-            throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(PadAxis)}.{axis} is in [{minimum}, 1].");
+            throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(PadAxis)}.{axis} is in [{Minimum(axis)}, 1].");
         }
 
         AxisSet axes = _axes;
@@ -152,6 +149,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         // PadButton.None is the empty set, never a member, so bit 0 is deliberately unused.
         return button == PadButton.None ? 0u : 1u << index;
     }
+
+    private static float Minimum(PadAxis axis) => axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;
+
+    // Written as an accept, not a reject, so that NaN — false against either bound — falls out.
+    private static bool IsInRange(PadAxis axis, float value) => value >= Minimum(axis) && value <= 1f;
 
     private static int AxisIndex(PadAxis axis)
     {

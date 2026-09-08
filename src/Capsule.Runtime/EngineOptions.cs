@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 
@@ -14,4 +15,6 @@ internal sealed record EngineOptions(
     int MaxStepsPerFrame,
     float StickDeadzone,
     float TriggerDeadzone,
-    ActionBindings Bindings);
+    ActionBindings Bindings,
+    // Null unless the run is driven in code instead of sampling the devices.
+    IInputDriver? Driver);

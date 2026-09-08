@@ -16,7 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Runtime and tests access the scene registry and document composition. -->
+    <!-- Runtime and tests access the scene registry, document composition, and the empty input
+         driver registry a game declaring no driver is configured with. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

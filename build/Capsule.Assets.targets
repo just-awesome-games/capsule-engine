@@ -17,23 +17,31 @@
        assembly ships nothing and gets the generated GameAssets registry instead, from the same list
        handed to the generator as AdditionalFiles. Nothing here transforms bytes. -->
 
+  <!-- A development-only directory leaves every list here, so a shipped build neither copies its
+       files nor declares handles for them: code that names one stops compiling, which is the
+       failure a build owes a game that would otherwise ship a reference to an absent asset. -->
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
-    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png">
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/textures/**/*.png"
+                  Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleAssetDomain>textures</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
-    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/audio/**/*.ogg;$(CapsuleAssetSourcesDir)/audio/**/*.wav">
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/audio/**/*.ogg;$(CapsuleAssetSourcesDir)/audio/**/*.wav"
+                  Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleAssetDomain>audio</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
-    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/fonts/**/*.ttf;$(CapsuleAssetSourcesDir)/fonts/**/*.otf">
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/fonts/**/*.ttf;$(CapsuleAssetSourcesDir)/fonts/**/*.otf"
+                  Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleAssetDomain>fonts</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
 
     <!-- Everything under a domain root, so whatever the lists above did not admit is caught as a
-         typo rather than silently never shipping. A file outside these roots is no asset. -->
-    <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/textures/**/*;$(CapsuleAssetSourcesDir)/audio/**/*;$(CapsuleAssetSourcesDir)/fonts/**/*" />
+         typo rather than silently never shipping. A file outside these roots is no asset, and
+         neither is the marker itself, which is present in the walk whenever it is not shipping. -->
+    <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/textures/**/*;$(CapsuleAssetSourcesDir)/audio/**/*;$(CapsuleAssetSourcesDir)/fonts/**/*"
+                        Exclude="@(_CapsuleDevelopmentOnly);$(CapsuleAssetSourcesDir)/**/.capsuleignore" />
     <_CapsuleUnknownAsset Include="@(_CapsuleDomainFile)" Exclude="@(CapsuleAsset)" />
   </ItemGroup>
 

@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 
@@ -9,11 +10,29 @@ internal sealed class FixedStepScheduler
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
-    private double _accumulatorSeconds;
+    // Null unless the run is driven. A driver supplies one snapshot per fixed step, so what the
+    // simulation sees is independent of how many frames the host drew to reach that step.
+    private readonly IInputDriver? _driver;
 
-    internal FixedStepScheduler(double stepSeconds, int maxStepsPerFrame, ActionBindings bindings)
+    // The scene a driver is shown, which a transition replaces under it.
+    private readonly SceneHost? _scenes;
+
+    private double _accumulatorSeconds;
+    private bool _driverFinished;
+
+    internal FixedStepScheduler(
+        double stepSeconds,
+        int maxStepsPerFrame,
+        ActionBindings bindings,
+        IInputDriver? driver = null,
+        SceneHost? scenes = null)
     {
         ArgumentNullException.ThrowIfNull(bindings);
+
+        if (driver is not null && scenes is null)
+        {
+            throw new ArgumentNullException(nameof(scenes), "An input driver is shown the scene it drives, so a driven run is a run of scenes.");
+        }
 
         if (!double.IsFinite(stepSeconds) || stepSeconds <= 0)
         {
@@ -25,6 +44,8 @@ internal sealed class FixedStepScheduler
         _stepSeconds = stepSeconds;
         _maxStepsPerFrame = maxStepsPerFrame;
         _input = new InputState(bindings);
+        _driver = driver;
+        _scenes = scenes;
     }
 
     internal long Tick { get; private set; }
@@ -40,7 +61,17 @@ internal sealed class FixedStepScheduler
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time must be finite and non-negative.");
         }
 
-        _latch.Observe(snapshot);
+        // Under a driver the sampled device is not input at all: the host still samples it for its
+        // own fullscreen chord, and nothing of it reaches the simulation.
+        if (_driver is null)
+        {
+            _latch.Observe(snapshot);
+        }
+        else if (_driverFinished)
+        {
+            return true;
+        }
+
         _accumulatorSeconds += elapsedSeconds;
 
         double stepEpsilon = _stepSeconds * 1e-12;
@@ -56,7 +87,23 @@ internal sealed class FixedStepScheduler
                 return false;
             }
 
-            _input.Advance(_latch.ConsumeStepSnapshot());
+            DeviceSnapshot stepped;
+            if (_driver is { } driver)
+            {
+                // Asked once per step, holding the scene the step is about to run.
+                if (!driver.TryNext(_scenes!.Scene, Tick, out stepped))
+                {
+                    _driverFinished = true;
+
+                    return true;
+                }
+            }
+            else
+            {
+                stepped = _latch.ConsumeStepSnapshot();
+            }
+
+            _input.Advance(stepped);
             simulation.Step(new StepContext(_stepSeconds, _input, Tick));
 
             _accumulatorSeconds -= _stepSeconds;

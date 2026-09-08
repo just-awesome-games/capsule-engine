@@ -72,6 +72,28 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
 
+      # Capsule.BuildProof asserts one direction of the development-only marker per build: the
+      # builds above are the ordinary one, where a marked directory is kept, and this is the
+      # shipping one a publish gets. Alone, so the property this build carries reaches no other
+      # project's output before the tests below read it.
+      - name: Development-only exclusion (shipping)
+        run: >
+          dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
+          --configuration Release
+          --no-restore
+          --no-dependencies
+          -p:CapsuleShipping=true
+
+      # The same marker across a rebuild rather than within one. Capsule.BuildProof.Incremental
+      # owns no authoring plane, so nothing but the compile list can go out of date and the toggle
+      # is the only thing that can make it compile again. The Release build above left it ordinary;
+      # these two transitions touch no file, and each direction's driver registry must be the one
+      # that build emitted rather than the one before it.
+      - name: Development-only exclusion (shipping toggle)
+        run: |
+          dotnet build tests/Capsule.BuildProof.Incremental/Capsule.BuildProof.Incremental.csproj --configuration Release --no-restore --no-dependencies -p:CapsuleShipping=true
+          dotnet build tests/Capsule.BuildProof.Incremental/Capsule.BuildProof.Incremental.csproj --configuration Release --no-restore --no-dependencies
+
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
 

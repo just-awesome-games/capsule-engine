@@ -139,6 +139,9 @@
            Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under scenes/, assets under textures/, audio/ and fonts/), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
   </Target>
 
+  <!-- First: the hooks below match their source globs against the development-only set it derives,
+       which reads the asset plane's root resolved above. -->
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SceneDocuments.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SpriteSheets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />

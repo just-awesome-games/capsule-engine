@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The same marker contract as Capsule.BuildProof, held to it across a rebuild rather than
+       within one: nothing here but the compile can go out of date, so toggling CapsuleShipping
+       with no file touched is the only thing that can make this project compile again.
+
+       That is why it owns no authoring plane. A marked asset changes the generated editorconfig,
+       which is a CoreCompile input in its own right, so a project holding one recompiles on the
+       toggle whether or not the compile list reached the dependency cache filtered. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.BuildProof.Incremental</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CapsuleGameLogic>true</CapsuleGameLogic>
+    <CapsuleImportSprites>false</CapsuleImportSprites>
+    <!-- The generated registry on disk is what the assertion reads. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
+  </PropertyGroup>
+
+  <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)IncrementalProof.targets" />
+
+  <ItemGroup>
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
+  </ItemGroup>
+
+</Project>

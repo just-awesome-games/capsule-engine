@@ -82,6 +82,20 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
+    // Takes the current scene's pending frame capture request. A transition builds a new scene, so
+    // a request the outgoing one raised and no frame served goes with it; an exit tears the scene
+    // down, so nothing is left to serve.
+    internal bool TryTakeFrameCapture(out string path)
+    {
+        if (ExitRequested)
+        {
+            path = "";
+            return false;
+        }
+
+        return _current.TryTakeFrameCapture(out path);
+    }
+
     public void Dispose()
     {
         if (_disposed)
