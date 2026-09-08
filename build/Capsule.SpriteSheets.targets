@@ -14,7 +14,8 @@
        docs/sprite-animation.md, under Authoring tools, states that contract. -->
 
   <ItemGroup Condition="'$(CapsuleImportSprites)' == 'true'">
-    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json">
+    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json"
+                        Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
     </CapsuleNativeSheet>
   </ItemGroup>

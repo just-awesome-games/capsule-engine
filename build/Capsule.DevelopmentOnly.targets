@@ -1,0 +1,61 @@
+<Project>
+
+  <!-- A directory holding a file named .capsuleignore is development-only: everything under it is
+       part of every ordinary build, Debug and Release alike, so a Release measurement can run a
+       driver, and part of no publish. Input drivers are the case it exists for — they live in the
+       game's logic project to reach the scene, and must not ship.
+
+       One marker, both planes: sources under a marked directory leave the compile, and authoring
+       sources under one leave the asset plane, so a shipped build holds neither the code nor the
+       files that code would have named.
+
+       The two planes carry the marked set in different spellings on purpose. An Exclude and a
+       Remove both match an item's spec as written rather than the file it resolves to, and the
+       source glob writes a path relative to the project while the asset hooks write absolute
+       ones. -->
+
+  <PropertyGroup>
+    <!-- _IsPublishing is the SDK's own global property for the duration of dotnet publish, so a
+         publish excludes marked directories with no wiring, and a project reference built under one
+         inherits it. Overridable because verifying what a publish will hold must not require
+         running one. -->
+    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">$(_IsPublishing)</CapsuleShipping>
+    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">false</CapsuleShipping>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CapsuleShipping)' == 'true'">
+    <!-- Markers in the consuming project's own tree. Relative to it, which is both what
+         DefaultItemExcludes is written against and the spelling the source glob uses. -->
+    <_CapsuleSourceMarker Include="**/.capsuleignore" Exclude="$(DefaultItemExcludes)" />
+    <_CapsuleDevelopmentOnlySource Include="@(_CapsuleSourceMarker->'%(RecursiveDir)**/*')" />
+
+    <!-- Markers in the authoring plane, which normally sits beside the project rather than under
+         it. Skipped when there is no plane, since a wildcard under a missing root is only cost. -->
+    <_CapsuleAssetMarker Include="$(CapsuleAssetSourcesDir)/**/.capsuleignore"
+                         Condition="'$(CapsuleReadsAssetSources)' == 'true' and Exists('$(CapsuleAssetSourcesDir)')" />
+    <_CapsuleDevelopmentOnly Include="@(_CapsuleAssetMarker->'%(RootDir)%(Directory)**/*')" />
+  </ItemGroup>
+
+  <!-- Before CoreCompile rather than at evaluation: the SDK's default glob, the project's own
+       additions to it and any other hook's are all in by then. The generators read the compilation
+       this leaves, so a shipped build's driver, entity and scene registries hold nothing a marked
+       directory declared. -->
+  <Target Name="CapsuleRemoveDevelopmentOnlySources"
+          Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySource)' != ''"
+          BeforeTargets="CoreCompile">
+    <!-- Through a property and back to files: an Include expands a wildcard only out of a plain
+         string, and a Remove matches paths rather than patterns. -->
+    <PropertyGroup>
+      <_CapsuleDevelopmentOnlySourcePatterns>@(_CapsuleDevelopmentOnlySource)</_CapsuleDevelopmentOnlySourcePatterns>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_CapsuleDevelopmentOnlySourceFile Include="$(_CapsuleDevelopmentOnlySourcePatterns)" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="@(_CapsuleDevelopmentOnlySourceFile)" />
+    </ItemGroup>
+  </Target>
+
+</Project>
