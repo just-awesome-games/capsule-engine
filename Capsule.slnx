@@ -15,6 +15,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj" />
     <Project Path="tests/Capsule.BuildProof/Capsule.BuildProof.csproj" />
+    <Project Path="tests/Capsule.BuildProof.Incremental/Capsule.BuildProof.Incremental.csproj" />
     <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
   </Folder>
 </Solution>

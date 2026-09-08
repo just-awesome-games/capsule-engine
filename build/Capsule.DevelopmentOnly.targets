@@ -39,10 +39,14 @@
     <_CapsuleDevelopmentOnly Include="@(_CapsuleAssetMarker->'%(RootDir)%(Directory)**/*')" />
   </ItemGroup>
 
-  <!-- Before CoreCompile rather than at evaluation: the SDK's default glob, the project's own
-       additions to it and any other hook's are all in by then. The generators read the compilation
-       this leaves, so a shipped build's driver, entity and scene registries hold nothing a marked
-       directory declared.
+  <!-- Before the compile's dependency cache rather than at evaluation: the SDK's default glob, the
+       project's own additions to it and any other hook's are all in by then. It must be before that
+       cache and not merely before CoreCompile, or the hash of the unfiltered list would let a build
+       that only toggled CapsuleShipping skip the compile and reuse the other direction's assembly.
+       CoreCompile stays named because a design-time build reaches it without the cache target.
+
+       The generators read the compilation this leaves, so a shipped build's driver, entity and
+       scene registries hold nothing a marked directory declared.
 
        Batched over the marked directories: each pass drops the compile items resolving under one.
        Comparison is on %(FullPath), lowercased with separators normalised, so a relative spec, an
@@ -50,7 +54,7 @@
   <Target Name="CapsuleRemoveDevelopmentOnlySources"
           Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySourceDir)' != ''"
           Outputs="%(_CapsuleDevelopmentOnlySourceDir.Identity)"
-          BeforeTargets="CoreCompile">
+          BeforeTargets="_GenerateCompileDependencyCache;CoreCompile">
     <!-- Through a property: a metadata reference inside the item condition below would batch it
          over this list as well as over Compile. -->
     <PropertyGroup>
