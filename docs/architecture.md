@@ -15,6 +15,8 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 
 `Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes` are substrate-free. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
 
+`Capsule.Runtime` is itself split. Platform-neutral hosting — fixed-step scheduling, scene hosting and composition, the engine builder and its options, frame diagnostics, headless run results and safe naming — carries no operating-system, file-system, window or MonoGame-platform assumption of its own. Those assumptions live in the desktop files: the SDL2 binding, the MonoGame DesktopGL game class and frame renderer, crash logging, the console log sink, the file-backed asset stores and the keyboard and gamepad samplers. The boot surface a game's shell is generated against — `CapsuleBoot`, `CapsuleEngine` and `EngineBuilder` — exposes no desktop concept beyond an application title and texture sampling.
+
 ## Logic boundary
 
 The compiler enforces the game-logic boundary:
