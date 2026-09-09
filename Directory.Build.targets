@@ -2,9 +2,85 @@
 
   <Import Project="build/Capsule.Architecture.targets" />
 
+  <UsingTask TaskName="CapsuleTrimGeneratedDocumentation"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <DocumentationPath ParameterType="System.String" Required="true" />
+      <GeneratedInternalTypes ParameterType="System.String[]" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs"><![CDATA[
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Xml.Linq;
+
+public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilities.Task
+{
+    public string DocumentationPath { get; set; }
+
+    public string[] GeneratedInternalTypes { get; set; }
+
+    public override bool Execute()
+    {
+        XDocument document = XDocument.Load(DocumentationPath, LoadOptions.PreserveWhitespace);
+        XElement[] generated = document.Descendants("member").Where(IsGenerated).ToArray();
+
+        foreach (XElement entry in generated)
+        {
+            // The whitespace ahead of an entry belongs to it; leaving it behind would blank a line.
+            if (entry.PreviousNode is XText indent && indent.Value.Trim().Length == 0)
+            {
+                indent.Remove();
+            }
+
+            entry.Remove();
+        }
+
+        // An untouched file keeps its timestamp, so a rebuild that skipped compilation stays a no-op.
+        if (generated.Length > 0)
+        {
+            using (StreamWriter writer = new StreamWriter(DocumentationPath, false, new UTF8Encoding(false)))
+            {
+                document.Save(writer, SaveOptions.DisableFormatting);
+            }
+        }
+
+        return true;
+    }
+
+    // An identifier is a kind letter, a colon, then the type, one of its members, or a nested type.
+    private bool IsGenerated(XElement entry)
+    {
+        string name = (string)entry.Attribute("name");
+        if (name == null || name.Length < 3)
+        {
+            return false;
+        }
+
+        string subject = name.Substring(2);
+        return GeneratedInternalTypes.Any(type => subject == type || subject.StartsWith(type + ".", StringComparison.Ordinal));
+    }
+}
+]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- The compiler writes every documentation comment it sees, whatever the member's accessibility,
+       so generator output for an internal type is dropped before the reference leaves obj/. -->
+  <Target Name="CapsuleTrimDocumentationToPublicSurface"
+          AfterTargets="CoreCompile"
+          Condition="'$(GenerateDocumentationFile)' == 'true' and '@(CapsuleGeneratedInternalType)' != '' and Exists('$(DocumentationFile)')">
+    <CapsuleTrimGeneratedDocumentation DocumentationPath="$(DocumentationFile)"
+                                       GeneratedInternalTypes="@(CapsuleGeneratedInternalType)" />
+  </Target>
+
   <!-- Keep source-consumer IntelliSense documentation beside the reference assembly. -->
   <Target Name="CapsulePlaceDocumentationBesideReferenceAssembly"
           AfterTargets="CoreCompile"
+          DependsOnTargets="CapsuleTrimDocumentationToPublicSurface"
           Condition="'$(GenerateDocumentationFile)' == 'true' and '$(TargetRefPath)' != '' and Exists('$(DocumentationFile)') and Exists('$(TargetRefPath)')">
     <PropertyGroup>
       <_CapsuleReferenceDocumentation>$([System.IO.Path]::ChangeExtension('$(TargetRefPath)', '.xml'))</_CapsuleReferenceDocumentation>

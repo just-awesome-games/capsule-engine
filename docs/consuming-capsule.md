@@ -179,7 +179,7 @@ A game develops in source mode against the engine clone and its CI builds the sa
 
 ### The API reference
 
-Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`.
+Capsule's XML comments are its API reference. A package consumer reads them where NuGet unpacks them, beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`. Every shipped file lists only the public surface, so an entry in it is an API a game can call.
 
 A source consumer has no such directory, so the source build stages the same files at `artifacts/capsule-api/` under the repository root — one directory holding the documentation of every Capsule assembly the repository references, written before each project compiles so the reference is current even on a build that fails against a changed engine API. `CapsuleApiReferenceDirectory` stages them somewhere else; a relative path resolves against the repository root. The directory is derived and build-owned: ignore it.
 
