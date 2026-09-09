@@ -99,28 +99,10 @@ that are registered — or `--headless` with no driver; everything else returns 
 Drivers are discovered wherever the game declares them: the shell project, the logic project, or any
 logic assembly the shell references.
 
-## Running headlessly from a test
+## Running from a test
 
-`RunHeadless` runs a driver through the same scene host a windowed run drives, with no MonoGame, no
-window, no graphics device and no media loading:
-
-```csharp
-IInputDriver driver = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();
-
-HeadlessRunResult result = CapsuleEngine.Configure("My Game", GameScenes.Registry)
-    .WithRandomSeed(7)
-    .RunHeadless<FirstRoom>(driver);
-
-Assert.True(result.ExitRequested);
-Assert.Equal(122, result.Steps);
-```
-
-`CapsuleBoot` is generated into the shell, so a project that is not the shell — a test project, a
-CI harness — references `JAG.Capsule.Runtime` and the game's logic assembly and enters through
-`CapsuleEngine.Configure(gameName, GameScenes.Registry)`, which returns the same builder. That
-overload registers no driver names, which is what a caller passing its own driver wants.
-
-`RunHeadless` takes the driver itself and replaces anything `WithInputDriver` set.
+A driver plays a test as readily as it plays a window. [`testing.md`](testing.md) covers
+`RunHeadless`, `SceneRun`, and which to reach for.
 
 ## Screenshots
 
@@ -145,6 +127,5 @@ IInputDriver driver = new InputScript().Wait(60).Tap(Key.F12).Wait(1).Build();
 A windowed run under that driver writes the PNG. A headless run has no surface to save, so it clears
 the request and writes nothing.
 
-For assertions about the world rather than the run, drive `SceneSimulation` directly and step it
-over the snapshots: it is substrate-free, so a test holds the scene and reads its entities between
-steps.
+For assertions about the world rather than the run, step the scene from a test instead; see
+[`testing.md`](testing.md).

@@ -65,14 +65,14 @@ public sealed class SceneViewTests
 
         SceneFixtures.HookScene scene = new();
         scene.Add(drifter);
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
+        run.Step();
 
-        Assert.Equal(1, simulation.View.Sprites.Length);
-        Assert.Equal(new Vector2(6, 5), simulation.View.Sprites[0].PreviousPosition);
-        Assert.Equal(new Vector2(7, 5), simulation.View.Sprites[0].Position);
+        Assert.Equal(1, run.Simulation.View.Sprites.Length);
+        Assert.Equal(new Vector2(6, 5), run.Simulation.View.Sprites[0].PreviousPosition);
+        Assert.Equal(new Vector2(7, 5), run.Simulation.View.Sprites[0].Position);
     }
 
     [Fact]

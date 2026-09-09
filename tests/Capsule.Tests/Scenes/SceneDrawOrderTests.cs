@@ -61,17 +61,17 @@ public sealed class SceneDrawOrderTests
         scene.Add(first);
         scene.Add(second);
 
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-        Assert.Equal([1, 2], Order(simulation));
+        using SceneRun run = new(scene);
+        run.Step();
+        Assert.Equal([1, 2], Order(run.Simulation));
 
         first.ZIndex = 5;
-        simulation.Step(SceneFixtures.Step());
-        Assert.Equal([2, 1], Order(simulation));
+        run.Step();
+        Assert.Equal([2, 1], Order(run.Simulation));
 
         offset.ZIndex = 9;
-        simulation.Step(SceneFixtures.Step());
-        Assert.Equal([1, 2], Order(simulation));
+        run.Step();
+        Assert.Equal([1, 2], Order(run.Simulation));
     }
 
     [Fact]

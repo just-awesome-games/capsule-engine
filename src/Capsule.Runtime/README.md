@@ -8,4 +8,4 @@ Referenced by: game shell projects, and test or CI projects driving a game headl
 
 API starting points: `CapsuleEngine` begins configuration, `EngineBuilder` configures and runs a scene, and `HeadlessRunResult` reports a driven headless run.
 
-See [`docs/consuming-capsule.md`](../../docs/consuming-capsule.md) for project wiring, [`docs/architecture.md`](../../docs/architecture.md) for the host boundary, and [`docs/headless-play.md`](../../docs/headless-play.md) for driven and headless runs. Public behavior is in the XML documentation shipped beside the assembly.
+See [`docs/consuming-capsule.md`](../../docs/consuming-capsule.md) for project wiring, [`docs/architecture.md`](../../docs/architecture.md) for the host boundary, [`docs/headless-play.md`](../../docs/headless-play.md) for driven and headless runs, and [`docs/testing.md`](../../docs/testing.md) for testing a game. Public behavior is in the XML documentation shipped beside the assembly.

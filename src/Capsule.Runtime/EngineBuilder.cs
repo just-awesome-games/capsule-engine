@@ -20,7 +20,6 @@ public sealed class EngineBuilder
 {
     private const int DefaultWindowWidth = 1280;
     private const int DefaultWindowHeight = 720;
-    private const int DefaultStepHertz = 60;
     private const int DefaultMaxStepsPerFrame = 8;
 
     // Capsule's standard command line, in one place: what WithCommandLine parses, what --help
@@ -48,7 +47,7 @@ public sealed class EngineBuilder
     private bool _resizable = true;
     private bool _fullscreen;
     private (int Width, int Height)? _renderResolution;
-    private double _stepSeconds = 1.0 / DefaultStepHertz;
+    private double _stepSeconds = 1.0 / StepContext.DefaultStepHertz;
     private int _maxStepsPerFrame = DefaultMaxStepsPerFrame;
     private string? _crashLogAppName;
     private ILogSink? _logSink;

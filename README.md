@@ -51,13 +51,15 @@ Simulation advances on a fixed step from input snapshots. Rendering consumes the
 
 That snapshot sequence comes from an input driver — a class the build discovers and the command line names — so a run is played with no window and no keyboard, and it reads the scene it is playing. `WithCommandLine(args)` gives a game the standard flags that drive it, and a scene that wants a screenshot raises the intent for the host to fulfil rather than writing a file itself; see [`docs/headless-play.md`](docs/headless-play.md).
 
+A game's behaviour is tested without a window, a graphics device or a play mode; [`docs/testing.md`](docs/testing.md) says what Capsule ships for it and which to reach for.
+
 A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
 
 Sprite animation is authored as a sheet document and compiled into the game as typed frames and clips, played on the fixed step; see [`docs/sprite-animation.md`](docs/sprite-animation.md).
 
 Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator` and `Camera` for presentation; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneRun`, `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator` and `Camera` for presentation; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
 
 Rendering submits sprites in order. The host preloads the media a composed scene and its contents identify, caches any other texture on first rendered use for that scene, and releases scene-owned resources at transition or exit. Headless simulation loads no media.
 

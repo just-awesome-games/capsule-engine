@@ -160,8 +160,8 @@ public sealed class ColliderTests
 
         scene.Add(first);
         scene.Add(second);
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
+        using SceneRun run = new(scene);
+        run.Step();
 
         ColliderHandle original = first.Collider.Handle;
         Assert.Equal(1, entered);
@@ -176,7 +176,7 @@ public sealed class ColliderTests
         Assert.Throws<InvalidOperationException>(() => first.Mover.Move(Vector2.UnitX));
 
         first.Collider.Enabled = true;
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Same(scene.Collision, first.Collider.World);
         Assert.Equal(2, entered);
@@ -196,21 +196,21 @@ public sealed class ColliderTests
         body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
 
         scene.Add(body);
-        using SceneSimulation simulation = new(scene);
+        using SceneRun run = new(scene);
 
         // Falling onto the floor, resting on it, then being lifted off it.
-        simulation.Step(SceneFixtures.Step(0));
+        run.Step();
         Assert.Empty(log);
 
         body.Mover.Move(new Vector2(0f, 60f));
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal(["+solid(0,2)"], log);
 
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
         Assert.Equal(["+solid(0,2)"], log);
 
         body.Teleport(new Vector2(4f, -100f));
-        simulation.Step(SceneFixtures.Step(3));
+        run.Step();
         Assert.Equal(["+solid(0,2)", "-solid(0,2)"], log);
     }
 
@@ -287,8 +287,8 @@ public sealed class ColliderTests
         Straddler settled = new(new Vector2(0f, 8f));
         scene.Add(settled);
 
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
+        using SceneRun run = new(scene);
+        run.Step();
 
         // Overlapping the same floor, but never settled, so it has announced nothing to end.
         Straddler unannounced = new(new Vector2(0f, 8f));
@@ -313,7 +313,7 @@ public sealed class ColliderTests
 
         Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"], settled.Log);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(
             ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)", "+(0,1)", "+(1,1)", "+(2,1)"],
@@ -445,8 +445,8 @@ public sealed class ColliderTests
         Straddler body = new(new Vector2(0f, 8f));
         scene.Add(body);
 
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
+        using SceneRun run = new(scene);
+        run.Step();
 
         Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
 
@@ -462,7 +462,7 @@ public sealed class ColliderTests
         };
 
         body.Teleport(new Vector2(24f, 8f));
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(
             ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
@@ -503,8 +503,8 @@ public sealed class ColliderTests
         Straddler body = new(new Vector2(36f, 8f));
         scene.Add(body);
 
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
+        using SceneRun run = new(scene);
+        run.Step();
 
         // Clear of the first two cells of the row: only the third is under it.
         Assert.Equal(["+(2,1)"], body.Log);
@@ -512,7 +512,7 @@ public sealed class ColliderTests
         // Sliding left picks up two cells the world reports ahead of the carried one, and they are
         // announced in that order rather than reversed by the partition.
         body.Teleport(new Vector2(0f, 8f));
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(["+(2,1)", "+(0,1)", "+(1,1)"], body.Log);
 
@@ -525,7 +525,7 @@ public sealed class ColliderTests
         // Leaving from that mixed set rather than from a settled one, so the exits are ordered by a
         // Touching that still deviates from the world's order.
         body.Teleport(new Vector2(0f, -100f));
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
 
         Assert.Equal(
             ["+(2,1)", "+(0,1)", "+(1,1)", "-(2,1)", "-(0,1)", "-(1,1)"],
@@ -603,17 +603,17 @@ public sealed class ColliderTests
             throw new InvalidOperationException("a handler of the consuming game's own.");
         };
 
-        using SceneSimulation simulation = new(scene);
+        using SceneRun run = new(scene);
 
-        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
+        Assert.Throws<InvalidOperationException>(() => run.Step());
         Assert.Equal(["+(0,1)"], body.Log);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
 
         body.Teleport(new Vector2(0f, -100f));
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
 
         Assert.Equal(
             ["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
@@ -959,20 +959,20 @@ public sealed class ColliderTests
         body.Collider.ContactEntered += entered.Add;
         scene.Add(body);
 
-        using SceneSimulation simulation = new(scene);
+        using SceneRun run = new(scene);
 
         // Just under the face, inside the contact skin and on the far side of it: nothing touched.
-        simulation.Step(SceneFixtures.Step(0));
+        run.Step();
         Assert.Empty(entered);
 
         // Rising through it is not blocked, and meets nothing on the way.
         Assert.False(body.Mover.Move(new Vector2(0f, -20f)).BlockedY);
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Empty(entered);
 
         // Falling back onto it lands, and the contact carries the face's own normal.
         Assert.True(body.Mover.Move(new Vector2(0f, 20f)).BlockedY);
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
 
         ColliderContact2D contact = Assert.Single(entered);
         Assert.Equal(new Vector2(0f, -1f), contact.Normal);

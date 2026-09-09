@@ -15,14 +15,14 @@ public sealed class SceneStepTests
     public void PositionsAreRetained_BeforeAnythingMoves()
     {
         SceneFixtures.Drifter drifter = new(new Vector2(5, 5));
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), drifter);
+        SceneRun run = new(Simulation(new SceneFixtures.HookScene(), drifter));
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
 
         Assert.Equal(new Vector2(5, 5), drifter.PreviousPosition);
         Assert.Equal(new Vector2(6, 5), drifter.Position);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(new Vector2(6, 5), drifter.PreviousPosition);
         Assert.Equal(new Vector2(7, 5), drifter.Position);
@@ -61,12 +61,12 @@ public sealed class SceneStepTests
         void Early(Scene scene, in StepContext context) => seenEarly = drifter.Position;
         void Late(Scene scene, in StepContext context) => seenLate = drifter.Position;
 
-        SceneSimulation simulation = Simulation(
+        SceneRun run = new(Simulation(
             new SceneFixtures.HookScene(step: Early, lateStep: Late),
-            drifter);
+            drifter));
 
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
+        run.Step();
 
         Assert.Equal(new Vector2(6, 5), seenEarly);
         Assert.Equal(new Vector2(7, 5), seenLate);
@@ -92,19 +92,19 @@ public sealed class SceneStepTests
             heldDuringTheLateStep = scene.Entities.Length;
         }
 
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(lateStep: Late), leaving);
+        SceneRun run = new(Simulation(new SceneFixtures.HookScene(lateStep: Late), leaving));
         log.Clear();
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
 
         string[] expected = ["leaving", "leaving-"];
         Assert.Equal(1, heldDuringTheLateStep);
         Assert.Equal(expected, log);
-        Assert.Same(joining, Assert.Single(simulation.Scene.Entities.ToArray()));
+        Assert.Same(joining, Assert.Single(run.Scene.Entities.ToArray()));
 
         Assert.Equal(new Vector2(3, 3), joining.Position);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(new Vector2(4, 3), joining.Position);
     }
@@ -113,12 +113,12 @@ public sealed class SceneStepTests
     public void AStartRunsExactlyOnce_BeforeTheFirstFrame()
     {
         SceneFixtures.HookScene scene = new(start: static started => started.Camera.ViewportSize = new Vector2(320, 180));
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        Assert.Equal(new Vector2(320, 180), simulation.View.Camera.Size);
+        Assert.Equal(new Vector2(320, 180), run.Simulation.View.Camera.Size);
 
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
+        run.Step();
 
         Assert.Equal(1, scene.Starts);
     }
@@ -224,16 +224,16 @@ public sealed class SceneStepTests
             }
         }
 
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook));
+        SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook)));
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
 
         Entity[] expected = [meddler, grandchild];
-        Assert.Equal(expected, simulation.Scene.Entities.ToArray());
+        Assert.Equal(expected, run.Scene.Entities.ToArray());
 
         Assert.Equal(new Vector2(9, 9), grandchild.Position);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(new Vector2(10, 9), grandchild.Position);
     }
@@ -488,19 +488,19 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), host);
+        using SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
 
         Assert.Empty(log);
         Assert.Null(host.Scene);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Empty(log);
 
-        simulation.Scene.Add(host);
-        simulation.Step(SceneFixtures.Step(2));
+        run.Scene.Add(host);
+        run.Step();
 
         Assert.Equal(["late!", "late"], log);
     }
@@ -591,15 +591,15 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), host);
+        using SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
 
         Assert.Empty(log);
         Assert.Null(host.Scene);
 
-        simulation.Scene.Add(host);
-        simulation.Step(SceneFixtures.Step(1));
+        run.Scene.Add(host);
+        run.Step();
 
         Assert.Equal(["late!", "late"], log);
     }
@@ -622,16 +622,16 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneSimulation simulation = new(new SceneFixtures.HookScene(step: Hook));
+        using SceneRun run = new(new SceneFixtures.HookScene(step: Hook));
 
-        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step()));
+        Assert.Throws<InvalidOperationException>(() => run.Step());
         Assert.Equal(["stranded+"], log);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
 
         Assert.Equal(["stranded+", "stranded!"], log);
 
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
 
         Assert.Equal(["stranded+", "stranded!", "stranded"], log);
     }

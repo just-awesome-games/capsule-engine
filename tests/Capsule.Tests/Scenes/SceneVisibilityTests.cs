@@ -94,14 +94,14 @@ public sealed class SceneVisibilityTests
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), lateStep: Pan);
         scene.Add(marker);
 
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
         Assert.Empty(log);
         Assert.False(marker.Notifier.IsOnScreen);
 
         // The camera reaches 16, so the region runs 11..21 and meets the marker's 20..21.
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal(["entered"], log);
         Assert.True(marker.Notifier.IsOnScreen);
     }
@@ -118,11 +118,8 @@ public sealed class SceneVisibilityTests
         scene.Add(marker);
         scene.Add(new SceneFixtures.Watcher(_ => seen.Add(marker.Notifier.IsOnScreen)));
 
-        SceneSimulation simulation = new(scene);
-        for (long tick = 0; tick < 3; tick++)
-        {
-            simulation.Step(SceneFixtures.Step(tick));
-        }
+        using SceneRun run = new(scene);
+        run.Run(3);
 
         // The step that brought the marker on screen reports it to the step after it, never to its own.
         Assert.Equal([false, false, true], seen);
@@ -146,14 +143,14 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
         // It attaches after the settle the step ran, so the arrival settle is what enters it.
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
         Assert.Equal(["entered"], log);
         Assert.Empty(seen);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal([true], seen);
         Assert.Equal(["entered"], log);
     }
@@ -174,10 +171,10 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
+        run.Step();
 
         Assert.Equal([false], seen);
         Assert.Empty(log);
@@ -208,13 +205,13 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
         Assert.True(scene.Camera.VisibleRegion.IsEmpty);
         Assert.Equal(["entered"], log);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal([true], seen);
     }
 
@@ -238,15 +235,15 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
         // The arrival settle owns the entries that landed with the adds, and stops at them.
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
         Assert.Equal(["entered"], log);
         Assert.Empty(lateLog);
         Assert.False(late.IsOnScreen);
 
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal(["entered"], lateLog);
         Assert.True(late.IsOnScreen);
     }
@@ -260,17 +257,17 @@ public sealed class SceneVisibilityTests
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
 
-        SceneSimulation simulation = new(scene);
+        SceneRun run = new(scene);
 
-        simulation.Step(SceneFixtures.Step());
+        run.Step();
         Assert.Equal(["entered"], log);
 
         // The rect ends flush with the region's right edge, still inside it.
-        simulation.Step(SceneFixtures.Step(1));
+        run.Step();
         Assert.Equal(["entered"], log);
 
         // And now it starts on that edge, which the open region excludes.
-        simulation.Step(SceneFixtures.Step(2));
+        run.Step();
         Assert.Equal(["entered", "exited"], log);
         Assert.False(marker.Notifier.IsOnScreen);
     }

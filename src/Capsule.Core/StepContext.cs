@@ -5,6 +5,9 @@ namespace Capsule;
 /// <summary>Everything the runtime hands a simulation for one fixed step.</summary>
 public readonly struct StepContext(double deltaSeconds, InputState input, long tick)
 {
+    /// <summary>The fixed step rate a run uses unless the host configures another: 60 steps per second.</summary>
+    public const int DefaultStepHertz = 60;
+
     private readonly double _stepSeconds = deltaSeconds;
 
     /// <summary>Simulated seconds this step represents; constant for a given engine configuration.</summary>

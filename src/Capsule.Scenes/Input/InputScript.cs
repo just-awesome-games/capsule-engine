@@ -10,9 +10,10 @@ namespace Capsule.Scenes.Input;
 /// </summary>
 /// <remarks>
 /// Editing the held state emits no step of its own, so a chord is pressed by several
-/// <see cref="Down(Key)"/> calls before one <see cref="Wait"/>. A script may be built more than
-/// once and carries on from where it was. A driver that must react to the scene is written as a
-/// class instead.
+/// <see cref="Down(Key)"/> calls before one <see cref="Wait"/>. The emitted sequence is cumulative,
+/// so a script may be built more than once and the new driver carries on from where the run stands:
+/// each build covers ticks 0 to n - 1 of everything scripted so far, including the ticks an earlier
+/// driver already served. A driver that must react to the scene is written as a class instead.
 /// </remarks>
 public sealed class InputScript
 {
@@ -106,8 +107,13 @@ public sealed class InputScript
     }
 
     /// <summary>
-    /// A driver of every step emitted so far, which ends the run once it has driven the last of
-    /// them; a script that emitted none ends the run before its first step.
+    /// A driver of every step emitted so far, served by the run's own tick: the step at tick
+    /// <c>t</c> is position <c>t</c> of the sequence, so a script of <c>n</c> steps drives ticks 0
+    /// to <c>n</c> - 1 and declines every tick at or past <c>n</c>. It is positional, never
+    /// relative to where it was built: handed a run already at tick 30, a script serves its
+    /// position 30, which exists only if it emitted more than 30 steps, so a shorter one declines
+    /// at once and ends the run without a step. A script that emitted nothing ends any run before
+    /// its first step.
     /// </summary>
     public IInputDriver Build() => new ScriptedInputDriver([.. _steps]);
 
