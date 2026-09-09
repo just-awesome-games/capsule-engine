@@ -13,8 +13,9 @@ public sealed class CrowdPerformanceTests(ITestOutputHelper output)
 
     // A frame, the ceiling every mean-step gate claims (D-capsule-029): a tripwire for a collapse,
     // not for drift. The optimised step measures 0.3 ms on a desktop and 0.4 to 1.5 ms on hosted
-    // runners; the collapse this exists to catch — the tree walked for every mover on layers none
-    // detects — was eight times the step and reads on any of them. Drift shows in the printed
+    // runners; the collapse this exists to catch — every mover walking the whole tree because one
+    // collider in it is on a layer they detect — was eight times the step and reads on any of
+    // them. Drift shows in the printed
     // mean and in the desktop harness, never in the gate.
     private const double ReleaseBudgetMilliseconds = 16.0;
 

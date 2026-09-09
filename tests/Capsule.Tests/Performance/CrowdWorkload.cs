@@ -15,7 +15,8 @@ namespace Capsule.Tests.Performance;
 /// A crowd in one room: a thousand kinematic bodies with box colliders walking a tile ring, each
 /// drawing an animated sprite. They collide with the room and never with each other, which is the
 /// shape a game's population takes — the density is in one place and the collision is against
-/// terrain.
+/// terrain. One lift sits among them on a layer they do block on, so the broadphase tree is never
+/// entirely invisible to a mover's filter.
 /// </summary>
 internal static class CrowdWorkload
 {
@@ -69,6 +70,7 @@ internal static class CrowdWorkload
 
         Scene scene = new();
         scene.Add(new TileMap(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, cells, Atlas, 2)));
+        scene.Add(new Lift(new Vector2(8 * TileSize, 4 * TileSize)));
 
         for (int index = 0; index < Players; index++)
         {
@@ -80,6 +82,19 @@ internal static class CrowdWorkload
         }
 
         return scene;
+    }
+
+    // A single tree-resident collider on a layer the crowd blocks on, and no body: without it every
+    // mover's filter reaches nothing in the tree and the broadphase is never asked a real question.
+    internal sealed class Lift : Entity
+    {
+        internal Lift(Vector2 position)
+            : base(position)
+        {
+            BoxCollider2D collider = new(new Vector2(32f, 8f));
+            collider.Layer = Platform;
+            Add(collider);
+        }
     }
 
     internal sealed class Player : Entity

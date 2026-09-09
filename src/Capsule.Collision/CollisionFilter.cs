@@ -36,6 +36,9 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
 
     internal int World => _world;
 
+    // The raw layer bits, for the broadphase to test against a node's own mask.
+    internal ulong Bits => _mask;
+
     /// <summary>A filter matching exactly <paramref name="layer"/>.</summary>
     /// <exception cref="ArgumentException">No world interned the layer.</exception>
     public static CollisionFilter Of(CollisionLayer layer) => new(Interned(layer, nameof(layer)), Bit(layer));

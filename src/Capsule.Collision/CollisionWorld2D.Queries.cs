@@ -518,13 +518,8 @@ public sealed partial class CollisionWorld2D
         Span<RayHit2D> hits,
         ref int count)
     {
-        if ((filter & _treeLayers).IsEmpty)
-        {
-            return;
-        }
-
         RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
-        _tree.RayCast(origin, unit, accumulator.Distance, ref visitor);
+        _tree.RayCast(origin, unit, accumulator.Distance, filter.Bits, ref visitor);
 
         count = visitor.Count;
         accumulator = visitor.Accumulator;
@@ -579,14 +574,9 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        if ((filter & _treeLayers).IsEmpty)
-        {
-            return count;
-        }
-
         int first = count;
         TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, count);
-        _tree.Query(probe, ref visitor);
+        _tree.Query(probe, filter.Bits, ref visitor);
         count = visitor.Count;
 
         SortByHandle(contacts[first..count]);
@@ -687,13 +677,8 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        if ((filter & _treeLayers).IsEmpty)
-        {
-            return;
-        }
-
         CastVisitor visitor = new(this, moving, translation, filter, ignore, contacts, accumulator);
-        _tree.Query(swept, ref visitor);
+        _tree.Query(swept, filter.Bits, ref visitor);
         accumulator = visitor.Accumulator;
 
         SortByHandle(contacts[visitor.First..accumulator.Count]);

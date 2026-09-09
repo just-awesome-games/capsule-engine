@@ -51,14 +51,8 @@ public sealed partial class CollisionWorld2D
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree _tree = new();
 
-    // How many tree-resident colliders stand on each layer, and the same as a mask. A grid carries
-    // its own Layers and every grid walk already skips a grid no filter bit reaches; this is that
-    // early-out for the tree, which otherwise descends to a leaf before the layer is ever read.
-    private readonly int[] _treeLayerCounts = new int[MaxLayers];
-
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
-    private CollisionFilter _treeLayers;
 
     /// <summary>A world holding nothing, with only <see cref="DefaultLayerName"/> interned.</summary>
     public CollisionWorld2D() => Layer(DefaultLayerName);
@@ -185,8 +179,7 @@ public sealed partial class CollisionWorld2D
         slot.Detects = detects;
         slot.UserData = userData;
         slot.Grid = null;
-        slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index);
-        TrackTreeLayer(layer, 1);
+        slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index, CollisionFilter.Of(layer).Bits);
 
         return HandleAt(index);
     }
@@ -205,7 +198,6 @@ public sealed partial class CollisionWorld2D
         else
         {
             _tree.DestroyProxy(slot.ProxyId);
-            TrackTreeLayer(slot.Layer, -1);
         }
 
         slot.InUse = false;
@@ -299,10 +291,9 @@ public sealed partial class CollisionWorld2D
         // A grid has no one layer to write: its cells carry the layers their profiles named, and
         // every tile query reads those rather than the slot's.
         int index = RequireShapeSlot(handle);
-        TrackTreeLayer(_slots[index].Layer, -1);
-        TrackTreeLayer(layer, 1);
         _slots[index].Layer = layer;
         _slots[index].Detects = detects;
+        _tree.SetProxyMask(_slots[index].ProxyId, CollisionFilter.Of(layer).Bits);
     }
 
     // Where a collider's shape origin sits.
@@ -841,22 +832,6 @@ public sealed partial class CollisionWorld2D
         ColliderCount++;
 
         return index;
-    }
-
-    // A layer leaves the mask only when the last collider on it leaves the tree, so the mask is
-    // exact rather than monotonic: a world that once held an actor does not go on paying for one.
-    private void TrackTreeLayer(CollisionLayer layer, int delta)
-    {
-        int count = _treeLayerCounts[layer.Index] += delta;
-
-        if (delta > 0 && count == 1)
-        {
-            _treeLayers = _treeLayers.With(layer);
-        }
-        else if (delta < 0 && count == 0)
-        {
-            _treeLayers = _treeLayers.Without(layer);
-        }
     }
 
     private bool TryIndexOf(ColliderHandle handle, out int index)
