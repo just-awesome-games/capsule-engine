@@ -115,6 +115,23 @@ public sealed class AnimationPlaybackTests
         Assert.Throws<ArgumentException>(() => StepOnce(playback, frameTicks));
     }
 
+    // The round trip holds to the last tick an int can carry, and is refused past it rather than
+    // handing back a wrapped tick Seek would reject.
+    [Fact]
+    public void ATickBeyondWhatARunCanReportIsRefused()
+    {
+        int[] frameTicks = [int.MaxValue, 1];
+        AnimationPlayback playback = default;
+
+        playback.Seek(frameTicks, loop: false, int.MaxValue);
+
+        Assert.Equal(int.MaxValue, playback.TickOf(frameTicks));
+
+        playback.Step(frameTicks, loop: false);
+
+        Assert.Throws<ArgumentException>(() => playback.TickOf(frameTicks));
+    }
+
     // By value, not by reference: a ref local cannot be captured, and a throwing step advances
     // nothing worth keeping.
     private static void StepOnce(AnimationPlayback playback, int[] frameTicks) =>

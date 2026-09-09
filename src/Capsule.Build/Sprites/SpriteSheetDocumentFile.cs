@@ -113,7 +113,9 @@ internal static class SpriteSheetDocumentFile
             FormatVersion = FormatVersion,
             Texture = TextureName(document.Texture),
             Frames = frames,
-            Clips = clips,
+
+            // Absent is none, which is every sheet of static frames.
+            Clips = clips.Length == 0 ? null : clips,
             Source = document.Source is { } source
                 ? new SpriteSheetSourceJson { Tool = source.Tool, Path = source.Path, Hash = source.Hash }
                 : null,
@@ -185,16 +187,10 @@ internal static class SpriteSheetDocumentFile
 
     private static SpriteSheetClip[] Clips(SpriteSheetClipJson?[]? authored, SpriteSheetFrame[] frames)
     {
-        if (authored is not { } entries)
+        // A sheet of frames only: a static sprite is one frame a renderer draws with no animator.
+        if (authored is not { Length: > 0 } entries)
         {
-            throw new SpriteSheetFormatException(
-                "the sheet document has no clips; a sheet plays at least one clip over its frames.");
-        }
-
-        if (entries.Length == 0)
-        {
-            throw new SpriteSheetFormatException(
-                "the sheet document has an empty clips list; a sheet plays at least one clip over its frames.");
+            return [];
         }
 
         HashSet<string> frameNames = new(StringComparer.Ordinal);

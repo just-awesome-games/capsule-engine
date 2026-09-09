@@ -121,7 +121,8 @@ internal static class SpriteRegistrySource
         string frames = indent + "    ";
         string member = frames + "    ";
 
-        source.Append(indent).Append("/// <summary>The frames and clips cut from <c>")
+        source.Append(indent).Append("/// <summary>The ")
+            .Append(document.Clips.Count == 0 ? "frames" : "frames and clips").Append(" cut from <c>")
             .Append(document.Texture.Name).Append(document.Texture.Extension).AppendLine("</c>.</summary>");
         source.Append(indent).Append("public static class ").AppendLine(identifier);
         source.Append(indent).AppendLine("{");
@@ -153,6 +154,15 @@ internal static class SpriteRegistrySource
         }
 
         source.Append(frames).AppendLine("}");
+
+        // No empty class on a sheet of frames only: a consumer naming Clips is then a compile error
+        // rather than a member that never resolves.
+        if (document.Clips.Count == 0)
+        {
+            source.Append(indent).AppendLine("}");
+            return;
+        }
+
         source.AppendLine();
         source.Append(frames).AppendLine("/// <summary>Every clip this sheet plays over those frames.</summary>");
         source.Append(frames).Append("public static class ").AppendLine(ClipsClass);

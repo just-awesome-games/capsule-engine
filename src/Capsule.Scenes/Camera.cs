@@ -12,6 +12,7 @@ namespace Capsule.Scenes;
 public class Camera
 {
     private bool _started;
+    private Scene? _scene;
 
     /// <summary>The world point the viewport is centred on.</summary>
     public Vector2 Center { get; set; }
@@ -40,11 +41,38 @@ public class Camera
     public ViewBounds? Bounds { get; set; }
 
     /// <summary>
+    /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/>
+    /// and confined to <see cref="Bounds"/> — clamped inside them on each axis, or centred on them
+    /// along an axis the viewport is larger than. Engine-owned, and settled once a step immediately
+    /// after <see cref="OnLateStep"/>, so an entity or component reading it during its own step
+    /// reads the region of the frame last drawn.
+    /// <para>
+    /// Empty before the first late step of the scene this camera frames — before the camera opens,
+    /// and whenever <see cref="ViewportSize"/> is not positive on both axes. This is the settled
+    /// framing; the renderer interpolates between the previous step's region and this one, and a
+    /// <see cref="Fit"/> other than <see cref="ViewportFit.Letterbox"/> can reveal world past it on
+    /// an output whose aspect asks for it, which no output reaches the simulation to say.
+    /// </para>
+    /// </summary>
+    public ViewBounds VisibleRegion { get; private set; }
+
+    /// <summary>
     /// The scene this camera frames; null before <see cref="OnAddedToScene"/> and after
     /// <see cref="OnRemovedFromScene"/>. A camera installed in a scene that has not opened its
     /// camera yet takes the handle when that scene does.
     /// </summary>
-    public Scene? Scene { get; internal set; }
+    public Scene? Scene
+    {
+        get => _scene;
+
+        // Taking or losing the handle reopens framing: a camera carries no region into or out of a
+        // scene, so VisibleRegion is empty until this camera's next late step settles it.
+        internal set
+        {
+            _scene = value;
+            VisibleRegion = default;
+        }
+    }
 
     /// <summary>Cuts to <paramref name="center"/>, with no interpolation from the old centre.</summary>
     public void Teleport(Vector2 center)
@@ -92,6 +120,12 @@ public class Camera
     }
 
     internal void Retain() => PreviousCenter = Center;
+
+    // The drawing derivation itself, asked at the end of the step and with no output to measure, so
+    // the span is the declared one and every fit resolves to it.
+    internal void SettleVisibleRegion() =>
+        VisibleRegion = new CameraView(PreviousCenter, Center, ViewportSize, Fit, Bounds)
+            .Resolve(1f, default);
 
     internal void RunStart()
     {

@@ -33,7 +33,7 @@ The compiler enforces the game-logic boundary:
 Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.
 
 - Simulation is single-threaded. Input edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
-- A step retains previous positions, runs the scene, entities and components, settles contacts, runs the scene's late step, settles the camera, applies deferred structural changes, starts newly attached objects and rewrites the frame.
+- A step retains previous positions, runs the scene, entities and components, settles contacts, runs the scene's late step, settles the camera and the visible region its notifiers answer against, applies deferred structural changes, starts newly attached objects, settles the notifiers those changes brought in against that same region, and rewrites the frame.
 - Entities update in insertion order. Rendering is ordered by `ZIndex`, stable over insertion order. Collision queries and contact delivery have deterministic ordering documented on their public methods.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from the run's seeded `RandomSource`, which persists across scene transitions.
 - A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining accumulated wall-clock time; it does not alter the order or contents of steps that run.

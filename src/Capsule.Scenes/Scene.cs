@@ -36,6 +36,17 @@ public class Scene
 
     private readonly List<Renderer> _renderers = [];
     private readonly List<Collider2D> _contactReporters = [];
+    private readonly List<VisibleOnScreenNotifier2D> _screenNotifiers = [];
+
+    // Traversal state for the two settle loops over the lists above, which handlers may add to and
+    // remove from while the loop runs. Idle between settles, when neither list has a live cursor.
+    private SettleCursor _contactSettle;
+    private SettleCursor _notifierSettle;
+
+    // The region the step's settle answered against, retained for the arrival settle that runs
+    // after the deferred adds land: an OnStart there may install another camera, whose own region
+    // is empty until its first late step, and the arrivals belong to the frame this step drew.
+    private ViewBounds _settledRegion;
 
     // Sort keys for the list above, retained across rebuilds so a banded scene does not allocate
     // one per rebuild. Only the first _renderers.Count entries mean anything.
@@ -642,17 +653,17 @@ public class Scene
 
     internal void SettleContacts()
     {
-        for (int index = 0; index < _contactReporters.Count;)
+        _contactSettle.Begin(_contactReporters.Count);
+        try
         {
-            Collider2D reporter = _contactReporters[index];
-            reporter.SettleContacts();
-
-            // A handler may have stopped this reporter or one before it. Stay at this index when
-            // the occupant changed, so the collider shifted into it still settles this step.
-            if (index < _contactReporters.Count && ReferenceEquals(_contactReporters[index], reporter))
+            while (_contactSettle.TryTake(_contactReporters.Count, out int index))
             {
-                index++;
+                _contactReporters[index].SettleContacts();
             }
+        }
+        finally
+        {
+            _contactSettle.End();
         }
     }
 
@@ -677,6 +688,7 @@ public class Scene
             if (ReferenceEquals(_contactReporters[index], collider))
             {
                 _contactReporters.RemoveAt(index);
+                _contactSettle.Removed(index);
                 return;
             }
         }
@@ -686,53 +698,93 @@ public class Scene
     {
         OnLateStep(context);
         Camera.OnLateStep(context);
+
+        // The framing is final here, so what the frame will show is known before anything is told
+        // about it: every notifier settles against the one region this step drew.
+        Camera.SettleVisibleRegion();
+        SettleScreenNotifiers();
     }
 
-    // Deferral stays active while lifecycle hooks grow either queue. A cursor over a live Count
-    // keeps the drain linear; dropping the processed prefix in a finally is what keeps an entity
-    // that refused this scene from being tried again next step.
+    // Bound by the same rule the contact reporters are: a handler may take notifiers out of the
+    // scene, and every one still registered when the loop reaches it must still settle this step.
+    // The cursor parks at the end rather than closing: whatever registers behind that mark while
+    // the step's deferred adds land is the window SettleArrivedNotifiers owns.
+    private void SettleScreenNotifiers()
+    {
+        _settledRegion = Camera.VisibleRegion;
+
+        _notifierSettle.Begin(_screenNotifiers.Count);
+        try
+        {
+            while (_notifierSettle.TryTake(_screenNotifiers.Count, out int index))
+            {
+                _screenNotifiers[index].SettleVisibility(_settledRegion);
+            }
+        }
+        finally
+        {
+            _notifierSettle.Park(_screenNotifiers.Count);
+        }
+    }
+
+    // An entity the step's deferred adds landed is drawn by the frame about to be rewritten, so its
+    // notifier answers for that frame too, against the region that frame was drawn with rather than
+    // whatever camera is installed by the time this runs. The window is the arrivals and only them:
+    // one registered from inside a handler here lands past the end and first settles next step,
+    // exactly as one registered during the ordinary settle.
+    private void SettleArrivedNotifiers()
+    {
+        _notifierSettle.Resume(_screenNotifiers.Count);
+        try
+        {
+            while (_notifierSettle.TryTake(_screenNotifiers.Count, out int index))
+            {
+                _screenNotifiers[index].SettleVisibility(_settledRegion);
+            }
+        }
+        finally
+        {
+            _notifierSettle.End();
+        }
+    }
+
+    // By reference, as the contact reporters are: two notifiers that compare equal must both settle.
+    internal void TrackVisibility(VisibleOnScreenNotifier2D notifier)
+    {
+        for (int index = 0; index < _screenNotifiers.Count; index++)
+        {
+            if (ReferenceEquals(_screenNotifiers[index], notifier))
+            {
+                return;
+            }
+        }
+
+        _screenNotifiers.Add(notifier);
+    }
+
+    internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier)
+    {
+        for (int index = 0; index < _screenNotifiers.Count; index++)
+        {
+            if (ReferenceEquals(_screenNotifiers[index], notifier))
+            {
+                _screenNotifiers.RemoveAt(index);
+                _notifierSettle.Removed(index);
+                return;
+            }
+        }
+    }
+
     internal void EndStep()
     {
         try
         {
-            while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
-            {
-                int processed = 0;
-                try
-                {
-                    while (processed < _pendingAdds.Count)
-                    {
-                        Entity pending = _pendingAdds[processed];
+            DrainPending();
 
-                        // Counted as dealt with before the attempt, so one that throws goes too.
-                        processed++;
-                        Attach(pending);
-                    }
-                }
-                finally
-                {
-                    Forget(_pendingAdds, _pendingAddSet, processed);
-                }
-
-                processed = 0;
-                try
-                {
-                    while (processed < _pendingRemoves.Count)
-                    {
-                        Entity pending = _pendingRemoves[processed];
-                        processed++;
-                        Detach(pending);
-                    }
-                }
-                finally
-                {
-                    Forget(_pendingRemoves, _pendingRemoveSet, processed);
-                }
-
-                // After both queues, so a batch spawned together starts once all of it has
-                // attached; whatever an OnStart queues is drained by the next turn of this loop.
-                StartPending();
-            }
+            // Still inside the step, so what a handler here spawns queues and lands in the second
+            // drain rather than attaching alone the way a between-steps add does.
+            SettleArrivedNotifiers();
+            DrainPending();
         }
         finally
         {
@@ -741,6 +793,51 @@ public class Scene
             // steps belongs to no tick.
             _stepping = false;
             SteppingTick = null;
+        }
+    }
+
+    // Deferral stays active while lifecycle hooks grow either queue. A cursor over a live Count
+    // keeps the drain linear; dropping the processed prefix in a finally is what keeps an entity
+    // that refused this scene from being tried again next step.
+    private void DrainPending()
+    {
+        while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
+        {
+            int processed = 0;
+            try
+            {
+                while (processed < _pendingAdds.Count)
+                {
+                    Entity pending = _pendingAdds[processed];
+
+                    // Counted as dealt with before the attempt, so one that throws goes too.
+                    processed++;
+                    Attach(pending);
+                }
+            }
+            finally
+            {
+                Forget(_pendingAdds, _pendingAddSet, processed);
+            }
+
+            processed = 0;
+            try
+            {
+                while (processed < _pendingRemoves.Count)
+                {
+                    Entity pending = _pendingRemoves[processed];
+                    processed++;
+                    Detach(pending);
+                }
+            }
+            finally
+            {
+                Forget(_pendingRemoves, _pendingRemoveSet, processed);
+            }
+
+            // After both queues, so a batch spawned together starts once all of it has
+            // attached; whatever an OnStart queues is drained by the next turn of this loop.
+            StartPending();
         }
     }
 
@@ -1003,4 +1100,67 @@ public class Scene
     // holds, and a wrapped key would sort a foreground band under a background one.
     private static long EffectiveKey(Renderer renderer) =>
         (long)renderer.Entity!.ZIndex + renderer.ZIndex;
+
+    // A cursor over a list a handler may reorder under it, which holds the invariant that the
+    // entries still owed a turn are exactly the live list's [_next, _end) slice. A removal before
+    // the cursor pulls both bounds back; one inside the slice only shortens it; one past the end
+    // is an entry the settle never owned. Entries appended during a settle land at or beyond _end,
+    // so each turn goes to an entry the list held when the settle began and still holds now,
+    // exactly once, whatever the handlers do.
+    private struct SettleCursor
+    {
+        private int _next;
+        private int _end;
+
+        internal void Begin(int count)
+        {
+            _next = 0;
+            _end = count;
+        }
+
+        // The live count is re-read every turn because tearing the scene down clears the list
+        // outright, which no Removed call reports.
+        internal bool TryTake(int count, out int index)
+        {
+            index = _next;
+            if (_next >= _end || _next >= count)
+            {
+                return false;
+            }
+
+            _next++;
+            return true;
+        }
+
+        internal void End()
+        {
+            _next = 0;
+            _end = 0;
+        }
+
+        // Holds the mark a later pass resumes from as an empty slice, so the removals that arrive
+        // in between move it exactly as they would move a live cursor.
+        internal void Park(int count)
+        {
+            _next = count;
+            _end = count;
+        }
+
+        // Reopens the parked mark as the start of a slice running to the live count: the entries
+        // that registered since the park, and only those.
+        internal void Resume(int count) => _end = count;
+
+        internal void Removed(int index)
+        {
+            if (index < _next)
+            {
+                _next--;
+                _end--;
+            }
+            else if (index < _end)
+            {
+                _end--;
+            }
+        }
+    }
 }

@@ -23,6 +23,17 @@ public sealed class SpriteAnimatorTests
     // A one-tick first frame is the case a step that advanced too early would erase entirely.
     private static readonly SpriteClip Blink = new([Frame(5), Frame(6)], [1, 3]);
 
+    // Pose variants: Walk's and Land's shape exactly, different frames.
+    private static readonly SpriteClip WalkArmed = new(
+        [Frame(10), Frame(11), Frame(12)],
+        [2, 2, 2],
+        loop: true);
+
+    private static readonly SpriteClip LandArmed = new([Frame(13), Frame(14)], [1, 1]);
+
+    // An uneven, non-looping clip: the tick offset has to walk the durations, not divide by one.
+    private static readonly SpriteClip Shoot = new([Frame(20), Frame(21)], [4, 1]);
+
     [Fact]
     public void PlayingDrawsTheFirstFrameBeforeAnyStepRuns()
     {
@@ -183,6 +194,176 @@ public sealed class SpriteAnimatorTests
         Assert.Equal(Frame(3), renderer.Sprite);
     }
 
+    // The point of playing a variant at the animator's own tick: the cursor is reproduced, so the
+    // variant continues on the frame and the part-spent tick the outgoing clip stood on.
+    [Fact]
+    public void PlayingAVariantAtTheAnimatorsTickKeepsTheFrameAndTheTicksAlreadySpentOnIt()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Walk);
+        Step(simulation, 4);
+        Assert.Equal(1, animator.FrameIndex);
+
+        animator.Play(WalkArmed, atTick: animator.Tick);
+
+        Assert.Same(WalkArmed, animator.Clip);
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(Frame(11), renderer.Sprite);
+
+        // The step the variant was played for spends nothing, and frame 1 was already one tick into
+        // its two, so the step after that retires it — a restart would still be on frame 0 here.
+        Step(simulation, 2);
+
+        Assert.Equal(2, animator.FrameIndex);
+        Assert.Equal(Frame(12), renderer.Sprite);
+    }
+
+    // The variant comes from a component the entity attached after the animator, so the animator
+    // has already stepped and written its own frame this tick; the variant must still be drawn.
+    [Fact]
+    public void PlayingAVariantDrawsItOnTheStepItIsAskedFor()
+    {
+        Animated entity = new(onStart: Walk);
+        entity.Add(new Variant(entity.Animator, WalkArmed, onTick: 2));
+        SceneSimulation simulation = Simulate(entity);
+
+        Assert.Equal(
+            [Frame(0), Frame(0), Frame(11), Frame(11), Frame(12)],
+            DrawnOver(simulation, 5));
+    }
+
+    [Fact]
+    public void AFinishedClipIsStillFinishedInItsVariant()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Land);
+        Step(simulation, 3);
+        Assert.True(animator.IsFinished);
+
+        animator.Play(LandArmed, atTick: animator.Tick);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(Frame(14), renderer.Sprite);
+
+        Step(simulation, 5);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(Frame(14), renderer.Sprite);
+    }
+
+    [Fact]
+    public void TheTickIsZeroUntilAClipPlays()
+    {
+        (_, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+
+        Assert.Equal(0, animator.Tick);
+
+        Step(simulation, 3);
+
+        Assert.Equal(0, animator.Tick);
+    }
+
+    [Fact]
+    public void TheTickCountsEveryEarlierFramesTicksAndThoseSpentOnTheFrameDrawn()
+    {
+        (_, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Shoot);
+
+        // Frame 0 holds four ticks, so three steps in the cursor is three ticks into the first.
+        Step(simulation, 4);
+
+        Assert.Equal(0, animator.FrameIndex);
+        Assert.Equal(3, animator.Tick);
+
+        Step(simulation, 1);
+
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(4, animator.Tick);
+    }
+
+    [Fact]
+    public void TheTickWrapsWithTheLoopRatherThanCountingOn()
+    {
+        (_, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Walk);
+
+        // Seven steps over a six-tick loop: one tick into the second pass, not seven.
+        Step(simulation, 8);
+
+        Assert.Equal(1, animator.Tick);
+        Assert.Equal(0, animator.FrameIndex);
+    }
+
+    // The whole clip's ticks, so a variant played at it lands finished on the last frame too.
+    [Fact]
+    public void TheTickOfAFinishedClipIsItsTotalTicks()
+    {
+        (_, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+        animator.Play(Shoot);
+
+        Step(simulation, 20);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(5, animator.Tick);
+    }
+
+    // Nine ticks into a five-tick reaction: the pose has to enter already spent, not replay.
+    [Fact]
+    public void PlayingAtATickPastANonLoopingClipIsFinishedOnItsLastFrame()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+
+        animator.Play(Shoot, atTick: 9);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(Frame(21), renderer.Sprite);
+
+        Step(simulation, 5);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(Frame(21), renderer.Sprite);
+    }
+
+    [Fact]
+    public void PlayingAtATickInsideAFrameLeavesItTheRestOfItsTicks()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+
+        animator.Play(Shoot, atTick: 2);
+
+        Assert.Equal(0, animator.FrameIndex);
+        Assert.Equal(Frame(20), renderer.Sprite);
+        Assert.False(animator.IsFinished);
+
+        // Two of frame 0's four ticks are already spent, so it holds for two steps and no more.
+        Step(simulation, 2);
+
+        Assert.Equal(0, animator.FrameIndex);
+
+        Step(simulation, 1);
+
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(Frame(21), renderer.Sprite);
+    }
+
+    [Fact]
+    public void PlayingALoopingClipAtATickWrapsTheOffset()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SceneSimulation simulation) = Animating();
+
+        // Fourteen ticks over a six-tick loop is tick 2: frame 1, freshly current.
+        animator.Play(Walk, atTick: 14);
+
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(Frame(1), renderer.Sprite);
+        Assert.False(animator.IsFinished);
+
+        Step(simulation, 3);
+
+        Assert.Equal(2, animator.FrameIndex);
+    }
+
     private static Sprite[] DrawnOver(SceneSimulation simulation, int ticks)
     {
         Sprite[] drawn = new Sprite[ticks];
@@ -269,5 +450,16 @@ public sealed class SpriteAnimatorTests
     private sealed class Driver(SpriteAnimator animator, SpriteClip clip) : Component
     {
         protected internal override void OnStep(in StepContext context) => animator.Play(clip);
+    }
+
+    private sealed class Variant(SpriteAnimator animator, SpriteClip clip, long onTick) : Component
+    {
+        protected internal override void OnStep(in StepContext context)
+        {
+            if (context.Tick >= onTick)
+            {
+                animator.Play(clip, atTick: animator.Tick);
+            }
+        }
     }
 }

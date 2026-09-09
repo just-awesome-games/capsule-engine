@@ -14,6 +14,8 @@ The standard command line is Capsule's: a game opts in with `WithCommandLine(arg
 
 Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. That bar is not a compatibility ceremony: JAG's own games are the only considered consumers, so break a public API whenever the better design needs it and migrate the consuming game in the same wave. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
 
+A new public member reads fluently to a developer arriving from an established engine: name the Unity or Godot precedent in the ledger entry when one exists, and prefer one primitive plus readable state over a verb shaped like the initiating game's feature.
+
 ## Documentation
 
 XML comments are the API reference and the only prose copy of public behavior. Keep them precise about units, ownership, lifecycle, exceptions, and non-obvious contracts; do not narrate signatures.
@@ -29,6 +31,8 @@ Comments explain invariants and hazards the code cannot state. Delete walkthroug
 The build enforces module direction and game-role purity. One boundary remains review-owned: parsers for authoring formats do not live in this repository; they are external modules feeding `*.scene.json` to the build.
 
 Choose the existing assembly by dependency boundary, then group source and tests by the subsystem that owns the behavior: for example, rendering contracts belong under `Core/Rendering`, renderer components under `Scenes/Rendering`, device rendering under `Runtime/Rendering`, loading/cache/lifetime code under `Runtime/Assets`, and generator tests under `Generators`. Match namespaces to domain folders by default; organizational subfolders need not rename API types. Foundational entry points may remain at an assembly root. Do not create speculative folders or new assemblies merely to reduce a directory's file count; `docs/project-layout.md` governs game layout, not engine layout.
+
+MSBuild wildcards fold case on every platform, Linux included, so no `Include`, `Remove`, or `Exclude` can separate two directories that differ only by case: carve them apart with `DefaultItemExcludes` and ordinal `%(FullPath)` comparisons, as the targets already do.
 
 Warnings are fixed or suppressed with the reason at the suppression site. Every commit must remain publishable without studio-only context.
 

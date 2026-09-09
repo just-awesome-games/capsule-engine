@@ -37,6 +37,28 @@ public sealed class SpriteSheetToolTests
         Assert.Contains("new int[] { 4 }", generated, StringComparison.Ordinal);
     }
 
+    // No Clips class on a sheet of static frames, so naming one is a compile error in the game.
+    [Fact]
+    public void ASheetOfFramesOnlyGeneratesFramesAndNoClipsClass()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("prop.sheet.json", """
+            { "formatVersion": 1,
+              "texture": "player.png",
+              "frames": [ { "name": "lemon", "x": 0, "y": 0, "width": 8, "height": 8 } ] }
+            """);
+
+        int exitCode = SpriteSheetTool.Import(
+            "obj/sprites", Sources("prop.sheet.json"), ["player.png"], "obj/GameSprites.g.cs", TextWriter.Null, TextWriter.Null);
+
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("\"clips\"", File.ReadAllText("obj/sprites/prop.sheet.json"), StringComparison.Ordinal);
+
+        string generated = File.ReadAllText("obj/GameSprites.g.cs");
+        Assert.Contains("Sprite Lemon =>", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("class Clips", generated, StringComparison.Ordinal);
+    }
+
     // The collection order must not reach the generated file.
     [Fact]
     public void SheetsAreRenderedInNameOrderWhateverOrderTheyArrivedIn()

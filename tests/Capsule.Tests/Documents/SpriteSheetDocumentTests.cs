@@ -63,6 +63,29 @@ public sealed class SpriteSheetDocumentTests
         Assert.Equal("../asset-sources/sprites/player.aseprite", read.Source?.Path);
     }
 
+    // A static sprite is one frame a renderer draws with no animator, so a sheet need play nothing.
+    [Theory]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
+        """)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ], "clips": [] }
+        """)]
+    public void ASheetOfFramesOnlyReadsAndIsWrittenWithNoClipsKey(string json)
+    {
+        SpriteSheetDocument document = SpriteSheetDocumentFile.Parse(json);
+
+        Assert.Single(document.Frames);
+        Assert.Empty(document.Clips);
+
+        string canonical = SpriteSheetDocumentFile.ToJson(document);
+
+        Assert.DoesNotContain("\"clips\"", canonical, StringComparison.Ordinal);
+        Assert.Equal(canonical, SpriteSheetDocumentFile.ToJson(SpriteSheetDocumentFile.Parse(canonical)));
+    }
+
     [Theory]
     // The version gate.
     [InlineData("""{ "texture": "p.png", "frames": [], "clips": [] }""", "formatVersion")]
@@ -74,10 +97,6 @@ public sealed class SpriteSheetDocumentTests
     [InlineData("""{ "formatVersion": 1, "texture": "player", "frames": [], "clips": [] }""", "extension included")]
     // Empty lists.
     [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [], "clips": [] }""", "empty frames list")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ], "clips": [] }
-        """, "empty clips list")]
     // Frame geometry.
     [InlineData("""
         { "formatVersion": 1, "texture": "p.png",

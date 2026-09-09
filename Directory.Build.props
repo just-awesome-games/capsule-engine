@@ -11,6 +11,11 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- A runtime-specific restore — every NativeAOT publish — resolves an ILC compiler pack and a
+         RID-qualified graph the committed lock files do not describe, so it gets its own lock file
+         under obj/ and leaves them untouched. RuntimeIdentifier and PublishAot arrive as global
+         properties from the command line, before RID inference runs. -->
+    <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != '' or '$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)/obj/packages.runtime.lock.json</NuGetLockFilePath>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <!-- Preserve parent configuration across external ProjectReference edges. -->
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>

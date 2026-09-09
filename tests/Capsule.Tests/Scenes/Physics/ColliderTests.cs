@@ -407,6 +407,34 @@ public sealed class ColliderTests
         Assert.Empty(body.Collider.Touching.ToArray());
     }
 
+    // The settle walks the reporters in registration order, and a handler may take out more than
+    // one of them: the traversal used to run past the end of the shrunken list, so the reporter
+    // behind the detached pair went a whole step without settling its contacts.
+    [Fact]
+    public void AContactEnteredHandlerThatDetachesItsOwnAndAnEarlierReporter_LeavesTheRestSettlingThatStep()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####");
+        Straddler first = new(new Vector2(0f, 8f));
+        Straddler second = new(new Vector2(0f, 8f));
+        Straddler third = new(new Vector2(0f, 8f));
+        scene.Add(first);
+        scene.Add(second);
+        scene.Add(third);
+
+        second.Collider.ContactEntered += _ =>
+        {
+            first.Remove(first.Collider);
+            second.Remove(second.Collider);
+        };
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step(0));
+
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)", "-(0,1)", "-(1,1)", "-(2,1)"], first.Log);
+        Assert.Equal(["+(0,1)", "-(0,1)"], second.Log);
+        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], third.Log);
+    }
+
     // The stale-locals defect: an exit handler that detaches the collider used to leave the enter
     // loop running against the set captured before the dispatch, entering contacts on a collider
     // that had already left the world and would never exit them.

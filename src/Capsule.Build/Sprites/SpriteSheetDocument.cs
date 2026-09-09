@@ -31,12 +31,12 @@ internal sealed record SpriteSheetClip(string Name, bool Loop, IReadOnlyList<Spr
 internal sealed record SpriteSheetSource(string Tool, string Path, string Hash);
 
 /// <summary>
-/// One sprite sheet: the texture it cuts from, its named frames, and the clips over them. Build-time
+/// One sprite sheet: the texture it cuts from, its named frames, and any clips over them. Build-time
 /// data only — the build turns it into game code, and no sheet ships beside the executable.
 /// </summary>
 /// <param name="Texture">The texture every frame is cut from.</param>
 /// <param name="Frames">The sheet's frames in authored order; at least one.</param>
-/// <param name="Clips">The sheet's clips in authored order; at least one.</param>
+/// <param name="Clips">The sheet's clips in authored order; empty on a sheet of frames only.</param>
 /// <param name="Source">The authoring module's provenance, absent on a hand-authored sheet.</param>
 internal sealed record SpriteSheetDocument(
     TextureHandle Texture,

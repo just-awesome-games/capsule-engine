@@ -6,7 +6,7 @@ A `*.sheet.json` **sprite sheet document** is the authored form. Capsule never p
 
 ## Authoring model
 
-A sheet names one texture, the frames it cuts from it, and the clips played over those frames. Frames carry their own regions and pivots, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid is only one way to author it.
+A sheet names one texture, the frames it cuts from it, and any clips played over those frames. Frames carry their own regions and pivots, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid is only one way to author it. A pose variant — the same motion drawn with a weapon raised — is authored as its own clip of the same frame count, per-frame ticks and `loop`, and is entered mid-motion by playing it at the animator's `Tick`.
 
 The sheet itself is not read at run time: the build turns it into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable. The windowed host preloads the textures identified by a sprite renderer and its animator's current clips; a clip introduced later loads its texture on first rendered use unless `CollectAssets` preloaded it.
 
@@ -56,7 +56,7 @@ Runtime animation behavior is documented on `SpriteAnimator`, `SpriteClip`, and 
 | `formatVersion` | Required, and must be supported. |
 | `texture` | The path under the textures root, extension included, of the texture every frame is cut from — `"player.png"` is authored at `asset-sources/textures/player.png`, `"actors/player.png"` at `asset-sources/textures/actors/player.png`. Forward slashes only, with no empty, `.` or `..` segment, and a texture the game does not ship fails the document. Geometry is authored here and never inferred from the image. |
 | `frames` | At least one. Each carries `name`, `x`, `y`, `width`, `height` and an optional `pivot`, in that order. |
-| `clips` | At least one. Each carries `name`, an optional `loop`, and `frames`, in that order. |
+| `clips` | Optional; each carries `name`, an optional `loop`, and `frames`, in that order. Absent or empty is a sheet of frames only — a static sprite is one frame a `SpriteRenderer` draws with no animator — and the writer leaves an empty list out. |
 | `name` | Unique within its own list and safe as a C# name: letters, digits, `-` and `_`, never starting with a digit. Frames and clips are separate name spaces, so a frame and a clip may share one. |
 | `x`, `y` | The frame's top-left corner in texels of the texture; not negative. |
 | `width`, `height` | The frame's extent in texels; at least one on each axis. |

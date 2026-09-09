@@ -12,11 +12,13 @@ git config core.hooksPath .githooks
 
 This is not optional: Git ignores `.githooks/` until it is configured, and an unconfigured clone commits straight past the hook without reporting anything.
 
-[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit on a locked restore, a build, the format check, and the tests. NativeAOT verification is CI's gate: the `platform-and-aot` job publishes the sample shell and `tests/Capsule.AotSmoke` with ILC on every push, and runs the smoke.
+A NativeAOT publish on Windows also needs the Visual Studio Installer directory (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`) on `PATH`, or the ILC link step fails with `MSB3073`.
+
+[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit on a locked restore, a build, the format check, the tests, and booting `tests/Capsule.AotSmoke`. ILC verification is CI's gate: the `platform-and-aot` job publishes the sample shell and the smoke with NativeAOT on every push, and runs the published binary.
 
 ## Build
 
-The gates are the four commands in `.githooks/pre-commit`; CI in `.github/workflows/ci.yml` adds Release, pack, consumer, and NativeAOT gates, plus a diagnostic coverage report. Releases follow [RELEASING.md](RELEASING.md).
+The gates are the five commands in `.githooks/pre-commit`; CI in `.github/workflows/ci.yml` adds Release, pack, consumer, and NativeAOT gates, plus a diagnostic coverage report. Releases follow [RELEASING.md](RELEASING.md).
 
 ## Expectations
 
