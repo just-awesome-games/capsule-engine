@@ -48,19 +48,32 @@ public sealed class SpriteSheetDocumentTests
         Assert.Equal(1, canonical.Split("\"pivot\"").Length - 1);
     }
 
+    // A texture is reached by its key, so however a document spelled it, the handle and the
+    // re-emitted document name the path the build ships it at.
+    [Fact]
+    public void ATextureIsReadAndWrittenBackAsItsKey()
+    {
+        string authored = Authored.Replace("\"player.png\"", "\"Actors/Player.png\"", StringComparison.Ordinal);
+
+        SpriteSheetDocument document = SpriteSheetDocumentFile.Parse(authored);
+
+        Assert.Equal("actors/player", document.Texture.Name);
+        Assert.Contains("\"actors/player.png\"", SpriteSheetDocumentFile.ToJson(document), StringComparison.Ordinal);
+    }
+
     // A module's document arrives stamped with the file a person edited; that provenance is kept.
     [Fact]
     public void ASourceBlockSurvivesTheRoundTrip()
     {
         SpriteSheetDocument document = SpriteSheetDocumentFile.Parse(Authored) with
         {
-            Source = new SpriteSheetSource("aseprite", "../asset-sources/sprites/player.aseprite", new string('a', 64)),
+            Source = new SpriteSheetSource("aseprite", "Assets/Sprites/player.aseprite", new string('a', 64)),
         };
 
         SpriteSheetDocument read = SpriteSheetDocumentFile.Parse(SpriteSheetDocumentFile.ToJson(document));
 
         Assert.Equal("aseprite", read.Source?.Tool);
-        Assert.Equal("../asset-sources/sprites/player.aseprite", read.Source?.Path);
+        Assert.Equal("Assets/Sprites/player.aseprite", read.Source?.Path);
     }
 
     // A static sprite is one frame a renderer draws with no animator, so a sheet need play nothing.

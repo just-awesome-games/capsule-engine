@@ -1,7 +1,7 @@
 <Project>
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/scenes/**/*.scene.json"
+    <CapsuleNativeScene Include="$(CapsuleAssetSourcesDir)/Scenes/**/*.scene.json"
                         Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
     </CapsuleNativeScene>
@@ -14,78 +14,40 @@
 
   <Target Name="CapsuleSceneDocumentsInit"
           Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleCollectSceneDocuments;CapsuleResolveBuildTool"
+          DependsOnTargets="CapsuleReadKeys"
           BeforeTargets="AssignTargetPaths">
-    <Error Condition="('@(CapsuleNativeScene)' != '' or '@(CapsuleSceneDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
+    <Error Condition="'@(_CapsuleSceneRequest)' != '' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the scene importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <ItemGroup>
-      <_CapsuleSceneSource Include="@(CapsuleNativeScene)">
-        <Key>$([System.String]::Copy('%(CapsuleNativeScene.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeScene.Filename)'))</Key>
-      </_CapsuleSceneSource>
-      <!-- Qualify optional metadata to avoid evaluating it on incompatible items. -->
-      <_CapsuleSceneSource Include="@(CapsuleSceneDocument)">
-        <Key Condition="'%(CapsuleSceneDocument.CapsuleDocumentKey)' != ''">%(CapsuleSceneDocument.CapsuleDocumentKey)</Key>
-        <Key Condition="'%(CapsuleSceneDocument.CapsuleDocumentKey)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleSceneDocument.Filename)'))</Key>
-      </_CapsuleSceneSource>
-      <_CapsuleSceneName Include="@(_CapsuleSceneSource->'%(Key)')" />
-      <_CapsuleSceneNameDistinct Include="@(_CapsuleSceneName->Distinct())" />
-    </ItemGroup>
-
-    <Error Condition="'@(_CapsuleSceneName->Count())' != '@(_CapsuleSceneNameDistinct->Count())'"
-           Text="Capsule: two scene sources share a path under the scenes root, and a scene document ships at that path. Rename one of: @(_CapsuleSceneSource, ' ')" />
-
-    <!-- Keep the command-line output directory free of a trailing Windows separator. -->
     <PropertyGroup>
-      <CapsuleImportProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleImportProjectDir>
-      <CapsuleSceneDocumentsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleSceneDocumentsObjDir>
-      <CapsuleSceneDocumentsOutDir>$(CapsuleSceneDocumentsObjDir)/scenes</CapsuleSceneDocumentsOutDir>
-      <CapsuleSceneDocumentsDerivedDir>$(CapsuleSceneDocumentsOutDir)/</CapsuleSceneDocumentsDerivedDir>
-      <CapsuleSceneDocumentsBatchFile>$(CapsuleSceneDocumentsObjDir)/scene-documents.txt</CapsuleSceneDocumentsBatchFile>
-      <CapsuleSceneDocumentsTileSizeStamp>$(CapsuleSceneDocumentsObjDir)/tile-size.txt</CapsuleSceneDocumentsTileSizeStamp>
-      <CapsuleSceneDocumentsSourceStamp>$(CapsuleSceneDocumentsObjDir)/scene-sources.txt</CapsuleSceneDocumentsSourceStamp>
+      <CapsuleSceneDocumentsBatchFile>$(CapsuleKeysDir)/scenes.txt</CapsuleSceneDocumentsBatchFile>
+      <CapsuleSceneDocumentsTileSizeStamp>$(CapsuleObjDir)/tile-size.txt</CapsuleSceneDocumentsTileSizeStamp>
       <CapsuleTileSizeArg Condition="'$(CapsuleTileSize)' != ''">--tile-size &quot;$(CapsuleTileSize)&quot; </CapsuleTileSizeArg>
     </PropertyGroup>
-
-    <MakeDir Directories="$(CapsuleSceneDocumentsObjDir)" />
 
     <!-- Stamp non-file inputs for MSBuild incrementality. -->
     <WriteLinesToFile File="$(CapsuleSceneDocumentsTileSizeStamp)"
                       Lines="$(CapsuleTileSize)"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
-
-    <WriteLinesToFile File="$(CapsuleSceneDocumentsSourceStamp)"
-                      Lines="@(_CapsuleSceneSource->'%(Key)=%(FullPath)')"
-                      Overwrite="true"
-                      WriteOnlyWhenDifferent="true" />
   </Target>
 
-  <!-- Source/output transforms permit partial incrementality; shared Inputs invalidate the batch. -->
+  <!-- The batch of keys makes this target all-or-nothing incremental; the key file changes whenever
+       a source is added, renamed or removed. -->
   <Target Name="CapsuleImportSceneDocuments"
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleSceneDocumentsInit;ResolveProjectReferences"
-          Inputs="@(_CapsuleSceneSource);$(CapsuleSceneDocumentsSourceStamp);$(CapsuleSceneDocumentsTileSizeStamp);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
-          Outputs="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Key).scene.json')">
+          Inputs="@(_CapsuleSceneRequest);$(CapsuleSceneDocumentsBatchFile);$(CapsuleSceneDocumentsTileSizeStamp);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Outputs="@(_CapsuleDerivedScene)">
 
-    <Error Condition="!Exists('@(_CapsuleBuildTool)')"
+    <Error Condition="'@(_CapsuleSceneRequest)' != '' and !Exists('@(_CapsuleBuildTool)')"
            Text="Capsule: the scene importer was not built (expected '@(_CapsuleBuildTool)')." />
-
-    <!-- Use a response file to avoid cmd's length limit; the condition protects MakeRelative from an empty path. -->
-    <ItemGroup Condition="'@(_CapsuleSceneSource)' != ''">
-      <_CapsuleSceneSourceArg Include="@(_CapsuleSceneSource)">
-        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleImportProjectDir), %(FullPath)))</ProjectRelativePath>
-      </_CapsuleSceneSourceArg>
-    </ItemGroup>
-
-    <WriteLinesToFile File="$(CapsuleSceneDocumentsBatchFile)"
-                      Lines="@(_CapsuleSceneSourceArg->'%(Key)|%(ProjectRelativePath)')"
-                      Overwrite="true" />
 
     <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --out &quot;$(CapsuleSceneDocumentsOutDir)&quot; $(CapsuleTileSizeArg)--scenes-from &quot;$(CapsuleSceneDocumentsBatchFile)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           LogStandardErrorAsError="true"
-          StandardOutputImportance="normal" />
+          StandardOutputImportance="normal"
+          Condition="'@(_CapsuleSceneRequest)' != ''" />
   </Target>
 
   <!-- Wire content on up-to-date builds too. -->
@@ -95,12 +57,8 @@
           BeforeTargets="AssignTargetPaths">
 
     <ItemGroup>
-      <_CapsuleDerivedScene Include="@(_CapsuleSceneSource->'$(CapsuleSceneDocumentsDerivedDir)%(Key).scene.json')" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Content Include="@(_CapsuleDerivedScene)">
-        <Link>assets/scenes/%(_CapsuleDerivedScene.Key).scene.json</Link>
+        <Link>%(_CapsuleDerivedScene.ShippedPath)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>

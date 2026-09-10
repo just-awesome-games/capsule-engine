@@ -54,7 +54,7 @@ Runtime animation behavior is documented on `SpriteAnimator`, `SpriteClip`, and 
 | Field | Meaning |
 | --- | --- |
 | `formatVersion` | Required, and must be supported. |
-| `texture` | The path under the textures root, extension included, of the texture every frame is cut from — `"player.png"` is authored at `asset-sources/textures/player.png`, `"actors/player.png"` at `asset-sources/textures/actors/player.png`. Forward slashes only, with no empty, `.` or `..` segment, and a texture the game does not ship fails the document. Geometry is authored here and never inferred from the image. |
+| `texture` | The key under the textures root, extension included, of the texture every frame is cut from — `"player.png"` is authored at `Assets/Textures/player.png`, `"actors/player.png"` at `Assets/Textures/actors/player.png`. Forward slashes only, with no empty, `.` or `..` segment; any spelling of the key is accepted and the derived document carries the key, per [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets). A texture the game does not ship fails the document. Geometry is authored here and never inferred from the image. |
 | `frames` | At least one. Each carries `name`, `x`, `y`, `width`, `height` and an optional `pivot`, in that order. |
 | `clips` | Optional; each carries `name`, an optional `loop`, and `frames`, in that order. Absent or empty is a sheet of frames only — a static sprite is one frame a `SpriteRenderer` draws with no animator — and the writer leaves an empty list out. |
 | `name` | Unique within its own list and safe as a C# name: letters, digits, `-` and `_`, never starting with a digit. Frames and clips are separate name spaces, so a frame and a clip may share one. |
@@ -71,14 +71,14 @@ Invalid documents throw `SpriteSheetFormatException` and fail the build at the n
 
 ## From source to game
 
-Games author sheets under `src/asset-sources/sprites/`, and the build validates each one, re-emits it canonically under `obj/`, and renders the whole set as one generated C# file the logic assembly compiles:
+Games author sheets under the logic project's `Assets/Sprites/`, and the build validates each one, re-emits it canonically under `obj/`, and renders the whole set as one generated C# file the logic assembly compiles:
 
 ```csharp
 CapsuleAssets.Sprites.Player.Frames.Idle0   // a Sprite
 CapsuleAssets.Sprites.Player.Clips.Idle     // a SpriteClip
 ```
 
-A sheet's key is its path under the sprites root without either extension, and each directory in it becomes a nested class: `player.sheet.json` declares `CapsuleAssets.Sprites.Player`, `actors/player.sheet.json` declares `CapsuleAssets.Sprites.Actors.Player`. Two sheets of one stem in different directories are two sheets; two sharing a key, or two whose names become one C# identifier in the same directory, fail the build. Derived documents are never committed and nothing ships under `assets/`.
+A sheet's key is its path under the sprites root without either extension, normalized as [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets) defines, and each directory in it becomes a nested class: `player.sheet.json` declares `CapsuleAssets.Sprites.Player`, `actors/player.sheet.json` declares `CapsuleAssets.Sprites.Actors.Player`. Two sheets of one stem in different directories are two sheets; two sharing a key, or two whose names become one C# identifier in the same directory, fail the build. Derived documents are never committed and nothing ships under `assets/`.
 
 The logic role imports sheets on its own; any other project that has to compile against a game's frames and clips opts in with `<CapsuleImportSprites>`, a project property named in [`consuming-capsule.md`](consuming-capsule.md). The process behind the hook is `Capsule.Build` itself, as it is for scenes.
 

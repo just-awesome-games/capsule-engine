@@ -168,8 +168,16 @@ internal static class SceneRegistrySource
             return;
         }
 
-        string documentName = model.Declared
-            ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+        // An explicit claim is normalized like the document's own path, so a claim in any spelling
+        // meets the document at the key it ships under.
+        string? documentName = model.Declared is { } declared
+            ? Normalized(context, model, declared)
+            : TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+
+        if (documentName is null)
+        {
+            return;
+        }
 
         if (AssetPaths.IsKey(documentName))
         {
@@ -180,6 +188,19 @@ internal static class SceneRegistrySource
 
         context.ReportDiagnostic(Diagnostic.Create(
             RegistryDiagnostics.UnsafeSceneDocumentName, model.Location, model.DisplayName, documentName));
+    }
+
+    private static string? Normalized(SourceProductionContext context, SceneModel model, string declared)
+    {
+        if (TypeNaming.NormalizeKey(declared, out string? rejected) is { } key)
+        {
+            return key;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(
+            RegistryDiagnostics.UnnameableSceneDocumentSegment, model.Location, model.DisplayName, rejected));
+
+        return null;
     }
 
     private static string Render(List<Registration> registered)

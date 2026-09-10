@@ -11,14 +11,14 @@ my-game/
   src/
     MyGame.Game/
       MyGame.Game.csproj
+      Assets/
+        Scenes/
+        Sprites/
+        Textures/
+        Audio/
+        Fonts/
     MyGame.Shell/
       MyGame.Shell.csproj
-    asset-sources/
-      scenes/
-      sprites/
-      textures/
-      audio/
-      fonts/
   tests/
     MyGame.Tests/
       MyGame.Tests.csproj
@@ -29,7 +29,7 @@ my-game/
 
 The directory convention inside `src/MyGame.Game/` is in [`project-layout.md`](project-layout.md); this file stops at the project boundary.
 
-Keep `src/asset-sources/` as a sibling of the logic and shell projects: Capsule looks for authored sources at `<project>/../asset-sources` by default, so both role projects find one tree without a `CapsuleAssetSourcesDir` override. The build derives `assets/` beside the executable.
+The authoring tree lives inside the logic project: Capsule looks for authored sources at `<project>/Assets` by default, and the logic role is the one that reads them. The build derives `assets/` beside the executable, which the shell receives through its project reference.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
@@ -89,7 +89,7 @@ The matching source-development import is:
 
 ## Logic project
 
-The logic role activates source generation and purity analysis, compiles the game's sprite sheets into typed frames and clips, and measures its audio sources:
+The logic role activates source generation and purity analysis, owns the authoring tree under `Assets/`, compiles the game's sprite sheets into typed frames and clips, measures its audio sources, and imports and ships the game's scene documents, textures, audio and fonts:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -116,7 +116,7 @@ Tests reference the logic project and `JAG.Capsule`; they take no Capsule role. 
 
 ## Shell project
 
-Exactly one project takes the shell role:
+A shell is one host family: the desktop shell publishes for Windows, Linux and macOS from one project by runtime identifier, and a platform carrying its own host module takes its own shell project.
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -142,7 +142,7 @@ Exactly one project takes the shell role:
 </Project>
 ```
 
-The shell role generates `CapsuleBoot`, imports scene documents, ships assets, and supplies default application icons. Its entry point is the whole of the shell's hand-written code:
+The shell role generates `CapsuleBoot` and supplies default application icons; it reads no authoring sources of its own, and the derived scene documents and shipped assets reach its output and its publish as content of the logic project it references. Its entry point is the whole of the shell's hand-written code:
 
 ```csharp
 using Capsule.Runtime.Generated;
@@ -242,11 +242,15 @@ The runtime owns collected and first-used resources for one scene. A transition 
 
 ## Named assets
 
-Assets are authored under `src/asset-sources/<domain>/` and ship at the same relative path under `assets/<domain>/`. For example, `asset-sources/textures/enemies/bat.png` becomes `CapsuleAssets.Textures.Enemies.Bat` and ships at `assets/textures/enemies/bat.png`. A scene or sheet document names it as `"enemies/bat.png"`.
+Assets are authored under `Assets/<Domain>/` in the logic project and ship under `assets/<domain>/` at their key.
 
-Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `CapsuleAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. Invalid paths and C# identifier collisions fail the build.
+A key is the authored path below the domain root, forward slashes and no extension, with every directory segment and the file stem normalized to the kebab form of the identifier it names. Capsule dictates no spelling below a domain root: `Enemies/Bat.png`, `enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`, one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`. `Stage1`, `stage1` and `stage-1` are likewise one segment, `stage-1`. Every key a game or an authoring module hands the build is normalized this way — a document's key, a scene or sheet handle, an asset's path — so the runtime only ever sees keys. A segment that is no C# identifier fails the build naming the file, and two sources that key the same fail it naming both.
 
-`audio/` takes `.wav` and `.ogg` and generates `CapsuleAssets.Audio` clips, each carrying the duration the build measured from its source. The two formats differ in how they play: a `.wav` clip is held in memory for the scene that uses it, and a `.ogg` clip is decoded as it plays and is never resident. Author short, repeated sounds as `.wav` and long ones — music, ambience — as `.ogg`. A source Capsule cannot measure fails the build naming the file and what is wrong with it. Capsule reads no MP3, because MP3 cannot loop gaplessly: encoder delay and padding pad the decoded stream with silence the format does not describe, which is why Vorbis is the music format.
+A scene or sheet document names an asset by its key and extension, `"enemies/bat.png"`, spelled however the author likes.
+
+Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `CapsuleAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. C# identifier collisions fail the build.
+
+`Audio/` takes `.wav` and `.ogg` and generates `CapsuleAssets.Audio` clips, each carrying the duration the build measured from its source. The two formats differ in how they play: a `.wav` clip is held in memory for the scene that uses it, and a `.ogg` clip is decoded as it plays and is never resident. Author short, repeated sounds as `.wav` and long ones — music, ambience — as `.ogg`. A source Capsule cannot measure fails the build naming the file and what is wrong with it. Capsule reads no MP3, because MP3 cannot loop gaplessly: encoder delay and padding pad the decoded stream with silence the format does not describe, which is why Vorbis is the music format.
 
 A loop region is authored either inside the audio file, which the build reads — a WAV's first `smpl` sample loop, or an Ogg Vorbis file's `LOOPSTART` and `LOOPLENGTH` comments in samples — or in game code on the clip, as `with { LoopRegion = ... }`. `LOOPSTART` with `LOOPEND` is read the same way, and `LOOPSTART` alone loops the rest of the file. A file tagging neither has no region. A region has to fit its clip: the build fails a file whose region does not, naming the file and the samples it claimed, and the mixer refuses a clip whose region does not at play. A voice that loops plays from the clip's beginning through the region's end and then repeats the region, sample-exact and gapless; one that does not loop ignores the region and plays to the clip's end. A looping voice whose clip has no region repeats the whole clip. A voice can also be panned between the speakers and started part-way into its clip, and can be asked what clip time it has reached — pan covers the whole field for a mono clip and, for a stereo one, only where the output device supports rotating it.
 
@@ -322,19 +326,19 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 
 | Property           | Value  | Effect                                                                                                                                        |
 | ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the game's scene, entity, and asset registries, and compiles its sprite sheets. Set it only on the substrate-free logic library. |
-| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and defaults scene import and asset shipping on. Set it only on the executable shell.                                 |
+| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the game's scene, entity, and asset registries, compiles its sprite sheets, and defaults scene import and asset shipping on. Set it only on the substrate-free logic library. |
+| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it only on the executable shell.               |
 
 ### Authoring sources and output
 
 | Property                 | Default                                       | Effect                                                                                                                                                                 |
 | ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `sprites/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist.                                       |
-| `CapsuleImportScenes`    | `true` for the shell; otherwise `false`       | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.            A role-free test or tool can opt in independently. |
-| `CapsuleShipAssets`      | `true` for the shell; otherwise `false`       | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                          |
+| `CapsuleAssetSourcesDir` | `Assets` under the importing project          | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Audio/`, and `Fonts/` trees. An explicitly named directory must exist.                                       |
+| `CapsuleImportScenes`    | `true` for the logic library; otherwise `false` | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.          A role-free test or tool can opt in independently. |
+| `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                        |
 | `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `CapsuleAssets.Sprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
-| `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
-| `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size.                   |
+| `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
+| `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size.                                  |
 | `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane. Set it on an ordinary build to verify a publish. |
 
 ### Application icons

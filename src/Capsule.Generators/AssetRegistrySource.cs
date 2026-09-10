@@ -43,7 +43,13 @@ internal static class AssetRegistrySource
             ? authored!.Replace('\\', '/')
             : Path.GetFileNameWithoutExtension(text.Path);
 
-        return new AssetModel(domain, path, Path.GetExtension(text.Path), FaultIn(path));
+        // The key, not the spelling: the build ships the asset at the normalized path, so the
+        // handle this declares must name that and no other.
+        string extension = Path.GetExtension(text.Path);
+
+        return TypeNaming.NormalizeKey(path, out _) is { } key
+            ? new AssetModel(domain, key, path, extension, AssetFault.None)
+            : new AssetModel(domain, path, path, extension, AssetFault.UnsafeName);
     }
 
     internal static void Emit(SourceProductionContext context, ImmutableArray<AssetModel> models, bool emitting)
@@ -113,20 +119,6 @@ internal static class AssetRegistrySource
         }
 
         return false;
-    }
-
-    // Every segment of the path is an identifier in its own right.
-    private static AssetFault FaultIn(string path)
-    {
-        foreach (string segment in path.Split('/'))
-        {
-            if (TypeNaming.ToIdentifier(segment) is null)
-            {
-                return AssetFault.UnsafeName;
-            }
-        }
-
-        return AssetFault.None;
     }
 
     // Walks the model's directories into the tree and hangs the handle off the last one, reporting
@@ -262,7 +254,7 @@ internal static class AssetRegistrySource
 
             first = false;
 
-            source.Append(inner).Append("/// <summary><c>").Append(leaf.Value.Display).AppendLine("</c>.</summary>");
+            source.Append(inner).Append("/// <summary><c>assets/").Append(leaf.Value.Shipped).AppendLine("</c>.</summary>");
             source.Append(inner).Append("public static ").Append(handle).Append(' ').Append(leaf.Key);
             source.Append(" => new ").Append(handle).Append('(');
             source.Append(SymbolDisplay.FormatLiteral(leaf.Value.Path, quote: true));

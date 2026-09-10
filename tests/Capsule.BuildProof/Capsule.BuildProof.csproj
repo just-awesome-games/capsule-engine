@@ -15,8 +15,6 @@
     <CapsuleGameLogic>true</CapsuleGameLogic>
     <!-- No sheets to import, and the document tool is proved by the sample. -->
     <CapsuleImportSprites>false</CapsuleImportSprites>
-    <!-- Its own plane, so the assertions below own every file they count. -->
-    <CapsuleAssetSourcesDir>asset-sources</CapsuleAssetSourcesDir>
     <!-- The generated registries on disk are what the driver assertion reads. -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>

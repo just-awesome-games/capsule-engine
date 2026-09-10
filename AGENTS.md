@@ -45,7 +45,7 @@ Warnings are fixed or suppressed with the reason at the suppression site. Every 
 - Nothing calls it, delete it.
 - Document model types are public because games author them in tests; the parser is not.
 - Engine-owned state never has a public setter.
-- Generated roots are named for the engine — `CapsuleBoot`, `CapsuleScenes`, `CapsuleEntities` and the one asset root `CapsuleAssets` — and a generated asset name mirrors its path under `asset-sources/`.
+- Generated roots are named for the engine — `CapsuleBoot`, `CapsuleScenes`, `CapsuleEntities` and the one asset root `CapsuleAssets` — and a generated asset name mirrors its key under `Assets/`, which is its authored path normalized segment by segment.
 
 ## Tests
 

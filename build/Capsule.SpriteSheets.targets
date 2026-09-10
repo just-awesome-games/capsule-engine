@@ -1,7 +1,7 @@
 <Project>
 
   <ItemGroup Condition="'$(CapsuleImportSprites)' == 'true'">
-    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/sprites/**/*.sheet.json"
+    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/Sprites/**/*.sheet.json"
                         Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
     </CapsuleNativeSheet>
@@ -15,86 +15,34 @@
   <!-- Target conditions are evaluated before dependencies populate document items. -->
   <Target Name="CapsuleSheetDocumentsInit"
           Condition="'$(CapsuleImportSprites)' == 'true'"
-          DependsOnTargets="CapsuleCollectSheetDocuments;CapsuleAssetsInit;CapsuleResolveBuildTool">
+          DependsOnTargets="CapsuleReadKeys">
 
-    <Error Condition="('@(CapsuleNativeSheet)' != '' or '@(CapsuleSheetDocument)' != '') and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
+    <Error Condition="'@(_CapsuleSheetRequest)' != '' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the sprite sheet importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <ItemGroup>
-      <_CapsuleSheetSource Include="@(CapsuleNativeSheet)">
-        <Key>$([System.String]::Copy('%(CapsuleNativeSheet.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeSheet.Filename)'))</Key>
-      </_CapsuleSheetSource>
-      <!-- Qualify optional metadata to avoid evaluating it on incompatible items. -->
-      <_CapsuleSheetSource Include="@(CapsuleSheetDocument)">
-        <Key Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' != ''">%(CapsuleSheetDocument.CapsuleDocumentKey)</Key>
-        <Key Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleSheetDocument.Filename)'))</Key>
-      </_CapsuleSheetSource>
-      <_CapsuleSheetName Include="@(_CapsuleSheetSource->'%(Key)')" />
-      <_CapsuleSheetNameDistinct Include="@(_CapsuleSheetName->Distinct())" />
-    </ItemGroup>
-
-    <Error Condition="'@(_CapsuleSheetName->Count())' != '@(_CapsuleSheetNameDistinct->Count())'"
-           Text="Capsule: two sprite sheet sources share a path under the sprites root, and a sheet's generated class is named after that path. Rename one of: @(_CapsuleSheetSource, ' ')" />
-
-    <ItemGroup>
-      <_CapsuleSheetTextureAsset Include="@(CapsuleAsset)" Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'textures'" />
-      <_CapsuleSheetTextureName Include="@(_CapsuleSheetTextureAsset->'%(CapsuleAssetPath)%(Extension)')" />
-    </ItemGroup>
-
-    <!-- Keep the command-line output directory free of a trailing Windows separator. -->
     <PropertyGroup>
-      <CapsuleSheetProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleSheetProjectDir>
-      <CapsuleSheetDocumentsObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleSheetDocumentsObjDir>
-      <CapsuleSheetDocumentsOutDir>$(CapsuleSheetDocumentsObjDir)/sprites</CapsuleSheetDocumentsOutDir>
-      <CapsuleSheetDocumentsBatchFile>$(CapsuleSheetDocumentsObjDir)/sheet-documents.txt</CapsuleSheetDocumentsBatchFile>
-      <CapsuleSheetTextureStamp>$(CapsuleSheetDocumentsObjDir)/sheet-textures.txt</CapsuleSheetTextureStamp>
-      <CapsuleSheetSourceStamp>$(CapsuleSheetDocumentsObjDir)/sheet-sources.txt</CapsuleSheetSourceStamp>
-      <CapsuleSpriteRegistryFile>$(CapsuleSheetDocumentsObjDir)/CapsuleAssets.Sprites.g.cs</CapsuleSpriteRegistryFile>
+      <CapsuleSheetDocumentsOutDir>$(CapsuleObjDir)/sprites</CapsuleSheetDocumentsOutDir>
+      <CapsuleSheetDocumentsBatchFile>$(CapsuleKeysDir)/sprites.txt</CapsuleSheetDocumentsBatchFile>
+      <CapsuleSheetTextureFile>$(CapsuleKeysDir)/textures.txt</CapsuleSheetTextureFile>
+      <CapsuleSpriteRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Sprites.g.cs</CapsuleSpriteRegistryFile>
     </PropertyGroup>
-
-    <MakeDir Directories="$(CapsuleSheetDocumentsObjDir)" Condition="'@(_CapsuleSheetSource)' != ''" />
-
-    <!-- Stamp non-file inputs for MSBuild incrementality. -->
-    <WriteLinesToFile File="$(CapsuleSheetTextureStamp)"
-                      Lines="@(_CapsuleSheetTextureName)"
-                      Overwrite="true"
-                      WriteOnlyWhenDifferent="true"
-                      Condition="'@(_CapsuleSheetSource)' != ''" />
-
-    <WriteLinesToFile File="$(CapsuleSheetSourceStamp)"
-                      Lines="@(_CapsuleSheetSource->'%(Key)=%(FullPath)')"
-                      Overwrite="true"
-                      WriteOnlyWhenDifferent="true"
-                      Condition="'@(_CapsuleSheetSource)' != ''" />
   </Target>
 
   <!-- The single generated registry makes this target all-or-nothing incremental. -->
   <Target Name="CapsuleImportSheetDocuments"
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleSheetDocumentsInit;ResolveProjectReferences"
-          Inputs="@(_CapsuleSheetSource);$(CapsuleSheetSourceStamp);$(CapsuleSheetTextureStamp);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Inputs="@(_CapsuleSheetRequest);$(CapsuleSheetDocumentsBatchFile);$(CapsuleSheetTextureFile);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
           Outputs="$(CapsuleSpriteRegistryFile)">
 
-    <Error Condition="'@(_CapsuleSheetSource)' != '' and !Exists('@(_CapsuleBuildTool)')"
+    <Error Condition="'@(_CapsuleSheetRequest)' != '' and !Exists('@(_CapsuleBuildTool)')"
            Text="Capsule: the sprite sheet importer was not built (expected '@(_CapsuleBuildTool)')." />
 
-    <!-- Use a response file to avoid cmd's length limit; the condition protects MakeRelative from an empty path. -->
-    <ItemGroup Condition="'@(_CapsuleSheetSource)' != ''">
-      <_CapsuleSheetSourceArg Include="@(_CapsuleSheetSource)">
-        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleSheetProjectDir), %(FullPath)))</ProjectRelativePath>
-      </_CapsuleSheetSourceArg>
-    </ItemGroup>
-
-    <WriteLinesToFile File="$(CapsuleSheetDocumentsBatchFile)"
-                      Lines="@(_CapsuleSheetSourceArg->'%(Key)|%(ProjectRelativePath)')"
-                      Overwrite="true"
-                      Condition="'@(_CapsuleSheetSource)' != ''" />
-
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --out &quot;$(CapsuleSheetDocumentsOutDir)&quot; --sheets-from &quot;$(CapsuleSheetDocumentsBatchFile)&quot; --textures &quot;$(CapsuleSheetTextureStamp)&quot; --generated &quot;$(CapsuleSpriteRegistryFile)&quot;"
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --out &quot;$(CapsuleSheetDocumentsOutDir)&quot; --sheets-from &quot;$(CapsuleSheetDocumentsBatchFile)&quot; --textures &quot;$(CapsuleSheetTextureFile)&quot; --generated &quot;$(CapsuleSpriteRegistryFile)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal"
-          Condition="'@(_CapsuleSheetSource)' != ''" />
+          Condition="'@(_CapsuleSheetRequest)' != ''" />
   </Target>
 
   <!-- Keep generated code in up-to-date and design-time builds. -->
@@ -102,7 +50,7 @@
           Condition="'$(CapsuleImportSprites)' == 'true'"
           DependsOnTargets="CapsuleImportSheetDocuments"
           BeforeTargets="BeforeCompile;CoreCompile">
-    <ItemGroup Condition="'@(_CapsuleSheetSource)' != ''">
+    <ItemGroup Condition="'@(_CapsuleSheetRequest)' != ''">
       <Compile Include="$(CapsuleSpriteRegistryFile)" />
       <FileWrites Include="$(CapsuleSpriteRegistryFile)" />
     </ItemGroup>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Capsule.Build.Audio;
+using Capsule.Build.Keys;
 using Capsule.Build.Scenes;
 using Capsule.Build.Sprites;
 
@@ -11,6 +12,7 @@ internal static class Program
         Capsule.Build --out <dir> [--tile-size <px>] --scenes-from <list.txt>
         Capsule.Build --out <dir> --sheets-from <list.txt> --textures <list.txt> --generated <file.cs>
         Capsule.Build --audio-from <list.txt> --generated <file.cs>
+        Capsule.Build --keys-from <requests.txt> --keys-to <dir> --scenes-out <dir>
 
           Validates every document named in <list.txt> — one 'key|path' per line, the path relative
           to the working directory — and writes it canonically at <dir>/<key>. A line with no key is
@@ -25,6 +27,11 @@ internal static class Program
           --audio-from measures every shipped audio source instead, deriving nothing onto disk;
           --generated is the C# file the whole clip set is rendered as.
 
+          --keys-from derives the key of every authored path in <requests.txt> — one
+          'group|path|extension|source' per line — and writes the derived names under --keys-to for
+          the build hooks to read back. --scenes-out is where the scene importer writes, which the
+          derived scene paths are rooted at.
+
           Capsule's build hooks are the only callers.
         """;
 
@@ -34,6 +41,11 @@ internal static class Program
         if (args is ["--audio-from", string audioList, "--generated", string audioRegistry])
         {
             return AudioTool.EmitFromList(audioList, audioRegistry, Console.Out, Console.Error);
+        }
+
+        if (args is ["--keys-from", string requests, "--keys-to", string keyDirectory, "--scenes-out", string scenesDirectory])
+        {
+            return KeyTool.Derive(requests, keyDirectory, scenesDirectory, Console.Out, Console.Error);
         }
 
         if (args is not ["--out", string outputDirectory, .. string[] rest])

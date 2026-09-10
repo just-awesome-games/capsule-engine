@@ -333,10 +333,18 @@ internal static class SpriteSheetDocumentFile
                 "the sheet document names no texture; a sheet cuts its frames from one texture under assets/textures.");
         }
 
-        return AssetPaths.TrySplit(path, out string name, out string extension)
-            ? new TextureHandle(name, extension)
-            : throw new SpriteSheetFormatException(
+        if (!AssetPaths.TrySplit(path, out string name, out string extension))
+        {
+            throw new SpriteSheetFormatException(
                 $"the sheet document has texture \"{path}\"; a texture is one asset's path under assets/textures, extension included — \"player.png\" at the root, \"actors/player.png\" below it — with forward slashes and no empty, \".\" or \"..\" segment.");
+        }
+
+        // However the document spelled it, a texture is reached by its key: the handle this hands
+        // on and re-emits is the one the build ships the texture under.
+        return TypeNaming.NormalizeKey(name, out string? rejected) is { } key
+            ? new TextureHandle(key, extension)
+            : throw new SpriteSheetFormatException(
+                $"the sheet document has texture \"{path}\", whose \"{rejected}\" is no C# name; every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.");
     }
 
     private static string TextureName(TextureHandle texture) =>

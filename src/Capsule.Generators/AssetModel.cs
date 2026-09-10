@@ -8,30 +8,38 @@ internal enum AssetFault
 
 internal readonly struct AssetModel : IEquatable<AssetModel>
 {
-    internal AssetModel(string domain, string path, string extension, AssetFault fault)
+    internal AssetModel(string domain, string path, string authored, string extension, AssetFault fault)
     {
         Domain = domain;
         Path = path;
+        Authored = authored;
         Extension = extension;
         Fault = fault;
     }
 
     internal string Domain { get; }
 
-    /// <summary>The source's path under its domain root, extension stripped, forward slashes only.</summary>
+    /// <summary>The source's key under its domain root, extension stripped, forward slashes only.</summary>
     internal string Path { get; }
+
+    /// <summary>The path as the game spelled it, which is how a diagnostic finds the file again.</summary>
+    internal string Authored { get; }
 
     internal string Extension { get; }
 
     internal AssetFault Fault { get; }
 
     /// <summary>What a diagnostic names the asset by: its path under the source tree.</summary>
-    internal string Display => Domain + "/" + Path + Extension;
+    internal string Display => Domain + "/" + Authored + Extension;
+
+    /// <summary>Where the build ships the asset, which is its key under its domain root.</summary>
+    internal string Shipped => Domain + "/" + Path + Extension;
 
     public bool Equals(AssetModel other) =>
         Fault == other.Fault
         && string.Equals(Domain, other.Domain, StringComparison.Ordinal)
         && string.Equals(Path, other.Path, StringComparison.Ordinal)
+        && string.Equals(Authored, other.Authored, StringComparison.Ordinal)
         && string.Equals(Extension, other.Extension, StringComparison.Ordinal);
 
     public override bool Equals(object? obj) => obj is AssetModel other && Equals(other);
@@ -41,6 +49,7 @@ internal readonly struct AssetModel : IEquatable<AssetModel>
         int hash = 17;
         hash = (hash * 31) + Domain.GetHashCode();
         hash = (hash * 31) + Path.GetHashCode();
+        hash = (hash * 31) + Authored.GetHashCode();
         hash = (hash * 31) + Extension.GetHashCode();
         hash = (hash * 31) + (int)Fault;
 

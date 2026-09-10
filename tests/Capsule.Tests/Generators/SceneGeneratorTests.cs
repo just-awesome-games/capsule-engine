@@ -54,14 +54,14 @@ public sealed class SceneGeneratorTests
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("../room")]
-    [InlineData("rooms//opening")]
-    [InlineData("/opening")]
-    [InlineData("opening room")]
-    [InlineData("rooms/opening.json")]
-    [InlineData("rooms/nul")]
-    public void AnUnsafeExplicitDocumentName_FailsTheBuild(string documentName)
+    [InlineData("", "CAP021")]
+    [InlineData("../room", "CAP021")]
+    [InlineData("rooms//opening", "CAP021")]
+    [InlineData("/opening", "CAP021")]
+    [InlineData("opening room", "CAP021")]
+    [InlineData("rooms/opening.json", "CAP021")]
+    [InlineData("rooms/nul", "CAP006")]
+    public void AnUnsafeExplicitDocumentName_FailsTheBuild(string documentName, string diagnosticId)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
@@ -70,7 +70,43 @@ public sealed class SceneGeneratorTests
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """).Diagnostics;
 
-        Assert.Equal("CAP006", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Assert.Equal(diagnosticId, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    // A claim is authored prose, so it is keyed like the document's own path: whatever spelling the
+    // attribute carries, the class meets its document at the key the build ships it under.
+    [Fact]
+    public void AnExplicitDocumentName_IsNormalizedLikeTheDocumentsOwnPath()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            [SceneDocument("Stage1/Room01")]
+            public sealed class OpeningRoom(SceneContent content) : Scene(content);
+            """);
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
+        AssertClaimedBy(generated, "stage-1/room-01", "Game.OpeningRoom");
+        Assert.DoesNotContain("Stage1/Room01", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnExplicitDocumentName_WithAnUnnameableSegment_NamesTheTypeAndTheSegment()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            [SceneDocument("01-intro/opening")]
+            public sealed class OpeningRoom(SceneContent content) : Scene(content);
+            """).Diagnostics;
+
+        Diagnostic rejected = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP021", rejected.Id);
+
+        string message = rejected.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Contains("Game.OpeningRoom", message, StringComparison.Ordinal);
+        Assert.Contains("'01-intro'", message, StringComparison.Ordinal);
     }
 
     [Fact]

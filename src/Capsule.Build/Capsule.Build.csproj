@@ -44,6 +44,7 @@
   <ItemGroup>
     <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
     <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Keys.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.SceneDocuments.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.SpriteSheets.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Assets.targets" Pack="true" PackagePath="buildTransitive/" />

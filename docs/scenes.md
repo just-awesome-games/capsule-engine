@@ -8,11 +8,11 @@ Data and behaviour are separate halves, and a game takes either or both:
 
 | Combination | What the game writes | How it boots |
 | --- | --- | --- |
-| Document only | `test.scene.json` under `src/asset-sources/scenes/`, and no class | `RunScene("test")` composes a plain `Scene` from it |
+| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `RunScene("test")` composes a plain `Scene` from it |
 | Document and class | that document, plus `class Test : Scene` whose constructor is `public Test(SceneContent content) : base(content)` | `RunScene<Test>()` or `RunScene("test")` — either loads the document, then constructs `Test` |
 | Class only | `class Test : Scene` with a public parameterless constructor | `RunScene<Test>()` runs the scene as it builds itself |
 
-The `SceneContent` constructor is the opt-in: taking one and handing it to `base` is what claims a document. The document claimed is the key the class's namespace names — `MyGame.Scenes.OpeningRoom` claims `opening-room`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01` — unless `[SceneDocument("key")]` names another; Entries and composition below states that rule in full. A document no class claims composes into a plain `Scene`; a class no document backs is built as it is. A class declaring both constructor shapes is a compile error.
+The `SceneContent` constructor is the opt-in: taking one and handing it to `base` is what claims a document. The document claimed is the key the class's namespace names — `MyGame.Scenes.OpeningRoom` claims `opening-room`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01` — unless `[SceneDocument("key")]` names another, whose key is normalized the same way the document's own path is; Entries and composition below states that rule in full. A document no class claims composes into a plain `Scene`; a class no document backs is built as it is. A class declaring both constructor shapes is a compile error.
 
 ```csharp
 [SceneDocument("room-01")]
@@ -81,7 +81,7 @@ A palette entry may also carry `cell`, `layer` and `collidableFaces`: what a til
 
 | Field | Meaning |
 | --- | --- |
-| `texture` | The path under the textures root, extension included, of the texture every drawn tile is cut from — `"terrain.png"` is authored at `asset-sources/textures/terrain.png`, `"terrain/cave.png"` at `asset-sources/textures/terrain/cave.png`, and each loads from `assets/textures/` at the same path. Forward slashes only, with no empty, `.` or `..` segment; which extensions the domain admits is the build's to decide. Absent on a grid that draws nothing. |
+| `texture` | The key under the textures root, extension included, of the texture every drawn tile is cut from — `"terrain.png"` is authored at `Assets/Textures/terrain.png`, `"terrain/cave.png"` at `Assets/Textures/terrain/cave.png`, and each loads from `assets/textures/` at that key. Forward slashes only, with no empty, `.` or `..` segment; any spelling of the key is accepted and the derived document carries the key, per [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets). Which extensions the domain admits is the build's to decide. Absent on a grid that draws nothing. |
 | `columns` | How many cells wide that texture is. Required with `texture` and at least 1; absent without one. |
 | `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` and then down from cell 0, square at `tileSize`. Absent is a semantic tile: it is queryable, it may collide, and it draws nothing. |
 | `layer` | The collision layer every tile of this type is on, as one name. Absent is decoration: the tile collides as nothing. The name is the game's own — the engine reserves none — and a query or a mover meets the tile when its own filter names that layer. The tile type is identity and is never a layer, so several types may share one. |
@@ -97,7 +97,7 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 ## From source to game
 
-Games author scene documents under `src/asset-sources/scenes/`, and the build validates each one, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, so `scenes/stage-1/room-01.scene.json` is keyed `stage-1/room-01` and ships there; the class that composes it is the one whose own key matches. Two sources sharing a stem in different directories are two documents; two sharing a key fail the build, and derived documents are never committed. The shell role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
+Games author scene documents under the logic project's `Assets/Scenes/`, and the build validates each one, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, normalized as [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets) defines, so `Scenes/Stage1/Room01.scene.json` and `Scenes/stage-1/room-01.scene.json` are both keyed `stage-1/room-01` and ship there; the class that composes it is the one whose own key matches. Two sources sharing a stem in different directories are two documents; two sharing a key fail the build, and derived documents are never committed. The logic role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match — both are project properties named in [`consuming-capsule.md`](consuming-capsule.md).
 
 The process behind the hook is `Capsule.Build` itself, packed unlisted under the package's `tools/`, and the build is its only caller.
 
@@ -105,10 +105,12 @@ The process behind the hook is `Capsule.Build` itself, packed unlisted under the
 
 The engine's build wires one format per document kind — `*.scene.json` here, `*.sheet.json` in [`sprite-animation.md`](sprite-animation.md). An editor's own format enters through an authoring module: a package whose `buildTransitive` targets derive a document per source into their own `obj/` space and add each derived document to the `CapsuleSceneDocument` item from a target that runs `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine then validates, canonicalizes, and ships those documents exactly as hand-authored ones, preserving the module's `source` block so the shipped document names the file a person edited.
 
-A module states the key each document claims as `%(CapsuleDocumentKey)` on the item — the root-relative path, forward slashes, one or more `/`-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (`nul`, `con`, …), carrying no extension. A document that names none is keyed by its stem at the root.
+A module states the key each document claims as `%(CapsuleDocumentKey)` on the item — the root-relative path, forward slashes, one or more `/`-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (`nul`, `con`, …), carrying no extension. A document that names none is keyed by its stem at the root. The engine normalizes what a module states, so a module spells a key however its own authoring tree does and implements no part of the rule.
 
 A module globbing its own sources inside a target cannot read `%(RecursiveDir)` on the glob's own `Include`: metadata there batches over the target and comes back empty. Collect the glob first, then set the key in a second item group that names the metadata qualified — `%(MyModuleSource.RecursiveDir)`, the module's own item — before stamping `CapsuleDocumentKey`. The engine's own globs run at evaluation time, which is why the targets here use the bare form.
 
 A module may read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize`, and `CapsuleDotNetHost`, and reads them only inside its targets: NuGet imports package targets in no promised order, so a property a role derives is final at execution time, not at evaluation.
+
+Every authoring glob a module declares carries `Exclude="@(_CapsuleDevelopmentOnly)"`, the item Capsule fills with everything under a development-only directory (see [`consuming-capsule.md`](consuming-capsule.md#development-only-directories)). Without it the marker's guarantee does not hold for the module's format, and a directory a game marked still ships. The item is populated at evaluation time under `CapsuleShipping`, so it is final inside any target, whatever order the two targets files were imported in.
 
 JAG Studios publishes the Tiled module as `JAG.Capsule.Tiled` from [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

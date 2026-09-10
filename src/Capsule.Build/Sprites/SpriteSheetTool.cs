@@ -98,7 +98,7 @@ internal static class SpriteSheetTool
                 if (!shipped.Contains(texture))
                 {
                     throw new SpriteSheetFormatException(
-                        $"cuts from texture \"{texture}\", which this game does not ship; author it at asset-sources/textures/{texture}.");
+                        $"cuts from texture \"{texture}\", which this game does not ship; author it at Assets/Textures/{texture}.");
                 }
 
                 AtomicFile.Write(documentPath, path => SpriteSheetDocumentFile.Save(document, path));

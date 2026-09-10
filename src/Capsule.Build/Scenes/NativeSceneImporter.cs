@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using Capsule.Assets;
+using Capsule.Generators;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Tiles;
 
 namespace Capsule.Build.Scenes;
 
@@ -37,6 +40,40 @@ internal static class NativeSceneImporter
             documentPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(sourceBytes)));
 
-        return new SceneDocument(authored.Entries.ToArray(), authored.NextEntityId, source);
+        return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source);
     }
+
+    // However a document spelled a texture, a texture is reached by its key, so what is re-emitted
+    // and what the runtime loads is the path the build ships it at.
+    private static SceneDocumentEntry[] Keyed(ReadOnlySpan<SceneDocumentEntry> entries)
+    {
+        SceneDocumentEntry[] keyed = new SceneDocumentEntry[entries.Length];
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            keyed[i] = entries[i].TileMap is { Grid: { Texture: { } texture } grid } map
+                ? new TileMapPlacement(map.Id, Regrid(grid, Keyed(texture)), map.ZIndex)
+                : entries[i];
+        }
+
+        return keyed;
+    }
+
+    private static TextureHandle Keyed(TextureHandle texture) =>
+        TypeNaming.NormalizeKey(texture.Name, out string? rejected) is { } key
+            ? new TextureHandle(key, texture.Extension)
+            : throw new SceneDocumentFormatException(
+                $"a tile-map entry's grid draws from texture \"{texture.Name}{texture.Extension}\", whose \"{rejected}\" is no C# name; every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.");
+
+    private static TileGrid Regrid(TileGrid grid, TextureHandle texture) =>
+        string.Equals(texture.Name, grid.Texture!.Value.Name, StringComparison.Ordinal)
+            ? grid
+            : new TileGrid(
+                grid.TileSize,
+                grid.Width,
+                grid.Height,
+                grid.TileTypes.ToArray(),
+                grid.Tiles.ToArray(),
+                texture,
+                grid.Columns);
 }

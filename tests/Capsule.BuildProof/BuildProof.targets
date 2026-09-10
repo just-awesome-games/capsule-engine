@@ -67,11 +67,11 @@
     </ItemGroup>
 
     <Error Condition="'@(_ProofKeptAsset)' == ''"
-           Text="BuildProof: asset-sources/textures/kept.png is not an asset, so nothing here proves anything." />
+           Text="BuildProof: Assets/Textures/kept.png is not an asset, so nothing here proves anything." />
     <Error Condition="'$(CapsuleShipping)' == 'true' and '@(_ProofMarkedAsset)' != ''"
-           Text="BuildProof: a shipping build still admits asset-sources/textures/development/scratch.png, under a .capsuleignore marker." />
+           Text="BuildProof: a shipping build still admits Assets/Textures/development/scratch.png, under a .capsuleignore marker." />
     <Error Condition="'$(CapsuleShipping)' != 'true' and '@(_ProofMarkedAsset)' == ''"
-           Text="BuildProof: an ordinary build does not admit asset-sources/textures/development/scratch.png, which a marker must not remove." />
+           Text="BuildProof: an ordinary build does not admit Assets/Textures/development/scratch.png, which a marker must not remove." />
   </Target>
 
   <!-- The registry the compiler actually emitted, rather than the compile item list it was built

@@ -18,12 +18,13 @@
 
   <!-- Compose hook paths with forward slashes; backslashes are not separators on Linux. -->
   <PropertyGroup>
-    <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportScenes>
-    <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
+    <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportScenes>
+    <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleShipAssets>
     <CapsuleImportSprites Condition="'$(CapsuleImportSprites)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportSprites>
     <CapsuleImportAudio Condition="'$(CapsuleImportAudio)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportAudio>
     <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleImportAudio)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
-    <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleImportAudio)' == 'true'">true</CapsuleUsesBuildTool>
+    <!-- Every authored path is keyed by the tool, so reading asset sources at all needs it. -->
+    <CapsuleUsesBuildTool Condition="'$(CapsuleReadsAssetSources)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
@@ -70,10 +71,12 @@
     </ItemGroup>
   </Target>
 
-  <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
+  <!-- Resolved for every importing project, read only by one that reads asset sources: an empty
+       value would leave the authoring globs rooted at the drive. -->
+  <PropertyGroup>
     <!-- Capture an explicit override before applying the default. -->
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
-    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/../asset-sources</CapsuleAssetSourcesDir>
+    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/Assets</CapsuleAssetSourcesDir>
     <!-- Normalize overrides against the project directory before Exists checks. -->
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
   </PropertyGroup>
@@ -83,11 +86,12 @@
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           BeforeTargets="AssignTargetPaths">
     <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
-           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under scenes/, assets under textures/, audio/ and fonts/), or leave it unset to look for them at &lt;importing project&gt;/../asset-sources." />
+           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under Scenes/, assets under Textures/, Audio/ and Fonts/), or leave it unset to look for them at &lt;importing project&gt;/Assets." />
   </Target>
 
   <!-- Development-only exclusions must exist before authoring-source globs are evaluated. -->
   <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Keys.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SceneDocuments.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SpriteSheets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />

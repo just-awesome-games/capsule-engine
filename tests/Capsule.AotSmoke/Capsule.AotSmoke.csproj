@@ -13,9 +13,6 @@
     <!-- An AOT publish restores a runtime-specific ILC compiler pack per CI matrix leg, so no one
          lock file describes this project's restore. -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-    <CapsuleImportScenes>true</CapsuleImportScenes>
-    <CapsuleShipAssets>true</CapsuleShipAssets>
-    <CapsuleAssetSourcesDir>asset-sources</CapsuleAssetSourcesDir>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 

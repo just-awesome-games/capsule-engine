@@ -42,6 +42,40 @@ internal static class TypeNaming
         return id.ToString();
     }
 
+    // The one spelling of an authored path: every '/'-joined segment reduced to the kebab form of
+    // the identifier it names, so "Enemies/Bat", "enemies/bat" and "enemies/Bat" are one key.
+    // Idempotent, since the kebab form of an identifier names that identifier again. Null when a
+    // segment is no identifier at all; that segment comes back in <paramref name="rejected"/>.
+    internal static string? NormalizeKey(string key, out string? rejected)
+    {
+        rejected = null;
+        StringBuilder normalized = new(key.Length + 4);
+        int start = 0;
+
+        while (true)
+        {
+            int slash = key.IndexOf('/', start);
+            int end = slash < 0 ? key.Length : slash;
+            string segment = key.Substring(start, end - start);
+
+            if (ToIdentifier(segment) is not { } identifier)
+            {
+                rejected = segment;
+                return null;
+            }
+
+            normalized.Append(FromTypeName(identifier));
+
+            if (slash < 0)
+            {
+                return normalized.ToString();
+            }
+
+            normalized.Append('/');
+            start = slash + 1;
+        }
+    }
+
     internal static string? ToIdentifier(string name)
     {
         StringBuilder identifier = new(name.Length);

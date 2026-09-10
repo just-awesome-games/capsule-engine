@@ -6,7 +6,7 @@ namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// The playable room: a scene that is a document and a class at once. The document is
-/// <c>src/asset-sources/scenes/room.scene.json</c>, which the build validates and re-emits to
+/// <c>Assets/Scenes/room.scene.json</c>, which the build validates and re-emits to
 /// <c>assets/scenes/room.scene.json</c> beside the executable; <c>[SceneDocument("room")]</c> names
 /// it, and without the attribute the key this class's namespace names would be the same: it sits
 /// directly under <c>MinimalGame.Game.Scenes</c>, so the <c>Scenes</c> segment falls away and

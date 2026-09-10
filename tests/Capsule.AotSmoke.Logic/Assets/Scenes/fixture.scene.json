@@ -1,0 +1,37 @@
+{
+  "formatVersion": 5,
+  "entities": [
+    {
+      "id": 1,
+      "type": "fixture-entity",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": 2,
+      "type": "tile-map",
+      "x": 0,
+      "y": 0,
+      "properties": {
+        "tileSize": 1,
+        "width": 1,
+        "height": 1,
+        "texture": "TileSets/Cave_Wall.png",
+        "columns": 1,
+        "tileTypes": [
+          {
+            "type": "empty"
+          },
+          {
+            "type": "wall",
+            "cell": 0
+          }
+        ],
+        "tiles": [
+          1
+        ]
+      }
+    }
+  ],
+  "nextEntityId": 3
+}

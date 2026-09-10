@@ -87,7 +87,7 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor UnsafeAssetName = Asset(
         "CAP017",
         "An asset name must become an identifier",
-        "'{0}' cannot be named in code; every directory and file name under a domain root is ASCII letters, digits, hyphens and underscores, starting with a letter");
+        "'{0}' cannot be named in code; every directory and file name under a domain root is " + SegmentGrammar);
 
     internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = Asset(
         "CAP018",
@@ -103,6 +103,14 @@ internal static class RegistryDiagnostics
         "CAP020",
         "Two input drivers claim one name",
         "'{0}' and '{1}' are both named '{2}' on a command line; rename one, since --driver takes a class name");
+
+    internal static readonly DiagnosticDescriptor UnnameableSceneDocumentSegment = Scene(
+        "CAP021",
+        "A scene document key must be nameable segment by segment",
+        "'{0}' claims a scene document key whose segment '{1}' names nothing; every segment of a key is " + SegmentGrammar);
+
+    private const string SegmentGrammar =
+        "ASCII letters, digits, hyphens and underscores, starting with a letter";
 
     private const string KeyGrammar =
         "a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension";

@@ -7,7 +7,6 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
     <CapsuleImportSprites>false</CapsuleImportSprites>
-    <CapsuleAssetSourcesDir>../Capsule.AotSmoke/asset-sources</CapsuleAssetSourcesDir>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 

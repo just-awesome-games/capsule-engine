@@ -37,6 +37,22 @@ public sealed class NativeSceneToolTests
         Assert.Equal("player", derived.Entries[1].Entity!.Value.Type);
     }
 
+    // A texture is reached by its key, so the derived document names the path the build ships it at.
+    [Fact]
+    public void Import_ReEmitsATileMapTextureAsItsKey()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write(
+            "hall.scene.json",
+            Authored.Replace("\"terrain.png\"", "\"Terrain/Cave_Wall.png\"", StringComparison.Ordinal));
+
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
+
+        Assert.Equal(0, exitCode);
+        SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
+        Assert.Equal("terrain/cave-wall", derived.Entries[0].TileMap!.Value.Grid.Texture?.Name);
+    }
+
     [Fact]
     public void ImportFromList_ImportsTheSourcesNamedOnePerLine()
     {
@@ -74,7 +90,7 @@ public sealed class NativeSceneToolTests
         SceneDocument stamped = new(
             SceneDocumentFile.Parse(Authored).Entries.ToArray(),
             3,
-            new SceneDocumentSource("editor", "../asset-sources/scenes/hall.editor", new string('a', 64)));
+            new SceneDocumentSource("editor", "Assets/Scenes/hall.editor", new string('a', 64)));
         workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
 
         int exitCode = SceneDocumentTool.Import("scenes", Sources("obj/editor/hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);

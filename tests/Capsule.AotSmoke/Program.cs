@@ -69,12 +69,17 @@ internal static class Program
     private static SceneDocument Document(string path) =>
         SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
 
+    // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another, and the document
+    // names it under the authored spelling: this is where the whole key path is proved end to end.
     private static bool ContentShipped()
     {
         SceneDocument fixture = Document(NativeScenePath);
 
         return fixture.Source is { Tool: "native" }
-            && Shipped(CapsuleAssets.Textures.Pixel);
+            && Shipped(CapsuleAssets.Textures.Pixel)
+            && Shipped(CapsuleAssets.Textures.TileSets.CaveWall)
+            && CapsuleAssets.Textures.TileSets.CaveWall.Name == "tile-sets/cave-wall"
+            && fixture.Entries[1].TileMap?.Grid.Texture?.Name == "tile-sets/cave-wall";
     }
 
     private static bool Shipped(TextureHandle texture) => Shipped("textures", texture.Name, texture.Extension);
