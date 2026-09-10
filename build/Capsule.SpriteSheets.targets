@@ -49,7 +49,7 @@
       <CapsuleSheetDocumentsBatchFile>$(CapsuleSheetDocumentsObjDir)/sheet-documents.txt</CapsuleSheetDocumentsBatchFile>
       <CapsuleSheetTextureStamp>$(CapsuleSheetDocumentsObjDir)/sheet-textures.txt</CapsuleSheetTextureStamp>
       <CapsuleSheetSourceStamp>$(CapsuleSheetDocumentsObjDir)/sheet-sources.txt</CapsuleSheetSourceStamp>
-      <CapsuleSpriteRegistryFile>$(CapsuleSheetDocumentsObjDir)/CapsuleGameSprites.g.cs</CapsuleSpriteRegistryFile>
+      <CapsuleSpriteRegistryFile>$(CapsuleSheetDocumentsObjDir)/CapsuleAssets.Sprites.g.cs</CapsuleSpriteRegistryFile>
     </PropertyGroup>
 
     <MakeDir Directories="$(CapsuleSheetDocumentsObjDir)" Condition="'@(_CapsuleSheetSource)' != ''" />

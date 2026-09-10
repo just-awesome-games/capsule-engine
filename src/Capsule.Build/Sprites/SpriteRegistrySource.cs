@@ -11,8 +11,11 @@ namespace Capsule.Build.Sprites;
 /// </summary>
 internal static class SpriteRegistrySource
 {
+    /// <summary>The generated class the asset registry and every sheet share.</summary>
+    internal const string RootClass = "CapsuleAssets";
+
     /// <summary>The generated class every sheet is declared on.</summary>
-    internal const string RegistryClass = "GameSprites";
+    internal const string RegistryClass = "Sprites";
 
     /// <summary>The generated class a sheet's frames are declared on.</summary>
     internal const string FramesClass = "Frames";
@@ -29,7 +32,7 @@ internal static class SpriteRegistrySource
     /// <summary>
     /// The C# text declaring <paramref name="sheets"/>. A sheet's key is its path under the sprites
     /// root, and each directory in it becomes a nested class, so <c>enemies/bat</c> is declared as
-    /// <c>GameSprites.Enemies.Bat</c>. Ordered by key so the output is the same on every machine
+    /// <c>CapsuleAssets.Sprites.Enemies.Bat</c>. Ordered by key so the output is the same on every machine
     /// whatever order the build collected the sources in.
     /// </summary>
     /// <param name="sheets">Each sheet's key paired with the document it was read from.</param>
@@ -66,11 +69,19 @@ internal static class SpriteRegistrySource
         source.AppendLine();
         source.AppendLine("namespace Capsule.Assets.Generated");
         source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every sprite sheet this game authors, as frames and clips. Generated; do not edit.</summary>");
-        source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
 
-        AppendDirectory(source, root, "    ", named: true);
+        // The asset half of this class carries the same summary, so whichever the compiler keeps is
+        // the same text, and each half attributes only the classes it declares: a non-repeatable
+        // attribute named by both halves of one partial class is CS0579.
+        source.AppendLine("    /// <summary>Every asset this game ships and every sprite sheet it authors. Generated; do not edit.</summary>");
+        source.Append("    public static partial class ").AppendLine(RootClass);
+        source.AppendLine("    {");
+        source.AppendLine("        /// <summary>Every sprite sheet this game authors, as frames and clips.</summary>");
+        source.AppendLine("        [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
 
+        AppendDirectory(source, root, "        ", named: true);
+
+        source.AppendLine("    }");
         source.AppendLine("}");
 
         return source.ToString();

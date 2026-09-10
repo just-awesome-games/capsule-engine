@@ -16,21 +16,14 @@
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- Capsule has no audio module; remove the backend by package identity on every runtime. -->
-  <Target Name="CapsuleDropUnusedAudioBackend" AfterTargets="ComputeResolvedFilesToPublishList">
-    <ItemGroup>
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
-                             Condition="'%(ResolvedFileToPublish.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
-    </ItemGroup>
-  </Target>
-
   <!-- Compose hook paths with forward slashes; backslashes are not separators on Linux. -->
   <PropertyGroup>
     <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleImportScenes>
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameShell)' == 'true'">true</CapsuleShipAssets>
     <CapsuleImportSprites Condition="'$(CapsuleImportSprites)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportSprites>
-    <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
-    <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true'">true</CapsuleUsesBuildTool>
+    <CapsuleImportAudio Condition="'$(CapsuleImportAudio)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportAudio>
+    <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleImportAudio)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
+    <CapsuleUsesBuildTool Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleImportSprites)' == 'true' or '$(CapsuleImportAudio)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
@@ -98,6 +91,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SceneDocuments.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SpriteSheets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Audio.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />

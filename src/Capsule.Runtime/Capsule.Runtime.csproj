@@ -14,6 +14,13 @@
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
+
+    <!-- Already in the graph as MonoGame's own dependency; named here because the streaming voice
+         decodes against it directly. Pinned to the version MonoGame resolves, and private on the
+         same terms, so a game cannot write an NVorbis using either. -->
+    <PackageReference Include="NVorbis" Version="0.10.4">
+      <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, not one by one: referencing them directly

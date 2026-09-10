@@ -30,7 +30,7 @@ public sealed class RegistryKeyTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             $"\"{key}\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile),
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile),
             StringComparison.Ordinal);
     }
 
@@ -51,7 +51,7 @@ public sealed class RegistryKeyTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             $"\"{key}\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile),
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile),
             StringComparison.Ordinal);
     }
 
@@ -70,7 +70,7 @@ public sealed class RegistryKeyTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);
         Assert.Contains("\"bat\"", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("\"enemies/bat\"", generated, StringComparison.Ordinal);
     }
@@ -92,7 +92,7 @@ public sealed class RegistryKeyTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             "\"bosses/wyrm\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile),
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile),
             StringComparison.Ordinal);
     }
 
@@ -136,7 +136,7 @@ public sealed class RegistryKeyTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             "\"stage-1/room-01\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile),
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile),
             StringComparison.Ordinal);
     }
 
@@ -161,7 +161,7 @@ public sealed class RegistryKeyTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);
         Assert.Contains("\"enemies/bat\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"bosses/bat\"", generated, StringComparison.Ordinal);
     }

@@ -47,6 +47,7 @@
     <None Include="../../build/Capsule.SceneDocuments.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.SpriteSheets.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Assets.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Audio.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />

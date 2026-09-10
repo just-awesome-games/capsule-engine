@@ -23,7 +23,7 @@ public sealed class EntityGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         // The spawn-type strings are the registry's contract with scene documents.
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);
         Assert.Contains("\"player\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"health-pickup\"", generated, StringComparison.Ordinal);
         Assert.Contains("\"http-probe\"", generated, StringComparison.Ordinal);
@@ -60,7 +60,7 @@ public sealed class EntityGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.NotNull(compiled.GetTypeByMetadataName("Game.Protagonist"));
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);
         string[] claims = generated.Split((char)10)
             .Where(line => line.Contains("\"player-spawn\"", StringComparison.Ordinal))
             .ToArray();
@@ -180,5 +180,5 @@ public sealed class EntityGeneratorTests
         Assert.Equal("CAP010", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
-    private static string Emitted(Compilation compiled) => GeneratorHarness.Emitted(compiled, GeneratorHarness.GameEntitiesFile);
+    private static string Emitted(Compilation compiled) => GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);
 }

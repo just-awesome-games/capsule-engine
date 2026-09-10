@@ -5,11 +5,11 @@
        registry beside it, so this fails on a stale one exactly as it fails on a wrong one. -->
   <Target Name="CapsuleProveIncrementalDriverRegistry" AfterTargets="CoreCompile">
     <ItemGroup>
-      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleGameInputDrivers.g.cs" />
+      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleInputDrivers.g.cs" />
     </ItemGroup>
 
     <Error Condition="'@(_ProofDriverRegistry)' == ''"
-           Text="IncrementalProof: no generated CapsuleGameInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
+           Text="IncrementalProof: no generated CapsuleInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
 
     <ReadLinesFromFile File="@(_ProofDriverRegistry)">
       <Output TaskParameter="Lines" ItemName="_ProofDriverRegistryLine" />

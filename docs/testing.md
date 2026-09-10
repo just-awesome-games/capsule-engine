@@ -52,7 +52,7 @@ using Capsule.Scenes.Input;  // IInputDriver, InputScript
 
 IInputDriver driver = new InputScript().Tap(Key.Space).Wait(120).Tap(Key.Escape).Build();
 
-HeadlessRunResult result = CapsuleEngine.Configure("My Game", GameScenes.Registry)
+HeadlessRunResult result = CapsuleEngine.Configure("My Game", CapsuleScenes.Registry)
     .WithRandomSeed(7)
     .RunHeadless<FirstRoom>(driver);
 
@@ -64,6 +64,33 @@ configuration, asset wiring, the exit code, how many steps a driver actually dro
 a `HeadlessRunResult` rather than a live scene, and it lives in `JAG.Capsule.Runtime`: a test
 project referencing only `JAG.Capsule` cannot call it, and that is the usual reason to stay on
 `SceneRun`.
+
+## Asserting sound: `Scene.Audio`
+
+Mixing is pure, so what a run would have played is simulation state like a position. `Scene.Audio` is
+the run's `AudioMixer`: `IsLive(voice)` says whether a voice still owns its slot, `IsPlaying(voice)`
+and `IsPaused(voice)` say which of sounding or held it is, and
+`Commands` is exactly what the host would have applied for the step just taken.
+A command raised by the scene's start stands only until the first step, so a test of start-time
+sound reads `Commands` before it steps.
+
+```csharp
+using Capsule.Audio;   // AudioCommandKind
+using Capsule.Scenes;  // SceneRun
+
+using SceneRun run = new(new FirstRoom(), new InputState(GameInput.Bindings));
+
+run.Run(1, DeviceSnapshot.Of(Key.Space));
+
+Assert.Contains(
+    run.Scene.Audio.Commands.ToArray(),
+    command => command.Kind == AudioCommandKind.Play && command.Clip == CapsuleAssets.Audio.Jump);
+```
+
+`Commands` is a span rewritten by every step and invalidated by the next mixer call, so a test reads
+it before stepping again. Reach for a `Voice` and `IsLive` when the assertion is about whether a
+sound is still owned, `IsPlaying` when it is about what is sounding now, `GetTime` when it is about
+how far into a clip the run has got, and `Commands` when it is about what an individual step did.
 
 ## Reproducibility: `RandomSource`
 

@@ -4,6 +4,7 @@ using Capsule.Assets.Generated;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
 using Capsule.Scenes.Animation;
+using Capsule.Scenes.Audio;
 using Capsule.Scenes.Physics;
 using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
@@ -54,6 +55,10 @@ namespace MinimalGame.Game.Entities;
 /// are logged through <see cref="Log"/>, which the shell drains to the console at boot, each line
 /// prefixed with the tick it happened on.
 /// </para>
+/// <para>
+/// A landing also plays a footfall through an <see cref="AudioSource"/>, whose clip the player
+/// declares as a preload and whose voice the host stops when the player leaves the scene.
+/// </para>
 /// </summary>
 public sealed class Player : Entity
 {
@@ -94,18 +99,19 @@ public sealed class Player : Entity
     /// corner-anchored collider in both facings, and the bottom edge keeps a squashed or stretched
     /// frame standing on the floor the body stands on. Every frame of the sheet shares it.
     /// </summary>
-    private static readonly Vector2 Pivot = GameSprites.Actors.Player.Frames.Idle0.Pivot;
+    private static readonly Vector2 Pivot = CapsuleAssets.Sprites.Actors.Player.Frames.Idle0.Pivot;
 
     private readonly SpriteRenderer _sprite;
     private readonly SpriteAnimator _animator;
     private readonly KinematicBody2D _body;
+    private readonly AudioSource _footfall;
 
     private Vector2 _velocity;
 
     public Player(EntitySpawn spawn)
         : base(spawn.Position)
     {
-        _sprite = new SpriteRenderer(GameSprites.Actors.Player.Frames.Idle0) { Offset = Pivot };
+        _sprite = new SpriteRenderer(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0) { Offset = Pivot };
         Add(_sprite);
 
         // Named rather than found: an entity drawing itself as several sprites animates the one
@@ -125,6 +131,9 @@ public sealed class Player : Entity
         _body = new KinematicBody2D(collider);
         _body.BlocksOn("solid", "platform");
         Add(_body);
+
+        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft);
+        Add(_footfall);
     }
 
     /// <inheritdoc/>
@@ -150,7 +159,7 @@ public sealed class Player : Entity
 
         // Asked every step: the animator ignores the clip already playing, so the cycle runs
         // instead of restarting on frame 0.
-        _animator.Play(_velocity.X != 0f ? GameSprites.Actors.Player.Clips.Walk : GameSprites.Actors.Player.Clips.Idle);
+        _animator.Play(_velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
         bool wasOnFloor = _body.IsOnFloor;
@@ -179,6 +188,7 @@ public sealed class Player : Entity
                     if (contact.Normal.Y < 0f)
                     {
                         _sprite.Scale = LandSquash;
+                        _footfall.Play();
                         Log.Info("landed on " + contact.LayerName);
                         break;
                     }

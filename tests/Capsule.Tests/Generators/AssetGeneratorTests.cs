@@ -8,13 +8,13 @@ public sealed class AssetGeneratorTests
     [Fact]
     public void AnAsset_BecomesATypedHandleUnderItsDomain()
     {
-        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "audio/footstep-stone.ogg", "textures/hero.png").Updated;
+        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "fonts/body-text.ttf", "textures/hero.png").Updated;
 
-        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
-        Assert.NotNull(gameAssets);
-        INamedTypeSymbol audio = gameAssets.GetTypeMembers().First(t => t.Name == "Audio");
-        INamedTypeSymbol textures = gameAssets.GetTypeMembers().First(t => t.Name == "Textures");
-        Assert.NotNull(audio.GetMembers("FootstepStone").FirstOrDefault());
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        Assert.NotNull(capsuleAssets);
+        INamedTypeSymbol fonts = capsuleAssets.GetTypeMembers().First(t => t.Name == "Fonts");
+        INamedTypeSymbol textures = capsuleAssets.GetTypeMembers().First(t => t.Name == "Textures");
+        Assert.NotNull(fonts.GetMembers("BodyText").FirstOrDefault());
         Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
@@ -23,18 +23,17 @@ public sealed class AssetGeneratorTests
     {
         Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true).Updated;
 
-        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
-        Assert.NotNull(gameAssets);
-        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Textures"));
-        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Audio"));
-        Assert.NotNull(gameAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Fonts"));
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        Assert.NotNull(capsuleAssets);
+        Assert.NotNull(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Textures"));
+        Assert.NotNull(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Fonts"));
     }
 
     [Fact]
     public void TwoNamesThatCollideAsOneIdentifier_FailTheBuild()
     {
         ImmutableArray<Diagnostic> diagnostics =
-            GeneratorHarness.CompileWithAssets(logic: true, "audio/foot-step.ogg", "audio/foot_step.wav").Diagnostics;
+            GeneratorHarness.CompileWithAssets(logic: true, "fonts/foot-step.ttf", "fonts/foot_step.otf").Diagnostics;
 
         Assert.Equal("CAP016", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
@@ -43,19 +42,19 @@ public sealed class AssetGeneratorTests
     public void OneNameInTwoDomains_IsTwoAssets()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
-            GeneratorHarness.CompileWithAssets(logic: true, "audio/hero.ogg", "textures/hero.png");
+            GeneratorHarness.CompileWithAssets(logic: true, "fonts/hero.ttf", "textures/hero.png");
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        INamedTypeSymbol gameAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!;
-        Assert.NotNull(gameAssets);
-        INamedTypeSymbol audio = gameAssets.GetTypeMembers().First(t => t.Name == "Audio");
-        INamedTypeSymbol textures = gameAssets.GetTypeMembers().First(t => t.Name == "Textures");
-        Assert.NotNull(audio.GetMembers("Hero").FirstOrDefault());
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        Assert.NotNull(capsuleAssets);
+        INamedTypeSymbol fonts = capsuleAssets.GetTypeMembers().First(t => t.Name == "Fonts");
+        INamedTypeSymbol textures = capsuleAssets.GetTypeMembers().First(t => t.Name == "Textures");
+        Assert.NotNull(fonts.GetMembers("Hero").FirstOrDefault());
         Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
     [Theory]
-    [InlineData("audio/audio.wav")]
+    [InlineData("fonts/fonts.ttf")]
     [InlineData("textures/all.png")]
     public void AnAssetTakingANameItsDomainReserves_FailsTheBuild(string asset)
     {
@@ -70,12 +69,12 @@ public sealed class AssetGeneratorTests
     public void EveryTexture_IsDeclaredAndHeldByItsDomainsSet()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
-            GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png", "audio/hit.wav");
+            GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png", "fonts/hit.ttf");
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameAssetsFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleAssetsFile);
         Assert.Contains("ReadOnlySpan<global::Capsule.Assets.TextureHandle> All", generated, StringComparison.Ordinal);
         Assert.Contains("Hero,", generated, StringComparison.Ordinal);
         Assert.Contains("Tiles,", generated, StringComparison.Ordinal);
@@ -86,11 +85,10 @@ public sealed class AssetGeneratorTests
     {
         Compilation compiled = GeneratorHarness.CompileWithAssets(
             logic: true,
-            "audio/footstep-stone.ogg",
             "textures/hero.png",
             "fonts/body_text.ttf").Updated;
 
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets"));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 
@@ -116,7 +114,7 @@ public sealed class AssetGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
 
         INamedTypeSymbol textures = compiled
-            .GetTypeByMetadataName("Capsule.Assets.Generated.GameAssets")!
+            .GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!
             .GetTypeMembers()
             .First(type => type.Name == "Textures");
 
@@ -126,7 +124,7 @@ public sealed class AssetGeneratorTests
         INamedTypeSymbol enemies = textures.GetTypeMembers().First(type => type.Name == "Enemies");
         Assert.NotNull(enemies.GetMembers("Bat").FirstOrDefault());
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameAssetsFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleAssetsFile);
         Assert.Contains("TextureHandle(\"enemies/bat\", \".png\")", generated, StringComparison.Ordinal);
     }
 
@@ -144,7 +142,7 @@ public sealed class AssetGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameAssetsFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleAssetsFile);
 
         // The root's set holds all three; the cave's holds only its own.
         Assert.Contains("\nEnemies.Cave.Bat,\n", Normalized(generated), StringComparison.Ordinal);
@@ -201,11 +199,25 @@ public sealed class AssetGeneratorTests
     private static string Normalized(string generated) =>
         generated.Replace("\r\n", "\n", StringComparison.Ordinal).Replace(" ", string.Empty, StringComparison.Ordinal);
 
+    // Audio ships like every other asset and reaches this generator the same way, but its registry
+    // is the build tool's: the tool measures each clip's duration, which no compiler can read.
+    [Fact]
+    public void AnAudioSource_IsNoAssetOfThisGenerators()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
+            GeneratorHarness.CompileWithAssets(logic: true, "audio/steps/01 stone.wav", "textures/hero.png");
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        Assert.Null(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Audio"));
+    }
+
     [Fact]
     public void TheShell_GetsNoRegistry()
     {
         Compilation compiled = GeneratorHarness.CompileWithAssets(logic: false, "textures/hero.png").Updated;
 
-        Assert.Null(GeneratorHarness.Emission(compiled, GeneratorHarness.GameAssetsFile));
+        Assert.Null(GeneratorHarness.Emission(compiled, GeneratorHarness.CapsuleAssetsFile));
     }
 }

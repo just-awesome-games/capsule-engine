@@ -89,7 +89,7 @@ The matching source-development import is:
 
 ## Logic project
 
-The logic role activates source generation and purity analysis, and compiles the game's sprite sheets into typed frames and clips:
+The logic role activates source generation and purity analysis, compiles the game's sprite sheets into typed frames and clips, and measures its audio sources:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -153,7 +153,7 @@ return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>
 
 `WithCommandLine` applies Capsule's standard flags, tabulated in [`headless-play.md`](headless-play.md); `RunScene` returns the process's exit code.
 
-A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportSprites>` independently.
+A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>`, `<CapsuleShipAssets>`, `<CapsuleImportSprites>` and `<CapsuleImportAudio>` independently.
 
 ## Package and source modes
 
@@ -191,6 +191,8 @@ Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
+The publish directory carries the host's native libraries beside the executable, one for the window and input and one for sound — `SDL2.dll` and `openal.dll` on Windows. The window's is required; sound is not, so a machine where the audio library is absent or no output device can be opened plays the run silently and says so once on the log.
+
 Keep game code AOT-safe: the NativeAOT publish is the whole-graph gate, and running the published binary proves it boots. The rule is in [`architecture.md`](architecture.md#nativeaot-floor).
 
 ## Development-only directories
@@ -206,7 +208,7 @@ src/MyGame.Game/
     Walkthrough.cs
 ```
 
-The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity, and driver registries hold nothing declared there and `--driver` answers to no name from it. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is loaded, or is declared in `GameAssets`. Shipped code naming a development-only asset therefore fails to compile in a publish, which is the failure it is owed.
+The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity, and driver registries hold nothing declared there and `--driver` answers to no name from it. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is loaded, or is declared in `CapsuleAssets`. Shipped code naming a development-only asset therefore fails to compile in a publish, which is the failure it is owed.
 
 The marker file's contents are not read; a line saying what the directory is helps whoever finds it.
 
@@ -230,19 +232,23 @@ public sealed class BossArena : Scene
 {
     protected override void CollectAssets(AssetCollection assets)
     {
-        assets.Add(GameAssets.Textures.Bosses.All);
-        assets.Add(GameAssets.Textures.Fx.Telegraph);
+        assets.Add(CapsuleAssets.Textures.Bosses.All);
+        assets.Add(CapsuleAssets.Textures.Fx.Telegraph);
     }
 }
 ```
 
-The runtime owns collected and first-used resources for one scene. A transition keeps resources the incoming preload also uses and releases the rest; exit releases all of them. Loading is synchronous, cached and host-only. Textures are the only media decoded today; `AudioHandle` and `FontHandle` remain names, not playback or rendering APIs.
+The runtime owns collected and first-used resources for one scene. A transition keeps resources the incoming preload also uses and releases the rest; exit releases all of them. Loading is synchronous, cached and host-only. Textures and `.wav` clips are the resident media; a `.ogg` clip declared as a preload reserves nothing, because it is decoded as it plays. A resident clip a live voice is still playing is retained past the transition that released it — the mixer belongs to the run, so a voice outlives the scene that started it. Fonts remain names, not a rendering API.
 
 ## Named assets
 
-Assets are authored under `src/asset-sources/<domain>/` and ship at the same relative path under `assets/<domain>/`. For example, `asset-sources/textures/enemies/bat.png` becomes `GameAssets.Textures.Enemies.Bat` and ships at `assets/textures/enemies/bat.png`. A scene or sheet document names it as `"enemies/bat.png"`.
+Assets are authored under `src/asset-sources/<domain>/` and ship at the same relative path under `assets/<domain>/`. For example, `asset-sources/textures/enemies/bat.png` becomes `CapsuleAssets.Textures.Enemies.Bat` and ships at `assets/textures/enemies/bat.png`. A scene or sheet document names it as `"enemies/bat.png"`.
 
-Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `GameAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `GameSprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. Invalid paths and C# identifier collisions fail the build.
+Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `CapsuleAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. Invalid paths and C# identifier collisions fail the build.
+
+`audio/` takes `.wav` and `.ogg` and generates `CapsuleAssets.Audio` clips, each carrying the duration the build measured from its source. The two formats differ in how they play: a `.wav` clip is held in memory for the scene that uses it, and a `.ogg` clip is decoded as it plays and is never resident. Author short, repeated sounds as `.wav` and long ones — music, ambience — as `.ogg`. A source Capsule cannot measure fails the build naming the file and what is wrong with it. Capsule reads no MP3, because MP3 cannot loop gaplessly: encoder delay and padding pad the decoded stream with silence the format does not describe, which is why Vorbis is the music format.
+
+A loop region is authored either inside the audio file, which the build reads — a WAV's first `smpl` sample loop, or an Ogg Vorbis file's `LOOPSTART` and `LOOPLENGTH` comments in samples — or in game code on the clip, as `with { LoopRegion = ... }`. `LOOPSTART` with `LOOPEND` is read the same way, and `LOOPSTART` alone loops the rest of the file. A file tagging neither has no region. A region has to fit its clip: the build fails a file whose region does not, naming the file and the samples it claimed, and the mixer refuses a clip whose region does not at play. A voice that loops plays from the clip's beginning through the region's end and then repeats the region, sample-exact and gapless; one that does not loop ignores the region and plays to the clip's end. A looping voice whose clip has no region repeats the whole clip. A voice can also be panned between the speakers and started part-way into its clip, and can be asked what clip time it has reached — pan covers the whole field for a mono clip and, for a stereo one, only where the output device supports rotating it.
 
 ## Testing headlessly
 
@@ -266,7 +272,7 @@ for (long tick = 0; tick < 30; tick++)
     simulation.Step(new StepContext(1.0 / 60.0, input, tick));
 }
 
-Assert.Same(GameSprites.Player.Clips.Idle, player.Animator.Clip);
+Assert.Same(CapsuleAssets.Sprites.Player.Clips.Idle, player.Animator.Clip);
 ```
 
 `StepContext` is the whole of what one fixed step is given: its duration in seconds, the `InputState` to read, and the tick index. Hold one `InputState` across the run and `Advance` it with the `DeviceSnapshot` a device would have reported, since input edges are differences between consecutive snapshots and a fresh state each step has none. `DeviceSnapshot.Empty` is nothing held.
@@ -326,7 +332,8 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 | `CapsuleAssetSourcesDir` | `../asset-sources` from the importing project | Locates the authored `scenes/`, `sprites/`, `textures/`, `audio/`, and `fonts/` trees. An explicitly named directory must exist.                                       |
 | `CapsuleImportScenes`    | `true` for the shell; otherwise `false`       | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.            A role-free test or tool can opt in independently. |
 | `CapsuleShipAssets`      | `true` for the shell; otherwise `false`       | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                          |
-| `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `GameSprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
+| `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `CapsuleAssets.Sprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
+| `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on each project that imports scenes when the game has one global tile size.                   |
 | `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane. Set it on an ordinary build to verify a publish. |
 

@@ -8,7 +8,7 @@ A `*.sheet.json` **sprite sheet document** is the authored form. Capsule never p
 
 A sheet names one texture, the frames it cuts from it, and any clips played over those frames. Frames carry their own regions and pivots, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid is only one way to author it. A pose variant — the same motion drawn with a weapon raised — is authored as its own clip of the same frame count, per-frame ticks and `loop`, and is entered mid-motion by playing it at the animator's `Tick`.
 
-The sheet itself is not read at run time: the build turns it into game code beside `GameAssets`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable. The windowed host preloads the textures identified by a sprite renderer and its animator's current clips; a clip introduced later loads its texture on first rendered use unless `CollectAssets` preloaded it.
+The sheet itself is not read at run time: the build turns it into game code under `CapsuleAssets.Sprites`, so a misspelt frame or clip is a compile error and no sheet ships beside the executable. The windowed host preloads the textures identified by a sprite renderer and its animator's current clips; a clip introduced later loads its texture on first rendered use unless `CollectAssets` preloaded it.
 
 ```csharp
 using Capsule.Scenes.Animation;
@@ -21,14 +21,14 @@ public sealed class Player : Entity
 
     public Player(EntitySpawn spawn) : base(spawn.Position)
     {
-        _sprite = new SpriteRenderer(GameSprites.Player.Frames.Idle0);
+        _sprite = new SpriteRenderer(CapsuleAssets.Sprites.Player.Frames.Idle0);
         Add(_sprite);
         _animator = new SpriteAnimator(_sprite);
         Add(_animator);
     }
 
     protected override void OnStep(in StepContext context) =>
-        _animator.Play(Walking ? GameSprites.Player.Clips.Walk : GameSprites.Player.Clips.Idle);
+        _animator.Play(Walking ? CapsuleAssets.Sprites.Player.Clips.Walk : CapsuleAssets.Sprites.Player.Clips.Idle);
 }
 ```
 
@@ -74,11 +74,11 @@ Invalid documents throw `SpriteSheetFormatException` and fail the build at the n
 Games author sheets under `src/asset-sources/sprites/`, and the build validates each one, re-emits it canonically under `obj/`, and renders the whole set as one generated C# file the logic assembly compiles:
 
 ```csharp
-GameSprites.Player.Frames.Idle0   // a Sprite
-GameSprites.Player.Clips.Idle     // a SpriteClip
+CapsuleAssets.Sprites.Player.Frames.Idle0   // a Sprite
+CapsuleAssets.Sprites.Player.Clips.Idle     // a SpriteClip
 ```
 
-A sheet's key is its path under the sprites root without either extension, and each directory in it becomes a nested class: `player.sheet.json` declares `GameSprites.Player`, `actors/player.sheet.json` declares `GameSprites.Actors.Player`. Two sheets of one stem in different directories are two sheets; two sharing a key, or two whose names become one C# identifier in the same directory, fail the build. Derived documents are never committed and nothing ships under `assets/`.
+A sheet's key is its path under the sprites root without either extension, and each directory in it becomes a nested class: `player.sheet.json` declares `CapsuleAssets.Sprites.Player`, `actors/player.sheet.json` declares `CapsuleAssets.Sprites.Actors.Player`. Two sheets of one stem in different directories are two sheets; two sharing a key, or two whose names become one C# identifier in the same directory, fail the build. Derived documents are never committed and nothing ships under `assets/`.
 
 The logic role imports sheets on its own; any other project that has to compile against a game's frames and clips opts in with `<CapsuleImportSprites>`, a project property named in [`consuming-capsule.md`](consuming-capsule.md). The process behind the hook is `Capsule.Build` itself, as it is for scenes.
 

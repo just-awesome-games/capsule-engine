@@ -51,6 +51,11 @@ internal sealed class FixedStepScheduler
 
     internal long Tick { get; private set; }
 
+    // Raised after each step completes, before the next one is scheduled. A frame may run several
+    // steps and a step rewrites what the host has to act on, so once a frame would lose all but the
+    // last. Null unless the host set one.
+    internal Action? StepCompleted { get; set; }
+
     internal double AccumulatorSeconds => _accumulatorSeconds;
 
     internal float InterpolationAlpha => (float)(_accumulatorSeconds / _stepSeconds);
@@ -106,6 +111,7 @@ internal sealed class FixedStepScheduler
 
             _input.Advance(stepped);
             simulation.Step(new StepContext(_stepSeconds, _input, Tick));
+            StepCompleted?.Invoke();
 
             _accumulatorSeconds -= _stepSeconds;
             if (_accumulatorSeconds < 0 && _accumulatorSeconds >= -stepEpsilon)

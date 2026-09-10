@@ -46,12 +46,13 @@ internal readonly record struct DocumentSource(string Key, string Path)
     }
 
     // Not GetFileNameWithoutExtension: a document's extension is two of them, and stripping one
-    // would leave a scene keyed 'room.scene'.
+    // would leave a scene keyed 'room.scene'. A source named with no such extension — an audio file
+    // carrying one extension of its own — stems the ordinary way.
     private static string Stem(string sourcePath, string documentExtension)
     {
         string name = System.IO.Path.GetFileName(sourcePath);
 
-        return name.EndsWith(documentExtension, StringComparison.OrdinalIgnoreCase)
+        return documentExtension.Length > 0 && name.EndsWith(documentExtension, StringComparison.OrdinalIgnoreCase)
             ? name[..^documentExtension.Length]
             : System.IO.Path.GetFileNameWithoutExtension(name);
     }

@@ -53,7 +53,7 @@ internal readonly struct InputDriverModel : IEquatable<InputDriverModel>
 
 internal static class InputDriverRegistrySource
 {
-    private const string FileName = "CapsuleGameInputDrivers.g.cs";
+    private const string FileName = "CapsuleInputDrivers.g.cs";
 
     internal static InputDriverModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
     {
@@ -154,7 +154,7 @@ internal static class InputDriverRegistrySource
         source.AppendLine("{");
         source.AppendLine("    /// <summary>Every input driver this assembly declares. Generated; do not edit.</summary>");
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    internal static class GameInputDrivers");
+        source.AppendLine("    internal static class CapsuleInputDrivers");
         source.AppendLine("    {");
         source.AppendLine("        internal static global::Capsule.Scenes.Input.InputDriverRegistration[] Registrations { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.Input.InputDriverRegistration[]");

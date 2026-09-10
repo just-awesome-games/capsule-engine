@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
+using Capsule.Audio;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
@@ -20,6 +21,9 @@ public class Scene
 {
     internal const string NoSourceYet =
         "the run's random source is not available yet; it is installed before the scene starts, so draw from OnStart on.";
+
+    internal const string NoMixerYet =
+        "the run's audio mixer is not available yet; it is installed before the scene starts, so play from OnStart on.";
 
     private readonly List<Entity> _entities = [];
     private readonly List<Entity> _pendingAdds = [];
@@ -54,6 +58,7 @@ public class Scene
 
     private Camera _camera = new();
     private RandomSource? _random;
+    private AudioMixer? _audio;
 
     private bool _stepping;
     private bool _starting;
@@ -180,6 +185,28 @@ public class Scene
         get => _random ?? throw new InvalidOperationException(NoSourceYet);
         internal set => _random = value;
     }
+
+    /// <summary>
+    /// The run's audio mixer: the same instance for the whole run, so a voice a scene starts keeps
+    /// playing across a transition unless whatever started it stops it. Engine-owned. A
+    /// <see cref="Capsule.Scenes.Audio.AudioSource"/> on an entity is the per-entity way in; this is the way to
+    /// play a sound no entity owns and to hold the game's bus volumes.
+    /// <para>
+    /// Installed after the scene is constructed and before its start, as <see cref="Random"/> is, so
+    /// a constructor cannot level a bus. Bus volumes and bus pause state are the run's and persist
+    /// across transitions: a game sets them once, from its boot scene's start or from a settings
+    /// screen, and every scene after that plays into what was set.
+    /// </para>
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The scene has not started, so no mixer is installed yet.</exception>
+    public AudioMixer Audio
+    {
+        get => _audio ?? throw new InvalidOperationException(NoMixerYet);
+        internal set => _audio = value;
+    }
+
+    // The mixer or nothing, for a component that must not throw where a scene has not started.
+    internal AudioMixer? AudioOrNull => _audio;
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.

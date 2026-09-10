@@ -38,7 +38,7 @@ internal static class Program
             .Tap(Key.Escape)
             .Build();
 
-        HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", GameScenes.Registry)
+        HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", CapsuleScenes.Registry)
             .WithInput(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
@@ -74,7 +74,7 @@ internal static class Program
         SceneDocument fixture = Document(NativeScenePath);
 
         return fixture.Source is { Tool: "native" }
-            && Shipped(GameAssets.Textures.Pixel);
+            && Shipped(CapsuleAssets.Textures.Pixel);
     }
 
     private static bool Shipped(TextureHandle texture) => Shipped("textures", texture.Name, texture.Extension);

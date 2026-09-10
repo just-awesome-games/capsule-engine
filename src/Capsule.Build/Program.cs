@@ -1,4 +1,5 @@
 using System.Globalization;
+using Capsule.Build.Audio;
 using Capsule.Build.Scenes;
 using Capsule.Build.Sprites;
 
@@ -9,6 +10,7 @@ internal static class Program
     private const string Usage = """
         Capsule.Build --out <dir> [--tile-size <px>] --scenes-from <list.txt>
         Capsule.Build --out <dir> --sheets-from <list.txt> --textures <list.txt> --generated <file.cs>
+        Capsule.Build --audio-from <list.txt> --generated <file.cs>
 
           Validates every document named in <list.txt> — one 'key|path' per line, the path relative
           to the working directory — and writes it canonically at <dir>/<key>. A line with no key is
@@ -20,11 +22,20 @@ internal static class Program
           and a sheet cutting from anything else fails. --generated is the C# file the whole sheet
           set is rendered as.
 
+          --audio-from measures every shipped audio source instead, deriving nothing onto disk;
+          --generated is the C# file the whole clip set is rendered as.
+
           Capsule's build hooks are the only callers.
         """;
 
     private static int Main(string[] args)
     {
+        // Ahead of --out: audio is measured where it was authored and derives no document.
+        if (args is ["--audio-from", string audioList, "--generated", string audioRegistry])
+        {
+            return AudioTool.EmitFromList(audioList, audioRegistry, Console.Out, Console.Error);
+        }
+
         if (args is not ["--out", string outputDirectory, .. string[] rest])
         {
             return UsageError();

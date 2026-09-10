@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Assets;
+using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -182,6 +183,28 @@ public sealed class SceneHostTests
         RandomSource expected = new(0xC0FFEE);
         Assert.Equal(before, expected.NextFloat());
         Assert.Equal(expected.NextFloat(), host.Scene.Random.NextFloat());
+    }
+
+    // One mixer, built at boot and handed to every scene the host opens, so a voice a scene started
+    // and did not stop keeps playing through the transition.
+    [Fact]
+    public void OneMixerServesEveryScene_AcrossATransition()
+    {
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(FirstScene)
+            ? new FirstScene([])
+            : new SecondScene([]);
+
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve);
+
+        AudioMixer mixer = host.Audio;
+        Assert.Same(mixer, host.Scene.Audio);
+
+        Voice ambient = mixer.Play(new AudioPlayback(new AudioClip("hum", ".ogg", 4.0)) { Loop = true });
+        host.Step(SceneStep(0));
+
+        Assert.IsType<SecondScene>(host.Scene);
+        Assert.Same(mixer, host.Scene.Audio);
+        Assert.True(mixer.IsPlaying(ambient));
     }
 
     [Fact]

@@ -23,14 +23,14 @@ public sealed class SpriteSheetToolTests
         workspace.Write("player.sheet.json", Authored);
 
         int exitCode = SpriteSheetTool.Import(
-            "obj/sprites", Sources("player.sheet.json"), ["player.png"], "obj/GameSprites.g.cs", TextWriter.Null, TextWriter.Null);
+            "obj/sprites", Sources("player.sheet.json"), ["player.png"], "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         string emitted = File.ReadAllText("obj/sprites/player.sheet.json");
         Assert.Equal(SpriteSheetDocumentFile.ToJson(SpriteSheetDocumentFile.Load("obj/sprites/player.sheet.json")), emitted);
 
-        string generated = File.ReadAllText("obj/GameSprites.g.cs");
-        Assert.Contains("public static class GameSprites", generated, StringComparison.Ordinal);
+        string generated = File.ReadAllText("obj/CapsuleAssets.Sprites.g.cs");
+        Assert.Contains("public static partial class CapsuleAssets", generated, StringComparison.Ordinal);
         Assert.Contains("public static class Player", generated, StringComparison.Ordinal);
         Assert.Contains("Sprite Idle0 =>", generated, StringComparison.Ordinal);
         Assert.Contains("SpriteClip Run { get; }", generated, StringComparison.Ordinal);
@@ -49,12 +49,12 @@ public sealed class SpriteSheetToolTests
             """);
 
         int exitCode = SpriteSheetTool.Import(
-            "obj/sprites", Sources("prop.sheet.json"), ["player.png"], "obj/GameSprites.g.cs", TextWriter.Null, TextWriter.Null);
+            "obj/sprites", Sources("prop.sheet.json"), ["player.png"], "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("\"clips\"", File.ReadAllText("obj/sprites/prop.sheet.json"), StringComparison.Ordinal);
 
-        string generated = File.ReadAllText("obj/GameSprites.g.cs");
+        string generated = File.ReadAllText("obj/CapsuleAssets.Sprites.g.cs");
         Assert.Contains("Sprite Lemon =>", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("class Clips", generated, StringComparison.Ordinal);
     }
@@ -85,11 +85,11 @@ public sealed class SpriteSheetToolTests
         StringWriter error = new();
 
         int exitCode = SpriteSheetTool.Import(
-            "obj/sprites", Sources("player.sheet.json"), ["tiles.png"], "obj/GameSprites.g.cs", TextWriter.Null, error);
+            "obj/sprites", Sources("player.sheet.json"), ["tiles.png"], "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("player.sheet.json: cuts from texture \"player.png\"", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists("obj/GameSprites.g.cs"));
+        Assert.False(File.Exists("obj/CapsuleAssets.Sprites.g.cs"));
     }
 
     // The runtime's texture store is keyed by the shipped spelling, so a case-blind match would
@@ -102,11 +102,11 @@ public sealed class SpriteSheetToolTests
         StringWriter error = new();
 
         int exitCode = SpriteSheetTool.Import(
-            "obj/sprites", Sources("player.sheet.json"), ["player.png"], "obj/GameSprites.g.cs", TextWriter.Null, error);
+            "obj/sprites", Sources("player.sheet.json"), ["player.png"], "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("player.sheet.json: cuts from texture \"player.PNG\"", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists("obj/GameSprites.g.cs"));
+        Assert.False(File.Exists("obj/CapsuleAssets.Sprites.g.cs"));
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class SpriteSheetToolTests
             "obj/sprites",
             Sources("player.sheet.json", "nested/player.sheet.json"),
             ["player.png"],
-            "obj/GameSprites.g.cs",
+            "obj/CapsuleAssets.Sprites.g.cs",
             TextWriter.Null,
             error);
 
@@ -137,7 +137,7 @@ public sealed class SpriteSheetToolTests
         StringWriter error = new();
 
         int exitCode = SpriteSheetTool.Import(
-            "obj/sprites", Sources("2-player.sheet.json"), ["player.png"], "obj/GameSprites.g.cs", TextWriter.Null, error);
+            "obj/sprites", Sources("2-player.sheet.json"), ["player.png"], "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("no C# name", error.ToString(), StringComparison.Ordinal);
@@ -156,7 +156,7 @@ public sealed class SpriteSheetToolTests
             "obj/sprites",
             [new DocumentSource("enemies/bat", "enemies/bat.sheet.json"), new DocumentSource("bat", "bat.sheet.json")],
             ["player.png"],
-            "obj/GameSprites.g.cs",
+            "obj/CapsuleAssets.Sprites.g.cs",
             TextWriter.Null,
             TextWriter.Null);
 
@@ -164,7 +164,7 @@ public sealed class SpriteSheetToolTests
         Assert.True(File.Exists("obj/sprites/enemies/bat.sheet.json"));
         Assert.True(File.Exists("obj/sprites/bat.sheet.json"));
 
-        string generated = File.ReadAllText("obj/GameSprites.g.cs");
+        string generated = File.ReadAllText("obj/CapsuleAssets.Sprites.g.cs");
         Assert.Contains("public static class Enemies", generated, StringComparison.Ordinal);
         Assert.Contains("public static class Bat", generated, StringComparison.Ordinal);
     }
@@ -184,12 +184,33 @@ public sealed class SpriteSheetToolTests
             "obj/sprites",
             [new DocumentSource(first, "a.sheet.json"), new DocumentSource(second, "b.sheet.json")],
             ["player.png"],
-            "obj/GameSprites.g.cs",
+            "obj/CapsuleAssets.Sprites.g.cs",
             TextWriter.Null,
             error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("b.sheet.json", error.ToString(), StringComparison.Ordinal);
+    }
+
+    // A key mirrors its path under the sprites root, so "sprites" is a key the sheets class it
+    // would land in has already taken.
+    [Fact]
+    public void ASheetKeyedAfterTheClassItWouldBeDeclaredInFails()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("sprites.sheet.json", Authored);
+        StringWriter error = new();
+
+        int exitCode = SpriteSheetTool.Import(
+            "obj/sprites",
+            Sources("sprites.sheet.json"),
+            ["player.png"],
+            "obj/CapsuleAssets.Sprites.g.cs",
+            TextWriter.Null,
+            error);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("would be declared inside a class of that name", error.ToString(), StringComparison.Ordinal);
     }
 
     // A sheet's texture is its path under the textures root, as the shipped list is.
@@ -203,14 +224,14 @@ public sealed class SpriteSheetToolTests
             "obj/sprites",
             Sources("player.sheet.json"),
             ["actors/player.png"],
-            "obj/GameSprites.g.cs",
+            "obj/CapsuleAssets.Sprites.g.cs",
             TextWriter.Null,
             TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         Assert.Contains(
             "TextureHandle(\"actors/player\", \".png\")",
-            File.ReadAllText("obj/GameSprites.g.cs"),
+            File.ReadAllText("obj/CapsuleAssets.Sprites.g.cs"),
             StringComparison.Ordinal);
     }
 
@@ -223,10 +244,10 @@ public sealed class SpriteSheetToolTests
         string textures = workspace.Write("textures.txt", "player.png\ntiles.png\n");
 
         int exitCode = SpriteSheetTool.ImportFromList(
-            "obj/sprites", sheets, textures, "obj/GameSprites.g.cs", TextWriter.Null, TextWriter.Null);
+            "obj/sprites", sheets, textures, "obj/CapsuleAssets.Sprites.g.cs", TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
-        Assert.True(File.Exists("obj/GameSprites.g.cs"));
+        Assert.True(File.Exists("obj/CapsuleAssets.Sprites.g.cs"));
     }
 
     // The stem at the root is the key a source carries when nothing states one.

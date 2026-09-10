@@ -36,7 +36,7 @@ public sealed class FixtureScene(SceneContent content) : Scene(content)
 
 public sealed class FixtureEntity : Entity
 {
-    private static readonly Sprite Visual = new(GameAssets.Textures.Pixel, new TextureRegion(0, 0, 1, 1));
+    private static readonly Sprite Visual = new(CapsuleAssets.Textures.Pixel, new TextureRegion(0, 0, 1, 1));
 
     public FixtureEntity(EntitySpawn spawn)
         : base(spawn.Position)

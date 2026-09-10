@@ -11,7 +11,7 @@ namespace Capsule.Generators;
 
 internal static class SceneRegistrySource
 {
-    private const string FileName = "CapsuleGameScenes.g.cs";
+    private const string FileName = "CapsuleScenes.g.cs";
 
     // The namespace segment a scene is filed under says nothing its key has to repeat.
     private const string DomainSegment = "Scenes";
@@ -213,7 +213,7 @@ internal static class SceneRegistrySource
         source.AppendLine("{");
         source.AppendLine("    /// <summary>Every scene this assembly declares. Generated; do not edit.</summary>");
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class GameScenes");
+        source.AppendLine("    public static class CapsuleScenes");
         source.AppendLine("    {");
         source.AppendLine("        internal static global::Capsule.Scenes.SceneRegistration[] Registrations { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.SceneRegistration[]");
@@ -227,7 +227,7 @@ internal static class SceneRegistrySource
         source.AppendLine("        /// <summary>The registry the engine composes every scene through.</summary>");
         source.AppendLine("        public static global::Capsule.Scenes.SceneRegistry Registry { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.SceneRegistry(");
-        source.AppendLine("                global::Capsule.Scenes.Generated.GameEntities.Registry,");
+        source.AppendLine("                global::Capsule.Scenes.Generated.CapsuleEntities.Registry,");
         source.AppendLine("                Registrations);");
         source.AppendLine("    }");
         source.AppendLine("}");

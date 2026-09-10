@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -13,6 +14,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private readonly SceneResolver _resolve;
     private readonly SceneDefaults _defaults;
     private readonly RandomSource _random;
+    private readonly AudioMixer _audio = new();
 
     private SceneTransition _target;
     private SceneSimulation _current;
@@ -26,7 +28,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _defaults = defaults;
         _random = random ?? new RandomSource();
         _target = initialTarget;
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random);
+        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random, _audio);
     }
 
     public bool ExitRequested { get; private set; }
@@ -34,6 +36,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
     public FrameView View => _current.View;
 
     internal Scene Scene => _current.Scene;
+
+    // One mixer for the whole run, as _random is one source: a transition neither silences a voice
+    // nor resets a bus volume.
+    internal AudioMixer Audio => _audio;
 
     // Null until the device is ready. Later transitions prepare their incoming scene through it.
     internal Action<AssetCollection>? PrepareAssets { get; set; }
@@ -142,7 +148,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
 
         _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload, _defaults, _random);
+        _current = new SceneSimulation(next, target.Payload, _defaults, _random, _audio);
         _target = target;
     }
 

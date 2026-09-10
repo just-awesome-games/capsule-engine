@@ -1,3 +1,4 @@
+using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Scenes.Rendering;
 
@@ -17,15 +18,25 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// The run's random source, which becomes the scene's <see cref="Scenes.Scene.Random"/> before
     /// it starts; omitted, it is the default seed's stream 0.
     /// </param>
+    /// <param name="audio">
+    /// The run's audio mixer, which becomes the scene's <see cref="Scenes.Scene.Audio"/> before it
+    /// starts; omitted, it is a mixer of this simulation's own, playing nothing.
+    /// </param>
     /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
     /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too; both are inner exceptions.</exception>
-    public SceneSimulation(Scene scene, object? entryPayload = null, SceneDefaults defaults = default, RandomSource? random = null)
+    public SceneSimulation(
+        Scene scene,
+        object? entryPayload = null,
+        SceneDefaults defaults = default,
+        RandomSource? random = null,
+        AudioMixer? audio = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
         Scene = scene;
         scene.Random = random ?? new RandomSource();
+        scene.Audio = audio ?? new AudioMixer();
         try
         {
             scene.Start(entryPayload, defaults);
@@ -68,6 +79,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     public void Step(in StepContext context)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Ahead of everything the step runs: a sound played during it expires against this step's
+        // tick, and the commands it raises are this step's rather than the previous one's.
+        Scene.Audio.BeginStep(in context);
 
         Scene.BeginStep();
         Scene.RunStep(in context);

@@ -43,8 +43,8 @@ public sealed class CapsuleBootGeneratorTests
         Compilation updated = GeneratorHarness.CompileShell(ShellSource, LogicSource).Updated;
 
         Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Scenes.Scene"));
-        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameScenesFile));
-        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameEntitiesFile));
+        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.CapsuleScenesFile));
+        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.CapsuleEntitiesFile));
     }
 
     [Fact]

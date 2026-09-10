@@ -1,0 +1,77 @@
+<Project>
+
+  <!-- Target conditions are evaluated before dependencies populate asset items. -->
+  <Target Name="CapsuleAudioInit"
+          Condition="'$(CapsuleImportAudio)' == 'true'"
+          DependsOnTargets="CapsuleAssetsInit;CapsuleResolveBuildTool">
+
+    <!-- Qualify metadata to avoid batching over the other domains' assets. -->
+    <ItemGroup>
+      <_CapsuleAudioSource Include="@(CapsuleAsset)" Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'audio'">
+        <Key>$([System.String]::Copy('%(CapsuleAsset.CapsuleAssetPath)').Replace('\', '/'))</Key>
+      </_CapsuleAudioSource>
+    </ItemGroup>
+
+    <Error Condition="'@(_CapsuleAudioSource)' != '' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
+           Text="Capsule: the audio importer is unavailable. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
+
+    <!-- Keep the command-line paths free of a trailing Windows separator. -->
+    <PropertyGroup>
+      <CapsuleAudioProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleAudioProjectDir>
+      <CapsuleAudioObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleAudioObjDir>
+      <CapsuleAudioBatchFile>$(CapsuleAudioObjDir)/audio-sources.txt</CapsuleAudioBatchFile>
+      <CapsuleAudioSourceStamp>$(CapsuleAudioObjDir)/audio-keys.txt</CapsuleAudioSourceStamp>
+      <CapsuleAudioRegistryFile>$(CapsuleAudioObjDir)/CapsuleAssets.Audio.g.cs</CapsuleAudioRegistryFile>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(CapsuleAudioObjDir)" Condition="'@(_CapsuleAudioSource)' != ''" />
+
+    <!-- Stamp the key set for MSBuild incrementality: renaming a source changes no file's timestamp. -->
+    <WriteLinesToFile File="$(CapsuleAudioSourceStamp)"
+                      Lines="@(_CapsuleAudioSource->'%(Key)=%(FullPath)')"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true"
+                      Condition="'@(_CapsuleAudioSource)' != ''" />
+  </Target>
+
+  <!-- The single generated registry makes this target all-or-nothing incremental. -->
+  <Target Name="CapsuleImportAudioSources"
+          Condition="'$(CapsuleImportAudio)' == 'true'"
+          DependsOnTargets="CapsuleAudioInit;ResolveProjectReferences"
+          Inputs="@(_CapsuleAudioSource);$(CapsuleAudioSourceStamp);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Outputs="$(CapsuleAudioRegistryFile)">
+
+    <Error Condition="'@(_CapsuleAudioSource)' != '' and !Exists('@(_CapsuleBuildTool)')"
+           Text="Capsule: the audio importer was not built (expected '@(_CapsuleBuildTool)')." />
+
+    <!-- Use a response file to avoid cmd's length limit; the condition protects MakeRelative from an empty path. -->
+    <ItemGroup Condition="'@(_CapsuleAudioSource)' != ''">
+      <_CapsuleAudioSourceArg Include="@(_CapsuleAudioSource)">
+        <ProjectRelativePath>$([MSBuild]::MakeRelative($(CapsuleAudioProjectDir), %(FullPath)))</ProjectRelativePath>
+      </_CapsuleAudioSourceArg>
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(CapsuleAudioBatchFile)"
+                      Lines="@(_CapsuleAudioSourceArg->'%(Key)|%(ProjectRelativePath)')"
+                      Overwrite="true"
+                      Condition="'@(_CapsuleAudioSource)' != ''" />
+
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --audio-from &quot;$(CapsuleAudioBatchFile)&quot; --generated &quot;$(CapsuleAudioRegistryFile)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal"
+          Condition="'@(_CapsuleAudioSource)' != ''" />
+  </Target>
+
+  <!-- Keep generated code in up-to-date and design-time builds. -->
+  <Target Name="CapsuleAddAudioRegistryToCompile"
+          Condition="'$(CapsuleImportAudio)' == 'true'"
+          DependsOnTargets="CapsuleImportAudioSources"
+          BeforeTargets="BeforeCompile;CoreCompile">
+    <ItemGroup Condition="'@(_CapsuleAudioSource)' != ''">
+      <Compile Include="$(CapsuleAudioRegistryFile)" />
+      <FileWrites Include="$(CapsuleAudioRegistryFile)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

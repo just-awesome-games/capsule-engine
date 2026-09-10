@@ -11,7 +11,7 @@ namespace Capsule.Generators;
 
 internal static class EntityRegistrySource
 {
-    private const string FileName = "CapsuleGameEntities.g.cs";
+    private const string FileName = "CapsuleEntities.g.cs";
 
     // The namespace segment an entity is filed under says nothing its key has to repeat.
     private const string DomainSegment = "Entities";
@@ -212,7 +212,7 @@ internal static class EntityRegistrySource
         source.AppendLine("{");
         source.AppendLine("    /// <summary>Every spawnable entity this assembly declares, as one registry. Generated; do not edit.</summary>");
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class GameEntities");
+        source.AppendLine("    public static class CapsuleEntities");
         source.AppendLine("    {");
         source.AppendLine("        internal static global::Capsule.Scenes.Spawning.EntityRegistration[] Registrations { get; } =");
         source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistration[]");

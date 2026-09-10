@@ -10,7 +10,7 @@ namespace Capsule.Generators;
 
 internal static class AssetRegistrySource
 {
-    private const string FileName = "CapsuleGameAssets.g.cs";
+    private const string FileName = "CapsuleAssets.g.cs";
     private const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
     private const string PathMetadata = "build_metadata.AdditionalFiles.CapsuleAssetPath";
 
@@ -22,15 +22,18 @@ internal static class AssetRegistrySource
     private static readonly (string Domain, string ClassName, string Handle)[] Domains =
     [
         ("textures", "Textures", "global::Capsule.Assets.TextureHandle"),
-        ("audio", "Audio", "global::Capsule.Assets.AudioHandle"),
         ("fonts", "Fonts", "global::Capsule.Assets.FontHandle"),
     ];
 
     internal static AssetModel? Describe(AdditionalText text, AnalyzerConfigOptionsProvider options)
     {
         // Every other additional file a project carries reaches this the same way and is no asset.
+        // A domain this generator declares no class for is no asset of its either: audio arrives
+        // here like every other shipped file, and its registry is emitted by the build tool, which
+        // measures each clip's duration.
         if (!options.GetOptions(text).TryGetValue(DomainMetadata, out string? domain)
-            || string.IsNullOrEmpty(domain))
+            || string.IsNullOrEmpty(domain)
+            || !Emits(domain!))
         {
             return null;
         }
@@ -97,6 +100,19 @@ internal static class AssetRegistrySource
         }
 
         context.AddSource(FileName, SourceText.From(Render(roots), Encoding.UTF8));
+    }
+
+    private static bool Emits(string domain)
+    {
+        foreach ((string Domain, string ClassName, string Handle) declared in Domains)
+        {
+            if (string.Equals(declared.Domain, domain, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Every segment of the path is an identifier in its own right.
@@ -197,9 +213,11 @@ internal static class AssetRegistrySource
         source.AppendLine();
         source.AppendLine("namespace Capsule.Assets.Generated");
         source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every asset this game ships, as typed handles. Generated; do not edit.</summary>");
-        source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class GameAssets");
+        // The sprite half of this class carries the same summary, so whichever the compiler keeps
+        // is the same text, and each half attributes only the classes it declares: a non-repeatable
+        // attribute named by both halves of one partial class is CS0579.
+        source.AppendLine("    /// <summary>Every asset this game ships and every sprite sheet it authors. Generated; do not edit.</summary>");
+        source.AppendLine("    public static partial class CapsuleAssets");
         source.AppendLine("    {");
 
         // Every domain is emitted whatever the game authored, so a call site naming one compiles.
@@ -210,7 +228,7 @@ internal static class AssetRegistrySource
                 source.AppendLine();
             }
 
-            AppendClass(source, roots[i], Domains[i].Handle, "        ");
+            AppendClass(source, roots[i], Domains[i].Handle, "        ", attributed: true);
         }
 
         source.AppendLine("    }");
@@ -219,11 +237,16 @@ internal static class AssetRegistrySource
         return source.ToString();
     }
 
-    private static void AppendClass(StringBuilder source, Node node, string handle, string indent)
+    private static void AppendClass(StringBuilder source, Node node, string handle, string indent, bool attributed = false)
     {
         string shipped = "assets/" + node.Display.Substring(0, node.Display.Length - 1);
 
         source.Append(indent).Append("/// <summary>Everything shipped at <c>").Append(shipped).AppendLine("</c>.</summary>");
+        if (attributed)
+        {
+            source.Append(indent).AppendLine("[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
+        }
+
         source.Append(indent).Append("public static class ").AppendLine(node.Identifier);
         source.Append(indent).AppendLine("{");
 

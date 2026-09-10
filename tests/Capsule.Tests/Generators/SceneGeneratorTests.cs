@@ -17,10 +17,10 @@ public sealed class SceneGeneratorTests
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.GameScenes"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleScenes"));
 
         // The document names are the registry's contract with scene sources.
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
         AssertClaimedBy(generated, "room-01", "Game.Room01");
         AssertClaimedBy(generated, "boss-arena", "Game.BossArena");
     }
@@ -48,7 +48,7 @@ public sealed class SceneGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.NotNull(compiled.GetTypeByMetadataName("Game.OpeningRoom"));
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
         AssertClaimedBy(generated, "room-01", "Game.OpeningRoom");
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
@@ -127,7 +127,7 @@ public sealed class SceneGeneratorTests
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.GameScenesFile);
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
         Assert.Contains("Game.MainMenu", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("\"main-menu\"", generated, StringComparison.Ordinal);
     }
@@ -147,7 +147,7 @@ public sealed class SceneGeneratorTests
 
         Assert.Empty(diagnostics);
 
-        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.GameScenesFile);
+        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleScenesFile);
         Assert.DoesNotContain("Game.Overlay", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("Game.Room", generated, StringComparison.Ordinal);
     }
@@ -187,8 +187,8 @@ public sealed class SceneGeneratorTests
             public sealed class Bookkeeping;
             """).Updated;
 
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.GameEntities"));
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.GameScenes"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleEntities"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleScenes"));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 

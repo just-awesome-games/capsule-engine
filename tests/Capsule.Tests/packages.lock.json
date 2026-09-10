@@ -184,7 +184,8 @@
         "type": "Project",
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
-          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )"
+          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
+          "NVorbis": "[0.10.4, )"
         }
       }
     }

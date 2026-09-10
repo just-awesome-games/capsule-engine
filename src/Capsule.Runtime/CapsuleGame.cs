@@ -1,5 +1,7 @@
+using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Runtime.Assets;
+using Capsule.Runtime.Audio;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
@@ -27,6 +29,12 @@ internal sealed class CapsuleGame : Game
 
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
+
+    // Both null when the sound device would not open, which leaves every command and every preload
+    // a no-op rather than failing the run.
+    private SoundStore? _sounds;
+    private AudioPlayer? _audio;
+
     private bool _windowRaised;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
@@ -77,10 +85,29 @@ internal sealed class CapsuleGame : Game
     {
         _textures = new TextureStore(GraphicsDevice);
 
+        if (SoundDevice.TryOpen() is { } device)
+        {
+            _sounds = new SoundStore(device);
+            _audio = new AudioPlayer(_sounds);
+        }
+
         if (_scenes is { } scenes)
         {
-            scenes.PrepareAssets = _textures.ChangeScene;
-            _textures.ChangeScene(scenes.Scene.CollectAssetPreloads());
+            scenes.PrepareAssets = PrepareAssets;
+            PrepareAssets(scenes.Scene.CollectAssetPreloads());
+
+            if (_audio is { } audio)
+            {
+                // Per step, not per frame: the mixer rewrites its commands every step and a frame
+                // may run several.
+                _scheduler.StepCompleted = () => audio.Apply(scenes.Audio.Commands);
+
+                // The initial scene started before the device existed, so what its start raised is
+                // still on the mixer; the first step's BeginStep would clear it unheard. A later
+                // scene starts inside the step that asked for it, so its start is delivered with
+                // that step's commands.
+                audio.Apply(scenes.Audio.Commands);
+            }
         }
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
@@ -107,7 +134,13 @@ internal sealed class CapsuleGame : Game
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
         }
 
-        if (_scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation))
+        bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
+
+        // Every frame, including one that drained no step: a streamed voice hands the device its
+        // next buffers here, and base.Update is what services them.
+        _audio?.Update();
+
+        if (exiting)
         {
             Exit();
         }
@@ -156,12 +189,27 @@ internal sealed class CapsuleGame : Game
             // Ahead of the renderer: the watch draws through it.
             SdlPlatform.StopWatchingWindowRedraw();
 
+            // The scheduler outlives this, and the mixer it fed commands from is the run's.
+            _scheduler.StepCompleted = null;
+
+            // Voices before the sounds they play and the device that opened them.
+            _audio?.Dispose();
+            _sounds?.Dispose();
+
             // Null when construction failed before LoadContent ran.
             _renderer?.Dispose();
             _textures?.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    // The whole of what a scene boundary loads: every store is exchanged together, and one that
+    // fails leaves the run on the scene it was on.
+    private void PrepareAssets(AssetCollection preloads)
+    {
+        _textures.ChangeScene(preloads);
+        _sounds?.ChangeScene(preloads);
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event

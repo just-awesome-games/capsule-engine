@@ -33,7 +33,7 @@ public sealed class InputDriverGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
             "new global::Capsule.Scenes.Input.InputDriverRegistration(\"Walkthrough\", static () => new global::Game.Walkthrough())",
-            GeneratorHarness.Emitted(updated, GeneratorHarness.GameInputDriversFile),
+            GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleInputDriversFile),
             StringComparison.Ordinal);
     }
 
@@ -57,7 +57,7 @@ public sealed class InputDriverGeneratorTests
 
         Assert.DoesNotContain(
             "Seeded",
-            GeneratorHarness.Emitted(updated, GeneratorHarness.GameInputDriversFile),
+            GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleInputDriversFile),
             StringComparison.Ordinal);
     }
 
@@ -116,6 +116,6 @@ public sealed class InputDriverGeneratorTests
             logic: false,
             shell: false).Updated;
 
-        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.GameInputDriversFile));
+        Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.CapsuleInputDriversFile));
     }
 }

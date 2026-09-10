@@ -6,9 +6,9 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 | Package | Purpose |
 | --- | --- |
-| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering contracts, tile grids, collision, and the world of scenes and entities. |
-| `JAG.Capsule.Runtime` | Window, device, clock, input sampling, and renderer. |
-| `JAG.Capsule.Build` | Analyzers, generators, asset hooks, and scene and sprite sheet import. |
+| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, tile grids, collision, and the world of scenes and entities. |
+| `JAG.Capsule.Runtime` | Window, device, clock, input sampling, renderer, and sound playback. |
+| `JAG.Capsule.Build` | Analyzers, generators, asset hooks, and scene, sprite sheet and audio import. |
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start), then [game setup](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/consuming-capsule.md), [build configuration](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/consuming-capsule.md#build-configuration-reference), [scene authoring](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/scenes.md), [sprite animation](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/sprite-animation.md), [headless play](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/headless-play.md), and [testing a game](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/testing.md).
 

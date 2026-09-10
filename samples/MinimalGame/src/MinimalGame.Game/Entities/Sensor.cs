@@ -19,7 +19,7 @@ public sealed class Sensor : Entity
     private static readonly Vector2 Body = new(16f, 24f);
 
     /// <summary>The whole of <c>textures/sensor.png</c>, anchored at its top-left corner; it never flips, so the pivot stays there.</summary>
-    private static readonly Sprite Field = new(GameAssets.Textures.Sensor, new TextureRegion(0, 0, 16, 24));
+    private static readonly Sprite Field = new(CapsuleAssets.Textures.Sensor, new TextureRegion(0, 0, 16, 24));
 
     public Sensor(EntitySpawn spawn)
         : base(spawn.Position)

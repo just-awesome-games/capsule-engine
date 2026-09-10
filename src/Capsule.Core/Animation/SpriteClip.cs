@@ -9,7 +9,7 @@ namespace Capsule.Animation;
 /// Each frame carries its own region and pivot, so frames need not be uniform.
 /// <para>
 /// A clip is identified by instance and carries no value equality, so the clip playing is compared
-/// against the one a sheet declared — <c>animator.Clip == GameSprites.Player.Clips.Run</c>.
+/// against the one a sheet declared — <c>animator.Clip == CapsuleAssets.Sprites.Player.Clips.Run</c>.
 /// </para>
 /// </summary>
 public sealed class SpriteClip

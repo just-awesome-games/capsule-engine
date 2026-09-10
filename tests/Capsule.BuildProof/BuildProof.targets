@@ -78,11 +78,11 @@
        from: this is what says a marked driver is unreachable by name in a shipped game. -->
   <Target Name="CapsuleProveDriverRegistry" AfterTargets="CoreCompile">
     <ItemGroup>
-      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleGameInputDrivers.g.cs" />
+      <_ProofDriverRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleInputDrivers.g.cs" />
     </ItemGroup>
 
     <Error Condition="'@(_ProofDriverRegistry)' == ''"
-           Text="BuildProof: no generated CapsuleGameInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
+           Text="BuildProof: no generated CapsuleInputDrivers.g.cs under '$(IntermediateOutputPath)generated'." />
 
     <ReadLinesFromFile File="@(_ProofDriverRegistry)">
       <Output TaskParameter="Lines" ItemName="_ProofDriverRegistryLine" />
