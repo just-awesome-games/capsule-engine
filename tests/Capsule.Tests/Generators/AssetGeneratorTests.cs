@@ -8,13 +8,12 @@ public sealed class AssetGeneratorTests
     [Fact]
     public void AnAsset_BecomesATypedHandleUnderItsDomain()
     {
-        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "fonts/body-text.ttf", "textures/hero.png").Updated;
+        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "textures/body-text.png", "textures/hero.png").Updated;
 
         INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
         Assert.NotNull(capsuleAssets);
-        INamedTypeSymbol fonts = capsuleAssets.GetTypeMembers().First(t => t.Name == "Fonts");
         INamedTypeSymbol textures = capsuleAssets.GetTypeMembers().First(t => t.Name == "Textures");
-        Assert.NotNull(fonts.GetMembers("BodyText").FirstOrDefault());
+        Assert.NotNull(textures.GetMembers("BodyText").FirstOrDefault());
         Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
     }
 
@@ -26,35 +25,18 @@ public sealed class AssetGeneratorTests
         INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
         Assert.NotNull(capsuleAssets);
         Assert.NotNull(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Textures"));
-        Assert.NotNull(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Fonts"));
     }
 
     [Fact]
     public void TwoNamesThatCollideAsOneIdentifier_FailTheBuild()
     {
         ImmutableArray<Diagnostic> diagnostics =
-            GeneratorHarness.CompileWithAssets(logic: true, "fonts/foot-step.ttf", "fonts/foot_step.otf").Diagnostics;
+            GeneratorHarness.CompileWithAssets(logic: true, "textures/foot-step.png", "textures/foot_step.png").Diagnostics;
 
         Assert.Equal("CAP016", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
-    [Fact]
-    public void OneNameInTwoDomains_IsTwoAssets()
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
-            GeneratorHarness.CompileWithAssets(logic: true, "fonts/hero.ttf", "textures/hero.png");
-
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
-        Assert.NotNull(capsuleAssets);
-        INamedTypeSymbol fonts = capsuleAssets.GetTypeMembers().First(t => t.Name == "Fonts");
-        INamedTypeSymbol textures = capsuleAssets.GetTypeMembers().First(t => t.Name == "Textures");
-        Assert.NotNull(fonts.GetMembers("Hero").FirstOrDefault());
-        Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
-    }
-
     [Theory]
-    [InlineData("fonts/fonts.ttf")]
     [InlineData("textures/all.png")]
     public void AnAssetTakingANameItsDomainReserves_FailsTheBuild(string asset)
     {
@@ -69,7 +51,7 @@ public sealed class AssetGeneratorTests
     public void EveryTexture_IsDeclaredAndHeldByItsDomainsSet()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) =
-            GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png", "fonts/hit.ttf");
+            GeneratorHarness.CompileWithAssets(logic: true, "textures/hero.png", "textures/tiles.png");
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
@@ -78,18 +60,6 @@ public sealed class AssetGeneratorTests
         Assert.Contains("ReadOnlySpan<global::Capsule.Assets.TextureHandle> All", generated, StringComparison.Ordinal);
         Assert.Contains("Hero,", generated, StringComparison.Ordinal);
         Assert.Contains("Tiles,", generated, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheGeneratedRegistry_CompilesOverEveryDomain()
-    {
-        Compilation compiled = GeneratorHarness.CompileWithAssets(
-            logic: true,
-            "textures/hero.png",
-            "fonts/body_text.ttf").Updated;
-
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets"));
-        Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 
     [Theory]

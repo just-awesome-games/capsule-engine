@@ -79,7 +79,7 @@ internal static class SpriteSheetTool
             shipped.Add(texture.Replace('\\', '/'));
         }
 
-        SheetNames declared = new();
+        RegistryNames declared = new(SpriteRegistrySource.RegistryClass, SpriteRegistrySource.Reserved);
         List<(string Key, SpriteSheetDocument Document)> sheets = new(sources.Count);
 
         int result = DocumentImport.Run(
@@ -91,7 +91,10 @@ internal static class SpriteSheetTool
             IsReportable,
             (source, documentPath) =>
             {
-                declared.Declare(source.Key);
+                if (declared.Declare(source.Key) is { } collision)
+                {
+                    throw new SpriteSheetFormatException(collision);
+                }
 
                 SpriteSheetDocument document = SpriteSheetDocumentFile.Load(source.Path);
                 string texture = document.Texture.Name + document.Texture.Extension;

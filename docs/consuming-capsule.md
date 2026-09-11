@@ -89,7 +89,7 @@ The matching source-development import is:
 
 ## Logic project
 
-The logic role activates source generation and purity analysis, owns the authoring tree under `Assets/`, compiles the game's sprite sheets into typed frames and clips, measures its audio sources, and imports and ships the game's scene documents, textures, audio and fonts:
+The logic role activates source generation and purity analysis, owns the authoring tree under `Assets/`, compiles the game's sprite sheets into typed frames and clips, measures its audio sources, compiles its bitmap fonts, and imports and ships the game's scene documents, textures, audio and font pages:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -238,7 +238,7 @@ public sealed class BossArena : Scene
 }
 ```
 
-The runtime owns collected and first-used resources for one scene. A transition keeps resources the incoming preload also uses and releases the rest; exit releases all of them. Loading is synchronous, cached and host-only. Textures and `.wav` clips are the resident media; a `.ogg` clip declared as a preload reserves nothing, because it is decoded as it plays. A resident clip a live voice is still playing is retained past the transition that released it — the mixer belongs to the run, so a voice outlives the scene that started it. Fonts remain names, not a rendering API.
+The runtime owns collected and first-used resources for one scene. A transition keeps resources the incoming preload also uses and releases the rest; exit releases all of them. Loading is synchronous, cached and host-only. Textures and `.wav` clips are the resident media; a `.ogg` clip declared as a preload reserves nothing, because it is decoded as it plays. A resident clip a live voice is still playing is retained past the transition that released it — the mixer belongs to the run, so a voice outlives the scene that started it. A bitmap font's pages are textures like any other, resident for the scene whose labels collect them.
 
 ## Named assets
 
@@ -335,7 +335,7 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 | ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CapsuleAssetSourcesDir` | `Assets` under the importing project          | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Audio/`, and `Fonts/` trees. An explicitly named directory must exist.                                       |
 | `CapsuleImportScenes`    | `true` for the logic library; otherwise `false` | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.          A role-free test or tool can opt in independently. |
-| `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and fonts under `assets/`. A role-free test or tool can opt in independently.                                                        |
+| `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and font pages under `assets/`. A role-free test or tool can opt in independently.                                                   |
 | `CapsuleImportSprites`   | `true` for the logic library; otherwise `false` | Validates `*.sheet.json` sources and compiles them into `CapsuleAssets.Sprites`. Nothing ships; a role-free project that has to name a frame or clip opts in independently.    |
 | `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size.                                  |

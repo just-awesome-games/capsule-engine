@@ -12,6 +12,6 @@ Contains: `Capsule.Core`, `Capsule.Collision`, `Capsule.Scenes`.
 
 Referenced by: game logic projects.
 
-API starting points: `StepContext`, `InputState`, `DeviceSnapshot`, `RandomSource`, `AudioMixer` and `AudioClip` in Core; `CollisionWorld2D`, `Shape2D` and `CollisionFilter` in Collision; `Scene`, `Entity`, `Component`, `SceneSimulation`, `SceneRun`, `Camera`, `SpriteRenderer`, `AudioSource`, `Collider2D` and `IInputDriver` in Scenes.
+API starting points: `StepContext`, `InputState`, `DeviceSnapshot`, `RandomSource`, `AudioMixer` and `AudioClip` in Core; `CollisionWorld2D`, `Shape2D` and `CollisionFilter` in Collision; `Scene`, `Entity`, `Component`, `SceneSimulation`, `SceneRun`, `Camera`, `SpriteRenderer`, `Label`, `AudioSource`, `Collider2D` and `IInputDriver` in Scenes.
 
-See [`docs/architecture.md`](../../docs/architecture.md) for the module map and determinism contract, [`docs/scenes.md`](../../docs/scenes.md) for scene documents, [`docs/sprite-animation.md`](../../docs/sprite-animation.md) for sheet documents, [`docs/headless-play.md`](../../docs/headless-play.md) for input drivers, and [`docs/testing.md`](../../docs/testing.md) for testing a game. Public behavior is in the XML documentation shipped beside each assembly.
+See [`docs/architecture.md`](../../docs/architecture.md) for the module map and determinism contract, [`docs/scenes.md`](../../docs/scenes.md) for scene documents, [`docs/sprite-animation.md`](../../docs/sprite-animation.md) for sheet documents, [`docs/text.md`](../../docs/text.md) for bitmap fonts, [`docs/headless-play.md`](../../docs/headless-play.md) for input drivers, and [`docs/testing.md`](../../docs/testing.md) for testing a game. Public behavior is in the XML documentation shipped beside each assembly.

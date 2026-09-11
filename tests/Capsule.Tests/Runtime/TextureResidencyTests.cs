@@ -30,6 +30,37 @@ public sealed class TextureResidencyTests
         Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, bat));
     }
 
+    // A bitmap font's pages ship beside the font they were cut for, so the same handle shape
+    // resolves under a second root.
+    [Fact]
+    public void AFontPage_NamesItsFileUnderTheFontsDomain()
+    {
+        Assert.Equal(
+            "assets/fonts/ui/menu.png",
+            TextureFiles.RelativePathOf(TextureHandle.FontPage("ui/menu", ".png")));
+    }
+
+    [Fact]
+    public void Locate_FindsAShippedFontPageUnderTheFontsDomain()
+    {
+        TextureHandle page = TextureHandle.FontPage("ui/menu", ".png");
+        using Shipped shipped = new(page);
+
+        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, page));
+    }
+
+    // One name under two roots is two files and therefore two textures, which the store has to keep
+    // apart.
+    [Fact]
+    public void ATextureAndAFontPageOfOneName_AreNotOneHandle()
+    {
+        TextureHandle texture = new("menu", ".png");
+        TextureHandle page = TextureHandle.FontPage("menu", ".png");
+
+        Assert.NotEqual(texture, page);
+        Assert.Equal(page, TextureHandle.FontPage("menu", ".png"));
+    }
+
     [Fact]
     public void Locate_FailsNamingTheHandleAndThePathItLookedIn()
     {

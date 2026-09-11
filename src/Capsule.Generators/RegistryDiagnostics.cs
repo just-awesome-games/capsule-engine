@@ -109,6 +109,16 @@ internal static class RegistryDiagnostics
         "A scene document key must be nameable segment by segment",
         "'{0}' claims a scene document key whose segment '{1}' names nothing; every segment of a key is " + SegmentGrammar);
 
+    internal static readonly DiagnosticDescriptor UnreadableFont = Asset(
+        "CAP022",
+        "A bitmap font source cannot be compiled",
+        "'{0}' {1}");
+
+    internal static readonly DiagnosticDescriptor UnshippedFontPage = Asset(
+        "CAP023",
+        "A bitmap font names a page the game does not ship",
+        "'{0}' {1}");
+
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";
 

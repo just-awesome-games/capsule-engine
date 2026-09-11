@@ -23,7 +23,11 @@ public static class FixtureInput
 [SceneDocument("fixture")]
 public sealed class FixtureScene(SceneContent content) : Scene(content)
 {
-    protected override void OnStart() => Camera.ViewportSize = new Vector2(16f, 16f);
+    protected override void OnStart()
+    {
+        Camera.ViewportSize = new Vector2(16f, 16f);
+        Add(new FixtureLabel(new Vector2(-6f, -6f)));
+    }
 
     protected override void OnStep(in StepContext context)
     {
@@ -31,6 +35,21 @@ public sealed class FixtureScene(SceneContent content) : Scene(content)
         {
             RequestExit();
         }
+    }
+}
+
+// Two glyphs of the generated font registry, drawn under NativeAOT: the whole font path from the
+// build-read '.fnt' to a shipped page.
+public sealed class FixtureLabel : Entity
+{
+    public const string Text = "AB";
+
+    public const int Glyphs = 2;
+
+    public FixtureLabel(Vector2 position)
+        : base(position)
+    {
+        Add(new Label(CapsuleAssets.Fonts.Menu, Text));
     }
 }
 

@@ -23,6 +23,12 @@ internal static class SpriteRegistrySource
     /// <summary>The generated class a sheet's clips are declared on.</summary>
     internal const string ClipsClass = "Clips";
 
+    /// <summary>The names the generated classes take for themselves; a directory declares neither.</summary>
+    internal static string? Reserved(string identifier, bool leaf) =>
+        leaf && identifier is FramesClass or ClipsClass
+            ? $"is one of the generated classes a sheet declares ('{FramesClass}', '{ClipsClass}')"
+            : null;
+
     private const string SpriteType = "global::Capsule.Rendering.Sprite";
     private const string RegionType = "global::Capsule.Rendering.TextureRegion";
     private const string TextureType = "global::Capsule.Assets.TextureHandle";

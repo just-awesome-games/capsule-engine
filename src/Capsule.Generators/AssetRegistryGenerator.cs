@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Capsule.Generators;
 
@@ -16,14 +17,43 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
                 .Select(static (compilation, _) => compilation.GetTypeByMetadataName(Symbols.TextureHandle) is not null))
             .Select(static (input, _) => input.Left && input.Right);
 
-        IncrementalValuesProvider<AssetModel> assets = context.AdditionalTextsProvider
-            .Combine(context.AnalyzerConfigOptionsProvider)
-            .Select(static (input, _) => AssetRegistrySource.Describe(input.Left, input.Right))
+        IncrementalValuesProvider<(AdditionalText Text, AnalyzerConfigOptionsProvider Options)> files =
+            context.AdditionalTextsProvider
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Select(static (input, _) => (input.Left, input.Right));
+
+        IncrementalValuesProvider<AssetModel> assets = files
+            .Select(static (input, _) => AssetRegistrySource.Describe(input.Text, input.Options))
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value);
 
+        // A font's pages ship like any other texture; the '.fnt' beside them is compiled into the
+        // game, so both halves of the fonts domain are read here and neither is a texture handle.
+        IncrementalValuesProvider<(AdditionalText Text, AnalyzerConfigOptionsProvider Options)> fontFiles = files
+            .Where(static input => AssetRegistrySource.InDomain(input.Text, input.Options, FontRegistrySource.Domain));
+
+        IncrementalValuesProvider<KeyValuePair<string, string>> pages = fontFiles
+            .Select(static (input, _) => AssetRegistrySource.DescribePage(input.Text, input.Options))
+            .Where(static page => page.HasValue)
+            .Select(static (page, _) => page!.Value);
+
+        IncrementalValuesProvider<FontModel> fonts = fontFiles
+            .Where(static input => string.Equals(
+                Path.GetExtension(input.Text.Path),
+                BmFontParser.BmFontExtension,
+                StringComparison.OrdinalIgnoreCase))
+            .Select(static (input, cancellation) => FontRegistrySource.Describe(
+                input.Text,
+                AssetRegistrySource.Authored(input.Text, input.Options),
+                cancellation));
+
         context.RegisterSourceOutput(
-            assets.Collect().Combine(emitting),
-            static (production, input) => AssetRegistrySource.Emit(production, input.Left, input.Right));
+            assets.Collect().Combine(pages.Collect()).Combine(fonts.Collect()).Combine(emitting),
+            static (production, input) => AssetRegistrySource.Emit(
+                production,
+                input.Left.Left.Left,
+                input.Left.Left.Right,
+                input.Left.Right,
+                input.Right));
     }
 }

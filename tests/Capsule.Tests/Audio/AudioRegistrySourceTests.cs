@@ -60,33 +60,6 @@ public sealed class AudioRegistrySourceTests
             AudioRegistrySource.Render([theme, stone]));
     }
 
-    [Theory]
-    [InlineData("audio", "a class of that name")]
-    [InlineData("all", "the set member")]
-    [InlineData("steps/all", "the set member")]
-    [InlineData("01-stone", "no C# name")]
-    [InlineData("steps/hey there", "no C# name")]
-    public void AKeyTheGeneratedClassesCannotDeclare_IsRefused(string key, string because)
-    {
-        AudioNames declared = new();
-
-        AudioFormatException refused = Assert.Throws<AudioFormatException>(() => declared.Declare(key));
-
-        Assert.Contains(because, refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TwoKeysThatAreOneCsharpNameInOneDirectory_AreRefused()
-    {
-        AudioNames declared = new();
-        declared.Declare("steps/foot-step");
-
-        Assert.Throws<AudioFormatException>(() => declared.Declare("steps/foot_step"));
-
-        // A directory two clips share is one class, not a collision.
-        declared.Declare("steps/other");
-    }
-
     private static string Dense(string generated) =>
         generated.Replace("\r\n", "\n", StringComparison.Ordinal).Replace(" ", string.Empty, StringComparison.Ordinal);
 }

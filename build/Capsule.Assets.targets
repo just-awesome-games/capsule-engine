@@ -12,7 +12,7 @@
       <CapsuleAssetDomain>audio</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
-    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/Fonts/**/*.ttf;$(CapsuleAssetSourcesDir)/Fonts/**/*.otf"
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/Fonts/**/*.fnt;$(CapsuleAssetSourcesDir)/Fonts/**/*.png"
                   Exclude="@(_CapsuleDevelopmentOnly)">
       <CapsuleAssetDomain>fonts</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
@@ -37,7 +37,7 @@
           BeforeTargets="AssignTargetPaths">
 
     <Error Condition="'@(_CapsuleUnknownAsset)' != ''"
-           Text="Capsule: a file under an asset domain root has an extension that domain does not admit — Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .ttf and .otf. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)': @(_CapsuleUnknownAsset, ' ')" />
+           Text="Capsule: a file under an asset domain root has an extension that domain does not admit — Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .fnt and .png. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)': @(_CapsuleUnknownAsset, ' ')" />
   </Target>
 
   <!-- The shipped path is the key's, which only the key pass knows. -->

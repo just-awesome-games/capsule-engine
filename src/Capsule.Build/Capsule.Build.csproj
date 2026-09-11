@@ -30,10 +30,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The identifier rule, compiled rather than referenced: the generator ships as an analyzer,
-         and a second copy would let the sheet registry and the asset registry name a file
-         differently. -->
-    <Compile Include="../Capsule.Generators/TypeNaming.cs" Link="Sprites/TypeNaming.cs" />
+    <!-- The identifier rule and the registry tree it names, compiled rather than referenced: the
+         generator ships as an analyzer, and a second copy would let the sheet, audio and asset
+         registries name a file or shape a class differently. -->
+    <Compile Include="../Capsule.Generators/TypeNaming.cs" Link="TypeNaming.cs" />
+    <Compile Include="../Capsule.Generators/RegistryTree.cs" Link="RegistryTree.cs" />
   </ItemGroup>
 
   <ItemGroup>

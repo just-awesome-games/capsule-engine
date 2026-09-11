@@ -57,7 +57,7 @@ internal static class AudioTool
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
-        AudioNames declared = new();
+        RegistryNames declared = new(AudioRegistrySource.RegistryClass, AudioRegistrySource.Reserved);
         List<AudioSourceClip> clips = new(sources.Count);
         int failures = 0;
 
@@ -73,7 +73,10 @@ internal static class AudioTool
 
             try
             {
-                declared.Declare(source.Key);
+                if (declared.Declare(source.Key) is { } collision)
+                {
+                    throw new AudioFormatException(collision);
+                }
 
                 AudioProbe.Measurement measured = AudioProbe.Measure(source.Path);
                 clips.Add(new AudioSourceClip(

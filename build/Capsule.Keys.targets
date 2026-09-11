@@ -24,8 +24,10 @@
 
     <!-- Qualify metadata to avoid evaluating it on incompatible items. -->
     <ItemGroup>
+      <!-- A font description is compiled into the game by the generator, which reads the same
+           authored file: it is keyed by nothing and ships nowhere. -->
       <_CapsuleAssetRequest Include="@(CapsuleAsset)"
-                            Condition="'@(CapsuleAsset)' != ''">
+                            Condition="'@(CapsuleAsset)' != '' and '%(CapsuleAsset.Extension)' != '.fnt'">
         <Relative>$([MSBuild]::MakeRelative($(CapsuleKeyProjectDir), %(CapsuleAsset.FullPath)))</Relative>
       </_CapsuleAssetRequest>
 

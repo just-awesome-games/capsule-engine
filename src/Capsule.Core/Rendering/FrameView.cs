@@ -1,10 +1,13 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
+using Capsule.Assets;
 
 namespace Capsule.Rendering;
 
 /// <summary>
 /// Mutable render intent, rewritten once per fixed step and read on draw frames: an ordered list
-/// of sprites to draw.
+/// of sprites to draw. Text is on that list too — a <see cref="TextIntent"/> becomes one sprite per
+/// glyph — so <see cref="Metrics"/> counts a run of text once per glyph.
 /// </summary>
 public sealed class FrameView
 {
@@ -76,5 +79,39 @@ public sealed class FrameView
         }
 
         _sprites.Add(sprite);
+    }
+
+    /// <summary>
+    /// Lays <paramref name="text"/> out and adds one sprite per glyph, each culled and counted on
+    /// its own. Glyphs are added in reading order, so a later one covers an earlier one where they
+    /// overlap. A null font or empty text adds nothing.
+    /// </summary>
+    public void Add(in TextIntent text)
+    {
+        BitmapFont? font = text.Font;
+        if (font is null || string.IsNullOrEmpty(text.Text))
+        {
+            return;
+        }
+
+        int lineHeight = font.LineHeight;
+        ReadOnlySpan<TextureHandle> pages = font.Pages;
+
+        foreach (GlyphPlacement placed in new GlyphRun(font, text.Text))
+        {
+            Glyph glyph = placed.Glyph;
+            Vector2 offset = new Vector2(
+                placed.PenX + glyph.XOffset,
+                (placed.Line * lineHeight) + glyph.YOffset) * text.Scale;
+
+            Add(new SpriteIntent(
+                new Sprite(pages[glyph.Page], glyph.Region),
+                text.PreviousPosition + offset,
+                text.Position + offset,
+                new Vector2(glyph.Region.Width, glyph.Region.Height) * text.Scale,
+                FlipX: false,
+                FlipY: false,
+                text.Color));
+        }
     }
 }

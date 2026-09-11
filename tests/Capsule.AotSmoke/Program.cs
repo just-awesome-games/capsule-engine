@@ -18,6 +18,12 @@ internal static class Program
 
     private const string NativeScenePath = "assets/scenes/fixture.scene.json";
 
+    // The document's one entity and its one tile, plus a glyph per character of the label: a font
+    // that generated nothing, or a page that did not ship, draws fewer than this.
+    private const int DocumentSprites = 2;
+
+    private const int MinimumVisible = DocumentSprites + FixtureLabel.Glyphs;
+
     public static int Main()
     {
         try
@@ -49,14 +55,14 @@ internal static class Program
         bool booted =
             result.Steps == DrivenSteps &&
             result.ExitRequested &&
-            result.Metrics.Visible > 0 &&
+            result.Metrics.Visible >= MinimumVisible &&
             contentShipped;
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content {contentShipped}."));
+                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}."));
             return 1;
         }
 
@@ -77,6 +83,10 @@ internal static class Program
 
         return fixture.Source is { Tool: "native" }
             && Shipped(CapsuleAssets.Textures.Pixel)
+            && Shipped("fonts", "menu", ".png")
+
+            // Compiled into the game, so it is not beside the executable.
+            && !Shipped("fonts", "menu", ".fnt")
             && Shipped(CapsuleAssets.Textures.TileSets.CaveWall)
             && CapsuleAssets.Textures.TileSets.CaveWall.Name == "tile-sets/cave-wall"
             && fixture.Entries[1].TileMap?.Grid.Texture?.Name == "tile-sets/cave-wall";

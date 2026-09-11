@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Capsule.Generators;
 using Capsule.Scenes;
 using Capsule.Scenes.Tiles;
@@ -110,16 +111,35 @@ internal static class GeneratorHarness
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
         bool logic,
-        params string[] assetPaths)
-    {
-        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) = Assets(assetPaths);
+        params string[] assetPaths) =>
+        CompileWithSources(logic, [.. assetPaths.Select(static path => (path, (string?)null))]);
 
-        return Run(
-            Compiled("AssetSpecs", "namespace Game; public sealed class Marker;", References),
-            logic,
-            shell: !logic,
-            texts,
-            assets);
+    /// <summary>Compiles against assets the compiler can read, as it reads a font description.</summary>
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithSources(
+        bool logic,
+        params (string Path, string? Content)[] assets) =>
+        CompileAgainstSources("namespace Game; public sealed class Marker;", logic, assets);
+
+    /// <summary>Compiles game code against those assets, so it names what the registry declares.</summary>
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileAgainstSources(
+        string source,
+        bool logic,
+        params (string Path, string? Content)[] assets)
+    {
+        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> declared) = Assets(assets);
+
+        return Run(Compiled("AssetSpecs", source, References), logic, shell: !logic, texts, declared);
+    }
+
+    /// <summary>The generated registry as the game runs it, so a member hands back what it declares.</summary>
+    internal static Assembly Loaded(Compilation compiled)
+    {
+        using MemoryStream image = new();
+        EmitResult emitted = compiled.Emit(image);
+
+        Assert.True(emitted.Success, string.Join(Environment.NewLine, Errors(emitted.Diagnostics)));
+
+        return Assembly.Load(image.ToArray());
     }
 
     /// <summary>Compiles game code against the assets the asset hook would hand the compiler beside it.</summary>
@@ -127,7 +147,8 @@ internal static class GeneratorHarness
         string source,
         params string[] assetPaths)
     {
-        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) = Assets(assetPaths);
+        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) =
+            Assets([.. assetPaths.Select(static path => (path, (string?)null))]);
 
         return Run(Compiled("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
     }
@@ -135,18 +156,18 @@ internal static class GeneratorHarness
     // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
     // generator as metadata beside the file.
     private static (ImmutableArray<AdditionalText> Texts, Dictionary<string, (string Domain, string Path)> Assets) Assets(
-        string[] assetPaths)
+        (string Path, string? Content)[] assetPaths)
     {
         Dictionary<string, (string Domain, string Path)> assets = new(StringComparer.Ordinal);
         ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
-        foreach (string path in assetPaths)
+        foreach ((string path, string? content) in assetPaths)
         {
             int separator = path.IndexOf('/', StringComparison.Ordinal);
             string relative = path[(separator + 1)..];
             int dot = relative.LastIndexOf('.');
 
             assets[path] = (path[..separator], dot < 0 ? relative : relative[..dot]);
-            texts.Add(new AssetFile(path));
+            texts.Add(new AssetFile(path, content));
         }
 
         return (texts.ToImmutable(), assets);
@@ -239,11 +260,13 @@ internal static class GeneratorHarness
         return references.ToImmutable();
     }
 
-    private sealed class AssetFile(string path) : AdditionalText
+    private sealed class AssetFile(string path, string? content) : AdditionalText
     {
         public override string Path { get; } = path;
 
-        public override SourceText? GetText(CancellationToken cancellationToken = default) => null;
+        // Null where the compiler could not read the file, which is every binary asset.
+        public override SourceText? GetText(CancellationToken cancellationToken = default) =>
+            content is null ? null : SourceText.From(content);
     }
 
     private sealed class DeclaredRole : AnalyzerConfigOptionsProvider

@@ -6,11 +6,18 @@ namespace Capsule.Runtime.Assets;
 // testable without a graphics device.
 internal static class TextureFiles
 {
-    private static readonly AssetFiles Files = new("textures", "Texture", "handle");
+    private static readonly AssetFiles Textures = new("textures", "Texture", "handle");
+
+    // A bitmap font's pages ship beside the font they were cut for, so the same handle shape
+    // resolves under a second root.
+    private static readonly AssetFiles Fonts = new("fonts", "Font page", "handle");
 
     internal static string RelativePathOf(in TextureHandle handle) =>
-        Files.RelativePathOf(handle.Name, handle.Extension);
+        Files(handle).RelativePathOf(handle.Name, handle.Extension);
 
     internal static string Locate(string baseDirectory, in TextureHandle handle) =>
-        Files.Locate(baseDirectory, handle.Name, handle.Extension);
+        Files(handle).Locate(baseDirectory, handle.Name, handle.Extension);
+
+    private static AssetFiles Files(in TextureHandle handle) =>
+        handle.Domain == TextureDomain.Fonts ? Fonts : Textures;
 }

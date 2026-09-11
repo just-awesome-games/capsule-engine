@@ -59,9 +59,11 @@ Sprite animation is authored as a sheet document and compiled into the game as t
 
 Audio clips are generated from the game's authored sources with the duration the build measured for each, so playback state is derived rather than read back from a device. An entity plays one through an `AudioSource`, or a scene reaches the run's `AudioMixer` directly for buses, volumes and voices that outlive a transition; each step raises the commands the host plays through OpenAL. Headless runs mix the same state and play nothing.
 
+Text is drawn from a bitmap font compiled into the game, put on an entity by a `Label` and reaching the frame as one ordinary sprite per glyph; see [`docs/text.md`](docs/text.md).
+
 Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
 
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneRun`, `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator` and `Camera` for presentation; `AudioClip`, `AudioMixer` and `AudioSource` for sound; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneRun`, `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator`, `Label` and `Camera` for presentation; `AudioClip`, `AudioMixer` and `AudioSource` for sound; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
 
 Rendering submits sprites in order. The host preloads the media a composed scene and its contents identify, caches any other texture on first rendered use for that scene, and releases scene-owned resources at transition or exit. Headless simulation loads no media.
 
