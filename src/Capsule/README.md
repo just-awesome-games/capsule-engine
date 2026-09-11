@@ -8,7 +8,7 @@ Contains: `Capsule.Core`, `Capsule.Collision`, `Capsule.Scenes`.
 
 `Capsule.Collision` holds collision and nothing else, over a `CollisionWorld2D` a headless test builds and queries directly.
 
-`Capsule.Scenes` holds the world a game plays in: scenes, entities, components, cameras, tile maps, the screen layer a `ScreenEntity` draws an interface on, the `FocusNavigator<T>` a menu on that layer is driven by, the scene document a scene is composed from, and the input driver and `SceneRun` a test drives it from.
+`Capsule.Scenes` holds the world a game plays in: scenes, entities, components, cameras, tile maps, the screen layer a `ScreenEntity` draws an interface on, the `Focusable` and `FocusNavigator` a menu on that layer is driven by, the scene document a scene is composed from, and the input driver and `SceneRun` a test drives it from.
 
 Referenced by: game logic projects.
 

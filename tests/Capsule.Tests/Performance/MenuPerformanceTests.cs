@@ -2,15 +2,16 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Input;
-using Capsule.Scenes.Rendering;
 
 namespace Capsule.Tests.Performance;
 
 [Collection(StagePerformanceCollection.Name)]
 public sealed class MenuPerformanceTests
 {
-    private static readonly InputAction Backward = new("Backward");
-    private static readonly InputAction Forward = new("Forward");
+    private static readonly InputAction Up = new("Up");
+    private static readonly InputAction Down = new("Down");
+    private static readonly InputAction Left = new("Left");
+    private static readonly InputAction Right = new("Right");
     private static readonly InputAction Confirm = new("Confirm");
     private static readonly InputAction Click = new("Click");
 
@@ -19,25 +20,43 @@ public sealed class MenuPerformanceTests
     [Fact]
     public void AFocusStepOverAPointerAndEveryAction_AllocatesNothing()
     {
-        FocusNavigator<ColorRect> focus = new(new FocusActions(Backward, Forward, Confirm, Click));
-        for (int i = 0; i < 8; i++)
-        {
-            focus.Add(Item(new Vector2(0f, i * 20f)));
-        }
+        Scene scene = new();
+        Focusable[] items = new Focusable[8];
+        FocusNavigator focus = new(new FocusActions(Up, Down, Left, Right, Confirm, Click));
 
         // Subscribed, so the measured steps raise through live handlers rather than past null ones.
+        int focused = 0;
+        int unfocused = 0;
+        int pressed = 0;
         int moves = 0;
-        int activations = 0;
+
+        for (int i = 0; i < items.Length; i++)
+        {
+            Focusable item = new(new Vector2(20f, 10f));
+            items[i] = item;
+
+            item.Focused += () => focused++;
+            item.Unfocused += () => unfocused++;
+            item.Pressed += () => pressed++;
+
+            focus.Add(item);
+            scene.Add(new Holder(new Vector2(0f, i * 20f), item));
+        }
+
         focus.FocusChanged += _ => moves++;
-        focus.Activated += _ => activations++;
+        scene.Add(new Holder(Vector2.Zero, focus));
 
-        ActionBindings bindings = new ActionBindings()
-            .Bind(Backward, Key.Up)
-            .Bind(Forward, Key.Down)
+        InputState input = new(new ActionBindings()
+            .Bind(Up, Key.Up)
+            .Bind(Down, Key.Down)
+            .Bind(Left, Key.Left)
+            .Bind(Right, Key.Right)
             .Bind(Confirm, Key.Enter)
-            .Bind(Click, MouseButton.Left);
+            .Bind(Click, MouseButton.Left));
 
-        InputState input = new(bindings);
+        // Starting the run starts the navigator, which is where its first item takes the focus. The
+        // steps are then driven straight into the component, so what is measured is its own work.
+        using SceneRun run = new(scene, input, canvas: new Vector2(320f, 180f));
 
         // The expensive step: the pointer moved, it is inside the last item, and the click is pressed,
         // so both hit tests walk the whole list.
@@ -46,40 +65,45 @@ public sealed class MenuPerformanceTests
 
         for (int i = 0; i < 100; i++)
         {
-            input.Advance(i % 2 == 0 ? clicked : released);
-            focus.Step(input);
+            Step(focus, input, i % 2 == 0 ? clicked : released, run.StepSeconds, i);
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int i = 0; i < 1000; i++)
         {
-            input.Advance(i % 2 == 0 ? clicked : released);
-            focus.Step(input);
+            Step(focus, input, i % 2 == 0 ? clicked : released, run.StepSeconds, i);
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-        Assert.Equal(7, focus.FocusedIndex);
-        Assert.Equal(1, moves);
-        Assert.Equal(550, activations);
+        Assert.Same(items[^1], focus.Focused);
+
+        // The start and the pointer's one landing, and the click on every other step.
+        Assert.Equal(2, moves);
+        Assert.Equal(2, focused);
+        Assert.Equal(1, unfocused);
+        Assert.Equal(550, pressed);
     }
 
-    private static ColorRect Item(Vector2 position)
+    private static void Step(
+        FocusNavigator focus,
+        InputState input,
+        in DeviceSnapshot snapshot,
+        double stepSeconds,
+        long tick)
     {
-        ColorRect rect = new(new Vector2(20f, 10f));
-        _ = new Holder(position, rect);
+        input.Advance(in snapshot);
 
-        return rect;
+        StepContext context = new(stepSeconds, input, tick);
+        focus.OnStep(in context);
     }
 
     // A screen entity, which is what the pointer hit-tests: a world item is skipped before its bounds are
     // read, so a list of those would measure no hit test at all.
     private sealed class Holder : ScreenEntity
     {
-        internal Holder(Vector2 position, Component drawn)
-            : base(Anchor.TopLeft, position)
-        {
-            Add(drawn);
-        }
+        internal Holder(Vector2 position, Component held)
+            : base(Anchor.TopLeft, position) =>
+            Add(held);
     }
 }
