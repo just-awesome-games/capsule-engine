@@ -209,6 +209,17 @@ public class Scene
     internal AudioMixer? AudioOrNull => _audio;
 
     /// <summary>
+    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner and whose Y
+    /// runs down. A run constant, engine-owned and installed before the scene starts: the run's
+    /// declared render resolution, or the window size it was configured to open at, so it never
+    /// follows a window the player resizes. An <see cref="Entity"/> in
+    /// <see cref="RenderSpace.Screen"/> is anchored and hit-tested against it, and a camera fit that
+    /// reveals more world than the canvas holds leaves the screen layer this extent, centred in what
+    /// the world was drawn on.
+    /// </summary>
+    public Vector2 Canvas { get; internal set; }
+
+    /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
     /// A scene composed from a scene document with tile maps spans their largest dimensions.
     /// </summary>
@@ -491,6 +502,9 @@ public class Scene
 
         // Whatever the scene's own construction set stands; the game default fills in behind it.
         _sampling ??= defaults.Sampling;
+
+        // Ahead of every start below, so an entity anchoring itself to a canvas edge finds one.
+        Canvas = defaults.ResolvedCanvas;
 
         // Everything the scene was composed from is attached by now, so an entity starting here
         // can search the scene and find every other entry.

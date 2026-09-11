@@ -35,6 +35,10 @@ internal sealed class FrameRenderer : IDisposable
     // with the resolved world rect under a fit that reveals more of it.
     private RenderTarget2D? _target;
 
+    // Where the screen layer landed on the last frame drawn, which is what turns a sampled mouse
+    // position back into a canvas position.
+    private ScreenPlacement _placement = ScreenPlacement.Identity;
+
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use; owned by the caller.
@@ -78,6 +82,13 @@ internal sealed class FrameRenderer : IDisposable
         {
             DrawWorld(view, alpha, world, span, outputWidth, outputHeight);
 
+            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+            if (windowed.Scale > 0f)
+            {
+                DrawScreen(view, alpha, windowed, outputWidth, outputHeight);
+                _placement = windowed;
+            }
+
             return;
         }
 
@@ -85,8 +96,65 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.SetRenderTarget(target);
         DrawWorld(view, alpha, world, span, target.Width, target.Height);
+
+        // Over the world's own bars: the viewport is the whole surface again and the canvas sits
+        // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
+        Vector2 slack = ScreenSlack(target.Width, target.Height, view.Canvas);
+        DrawScreen(view, alpha, new ScreenPlacement(slack, 1f), target.Width, target.Height);
+
         _device.SetRenderTarget(null);
-        Present(target, view.Sampling);
+
+        ScreenPlacement presented = TargetPlacement(view.Sampling, target.Width, target.Height, outputWidth, outputHeight);
+        Present(target, view.Sampling, presented);
+
+        if (presented.Scale > 0f)
+        {
+            _placement = new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale);
+        }
+    }
+
+    // Where the screen layer landed in the window on the last frame drawn. Identity until one has.
+    internal ScreenPlacement ScreenLayer => _placement;
+
+    // Half of what the surface has over the canvas, in whole surface pixels: under Expand or
+    // FixedHeight the surface grows past the canvas to reveal more world, and the screen layer stays
+    // the canvas, centred in it.
+    internal static Vector2 ScreenSlack(int surfaceWidth, int surfaceHeight, Vector2 canvas) => new(
+        MathF.Max(MathF.Floor((surfaceWidth - canvas.X) / 2f), 0f),
+        MathF.Max(MathF.Floor((surfaceHeight - canvas.Y) / 2f), 0f));
+
+    // Where the canvas lands straight in the back buffer, with no render surface between them: its
+    // own centred fit, so the layer keeps its aspect and its place whatever the camera's fit did
+    // with the world behind it. A scale of 0 is a canvas or a window with no area.
+    internal static ScreenPlacement WindowPlacement(Vector2 canvas, int outputWidth, int outputHeight)
+    {
+        Letterbox fit = Letterbox.Fit(canvas.X, canvas.Y, outputWidth, outputHeight);
+
+        return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
+    }
+
+    // Where the render surface's own top-left corner lands in the back buffer, on the fit its
+    // sampling mode calls for. A scale of 0 is a surface or a back buffer with no area.
+    internal static ScreenPlacement TargetPlacement(
+        TextureSampling sampling,
+        int targetWidth,
+        int targetHeight,
+        int containerWidth,
+        int containerHeight)
+    {
+        Letterbox fit = PresentFit(sampling, targetWidth, targetHeight, containerWidth, containerHeight);
+        if (fit.IsEmpty)
+        {
+            return default;
+        }
+
+        // One scalar scale and a fractional position rather than a destination rectangle, whose two
+        // extents would round to whole pixels independently and skew the blit.
+        return new ScreenPlacement(
+            new Vector2(
+                (containerWidth - (targetWidth * fit.Scale)) / 2f,
+                (containerHeight - (targetHeight * fit.Scale)) / 2f),
+            fit.Scale);
     }
 
     private RenderTarget2D Surface(
@@ -325,6 +393,36 @@ internal sealed class FrameRenderer : IDisposable
         _batch.End();
     }
 
+    // The screen layer, in canvas pixels placed by placement. Drawn after the world and over the
+    // whole surface, so it covers the bars the world's own fit left.
+    private void DrawScreen(FrameView view, float alpha, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight)
+    {
+        ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
+        if (sprites.IsEmpty || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
+        {
+            return;
+        }
+
+        _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
+
+        Matrix canvasToSurface =
+            Matrix.CreateScale(placement.Scale, placement.Scale, 1f) *
+            Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
+
+        _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: canvasToSurface);
+
+        bool snap = view.Sampling == TextureSampling.Point;
+        TextureHandle resolved = default;
+        Texture2D? texture = null;
+
+        foreach (ref readonly SpriteIntent sprite in sprites)
+        {
+            DrawSprite(sprite, alpha, snap, placement.Scale, ref resolved, ref texture);
+        }
+
+        _batch.End();
+    }
+
     // resolved is the handle texture was fetched for; both are carried across the whole stream.
     private void DrawSprite(
         in SpriteIntent sprite,
@@ -337,7 +435,10 @@ internal sealed class FrameRenderer : IDisposable
         if (texture is null || sprite.Sprite.Texture != resolved)
         {
             resolved = sprite.Sprite.Texture;
-            texture = _textures.Get(resolved);
+
+            // An engine-reserved handle names no file: the host already holds the texture, and a
+            // flat-coloured rect is one sprite over this texel.
+            texture = resolved.IsEngineOwned ? _white : _textures.Get(resolved);
         }
 
         Vector2 position = Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha);
@@ -367,8 +468,8 @@ internal sealed class FrameRenderer : IDisposable
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
-    // Letterboxed a second time, into the back buffer, on the fit its sampling mode calls for.
-    private void Present(RenderTarget2D target, TextureSampling sampling)
+    // Letterboxed a second time, into the back buffer, at the placement TargetPlacement resolved.
+    private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
         PresentationParameters backBuffer = _device.PresentationParameters;
@@ -379,27 +480,20 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Clear(BarColor);
 
-        Letterbox fit = PresentFit(sampling, target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
-        if (fit.IsEmpty)
+        if (!(placement.Scale > 0f))
         {
             return;
         }
 
-        // One scalar scale and a fractional position rather than a destination rectangle, whose
-        // two extents would round to whole pixels independently and skew the blit.
-        XnaVector2 position = new(
-            (backBuffer.BackBufferWidth - (target.Width * fit.Scale)) / 2f,
-            (backBuffer.BackBufferHeight - (target.Height * fit.Scale)) / 2f);
-
         _batch.Begin(samplerState: Sampler(sampling));
         _batch.Draw(
             target,
-            position,
+            new XnaVector2(placement.Origin.X, placement.Origin.Y),
             sourceRectangle: null,
             Color.White,
             rotation: 0f,
             origin: XnaVector2.Zero,
-            fit.Scale,
+            placement.Scale,
             SpriteEffects.None,
             layerDepth: 0f);
         _batch.End();

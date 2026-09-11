@@ -15,8 +15,17 @@ public static class GameInput
     /// <summary>Leaves the floor.</summary>
     public static readonly InputAction Jump = new("jump");
 
+    /// <summary>Moves the menu focus to the item above.</summary>
+    public static readonly InputAction MenuUp = new("menu-up");
+
+    /// <summary>Moves the menu focus to the item below.</summary>
+    public static readonly InputAction MenuDown = new("menu-down");
+
     /// <summary>Accepts the menu.</summary>
     public static readonly InputAction Confirm = new("confirm");
+
+    /// <summary>Picks the menu item under the pointer.</summary>
+    public static readonly InputAction Click = new("click");
 
     /// <summary>Leaves the game.</summary>
     public static readonly InputAction Quit = new("quit");
@@ -37,7 +46,13 @@ public static class GameInput
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
         bindings.Bind(Jump, Key.Space, PadButton.South);
+        bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp);
+        bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown);
         bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South);
+
+        // A mouse button binds beside a key or a pad button: the action, not the device, is what the
+        // menu reads.
+        bindings.Bind(Click, MouseButton.Left);
         bindings.Bind(Quit, Key.Escape, PadButton.Start);
     }
 }

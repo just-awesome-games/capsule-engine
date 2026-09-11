@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Capsule.Input;
 
 /// <summary>Action-level input derived from consecutive deterministic device snapshots.</summary>
@@ -14,6 +16,15 @@ public sealed class InputState(ActionBindings bindings)
         _previous = _current;
         _current = snapshot;
     }
+
+    /// <summary>
+    /// Where the pointer sits this step, in canvas pixels from the canvas's top-left corner.
+    /// Unclamped, so a pointer off the canvas reads off it.
+    /// </summary>
+    public Vector2 Pointer => _current.Pointer;
+
+    /// <summary>Whether the pointer is somewhere other than where it was the previous step.</summary>
+    public bool PointerMoved => _current.Pointer != _previous.Pointer;
 
     /// <summary>Whether anything bound to <paramref name="action"/> is down this step.</summary>
     public bool IsHeld(InputAction action) => _bindings.IsAnyDown(action, _current);

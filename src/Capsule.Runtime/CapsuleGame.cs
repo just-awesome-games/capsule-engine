@@ -124,8 +124,11 @@ internal sealed class CapsuleGame : Game
         _diagnostics?.BeginUpdate();
 
         // Sampled every frame including one that drains no step; the latch carries that frame's
-        // input to the step that eventually runs.
-        DeviceSnapshot sampled = GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter);
+        // input to the step that eventually runs. The pointer is mapped through the placement the
+        // last drawn frame used, so it is a canvas position before it ever reaches the simulation.
+        DeviceSnapshot sampled = MouseSampler.SampleOnto(
+            GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
+            _renderer.ScreenLayer);
 
         // Alt+Enter is the host's, never a bindable action. Withheld for the whole gesture, or a
         // game that binds Enter reads a press out of it.

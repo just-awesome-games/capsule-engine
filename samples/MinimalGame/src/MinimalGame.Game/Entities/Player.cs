@@ -51,7 +51,8 @@ namespace MinimalGame.Game.Entities;
 /// The two collision filters are independent. <see cref="KinematicBody2D.BlocksOn"/> names what
 /// stops the sweep — <c>solid</c> and <c>platform</c>, the layers the room's tiles are authored on
 /// — while <see cref="Collider2D.SetFilter"/> names what the collider reports, which is <c>sensor</c>
-/// alone: the player walks through a <see cref="Sensor"/> and says so. Contacts, jumps and landings
+/// alone: the player walks through a <see cref="Sensor"/>, says so, and spends a point of
+/// <see cref="Health"/> on it. Contacts, jumps and landings
 /// are logged through <see cref="Log"/>, which the shell drains to the console at boot, each line
 /// prefixed with the tick it happened on.
 /// </para>
@@ -62,6 +63,9 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 public sealed class Player : Entity
 {
+    /// <summary>Sensor contacts the player survives; the health it starts a room with.</summary>
+    public const int MaxHealth = 4;
+
     /// <summary>World units per second.</summary>
     private const float WalkSpeed = 80f;
 
@@ -123,7 +127,10 @@ public sealed class Player : Entity
         collider.SetFilter("sensor");
         collider.ReportsContacts = true;
         collider.ContactEntered += contact =>
-            Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}"));
+        {
+            Health = Math.Max(Health - 1, 0);
+            Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
+        };
         collider.ContactExited += contact =>
             Log.Info(FormattableString.Invariant($"exited {contact.LayerName} at {contact.Point}"));
         Add(collider);
@@ -135,6 +142,12 @@ public sealed class Player : Entity
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft);
         Add(_footfall);
     }
+
+    /// <summary>
+    /// What is left of <see cref="MaxHealth"/>: one spent on every sensor contact entered, and never
+    /// below zero. Simulation state like a position, so the interface reads it on the step it changed.
+    /// </summary>
+    public int Health { get; private set; } = MaxHealth;
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)

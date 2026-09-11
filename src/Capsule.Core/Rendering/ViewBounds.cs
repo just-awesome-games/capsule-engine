@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Capsule.Rendering;
 
 /// <summary>
@@ -22,6 +24,18 @@ public readonly record struct ViewBounds(float Left, float Top, float Right, flo
         !float.IsFinite(Top) ||
         !float.IsFinite(Right) ||
         !float.IsFinite(Bottom);
+
+    /// <summary>
+    /// Whether <paramref name="point"/> lies inside this rect, in the same units. The region is open,
+    /// so a point on any edge is outside it and two rects sharing an edge never both claim a point on
+    /// it; an empty rect claims none at all, and a non-finite coordinate lands outside everything.
+    /// </summary>
+    public bool Contains(Vector2 point) =>
+        !IsEmpty &&
+        point.X > Left &&
+        point.X < Right &&
+        point.Y > Top &&
+        point.Y < Bottom;
 
     /// <summary>Whether this rect and <paramref name="other"/> overlap on both axes.</summary>
     public bool Intersects(in ViewBounds other) =>

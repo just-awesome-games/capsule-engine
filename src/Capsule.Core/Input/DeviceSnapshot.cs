@@ -1,8 +1,12 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Capsule.Input;
 
-/// <summary>An allocation-free snapshot of held keys, pad buttons, and axis positions.</summary>
+/// <summary>
+/// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, and the
+/// pointer.
+/// </summary>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {
     /// <summary>Keys whose <see cref="Key"/> value must remain below this to be representable.</summary>
@@ -11,20 +15,30 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Buttons whose <see cref="PadButton"/> value must remain below this to be representable.</summary>
     public const int PadCapacity = 32;
 
+    /// <summary>Buttons whose <see cref="MouseButton"/> value must remain below this to be representable.</summary>
+    public const int MouseCapacity = 8;
+
     private const int AxisCount = 6;
 
     private readonly UInt128 _down;
     private readonly uint _padDown;
+    private readonly uint _mouseDown;
+    private readonly Vector2 _pointer;
     private readonly AxisSet _axes;
 
-    private DeviceSnapshot(UInt128 down, uint padDown, AxisSet axes)
+    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, AxisSet axes)
     {
         _down = down;
         _padDown = padDown;
+        _mouseDown = mouseDown;
+        _pointer = pointer;
         _axes = axes;
     }
 
-    /// <summary>A snapshot with nothing held and every axis at rest; equal to <c>default</c>.</summary>
+    /// <summary>
+    /// A snapshot with nothing held, every axis at rest and the pointer on the canvas's top-left
+    /// corner; equal to <c>default</c>.
+    /// </summary>
     public static DeviceSnapshot Empty => default;
 
     /// <exception cref="ArgumentOutOfRangeException">Some key is not representable.</exception>
@@ -36,11 +50,19 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             down |= Bit(keys[i]);
         }
 
-        return new DeviceSnapshot(down, 0, default);
+        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, default);
     }
 
-    /// <summary>Whether nothing is held and every axis is at rest.</summary>
+    /// <summary>Whether nothing is held, every axis is at rest and the pointer is at the origin.</summary>
     public bool IsEmpty => Equals(Empty);
+
+    /// <summary>
+    /// Where the pointer sits at this instant, in canvas pixels from the canvas's top-left corner.
+    /// Never clamped: a pointer in a presentation bar, or outside the window altogether, reads outside
+    /// the canvas and so falls outside everything on the screen layer. There is no presence flag — a
+    /// run with no mouse is a pointer that never moves.
+    /// </summary>
+    public Vector2 Pointer => _pointer;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
@@ -50,21 +72,47 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public bool IsDown(PadButton button) => (_padDown & PadBit(button)) != 0;
 
+    /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    public bool IsDown(MouseButton button) => (_mouseDown & MouseBit(button)) != 0;
+
     /// <summary>Position of <paramref name="axis"/>, past deadzone filtering; 0 at rest.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The axis is <see cref="PadAxis.None"/> or not representable.</exception>
     public float Axis(PadAxis axis) => _axes[AxisIndex(axis)];
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
-    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _axes);
+    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _axes);
+    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _axes);
+
+    /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
+    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _axes);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
-    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _axes);
+    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _axes);
+    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _axes);
+
+    /// <summary>This snapshot with <paramref name="button"/> released.</summary>
+    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _axes);
+
+    /// <summary>This snapshot with the pointer at <paramref name="position"/>.</summary>
+    /// <param name="position">Canvas pixels from the canvas's top-left corner; unclamped, so a position outside the canvas is a pointer outside it.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
+    public DeviceSnapshot WithPointer(Vector2 position)
+    {
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(position),
+                position,
+                "A pointer position must be finite; a NaN or infinite one spreads to everything that reads it.");
+        }
+
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _axes);
+    }
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place; never <see cref="PadAxis.None"/>.</param>
@@ -81,17 +129,29 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         AxisSet axes = _axes;
         axes[index] = value;
 
-        return new DeviceSnapshot(_down, _padDown, axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, axes);
     }
 
-    /// <summary>Unions held buttons with a newer sample and takes its axis values.</summary>
+    /// <summary>
+    /// Unions held buttons with a newer sample and takes its axis values and its pointer, so a click
+    /// between two fixed steps survives to the next one while the pointer is wherever it last was.
+    /// </summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
-        new(_down | newer._down, _padDown | newer._padDown, newer._axes);
+        new(
+            _down | newer._down,
+            _padDown | newer._padDown,
+            _mouseDown | newer._mouseDown,
+            newer._pointer,
+            newer._axes);
 
-    /// <summary>Whether the same keys and buttons are held and every axis reads the same.</summary>
+    /// <summary>
+    /// Whether the same keys and buttons are held, every axis reads the same, and the pointer is on
+    /// the same position.
+    /// </summary>
     public bool Equals(DeviceSnapshot other)
     {
-        if (_down != other._down || _padDown != other._padDown)
+        if (_down != other._down || _padDown != other._padDown || _mouseDown != other._mouseDown ||
+            _pointer != other._pointer)
         {
             return false;
         }
@@ -116,6 +176,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         HashCode hash = new();
         hash.Add(_down);
         hash.Add(_padDown);
+        hash.Add(_mouseDown);
+        hash.Add(_pointer);
         for (int i = 0; i < AxisCount; i++)
         {
             hash.Add(_axes[i]);
@@ -127,7 +189,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Whether the two snapshots capture the same instant.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in anything held or any axis.</summary>
+    /// <summary>Whether the two snapshots differ in anything held, any axis or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     private static UInt128 Bit(Key key)
@@ -148,6 +210,16 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
         // PadButton.None is the empty set, never a member, so bit 0 is deliberately unused.
         return button == PadButton.None ? 0u : 1u << index;
+    }
+
+    private static uint MouseBit(MouseButton button)
+    {
+        int index = (int)button;
+        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, MouseCapacity, nameof(button));
+
+        // MouseButton.None is the empty set, never a member, so bit 0 is deliberately unused.
+        return button == MouseButton.None ? 0u : 1u << index;
     }
 
     private static float Minimum(PadAxis axis) => axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;

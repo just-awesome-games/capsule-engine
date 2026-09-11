@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
 using Capsule.Scenes.Input;
@@ -60,6 +61,51 @@ public sealed class InputScriptTests
     }
 
     // Every step the driver drives, in step order, which is the sequence the script emitted.
+    [Fact]
+    public void MoveTo_PutsThePointerOnThatCanvasPositionFromTheNextStepOn()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .MoveTo(new Vector2(12f, 34f))
+            .Wait(1)
+            .Tap(MouseButton.Left)
+            .MoveTo(new Vector2(-5f, 34f))
+            .Wait(1)
+            .Build());
+
+        Assert.Equal(3, steps.Count);
+        Assert.All(steps, snapshot => Assert.Equal(34f, snapshot.Pointer.Y));
+        Assert.Equal(new Vector2(12f, 34f), steps[0].Pointer);
+
+        // The tap's own step carries the click, and the pointer edit after it lands on the step after.
+        Assert.False(steps[0].IsDown(MouseButton.Left));
+        Assert.True(steps[1].IsDown(MouseButton.Left));
+        Assert.Equal(new Vector2(12f, 34f), steps[1].Pointer);
+        Assert.Equal(new Vector2(-5f, 34f), steps[2].Pointer);
+        Assert.False(steps[2].IsDown(MouseButton.Left));
+    }
+
+    [Fact]
+    public void AMouseButton_IsHeldAndReleasedLikeAnyOther()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Down(MouseButton.Right)
+            .Wait(1)
+            .Up(MouseButton.Right)
+            .Wait(1)
+            .Build());
+
+        Assert.True(steps[0].IsDown(MouseButton.Right));
+        Assert.False(steps[1].IsDown(MouseButton.Right));
+    }
+
+    [Fact]
+    public void TappingAHeldMouseButton_IsRefused()
+    {
+        InputScript script = new InputScript().Down(MouseButton.Left);
+
+        Assert.Throws<InvalidOperationException>(() => script.Tap(MouseButton.Left));
+    }
+
     private static List<DeviceSnapshot> Steps(IInputDriver driver)
     {
         Blank scene = new();

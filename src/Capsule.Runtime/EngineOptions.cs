@@ -15,4 +15,11 @@ internal sealed record EngineOptions(
     int MaxStepsPerFrame,
     InputConfiguration Input,
     // Null unless the run is driven in code instead of sampling the devices.
-    IInputDriver? Driver);
+    IInputDriver? Driver)
+{
+    // The one rule for the canvas a run's screen layer is laid out in: the declared render
+    // resolution, and the configured window where there is none. Never the live window extent — the
+    // canvas is a constant the simulation anchors and hit-tests against.
+    internal static (int Width, int Height) CanvasOf((int Width, int Height)? renderResolution, int windowWidth, int windowHeight) =>
+        renderResolution ?? (windowWidth, windowHeight);
+}

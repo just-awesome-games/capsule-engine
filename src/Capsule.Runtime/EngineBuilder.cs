@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -82,6 +83,17 @@ public sealed class EngineBuilder
     }
 
     internal string Usage => $"usage: {_gameName} [options]{Environment.NewLine}{StandardFlags}";
+
+    // The canvas the run's screen layer is laid out in, resolved once by the rule EngineOptions owns.
+    private Vector2 Canvas
+    {
+        get
+        {
+            (int width, int height) = EngineOptions.CanvasOf(_renderResolution, _windowWidth, _windowHeight);
+
+            return new Vector2(width, height);
+        }
+    }
 
     /// <summary>The window's title, which is the game's name unless this replaces it.</summary>
     /// <exception cref="ArgumentException">The title is null or blank.</exception>
@@ -548,7 +560,7 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(target, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        using SceneHost host = new(target, composer.Resolve, new SceneDefaults(_sampling, Canvas), new RandomSource(_randomSeed));
         Run(host, host);
 
         return 0;
@@ -623,7 +635,7 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling), new RandomSource(_randomSeed));
+        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling, Canvas), new RandomSource(_randomSeed));
 
         FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _input.Bindings, driver, host);
 

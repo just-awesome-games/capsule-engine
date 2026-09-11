@@ -5,19 +5,26 @@ using Capsule.Assets;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Mutable render intent, rewritten once per fixed step and read on draw frames: an ordered list
-/// of sprites to draw. Text is on that list too — a <see cref="TextIntent"/> becomes one sprite per
-/// glyph — so <see cref="Metrics"/> counts a run of text once per glyph.
+/// Mutable render intent, rewritten once per fixed step and read on draw frames: two ordered lists
+/// of sprites to draw, one in world units and one in canvas pixels, the whole screen list over the
+/// whole world list. Text and nine-sliced panels are on those lists too — a <see cref="TextIntent"/>
+/// becomes one sprite per glyph and a <see cref="NineSliceIntent"/> one per slice — so
+/// <see cref="Metrics"/> counts a run of text once per glyph.
 /// </summary>
 public sealed class FrameView
 {
     private readonly List<SpriteIntent> _sprites = [];
+    private readonly List<SpriteIntent> _screen = [];
 
     private int _submitted;
 
     private CameraView _camera;
     private ViewBounds _cullBounds;
     private bool _hasCullBounds;
+
+    private Vector2 _canvas;
+    private ViewBounds _canvasBounds;
+    private bool _hasCanvasBounds;
 
     private TextureSampling _sampling = TextureSampling.Linear;
 
@@ -35,6 +42,36 @@ public sealed class FrameView
             _hasCullBounds = value.Size.X > 0f && value.Size.Y > 0f && !_cullBounds.IsEmpty;
         }
     }
+
+    /// <summary>
+    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner. A run
+    /// constant: the declared render resolution where the run has one and the configured window size
+    /// where it has none, so it never follows the window the player drags. Screen intent is culled
+    /// against it, and a non-positive canvas disables that culling.
+    /// <para>
+    /// A <see cref="ViewportFit"/> of <see cref="ViewportFit.Expand"/> or
+    /// <see cref="ViewportFit.FixedHeight"/> draws the world on a surface larger than the canvas to
+    /// reveal more of the world; the screen layer stays this extent, centred in that surface, rather
+    /// than growing with it.
+    /// </para>
+    /// </summary>
+    public Vector2 Canvas
+    {
+        get => _canvas;
+        internal set
+        {
+            _canvas = value;
+            _canvasBounds = new ViewBounds(0f, 0f, value.X, value.Y);
+            _hasCanvasBounds = !_canvasBounds.IsEmpty;
+        }
+    }
+
+    /// <summary>
+    /// The space the <c>Add</c> overloads that name none draw into: the space of the entity whose
+    /// renderer is running, which the scene sets before each <c>Draw</c>.
+    /// <see cref="RenderSpace.World"/> outside a renderer.
+    /// </summary>
+    public RenderSpace Space { get; internal set; }
 
     /// <summary>The colour behind world render intent. Black by default.</summary>
     public ColorRgba ClearColor { get; internal set; } = ColorRgba.Black;
@@ -54,64 +91,167 @@ public sealed class FrameView
         }
     }
 
-    /// <summary>The sprites to draw, in the order added. Invalidated by the next mutation.</summary>
+    /// <summary>
+    /// The world-space sprites to draw, in the order added; drawn under every screen sprite.
+    /// Invalidated by the next mutation.
+    /// </summary>
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_sprites);
 
-    /// <summary>Sprite-submission counts from the current rewrite.</summary>
-    public RenderMetrics Metrics => new(_submitted, _sprites.Count);
+    /// <summary>
+    /// The screen-space sprites to draw, in canvas pixels and in the order added; drawn over the
+    /// whole of <see cref="Sprites"/>. Invalidated by the next mutation.
+    /// </summary>
+    public ReadOnlySpan<SpriteIntent> ScreenSprites => CollectionsMarshal.AsSpan(_screen);
+
+    /// <summary>Sprite-submission counts from the current rewrite, across both lists.</summary>
+    public RenderMetrics Metrics => new(_submitted, _sprites.Count + _screen.Count);
 
     // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
         _sprites.Clear();
+        _screen.Clear();
         _submitted = 0;
-    }
-
-    /// <summary>Adds a sprite when its swept bounds cross the camera; an unset camera disables culling.</summary>
-    public void Add(in SpriteIntent sprite)
-    {
-        _submitted++;
-
-        if (_hasCullBounds &&
-            !(sprite.TryGetSweptBounds(out ViewBounds swept) && swept.Intersects(_cullBounds)))
-        {
-            return;
-        }
-
-        _sprites.Add(sprite);
+        Space = RenderSpace.World;
     }
 
     /// <summary>
-    /// Lays <paramref name="text"/> out and adds one sprite per glyph, each culled and counted on
-    /// its own. Glyphs are added in reading order, so a later one covers an earlier one where they
-    /// overlap. A null font or empty text adds nothing.
+    /// Adds a sprite to the list <see cref="Space"/> names, culled against the camera in world space
+    /// and against <see cref="Canvas"/> in screen space; an unset camera or canvas disables culling.
     /// </summary>
-    public void Add(in TextIntent text)
+    public void Add(in SpriteIntent sprite) => Add(in sprite, Space);
+
+    /// <summary>Adds a sprite to <paramref name="space"/>'s list, culled as that space culls.</summary>
+    public void Add(in SpriteIntent sprite, RenderSpace space)
     {
-        BitmapFont? font = text.Font;
-        if (font is null || string.IsNullOrEmpty(text.Text))
+        _submitted++;
+
+        bool screen = space == RenderSpace.Screen;
+        if (screen ? _hasCanvasBounds : _hasCullBounds)
+        {
+            ViewBounds against = screen ? _canvasBounds : _cullBounds;
+            if (!(sprite.TryGetSweptBounds(out ViewBounds swept) && swept.Intersects(against)))
+            {
+                return;
+            }
+        }
+
+        (screen ? _screen : _sprites).Add(sprite);
+    }
+
+    /// <summary>
+    /// Lays <paramref name="text"/> out and adds one sprite per glyph to the list
+    /// <see cref="Space"/> names, each culled and counted on its own. Glyphs are added in reading
+    /// order, so a later one covers an earlier one where they overlap. A null font or empty text adds
+    /// nothing.
+    /// </summary>
+    public void Add(in TextIntent text) => Add(in text, Space);
+
+    /// <summary>Lays <paramref name="text"/> out onto <paramref name="space"/>'s list.</summary>
+    public void Add(in TextIntent text, RenderSpace space)
+    {
+        if (!text.TryPlace(out TextPlacement placed))
         {
             return;
         }
 
+        BitmapFont font = placed.Font;
         int lineHeight = font.LineHeight;
         ReadOnlySpan<TextureHandle> pages = font.Pages;
 
-        foreach (GlyphPlacement placed in new GlyphRun(font, text.Text))
-        {
-            Glyph glyph = placed.Glyph;
-            Vector2 offset = new Vector2(
-                placed.PenX + glyph.XOffset,
-                (placed.Line * lineHeight) + glyph.YOffset) * text.Scale;
+        // The whole run is laid out whatever the visible count, so revealing it a codepoint at a
+        // time never moves a glyph already shown.
+        int visible = text.VisibleCharacters ?? int.MaxValue;
 
-            Add(new SpriteIntent(
-                new Sprite(pages[glyph.Page], glyph.Region),
-                text.PreviousPosition + offset,
-                text.Position + offset,
-                new Vector2(glyph.Region.Width, glyph.Region.Height) * text.Scale,
-                FlipX: false,
-                FlipY: false,
-                text.Color));
+        // The previous origin differs from the current one by the step's travel alone: the box is the
+        // same shape at both ends.
+        Vector2 travel = text.PreviousPosition - text.Position;
+
+        foreach (GlyphPlacement glyphPlacement in new GlyphRun(font, text.Text, placed.BoxWidth, placed.Wrap, placed.Alignment))
+        {
+            if (glyphPlacement.Index >= visible)
+            {
+                return;
+            }
+
+            Glyph glyph = glyphPlacement.Glyph;
+            Vector2 origin = placed.Origin + (new Vector2(
+                glyphPlacement.PenX + glyph.XOffset,
+                (glyphPlacement.Line * lineHeight) + glyph.YOffset) * text.Scale);
+
+            Add(
+                new SpriteIntent(
+                    new Sprite(pages[glyph.Page], glyph.Region),
+                    origin + travel,
+                    origin,
+                    new Vector2(glyph.Region.Width, glyph.Region.Height) * text.Scale,
+                    FlipX: false,
+                    FlipY: false,
+                    text.Color),
+                space);
+        }
+    }
+
+    /// <summary>
+    /// Expands <paramref name="panel"/> and adds one sprite per slice to the list
+    /// <see cref="Space"/> names, each culled and counted on its own. Slices are added left to right
+    /// then top to bottom, so where a panel too small for its insets makes two of them overlap, the
+    /// later one covers the earlier. A slice with no texels or no extent adds nothing.
+    /// </summary>
+    public void Add(in NineSliceIntent panel) => Add(in panel, Space);
+
+    /// <summary>Expands <paramref name="panel"/> onto <paramref name="space"/>'s list.</summary>
+    public void Add(in NineSliceIntent panel, RenderSpace space)
+    {
+        // Negated so a NaN extent is rejected alongside the non-positive ones: the corner slices keep
+        // their own size whatever the target is, so without this a panel of no extent would draw them.
+        if (!(panel.Size.X > 0f) || !(panel.Size.Y > 0f))
+        {
+            return;
+        }
+
+        Span<SliceSpan> columns = stackalloc SliceSpan[3];
+        Span<SliceSpan> rows = stackalloc SliceSpan[3];
+        panel.Slice(columns, rows);
+
+        TextureHandle texture = panel.Sprite.Texture;
+        Vector2 travel = panel.PreviousPosition - panel.Position;
+
+        for (int row = 0; row < rows.Length; row++)
+        {
+            SliceSpan vertical = rows[row];
+            if (vertical.SourceExtent <= 0 || !(vertical.TargetExtent > 0f))
+            {
+                continue;
+            }
+
+            for (int column = 0; column < columns.Length; column++)
+            {
+                SliceSpan horizontal = columns[column];
+                if (horizontal.SourceExtent <= 0 || !(horizontal.TargetExtent > 0f))
+                {
+                    continue;
+                }
+
+                Vector2 corner = panel.Position + new Vector2(horizontal.TargetOffset, vertical.TargetOffset);
+
+                Add(
+                    new SpriteIntent(
+                        new Sprite(
+                            texture,
+                            new TextureRegion(
+                                horizontal.SourceOffset,
+                                vertical.SourceOffset,
+                                horizontal.SourceExtent,
+                                vertical.SourceExtent)),
+                        corner + travel,
+                        corner,
+                        new Vector2(horizontal.TargetExtent, vertical.TargetExtent),
+                        FlipX: false,
+                        FlipY: false,
+                        panel.Color),
+                    space);
+            }
         }
     }
 }

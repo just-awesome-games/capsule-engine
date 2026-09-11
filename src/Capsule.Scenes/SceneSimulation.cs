@@ -135,6 +135,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             Scene.Camera.ViewportSize,
             Scene.Camera.Fit,
             Scene.Camera.Bounds);
+        _view.Canvas = Scene.Canvas;
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
@@ -153,12 +154,16 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 Renderer renderer = renderers[index];
                 if (Scene.Draws(renderer))
                 {
+                    // The one place a space is chosen: a renderer carries no flag of its own, so
+                    // whatever it adds lands on the layer its entity lives in.
+                    _view.Space = renderer.Entity!.Space;
                     renderer.Draw(_view);
                 }
             }
         }
         finally
         {
+            _view.Space = RenderSpace.World;
             Scene.EndDraw();
         }
     }
