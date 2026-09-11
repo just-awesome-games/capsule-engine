@@ -52,6 +52,29 @@ public sealed class ScreenPlacementTests
         Assert.Equal(new Vector2(30f, 20f), placement.Origin);
     }
 
+    // A bar of an odd number of pixels has no whole-pixel centre, and a present origin on a half pixel
+    // puts every texel boundary of a point-sampled surface on a pixel centre.
+    [Theory]
+    [InlineData(TextureSampling.Point)]
+    [InlineData(TextureSampling.Linear)]
+    public void TheRenderSurface_IsPresentedOnWholePixelsWhateverTheBarsArePlacedOn(TextureSampling sampling)
+    {
+        // 1904 by 1041 holds 320 by 180 five times over, leaving bars of 304 and 141 pixels.
+        ScreenPlacement placement = FrameRenderer.TargetPlacement(sampling, 320, 180, 1904, 1041);
+
+        Assert.Equal(MathF.Truncate(placement.Origin.X), placement.Origin.X);
+        Assert.Equal(MathF.Truncate(placement.Origin.Y), placement.Origin.Y);
+    }
+
+    [Fact]
+    public void UnderPointSampling_AnOddBarLeavesTheExtraPixelBelowTheSurface()
+    {
+        ScreenPlacement placement = FrameRenderer.TargetPlacement(TextureSampling.Point, 320, 180, 1904, 1041);
+
+        Assert.Equal(5f, placement.Scale);
+        Assert.Equal(new Vector2(152f, 70f), placement.Origin);
+    }
+
     [Fact]
     public void UnderLinearSampling_TheRenderSurfaceFillsTheWindowItFits()
     {

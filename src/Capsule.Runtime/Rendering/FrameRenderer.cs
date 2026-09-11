@@ -187,13 +187,14 @@ internal sealed class FrameRenderer : IDisposable
             return default;
         }
 
-        // One scalar scale and a fractional position rather than a destination rectangle, whose two
-        // extents would round to whole pixels independently and skew the blit.
-        return new ScreenPlacement(
-            new Vector2(
-                (containerWidth - (targetWidth * fit.Scale)) / 2f,
-                (containerHeight - (targetHeight * fit.Scale)) / 2f),
-            fit.Scale);
+        // The fit's own whole-pixel corner, not the exact centre: a bar of an odd number of pixels
+        // centres on a half pixel, which under point sampling puts every texel boundary on a pixel
+        // centre and leaves the fill rule to break a tie per row. Linear sampling answers to no
+        // pixel grid, so the half pixel the rounded corner gives up is invisible there.
+        //
+        // The scale travels as one scalar rather than the fit's extents becoming a destination
+        // rectangle, whose two extents would round independently and skew the blit.
+        return new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
     }
 
     private RenderTarget2D Surface((int Width, int Height) extent)
