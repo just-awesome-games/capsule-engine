@@ -19,11 +19,17 @@ public sealed class MenuPerformanceTests
     [Fact]
     public void AFocusStepOverAPointerAndEveryAction_AllocatesNothing()
     {
-        FocusNavigator focus = new();
+        FocusNavigator<ColorRect> focus = new(new FocusActions(Backward, Forward, Confirm, Click));
         for (int i = 0; i < 8; i++)
         {
             focus.Add(Item(new Vector2(0f, i * 20f)));
         }
+
+        // Subscribed, so the measured steps raise through live handlers rather than past null ones.
+        int moves = 0;
+        int activations = 0;
+        focus.FocusChanged += _ => moves++;
+        focus.Activated += _ => activations++;
 
         ActionBindings bindings = new ActionBindings()
             .Bind(Backward, Key.Up)
@@ -41,7 +47,7 @@ public sealed class MenuPerformanceTests
         for (int i = 0; i < 100; i++)
         {
             input.Advance(i % 2 == 0 ? clicked : released);
-            focus.Step(input, Backward, Forward, Confirm, Click);
+            focus.Step(input);
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -49,11 +55,13 @@ public sealed class MenuPerformanceTests
         for (int i = 0; i < 1000; i++)
         {
             input.Advance(i % 2 == 0 ? clicked : released);
-            focus.Step(input, Backward, Forward, Confirm, Click);
+            focus.Step(input);
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Equal(7, focus.FocusedIndex);
+        Assert.Equal(1, moves);
+        Assert.Equal(550, activations);
     }
 
     private static ColorRect Item(Vector2 position)

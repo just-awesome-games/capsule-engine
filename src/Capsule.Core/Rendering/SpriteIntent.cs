@@ -33,7 +33,7 @@ public readonly record struct SpriteIntent(
 
     // The world rect this sprite sweeps between its two positions, or false where it draws nothing
     // testable: a non-positive extent, a region with no texels, or a non-finite rect.
-    internal bool TryGetSweptBounds(out ViewBounds swept)
+    internal bool TryGetSweptBounds(out Rect swept)
     {
         swept = default;
 
@@ -50,7 +50,7 @@ public readonly record struct SpriteIntent(
         // The world offset from the position back to the drawn rect's top-left corner.
         Vector2 corner = DrawOrigin * new Vector2(Size.X / region.Width, Size.Y / region.Height);
 
-        swept = new ViewBounds(
+        swept = new Rect(
             MathF.Min(PreviousPosition.X, Position.X) - corner.X,
             MathF.Min(PreviousPosition.Y, Position.Y) - corner.Y,
             MathF.Max(PreviousPosition.X, Position.X) - corner.X + Size.X,

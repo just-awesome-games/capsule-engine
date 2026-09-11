@@ -211,6 +211,8 @@ internal static class SceneFixtures
     {
         protected internal override void OnStep(in StepContext context) => log.Add(name);
 
+        protected internal override void OnLateStep(in StepContext context) => log.Add($"{name}.late");
+
         protected internal override void OnAddedToScene() => log.Add($"{name}+");
 
         protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
@@ -219,6 +221,8 @@ internal static class SceneFixtures
     internal sealed class RecordingComponent(string name, List<string> log) : Component
     {
         protected internal override void OnStep(in StepContext context) => log.Add(name);
+
+        protected internal override void OnLateStep(in StepContext context) => log.Add($"{name}.late");
     }
 
     internal sealed class StripeRenderer(ColorRgba color) : Renderer

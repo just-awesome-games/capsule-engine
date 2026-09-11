@@ -101,13 +101,13 @@ public sealed class TextBoxTests
             PreviousPosition = new Vector2(100f, 50f),
         };
 
-        Assert.Equal(new ViewBounds(80f, 35f, 120f, 65f), centred.Bounds);
+        Assert.Equal(new Rect(80f, 35f, 120f, 65f), centred.Bounds);
     }
 
     [Fact]
     public void ABoxOfNoSize_IsTheMeasuredRun()
     {
-        Assert.Equal(new ViewBounds(0f, 0f, 9f, FontFixtures.LineHeight), Text("AB").Bounds);
+        Assert.Equal(new Rect(0f, 0f, 9f, FontFixtures.LineHeight), Text("AB").Bounds);
     }
 
     [Fact]

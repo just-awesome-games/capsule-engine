@@ -132,7 +132,7 @@ public sealed class NineSliceTests
             new Vector2(40f, 30f),
             ColorRgba.White);
 
-        Assert.Equal(new ViewBounds(5f, 7f, 45f, 37f), panel.Bounds);
+        Assert.Equal(new Rect(5f, 7f, 45f, 37f), panel.Bounds);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class NineSliceTests
         // outside the panel on each axis.
         NineSliceIntent panel = Panel(new Vector2(2f, 2f), new SliceInsets(3));
 
-        Assert.Equal(new ViewBounds(-1f, -1f, 3f, 3f), panel.Bounds);
+        Assert.Equal(new Rect(-1f, -1f, 3f, 3f), panel.Bounds);
     }
 
     [Fact]

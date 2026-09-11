@@ -37,7 +37,7 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <inheritdoc/>
-    public override ViewBounds Bounds => Entity is null ? default : Intent().Bounds;
+    public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)

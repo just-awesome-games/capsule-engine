@@ -81,7 +81,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// measured run on one it is not, around the alignment point. Laid out on each read, in the space
     /// and on the terms <see cref="Renderer.Bounds"/> states.
     /// </summary>
-    public override ViewBounds Bounds => Entity is null ? default : Intent().Bounds;
+    public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)

@@ -13,16 +13,17 @@ namespace MinimalGame.Game.Scenes;
 /// is what marks it class-only: <c>RunScene&lt;MainMenu&gt;()</c> builds it as it is, with no document
 /// composed into it.
 /// <para>
-/// Everything it draws lives on the frame's screen layer, in canvas pixels from an
-/// <see cref="Anchor"/>: a title on the canvas's top edge and two items on its centre. The shell's
-/// render resolution is the cameras' world span, so one canvas pixel is one world pixel and the font
-/// draws unscaled.
+/// Everything it draws is a <see cref="ScreenEntity"/> carrying one renderer, placed in canvas pixels
+/// from an <see cref="Anchor"/>: a title on the canvas's top edge and two items on its centre. The
+/// shell's render resolution is the cameras' world span, so one canvas pixel is one world pixel and the
+/// font draws unscaled.
 /// </para>
 /// <para>
-/// A <see cref="FocusNavigator"/> owns which item is focused, and this scene owns how that reads: the
-/// focused item's colour, and the one highlight bar moved to its <see cref="Renderer.Bounds"/>. The bar
-/// is a <see cref="ColorRect"/> on an entity of lower <see cref="Entity.ZIndex"/>, so it draws under
-/// the labels rather than over them.
+/// A <see cref="FocusNavigator{T}"/> owns which item is focused, and this scene owns how that reads:
+/// its events hand over the focused <see cref="Label"/>, and the scene recolours the items and moves
+/// one highlight bar onto the focused item's <see cref="Renderer.Bounds"/>. The bar is a
+/// <see cref="ColorRect"/> on an entity of lower <see cref="Entity.ZIndex"/>, so it draws under the
+/// labels rather than over them.
 /// </para>
 /// </summary>
 public sealed class MainMenu : Scene
@@ -42,11 +43,32 @@ public sealed class MainMenu : Scene
     private static readonly ColorRgba FocusedInk = ColorRgba.Black;
     private static readonly ColorRgba RestingInk = ColorRgba.White;
 
-    private readonly ScreenText _start = new(new Vector2(0f, -ItemSpacing / 2f), "Start");
-    private readonly ScreenText _exit = new(new Vector2(0f, ItemSpacing / 2f), "Exit");
-    private readonly Highlight _highlight = new();
+    private readonly Label _start = Caption("Start");
+    private readonly Label _exit = Caption("Exit");
 
-    private readonly FocusNavigator _focus = new();
+    private readonly ColorRect _bar = new(Vector2.Zero);
+    private readonly ScreenEntity _highlight = new(Anchor.TopLeft, Vector2.Zero) { ZIndex = -1 };
+
+    private readonly FocusNavigator<Label> _focus;
+
+    public MainMenu()
+    {
+        // The actions are the game's, declared once in GameInput and handed to every navigator it drives.
+        _focus = new FocusNavigator<Label>(GameInput.MenuFocus, _start, _exit);
+
+        _focus.FocusChanged += Show;
+        _focus.Activated += item =>
+        {
+            if (ReferenceEquals(item, _start))
+            {
+                RequestScene<Room>();
+            }
+            else
+            {
+                RequestExit();
+            }
+        };
+    }
 
     /// <inheritdoc/>
     protected override void OnStart()
@@ -55,102 +77,65 @@ public sealed class MainMenu : Scene
         // is given rather than installing one of its own, so its view is centred on the world origin.
         Camera.ViewportSize = World.ViewportSize;
 
-        // The title is the same screen-space text with the box taken off it, so it measures its own run
-        // and hangs from the canvas's top edge.
-        ScreenText title = new(new Vector2(0f, TitleMargin), "Minimal Game") { Anchor = Anchor.Top };
-        title.Caption.Size = Vector2.Zero;
-        title.Caption.VerticalAlignment = VerticalAlignment.Top;
+        // The title measures its own run instead of filling a box, so it hangs from the canvas's top
+        // edge by the margin alone.
+        ScreenEntity title = new(Anchor.Top, new Vector2(0f, TitleMargin));
+        title.Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
         Add(title);
 
+        _highlight.Add(_bar);
         Add(_highlight);
-        Add(_start);
-        Add(_exit);
 
-        // List order is the order the focus walks and the order the pointer hit-tests in.
-        _focus.Add(_start.Caption);
-        _focus.Add(_exit.Caption);
+        ScreenEntity start = new(Anchor.Center, new Vector2(0f, -ItemSpacing / 2f));
+        start.Add(_start);
+        Add(start);
+
+        ScreenEntity exit = new(Anchor.Center, new Vector2(0f, ItemSpacing / 2f));
+        exit.Add(_exit);
+        Add(exit);
+
+        // The first item takes the focus with no move to report, so the opening state is shown from
+        // here; the items are in the scene by now, so their boxes measure.
+        Show(_focus.Focused!);
     }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        _focus.Step(context.Input, GameInput.MenuUp, GameInput.MenuDown, GameInput.Confirm, GameInput.Click);
+        _focus.Step(context.Input);
 
-        if (_focus.Focused is { } focused)
-        {
-            _start.Caption.Color = ReferenceEquals(focused, _start.Caption) ? FocusedInk : RestingInk;
-            _exit.Caption.Color = ReferenceEquals(focused, _exit.Caption) ? FocusedInk : RestingInk;
-            _highlight.Cover(focused.Bounds);
-        }
-
-        if (_focus.Activated)
-        {
-            if (ReferenceEquals(_focus.Focused, _start.Caption))
-            {
-                RequestScene<Room>();
-            }
-            else
-            {
-                RequestExit();
-            }
-        }
-        else if (context.Input.WasPressed(GameInput.Quit))
+        if (context.Input.WasPressed(GameInput.Quit))
         {
             RequestExit();
         }
     }
 
-    // Not spawnable: neither of these carries an EntitySpawn constructor, so no document can name them
-    // and the scene that wants them adds them itself.
-    private sealed class ScreenText : Entity
+    // A box, not a bare run: the alignment point is the box's centre, the caption is centred inside it,
+    // and Bounds is the whole box whatever the caption measures.
+    private static Label Caption(string text) =>
+        new(CapsuleAssets.Fonts.Menu, text)
+        {
+            Size = ItemBox,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Middle,
+            Color = RestingInk,
+        };
+
+    private void Show(Label focused)
     {
-        internal ScreenText(Vector2 position, string text)
-            : base(position)
+        foreach (Label item in _focus.Items)
         {
-            Space = RenderSpace.Screen;
-            Anchor = Anchor.Center;
-
-            // A box, not a bare run: the alignment point is the box's centre, the caption is centred
-            // inside it, and Bounds is the whole box whatever the caption measures.
-            Caption = new Label(CapsuleAssets.Fonts.Menu, text)
-            {
-                Size = ItemBox,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Middle,
-                Color = RestingInk,
-            };
-
-            Add(Caption);
+            item.Color = ReferenceEquals(item, focused) ? FocusedInk : RestingInk;
         }
 
-        internal Label Caption { get; }
-    }
-
-    private sealed class Highlight : Entity
-    {
-        internal Highlight()
-            : base(Vector2.Zero)
-        {
-            Space = RenderSpace.Screen;
-
-            // Under every label: the bar and the captions sit on the same layer, so the band is what
-            // orders them.
-            ZIndex = -1;
-
-            Add(Bar);
-        }
-
-        private ColorRect Bar { get; } = new(Vector2.Zero);
-
-        /// <summary>
-        /// Puts the bar exactly on <paramref name="bounds"/>. The anchor is the canvas's top-left
-        /// corner, so a position here is the canvas pixel a bound already names; teleported, because
-        /// a bar that interpolated would trail a step behind the focus it marks.
-        /// </summary>
-        internal void Cover(ViewBounds bounds)
-        {
-            Teleport(new Vector2(bounds.Left, bounds.Top));
-            Bar.Size = new Vector2(bounds.Right - bounds.Left, bounds.Bottom - bounds.Top);
-        }
+        // The highlight is anchored to the canvas's top-left corner, so a position on it is the canvas
+        // pixel a bound already names. Teleported, because a bar that interpolated would trail a step
+        // behind the focus it marks.
+        Rect box = focused.Bounds;
+        _highlight.Teleport(box.Position);
+        _bar.Size = box.Size;
     }
 }

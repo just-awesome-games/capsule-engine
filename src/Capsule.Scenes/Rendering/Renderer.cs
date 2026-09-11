@@ -8,10 +8,10 @@ namespace Capsule.Scenes.Rendering;
 /// equal key keeps entity order and, within an entity, attachment order, so what draws later
 /// covers what drew earlier.
 /// <para>
-/// Which of a frame's two layers the intent lands on is the entity's, never the renderer's: the scene
-/// sets <see cref="FrameView.Space"/> from <see cref="Entity.Space"/> before each call, so a renderer
-/// that names no space draws in the space its entity lives in, and the whole screen layer draws over
-/// the whole world layer whatever the two layers' bands are.
+/// Which of a frame's two layers the intent lands on is the entity's, never the renderer's: an
+/// <c>Add</c> that names no space draws on the layer its entity lives in — the screen layer on a
+/// <see cref="ScreenEntity"/> — and the whole screen layer draws over the whole world layer whatever
+/// the two layers' bands are.
 /// </para>
 /// </summary>
 public abstract class Renderer : Component
@@ -50,7 +50,7 @@ public abstract class Renderer : Component
     /// renderer reporting empty bounds is never under the pointer, so it cannot be picked.
     /// </para>
     /// </summary>
-    public virtual ViewBounds Bounds => default;
+    public virtual Rect Bounds => default;
 
     /// <summary>
     /// Writes this renderer's intent onto the frame under construction — already cleared, with

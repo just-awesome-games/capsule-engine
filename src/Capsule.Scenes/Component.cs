@@ -39,6 +39,15 @@ public abstract class Component
     }
 
     /// <summary>
+    /// Advances this component a second time, after its entity's late step and in attachment order,
+    /// once every entity has stepped and contacts have settled. Never reached before
+    /// <see cref="OnStart"/>.
+    /// </summary>
+    protected internal virtual void OnLateStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
     /// Runs once, before this component's first step and after everything added alongside it: its
     /// entity has started and is in a scene, so that scene may be searched from here. Attaching to
     /// an entity that has already started and is in a scene runs it immediately; attaching to one
@@ -130,6 +139,17 @@ public abstract class Component
         }
 
         OnStep(context);
+    }
+
+    // Bound by the same rule RunStep is.
+    internal void RunLateStep(in StepContext context)
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        OnLateStep(context);
     }
 
     internal void LeaveScene()

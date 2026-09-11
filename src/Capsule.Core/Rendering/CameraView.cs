@@ -17,7 +17,7 @@ public readonly record struct CameraView(
     Vector2 Center,
     Vector2 Size,
     ViewportFit Fit = ViewportFit.Letterbox,
-    ViewBounds? Bounds = null)
+    Rect? Bounds = null)
 {
     // How far from square an output may be before a fit that follows its aspect can reveal world
     // this view culled. Culling has no window to measure — the output never reaches the simulation —
@@ -38,7 +38,7 @@ public readonly record struct CameraView(
     /// aspect asks for it, so the region is widened to cover any output up to four times as wide as
     /// it is tall, or as tall as it is wide.
     /// </summary>
-    public ViewBounds SweptBounds
+    public Rect SweptBounds
     {
         get
         {
@@ -46,7 +46,7 @@ public readonly record struct CameraView(
 
             if (Bounds is not { } bounds)
             {
-                return new ViewBounds(
+                return new Rect(
                     MathF.Min(PreviousCenter.X, Center.X) - halfSize.X,
                     MathF.Min(PreviousCenter.Y, Center.Y) - halfSize.Y,
                     MathF.Max(PreviousCenter.X, Center.X) + halfSize.X,
@@ -56,7 +56,7 @@ public readonly record struct CameraView(
             // Confining is a clamp, so it is monotone in the centre: confining the two endpoints
             // covers every centre the frame interpolates between them, and doing it at the widest
             // span covers every narrower one an output could ask for.
-            return new ViewBounds(
+            return new Rect(
                 Confine(MathF.Min(PreviousCenter.X, Center.X), halfSize.X, bounds.Left, bounds.Right) - halfSize.X,
                 Confine(MathF.Min(PreviousCenter.Y, Center.Y), halfSize.Y, bounds.Top, bounds.Bottom) - halfSize.Y,
                 Confine(MathF.Max(PreviousCenter.X, Center.X), halfSize.X, bounds.Left, bounds.Right) + halfSize.X,
@@ -80,7 +80,7 @@ public readonly record struct CameraView(
     /// either axis falls back to <see cref="ViewportFit.Letterbox"/>, which needs none.
     /// </param>
     /// <returns>The visible world rect, empty when <see cref="Size"/> is not positive on both axes.</returns>
-    public ViewBounds Resolve(float alpha, Vector2 outputSize)
+    public Rect Resolve(float alpha, Vector2 outputSize)
     {
         // Negated so a NaN span is rejected alongside the non-positive ones.
         if (!(Size.X > 0f) || !(Size.Y > 0f))
@@ -95,13 +95,13 @@ public readonly record struct CameraView(
 
         if (Bounds is not { } bounds)
         {
-            return new ViewBounds(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
+            return new Rect(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
         }
 
         float x = Confine(center.X, half.X, bounds.Left, bounds.Right);
         float y = Confine(center.Y, half.Y, bounds.Top, bounds.Bottom);
 
-        return new ViewBounds(x - half.X, y - half.Y, x + half.X, y + half.Y);
+        return new Rect(x - half.X, y - half.Y, x + half.X, y + half.Y);
     }
 
     /// <summary>

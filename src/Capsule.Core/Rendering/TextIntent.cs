@@ -72,7 +72,7 @@ public readonly record struct TextIntent(
     /// where the run draws nothing. A run with no <see cref="Size"/> measures itself, so this is the
     /// text's own extent.
     /// </summary>
-    public ViewBounds Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
+    public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
     // The resolved layout, or false where the run draws nothing at all.
     internal bool TryPlace(out TextPlacement placement)
@@ -101,7 +101,7 @@ public readonly record struct TextIntent(
         placement = new TextPlacement(
             font,
             new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * share.Y)),
-            new ViewBounds(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y),
+            new Rect(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y),
             WrapWidth(box.X, Scale.X),
             Wrap,
             HorizontalAlignment);
@@ -129,7 +129,7 @@ public readonly record struct TextIntent(
 internal readonly record struct TextPlacement(
     BitmapFont Font,
     Vector2 Origin,
-    ViewBounds Box,
+    Rect Box,
     int BoxWidth,
     TextWrap Wrap,
     HorizontalAlignment Alignment);

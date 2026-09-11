@@ -43,7 +43,7 @@ public sealed class UiPrimitiveTests
         run.Step();
 
         // The holder sits at (4, 5).
-        Assert.Equal(new ViewBounds(6f, 8f, 36f, 18f), rect.Bounds);
+        Assert.Equal(new Rect(6f, 8f, 36f, 18f), rect.Bounds);
         Assert.Equal(new Vector2(6f, 8f), Assert.Single(run.Simulation.View.Sprites.ToArray()).Position);
     }
 
@@ -60,14 +60,15 @@ public sealed class UiPrimitiveTests
         run.Step();
 
         Assert.Equal(9, run.Simulation.View.Sprites.Length);
-        Assert.Equal(new ViewBounds(4f, 5f, 44f, 35f), panel.Bounds);
+        Assert.Equal(new Rect(4f, 5f, 44f, 35f), panel.Bounds);
     }
 
     [Fact]
     public void APrimitiveOnAScreenEntity_DrawsOnTheScreenLayerFromItsAnchor()
     {
         ColorRect rect = new(new Vector2(30f, 10f));
-        Holder holder = new(rect) { Space = RenderSpace.Screen, Anchor = Anchor.Center };
+        ScreenEntity holder = new(Anchor.Center, new Vector2(4f, 5f));
+        holder.Add(rect);
 
         Scene scene = new();
         scene.Add(holder);
@@ -76,7 +77,7 @@ public sealed class UiPrimitiveTests
         run.Step();
 
         // Half the canvas, then the entity's own (4, 5).
-        Assert.Equal(new ViewBounds(54f, 30f, 84f, 40f), rect.Bounds);
+        Assert.Equal(new Rect(54f, 30f, 84f, 40f), rect.Bounds);
         Assert.Equal(new Vector2(54f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 

@@ -31,7 +31,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <inheritdoc/>
-    public override ViewBounds Bounds
+    public override Rect Bounds
     {
         get
         {
@@ -40,9 +40,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
                 return default;
             }
 
-            Vector2 corner = entity.Position + entity.SpaceOrigin + Offset;
-
-            return new ViewBounds(corner.X, corner.Y, corner.X + Size.X, corner.Y + Size.Y);
+            return new Rect(entity.Position + entity.SpaceOrigin + Offset, Size);
         }
     }
 

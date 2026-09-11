@@ -13,9 +13,9 @@ public sealed class ScreenLayerTests
     {
         FrameView view = Canvas(100f, 100f);
 
-        view.Add(Rect(new Vector2(1f, 1f)), RenderSpace.World);
-        view.Add(Rect(new Vector2(2f, 2f)), RenderSpace.Screen);
-        view.Add(Rect(new Vector2(3f, 3f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(1f, 1f)), RenderSpace.World);
+        view.Add(Quad(new Vector2(2f, 2f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(3f, 3f)), RenderSpace.Screen);
 
         Assert.Equal(new Vector2(1f, 1f), Assert.Single(view.Sprites.ToArray()).Position);
         Assert.Equal([new Vector2(2f, 2f), new Vector2(3f, 3f)], view.ScreenSprites.ToArray().Select(sprite => sprite.Position));
@@ -27,7 +27,7 @@ public sealed class ScreenLayerTests
         FrameView view = Canvas(100f, 100f);
         view.Space = RenderSpace.Screen;
 
-        view.Add(Rect(Vector2.Zero));
+        view.Add(Quad(Vector2.Zero));
         view.Add(Text());
 
         // The rect, then one sprite per glyph of the run.
@@ -43,9 +43,9 @@ public sealed class ScreenLayerTests
         FrameView view = Canvas(10f, 10f);
         view.Camera = new CameraView(new Vector2(500f, 500f), new Vector2(4f, 4f));
 
-        view.Add(Rect(new Vector2(1f, 1f)), RenderSpace.Screen);
-        view.Add(Rect(new Vector2(40f, 1f)), RenderSpace.Screen);
-        view.Add(Rect(new Vector2(-8f, 1f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(1f, 1f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(40f, 1f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(-8f, 1f)), RenderSpace.Screen);
 
         Assert.Equal(new Vector2(1f, 1f), Assert.Single(view.ScreenSprites.ToArray()).Position);
         Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 1), view.Metrics);
@@ -57,7 +57,7 @@ public sealed class ScreenLayerTests
         FrameView view = Canvas(10f, 10f);
 
         // Off the canvas at both ends, but across it in between.
-        view.Add(Rect(new Vector2(-20f, 1f)) with { Position = new Vector2(30f, 1f) }, RenderSpace.Screen);
+        view.Add(Quad(new Vector2(-20f, 1f)) with { Position = new Vector2(30f, 1f) }, RenderSpace.Screen);
 
         Assert.Single(view.ScreenSprites.ToArray());
     }
@@ -67,7 +67,7 @@ public sealed class ScreenLayerTests
     {
         FrameView view = new();
 
-        view.Add(Rect(new Vector2(-500f, -500f)), RenderSpace.Screen);
+        view.Add(Quad(new Vector2(-500f, -500f)), RenderSpace.Screen);
 
         Assert.Single(view.ScreenSprites.ToArray());
     }
@@ -77,8 +77,8 @@ public sealed class ScreenLayerTests
     {
         FrameView view = Canvas(100f, 100f);
 
-        view.Add(Rect(Vector2.Zero), RenderSpace.World);
-        view.Add(Rect(Vector2.Zero), RenderSpace.Screen);
+        view.Add(Quad(Vector2.Zero), RenderSpace.World);
+        view.Add(Quad(Vector2.Zero), RenderSpace.Screen);
 
         Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 2), view.Metrics);
     }
@@ -88,7 +88,7 @@ public sealed class ScreenLayerTests
     {
         FrameView view = Canvas(100f, 100f);
         view.Space = RenderSpace.Screen;
-        view.Add(Rect(Vector2.Zero));
+        view.Add(Quad(Vector2.Zero));
 
         view.Clear();
 
@@ -112,7 +112,7 @@ public sealed class ScreenLayerTests
 
     private static FrameView Canvas(float width, float height) => new() { Canvas = new Vector2(width, height) };
 
-    private static SpriteIntent Rect(Vector2 position) =>
+    private static SpriteIntent Quad(Vector2 position) =>
         new(Sprite.White, position, position, new Vector2(4f, 4f), FlipX: false, FlipY: false, ColorRgba.White);
 
     private static TextIntent Text() =>

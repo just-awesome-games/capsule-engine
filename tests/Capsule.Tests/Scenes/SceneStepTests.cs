@@ -29,7 +29,7 @@ public sealed class SceneStepTests
     }
 
     [Fact]
-    public void TheScenesStepRunsFirst_ThenEachEntityWithItsComponents_ThenItsLateStep()
+    public void TheScenesStepRunsFirst_ThenEachEntityWithItsComponents_ThenEveryLateStepInThatSameOrder()
     {
         List<string> log = [];
         SceneFixtures.Recorder first = new("first", log);
@@ -47,7 +47,17 @@ public sealed class SceneStepTests
 
         simulation.Step(SceneFixtures.Step());
 
-        string[] expected = ["scene", "first", "first.component", "second", "scene.late"];
+        string[] expected =
+        [
+            "scene",
+            "first",
+            "first.component",
+            "second",
+            "first.late",
+            "first.component.late",
+            "second.late",
+            "scene.late",
+        ];
         Assert.Equal(expected, log);
     }
 
@@ -97,7 +107,7 @@ public sealed class SceneStepTests
 
         run.Step();
 
-        string[] expected = ["leaving", "leaving-"];
+        string[] expected = ["leaving", "leaving.late", "leaving-"];
         Assert.Equal(1, heldDuringTheLateStep);
         Assert.Equal(expected, log);
         Assert.Same(joining, Assert.Single(run.Scene.Entities.ToArray()));
@@ -157,7 +167,7 @@ public sealed class SceneStepTests
 
         simulation.Step(SceneFixtures.Step());
 
-        string[] expected = ["leaving", "leaving-"];
+        string[] expected = ["leaving", "leaving.late", "leaving-"];
         Assert.Equal(expected, log);
         Assert.Empty(simulation.Scene.Entities.ToArray());
         Assert.Null(leaving.Scene);
@@ -180,7 +190,7 @@ public sealed class SceneStepTests
 
         simulation.Step(SceneFixtures.Step());
 
-        string[] expected = ["leaving", "leaving-"];
+        string[] expected = ["leaving", "leaving.late", "leaving-"];
         Assert.Equal(expected, log);
         Assert.Empty(simulation.Scene.Entities.ToArray());
         Assert.Null(leaving.Scene);
@@ -205,7 +215,7 @@ public sealed class SceneStepTests
 
         simulation.Step(SceneFixtures.Step());
 
-        string[] expected = ["leaving", "leaving-"];
+        string[] expected = ["leaving", "leaving.late", "leaving-"];
         Assert.Equal(expected, log);
         Assert.Same(meddler, Assert.Single(simulation.Scene.Entities.ToArray()));
     }

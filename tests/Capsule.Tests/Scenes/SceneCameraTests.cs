@@ -102,7 +102,7 @@ public sealed class SceneCameraTests
         standing.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(0, 4), new Vector2(16, 8)));
-        scene.Camera.Bounds = new ViewBounds(0f, 0f, 32f, 8f);
+        scene.Camera.Bounds = new Rect(0f, 0f, 32f, 8f);
         scene.Add(standing);
 
         using SceneSimulation simulation = new(scene);
@@ -302,7 +302,7 @@ public sealed class SceneCameraTests
     [Fact]
     public void ACamerasFitAndBounds_ReachTheFrameViewWithTheCentreItSettled()
     {
-        ViewBounds room = new(0f, 0f, 1000f, 500f);
+        Rect room = new(0f, 0f, 1000f, 500f);
         Camera camera = new()
         {
             Center = new Vector2(-400f, 250f),
@@ -322,7 +322,7 @@ public sealed class SceneCameraTests
         Assert.Equal(new Vector2(-400f, 250f), view.Center);
 
         // The clamp lives in resolution alone: the camera still frames where it was pointed.
-        Assert.Equal(new ViewBounds(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
+        Assert.Equal(new Rect(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
     }
 
     private static Action<Scene> Install(Camera camera) =>

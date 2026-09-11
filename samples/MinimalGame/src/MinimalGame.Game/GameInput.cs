@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Scenes.Input;
 
 namespace MinimalGame.Game;
 
@@ -29,6 +30,12 @@ public static class GameInput
 
     /// <summary>Leaves the game.</summary>
     public static readonly InputAction Quit = new("quit");
+
+    /// <summary>
+    /// What drives a menu's focus, declared here beside the actions it names so every menu the game
+    /// opens is navigated the same way.
+    /// </summary>
+    public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, Confirm, Click);
 
     /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input)

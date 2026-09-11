@@ -6,14 +6,17 @@ using Capsule.Scenes.Rendering;
 
 namespace Capsule.Tests.Input;
 
-// The focus machine: one dimension, edges only, and a pointer that picks an item by the rect its
-// renderer reports. The items here are flat rects, so what the pointer is inside is arithmetic.
+// The focus machine: one dimension, edges only, a pointer that picks an item by the rect its renderer
+// reports, and two events that hand the item over. The items here are flat rects, so what the pointer is
+// inside is arithmetic.
 public sealed class FocusNavigatorTests
 {
     private static readonly InputAction Backward = new("Backward");
     private static readonly InputAction Forward = new("Forward");
     private static readonly InputAction Confirm = new("Confirm");
     private static readonly InputAction Click = new("Click");
+
+    private static readonly FocusActions Actions = new(Backward, Forward, Confirm, Click);
 
     // Two 20x10 items: the first spans (0, 0) to (20, 10) and the second (0, 20) to (20, 30).
     private static readonly Vector2 InFirst = new(10f, 5f);
@@ -26,14 +29,14 @@ public sealed class FocusNavigatorTests
         Menu menu = Two().Tap(Key.Down);
 
         Assert.Equal(1, menu.FocusedIndex);
-        Assert.True(menu.FocusChanged);
-        Assert.False(menu.Activated);
+        Assert.Same(menu.Focused, menu.MovedTo);
+        Assert.Null(menu.ActivatedItem);
 
         // Released, then pressed again: an edge needs a step without it.
         menu.Rest().Tap(Key.Down);
 
         Assert.Equal(0, menu.FocusedIndex);
-        Assert.True(menu.FocusChanged);
+        Assert.Same(menu.Focused, menu.MovedTo);
     }
 
     [Fact]
@@ -59,7 +62,7 @@ public sealed class FocusNavigatorTests
         menu.Rest();
 
         Assert.Equal(1, menu.FocusedIndex);
-        Assert.False(menu.FocusChanged);
+        Assert.Null(menu.MovedTo);
     }
 
     [Fact]
@@ -68,8 +71,8 @@ public sealed class FocusNavigatorTests
         Menu menu = Two().Pointer(InSecond).Rest();
 
         Assert.Equal(1, menu.FocusedIndex);
-        Assert.True(menu.FocusChanged);
-        Assert.False(menu.Activated);
+        Assert.Same(menu.Focused, menu.MovedTo);
+        Assert.Null(menu.ActivatedItem);
     }
 
     // The reason the move matters: a mouse left lying on an item must not fight a player driving the
@@ -84,7 +87,7 @@ public sealed class FocusNavigatorTests
         menu.Rest();
 
         Assert.Equal(0, menu.FocusedIndex);
-        Assert.False(menu.FocusChanged);
+        Assert.Null(menu.MovedTo);
     }
 
     [Fact]
@@ -93,7 +96,7 @@ public sealed class FocusNavigatorTests
         Menu menu = Two().Pointer(InNeither).Rest();
 
         Assert.Equal(0, menu.FocusedIndex);
-        Assert.False(menu.FocusChanged);
+        Assert.Null(menu.MovedTo);
     }
 
     [Fact]
@@ -102,8 +105,8 @@ public sealed class FocusNavigatorTests
         Menu menu = Two().Pointer(InSecond).Tap(MouseButton.Left);
 
         Assert.Equal(1, menu.FocusedIndex);
-        Assert.True(menu.FocusChanged);
-        Assert.True(menu.Activated);
+        Assert.Same(menu.Focused, menu.MovedTo);
+        Assert.Same(menu.Focused, menu.ActivatedItem);
     }
 
     [Fact]
@@ -112,17 +115,19 @@ public sealed class FocusNavigatorTests
         Menu menu = Two().Pointer(InNeither).Tap(MouseButton.Left);
 
         Assert.Equal(0, menu.FocusedIndex);
-        Assert.False(menu.Activated);
+        Assert.Null(menu.ActivatedItem);
     }
 
-    // A click reaches the item under the pointer and nothing else, so a navigator stepped without a
-    // click action is deaf to the mouse button however the game bound it.
+    // A click reaches the item under the pointer and nothing else, so a navigator whose actions name no
+    // click is deaf to the mouse button however the game bound it.
     [Fact]
-    public void AClick_DoesNothingWhereTheStepNamesNoClickAction()
+    public void AClick_DoesNothingWhereTheActionsNameNoClick()
     {
-        Menu menu = Two().WithoutAClickAction().Pointer(InFirst).Tap(MouseButton.Left);
+        Menu menu = new(new FocusActions(Backward, Forward, Confirm), Items());
 
-        Assert.False(menu.Activated);
+        menu.Pointer(InFirst).Tap(MouseButton.Left);
+
+        Assert.Null(menu.ActivatedItem);
     }
 
     [Fact]
@@ -130,22 +135,31 @@ public sealed class FocusNavigatorTests
     {
         Menu menu = Two().Tap(Key.Down).Pointer(InNeither).Tap(Key.Enter);
 
-        Assert.True(menu.Activated);
+        Assert.Same(menu.Focused, menu.ActivatedItem);
         Assert.Equal(1, menu.FocusedIndex);
     }
 
+    // The contract the game writes its handlers against: the focus is settled before either event, the
+    // move is announced first, and a step raises each at most once however many actions asked for it.
     [Fact]
-    public void AStepWithNoPressAtAll_MovesNothingAndActivatesNothing()
+    public void AStepThatMovesAndActivates_RaisesTheMoveFirstAndEachEventOnce()
+    {
+        Menu menu = Two().Pointer(InSecond).Tap(MouseButton.Left, Key.Enter);
+
+        Assert.Equal(["focus 1", "activated 1"], menu.Raised);
+    }
+
+    [Fact]
+    public void AStepWithNoPressAtAll_RaisesNothing()
     {
         Menu menu = Two().Rest();
 
         Assert.Equal(0, menu.FocusedIndex);
-        Assert.False(menu.FocusChanged);
-        Assert.False(menu.Activated);
+        Assert.Empty(menu.Raised);
     }
 
     [Fact]
-    public void AnEmptyNavigator_FocusesNothingAndActivatesNothing()
+    public void AnEmptyNavigator_FocusesNothingAndRaisesNothing()
     {
         Menu menu = new();
 
@@ -154,12 +168,11 @@ public sealed class FocusNavigatorTests
         Assert.Equal(0, menu.Count);
         Assert.Equal(-1, menu.FocusedIndex);
         Assert.Null(menu.Focused);
-        Assert.False(menu.FocusChanged);
-        Assert.False(menu.Activated);
+        Assert.Empty(menu.Raised);
 
         menu.Tap(MouseButton.Left);
 
-        Assert.False(menu.Activated);
+        Assert.Empty(menu.Raised);
     }
 
     // Whether items overlap is the game's business; which one the pointer picks is not.
@@ -192,9 +205,11 @@ public sealed class FocusNavigatorTests
     }
 
     [Fact]
-    public void AnItemAdded_TakesTheFocusOnlyWhereThereWasNone()
+    public void AnItemAdded_TakesTheFocusOnlyWhereThereWasNoneAndAnnouncesNoMove()
     {
-        FocusNavigator focus = new();
+        List<ColorRect> moves = [];
+        FocusNavigator<ColorRect> focus = new(Actions);
+        focus.FocusChanged += moves.Add;
 
         Assert.Equal(-1, focus.FocusedIndex);
 
@@ -203,7 +218,7 @@ public sealed class FocusNavigatorTests
 
         Assert.Equal(0, focus.FocusedIndex);
         Assert.Same(first, focus.Focused);
-        Assert.False(focus.FocusChanged);
+        Assert.Empty(moves);
 
         focus.Add(Item(new Vector2(0f, 20f)));
 
@@ -212,14 +227,26 @@ public sealed class FocusNavigatorTests
     }
 
     [Fact]
-    public void ANullItemOrAMissingInputState_IsRefused()
+    public void Items_AreTheListInTheOrderFocusWalksThem()
     {
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator().Add(null!));
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator((Renderer)null!));
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator().Step(null!, Backward, Forward, Confirm));
+        ColorRect first = Item(Vector2.Zero);
+        ColorRect second = Item(new Vector2(0f, 20f));
+        FocusNavigator<ColorRect> focus = new(Actions, first, second);
+
+        Assert.Equal([first, second], focus.Items.ToArray());
     }
 
-    private static Menu Two() => new(Item(Vector2.Zero), Item(new Vector2(0f, 20f)));
+    [Fact]
+    public void ANullItemOrAMissingInputState_IsRefused()
+    {
+        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions).Add(null!));
+        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions, (Renderer)null!));
+        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions).Step(null!));
+    }
+
+    private static Menu Two() => new(Items());
+
+    private static ColorRect[] Items() => [Item(Vector2.Zero), Item(new Vector2(0f, 20f))];
 
     // A rect on an entity of its own, which is all a renderer needs to report a rect: in world space it
     // reads no canvas, so no scene and no run are involved.
@@ -241,10 +268,10 @@ public sealed class FocusNavigatorTests
     }
 
     // A navigator, the device state it is driven from and one step per call, so a spec reads as the
-    // sequence of steps it means.
+    // sequence of steps it means. What the events delivered is kept for the step just taken alone.
     private sealed class Menu
     {
-        private readonly FocusNavigator _focus;
+        private readonly FocusNavigator<Renderer> _focus;
 
         private readonly InputState _input = new(new ActionBindings()
             .Bind(Backward, Key.Up)
@@ -252,10 +279,33 @@ public sealed class FocusNavigatorTests
             .Bind(Confirm, Key.Enter)
             .Bind(Click, MouseButton.Left));
 
-        private DeviceSnapshot _held;
-        private bool _clicks = true;
+        private readonly List<string> _raised = [];
 
-        internal Menu(params ReadOnlySpan<Renderer> items) => _focus = new FocusNavigator(items);
+        private DeviceSnapshot _held;
+
+        internal Menu(params ReadOnlySpan<Renderer> items)
+            : this(Actions, items)
+        {
+        }
+
+        internal Menu(FocusActions actions, params ReadOnlySpan<Renderer> items)
+        {
+            _focus = new FocusNavigator<Renderer>(actions, items);
+
+            // Logged with the navigator's own state as each handler saw it, which is what proves the
+            // focus is settled before either event runs.
+            _focus.FocusChanged += item =>
+            {
+                MovedTo = item;
+                _raised.Add($"focus {_focus.FocusedIndex}");
+            };
+
+            _focus.Activated += item =>
+            {
+                ActivatedItem = item;
+                _raised.Add($"activated {_focus.FocusedIndex}");
+            };
+        }
 
         internal int Count => _focus.Count;
 
@@ -263,16 +313,14 @@ public sealed class FocusNavigatorTests
 
         internal Renderer? Focused => _focus.Focused;
 
-        internal bool FocusChanged => _focus.FocusChanged;
+        /// <summary>What the step just taken announced, or null where it announced no move.</summary>
+        internal Renderer? MovedTo { get; private set; }
 
-        internal bool Activated => _focus.Activated;
+        /// <summary>What the step just taken activated, or null where it activated nothing.</summary>
+        internal Renderer? ActivatedItem { get; private set; }
 
-        internal Menu WithoutAClickAction()
-        {
-            _clicks = false;
-
-            return this;
-        }
+        /// <summary>The events the step just taken raised, in the order they were raised.</summary>
+        internal IReadOnlyList<string> Raised => _raised;
 
         /// <summary>Puts the pointer here from the next step on; emits no step of its own.</summary>
         internal Menu Pointer(Vector2 position)
@@ -288,6 +336,9 @@ public sealed class FocusNavigatorTests
         /// <summary>Steps with <paramref name="button"/> down on top of the held state, then releases it.</summary>
         internal Menu Tap(MouseButton button) => Advance(_held.With(button));
 
+        /// <summary>Steps with both down at once, which is two actions asking for one activation.</summary>
+        internal Menu Tap(MouseButton button, Key key) => Advance(_held.With(button).With(key));
+
         /// <summary>Steps with <paramref name="key"/> down and leaves it held.</summary>
         internal Menu Hold(Key key)
         {
@@ -301,16 +352,12 @@ public sealed class FocusNavigatorTests
 
         private Menu Advance(in DeviceSnapshot snapshot)
         {
-            _input.Advance(snapshot);
+            MovedTo = null;
+            ActivatedItem = null;
+            _raised.Clear();
 
-            if (_clicks)
-            {
-                _focus.Step(_input, Backward, Forward, Confirm, Click);
-            }
-            else
-            {
-                _focus.Step(_input, Backward, Forward, Confirm);
-            }
+            _input.Advance(snapshot);
+            _focus.Step(_input);
 
             return this;
         }

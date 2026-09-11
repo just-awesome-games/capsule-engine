@@ -7,13 +7,12 @@ using Capsule.Rendering;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// One thing in a scene. World units by default, Y-down; what <see cref="Position"/> anchors — a
-/// corner, a centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and
-/// attach <see cref="Component"/>s for what composes.
+/// One thing in a scene, in world units, Y-down; what <see cref="Position"/> anchors — a corner, a
+/// centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and attach
+/// <see cref="Component"/>s for what composes.
 /// <para>
-/// An entity whose <see cref="Space"/> is <see cref="RenderSpace.Screen"/> lives in canvas pixels
-/// from its <see cref="Anchor"/> instead, and every renderer it holds draws on the frame's screen
-/// layer, over the whole world.
+/// <see cref="ScreenEntity"/> is the interface counterpart: canvas pixels from an
+/// <see cref="Anchor"/>, and every renderer it holds draws on the frame's screen layer.
 /// </para>
 /// </summary>
 public class Entity
@@ -35,8 +34,9 @@ public class Entity
     }
 
     /// <summary>
-    /// Where the entity is now, in world units. Always finite: a NaN or infinite position is
-    /// refused rather than stored.
+    /// Where the entity is now, in its own units: world units, and canvas pixels from the anchor on a
+    /// <see cref="ScreenEntity"/>. Always finite: a NaN or infinite position is refused rather than
+    /// stored.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
@@ -86,39 +86,6 @@ public class Entity
     public Vector2 PreviousPosition { get; internal set; }
 
     /// <summary>
-    /// Which of a frame's two layers this entity's renderers draw on, and so what
-    /// <see cref="Position"/> means: world units under <see cref="RenderSpace.World"/>, the default,
-    /// and canvas pixels from <see cref="Anchor"/> under <see cref="RenderSpace.Screen"/>. Every
-    /// renderer the entity holds follows it, with no flag of its own, and the whole screen layer draws
-    /// over the whole world layer however the two are banded.
-    /// </summary>
-    public RenderSpace Space { get; set; }
-
-    /// <summary>
-    /// The point on the canvas <see cref="Position"/> is measured from, as a fraction of the canvas on
-    /// each axis; <see cref="Scenes.Anchor.TopLeft"/> by default. Read only in
-    /// <see cref="RenderSpace.Screen"/>, and ignored in world space.
-    /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">A fraction is not finite.</exception>
-    public Anchor Anchor
-    {
-        get;
-
-        set
-        {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    value,
-                    "An anchor is a finite fraction of the canvas on each axis.");
-            }
-
-            field = value;
-        }
-    }
-
-    /// <summary>
     /// The band this entity draws in: an ordering key, never a coordinate, and nothing else reads
     /// it. Each attached <see cref="Rendering.Renderer"/> draws at this plus its own
     /// <see cref="Rendering.Renderer.ZIndex"/>, summed as a <see cref="long"/> with neither side
@@ -160,10 +127,13 @@ public class Entity
         ? scene.Random
         : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoSourceYet}");
 
-    // What a renderer adds to a position to reach the space it draws in: the anchor's point on the
-    // run's canvas for a screen entity, and nothing at all in world space.
-    internal Vector2 SpaceOrigin =>
-        Space == RenderSpace.Screen ? Anchor.On(Scene?.Canvas ?? Vector2.Zero) : Vector2.Zero;
+    // Which of a frame's two layers this entity's renderers draw on. The type is what routes them:
+    // every renderer follows its entity, with no flag of its own.
+    internal virtual RenderSpace Space => RenderSpace.World;
+
+    // What a renderer adds to a position to reach the space it draws in: nothing at all in world
+    // space, and the anchor's point on the run's canvas for a screen entity.
+    internal virtual Vector2 SpaceOrigin => Vector2.Zero;
 
     // Set by a subclass whose contents are world coordinates, so a position write is a mistake
     // rather than a move.
@@ -285,6 +255,17 @@ public class Entity
     }
 
     /// <summary>
+    /// Advances this entity a second time, before its components' own late step and after every
+    /// entity has stepped and contacts have settled, so a reading taken here is of the state the
+    /// frame about to be drawn will show — the health a contact just spent, the position a sweep
+    /// came to rest at. Runs in the same order <see cref="OnStep"/> did, and before the scene's own
+    /// <see cref="Scene.OnLateStep"/>. Never reached before <see cref="OnStart"/>.
+    /// </summary>
+    protected internal virtual void OnLateStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
     /// from here. Runs before the components held at that moment start; an entity that leaves the
@@ -393,6 +374,22 @@ public class Entity
         foreach (Component component in LiveComponents)
         {
             component.RunStep(context);
+        }
+    }
+
+    // Bound by the same rule RunStep is: an entity with no time begun for it takes no late step.
+    internal void RunLateStep(in StepContext context)
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        OnLateStep(context);
+
+        foreach (Component component in LiveComponents)
+        {
+            component.RunLateStep(context);
         }
     }
 

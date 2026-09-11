@@ -5,8 +5,8 @@ using Capsule.Scenes.Rendering;
 
 namespace Capsule.Tests.Scenes;
 
-// An entity's space is what routes its renderers: the canvas the run settled, the anchor a screen
-// position is measured from, and one layer drawn over the other.
+// An entity's type is what routes its renderers: a ScreenEntity is canvas pixels from an anchor on the
+// layer drawn over the world, and a plain entity is world units under the camera.
 public sealed class ScreenSpaceTests
 {
     private static readonly Vector2 Canvas = new(100f, 50f);
@@ -43,9 +43,9 @@ public sealed class ScreenSpaceTests
     }
 
     [Fact]
-    public void AWorldEntity_DrawsOnTheWorldListAndIgnoresItsAnchor()
+    public void AWorldEntity_DrawsOnTheWorldList()
     {
-        using SceneRun run = Run(RenderSpace.World, Anchor.BottomRight, new Vector2(4f, 5f));
+        using SceneRun run = Run(new WorldHolder(new Vector2(4f, 5f)));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -57,7 +57,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AScreenEntity_DrawsOnTheScreenListFromItsAnchor()
     {
-        using SceneRun run = Run(RenderSpace.Screen, Anchor.BottomRight, new Vector2(-10f, -20f));
+        using SceneRun run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -72,10 +72,10 @@ public sealed class ScreenSpaceTests
     [InlineData(1f, 1f, 80f, 30f)]
     public void EveryAnchor_IsThatFractionOfTheCanvas(float x, float y, float left, float top)
     {
-        // Measured from the anchor, so a far-edge anchor is reached by a negative position.
-        Vector2 position = x + y > 1f ? new Vector2(-20f, -20f) : new Vector2(10f, 10f);
+        // Measured from the anchor, so a far-edge anchor is reached by a negative offset.
+        Vector2 offset = x + y > 1f ? new Vector2(-20f, -20f) : new Vector2(10f, 10f);
 
-        using SceneRun run = Run(RenderSpace.Screen, new Anchor(x, y), position);
+        using SceneRun run = Run(new ScreenHolder(new Anchor(x, y), offset));
         run.Step();
 
         Assert.Equal(new Vector2(left, top), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
@@ -84,9 +84,8 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AScreenEntity_InterpolatesItsPositionAsAWorldOneDoes()
     {
-        Mover mover = new(RenderSpace.Screen);
         Scene scene = new();
-        scene.Add(mover);
+        scene.Add(new Mover());
 
         using SceneRun run = new(scene, canvas: Canvas);
         run.Run(2);
@@ -98,32 +97,24 @@ public sealed class ScreenSpaceTests
     }
 
     [Fact]
-    public void AnEntityThatMovesToTheScreen_TakesEveryRendererItHoldsWithIt()
+    public void EveryRendererAScreenEntityHolds_FollowsItWithNoFlagOfItsOwn()
     {
-        Holder holder = new(RenderSpace.World, Anchor.TopLeft, new Vector2(1f, 2f));
-        Scene scene = new();
-        scene.Add(holder);
+        ScreenHolder holder = new(Anchor.TopLeft, new Vector2(1f, 2f));
+        holder.Add(new ColorRect(new Vector2(4f, 4f)) { Offset = new Vector2(10f, 0f) });
 
-        using SceneRun run = new(scene, canvas: Canvas);
-        run.Step();
-        Assert.Single(run.Simulation.View.Sprites.ToArray());
-
-        holder.Space = RenderSpace.Screen;
+        using SceneRun run = Run(holder);
         run.Step();
 
         Assert.Empty(run.Simulation.View.Sprites.ToArray());
-        Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
+        Assert.Equal(2, run.Simulation.View.ScreenSprites.Length);
     }
 
     [Fact]
     public void ABandedScreenEntity_StillDrawsOverEveryWorldEntity()
     {
-        Holder world = new(RenderSpace.World, Anchor.TopLeft, Vector2.Zero) { ZIndex = 100 };
-        Holder screen = new(RenderSpace.Screen, Anchor.TopLeft, Vector2.Zero) { ZIndex = -100 };
-
         Scene scene = new();
-        scene.Add(world);
-        scene.Add(screen);
+        scene.Add(new WorldHolder(Vector2.Zero) { ZIndex = 100 });
+        scene.Add(new ScreenHolder(Anchor.TopLeft, Vector2.Zero) { ZIndex = -100 });
 
         using SceneRun run = new(scene, canvas: Canvas);
         run.Step();
@@ -137,31 +128,39 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AnAnchorThatIsNotFinite_IsRefused()
     {
-        Holder holder = new(RenderSpace.Screen, Anchor.TopLeft, Vector2.Zero);
+        ScreenHolder holder = new(Anchor.TopLeft, Vector2.Zero);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => holder.Anchor = new Anchor(float.NaN, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScreenHolder(new Anchor(0f, float.NaN), Vector2.Zero));
     }
 
-    private static SceneRun Run(RenderSpace space, Anchor anchor, Vector2 position)
+    private static SceneRun Run(Entity holder)
     {
         Scene scene = new();
-        scene.Add(new Holder(space, anchor, position));
+        scene.Add(holder);
 
         return new SceneRun(scene, canvas: Canvas);
     }
 
-    private sealed class Holder : Entity
+    private sealed class WorldHolder : Entity
     {
-        internal Holder(RenderSpace space, Anchor anchor, Vector2 position)
+        internal WorldHolder(Vector2 position)
             : base(position)
         {
-            Space = space;
-            Anchor = anchor;
             Add(new ColorRect(new Vector2(8f, 8f)));
         }
     }
 
-    private sealed class Mover(RenderSpace space) : Entity(Vector2.Zero)
+    private sealed class ScreenHolder : ScreenEntity
+    {
+        internal ScreenHolder(Anchor anchor, Vector2 offset)
+            : base(anchor, offset)
+        {
+            Add(new ColorRect(new Vector2(8f, 8f)));
+        }
+    }
+
+    private sealed class Mover() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
     {
         private bool _added;
 
@@ -170,7 +169,6 @@ public sealed class ScreenSpaceTests
             if (!_added)
             {
                 _added = true;
-                Space = space;
                 Add(new ColorRect(new Vector2(8f, 8f)));
             }
 

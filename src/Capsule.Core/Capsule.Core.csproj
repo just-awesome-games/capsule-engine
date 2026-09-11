@@ -9,7 +9,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <!-- ISimulation is the host's seam, not a surface a game implements. -->
+  <!-- ISimulation is the host's seam, not a surface a game implements, and FrameView.Space is how a
+       scene routes a renderer onto the layer its entity lives in. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
 

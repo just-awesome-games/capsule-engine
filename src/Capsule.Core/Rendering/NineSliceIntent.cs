@@ -36,7 +36,7 @@ public readonly record struct NineSliceIntent(
     /// a panel smaller than its insets is inside it, and a panel that draws no slice at all is empty
     /// rather than the rect <see cref="Size"/> names.
     /// </summary>
-    public ViewBounds Bounds
+    public Rect Bounds
     {
         get
         {
@@ -58,7 +58,7 @@ public readonly record struct NineSliceIntent(
                 return default;
             }
 
-            return new ViewBounds(Position.X + left, Position.Y + top, Position.X + right, Position.Y + bottom);
+            return new Rect(Position.X + left, Position.Y + top, Position.X + right, Position.Y + bottom);
         }
     }
 

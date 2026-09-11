@@ -19,11 +19,11 @@ public sealed class FrameView
     private int _submitted;
 
     private CameraView _camera;
-    private ViewBounds _cullBounds;
+    private Rect _cullBounds;
     private bool _hasCullBounds;
 
     private Vector2 _canvas;
-    private ViewBounds _canvasBounds;
+    private Rect _canvasBounds;
     private bool _hasCanvasBounds;
 
     private TextureSampling _sampling = TextureSampling.Linear;
@@ -61,17 +61,14 @@ public sealed class FrameView
         internal set
         {
             _canvas = value;
-            _canvasBounds = new ViewBounds(0f, 0f, value.X, value.Y);
+            _canvasBounds = new Rect(Vector2.Zero, value);
             _hasCanvasBounds = !_canvasBounds.IsEmpty;
         }
     }
 
-    /// <summary>
-    /// The space the <c>Add</c> overloads that name none draw into: the space of the entity whose
-    /// renderer is running, which the scene sets before each <c>Draw</c>.
-    /// <see cref="RenderSpace.World"/> outside a renderer.
-    /// </summary>
-    public RenderSpace Space { get; internal set; }
+    // The layer the Add overloads that name none draw onto: the layer of the entity whose renderer is
+    // running, which the scene sets before each Draw, and the world outside a renderer.
+    internal RenderSpace Space { get; set; }
 
     /// <summary>The colour behind world render intent. Black by default.</summary>
     public ColorRgba ClearColor { get; internal set; } = ColorRgba.Black;
@@ -116,8 +113,9 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// Adds a sprite to the list <see cref="Space"/> names, culled against the camera in world space
-    /// and against <see cref="Canvas"/> in screen space; an unset camera or canvas disables culling.
+    /// Adds a sprite to the layer the running renderer's entity lives in, culled against the camera in
+    /// world space and against <see cref="Canvas"/> in screen space; an unset camera or canvas disables
+    /// culling. Outside a renderer the layer is the world.
     /// </summary>
     public void Add(in SpriteIntent sprite) => Add(in sprite, Space);
 
@@ -129,8 +127,8 @@ public sealed class FrameView
         bool screen = space == RenderSpace.Screen;
         if (screen ? _hasCanvasBounds : _hasCullBounds)
         {
-            ViewBounds against = screen ? _canvasBounds : _cullBounds;
-            if (!(sprite.TryGetSweptBounds(out ViewBounds swept) && swept.Intersects(against)))
+            Rect against = screen ? _canvasBounds : _cullBounds;
+            if (!(sprite.TryGetSweptBounds(out Rect swept) && swept.Intersects(against)))
             {
                 return;
             }
@@ -140,8 +138,8 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// Lays <paramref name="text"/> out and adds one sprite per glyph to the list
-    /// <see cref="Space"/> names, each culled and counted on its own. Glyphs are added in reading
+    /// Lays <paramref name="text"/> out and adds one sprite per glyph to the layer the running
+    /// renderer's entity lives in, each culled and counted on its own. Glyphs are added in reading
     /// order, so a later one covers an earlier one where they overlap. A null font or empty text adds
     /// nothing.
     /// </summary>
@@ -193,8 +191,8 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// Expands <paramref name="panel"/> and adds one sprite per slice to the list
-    /// <see cref="Space"/> names, each culled and counted on its own. Slices are added left to right
+    /// Expands <paramref name="panel"/> and adds one sprite per slice to the layer the running
+    /// renderer's entity lives in, each culled and counted on its own. Slices are added left to right
     /// then top to bottom, so where a panel too small for its insets makes two of them overlap, the
     /// later one covers the earlier. A slice with no texels or no extent adds nothing.
     /// </summary>

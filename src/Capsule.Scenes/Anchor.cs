@@ -4,9 +4,9 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// A point on the canvas given as a fraction of its extent on each axis, Y-down: (0, 0) is the
-/// top-left corner, (1, 1) the bottom-right. A screen-space entity's position is measured from the
-/// point its anchor names, so a corner-anchored interface element keeps its distance from that corner
-/// whatever the canvas is.
+/// top-left corner, (1, 1) the bottom-right. A <see cref="ScreenEntity"/>'s position is measured from
+/// the point its anchor names, so a corner-anchored interface element keeps its distance from that
+/// corner whatever the canvas is.
 /// <para>
 /// A fraction outside [0, 1] is a point off the canvas, which is allowed: it anchors something just
 /// past an edge.

@@ -47,7 +47,7 @@ public sealed class LabelTests
         using SceneSimulation simulation = new(scene);
 
         // The entity at (4, 5) plus the label's (1, 1) offset, and the measured run from there.
-        Assert.Equal(new ViewBounds(5f, 6f, 14f, 6f + FontFixtures.LineHeight), entity.Text.Bounds);
+        Assert.Equal(new Rect(5f, 6f, 14f, 6f + FontFixtures.LineHeight), entity.Text.Bounds);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class LabelTests
         using SceneSimulation simulation = new(scene);
 
         // The alignment point is the box's centre, so the box is centred on (5, 6).
-        Assert.Equal(new ViewBounds(-15f, -9f, 25f, 21f), entity.Text.Bounds);
+        Assert.Equal(new Rect(-15f, -9f, 25f, 21f), entity.Text.Bounds);
     }
 
     [Fact]

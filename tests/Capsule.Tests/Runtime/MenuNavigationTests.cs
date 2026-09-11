@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Input;
-using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
 using Capsule.Scenes.Input;
@@ -25,6 +24,8 @@ public sealed class MenuNavigationTests
     private static readonly InputAction Down = new("Down");
     private static readonly InputAction Confirm = new("Confirm");
     private static readonly InputAction Click = new("Click");
+
+    private static readonly FocusActions Actions = new(Up, Down, Confirm, Click);
 
     [Fact]
     public void AGamepadAndAPointer_ActivateTheSameItemOfTheSameMenu()
@@ -87,10 +88,17 @@ public sealed class MenuNavigationTests
 
     private sealed class Menu : Scene
     {
-        private readonly FocusNavigator _focus = new();
+        private readonly FocusNavigator<Label> _focus = new(Actions);
 
-        private Item _first = null!;
-        private Item _second = null!;
+        private Label _first = null!;
+        private Label _second = null!;
+
+        internal Menu() =>
+            _focus.Activated += item =>
+            {
+                Activated = ReferenceEquals(item, _second) ? "second" : "first";
+                RequestExit();
+            };
 
         internal string? Activated { get; private set; }
 
@@ -98,45 +106,29 @@ public sealed class MenuNavigationTests
 
         protected override void OnStart()
         {
-            _first = new Item(new Vector2(20f, 20f));
-            _second = new Item(new Vector2(20f, 60f));
+            _first = Caption();
+            _second = Caption();
 
-            Add(_first);
-            Add(_second);
+            Add(Item(new Vector2(20f, 20f), _first));
+            Add(Item(new Vector2(20f, 60f), _second));
 
-            _focus.Add(_first.Caption);
-            _focus.Add(_second.Caption);
+            _focus.Add(_first);
+            _focus.Add(_second);
         }
 
-        protected override void OnStep(in StepContext context)
+        protected override void OnStep(in StepContext context) => _focus.Step(context.Input);
+
+        // 'A' is a glyph the fixture font carries, so the run lays out a box rather than nothing.
+        private static Label Caption() => new(FontFixtures.Font(), "A") { Size = new Vector2(60f, 20f) };
+
+        // A label in a 60x20 box on the screen layer, anchored to the canvas's top-left corner so its
+        // box is the canvas pixels the entity was offset to.
+        private static ScreenEntity Item(Vector2 offset, Label caption)
         {
-            _focus.Step(context.Input, Up, Down, Confirm, Click);
+            ScreenEntity item = new(Anchor.TopLeft, offset);
+            item.Add(caption);
 
-            if (!_focus.Activated)
-            {
-                return;
-            }
-
-            Activated = ReferenceEquals(_focus.Focused, _second.Caption) ? "second" : "first";
-            RequestExit();
+            return item;
         }
-    }
-
-    // A label in a 60x20 box on the screen layer, anchored to the canvas's top-left corner so its box
-    // is the canvas pixels the entity was placed at.
-    private sealed class Item : Entity
-    {
-        internal Item(Vector2 position)
-            : base(position)
-        {
-            Space = RenderSpace.Screen;
-
-            // 'A' is a glyph the fixture font carries, so the run lays out a box rather than nothing.
-            Caption = new Label(FontFixtures.Font(), "A") { Size = new Vector2(60f, 20f) };
-
-            Add(Caption);
-        }
-
-        internal Label Caption { get; }
     }
 }

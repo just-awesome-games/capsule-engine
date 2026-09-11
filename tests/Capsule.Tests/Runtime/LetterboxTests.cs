@@ -157,7 +157,7 @@ public sealed class LetterboxTests
     {
         CameraView camera = new(new Vector2(32767.1f, 0f), Canvas);
         Vector2 window = new(1280f, 720f);
-        ViewBounds world = camera.Resolve(1f, window);
+        Rect world = camera.Resolve(1f, window);
 
         Assert.NotEqual(Canvas.X, world.Right - world.Left);
         Assert.Equal(Canvas, camera.ResolveSpan(window));

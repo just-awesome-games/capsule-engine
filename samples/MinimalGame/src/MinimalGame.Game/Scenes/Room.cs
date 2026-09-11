@@ -30,7 +30,6 @@ namespace MinimalGame.Game.Scenes;
 public sealed class Room : Scene
 {
     private Player _player = null!;
-    private HealthBar _health = null!;
 
     public Room(SceneContent content)
         : base(content)
@@ -44,8 +43,7 @@ public sealed class Room : Scene
 
         // The document places the player; the interface over it is the scene's own.
         _player = FindSingle<Player>();
-        _health = new HealthBar(_player);
-        Add(_health);
+        Add(new HealthBar(_player));
     }
 
     /// <inheritdoc/>
@@ -57,13 +55,11 @@ public sealed class Room : Scene
         }
     }
 
-    // Health is spent by a contact handler, so both the bar and the death test run where contacts have
-    // settled: the step that lands the damage is the step that shows it.
+    // Health is spent by a contact handler, so the death test runs where contacts have settled: the
+    // step that lands the killing damage is the step that leaves the room.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
-        _health.Refresh();
-
         if (_player.Health == 0)
         {
             RequestScene<MainMenu>();
@@ -73,10 +69,11 @@ public sealed class Room : Scene
     /// <summary>
     /// Two flat rects on the screen layer, anchored to the canvas's top-left corner so they hold that
     /// corner whatever the window is: a dark bed, and a fill as wide a share of it as the player has
-    /// health left. Nothing here is a widget — the bar is a rect whose <see cref="ColorRect.Size"/> the
-    /// scene's late step writes.
+    /// health left. Nothing here is a widget — the bar is a rect that rewrites its own
+    /// <see cref="ColorRect.Size"/> from the player each late step, where the contact that spent a
+    /// point has settled.
     /// </summary>
-    private sealed class HealthBar : Entity
+    private sealed class HealthBar : ScreenEntity
     {
         /// <summary>Canvas pixels in from the corner on both axes.</summary>
         private static readonly Vector2 Margin = new(8f, 8f);
@@ -91,18 +88,17 @@ public sealed class Room : Scene
         private readonly ColorRect _fill = new(Span) { Color = FillColor, ZIndex = 1 };
 
         internal HealthBar(Player player)
-            : base(Margin)
+            : base(Anchor.TopLeft, Margin)
         {
             _player = player;
-
-            Space = RenderSpace.Screen;
 
             // Both rects are on one entity, so the renderer's own band is what layers them.
             Add(new ColorRect(Span) { Color = BedColor });
             Add(_fill);
         }
 
-        internal void Refresh() =>
+        /// <inheritdoc/>
+        protected override void OnLateStep(in StepContext context) =>
             _fill.Size = new Vector2(Span.X * _player.Health / Player.MaxHealth, Span.Y);
     }
 }

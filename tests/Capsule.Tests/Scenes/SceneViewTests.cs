@@ -161,8 +161,8 @@ public sealed class SceneViewTests
 
         // Twice the frame, still hung from its middle: the rect straddles the swept position by
         // eight world units on every side rather than hanging off one corner of it.
-        Assert.True(body.TryGetSweptBounds(out ViewBounds swept));
-        Assert.Equal(new ViewBounds(42f, 42f, 59f, 58f), swept);
+        Assert.True(body.TryGetSweptBounds(out Rect swept));
+        Assert.Equal(new Rect(42f, 42f, 59f, 58f), swept);
     }
 
     // The rect a pointer hit-tests a sprite against: at rest on the current position, the pivot
@@ -183,7 +183,7 @@ public sealed class SceneViewTests
         // position it is drawn at, each at its own axis's scale.
         new SceneFixtures.Drifter(new Vector2(50, 50)).Add(sprite);
 
-        Assert.Equal(new ViewBounds(39f, 38f, 55f, 50f), sprite.Bounds);
+        Assert.Equal(new Rect(39f, 38f, 55f, 50f), sprite.Bounds);
     }
 
     // No validation on the setter: a scale that is not a size makes an extent the frame view

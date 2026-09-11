@@ -76,7 +76,7 @@ internal sealed class FrameRenderer : IDisposable
         // origin, and the scale it feeds is what quantises every sprite to the pixel grid.
         Vector2 output = new(outputWidth, outputHeight);
         Vector2 span = view.Camera.ResolveSpan(output);
-        ViewBounds world = view.Camera.Resolve(alpha, output);
+        Rect world = view.Camera.Resolve(alpha, output);
 
         if (_canvas is not { } canvas)
         {
@@ -325,7 +325,7 @@ internal sealed class FrameRenderer : IDisposable
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox.
-    private void DrawWorld(FrameView view, float alpha, in ViewBounds world, Vector2 span, int surfaceWidth, int surfaceHeight)
+    private void DrawWorld(FrameView view, float alpha, in Rect world, Vector2 span, int surfaceWidth, int surfaceHeight)
     {
         // A minimised window can present a back buffer with no area.
         if (surfaceWidth <= 0 || surfaceHeight <= 0)

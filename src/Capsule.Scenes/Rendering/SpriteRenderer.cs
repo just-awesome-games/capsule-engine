@@ -43,7 +43,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// mirrored, in the space and on the terms <see cref="Renderer.Bounds"/> states. Empty where the
     /// frame draws nothing — a region with no texels, or a scale that is not positive and finite.
     /// </summary>
-    public override ViewBounds Bounds
+    public override Rect Bounds
     {
         get
         {
@@ -55,7 +55,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             // The rect at rest, not the one it swept: bounds answer for the entity's current position.
             Vector2 position = entity.Position + entity.SpaceOrigin + Offset;
 
-            return Intent(position, position).TryGetSweptBounds(out ViewBounds bounds) ? bounds : default;
+            return Intent(position, position).TryGetSweptBounds(out Rect bounds) ? bounds : default;
         }
     }
 

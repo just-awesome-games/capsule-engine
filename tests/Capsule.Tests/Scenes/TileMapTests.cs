@@ -114,7 +114,7 @@ public sealed class TileMapTests
         Scene scene = new();
         scene.Camera.Center = new Vector2(0, 4);
         scene.Camera.ViewportSize = new Vector2(16, 8);
-        scene.Camera.Bounds = new ViewBounds(0f, 0f, 32f, 8f);
+        scene.Camera.Bounds = new Rect(0f, 0f, 32f, 8f);
         scene.Add(new TileMap(Run()));
 
         SceneSimulation simulation = new(scene);
