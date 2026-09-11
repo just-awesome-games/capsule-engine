@@ -22,43 +22,24 @@ namespace MinimalGame.Game.Entities;
 /// answer to <c>"enemies/bat"</c>; <c>[SpawnType("...")]</c> names a whole key in place of either.
 /// </para>
 /// <para>
-/// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body: the box collider is
-/// corner-anchored, and the sprite anchors its frame's bottom-centre at that same pivot offset
-/// from the corner, so the frame covers the body facing either way and an authored entry's
-/// coordinate is taken as that corner here. Anchoring an authored coordinate is each entity's own
-/// convention.
+/// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body: both box colliders are
+/// corner-anchored, and the sprite anchors its frame's bottom-centre at that same pivot offset from
+/// the corner, so the frame covers the body facing either way. Anchoring an authored coordinate is
+/// each entity's own convention.
 /// </para>
 /// <para>
-/// The frame is drawn by a <see cref="SpriteRenderer"/> whose <see cref="SpriteRenderer.FlipX"/>
-/// the walk direction sets, so one texture faces both ways. Flip and
-/// <see cref="SpriteRenderer.Scale"/> both work about the frame's pivot, and the pivot is the
-/// point <see cref="SpriteRenderer.Offset"/> puts on the body: at the feet, so a mirror is about
-/// the body's horizontal centre and a squash-and-stretch keeps the feet planted — the squash
-/// spreads into the floor instead of sinking through it, and the stretch grows upward.
+/// There are two colliders and two independent filters. The body is the box
+/// <see cref="KinematicBody2D"/> sweeps, and <see cref="KinematicBody2D.BlocksOn"/> names what stops
+/// that sweep — <c>solid</c> and <c>platform</c>, the layers the room's tiles are authored on — while
+/// it reports nothing. The inset hurtbox blocks nothing and is the only one reporting contacts, and
+/// its <see cref="Collider2D.SetFilter"/> names what it reports: <c>sensor</c> alone, so the player
+/// walks through a <see cref="Sensor"/>, says so, and spends a point of <see cref="Health"/> on it.
 /// </para>
 /// <para>
-/// Which frame that is comes from a <see cref="SpriteAnimator"/> playing the clips of
-/// <c>sprites/actors/player.sheet.json</c>: it walks while the walk axis is held and idles otherwise, and
-/// the clip asked for every step is ignored while it is already the one playing. Frames advance on
-/// ticks, so the frame the player is on is simulation state like its position.
-/// </para>
-/// <para>
-/// That squash-and-stretch is presentation and nothing more. Jumping and landing each throw the
-/// sprite's scale off <see cref="Vector2.One"/> and it eases back; the collider keeps its 8x8 box
-/// throughout, so a stretched player is no taller to the physics than a resting one.
-/// </para>
-/// <para>
-/// The two collision filters are independent. <see cref="KinematicBody2D.BlocksOn"/> names what
-/// stops the sweep — <c>solid</c> and <c>platform</c>, the layers the room's tiles are authored on
-/// — while <see cref="Collider2D.SetFilter"/> names what the collider reports, which is <c>sensor</c>
-/// alone: the player walks through a <see cref="Sensor"/>, says so, and spends a point of
-/// <see cref="Health"/> on it. Contacts, jumps and landings
-/// are logged through <see cref="Log"/>, which the shell drains to the console at boot, each line
-/// prefixed with the tick it happened on.
-/// </para>
-/// <para>
-/// A landing also plays a footfall through an <see cref="AudioSource"/>, whose clip the player
-/// declares as a preload and whose voice the host stops when the player leaves the scene.
+/// The squash-and-stretch is presentation and nothing more. Jumping and landing each throw the
+/// sprite's <see cref="SpriteRenderer.Scale"/> off <see cref="Vector2.One"/> and it eases back;
+/// both colliders keep their boxes throughout, so a stretched player is no taller to the physics
+/// than a resting one.
 /// </para>
 /// </summary>
 public sealed class Player : Entity
@@ -94,20 +75,31 @@ public sealed class Player : Entity
     /// </summary>
     private const float ScaleRecovery = 1.6f;
 
+    /// <summary>
+    /// How far the hurtbox is drawn in from each of the body's edges, in world units. A hurtbox
+    /// smaller than the drawn frame is the grace 2D games give the player: a near miss reads as a
+    /// miss. Widen it towards zero to make hits generous, inset it further to make them forgiving.
+    /// </summary>
+    private const int HurtboxInset = 1;
+
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
+
+    private static readonly Vector2 Hurtbox =
+        new(BodyPixels - (HurtboxInset * 2), BodyPixels - (HurtboxInset * 2));
 
     /// <summary>
     /// The frame's pivot, in texels from its top-left corner, and the same vector from the body's
-    /// corner to the point it anchors. Authored bottom-centre in the sheet on purpose: a flip and a
-    /// scale both work about the pivot, so the horizontal centre keeps the drawn frame over the
-    /// corner-anchored collider in both facings, and the bottom edge keeps a squashed or stretched
-    /// frame standing on the floor the body stands on. Every frame of the sheet shares it.
+    /// corner to the point it anchors. Authored bottom-centre in every frame of the sheet on purpose:
+    /// a flip and a scale both work about the pivot, so the horizontal centre keeps the drawn frame
+    /// over the corner-anchored body in both facings, and the bottom edge keeps a squashed or
+    /// stretched frame standing on the floor the body stands on.
     /// </summary>
     private static readonly Vector2 Pivot = CapsuleAssets.Sprites.Actors.Player.Frames.Idle0.Pivot;
 
     private readonly SpriteRenderer _sprite;
     private readonly SpriteAnimator _animator;
     private readonly KinematicBody2D _body;
+    private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
 
     private Vector2 _velocity;
@@ -119,25 +111,27 @@ public sealed class Player : Entity
         Add(_sprite);
 
         // Named rather than found: an entity drawing itself as several sprites animates the one
-        // it says.
+        // it says. Its frames advance on ticks, so the frame the player is on is simulation state
+        // like its position.
         _animator = new SpriteAnimator(_sprite);
         Add(_animator);
 
-        BoxCollider2D collider = new(Body);
-        collider.SetFilter("sensor");
-        collider.ReportsContacts = true;
-        collider.ContactEntered += contact =>
-        {
-            Health = Math.Max(Health - 1, 0);
-            Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
-        };
-        collider.ContactExited += contact =>
-            Log.Info(FormattableString.Invariant($"exited {contact.LayerName} at {contact.Point}"));
-        Add(collider);
+        BoxCollider2D bodyCollider = new(Body);
+        Add(bodyCollider);
 
-        _body = new KinematicBody2D(collider);
+        _body = new KinematicBody2D(bodyCollider);
         _body.BlocksOn("solid", "platform");
         Add(_body);
+
+        _hurtbox = new BoxCollider2D(Hurtbox)
+        {
+            Offset = new Vector2(HurtboxInset, HurtboxInset),
+            ReportsContacts = true,
+        };
+        _hurtbox.SetFilter("sensor");
+        _hurtbox.ContactEntered += OnHurtboxEntered;
+        _hurtbox.ContactExited += OnHurtboxExited;
+        Add(_hurtbox);
 
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft);
         Add(_footfall);
@@ -180,8 +174,8 @@ public sealed class Player : Entity
         {
             _velocity.Y = -JumpSpeed;
 
-            // Scale is presentation alone: the 8x8 box collider does not follow the frame, so
-            // this taller player is exactly as tall to the sweep below as a resting one.
+            // Neither collider follows the frame, so this taller player is exactly as tall to the
+            // sweep below as a resting one.
             _sprite.Scale = JumpStretch;
             Log.Info("jumped");
         }
@@ -214,6 +208,17 @@ public sealed class Player : Entity
             _velocity.Y = 0f;
         }
     }
+
+    // Named methods rather than lambdas: a handler with a name is one a subclass or a reader can
+    // find, and it can be detached by the same method group that subscribed it.
+    private void OnHurtboxEntered(ColliderContact2D contact)
+    {
+        Health = Math.Max(Health - 1, 0);
+        Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
+    }
+
+    private void OnHurtboxExited(ColliderContact2D contact) =>
+        Log.Info(FormattableString.Invariant($"exited {contact.LayerName} at {contact.Point}"));
 
     /// <summary>
     /// Moves <paramref name="value"/> towards <paramref name="target"/> by at most
