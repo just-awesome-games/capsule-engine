@@ -59,17 +59,11 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
         view.Add(Intent());
     }
 
-    private NineSliceIntent Intent()
-    {
-        Entity entity = Entity!;
-        Vector2 origin = entity.SpaceOrigin + Offset;
-
-        return new NineSliceIntent(
-            Sprite,
-            Insets,
-            entity.PreviousPosition + origin,
-            entity.Position + origin,
-            Size,
-            Color);
-    }
+    private NineSliceIntent Intent() => new(
+        Sprite,
+        Insets,
+        PreviousRenderPosition + Offset,
+        RenderPosition + Offset,
+        Size,
+        Color);
 }

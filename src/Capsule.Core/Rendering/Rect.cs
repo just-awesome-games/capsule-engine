@@ -5,8 +5,8 @@ namespace Capsule.Rendering;
 /// <summary>
 /// An axis-aligned rect, held as its four edges rather than a corner and an extent, in whatever
 /// units the thing reporting it names — world units or canvas pixels. Y-down:
-/// <see cref="Left"/> and <see cref="Top"/> are the low edges. It encloses an open region, so two
-/// rects sharing an edge do not intersect.
+/// <see cref="Left"/> and <see cref="Top"/> are the low edges. Overlap is open, so two rects sharing
+/// an edge do not <see cref="Intersects"/>; containment is half-open, as <see cref="Contains"/> states.
 /// </summary>
 /// <param name="Left">The low edge on X.</param>
 /// <param name="Top">The low edge on Y, which is Y-down and so the upper one on screen.</param>
@@ -41,15 +41,17 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
         !float.IsFinite(Bottom);
 
     /// <summary>
-    /// Whether <paramref name="point"/> lies inside this rect, in the same units. The region is open,
-    /// so a point on any edge is outside it and two rects sharing an edge never both claim a point on
-    /// it; an empty rect claims none at all, and a non-finite coordinate lands outside everything.
+    /// Whether <paramref name="point"/> lies inside this rect, in the same units. The region is
+    /// half-open: <see cref="Left"/> and <see cref="Top"/> are inside it and <see cref="Right"/> and
+    /// <see cref="Bottom"/> are not, so abutting rects tile the plane with no point claimed twice and
+    /// none left unclaimed. An empty rect claims nothing, and a non-finite coordinate lands outside
+    /// everything.
     /// </summary>
     public bool Contains(Vector2 point) =>
         !IsEmpty &&
-        point.X > Left &&
+        point.X >= Left &&
         point.X < Right &&
-        point.Y > Top &&
+        point.Y >= Top &&
         point.Y < Bottom;
 
     /// <summary>Whether this rect and <paramref name="other"/> overlap on both axes.</summary>

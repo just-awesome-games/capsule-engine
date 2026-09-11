@@ -53,7 +53,6 @@ public sealed class MainMenu : Scene
 
     public MainMenu()
     {
-        // The actions are the game's, declared once in GameInput and handed to every navigator it drives.
         _focus = new FocusNavigator<Label>(GameInput.MenuFocus, _start, _exit);
 
         _focus.FocusChanged += Show;
@@ -73,12 +72,8 @@ public sealed class MainMenu : Scene
     /// <inheritdoc/>
     protected override void OnStart()
     {
-        // The other half of the camera model: a scene with nothing to follow spans the plain camera it
-        // is given rather than installing one of its own, so its view is centred on the world origin.
         Camera.ViewportSize = World.ViewportSize;
 
-        // The title measures its own run instead of filling a box, so it hangs from the canvas's top
-        // edge by the margin alone.
         ScreenEntity title = new(Anchor.Top, new Vector2(0f, TitleMargin));
         title.Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
         {
@@ -97,8 +92,7 @@ public sealed class MainMenu : Scene
         exit.Add(_exit);
         Add(exit);
 
-        // The first item takes the focus with no move to report, so the opening state is shown from
-        // here; the items are in the scene by now, so their boxes measure.
+        // The first item's focus raises no move, and a label measures only once it is in the scene.
         Show(_focus.Focused!);
     }
 
@@ -113,8 +107,6 @@ public sealed class MainMenu : Scene
         }
     }
 
-    // A box, not a bare run: the alignment point is the box's centre, the caption is centred inside it,
-    // and Bounds is the whole box whatever the caption measures.
     private static Label Caption(string text) =>
         new(CapsuleAssets.Fonts.Menu, text)
         {
@@ -131,9 +123,8 @@ public sealed class MainMenu : Scene
             item.Color = ReferenceEquals(item, focused) ? FocusedInk : RestingInk;
         }
 
-        // The highlight is anchored to the canvas's top-left corner, so a position on it is the canvas
-        // pixel a bound already names. Teleported, because a bar that interpolated would trail a step
-        // behind the focus it marks.
+        // The highlight's top-left anchor is what makes a bound a position on it. Teleported, because a
+        // bar that interpolated would trail a step behind the focus it marks.
         Rect box = focused.Bounds;
         _highlight.Teleport(box.Position);
         _bar.Size = box.Size;

@@ -113,6 +113,10 @@ internal sealed class CapsuleGame : Game
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
 
+        // Update samples the mouse before the first Draw places the layer, so the mapping is settled
+        // here: the pointer the first step reads is a canvas position like every later one.
+        _renderer.ResolveScreenLayer(_simulation.View);
+
         // Installed once the renderer exists, since the watch can fire before the next frame does.
         SdlPlatform.WatchWindowRedraw(RedrawWindow);
 
@@ -124,8 +128,8 @@ internal sealed class CapsuleGame : Game
         _diagnostics?.BeginUpdate();
 
         // Sampled every frame including one that drains no step; the latch carries that frame's
-        // input to the step that eventually runs. The pointer is mapped through the placement the
-        // last drawn frame used, so it is a canvas position before it ever reaches the simulation.
+        // input to the step that eventually runs. The pointer is mapped through the screen layer's
+        // placement, so it is a canvas position before it ever reaches the simulation.
         DeviceSnapshot sampled = MouseSampler.SampleOnto(
             GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
             _renderer.ScreenLayer);

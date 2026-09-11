@@ -3,8 +3,8 @@ using Capsule.Rendering;
 
 namespace Capsule.Tests.Rendering;
 
-// Containment on the open region: what the pointer is tested against, so a point on a shared edge must
-// land in one rect at most — in neither, here.
+// Containment on the half-open region: what the pointer is tested against, so a point on a shared edge
+// lands in exactly one of two abutting rects.
 public sealed class RectTests
 {
     private static readonly Rect Box = new(10f, 20f, 30f, 40f);
@@ -32,12 +32,32 @@ public sealed class RectTests
 
     [Theory]
     [InlineData(10f, 30f)]
-    [InlineData(30f, 30f)]
     [InlineData(20f, 20f)]
+    [InlineData(10f, 20f)]
+    public void APointOnTheLowEdges_IsInside(float x, float y)
+    {
+        Assert.True(Box.Contains(new Vector2(x, y)));
+    }
+
+    [Theory]
+    [InlineData(30f, 30f)]
     [InlineData(20f, 40f)]
-    public void APointOnAnEdge_IsOutside(float x, float y)
+    [InlineData(30f, 40f)]
+    public void APointOnTheHighEdges_IsOutside(float x, float y)
     {
         Assert.False(Box.Contains(new Vector2(x, y)));
+    }
+
+    // The reason the region is half-open: two targets meeting on an edge must leave no pointer position
+    // unclaimed and none claimed twice, and a one-pixel target must claim its own integer corner.
+    [Fact]
+    public void AbuttingRects_ClaimASharedEdgeExactlyOnce()
+    {
+        Rect right = new(30f, 20f, 50f, 40f);
+
+        Assert.False(Box.Contains(new Vector2(30f, 30f)));
+        Assert.True(right.Contains(new Vector2(30f, 30f)));
+        Assert.True(new Rect(4f, 5f, 5f, 6f).Contains(new Vector2(4f, 5f)));
     }
 
     [Fact]

@@ -47,13 +47,13 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         get
         {
-            if (Entity is not { } entity)
+            if (Entity is null)
             {
                 return default;
             }
 
             // The rect at rest, not the one it swept: bounds answer for the entity's current position.
-            Vector2 position = entity.Position + entity.SpaceOrigin + Offset;
+            Vector2 position = RenderPosition + Offset;
 
             return Intent(position, position).TryGetSweptBounds(out Rect bounds) ? bounds : default;
         }
@@ -76,10 +76,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         ArgumentNullException.ThrowIfNull(view);
 
-        Entity entity = Entity!;
-        Vector2 origin = entity.SpaceOrigin + Offset;
-
-        view.Add(Intent(entity.PreviousPosition + origin, entity.Position + origin));
+        view.Add(Intent(PreviousRenderPosition + Offset, RenderPosition + Offset));
     }
 
     private SpriteIntent Intent(Vector2 previousPosition, Vector2 position)

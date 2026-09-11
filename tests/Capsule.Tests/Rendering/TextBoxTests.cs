@@ -160,6 +160,67 @@ public sealed class TextBoxTests
         Assert.True((Text("A") with { Font = null }).Bounds.IsEmpty);
     }
 
+    // A box is a hit target, so a run whose glyphs reach no frame must report none however large the box
+    // it was given is.
+    [Fact]
+    public void ARunCollapsedByItsScale_OccupiesNoBoxEitherWay()
+    {
+        TextIntent boxed = Text("AB") with { Size = new Vector2(40f, 30f) };
+
+        Assert.True((boxed with { Scale = Vector2.Zero }).Bounds.IsEmpty);
+        Assert.True((boxed with { Scale = new Vector2(1f, -1f) }).Bounds.IsEmpty);
+
+        // Positive, so it passes a sign test, and every glyph it blows up culls against the frame.
+        Assert.True((boxed with { Scale = new Vector2(float.PositiveInfinity, 1f) }).Bounds.IsEmpty);
+    }
+
+    [Fact]
+    public void ARunRevealingNoCodepoint_OccupiesNoBox()
+    {
+        TextIntent boxed = Text("AB") with { Size = new Vector2(40f, 30f) };
+
+        Assert.True((boxed with { VisibleCharacters = 0 }).Bounds.IsEmpty);
+        Assert.Equal(new Rect(0f, 0f, 40f, 30f), (boxed with { VisibleCharacters = 1 }).Bounds);
+    }
+
+    // The box is a hit target, so what the run submits is what it can be picked by: a line break spends
+    // a codepoint and draws nothing.
+    [Fact]
+    public void ARunOfNothingButLineBreaks_OccupiesNoBox()
+    {
+        Assert.True((Text("\n\n") with { Size = new Vector2(40f, 30f) }).Bounds.IsEmpty);
+    }
+
+    [Fact]
+    public void ARevealStoppingAtALeadingLineBreak_OccupiesNoBox()
+    {
+        TextIntent boxed = Text("\nA") with { Size = new Vector2(40f, 30f) };
+
+        Assert.True((boxed with { VisibleCharacters = 1 }).Bounds.IsEmpty);
+        Assert.Equal(new Rect(0f, 0f, 40f, 30f), (boxed with { VisibleCharacters = 2 }).Bounds);
+    }
+
+    // A space a font cuts no texels for submits a sprite of no extent, which culls: a reveal that reaches
+    // only such glyphs can be picked by nothing, so the box has to look past them for geometry rather
+    // than stop at the first glyph the font carries.
+    [Fact]
+    public void ARunOfNothingButBlankGlyphs_OccupiesNoBox()
+    {
+        Assert.True((Blank("  ") with { Size = new Vector2(40f, 30f) }).Bounds.IsEmpty);
+    }
+
+    [Fact]
+    public void ARevealStoppingAtABlankGlyph_OccupiesNoBox()
+    {
+        TextIntent boxed = Blank(" A") with { Size = new Vector2(40f, 30f) };
+
+        Assert.True((boxed with { VisibleCharacters = 1 }).Bounds.IsEmpty);
+        Assert.Equal(new Rect(0f, 0f, 40f, 30f), (boxed with { VisibleCharacters = 2 }).Bounds);
+    }
+
+    private static TextIntent Blank(string text) =>
+        new(FontFixtures.BlankSpaceFont(), text, Vector2.Zero, Vector2.Zero, Vector2.One, ColorRgba.White);
+
     private static TextIntent Text(string text) =>
         new(FontFixtures.Font(), text, Vector2.Zero, Vector2.Zero, Vector2.One, ColorRgba.White);
 }

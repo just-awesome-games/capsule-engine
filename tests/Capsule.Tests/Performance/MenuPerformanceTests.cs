@@ -72,10 +72,12 @@ public sealed class MenuPerformanceTests
         return rect;
     }
 
-    private sealed class Holder : Entity
+    // A screen entity, which is what the pointer hit-tests: a world item is skipped before its bounds are
+    // read, so a list of those would measure no hit test at all.
+    private sealed class Holder : ScreenEntity
     {
         internal Holder(Vector2 position, Component drawn)
-            : base(position)
+            : base(Anchor.TopLeft, position)
         {
             Add(drawn);
         }

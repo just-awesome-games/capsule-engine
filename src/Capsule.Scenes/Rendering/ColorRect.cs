@@ -31,31 +31,17 @@ public sealed class ColorRect(Vector2 size) : Renderer
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <inheritdoc/>
-    public override Rect Bounds
-    {
-        get
-        {
-            if (Entity is not { } entity)
-            {
-                return default;
-            }
-
-            return new Rect(entity.Position + entity.SpaceOrigin + Offset, Size);
-        }
-    }
+    public override Rect Bounds => Entity is null ? default : new Rect(RenderPosition + Offset, Size);
 
     /// <inheritdoc/>
     public override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
 
-        Entity entity = Entity!;
-        Vector2 origin = entity.SpaceOrigin + Offset;
-
         view.Add(new SpriteIntent(
             Sprite.White,
-            entity.PreviousPosition + origin,
-            entity.Position + origin,
+            PreviousRenderPosition + Offset,
+            RenderPosition + Offset,
             Size,
             FlipX: false,
             FlipY: false,

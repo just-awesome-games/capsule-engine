@@ -6,9 +6,9 @@ using Capsule.Scenes.Rendering;
 
 namespace Capsule.Tests.Input;
 
-// The focus machine: one dimension, edges only, a pointer that picks an item by the rect its renderer
-// reports, and two events that hand the item over. The items here are flat rects, so what the pointer is
-// inside is arithmetic.
+// The focus machine: one dimension, edges only, a pointer that picks a screen item by the rect its
+// renderer reports, and two events that hand the item over. The items here are flat rects on screen
+// entities, so what the pointer is inside is arithmetic.
 public sealed class FocusNavigatorTests
 {
     private static readonly InputAction Backward = new("Backward");
@@ -204,6 +204,74 @@ public sealed class FocusNavigatorTests
         Assert.Equal(1, menu.FocusedIndex);
     }
 
+    // The pointer is a canvas position and a world item's bounds are world units under a camera that
+    // moves, so the two are never compared: a world item is reached by the directions and confirm alone.
+    [Fact]
+    public void APointerOverAWorldItem_NeverPicksOrActivatesIt()
+    {
+        ColorRect screen = Item(new Vector2(0f, 20f));
+        ColorRect world = WorldItem(Vector2.Zero);
+
+        Scene scene = new();
+        scene.Add(screen.Entity!);
+        scene.Add(world.Entity!);
+
+        using SceneRun run = new(scene, canvas: new Vector2(320f, 180f));
+
+        // The camera looks 600 units away, so the canvas pixel the player points at names no part of the
+        // world rect whose numbers happen to hold it.
+        scene.Camera.Center = new Vector2(600f, 400f);
+        scene.Camera.ViewportSize = new Vector2(320f, 180f);
+        run.Step();
+
+        Assert.True(world.Bounds.Contains(InFirst));
+
+        Menu menu = new(screen, world);
+        menu.Pointer(InFirst).Rest();
+
+        Assert.Equal(0, menu.FocusedIndex);
+        Assert.Null(menu.MovedTo);
+
+        menu.Tap(MouseButton.Left);
+
+        Assert.Equal(0, menu.FocusedIndex);
+        Assert.Null(menu.ActivatedItem);
+
+        // Reachable all the same, by the actions that do not name a position.
+        menu.Tap(Key.Down);
+
+        Assert.Same(world, menu.Focused);
+    }
+
+    [Fact]
+    public void Focus_MovesTheFocusAndAnnouncesItAsAnInputMoveDoes()
+    {
+        ColorRect[] items = Items();
+        Menu menu = new(items);
+
+        menu.FocusOn(items[1]);
+
+        Assert.Equal(1, menu.FocusedIndex);
+        Assert.Same(items[1], menu.MovedTo);
+        Assert.Equal(["focus 1"], menu.Raised);
+
+        // Already focused: nothing moved, so nothing is announced.
+        menu.FocusOn(items[1]);
+
+        Assert.Equal(1, menu.FocusedIndex);
+        Assert.Empty(menu.Raised);
+    }
+
+    [Fact]
+    public void FocusOnAnItemTheNavigatorDoesNotHold_IsRefused()
+    {
+        FocusNavigator<Renderer> focus = new(Actions, Items());
+
+        Assert.Throws<ArgumentException>(() => focus.Focus(Item(Vector2.Zero)));
+        Assert.Throws<ArgumentNullException>(() => focus.Focus(null!));
+        Assert.Equal(0, focus.FocusedIndex);
+    }
+
     [Fact]
     public void AnItemAdded_TakesTheFocusOnlyWhereThereWasNoneAndAnnouncesNoMove()
     {
@@ -248,8 +316,8 @@ public sealed class FocusNavigatorTests
 
     private static ColorRect[] Items() => [Item(Vector2.Zero), Item(new Vector2(0f, 20f))];
 
-    // A rect on an entity of its own, which is all a renderer needs to report a rect: in world space it
-    // reads no canvas, so no scene and no run are involved.
+    // A rect on a screen entity of its own, which is what the pointer picks. A top-left anchor off any
+    // scene resolves to no origin, so the rect's canvas pixels are the position it was given.
     private static ColorRect Item(Vector2 position)
     {
         ColorRect rect = new(new Vector2(20f, 10f));
@@ -258,9 +326,26 @@ public sealed class FocusNavigatorTests
         return rect;
     }
 
-    private sealed class Holder : Entity
+    private static ColorRect WorldItem(Vector2 position)
+    {
+        ColorRect rect = new(new Vector2(20f, 10f));
+        _ = new WorldHolder(position, rect);
+
+        return rect;
+    }
+
+    private sealed class Holder : ScreenEntity
     {
         internal Holder(Vector2 position, Component drawn)
+            : base(Anchor.TopLeft, position)
+        {
+            Add(drawn);
+        }
+    }
+
+    private sealed class WorldHolder : Entity
+    {
+        internal WorldHolder(Vector2 position, Component drawn)
             : base(position)
         {
             Add(drawn);
@@ -349,6 +434,18 @@ public sealed class FocusNavigatorTests
 
         /// <summary>Steps with nothing new: the held state exactly as it stands.</summary>
         internal Menu Rest() => Advance(_held);
+
+        /// <summary>Focuses an item outright, as a game opening a menu on one does; steps nothing.</summary>
+        internal Menu FocusOn(Renderer item)
+        {
+            MovedTo = null;
+            ActivatedItem = null;
+            _raised.Clear();
+
+            _focus.Focus(item);
+
+            return this;
+        }
 
         private Menu Advance(in DeviceSnapshot snapshot)
         {

@@ -6,8 +6,8 @@ using Microsoft.Xna.Framework.Input;
 namespace Capsule.Runtime.Input;
 
 // Turns the OS mouse into the pointer and the mouse buttons of a DeviceSnapshot. The window position
-// it reads is mapped back through the placement the last drawn frame used, so what the simulation sees
-// is a canvas position whatever the window's size is and wherever the fit put the layer.
+// it reads is mapped back through the screen layer's placement, so what the simulation sees is a canvas
+// position whatever the window's size is and wherever the fit put the layer.
 internal static class MouseSampler
 {
     internal static DeviceSnapshot SampleOnto(DeviceSnapshot snapshot, in ScreenPlacement placement)

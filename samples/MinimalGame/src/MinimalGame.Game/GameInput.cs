@@ -57,8 +57,6 @@ public static class GameInput
         bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown);
         bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South);
 
-        // A mouse button binds beside a key or a pad button: the action, not the device, is what the
-        // menu reads.
         bindings.Bind(Click, MouseButton.Left);
         bindings.Bind(Quit, Key.Escape, PadButton.Start);
     }

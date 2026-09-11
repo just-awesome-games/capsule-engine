@@ -81,6 +81,29 @@ public sealed class UiPrimitiveTests
         Assert.Equal(new Vector2(54f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
+    // What a game's own renderer is handed: the position already resolved in the space its entity draws
+    // in, so a custom renderer lands on the screen layer from its anchor without arithmetic of its own.
+    [Fact]
+    public void ACustomRenderer_ReadsItsResolvedPositionsInItsEntitysSpace()
+    {
+        Probe probe = new();
+        Scene scene = new();
+        scene.Add(new Drifter(probe));
+
+        using SceneRun run = new(scene, canvas: new Vector2(100f, 50f));
+        run.Run(2);
+
+        // Two steps from the canvas's centre, which the anchor resolved to (50, 25).
+        Assert.Equal(new Vector2(52f, 25f), probe.Current);
+        Assert.Equal(new Vector2(51f, 25f), probe.Previous);
+        Assert.Equal(new Rect(52f, 25f, 54f, 27f), probe.Bounds);
+
+        SpriteIntent drawn = Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
+
+        Assert.Equal(probe.Current, drawn.Position);
+        Assert.Equal(probe.Previous, drawn.PreviousPosition);
+    }
+
     [Fact]
     public void APrimitiveOnNoEntity_OccupiesNoRect()
     {
@@ -102,6 +125,45 @@ public sealed class UiPrimitiveTests
             : base(new Vector2(4f, 5f))
         {
             Add(drawn);
+        }
+    }
+
+    private sealed class Drifter : ScreenEntity
+    {
+        internal Drifter(Component drawn)
+            : base(Anchor.Center, Vector2.Zero)
+        {
+            Add(drawn);
+        }
+
+        protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
+    }
+
+    // A renderer of the kind a game writes itself: it places its intent from the resolved positions
+    // rather than reaching for its entity's space origin.
+    private sealed class Probe : Renderer
+    {
+        internal Vector2 Current { get; private set; }
+
+        internal Vector2 Previous { get; private set; }
+
+        public override Rect Bounds => new(RenderPosition, new Vector2(2f, 2f));
+
+        public override void Draw(FrameView view)
+        {
+            ArgumentNullException.ThrowIfNull(view);
+
+            Current = RenderPosition;
+            Previous = PreviousRenderPosition;
+
+            view.Add(new SpriteIntent(
+                Sprite.White,
+                Previous,
+                Current,
+                new Vector2(2f, 2f),
+                FlipX: false,
+                FlipY: false,
+                ColorRgba.White));
         }
     }
 }

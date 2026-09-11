@@ -101,9 +101,81 @@ public sealed class ScreenPlacementTests
         Assert.Equal(320.5f, placement.ToCanvas(new Vector2(641f, 90f)).X);
     }
 
+    // The host samples the mouse before the first frame draws, so the placement is settled from the
+    // frame view and the back buffer up front: window pixels are never handed over as canvas pixels.
     [Fact]
-    public void BeforeAFrameHasDrawn_WindowPixelsAreCanvasPixels()
+    public void BeforeAFrameHasDrawn_AWindowPixelAlreadyReadsThroughTheLayersPlacement()
     {
-        Assert.Equal(new Vector2(7f, 9f), ScreenPlacement.Identity.ToCanvas(new Vector2(7f, 9f)));
+        ScreenPlacement declared = FrameRenderer.Layout((320, 180), View(Canvas), 1280, 720).Layer;
+
+        Assert.Equal(4f, declared.Scale);
+        Assert.Equal(new Vector2(40f, 25f), declared.ToCanvas(new Vector2(160f, 100f)));
+
+        // With no declared resolution the canvas is the configured window, which fills it at scale 1.
+        Vector2 window = new(1280f, 720f);
+        ScreenPlacement windowed = FrameRenderer.Layout(null, View(window, window), 1280, 720).Layer;
+
+        Assert.Equal(1f, windowed.Scale);
+        Assert.Equal(new Vector2(160f, 100f), windowed.ToCanvas(new Vector2(160f, 100f)));
+    }
+
+    [Fact]
+    public void BeforeAFrameHasDrawn_AWindowWithNoAreaPlacesNothing()
+    {
+        Assert.Equal(0f, FrameRenderer.Layout((320, 180), View(Canvas), 0, 720).Layer.Scale);
+        Assert.Equal(0f, FrameRenderer.Layout(null, View(Canvas), 0, 720).Layer.Scale);
+    }
+
+    // One routine resolves the surface, the slack in it and the present, so the layer a pointer is
+    // sampled through before the first frame is the layer that frame draws at — including under a fit
+    // that grows the surface past the declared resolution on a window of another aspect.
+    [Theory]
+    [InlineData(ViewportFit.Letterbox, 320, 180, 3f, 0f, 1f)]
+    [InlineData(ViewportFit.Expand, 320, 181, 2f, 160f, 90f)]
+    [InlineData(ViewportFit.FixedHeight, 320, 180, 3f, 0f, 1f)]
+    public void TheLayer_FollowsTheSurfaceTheCamerasFitAsksFor(
+        ViewportFit fit,
+        int surfaceWidth,
+        int surfaceHeight,
+        float scale,
+        float originX,
+        float originY)
+    {
+        // 960 by 542 is a hair narrower than the canvas: Expand grows the surface by the one row that
+        // covers it, which costs the whole present a scale.
+        ScreenLayout layout = FrameRenderer.Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
+
+        Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
+        Assert.Equal(scale, layout.Layer.Scale);
+        Assert.Equal(new Vector2(originX, originY), layout.Layer.Origin);
+    }
+
+    [Fact]
+    public void OnASurfaceTheFitGrew_TheLayerSitsAtItsSlackInsideThePresentedSurface()
+    {
+        // FixedHeight on a 2:1 window spans 360 world units across the 320-pixel canvas, so the
+        // surface is 360 wide and the canvas sits 20 pixels into it.
+        ScreenLayout layout = FrameRenderer.Layout(
+            (320, 180),
+            View(Canvas, Canvas, ViewportFit.FixedHeight),
+            1440,
+            720);
+
+        Assert.Equal((360, 180), layout.Surface);
+        Assert.Equal(new Vector2(20f, 0f), layout.OnSurface.Origin);
+        Assert.Equal(1f, layout.OnSurface.Scale);
+        Assert.Equal(4f, layout.Present.Scale);
+        Assert.Equal(new Vector2(80f, 0f), layout.Layer.Origin);
+        Assert.Equal(Vector2.Zero, layout.Layer.ToCanvas(new Vector2(80f, 0f)));
+    }
+
+    private static FrameView View(Vector2 canvas, Vector2? cameraSize = null, ViewportFit fit = ViewportFit.Letterbox)
+    {
+        return new FrameView
+        {
+            Canvas = canvas,
+            Sampling = TextureSampling.Point,
+            Camera = new CameraView(Vector2.Zero, Vector2.Zero, cameraSize ?? canvas, fit),
+        };
     }
 }

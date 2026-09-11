@@ -44,12 +44,15 @@ public sealed class FocusNavigator<T>
     }
 
     /// <summary>
-    /// Raised with the item the focus landed on, from inside the <see cref="Step"/> that moved it and
-    /// before any <see cref="Activated"/> of the same step. Not raised for the focus the first item
-    /// added takes, nor on a step whose press wrapped onto the item already focused — a one-item list
-    /// never reports a move. Handlers are bound by the same rule as
+    /// Raised with the item the focus landed on, by the two calls that move it: from inside the
+    /// <see cref="Step"/> that moved it and before any <see cref="Activated"/> of the same step, and
+    /// from inside <see cref="Focus(T)"/> before that call returns. Not raised for the focus the first
+    /// item added takes, nor where the focus does not move — a step whose press wrapped onto the item
+    /// already focused, so a one-item list never reports a move, or a <see cref="Focus(T)"/> of the
+    /// item that already has it. Handlers are bound by the same rule as
     /// <see cref="Physics.Collider2D.ContactEntered"/>: they run synchronously, in subscription order,
-    /// and what they change is changed by the time the step's next stage runs.
+    /// and what they change is changed by the time the call that raised them returns — the step's next
+    /// stage, or whatever follows the <see cref="Focus(T)"/>.
     /// </summary>
     public event Action<T>? FocusChanged;
 
@@ -96,6 +99,33 @@ public sealed class FocusNavigator<T>
     }
 
     /// <summary>
+    /// Moves the focus onto <paramref name="item"/>, raising <see cref="FocusChanged"/> exactly as an
+    /// input move would; a no-op, raising nothing, where that item already has it. This is how a game
+    /// opens a menu on something other than its first item, or restores the focus it left.
+    /// </summary>
+    /// <param name="item">The item to focus, which this navigator must already hold.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
+    /// <exception cref="ArgumentException">The item is not one of <see cref="Items"/>.</exception>
+    public void Focus(T item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        int index = _items.IndexOf(item);
+        if (index < 0)
+        {
+            throw new ArgumentException($"{item.GetType().Name} is not an item of this navigator.", nameof(item));
+        }
+
+        if (index == FocusedIndex)
+        {
+            return;
+        }
+
+        FocusedIndex = index;
+        FocusChanged?.Invoke(item);
+    }
+
+    /// <summary>
     /// Advances the focus by one step of <paramref name="input"/>, raising
     /// <see cref="FocusChanged"/> and then <see cref="Activated"/> for whatever this step did. Every
     /// action is read on its press edge alone, so a held direction moves the focus once and never
@@ -108,6 +138,12 @@ public sealed class FocusNavigator<T>
     /// Items are hit-tested in list order and the first the pointer is inside wins; one whose bounds
     /// are empty is never under it. A click pressed over no item does nothing at all, and unlike the
     /// pointer's own focusing it does not need the pointer to have moved.
+    /// </para>
+    /// <para>
+    /// The pointer reaches items on a <see cref="ScreenEntity"/> and no others: it is a canvas position,
+    /// and a world item's bounds are world units under a camera that moves. A world-space item is
+    /// reached by the directional actions and <see cref="FocusActions.Confirm"/> alone, and neither the
+    /// pointer nor a click ever focuses or activates one.
     /// </para>
     /// </summary>
     /// <param name="input">The run's input state, read for this step's edges and pointer.</param>
@@ -173,12 +209,14 @@ public sealed class FocusNavigator<T>
         }
     }
 
-    // The first item the pointer is inside, or -1 where it is inside none of them.
+    // The first screen item the pointer is inside, or -1 where it is inside none of them. A world item
+    // is skipped rather than tested: the pointer is canvas pixels and its bounds are world units, so the
+    // comparison would be arithmetic between two unrelated spaces.
     private int IndexUnder(Vector2 pointer)
     {
         for (int i = 0; i < _items.Count; i++)
         {
-            if (_items[i].Bounds.Contains(pointer))
+            if (_items[i].Entity is ScreenEntity && _items[i].Bounds.Contains(pointer))
             {
                 return i;
             }

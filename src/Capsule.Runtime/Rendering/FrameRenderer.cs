@@ -36,7 +36,8 @@ internal sealed class FrameRenderer : IDisposable
     private RenderTarget2D? _target;
 
     // Where the screen layer landed on the last frame drawn, which is what turns a sampled mouse
-    // position back into a canvas position.
+    // position back into a canvas position. Seeded by ResolveScreenLayer before the first frame, since
+    // the host samples the mouse ahead of that frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
 
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
@@ -70,51 +71,91 @@ internal sealed class FrameRenderer : IDisposable
         int outputWidth = backBuffer.BackBufferWidth;
         int outputHeight = backBuffer.BackBufferHeight;
 
-        // The window is the output the fit answers to on both paths: a declared canvas is derived
-        // from the resolved rect rather than being the thing that shapes it. The span travels
-        // beside the rect because subtracting the rect's edges loses precision far from the
-        // origin, and the scale it feeds is what quantises every sprite to the pixel grid.
-        Vector2 output = new(outputWidth, outputHeight);
-        Vector2 span = view.Camera.ResolveSpan(output);
-        Rect world = view.Camera.Resolve(alpha, output);
+        ScreenLayout layout = Layout(_canvas, view, outputWidth, outputHeight);
+        Rect world = view.Camera.Resolve(alpha, new Vector2(outputWidth, outputHeight));
 
-        if (_canvas is not { } canvas)
+        if (_canvas is null)
         {
-            DrawWorld(view, alpha, world, span, outputWidth, outputHeight);
+            DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight);
+        }
+        else
+        {
+            RenderTarget2D target = Surface(layout.Surface);
 
-            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
-            if (windowed.Scale > 0f)
-            {
-                DrawScreen(view, alpha, windowed, outputWidth, outputHeight);
-                _placement = windowed;
-            }
+            _device.SetRenderTarget(target);
+            DrawWorld(view, alpha, world, layout.Span, target.Width, target.Height);
 
-            return;
+            // Over the world's own bars: the viewport is the whole surface again and the canvas sits
+            // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
+            DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height);
+
+            _device.SetRenderTarget(null);
+            Present(target, view.Sampling, layout.Present);
         }
 
-        RenderTarget2D target = Surface(canvas, view.Camera.Size, span, outputWidth, outputHeight);
-
-        _device.SetRenderTarget(target);
-        DrawWorld(view, alpha, world, span, target.Width, target.Height);
-
-        // Over the world's own bars: the viewport is the whole surface again and the canvas sits
-        // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
-        Vector2 slack = ScreenSlack(target.Width, target.Height, view.Canvas);
-        DrawScreen(view, alpha, new ScreenPlacement(slack, 1f), target.Width, target.Height);
-
-        _device.SetRenderTarget(null);
-
-        ScreenPlacement presented = TargetPlacement(view.Sampling, target.Width, target.Height, outputWidth, outputHeight);
-        Present(target, view.Sampling, presented);
-
-        if (presented.Scale > 0f)
+        if (layout.Layer.Scale > 0f)
         {
-            _placement = new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale);
+            _placement = layout.Layer;
         }
     }
 
-    // Where the screen layer landed in the window on the last frame drawn. Identity until one has.
+    // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
+    // settled before the first one.
     internal ScreenPlacement ScreenLayer => _placement;
+
+    // Settles ScreenLayer for view at the back buffer's current extent, drawing nothing. The host
+    // samples the mouse before the first frame, and an unplaced layer would hand the simulation window
+    // pixels as canvas pixels for that frame.
+    internal void ResolveScreenLayer(FrameView view)
+    {
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        ScreenLayout layout = Layout(_canvas, view, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+
+        if (layout.Layer.Scale > 0f)
+        {
+            _placement = layout.Layer;
+        }
+    }
+
+    // The whole presentation geometry for view on a back buffer of this extent, on both paths: the
+    // canvas letterboxed straight into the back buffer where the world rasterises into it, and the
+    // render surface the camera's resolved span asks for, presented into the back buffer, where a
+    // resolution is declared. Drawing and the placement a pointer is sampled through both come from
+    // here, since a camera fit that grows the surface moves the layer with it: the two resolved apart
+    // would hand the first frames' samples back as the wrong canvas pixels.
+    internal static ScreenLayout Layout(
+        (int Width, int Height)? renderResolution,
+        FrameView view,
+        int outputWidth,
+        int outputHeight)
+    {
+        // The window is the output the fit answers to on both paths: a declared canvas is derived
+        // from the resolved rect rather than being the thing that shapes it. The span travels beside
+        // the rect because subtracting the rect's edges loses precision far from the origin, and the
+        // scale it feeds is what quantises every sprite to the pixel grid.
+        Vector2 span = view.Camera.ResolveSpan(new Vector2(outputWidth, outputHeight));
+
+        if (renderResolution is not { } resolution)
+        {
+            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+
+            return new ScreenLayout(span, (outputWidth, outputHeight), windowed, default, windowed);
+        }
+
+        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera.Size, span, outputWidth, outputHeight);
+        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
+        ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
+
+        return new ScreenLayout(
+            span,
+            surface,
+            new ScreenPlacement(slack, 1f),
+            presented,
+            presented.Scale > 0f
+                ? new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale)
+                : default);
+    }
 
     // Half of what the surface has over the canvas, in whole surface pixels: under Expand or
     // FixedHeight the surface grows past the canvas to reveal more world, and the screen layer stays
@@ -157,15 +198,10 @@ internal sealed class FrameRenderer : IDisposable
             fit.Scale);
     }
 
-    private RenderTarget2D Surface(
-        (int Width, int Height) canvas,
-        Vector2 declaredSpan,
-        Vector2 resolvedSpan,
-        int outputWidth,
-        int outputHeight)
+    private RenderTarget2D Surface((int Width, int Height) extent)
     {
         RenderTarget2D target = _target!;
-        (int width, int height) = SurfaceSize(canvas, declaredSpan, resolvedSpan, outputWidth, outputHeight);
+        (int width, int height) = extent;
 
         if (target.Width == width && target.Height == height)
         {

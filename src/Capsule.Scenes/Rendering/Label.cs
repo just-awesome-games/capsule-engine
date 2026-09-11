@@ -99,16 +99,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         view.Add(Intent());
     }
 
-    private TextIntent Intent()
-    {
-        Entity entity = Entity!;
-        Vector2 origin = entity.SpaceOrigin + Offset;
-
-        return new TextIntent(
+    private TextIntent Intent() =>
+        new(
             Font,
             Text,
-            entity.PreviousPosition + origin,
-            entity.Position + origin,
+            PreviousRenderPosition + Offset,
+            RenderPosition + Offset,
             Scale,
             Color)
         {
@@ -118,5 +114,4 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             VerticalAlignment = VerticalAlignment,
             VisibleCharacters = VisibleCharacters,
         };
-    }
 }
