@@ -7,8 +7,9 @@ namespace Capsule.Scenes.Input;
 /// and handed to every navigator it drives.
 /// </summary>
 /// <param name="Up">
-/// Moves the focus to the item above the focused one that is the best trade of alignment against
-/// closeness; see <see cref="FocusNavigator"/> for the score and the wrap.
+/// Moves the focus to the item the focused one names above it, or, naming none, to the item above it
+/// that is the best trade of alignment against closeness; see <see cref="FocusNavigator"/> for the
+/// named neighbour, the score and the wrap.
 /// </param>
 /// <param name="Down">Moves it to the item below chosen the same way.</param>
 /// <param name="Left">Moves it to the item to the left chosen the same way.</param>

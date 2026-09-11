@@ -15,12 +15,24 @@ namespace Capsule.Scenes.Input;
 /// step allocates nothing.
 /// </para>
 /// <para>
-/// A direction ranks the items lying that way from the focused one's <see cref="Focusable.Bounds"/>
-/// centre by <c>dot(direction, delta) / |delta|²</c>, highest first: alignment and closeness trade
-/// against each other rather than one being settled before the other, so a near diagonal can win
-/// over a far aligned item — pressing right with deltas of <c>(40, 0)</c> and <c>(10, 10)</c> scores
-/// them 0.025 and 0.05 and moves to the diagonal. Ties go to list order, and where nothing lies that
-/// way the focus wraps to the item farthest the other way.
+/// Where the focused item names no neighbour for it, a direction ranks the items lying that way from
+/// the focused one's <see cref="Focusable.Bounds"/> centre by <c>dot(direction, delta) / |delta|²</c>,
+/// highest first: alignment and closeness trade against each other rather than one being settled
+/// before the other, so a near diagonal can win over a far aligned item — pressing right with deltas
+/// of <c>(40, 0)</c> and <c>(10, 10)</c> scores them 0.025 and 0.05 and moves to the diagonal. Ties go
+/// to list order, and where nothing lies that way the focus wraps to the item farthest the other way.
+/// </para>
+/// <para>
+/// A neighbour the focused item names — its <see cref="Focusable.Up"/>, <see cref="Focusable.Down"/>,
+/// <see cref="Focusable.Left"/> or <see cref="Focusable.Right"/> — is read before that geometry: it is
+/// the move, and neither the score nor the wrap is consulted, so a menu may name one direction on one
+/// item and leave the rest automatic. An item naming itself blocks that direction, moving nothing and
+/// raising nothing. A named item that is not live hands the move on to the item it names in the same
+/// direction, as far as the chain runs, so a column still works while one of its items is out of the
+/// scene; a chain that names nothing further, or that comes back on an item it already reached, moves
+/// nothing. Every item a chain reaches must be one of <see cref="Items"/> — the focus moves only among
+/// the items one navigator holds, so one screen's menus are one navigator — and a neighbour that is
+/// not throws <see cref="InvalidOperationException"/> from the step that read it.
 /// </para>
 /// <para>
 /// An item is <em>live</em> while its <see cref="Component.Entity"/> is one a scene still holds, and
@@ -165,8 +177,11 @@ public sealed class FocusNavigator : Component
     /// <para>
     /// Every action is read on its press edge alone, so a held direction moves the focus once and
     /// never repeats, and a step holding two directions reads the first of up, down, left and right.
-    /// A direction resolves by the geometry this class documents: the live item lying that way with
-    /// the highest <c>dot(direction, delta) / |delta|²</c>, or the wrap where none lies that way.
+    /// A direction the focused item names a neighbour for resolves to that neighbour, or to what the
+    /// chain this class documents reaches through it, and moves nothing where the item names itself or
+    /// the chain ends without a live item. A direction it names none for resolves by the geometry: the
+    /// live item lying that way with the highest <c>dot(direction, delta) / |delta|²</c>, or the wrap
+    /// where none lies that way.
     /// </para>
     /// <para>
     /// A pointer that moved this step and lies inside an item's bounds focuses it; a pointer resting
@@ -184,6 +199,9 @@ public sealed class FocusNavigator : Component
     /// its scene drops the press rather than redirecting it; the next step repairs the focus.
     /// </para>
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The direction this step read reached a named neighbour this navigator does not hold.
+    /// </exception>
     protected internal override void OnStep(in StepContext context)
     {
         if (Focused is not { } focused || !Live(focused))
@@ -235,21 +253,82 @@ public sealed class FocusNavigator : Component
     {
         if (input.WasPressed(_actions.Up))
         {
-            return Neighbour(from, -Vector2.UnitY);
+            return Stepped(from, Side.Up);
         }
 
         if (input.WasPressed(_actions.Down))
         {
-            return Neighbour(from, Vector2.UnitY);
+            return Stepped(from, Side.Down);
         }
 
         if (input.WasPressed(_actions.Left))
         {
-            return Neighbour(from, -Vector2.UnitX);
+            return Stepped(from, Side.Left);
         }
 
-        return input.WasPressed(_actions.Right) ? Neighbour(from, Vector2.UnitX) : null;
+        return input.WasPressed(_actions.Right) ? Stepped(from, Side.Right) : null;
     }
+
+    // The item `side` reaches from `from`: the neighbour it names for that side, and the geometry only
+    // where it names none. Null where the side is blocked or its chain of named neighbours ends
+    // without a live item.
+    private Focusable? Stepped(Focusable from, Side side)
+    {
+        if (Named(from, side) is not { } named)
+        {
+            return Neighbour(from, Axis(side));
+        }
+
+        Focusable step = named;
+
+        // The item count bounds the walk: a chain longer than that has revisited an item, and a cycle
+        // reaches nothing a shorter walk would not have.
+        for (int i = 0; i < _items.Count; i++)
+        {
+            if (ReferenceEquals(step, from))
+            {
+                return null;
+            }
+
+            if (!_items.Contains(step))
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(Focusable)} names a focus neighbour this navigator does not hold: the focus moves only among the items one navigator holds, so one screen's menus are one navigator.");
+            }
+
+            if (Live(step))
+            {
+                return step;
+            }
+
+            if (Named(step, side) is not { } next)
+            {
+                return null;
+            }
+
+            step = next;
+        }
+
+        return null;
+    }
+
+    private static Focusable? Named(Focusable item, Side side) =>
+        side switch
+        {
+            Side.Up => item.Up,
+            Side.Down => item.Down,
+            Side.Left => item.Left,
+            _ => item.Right,
+        };
+
+    private static Vector2 Axis(Side side) =>
+        side switch
+        {
+            Side.Up => -Vector2.UnitY,
+            Side.Down => Vector2.UnitY,
+            Side.Left => -Vector2.UnitX,
+            _ => Vector2.UnitX,
+        };
 
     // The item `direction` reaches from `from`: the live item lying that way whose
     // dot(direction, delta) / |delta|² is highest, so alignment and closeness trade against each
@@ -417,5 +496,13 @@ public sealed class FocusNavigator : Component
 
             Focused = landing;
         }
+    }
+
+    private enum Side
+    {
+        Up,
+        Down,
+        Left,
+        Right,
     }
 }

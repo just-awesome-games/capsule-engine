@@ -9,7 +9,8 @@ namespace Capsule.Scenes.Input;
 /// nothing — what the focus looks like is whatever the entity does in <see cref="Focused"/> and
 /// <see cref="Unfocused"/>.
 /// <para>
-/// Only a navigator holding this focusable raises its events, so one in no navigator is inert.
+/// Only a navigator holding this focusable raises its events, so one in no navigator is inert; the
+/// neighbours it names are data until a navigator reads them.
 /// </para>
 /// </summary>
 /// <param name="size">The extent the hit box covers; see <see cref="Size"/>.</param>
@@ -34,6 +35,38 @@ public sealed class Focusable(Vector2 size) : Component
     /// current position; <c>default</c> while attached to no entity.
     /// </summary>
     public Rect Bounds => Entity is { } entity ? new Rect(entity.Position + entity.SpaceOrigin + Offset, Size) : default;
+
+    /// <summary>
+    /// The item a navigator's up direction moves to from this one, read before the geometry. Null —
+    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
+    /// it, moving nothing; a named item that is not live hands the move on to its own
+    /// <see cref="Up"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
+    /// </summary>
+    public Focusable? Up { get; set; }
+
+    /// <summary>
+    /// The item a navigator's down direction moves to from this one, read before the geometry. Null —
+    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
+    /// it, moving nothing; a named item that is not live hands the move on to its own
+    /// <see cref="Down"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
+    /// </summary>
+    public Focusable? Down { get; set; }
+
+    /// <summary>
+    /// The item a navigator's left direction moves to from this one, read before the geometry. Null —
+    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
+    /// it, moving nothing; a named item that is not live hands the move on to its own
+    /// <see cref="Left"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
+    /// </summary>
+    public Focusable? Left { get; set; }
+
+    /// <summary>
+    /// The item a navigator's right direction moves to from this one, read before the geometry. Null
+    /// — the default — leaves that direction to the geometry and its wrap, and this item itself
+    /// blocks it, moving nothing; a named item that is not live hands the move on to its own
+    /// <see cref="Right"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
+    /// </summary>
+    public Focusable? Right { get; set; }
 
     /// <summary>
     /// Whether a navigator's focus is on this item. False until the navigator holding it starts,
