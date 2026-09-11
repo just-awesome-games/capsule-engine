@@ -89,7 +89,7 @@ public readonly record struct CameraView(
         }
 
         Vector2 span = ResolveSpan(outputSize);
-        Vector2 center = Vector2.Lerp(PreviousCenter, Center, alpha);
+        Vector2 center = StepInterpolation.Interpolate(PreviousCenter, Center, alpha);
 
         Vector2 half = span / 2f;
 

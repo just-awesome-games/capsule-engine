@@ -476,7 +476,7 @@ internal sealed class FrameRenderer : IDisposable
             texture = resolved.IsEngineOwned ? _white : _textures.Get(resolved);
         }
 
-        Vector2 position = Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha);
+        Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha);
         if (snap)
         {
             position = PixelGrid.Snap(position, surfaceScale);

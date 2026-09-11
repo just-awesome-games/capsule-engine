@@ -14,9 +14,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
 
-    <!-- Also SnapshotLatch, which carries a frame's sample to the step that consumes it, and the
+    <!-- Also SnapshotLatch, which carries a frame's sample to the step that consumes it; the
          audio the host plays: AssetCollection.Clips, and Voice.Slot and Voice.Generation, which
-         are how a command addresses the host's voice table. -->
+         are how a command addresses the host's voice table; and StepInterpolation, the one form
+         every frame-alpha interpolation takes so a stationary sample cannot drift. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 
