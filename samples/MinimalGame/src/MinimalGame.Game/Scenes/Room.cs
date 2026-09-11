@@ -87,6 +87,6 @@ public sealed class Room : Scene
 
         /// <inheritdoc/>
         protected override void OnLateStep(in StepContext context) =>
-            _fill.Size = new Vector2(Span.X * _player.Health / Player.MaxHealth, Span.Y);
+            _fill.Size = new Vector2(Span.X * _player.Health / _player.Tuning.MaxHealth, Span.Y);
     }
 }

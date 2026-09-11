@@ -41,51 +41,17 @@ namespace MinimalGame.Game.Entities;
 /// both colliders keep their boxes throughout, so a stretched player is no taller to the physics
 /// than a resting one.
 /// </para>
+/// <para>
+/// Its designer-owned levers live in <see cref="PlayerTuning"/>, the way a Unity ScriptableObject or
+/// a Godot Resource would hold them; nothing in the engine knows that record exists.
+/// </para>
 /// </summary>
 public sealed class Player : Entity
 {
-    /// <summary>Sensor contacts the player survives; the health it starts a room with.</summary>
-    public const int MaxHealth = 4;
-
-    /// <summary>World units per second.</summary>
-    private const float WalkSpeed = 80f;
-
-    /// <summary>World units per second squared, downwards in a Y-down world.</summary>
-    private const float Gravity = 600f;
-
-    /// <summary>World units per second at take-off; an apex of about 40px, clearing a two-tile ledge.</summary>
-    private const float JumpSpeed = 220f;
-
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
-    /// <summary>
-    /// The scale the sprite snaps to on take-off: tall and thin, the classic platformer stretch.
-    /// Tune the pair together — the product is what reads as volume, and nothing enforces it.
-    /// </summary>
-    private static readonly Vector2 JumpStretch = new(0.6f, 1.4f);
-
-    /// <summary>The scale the sprite snaps to on landing: wide and flat, the stretch inverted.</summary>
-    private static readonly Vector2 LandSquash = new(1.4f, 0.6f);
-
-    /// <summary>
-    /// Scale units per second each axis walks back towards 1 after an impulse. At 1.6 the 0.4 of
-    /// either impulse is spent in a quarter second; raise it for a snappier recovery, lower it to
-    /// let the deformation linger.
-    /// </summary>
-    private const float ScaleRecovery = 1.6f;
-
-    /// <summary>
-    /// How far the hurtbox is drawn in from each of the body's edges, in world units. A hurtbox
-    /// smaller than the drawn frame is the grace 2D games give the player: a near miss reads as a
-    /// miss. Widen it towards zero to make hits generous, inset it further to make them forgiving.
-    /// </summary>
-    private const int HurtboxInset = 1;
-
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
-
-    private static readonly Vector2 Hurtbox =
-        new(BodyPixels - (HurtboxInset * 2), BodyPixels - (HurtboxInset * 2));
 
     /// <summary>
     /// The frame's pivot, in texels from its top-left corner, and the same vector from the body's
@@ -101,12 +67,16 @@ public sealed class Player : Entity
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
+    private readonly PlayerTuning _tuning = PlayerTuning.Default;
 
     private Vector2 _velocity;
 
     public Player(EntitySpawn spawn)
         : base(spawn.Position)
     {
+        Health = _tuning.MaxHealth;
+
+
         _sprite = new SpriteRenderer(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0) { Offset = Pivot };
         Add(_sprite);
 
@@ -123,9 +93,10 @@ public sealed class Player : Entity
         _body.BlocksOn("solid", "platform");
         Add(_body);
 
-        _hurtbox = new BoxCollider2D(Hurtbox)
+        float hurtboxEdge = BodyPixels - (_tuning.HurtboxInset * 2);
+        _hurtbox = new BoxCollider2D(new Vector2(hurtboxEdge, hurtboxEdge))
         {
-            Offset = new Vector2(HurtboxInset, HurtboxInset),
+            Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
             ReportsContacts = true,
         };
         _hurtbox.SetFilter("sensor");
@@ -137,11 +108,15 @@ public sealed class Player : Entity
         Add(_footfall);
     }
 
+    /// <summary>The levers this player runs on, fixed for its lifetime.</summary>
+    public ref readonly PlayerTuning Tuning => ref _tuning;
+
     /// <summary>
-    /// What is left of <see cref="MaxHealth"/>: one spent on every sensor contact entered, and never
-    /// below zero. Simulation state like a position, so the interface reads it on the step it changed.
+    /// What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent on every sensor contact
+    /// entered, and never below zero. Simulation state like a position, so the interface reads it on
+    /// the step it changed.
     /// </summary>
-    public int Health { get; private set; } = MaxHealth;
+    public int Health { get; private set; }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
@@ -151,12 +126,12 @@ public sealed class Player : Entity
         // Recovery runs before this step's impulses, so an impulse set below is drawn whole.
         // On the fixed step, so the deformation is identical on every machine and frame rate.
         _sprite.Scale = new Vector2(
-            Approach(_sprite.Scale.X, 1f, ScaleRecovery * delta),
-            Approach(_sprite.Scale.Y, 1f, ScaleRecovery * delta));
+            Approach(_sprite.Scale.X, 1f, _tuning.ScaleRecovery * delta),
+            Approach(_sprite.Scale.Y, 1f, _tuning.ScaleRecovery * delta));
 
         // The body applies no forces: velocity is the game's, every step.
-        _velocity.X = context.Input.Axis(GameInput.Move) * WalkSpeed;
-        _velocity.Y += Gravity * delta;
+        _velocity.X = context.Input.Axis(GameInput.Move) * _tuning.WalkSpeed;
+        _velocity.Y += _tuning.Gravity * delta;
 
         // Facing is kept through a standstill, so the player stops looking where it walked.
         if (_velocity.X != 0f)
@@ -172,11 +147,11 @@ public sealed class Player : Entity
         bool wasOnFloor = _body.IsOnFloor;
         if (wasOnFloor && context.Input.WasPressed(GameInput.Jump))
         {
-            _velocity.Y = -JumpSpeed;
+            _velocity.Y = -_tuning.JumpSpeed;
 
             // Neither collider follows the frame, so this taller player is exactly as tall to the
             // sweep below as a resting one.
-            _sprite.Scale = JumpStretch;
+            _sprite.Scale = _tuning.JumpStretch;
             Log.Info("jumped");
         }
 
@@ -194,7 +169,7 @@ public sealed class Player : Entity
                 {
                     if (contact.Normal.Y < 0f)
                     {
-                        _sprite.Scale = LandSquash;
+                        _sprite.Scale = _tuning.LandSquash;
                         _footfall.Play();
                         Log.Info("landed on " + contact.LayerName);
                         break;
