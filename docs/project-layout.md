@@ -22,7 +22,7 @@ The assembly root holds the game's declarations — its collision layer names, i
 src/MinimalGame.Game/
   GameInput.cs  World.cs
   Scenes/    MainMenu.cs  Room.cs
-  Entities/  Player.cs  Sensor.cs
+  Entities/  Player.cs  Hazard.cs
   Cameras/   GameCamera.cs
   Assets/    Scenes/  Sprites/  Textures/  Audio/
 src/MinimalGame.Shell/

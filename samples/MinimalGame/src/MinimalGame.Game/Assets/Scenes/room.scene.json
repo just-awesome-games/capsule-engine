@@ -26,7 +26,9 @@
             "cell": 1,
             "layer": "platform",
             "collidableFaces": [
-              "top"
+              "top",
+              "left",
+              "right"
             ]
           }
         ],
@@ -282,7 +284,7 @@
     },
     {
       "id": 2,
-      "type": "sensor",
+      "type": "hazard",
       "x": 80,
       "y": 152
     }

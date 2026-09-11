@@ -9,22 +9,22 @@ using Capsule.Scenes.Spawning;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// An entity that collides without blocking. It sits on the <c>sensor</c> collision layer, which
+/// An entity that collides without blocking. It sits on the <c>hazard</c> collision layer, which
 /// <see cref="Player"/> detects but does not block on, so the player walks straight through it and
 /// its contact is only reported. It listens to nothing itself: it never turns
 /// <see cref="Collider2D.ReportsContacts"/> on, so it costs a shape in the world and no work.
 /// </summary>
-public sealed class Sensor : Entity
+public sealed class Hazard : Entity
 {
     private static readonly Vector2 Body = new(16f, 24f);
 
-    /// <summary>The whole of <c>textures/sensor.png</c>, anchored at its top-left corner; it never flips, so the pivot stays there.</summary>
-    private static readonly Sprite Field = new(CapsuleAssets.Textures.Sensor, new TextureRegion(0, 0, 16, 24));
+    /// <summary>The whole of <c>textures/hazard.png</c>, anchored at its top-left corner; it never flips, so the pivot stays there.</summary>
+    private static readonly Sprite Field = new(CapsuleAssets.Textures.Hazard, new TextureRegion(0, 0, 16, 24));
 
-    public Sensor(EntitySpawn spawn)
+    public Hazard(EntitySpawn spawn)
         : base(spawn.Position)
     {
         Add(new SpriteRenderer(Field));
-        Add(new BoxCollider2D(Body) { Layer = "sensor" });
+        Add(new BoxCollider2D(Body) { Layer = CollisionLayers.Hazard });
     }
 }

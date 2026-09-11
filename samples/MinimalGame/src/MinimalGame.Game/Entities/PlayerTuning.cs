@@ -20,7 +20,7 @@ namespace MinimalGame.Game.Entities;
 /// <param name="ScaleRecovery">Scale units per second each axis walks back towards 1 after an
 /// impulse. At 1.6 the 0.4 of either impulse is spent in a quarter second; raise it for a snappier
 /// recovery, lower it to let the deformation linger.</param>
-/// <param name="MaxHealth">Sensor contacts the player survives; the health it starts a room
+/// <param name="MaxHealth">Hazard contacts the player survives; the health it starts a room
 /// with.</param>
 /// <param name="HurtboxInset">How far the hurtbox is drawn in from each of the body's edges, in
 /// world units. A hurtbox smaller than the drawn frame is the grace 2D games give the player: a near

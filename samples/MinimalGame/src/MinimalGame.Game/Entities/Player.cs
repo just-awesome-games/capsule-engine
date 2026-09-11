@@ -32,8 +32,8 @@ namespace MinimalGame.Game.Entities;
 /// <see cref="KinematicBody2D"/> sweeps, and <see cref="KinematicBody2D.BlocksOn"/> names what stops
 /// that sweep — <c>solid</c> and <c>platform</c>, the layers the room's tiles are authored on — while
 /// it reports nothing. The inset hurtbox blocks nothing and is the only one reporting contacts, and
-/// its <see cref="Collider2D.SetFilter"/> names what it reports: <c>sensor</c> alone, so the player
-/// walks through a <see cref="Sensor"/>, says so, and spends a point of <see cref="Health"/> on it.
+/// its <see cref="Collider2D.SetFilter"/> names what it reports: <c>hazard</c> alone, so the player
+/// walks through a <see cref="Hazard"/>, says so, and spends a point of <see cref="Health"/> on it.
 /// </para>
 /// <para>
 /// The squash-and-stretch is presentation and nothing more. Jumping and landing each throw the
@@ -48,6 +48,16 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 public sealed class Player : Entity
 {
+    /// <summary>The levers this player runs on, fixed for its lifetime.</summary>
+    public ref readonly PlayerTuning Tuning => ref _tuning;
+
+    /// <summary>
+    /// What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent on every hazard contact
+    /// entered, and never below zero. Simulation state like a position, so the interface reads it on
+    /// the step it changed.
+    /// </summary>
+    public int Health { get; private set; }
+
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
@@ -62,6 +72,7 @@ public sealed class Player : Entity
     /// </summary>
     private static readonly Vector2 Pivot = CapsuleAssets.Sprites.Actors.Player.Frames.Idle0.Pivot;
 
+    // Entity-specific components
     private readonly SpriteRenderer _sprite;
     private readonly SpriteAnimator _animator;
     private readonly KinematicBody2D _body;
@@ -76,7 +87,6 @@ public sealed class Player : Entity
     {
         Health = _tuning.MaxHealth;
 
-
         _sprite = new SpriteRenderer(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0) { Offset = Pivot };
         Add(_sprite);
 
@@ -90,7 +100,7 @@ public sealed class Player : Entity
         Add(bodyCollider);
 
         _body = new KinematicBody2D(bodyCollider);
-        _body.BlocksOn("solid", "platform");
+        _body.BlocksOn(CollisionLayers.Blocking);
         Add(_body);
 
         float hurtboxEdge = BodyPixels - (_tuning.HurtboxInset * 2);
@@ -99,24 +109,14 @@ public sealed class Player : Entity
             Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
             ReportsContacts = true,
         };
-        _hurtbox.SetFilter("sensor");
+        _hurtbox.SetFilter(CollisionLayers.Damaging);
         _hurtbox.ContactEntered += OnHurtboxEntered;
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
 
-        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft);
+        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft) { Bus = AudioBuses.Sfx };
         Add(_footfall);
     }
-
-    /// <summary>The levers this player runs on, fixed for its lifetime.</summary>
-    public ref readonly PlayerTuning Tuning => ref _tuning;
-
-    /// <summary>
-    /// What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent on every sensor contact
-    /// entered, and never below zero. Simulation state like a position, so the interface reads it on
-    /// the step it changed.
-    /// </summary>
-    public int Health { get; private set; }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
