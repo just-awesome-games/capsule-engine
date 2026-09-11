@@ -16,20 +16,7 @@ The assembly root holds the game's declarations — its collision layer names, i
 
 ## Worked example
 
-[`samples/MinimalGame/`](../samples/MinimalGame/) is laid out this way:
-
-```text
-src/MinimalGame.Game/
-  GameInput.cs  World.cs
-  Scenes/    MainMenu.cs  Room.cs
-  Entities/  Player.cs  Hazard.cs
-  Cameras/   GameCamera.cs
-  Assets/    Scenes/  Sprites/  Textures/  Audio/
-src/MinimalGame.Shell/
-  Program.cs
-```
-
-`GameInput.cs` is the game's action vocabulary and `World.cs` its world units, so both are at the root. `Components/` is absent because that game has no standalone component file yet.
+See [`samples/MinimalGame/`](../samples/MinimalGame/) for convention suggested by Capsule.
 
 ## Logic and shell
 
