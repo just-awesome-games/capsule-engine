@@ -33,9 +33,8 @@ public sealed class SceneRun : IDisposable
     /// </param>
     /// <param name="stepHertz">Simulation steps per second of simulated time; positive, 60 by default.</param>
     /// <param name="canvas">
-    /// The canvas the scene's screen layer is laid out in, in pixels; omitted, it is
-    /// <see cref="SceneDefaults.StandardCanvas"/>, the canvas a run that declares no render
-    /// resolution and no window size opens at.
+    /// The canvas the scene's screen layer is laid out in (<see cref="Scene.Canvas"/>); omitted, it is
+    /// <see cref="SceneDefaults.StandardCanvas"/>.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The step rate is not positive.</exception>

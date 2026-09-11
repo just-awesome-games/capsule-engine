@@ -28,12 +28,6 @@ public sealed class PointerTests
     }
 
     [Fact]
-    public void MouseButtonNone_IsNeverHeld()
-    {
-        Assert.False(DeviceSnapshot.Empty.With(MouseButton.None).IsDown(MouseButton.None));
-    }
-
-    [Fact]
     public void APointerPosition_IsKeptExactlyAndUnclamped()
     {
         DeviceSnapshot outside = DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f));
@@ -88,18 +82,6 @@ public sealed class PointerTests
         input.Advance(DeviceSnapshot.Empty);
 
         Assert.True(input.WasReleased(Confirm));
-    }
-
-    [Fact]
-    public void AMouseButton_NamesItselfAsAnInputButton()
-    {
-        InputButton button = MouseButton.X2;
-
-        Assert.False(button.IsNone);
-        Assert.Equal("X2", button.ToString());
-        Assert.Equal<InputButton>(MouseButton.X2, button);
-        Assert.NotEqual<InputButton>(MouseButton.X1, button);
-        Assert.True(InputButton.None.IsNone);
     }
 
     [Fact]

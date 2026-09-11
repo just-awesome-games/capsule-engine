@@ -14,14 +14,15 @@ internal readonly record struct ScreenPlacement(Vector2 Origin, float Scale)
         Scale > 0f ? (window - Origin) / Scale : window - Origin;
 }
 
-// One frame's whole presentation geometry, resolved from a frame view and the back buffer's extent.
+// One frame's whole presentation geometry, resolved from a frame view and the back buffer's extent:
 //
-// Span is the world units the camera spans on that back buffer. Surface is the extent the world is
-// drawn on — the render surface where a resolution is declared, the back buffer where none is.
-// OnSurface is where a canvas pixel lands on that surface, Present where the surface itself lands in
-// the back buffer, and Layer where a canvas pixel lands in the back buffer, which is what turns a
-// sampled mouse position back into a canvas position. Present has no scale where the world rasterises
-// straight into the back buffer and there is nothing to present.
+// Span      the world units the camera spans on the back buffer.
+// Surface   the extent the world is drawn on: the render surface where a resolution is declared, the
+//           back buffer where none is.
+// OnSurface where a canvas pixel lands on that surface.
+// Present   where the surface lands in the back buffer; no scale where there is nothing to present.
+// Layer     where a canvas pixel lands in the back buffer, which is what maps a sampled mouse
+//           position back to a canvas position.
 internal readonly record struct ScreenLayout(
     Vector2 Span,
     (int Width, int Height) Surface,

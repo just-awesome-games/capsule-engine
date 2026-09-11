@@ -32,35 +32,12 @@ public readonly record struct NineSliceIntent(
     ColorRgba Color)
 {
     /// <summary>
-    /// The rect the slices this panel draws cover, in the drawn space's units. A corner that overhangs
-    /// a panel smaller than its insets is inside it, and a panel that draws no slice at all is empty
-    /// rather than the rect <see cref="Size"/> names.
+    /// The <see cref="Size"/> box at <see cref="Position"/>, in the drawn space's units; empty where
+    /// it has no extent. A corner that overhangs a panel smaller than its insets draws past this box.
     /// </summary>
-    public Rect Bounds
-    {
-        get
-        {
-            // Negated so a NaN extent is rejected alongside the non-positive ones, as the expansion
-            // into sprites rejects it.
-            if (!(Size.X > 0f) || !(Size.Y > 0f))
-            {
-                return default;
-            }
-
-            Span<SliceSpan> columns = stackalloc SliceSpan[3];
-            Span<SliceSpan> rows = stackalloc SliceSpan[3];
-            Slice(columns, rows);
-
-            // A slice is drawn where its row and its column both are, so each axis's drawn span is the
-            // union on that axis and neither axis drawing leaves nothing at all.
-            if (!Drawn(columns, out float left, out float right) || !Drawn(rows, out float top, out float bottom))
-            {
-                return default;
-            }
-
-            return new Rect(Position.X + left, Position.Y + top, Position.X + right, Position.Y + bottom);
-        }
-    }
+    // Negated so a NaN extent is rejected alongside the non-positive ones, as the expansion into
+    // sprites rejects it.
+    public Rect Bounds => !(Size.X > 0f) || !(Size.Y > 0f) ? default : new Rect(Position, Size);
 
     // The cut on both axes, written into the caller's three-slot spans. A slice with no texels or no
     // extent is left at zero extent and never drawn.
@@ -82,32 +59,6 @@ public readonly record struct NineSliceIntent(
         slices[0] = new SliceSpan(origin, low, 0f, low);
         slices[1] = new SliceSpan(origin + low, extent - low - high, low, MathF.Max(size - low - high, 0f));
         slices[2] = new SliceSpan(origin + extent - high, high, size - high, high);
-    }
-
-    // The span one axis's drawn slices cover, relative to the panel's corner; false where the axis
-    // draws none, by the same test the expansion into sprites applies.
-    private static bool Drawn(ReadOnlySpan<SliceSpan> slices, out float low, out float high)
-    {
-        low = 0f;
-        high = 0f;
-        bool any = false;
-
-        foreach (SliceSpan slice in slices)
-        {
-            if (slice.SourceExtent <= 0 || !(slice.TargetExtent > 0f))
-            {
-                continue;
-            }
-
-            float near = slice.TargetOffset;
-            float far = near + slice.TargetExtent;
-
-            low = any ? MathF.Min(low, near) : near;
-            high = any ? MathF.Max(high, far) : far;
-            any = true;
-        }
-
-        return any;
     }
 }
 

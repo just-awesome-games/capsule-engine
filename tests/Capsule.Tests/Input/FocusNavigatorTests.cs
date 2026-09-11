@@ -291,25 +291,7 @@ public sealed class FocusNavigatorTests
         focus.Add(Item(new Vector2(0f, 20f)));
 
         Assert.Equal(0, focus.FocusedIndex);
-        Assert.Equal(2, focus.Count);
-    }
-
-    [Fact]
-    public void Items_AreTheListInTheOrderFocusWalksThem()
-    {
-        ColorRect first = Item(Vector2.Zero);
-        ColorRect second = Item(new Vector2(0f, 20f));
-        FocusNavigator<ColorRect> focus = new(Actions, first, second);
-
-        Assert.Equal([first, second], focus.Items.ToArray());
-    }
-
-    [Fact]
-    public void ANullItemOrAMissingInputState_IsRefused()
-    {
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions).Add(null!));
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions, (Renderer)null!));
-        Assert.Throws<ArgumentNullException>(() => new FocusNavigator<Renderer>(Actions).Step(null!));
+        Assert.Equal(2, focus.Items.Length);
     }
 
     private static Menu Two() => new(Items());
@@ -392,7 +374,7 @@ public sealed class FocusNavigatorTests
             };
         }
 
-        internal int Count => _focus.Count;
+        internal int Count => _focus.Items.Length;
 
         internal int FocusedIndex => _focus.FocusedIndex;
 

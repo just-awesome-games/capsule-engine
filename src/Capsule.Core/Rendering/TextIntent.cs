@@ -68,44 +68,11 @@ public readonly record struct TextIntent(
     public int? VisibleCharacters { get; init; }
 
     /// <summary>
-    /// The box this run occupies around <see cref="Position"/>, in the drawn space's units; empty
-    /// where the run draws no glyph at all — no font, no text, a <see cref="Scale"/> component that is
-    /// not finite and positive, a <see cref="VisibleCharacters"/> that reveals no glyph with texels, or
-    /// text that draws none — line breaks and the blank glyphs a font cuts no texels for, a space among
-    /// them — whatever <see cref="Size"/> names. A run
-    /// with no <see cref="Size"/> measures itself, so this is the text's own extent.
+    /// The box this run is laid out in around <see cref="Position"/>, in the drawn space's units; empty
+    /// with no font or no text. A run with no <see cref="Size"/> measures itself, so the box is then the
+    /// text's own extent.
     /// </summary>
-    public Rect Bounds => Draws && TryPlace(out TextPlacement placed) && Reaches(in placed) ? placed.Box : default;
-
-    // Whether the run's scale lets any glyph reach the frame at an extent something can be picked by: a
-    // non-positive one collapses every glyph and an infinite one explodes each past every cull bound.
-    private bool Draws =>
-        Scale.X > 0f && Scale.Y > 0f && float.IsFinite(Scale.X) && float.IsFinite(Scale.Y);
-
-    // Whether the revealed prefix carries a glyph that draws texels. The walk is the one that submits
-    // the sprites, so a reveal of none, a run of nothing but line breaks, a reveal that exposes only a
-    // leading break, and a prefix of glyphs a font cuts no texels for — a space, most fonts — all report
-    // the box they in fact draw: none. Glyph indices rise over the run, so the first drawable one settles
-    // it.
-    private bool Reaches(in TextPlacement placed)
-    {
-        int visible = VisibleCharacters ?? int.MaxValue;
-
-        foreach (GlyphPlacement placement in new GlyphRun(placed.Font, Text, placed.BoxWidth, placed.Wrap, placed.Alignment))
-        {
-            if (placement.Index >= visible)
-            {
-                return false;
-            }
-
-            if (placement.Glyph.Region.Width > 0 && placement.Glyph.Region.Height > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
     // The resolved layout, or false where the run draws nothing at all.
     internal bool TryPlace(out TextPlacement placement)

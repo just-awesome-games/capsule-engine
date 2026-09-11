@@ -9,35 +9,21 @@ using Capsule.Scenes.Rendering;
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// The boot scene, and the one backed by no <c>*.scene.json</c>. Its public parameterless constructor
-/// is what marks it class-only: <c>RunScene&lt;MainMenu&gt;()</c> builds it as it is, with no document
-/// composed into it.
-/// <para>
-/// Everything it draws is a <see cref="ScreenEntity"/> carrying one renderer, placed in canvas pixels
-/// from an <see cref="Anchor"/>: a title on the canvas's top edge and two items on its centre. The
-/// shell's render resolution is the cameras' world span, so one canvas pixel is one world pixel and the
-/// font draws unscaled.
-/// </para>
-/// <para>
-/// A <see cref="FocusNavigator{T}"/> owns which item is focused, and this scene owns how that reads:
-/// its events hand over the focused <see cref="Label"/>, and the scene recolours the items and moves
-/// one highlight bar onto the focused item's <see cref="Renderer.Bounds"/>. The bar is a
-/// <see cref="ColorRect"/> on an entity of lower <see cref="Entity.ZIndex"/>, so it draws under the
-/// labels rather than over them.
-/// </para>
+/// The boot scene, and the one backed by no <c>*.scene.json</c>: its public parameterless constructor
+/// is what marks it class-only. Everything it draws is a <see cref="ScreenEntity"/> anchored on the
+/// canvas — a title on the top edge, two items on the centre, and one highlight bar on an entity of
+/// lower <see cref="Entity.ZIndex"/> so it draws under the labels. A <see cref="FocusNavigator{T}"/>
+/// owns which item is focused and raises the events this scene shows that focus from.
 /// </summary>
 public sealed class MainMenu : Scene
 {
-    /// <summary>Canvas pixels down from the canvas's top edge to the title's own top edge.</summary>
+    // Canvas pixels down from the canvas's top edge to the title's own top edge.
     private const float TitleMargin = 28f;
 
-    /// <summary>Canvas pixels between the two items' centres.</summary>
+    // Canvas pixels between the two items' centres.
     private const float ItemSpacing = 20f;
 
-    /// <summary>
-    /// The item's box in canvas pixels: wider and taller than either caption, so it is the hit target
-    /// the pointer picks and the bar the highlight covers rather than the glyphs alone.
-    /// </summary>
+    // Wider and taller than either caption, so the hit target is the box rather than the glyphs alone.
     private static readonly Vector2 ItemBox = new(88f, 16f);
 
     private static readonly ColorRgba FocusedInk = ColorRgba.Black;
@@ -123,8 +109,7 @@ public sealed class MainMenu : Scene
             item.Color = ReferenceEquals(item, focused) ? FocusedInk : RestingInk;
         }
 
-        // The highlight's top-left anchor is what makes a bound a position on it. Teleported, because a
-        // bar that interpolated would trail a step behind the focus it marks.
+        // Teleported, because a bar that interpolated would trail a step behind the focus it marks.
         Rect box = focused.Bounds;
         _highlight.Teleport(box.Position);
         _bar.Size = box.Size;

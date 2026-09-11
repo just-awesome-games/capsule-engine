@@ -43,6 +43,6 @@ public readonly record struct Anchor(float X, float Y)
     /// <summary>The canvas's bottom-right corner.</summary>
     public static Anchor BottomRight => new(1f, 1f);
 
-    /// <summary>Where this anchor lands on a canvas of <paramref name="canvas"/> pixels.</summary>
-    public Vector2 On(Vector2 canvas) => new(X * canvas.X, Y * canvas.Y);
+    // Where this anchor lands on a canvas of the given pixel extent.
+    internal Vector2 On(Vector2 canvas) => new(X * canvas.X, Y * canvas.Y);
 }

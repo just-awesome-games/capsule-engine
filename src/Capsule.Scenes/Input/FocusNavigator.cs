@@ -10,7 +10,7 @@ namespace Capsule.Scenes.Input;
 /// activated: the state machine behind a menu, a tab strip or a dialogue choice. One dimension, so the
 /// list is a row or a column by how the game laid it out.
 /// <para>
-/// It draws nothing and owns nothing drawn. Showing which item has the focus is the game's — a colour
+/// It draws nothing and owns nothing drawn: showing which item has the focus is the game's — a colour
 /// on the item, or a highlight it moves to the focused item's <see cref="Renderer.Bounds"/> — and so is
 /// what activating one means. One <see cref="Step"/> per fixed step is the whole of the input it reads,
 /// and a step allocates nothing.
@@ -44,15 +44,10 @@ public sealed class FocusNavigator<T>
     }
 
     /// <summary>
-    /// Raised with the item the focus landed on, by the two calls that move it: from inside the
-    /// <see cref="Step"/> that moved it and before any <see cref="Activated"/> of the same step, and
-    /// from inside <see cref="Focus(T)"/> before that call returns. Not raised for the focus the first
-    /// item added takes, nor where the focus does not move — a step whose press wrapped onto the item
-    /// already focused, so a one-item list never reports a move, or a <see cref="Focus(T)"/> of the
-    /// item that already has it. Handlers are bound by the same rule as
-    /// <see cref="Physics.Collider2D.ContactEntered"/>: they run synchronously, in subscription order,
-    /// and what they change is changed by the time the call that raised them returns — the step's next
-    /// stage, or whatever follows the <see cref="Focus(T)"/>.
+    /// Raised with the item the focus landed on, from inside the <see cref="Step"/> that moved it and
+    /// before that step's <see cref="Activated"/>, and from inside <see cref="Focus(T)"/>. Not raised
+    /// for the focus the first item added takes, nor where the focus does not move. Handlers run
+    /// synchronously, in subscription order.
     /// </summary>
     public event Action<T>? FocusChanged;
 
@@ -62,9 +57,6 @@ public sealed class FocusNavigator<T>
     /// actions asked for it, and after that step's <see cref="FocusChanged"/>.
     /// </summary>
     public event Action<T>? Activated;
-
-    /// <summary>How many items focus moves along.</summary>
-    public int Count => _items.Count;
 
     /// <summary>
     /// Which item has the focus, as its position in the list, or -1 while there are no items. The
@@ -137,13 +129,9 @@ public sealed class FocusNavigator<T>
     /// the focus stands, wrapping at either end, and a step holding both directions reads as backward.
     /// Items are hit-tested in list order and the first the pointer is inside wins; one whose bounds
     /// are empty is never under it. A click pressed over no item does nothing at all, and unlike the
-    /// pointer's own focusing it does not need the pointer to have moved.
-    /// </para>
-    /// <para>
-    /// The pointer reaches items on a <see cref="ScreenEntity"/> and no others: it is a canvas position,
-    /// and a world item's bounds are world units under a camera that moves. A world-space item is
-    /// reached by the directional actions and <see cref="FocusActions.Confirm"/> alone, and neither the
-    /// pointer nor a click ever focuses or activates one.
+    /// pointer's own focusing it does not need the pointer to have moved. The pointer and the click
+    /// reach items on a <see cref="ScreenEntity"/> only; a world-space item is reached by the
+    /// directional actions and <see cref="FocusActions.Confirm"/> alone.
     /// </para>
     /// </summary>
     /// <param name="input">The run's input state, read for this step's edges and pointer.</param>

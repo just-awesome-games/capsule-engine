@@ -10,9 +10,8 @@ namespace Capsule.Scenes;
 /// </summary>
 /// <param name="Sampling">How world-space textures are filtered where the scene sets nothing.</param>
 /// <param name="Canvas">
-/// The screen layer's extent in canvas pixels, which the run resolves once: its declared render
-/// resolution, or the window it was configured to open at. A non-positive component on either axis is
-/// <see cref="StandardCanvas"/>, so the default value carries the standard canvas.
+/// The screen layer's extent in canvas pixels (<see cref="Scene.Canvas"/>). A non-positive component
+/// on either axis is <see cref="StandardCanvas"/>, so the default value carries the standard canvas.
 /// </param>
 public readonly record struct SceneDefaults(TextureSampling Sampling, Vector2 Canvas = default)
 {

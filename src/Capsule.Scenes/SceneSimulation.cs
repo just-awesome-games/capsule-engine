@@ -159,8 +159,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 Renderer renderer = renderers[index];
                 if (Scene.Draws(renderer))
                 {
-                    // The one place a space is chosen: a renderer carries no flag of its own, so
-                    // whatever it adds lands on the layer its entity lives in.
+                    // The one place a space is chosen: a renderer follows its entity.
                     _view.Space = renderer.Entity!.Space;
                     renderer.Draw(_view);
                 }

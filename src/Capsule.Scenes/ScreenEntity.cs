@@ -9,7 +9,7 @@ namespace Capsule.Scenes;
 /// layer however the two layers are banded. This is what an interface is built from — a menu item, a
 /// bar, a panel — and a plain <see cref="Entity"/> is what the world is built from.
 /// <para>
-/// The canvas is the run's, never the window the player drags, so a corner-anchored element keeps its
+/// The canvas is a run constant (<see cref="Scene.Canvas"/>), so a corner-anchored element keeps its
 /// distance from that corner at every window size. Subclass it for behaviour and attach
 /// <see cref="Component"/>s for what composes, exactly as with an entity in the world.
 /// </para>

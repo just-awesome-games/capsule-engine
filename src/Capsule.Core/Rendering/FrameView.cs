@@ -44,16 +44,8 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner. A run
-    /// constant: the declared render resolution where the run has one and the configured window size
-    /// where it has none, so it never follows the window the player drags. Screen intent is culled
-    /// against it, and a non-positive canvas disables that culling.
-    /// <para>
-    /// A <see cref="ViewportFit"/> of <see cref="ViewportFit.Expand"/> or
-    /// <see cref="ViewportFit.FixedHeight"/> draws the world on a surface larger than the canvas to
-    /// reveal more of the world; the screen layer stays this extent, centred in that surface, rather
-    /// than growing with it.
-    /// </para>
+    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner. Screen intent
+    /// is culled against it, and a non-positive canvas disables that culling.
     /// </summary>
     public Vector2 Canvas
     {

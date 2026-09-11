@@ -8,8 +8,7 @@ namespace Capsule.Scenes.Rendering;
 /// entity's position plus <see cref="Offset"/>, and it spans <see cref="Size"/> from there. Y-down, in
 /// world units on a world entity and canvas pixels on a screen one.
 /// <para>
-/// It needs no texture of its own: the engine reserves one white texel the host holds, so a filled
-/// rect costs exactly one sprite and loads nothing.
+/// It draws over the engine's white texel (<see cref="Sprite.White"/>), so it loads nothing.
 /// </para>
 /// </summary>
 /// <param name="size">The extent the rectangle covers; a non-positive axis draws nothing.</param>

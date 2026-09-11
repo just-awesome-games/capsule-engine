@@ -136,22 +136,10 @@ public sealed class NineSliceTests
     }
 
     [Fact]
-    public void APanelSmallerThanItsInsets_OccupiesTheCornersThatOverhangIt()
-    {
-        // Three-texel corners over two units: the far pair is placed from the far edge, one unit
-        // outside the panel on each axis.
-        NineSliceIntent panel = Panel(new Vector2(2f, 2f), new SliceInsets(3));
-
-        Assert.Equal(new Rect(-1f, -1f, 3f, 3f), panel.Bounds);
-    }
-
-    [Fact]
     public void APanelThatDrawsNothing_OccupiesNoRect()
     {
-        Sprite empty = new(Frame.Texture, default);
-
-        Assert.True((Panel(new Vector2(40f, 30f), new SliceInsets(3)) with { Sprite = empty }).Bounds.IsEmpty);
         Assert.True(Panel(Vector2.Zero, new SliceInsets(3)).Bounds.IsEmpty);
+        Assert.True(Panel(new Vector2(float.NaN, 30f), new SliceInsets(3)).Bounds.IsEmpty);
     }
 
     private static NineSliceIntent Panel(Vector2 size, SliceInsets insets) =>

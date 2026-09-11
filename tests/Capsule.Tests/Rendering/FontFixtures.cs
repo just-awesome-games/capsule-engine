@@ -23,15 +23,8 @@ internal static class FontFixtures
     // what a wrap did with it.
     internal static readonly Glyph Space = new(' ', 0, new TextureRegion(16, 0, 3, 6), 0, 2, 4);
 
-    // The space most fonts bake, the sample's menu.fnt among them: it advances the pen and cuts no
-    // texels, so every sprite it submits culls on its own extent.
-    internal static readonly Glyph BlankSpace = new(' ', 0, new TextureRegion(16, 0, 7, 0), 0, 2, 4);
-
     internal static readonly KerningPair AgainstB = new('A', 'B', -2);
 
     internal static BitmapFont Font() =>
         new(LineHeight, 8, [Page], [B, A, Emoji, Space], [AgainstB]);
-
-    internal static BitmapFont BlankSpaceFont() =>
-        new(LineHeight, 8, [Page], [B, A, Emoji, BlankSpace], [AgainstB]);
 }

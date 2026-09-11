@@ -119,11 +119,9 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // The whole presentation geometry for view on a back buffer of this extent, on both paths: the
-    // canvas letterboxed straight into the back buffer where the world rasterises into it, and the
-    // render surface the camera's resolved span asks for, presented into the back buffer, where a
-    // resolution is declared. Drawing and the placement a pointer is sampled through both come from
-    // here, since a camera fit that grows the surface moves the layer with it: the two resolved apart
-    // would hand the first frames' samples back as the wrong canvas pixels.
+    // canvas letterboxed straight into the back buffer, and the render surface presented into it where a
+    // resolution is declared. Drawing and pointer mapping must resolve from the same geometry, or a
+    // sampled window position comes back as the wrong canvas pixel.
     internal static ScreenLayout Layout(
         (int Width, int Height)? renderResolution,
         FrameView view,

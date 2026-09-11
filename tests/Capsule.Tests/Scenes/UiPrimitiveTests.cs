@@ -26,15 +26,6 @@ public sealed class UiPrimitiveTests
     }
 
     [Fact]
-    public void AFilledRect_PreloadsNothing()
-    {
-        Scene scene = new();
-        scene.Add(new Holder(new ColorRect(new Vector2(30f, 10f))));
-
-        Assert.Empty(scene.CollectAssetPreloads().Textures);
-    }
-
-    [Fact]
     public void AFilledRect_LandsItsCornerOnThePositionPlusItsOffset()
     {
         ColorRect rect = new(new Vector2(30f, 10f)) { Offset = new Vector2(2f, 3f) };

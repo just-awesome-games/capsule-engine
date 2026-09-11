@@ -8,12 +8,6 @@ namespace Capsule.Scenes.Rendering;
 /// <see cref="Entity.ZIndex"/> plus this renderer's <see cref="ZIndex"/>, lowest first — and an
 /// equal key keeps entity order and, within an entity, attachment order, so what draws later
 /// covers what drew earlier.
-/// <para>
-/// Which of a frame's two layers the intent lands on is the entity's, never the renderer's: an
-/// <c>Add</c> that names no space draws on the layer its entity lives in — the screen layer on a
-/// <see cref="ScreenEntity"/> — and the whole screen layer draws over the whole world layer whatever
-/// the two layers' bands are.
-/// </para>
 /// </summary>
 public abstract class Renderer : Component
 {
@@ -46,9 +40,10 @@ public abstract class Renderer : Component
     /// pixels with the anchor resolved on a screen one. Read from the entity's current position, so a
     /// moving entity reports where the next frame places it rather than where the last one drew it.
     /// <para>
-    /// Empty wherever the renderer covers nothing testable: attached to no entity, or drawing nothing
-    /// at all. Empty by default, which is what a renderer that has no rect to report leaves it; a
-    /// renderer reporting empty bounds is never under the pointer, so it cannot be picked.
+    /// The box the renderer reports, not the texels it happens to draw: a sized label whose text is
+    /// hidden still reports its box. Empty while attached to no entity, and empty by default, which is
+    /// what a renderer with no rect to report leaves it; a renderer reporting empty bounds is never
+    /// under the pointer, so it cannot be picked.
     /// </para>
     /// </summary>
     public virtual Rect Bounds => default;

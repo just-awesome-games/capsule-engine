@@ -11,8 +11,7 @@ namespace Capsule.Scenes;
 /// centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and attach
 /// <see cref="Component"/>s for what composes.
 /// <para>
-/// <see cref="ScreenEntity"/> is the interface counterpart: canvas pixels from an
-/// <see cref="Anchor"/>, and every renderer it holds draws on the frame's screen layer.
+/// <see cref="ScreenEntity"/> is the interface counterpart, on the frame's screen layer.
 /// </para>
 /// </summary>
 public class Entity
@@ -80,8 +79,7 @@ public class Entity
 
     /// <summary>
     /// <see cref="Position"/> as of the previous step. Engine-managed: the scene retains it at
-    /// the top of every step, and the renderer interpolates the pair by the frame alpha — a screen
-    /// entity exactly as a world one.
+    /// the top of every step, and the renderer interpolates the pair by the frame alpha.
     /// </summary>
     public Vector2 PreviousPosition { get; internal set; }
 
