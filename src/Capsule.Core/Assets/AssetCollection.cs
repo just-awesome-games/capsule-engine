@@ -31,7 +31,10 @@ public sealed class AssetCollection
         }
     }
 
-    /// <summary>Adds one clip unless it was already declared.</summary>
+    /// <summary>
+    /// Adds one clip unless it was already declared. A clip whose format the host streams rather
+    /// than holds in memory reserves nothing: declaring it is harmless and preloads no samples.
+    /// </summary>
     public void Add(AudioClip clip)
     {
         if (_clipSet.Add(clip))

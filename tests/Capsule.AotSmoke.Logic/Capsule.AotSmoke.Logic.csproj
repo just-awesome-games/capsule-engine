@@ -6,7 +6,6 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
-    <CapsuleImportSprites>false</CapsuleImportSprites>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 

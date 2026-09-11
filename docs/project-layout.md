@@ -10,7 +10,7 @@ That is the whole list of code folders. `Assets/` sits beside them and holds no 
 - Nest inside a concept folder only when it becomes genuinely crowded, and nest by game domain — `Entities/Enemies/` — never one folder per class: a Capsule entity is code alone, its art under `Assets/Textures/` and its animation under `Assets/Sprites/`.
 - Folders map to namespaces: `Entities/Player.cs` declares `MyGame.Game.Entities`.
 - `Drivers/` holds the game's input drivers and carries a `.capsuleignore`, so it is built and never published: [`headless-play.md`](headless-play.md), [`consuming-capsule.md`](consuming-capsule.md#development-only-directories).
-- That namespace is also the registry key the type claims, so where an entity or a scene is filed is what a document names it by. The key is the namespace under the assembly's root namespace, minus the leading `Entities` or `Scenes` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`: `Entities/Player.cs` claims `player`, `Entities/Enemies/Bat.cs` claims `enemies/bat`, and `Scenes/Stage1/Room01.cs` composes the document keyed `stage-1/room-01`, however its file under `Assets/Scenes/` is spelled. Two classes of one name in different folders are two keys.
+- That namespace is also the registry key the type claims, so where an entity or a scene is filed is what a document names it by; the rule is in [`scenes.md` § Entries and composition](scenes.md#entries-and-composition).
 
 The assembly root holds the game's declarations — its collision layer names, input actions, world units and similar. Root is what the game *is*; folders are what it *contains*.
 

@@ -74,6 +74,7 @@ internal static class AssetRegistrySource
         ImmutableArray<AssetModel> models,
         ImmutableArray<KeyValuePair<string, string>> pages,
         ImmutableArray<FontModel> fonts,
+        ImmutableArray<SheetModel> sheets,
         bool emitting)
     {
         if (!emitting)
@@ -120,8 +121,60 @@ internal static class AssetRegistrySource
         textures.Append(source, "        ");
         source.AppendLine();
         Fonts(context, pages, fonts).Append(source, "        ");
+        source.AppendLine();
+        Sprites(context, sound, sheets).Append(source, "        ");
 
         context.AddSource(FileName, SourceText.From(RegistryFile.Close(source), Encoding.UTF8));
+    }
+
+    private static RegistryDomain<SheetDocument> Sprites(
+        SourceProductionContext context,
+        List<AssetModel> textures,
+        ImmutableArray<SheetModel> sheets)
+    {
+        RegistryDomain<SheetDocument> registry = SpriteRegistrySource.Registry();
+
+        // Ordinal, not case-insensitive: the runtime store is keyed by the shipped spelling, so a
+        // sheet naming 'player.PNG' against 'player.png' would carry a handle nothing loaded.
+        HashSet<string> shipped = new(StringComparer.Ordinal);
+        foreach (AssetModel texture in textures)
+        {
+            shipped.Add(texture.Path + texture.Extension);
+        }
+
+        List<SheetModel> ordered = [.. sheets];
+        ordered.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
+
+        foreach (SheetModel sheet in ordered)
+        {
+            if (sheet.Fault == SheetFault.UnsafeName)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    RegistryDiagnostics.UnsafeAssetName, sheet.Location, sheet.Display));
+                continue;
+            }
+
+            if (sheet.Fault != SheetFault.None || sheet.Document is not { } document)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    RegistryDiagnostics.UnreadableSheet, sheet.Location, sheet.Display, sheet.Message));
+                continue;
+            }
+
+            if (!shipped.Contains(document.Texture))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    RegistryDiagnostics.UnshippedSheetTexture,
+                    sheet.Location,
+                    sheet.Display,
+                    $"cuts from texture \"{document.Texture}\", which this game does not ship; author it at Assets/Textures/{document.Texture}."));
+                continue;
+            }
+
+            registry.Add(sheet.Key, sheet.Display, document, Claimable<SheetDocument>(context, SpriteRegistrySource.Reserves));
+        }
+
+        return registry;
     }
 
     private static RegistryDomain<FontSource> Fonts(
@@ -169,13 +222,18 @@ internal static class AssetRegistrySource
         return registry;
     }
 
-    // Whether an identifier may be declared on this class: not the class's own name (CS0542), not
-    // the set member every class carries, and not one already claimed here.
-    private static RegistryClaimCheck<T> Claimable<T>(SourceProductionContext context) =>
-        (node, identifier, display) =>
+    // Whether an identifier may be declared on this class: not the class's own name (CS0542), not a
+    // name the domain's own generated members take, and not one already claimed here.
+    private static RegistryClaimCheck<T> Claimable<T>(
+        SourceProductionContext context,
+        Func<string, bool, bool>? reserves = null) =>
+        (node, identifier, display, leaf) =>
         {
-            if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal)
-                || string.Equals(identifier, RegistryFile.ListMember, StringComparison.Ordinal))
+            bool reserved = reserves is null
+                ? string.Equals(identifier, RegistryFile.ListMember, StringComparison.Ordinal)
+                : reserves(identifier, leaf);
+
+            if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal) || reserved)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.AssetNamedAfterItsDomain, Location.None, display, identifier, node.Display));

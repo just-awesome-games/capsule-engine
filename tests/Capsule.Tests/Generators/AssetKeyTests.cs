@@ -1,3 +1,4 @@
+using Capsule.Build;
 using Capsule.Build.Keys;
 using Capsule.Generators;
 
@@ -83,9 +84,6 @@ public sealed class AssetKeyTests
         Assert.Equal(
             ["assets/textures/enemies/bat.png|Assets/Textures/Enemies/Bat.png", "assets/audio/music/main-theme.ogg|Assets/Audio/Music/Main_Theme.ogg"],
             workspace.Read("shipped-assets.txt"));
-        Assert.Equal(["enemies/bat.png"], workspace.Read("textures.txt"));
-        Assert.Equal(["music/main-theme|Assets/Audio/Music/Main_Theme.ogg"], workspace.Read("audio.txt"));
-        Assert.Equal(["stage-1/room-01|Assets/Scenes/Stage1/Room01.scene.json"], workspace.Read("scenes.txt"));
         Assert.Equal(
             ["assets/scenes/stage-1/room-01.scene.json|derived/stage-1/room-01.scene.json"],
             workspace.Read("scene-content.txt"));
@@ -96,7 +94,15 @@ public sealed class AssetKeyTests
         string requestFile = Path.Combine(workspace.Root, "requests.txt");
         File.WriteAllLines(requestFile, requests);
 
-        return KeyTool.Derive(requestFile, workspace.Keys, "derived/", TextWriter.Null, error);
+        List<KeyedAsset> keyed = [];
+        if (KeyTool.Derive(BuildRequests.Read(requestFile).Assets, keyed, error) > 0)
+        {
+            return 1;
+        }
+
+        KeyTool.WriteManifests(keyed, workspace.Root, "derived/");
+
+        return 0;
     }
 
     private sealed class Workspace : IDisposable
@@ -104,15 +110,12 @@ public sealed class AssetKeyTests
         internal Workspace()
         {
             Root = Path.Combine(Path.GetTempPath(), "capsule-keys-" + Guid.NewGuid().ToString("N"));
-            Keys = Path.Combine(Root, "keys");
             Directory.CreateDirectory(Root);
         }
 
         internal string Root { get; }
 
-        internal string Keys { get; }
-
-        internal string[] Read(string name) => File.ReadAllLines(Path.Combine(Keys, name));
+        internal string[] Read(string name) => File.ReadAllLines(Path.Combine(Root, name));
 
         public void Dispose() => Directory.Delete(Root, recursive: true);
     }

@@ -20,6 +20,8 @@ internal static class GeneratorHarness
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
     internal const string CapsuleInputDriversFile = "CapsuleInputDrivers.g.cs";
 
+    private const string SheetExtension = ".sheet.json";
+
     internal const string Preamble = """
         using System.Numerics;
         using Capsule.Scenes;
@@ -164,9 +166,19 @@ internal static class GeneratorHarness
         {
             int separator = path.IndexOf('/', StringComparison.Ordinal);
             string relative = path[(separator + 1)..];
-            int dot = relative.LastIndexOf('.');
 
-            assets[path] = (path[..separator], dot < 0 ? relative : relative[..dot]);
+            // A sheet carries both halves of '.sheet.json', as the asset hook's metadata does.
+            if (relative.EndsWith(SheetExtension, StringComparison.Ordinal))
+            {
+                relative = relative[..^SheetExtension.Length];
+            }
+            else
+            {
+                int dot = relative.LastIndexOf('.');
+                relative = dot < 0 ? relative : relative[..dot];
+            }
+
+            assets[path] = (path[..separator], relative);
             texts.Add(new AssetFile(path, content));
         }
 

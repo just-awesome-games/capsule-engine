@@ -9,29 +9,6 @@ internal static class SceneDocumentTool
 
     private const string Name = "scene documents";
 
-    internal static int ImportFromList(
-        string outputDirectory,
-        string listPath,
-        int? tileSize,
-        TextWriter output,
-        TextWriter error)
-    {
-        ArgumentNullException.ThrowIfNull(error);
-
-        DocumentSource[] sources;
-        try
-        {
-            sources = DocumentSource.Read(listPath, DocumentExtension);
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{Name}: cannot read the source list '{listPath}' — {ex.Message}");
-            return 1;
-        }
-
-        return Import(outputDirectory, sources, tileSize, output, error);
-    }
-
     /// <summary>Imports <paramref name="sources"/>, each derived to <c>&lt;key&gt;.scene.json</c>.</summary>
     /// <param name="outputDirectory">Where the canonical documents are written.</param>
     /// <param name="sources">The scene sources to import, each with the key it claims.</param>

@@ -47,11 +47,21 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
                 AssetRegistrySource.Authored(input.Text, input.Options),
                 cancellation));
 
+        // A sheet is text in and C# out: nothing ships for it, so it reaches the generator as an
+        // additional file of its own domain and never as an asset.
+        IncrementalValuesProvider<SheetModel> sheets = files
+            .Where(static input => AssetRegistrySource.InDomain(input.Text, input.Options, SpriteRegistrySource.Domain))
+            .Select(static (input, cancellation) => SpriteRegistrySource.Describe(
+                input.Text,
+                AssetRegistrySource.Authored(input.Text, input.Options),
+                cancellation));
+
         context.RegisterSourceOutput(
-            assets.Collect().Combine(pages.Collect()).Combine(fonts.Collect()).Combine(emitting),
+            assets.Collect().Combine(pages.Collect()).Combine(fonts.Collect()).Combine(sheets.Collect()).Combine(emitting),
             static (production, input) => AssetRegistrySource.Emit(
                 production,
-                input.Left.Left.Left,
+                input.Left.Left.Left.Left,
+                input.Left.Left.Left.Right,
                 input.Left.Left.Right,
                 input.Left.Right,
                 input.Right));

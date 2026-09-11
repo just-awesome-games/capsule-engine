@@ -301,10 +301,16 @@ public sealed class EngineBuilder
     /// them first, since anything Capsule does not declare is rejected here.
     /// </param>
     /// <remarks>
+    /// <c>--driver</c> on its own opens the window and plays the driver in it; <c>--headless</c>
+    /// alongside it opens no window at all. <c>--scene</c> replaces the scene the <c>RunScene</c>
+    /// call names with the registered scene class of that name, keeping that call's boot payload; a
+    /// scene a document backs is opened through that document.
+    /// <para>
     /// Nothing is thrown, no driver is built and no scene is looked up: a malformed command line, a
     /// driver name no registered driver answers to and a scene name no registered scene class
     /// answers to are held so the fluent chain completes, and <c>RunScene</c> reports the defect and
     /// returns 2.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">The argument array is null.</exception>
     public EngineBuilder WithCommandLine(string[] args)

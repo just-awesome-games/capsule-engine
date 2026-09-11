@@ -54,21 +54,6 @@ public sealed class NativeSceneToolTests
     }
 
     [Fact]
-    public void ImportFromList_ImportsTheSourcesNamedOnePerLine()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("room.scene.json", Authored);
-        workspace.Write("hall.scene.json", Authored);
-        string list = workspace.Write("scenes.txt", "room.scene.json\n\nhall.scene.json\n");
-
-        int exitCode = SceneDocumentTool.ImportFromList("scenes", list, tileSize: null, TextWriter.Null, TextWriter.Null);
-
-        Assert.Equal(0, exitCode);
-        Assert.True(File.Exists("scenes/room.scene.json"));
-        Assert.True(File.Exists("scenes/hall.scene.json"));
-    }
-
-    [Fact]
     public void Import_StampsAnUnstampedDocumentWithTheSourcePathItWasHanded()
     {
         using SceneDocumentFixtures.Workspace workspace = new();

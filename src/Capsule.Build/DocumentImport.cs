@@ -10,7 +10,7 @@ internal static class DocumentImport
     internal delegate void Derive(DocumentSource source, string documentPath);
 
     /// <param name="name">What the hook calls itself in a summary line.</param>
-    /// <param name="noun">What one document is called in a failure — <c>scene</c> or <c>sheet</c>.</param>
+    /// <param name="noun">What one document is called in a failure — <c>scene</c>.</param>
     /// <param name="outputDirectory">Where the canonical documents are written.</param>
     /// <param name="sources">The sources to import, each with the key it claims.</param>
     /// <param name="extension">Both halves of the extension a derived document carries.</param>

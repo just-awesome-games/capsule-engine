@@ -1,0 +1,7 @@
+{
+  "formatVersion": 1,
+  "texture": "kept.png",
+  "frames": [
+    { "name": "only", "x": 0, "y": 0, "width": 1, "height": 1 }
+  ]
+}

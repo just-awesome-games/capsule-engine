@@ -8,75 +8,20 @@ way every time.
 ## Input drivers
 
 A driver implements the one method of `Capsule.Scenes.Input.IInputDriver`, which documents its
-contract.
-
-Everything a driver measures is counted in fixed steps, never in seconds. At the default 60 Hz, one
-second of play is 60 steps.
+contract; `Capsule.Scenes.Input.InputScript` builds one from a fixed sequence of edits and waits.
+Everything a driver measures is counted in fixed steps, never in seconds.
 
 A driver with a public parameterless constructor is registered by the build under its class name,
 which is what `--driver` takes. One that takes constructor arguments registers under no name and
-reaches a run through `WithInputDriver` or `RunHeadless`.
-
-Drivers live in `Drivers/`, which carries a `.capsuleignore`: they are part of every build and of no
-publish, so a shipped game holds none of them. See
-[`consuming-capsule.md`](consuming-capsule.md#development-only-directories).
-
-## Scripting a driver
-
-`Capsule.Scenes.Input.InputScript` builds a driver of a fixed sequence the way a device produces
-one: a held state that edits change, and calls that emit steps of it.
-
-```csharp
-public sealed class Walkthrough : IInputDriver
-{
-    private readonly IInputDriver _script = new InputScript()
-        .Wait(30)                             // 30 idle steps
-        .Down(Key.D)                          // held from the next emitted step on
-        .Wait(60)                             // 60 steps walking right
-        .Tap(Key.Space)                       // one step with Space down, then up again
-        .Wait(60)
-        .Up(Key.D)
-        .Axis(PadAxis.LeftStickX, -1f)
-        .Wait(30)
-        .Build();
-
-    public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot) =>
-        _script.TryNext(scene, tick, out snapshot);
-}
-```
-
-## Writing a driver by hand
-
-A driver that reacts to the game reads the scene it is handed:
-
-```csharp
-public sealed class ReachTheDoor : IInputDriver
-{
-    public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-    {
-        snapshot = scene switch
-        {
-            Hall hall when hall.Player.Position.X < 240f => DeviceSnapshot.Of(Key.D),
-            Hall => DeviceSnapshot.Of(Key.Space),
-            _ => DeviceSnapshot.Empty,
-        };
-
-        // A ceiling on the run, so a game that never reaches the door still ends.
-        return tick < 600;
-    }
-}
-```
+reaches a run through `WithInputDriver` or `RunHeadless`. Drivers are discovered wherever the game
+declares them — the shell project, the logic project, or any logic assembly the shell references —
+and live in a directory carrying a `.capsuleignore`, so they are part of every build and of no
+publish. See [`consuming-capsule.md`](consuming-capsule.md#development-only-directories).
 
 ## The standard command line
 
 Capsule owns the flags that drive input, headless play and frame timing, so a game never writes a
-parser for them. One call hands the process arguments over, and `RunScene` returns the exit code:
-
-```csharp
-return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
-```
-
-Nothing is read ambiently: a shell that does not pass `args` has no command line at all.
+parser for them. `WithCommandLine(args)` hands the process arguments over.
 
 | Flag                       | Effect                                                             |
 | -------------------------- | ------------------------------------------------------------------ |
@@ -88,44 +33,15 @@ Nothing is read ambiently: a shell that does not pass `args` has no command line
 
 Flags combine, every value is required, and repeating one is an error. A game with flags of its own
 removes them before handing the rest over, since anything Capsule does not declare is rejected.
-
-`--driver X` alone opens the window and plays the driver in it; `--headless --driver X` opens no
-window at all. `--scene X` replaces the scene the `RunScene` call names with the registered scene
-whose class is named `X`, keeping that call's boot payload; a scene composed from a document is
-opened through that document. `RunScene` returns 2 for a rejected command line, a driver name
-nothing answers to or a scene name no one registered class answers to — each reported with the names
-that are registered — or `--headless` with no driver; everything else returns 0.
-
-Drivers are discovered wherever the game declares them: the shell project, the logic project, or any
-logic assembly the shell references.
+Nothing is read ambiently: a shell that does not pass `args` has no command line at all.
 
 ## Running from a test
 
-A driver plays a test as readily as it plays a window. [`testing.md`](testing.md) covers
-`RunHeadless`, `SceneRun`, and which to reach for.
+A driver plays a test as readily as it plays a window. [`testing.md`](testing.md) covers `SceneRun`,
+`RunHeadless`, and which to reach for.
 
 ## Screenshots
 
-Game logic cannot write a file, so a screenshot is an intent the scene raises and the host fulfils
-on its next drawn frame. Bind an action, call `CaptureFrame` on the press, and press the key from a
-driver:
-
-```csharp
-protected override void OnStep(in StepContext context)
-{
-    if (context.Input.WasPressed(Screenshot))
-    {
-        CaptureFrame("shots/room.png");
-    }
-}
-```
-
-```csharp
-IInputDriver driver = new InputScript().Wait(60).Tap(Key.F12).Wait(1).Build();
-```
-
-A windowed run under that driver writes the PNG. A headless run has no surface to save, so it clears
-the request and writes nothing.
-
-For assertions about the world rather than the run, step the scene from a test instead; see
-[`testing.md`](testing.md).
+Game logic cannot write a file, so a screenshot is an intent `Scene.CaptureFrame` raises and the
+host fulfils on its next drawn frame. A windowed run writes the PNG; a headless run has no surface
+to save, so it clears the request and writes nothing.

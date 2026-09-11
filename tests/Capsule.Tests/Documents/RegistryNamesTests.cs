@@ -1,11 +1,9 @@
 using Capsule.Build;
 using Capsule.Build.Audio;
-using Capsule.Build.Sprites;
 
 namespace Capsule.Tests.Documents;
 
-// Every collision C# would refuse, caught against the source that would have caused it, in both
-// configurations the generated registries ask for.
+// Every collision C# would refuse, caught against the source that would have caused it.
 public sealed class RegistryNamesTests
 {
     [Theory]
@@ -21,24 +19,10 @@ public sealed class RegistryNamesTests
         Assert.Contains(because, declared.Declare(key)!, StringComparison.Ordinal);
     }
 
-    // A sheet declares Frames and Clips inside its own class; a directory declares neither, and
-    // neither does an enclosing set member, since a sheet carries none.
-    [Theory]
-    [InlineData("frames", "a sheet declares")]
-    [InlineData("actors/clips", "a sheet declares")]
-    public void ASheetKeyTakingAGeneratedClassesName_IsRefused(string key, string because)
-    {
-        RegistryNames declared = Sheets();
-
-        Assert.Contains(because, declared.Declare(key)!, StringComparison.Ordinal);
-    }
-
+    // A directory takes no name the generated members reserve, since only a leaf becomes one.
     [Fact]
-    public void ADirectoryNamedAfterAGeneratedClass_IsDeclared()
-    {
-        Assert.Null(Sheets().Declare("frames/idle"));
+    public void ADirectoryNamedAfterAGeneratedMember_IsDeclared() =>
         Assert.Null(Clips().Declare("steps/all-clear"));
-    }
 
     [Fact]
     public void TwoKeysThatAreOneCsharpNameInOneDirectory_AreRefused()
@@ -68,6 +52,4 @@ public sealed class RegistryNamesTests
     }
 
     private static RegistryNames Clips() => new(AudioRegistrySource.RegistryClass, AudioRegistrySource.Reserved);
-
-    private static RegistryNames Sheets() => new(SpriteRegistrySource.RegistryClass, SpriteRegistrySource.Reserved);
 }

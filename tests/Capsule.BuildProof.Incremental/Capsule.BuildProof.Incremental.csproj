@@ -14,7 +14,6 @@
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
-    <CapsuleImportSprites>false</CapsuleImportSprites>
     <!-- The generated registry on disk is what the assertion reads. -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>

@@ -27,6 +27,48 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- An authoring module as the sheet seam documents one: a sheet derived into this project's own
+       obj/ space and added as AdditionalFiles from the seam target. The hook is the whole point —
+       the metadata below reaches the generator only through the analyzer configuration the SDK
+       writes before the compile, so BeforeTargets="CoreCompile" here would leave the sheet domainless
+       and silently unread. -->
+  <Target Name="CapsuleProofDeriveModuleSheet" BeforeTargets="CapsuleCollectSheetDocuments">
+    <PropertyGroup>
+      <_ProofModuleSheetDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'proofmodule'))</_ProofModuleSheetDir>
+    </PropertyGroup>
+
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)module/module.sheet.json"
+          DestinationFolder="$(_ProofModuleSheetDir)"
+          SkipUnchangedFiles="true" />
+
+    <ItemGroup>
+      <AdditionalFiles Include="$(_ProofModuleSheetDir)/module.sheet.json">
+        <CapsuleAssetDomain>sprites</CapsuleAssetDomain>
+        <CapsuleAssetPath>proof/module</CapsuleAssetPath>
+      </AdditionalFiles>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CapsuleProveModuleSheetRegistry" AfterTargets="CoreCompile">
+    <ItemGroup>
+      <_ProofAssetRegistry Include="$(IntermediateOutputPath)generated/**/CapsuleAssets.g.cs" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ProofAssetRegistry)' == ''"
+           Text="BuildProof: no generated CapsuleAssets.g.cs under '$(IntermediateOutputPath)generated'." />
+
+    <ReadLinesFromFile File="@(_ProofAssetRegistry)">
+      <Output TaskParameter="Lines" ItemName="_ProofAssetRegistryLine" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <_ProofAssetRegistryText>@(_ProofAssetRegistryLine, '%0A')</_ProofAssetRegistryText>
+    </PropertyGroup>
+
+    <Error Condition="!$(_ProofAssetRegistryText.Contains('class Proof')) or !$(_ProofAssetRegistryText.Contains('class Module'))"
+           Text="BuildProof: the generated asset registry declares no Sprites.Proof.Module, so the module-derived sheet reached the generator without its CapsuleAssetDomain metadata." />
+  </Target>
+
   <Target Name="CapsuleProveDevelopmentOnlyCompile"
           DependsOnTargets="CapsuleRemoveDevelopmentOnlySources"
           BeforeTargets="CoreCompile">

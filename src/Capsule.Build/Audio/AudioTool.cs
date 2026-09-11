@@ -14,34 +14,9 @@ internal static class AudioTool
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
-    /// Measures every source named in <paramref name="listPath"/>, one <c>key|path</c> per line,
-    /// the path relative to the working directory.
+    /// Measures every source and renders the whole set at <paramref name="generatedPath"/>, which
+    /// is written whole so a clip deleted since the last build leaves nothing behind.
     /// </summary>
-    /// <param name="listPath">The audio sources to measure.</param>
-    /// <param name="generatedPath">Where the generated C# is written.</param>
-    /// <param name="output">Progress, one line per source.</param>
-    /// <param name="error">Failures, each anchored to the source that failed.</param>
-    /// <returns>0 when every source succeeded, 1 when any failed.</returns>
-    internal static int EmitFromList(string listPath, string generatedPath, TextWriter output, TextWriter error)
-    {
-        ArgumentNullException.ThrowIfNull(error);
-
-        DocumentSource[] sources;
-        try
-        {
-            sources = DocumentSource.Read(listPath, string.Empty);
-        }
-        catch (Exception ex) when (IsReportable(ex))
-        {
-            error.WriteLine($"{Name}: cannot read the source list — {ex.Message}");
-
-            return 1;
-        }
-
-        return Emit(sources, generatedPath, output, error);
-    }
-
-    /// <summary>Measures <paramref name="sources"/>, as <see cref="EmitFromList"/> does.</summary>
     /// <param name="sources">The audio sources to measure, each with the key it claims.</param>
     /// <param name="generatedPath">Where the generated C# is written.</param>
     /// <param name="output">Progress, one line per source.</param>

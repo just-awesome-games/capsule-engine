@@ -13,8 +13,6 @@
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
-    <!-- No sheets to import, and the document tool is proved by the sample. -->
-    <CapsuleImportSprites>false</CapsuleImportSprites>
     <!-- The generated registries on disk are what the driver assertion reads. -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>

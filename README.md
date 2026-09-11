@@ -25,47 +25,23 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 The shell's entry point is handwritten against the generated `CapsuleBoot` builder:
 
 ```csharp
-using Capsule.Runtime.Generated;
-using MyGame.Game;
-
 return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
 ```
 
-```csharp
-using Capsule.Scenes;
-
-namespace MyGame.Game;
-
-public sealed class MainMenu : Scene;
-```
-
-[`docs/consuming-capsule.md`](docs/consuming-capsule.md) contains a ready-to-copy repository layout and the minimal project wiring needed to start a game; [`docs/project-layout.md`](docs/project-layout.md) is the directory convention for the game's own source inside it.
-
-## Model
+## Documentation
 
 Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); see [`PACKAGE.md`](PACKAGE.md) for their contents.
 
-Logic projects cannot reference the runtime, backend, file IO, ambient clocks, ambient randomness, or asynchronous execution; the randomness they may reach is the seeded `RandomSource` their scene holds. Capsule's analyzer enforces that boundary. Source generators discover scenes, spawnable entities and named assets at compile time, so games maintain no registration table and use no reflection for boot. Capsule games publish under NativeAOT, and every engine seam stays AOT-analysable.
+- [`docs/architecture.md`](docs/architecture.md) — module charters, the game-logic boundary, the determinism contract, and the NativeAOT floor.
+- [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, and every build property.
+- [`docs/project-layout.md`](docs/project-layout.md) — the directory convention inside a game's logic project.
+- [`docs/scenes.md`](docs/scenes.md) — the scene authoring model and the `*.scene.json` format.
+- [`docs/sprite-animation.md`](docs/sprite-animation.md) — the `*.sheet.json` sprite sheet format.
+- [`docs/text.md`](docs/text.md) — bitmap fonts.
+- [`docs/headless-play.md`](docs/headless-play.md) — input drivers and the standard command line.
+- [`docs/testing.md`](docs/testing.md) — what Capsule ships for testing a game, and which to reach for.
 
-Simulation advances on a fixed step from input snapshots. Rendering consumes the latest settled state and interpolates independently. The complete determinism guarantee is in [`docs/architecture.md`](docs/architecture.md).
-
-That snapshot sequence comes from an input driver — a class the build discovers and the command line names — so a run is played with no window and no keyboard, and it reads the scene it is playing. `WithCommandLine(args)` gives a game the standard flags that drive it, and a scene that wants a screenshot raises the intent for the host to fulfil rather than writing a file itself; see [`docs/headless-play.md`](docs/headless-play.md).
-
-A game's behaviour is tested without a window, a graphics device or a play mode; [`docs/testing.md`](docs/testing.md) says what Capsule ships for it and which to reach for.
-
-A scene is a document, a class, or both; see [`docs/scenes.md`](docs/scenes.md) for the authoring model.
-
-Sprite animation is authored as a sheet document and compiled into the game as typed frames and clips, played on the fixed step; see [`docs/sprite-animation.md`](docs/sprite-animation.md).
-
-Audio clips are generated from the game's authored sources with the duration the build measured for each, so playback state is derived rather than read back from a device. An entity plays one through an `AudioSource`, or a scene reaches the run's `AudioMixer` directly for buses, volumes and voices that outlive a transition; each step raises the commands the host plays through OpenAL. Headless runs mix the same state and play nothing.
-
-Text is drawn from a bitmap font compiled into the game, put on an entity by a `Label` and reaching the frame as one ordinary sprite per glyph; see [`docs/text.md`](docs/text.md).
-
-Game logic says things out loud through `Capsule.Diagnostics.Log`; the host installs a console sink at boot, and [`docs/consuming-capsule.md`](docs/consuming-capsule.md) says where the lines appear.
-
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense. Start with `Scene`, `Entity` and `Component` for a world; `SceneRun`, `SceneSimulation` and `StepContext` for headless stepping; `InputConfiguration` and `DeviceSnapshot` for input; `CollisionWorld2D` and `Collider2D` for collision; `SpriteRenderer`, `SpriteAnimator`, `Label` and `Camera` for presentation; `AudioClip`, `AudioMixer` and `AudioSource` for sound; and `CapsuleEngine` and `EngineBuilder` for the shell. [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates the XML in package and source modes.
-
-Rendering submits sprites in order. The host preloads the media a composed scene and its contents identify, caches any other texture on first rendered use for that scene, and releases scene-owned resources at transition or exit. Headless simulation loads no media.
+Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense; [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates them in package and source modes.
 
 ## Contributing
 

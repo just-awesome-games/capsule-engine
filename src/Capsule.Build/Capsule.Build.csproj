@@ -31,8 +31,8 @@
 
   <ItemGroup>
     <!-- The identifier rule and the registry tree it names, compiled rather than referenced: the
-         generator ships as an analyzer, and a second copy would let the sheet, audio and asset
-         registries name a file or shape a class differently. -->
+         generator ships as an analyzer, and a second copy would let the audio and asset registries
+         name a file or shape a class differently. -->
     <Compile Include="../Capsule.Generators/TypeNaming.cs" Link="TypeNaming.cs" />
     <Compile Include="../Capsule.Generators/RegistryTree.cs" Link="RegistryTree.cs" />
   </ItemGroup>
@@ -45,11 +45,6 @@
   <ItemGroup>
     <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
     <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Keys.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.SceneDocuments.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.SpriteSheets.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Assets.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Audio.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />

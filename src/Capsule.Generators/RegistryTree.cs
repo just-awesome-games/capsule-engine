@@ -6,7 +6,8 @@ namespace Capsule.Generators;
 internal delegate void RegistryLeafWriter<T>(StringBuilder source, string indent, string identifier, T value);
 
 /// <summary>Whether <paramref name="identifier"/> may be declared on <paramref name="node"/>.</summary>
-internal delegate bool RegistryClaimCheck<T>(RegistryNode<T> node, string identifier, string display);
+/// <param name="leaf">Whether it names the source itself rather than a directory above it.</param>
+internal delegate bool RegistryClaimCheck<T>(RegistryNode<T> node, string identifier, string display, bool leaf);
 
 // One directory of a generated registry: the members declared on it, the nested classes under it,
 // and every member beneath it transitively.
@@ -42,11 +43,12 @@ internal sealed class RegistryNode<T>
 
 // The shape every generated asset registry has: a domain class of nested static classes, one per
 // authored directory, each carrying the members keyed into it and an 'All' set of everything
-// beneath it. A domain writes only its own leaves.
+// beneath it. A domain writes only its own leaves, and one whose leaf is no single member — a null
+// memberType — declares no set.
 internal sealed class RegistryDomain<T>(
     string registryClass,
     string domain,
-    string memberType,
+    string? memberType,
     string noun,
     string summary,
     RegistryLeafWriter<T> leaf)
@@ -74,7 +76,7 @@ internal sealed class RegistryDomain<T>(
             string identifier = TypeNaming.ToIdentifier(segments[i])!;
             string directory = node.Display + segments[i] + "/";
 
-            if (claim is not null && !claim(node, identifier, directory))
+            if (claim is not null && !claim(node, identifier, directory, leaf: false))
             {
                 return false;
             }
@@ -91,7 +93,7 @@ internal sealed class RegistryDomain<T>(
         }
 
         string name = TypeNaming.ToIdentifier(segments[segments.Length - 1])!;
-        if (claim is not null && !claim(node, name, display))
+        if (claim is not null && !claim(node, name, display, leaf: true))
         {
             return false;
         }
@@ -148,16 +150,21 @@ internal sealed class RegistryDomain<T>(
 
             first = false;
 
-            string nested = directory.Value.Display;
+            string nested = directory.Value.Display.Substring(0, directory.Value.Display.Length - 1);
             Append(
                 source,
                 directory.Value,
                 inner,
-                "Everything shipped at <c>assets/" + nested.Substring(0, nested.Length - 1) + "</c>.",
+                memberType is null
+                    ? "The " + noun + "s authored under <c>" + nested + "</c>."
+                    : "Everything shipped at <c>assets/" + nested + "</c>.",
                 attributed: false);
         }
 
-        AppendList(source, node, shipped, inner, first);
+        if (memberType is not null)
+        {
+            AppendList(source, node, shipped, inner, first);
+        }
 
         source.Append(indent).AppendLine("}");
     }

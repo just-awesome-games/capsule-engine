@@ -92,7 +92,7 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = Asset(
         "CAP018",
         "A source cannot take a name its enclosing class reserves",
-        "'{0}' declares '{1}' in '{2}', which is the name of the class that directory is declared as or of the 'All' member the generated registry declares on it; rename the file or its directory");
+        "'{0}' declares '{1}' in '{2}', which is a name the generated registry reserves there — the class that directory is declared as, or a member or class the registry declares itself; rename the file or its directory");
 
     internal static readonly DiagnosticDescriptor UnsafeSpawnType = Scene(
         "CAP019",
@@ -117,6 +117,16 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor UnshippedFontPage = Asset(
         "CAP023",
         "A bitmap font names a page the game does not ship",
+        "'{0}' {1}");
+
+    internal static readonly DiagnosticDescriptor UnreadableSheet = Asset(
+        "CAP024",
+        "A sprite sheet cannot be compiled",
+        "'{0}' {1}");
+
+    internal static readonly DiagnosticDescriptor UnshippedSheetTexture = Asset(
+        "CAP025",
+        "A sprite sheet cuts from a texture the game does not ship",
         "'{0}' {1}");
 
     private const string SegmentGrammar =
