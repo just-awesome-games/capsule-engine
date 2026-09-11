@@ -53,8 +53,8 @@ public static class GameInput
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
         bindings.Bind(Jump, Key.Space, PadButton.South);
-        bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp);
-        bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown);
+        bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
+        bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
         bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South);
 
         bindings.Bind(Click, MouseButton.Left);

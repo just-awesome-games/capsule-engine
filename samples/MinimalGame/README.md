@@ -27,15 +27,15 @@ The repository shape is the one prescribed in [`docs/consuming-capsule.md`](../.
 
 ## Controls
 
-| Action    | Keyboard                    | Gamepad           | Mouse       |
-| --------- | --------------------------- | ----------------- | ----------- |
-| Move      | `A` / `D`, `Left` / `Right` | D-pad, left stick |             |
-| Jump      | `Space`                     | A                 |             |
-| Menu up   | `W`, `Up`                   | D-pad up          |             |
-| Menu down | `S`, `Down`                 | D-pad down        |             |
-| Confirm   | `Enter`, `Space`            | A                 |             |
-| Click     |                             |                   | Left button |
-| Quit      | `Escape`                    | Start             |             |
+| Action    | Keyboard                    | Gamepad                     | Mouse       |
+| --------- | --------------------------- | --------------------------- | ----------- |
+| Move      | `A` / `D`, `Left` / `Right` | D-pad, left stick           |             |
+| Jump      | `Space`                     | A                           |             |
+| Menu up   | `W`, `Up`                   | D-pad up, left stick up     |             |
+| Menu down | `S`, `Down`                 | D-pad down, left stick down |             |
+| Confirm   | `Enter`, `Space`            | A                           |             |
+| Click     |                             |                             | Left button |
+| Quit      | `Escape`                    | Start                       |             |
 
 ## Running
 

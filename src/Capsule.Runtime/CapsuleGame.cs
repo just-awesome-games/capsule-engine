@@ -21,6 +21,7 @@ internal sealed class CapsuleGame : Game
     private readonly SceneHost? _scenes;
 
     private readonly PadFilter _padFilter;
+    private readonly MouseSampler _mouse = new();
     private readonly FixedStepScheduler _scheduler;
 
     // Null unless the builder opted in, and owned by it: every use on the frame path is that
@@ -130,9 +131,10 @@ internal sealed class CapsuleGame : Game
         // Sampled every frame including one that drains no step; the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
         // placement, so it is a canvas position before it ever reaches the simulation.
-        DeviceSnapshot sampled = MouseSampler.SampleOnto(
+        DeviceSnapshot sampled = _mouse.SampleOnto(
             GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
-            _renderer.ScreenLayer);
+            _renderer.ScreenLayer,
+            IsActive);
 
         // Alt+Enter is the host's, never a bindable action. Withheld for the whole gesture, or a
         // game that binds Enter reads a press out of it.
@@ -165,6 +167,10 @@ internal sealed class CapsuleGame : Game
         {
             _windowRaised = true;
             SdlPlatform.RaiseWindow(Window.Handle);
+
+            // A launch through the dotnet muxer breaks the foreground permission chain, so Windows
+            // refuses the raise on its own.
+            WindowsForeground.Claim(SdlPlatform.NativeWindowHandle(Window.Handle));
         }
 
         _diagnostics?.BeginDraw();
