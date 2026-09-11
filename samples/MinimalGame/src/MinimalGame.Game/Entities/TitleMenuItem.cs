@@ -8,7 +8,7 @@ using Capsule.Scenes.Rendering;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// One item of a menu, and the shape an interface element takes in Capsule: a
+/// One item of the title menu, and the shape an interface element takes in Capsule: a
 /// <see cref="ScreenEntity"/> holding a <see cref="Focusable"/> for the box that can be focused, and
 /// the renderers that show it. It owns its own reaction to the focus — the ink and the highlight bar
 /// are its business, not its menu's — and it says it was pressed, never what pressing it means.
@@ -17,7 +17,7 @@ namespace MinimalGame.Game.Entities;
 /// the scene starts.
 /// </para>
 /// </summary>
-public sealed class MenuItem : ScreenEntity
+public sealed class TitleMenuItem : ScreenEntity
 {
     // Wider and taller than either caption, so the hit target is the box rather than the glyphs alone.
     private static readonly Vector2 ItemBox = new(88f, 16f);
@@ -31,7 +31,7 @@ public sealed class MenuItem : ScreenEntity
     /// <param name="anchor">The point on the canvas <paramref name="offset"/> is measured from.</param>
     /// <param name="offset">Canvas pixels from that point to this item's centre.</param>
     /// <param name="text">The caption drawn inside the box.</param>
-    public MenuItem(Anchor anchor, Vector2 offset, string text)
+    public TitleMenuItem(Anchor anchor, Vector2 offset, string text)
         : base(anchor, offset)
     {
         // The box is centred on the entity, because the label's alignment point is its centre.

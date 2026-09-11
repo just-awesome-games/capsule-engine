@@ -21,8 +21,8 @@ public sealed class TitleMenu : ScreenEntity
     // Canvas pixels between the two items' centres.
     private const float ItemSpacing = 20f;
 
-    private readonly MenuItem _start = new(Anchor.Center, new Vector2(0f, -ItemSpacing / 2f), "Start");
-    private readonly MenuItem _exit = new(Anchor.Center, new Vector2(0f, ItemSpacing / 2f), "Exit");
+    private readonly TitleMenuItem _start = new(Anchor.Center, new Vector2(0f, -ItemSpacing / 2f), "Start");
+    private readonly TitleMenuItem _exit = new(Anchor.Center, new Vector2(0f, ItemSpacing / 2f), "Exit");
 
     public TitleMenu()
         : base(Anchor.Top, new Vector2(0f, TitleMargin))
@@ -32,6 +32,9 @@ public sealed class TitleMenu : ScreenEntity
             HorizontalAlignment = HorizontalAlignment.Center,
         });
 
+        // The items' order carries no layout: the navigator reads each direction from where the items
+        // sit, so Up and Down walk this column, Left and Right find nothing, and a grid needs no more
+        // than its cells listed.
         Add(new FocusNavigator(GameInput.MenuFocus, _start.Focusable, _exit.Focusable));
 
         _start.Pressed += StartGame;

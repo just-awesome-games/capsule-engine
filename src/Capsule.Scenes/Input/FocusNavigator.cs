@@ -41,7 +41,9 @@ public sealed class FocusNavigator : Component
     private Focusable? _queued;
 
     /// <summary>
-    /// Navigates <paramref name="items"/>, the first of which is the starting item.
+    /// Navigates <paramref name="items"/>, the first of which is the starting item. Their order carries
+    /// no layout: each direction is read from where the items sit, so the same call serves a column,
+    /// a row or a grid.
     /// </summary>
     /// <param name="actions">The actions this navigator is driven by, for its whole life.</param>
     /// <param name="items">The items the focus moves between; each must be non-null and named once.</param>
