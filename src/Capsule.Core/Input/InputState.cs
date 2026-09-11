@@ -26,10 +26,25 @@ public sealed class InputState(ActionBindings bindings)
     /// <summary>Whether the pointer is somewhere other than where it was the previous step.</summary>
     public bool PointerMoved => _current.Pointer != _previous.Pointer;
 
+    /// <summary>
+    /// How far the pointer moved into this step, in canvas pixels; zero while it rests. Unclamped, as
+    /// the positions it is taken from are.
+    /// </summary>
+    public Vector2 PointerDelta => _current.Pointer - _previous.Pointer;
+
+    /// <summary>
+    /// Wheel notches turned this step, zero while the wheel rests: X positive scrolls right, Y
+    /// positive scrolls away from the user. Unbounded, so a flick reads several notches at once.
+    /// </summary>
+    public Vector2 Scroll => _current.Scroll;
+
     /// <summary>Whether anything bound to <paramref name="action"/> is down this step.</summary>
     public bool IsHeld(InputAction action) => _bindings.IsAnyDown(action, _current);
 
-    /// <summary>What <paramref name="action"/> reads this step, in [-1, 1]; 0 when unbound.</summary>
+    /// <summary>
+    /// What <paramref name="action"/> reads this step: in [-1, 1] from buttons and pad axes, plus any
+    /// unbounded wheel notches bound to it; 0 when unbound.
+    /// </summary>
     public float Axis(AxisAction action) => _bindings.AxisValue(action, _current);
 
     /// <summary>Whether <paramref name="action"/> went down on the edge into this step.</summary>

@@ -4,8 +4,8 @@ using System.Runtime.CompilerServices;
 namespace Capsule.Input;
 
 /// <summary>
-/// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, and the
-/// pointer.
+/// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, the
+/// pointer, and the wheel notches turned since the previous sample.
 /// </summary>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {
@@ -24,20 +24,22 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     private readonly uint _padDown;
     private readonly uint _mouseDown;
     private readonly Vector2 _pointer;
+    private readonly Vector2 _scroll;
     private readonly AxisSet _axes;
 
-    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, AxisSet axes)
+    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes)
     {
         _down = down;
         _padDown = padDown;
         _mouseDown = mouseDown;
         _pointer = pointer;
+        _scroll = scroll;
         _axes = axes;
     }
 
     /// <summary>
-    /// A snapshot with nothing held, every axis at rest and the pointer on the canvas's top-left
-    /// corner; equal to <c>default</c>.
+    /// A snapshot with nothing held, every axis at rest, the wheel still and the pointer on the
+    /// canvas's top-left corner; equal to <c>default</c>.
     /// </summary>
     public static DeviceSnapshot Empty => default;
 
@@ -50,10 +52,13 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             down |= Bit(keys[i]);
         }
 
-        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, default);
+        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default);
     }
 
-    /// <summary>Whether nothing is held, every axis is at rest and the pointer is at the origin.</summary>
+    /// <summary>
+    /// Whether nothing is held, every axis is at rest, the wheel is still and the pointer is at the
+    /// origin.
+    /// </summary>
     public bool IsEmpty => Equals(Empty);
 
     /// <summary>
@@ -63,6 +68,14 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// run with no mouse is a pointer that never moves.
     /// </summary>
     public Vector2 Pointer => _pointer;
+
+    /// <summary>
+    /// Wheel notches turned since the previous sample, zero while the wheel rests: X positive scrolls
+    /// right, Y positive scrolls away from the user. A displacement rather than a position, so it is
+    /// summed when samples latch into one step, and it is bounded by nothing — a fast flick reads
+    /// several notches in one step.
+    /// </summary>
+    public Vector2 Scroll => _scroll;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
@@ -81,22 +94,22 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public float Axis(PadAxis axis) => _axes[AxisIndex(axis)];
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
-    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _axes);
+    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _axes);
+    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _axes);
+    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
-    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _axes);
+    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _axes);
+    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _axes);
+    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes);
 
     /// <summary>This snapshot with the pointer at <paramref name="position"/>.</summary>
     /// <param name="position">Canvas pixels from the canvas's top-left corner; unclamped, so a position outside the canvas is a pointer outside it.</param>
@@ -111,7 +124,23 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
                 "A pointer position must be finite; a NaN or infinite one spreads to everything that reads it.");
         }
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes);
+    }
+
+    /// <summary>This snapshot with the wheel having turned <paramref name="notches"/>.</summary>
+    /// <param name="notches">Wheel notches since the previous sample: X positive scrolls right, Y positive scrolls away from the user. Unbounded, and fractional on a wheel that reports finer than a notch.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The notches are not finite.</exception>
+    public DeviceSnapshot WithScroll(Vector2 notches)
+    {
+        if (!float.IsFinite(notches.X) || !float.IsFinite(notches.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(notches),
+                notches,
+                "A scroll amount must be finite; a NaN or infinite one spreads to everything that reads it.");
+        }
+
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes);
     }
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
@@ -129,12 +158,13 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         AxisSet axes = _axes;
         axes[index] = value;
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes);
     }
 
     /// <summary>
-    /// Unions held buttons with a newer sample and takes its axis values and its pointer, so a click
-    /// between two fixed steps survives to the next one while the pointer is wherever it last was.
+    /// Unions held buttons with a newer sample, sums the wheel notches, and takes its axis values and
+    /// its pointer, so a click or a notch between two fixed steps survives to the next one while the
+    /// pointer is wherever it last was.
     /// </summary>
     public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(
@@ -142,16 +172,17 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             _padDown | newer._padDown,
             _mouseDown | newer._mouseDown,
             newer._pointer,
+            _scroll + newer._scroll,
             newer._axes);
 
     /// <summary>
-    /// Whether the same keys and buttons are held, every axis reads the same, and the pointer is on
-    /// the same position.
+    /// Whether the same keys and buttons are held, every axis reads the same, the wheel turned the
+    /// same, and the pointer is on the same position.
     /// </summary>
     public bool Equals(DeviceSnapshot other)
     {
         if (_down != other._down || _padDown != other._padDown || _mouseDown != other._mouseDown ||
-            _pointer != other._pointer)
+            _pointer != other._pointer || _scroll != other._scroll)
         {
             return false;
         }
@@ -178,6 +209,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         hash.Add(_padDown);
         hash.Add(_mouseDown);
         hash.Add(_pointer);
+        hash.Add(_scroll);
         for (int i = 0; i < AxisCount; i++)
         {
             hash.Add(_axes[i]);
@@ -189,7 +221,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Whether the two snapshots capture the same instant.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in anything held, any axis or the pointer.</summary>
+    /// <summary>Whether the two snapshots differ in anything held, any axis, the wheel or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     private static UInt128 Bit(Key key)

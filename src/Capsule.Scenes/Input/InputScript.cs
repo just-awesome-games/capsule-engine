@@ -6,8 +6,8 @@ namespace Capsule.Scenes.Input;
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> of a fixed snapshot sequence the way a device produces one:
 /// a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/>, <see cref="Axis"/> and
-/// <see cref="MoveTo"/> edit, and <see cref="Wait"/> and <see cref="Tap(Key)"/> emit steps of. Every
-/// duration is a count of fixed steps, never seconds.
+/// <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap(Key)"/> and
+/// <see cref="Scroll"/> emit steps of. Every duration is a count of fixed steps, never seconds.
 /// </summary>
 /// <remarks>
 /// Editing the held state emits no step of its own, so a chord is pressed by several
@@ -130,6 +130,19 @@ public sealed class InputScript
         _held = _held.With(button);
         _steps.Add(_held);
         _held = _held.Without(button);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Emits one step with the wheel having turned <paramref name="notches"/> on top of the held
+    /// state, then stills it: a wheel is never held, so only that one step sees the notches.
+    /// </summary>
+    /// <param name="notches">Wheel notches: X positive scrolls right, Y positive scrolls away from the user. Unbounded.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The notches are not finite.</exception>
+    public InputScript Scroll(Vector2 notches)
+    {
+        _steps.Add(_held.WithScroll(notches));
 
         return this;
     }

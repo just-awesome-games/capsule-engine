@@ -44,6 +44,25 @@ public sealed class MouseSamplerTests
     }
 
     [Fact]
+    public void TheWheelTurnedWhileUnfocused_IsNoNotchOnTheReturn()
+    {
+        MouseSampler sampler = new();
+        DeviceSnapshot none = DeviceSnapshot.Empty;
+
+        // 120 cumulative units per notch, counting up away from the user and to the right.
+        sampler.Resume(none, Vector2.Zero, horizontal: 0, vertical: 0);
+        Assert.Equal(new Vector2(1f, 2f), sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 240).Scroll);
+
+        Assert.Equal(Vector2.Zero, sampler.Suspend(none).Scroll);
+
+        // Spun far while away: the return re-seeds the baseline instead of reporting the gap.
+        Assert.Equal(Vector2.Zero, sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 6000).Scroll);
+
+        // From there the wheel reads normally again, a notch down reading negative.
+        Assert.Equal(new Vector2(0f, -1f), sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 5880).Scroll);
+    }
+
+    [Fact]
     public void AButtonHeldThroughTheLaunch_IsNotAPress()
     {
         MouseSampler sampler = new();

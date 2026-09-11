@@ -99,6 +99,28 @@ public sealed class InputScriptTests
     }
 
     [Fact]
+    public void Scroll_TurnsTheWheelForExactlyOneStep()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Down(MouseButton.Left)
+            .MoveTo(new Vector2(10f, 20f))
+            .Scroll(new Vector2(0f, -2f))
+            .Wait(1)
+            .Build());
+
+        Assert.Equal(2, steps.Count);
+        Assert.Equal(new Vector2(0f, -2f), steps[0].Scroll);
+        Assert.Equal(Vector2.Zero, steps[1].Scroll);
+        Assert.All(
+            steps,
+            snapshot =>
+            {
+                Assert.True(snapshot.IsDown(MouseButton.Left));
+                Assert.Equal(new Vector2(10f, 20f), snapshot.Pointer);
+            });
+    }
+
+    [Fact]
     public void TappingAHeldMouseButton_IsRefused()
     {
         InputScript script = new InputScript().Down(MouseButton.Left);

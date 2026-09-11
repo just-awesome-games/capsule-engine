@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 
 namespace Capsule.Tests.Input;
@@ -39,6 +40,21 @@ public sealed class SnapshotLatchTests
         Assert.Equal(down, latch.ConsumeStepSnapshot());
         Assert.Equal(down, latch.ConsumeStepSnapshot());
         Assert.Equal(down, latch.ConsumeStepSnapshot());
+    }
+
+    [Fact]
+    public void SeveralStepsDrainedInOneFrame_SpendTheWheelOnTheFirst()
+    {
+        SnapshotLatch latch = new();
+        DeviceSnapshot flick = DeviceSnapshot.Of(Key.Space).WithScroll(new Vector2(0f, 3f));
+
+        latch.Observe(flick);
+
+        Assert.Equal(new Vector2(0f, 3f), latch.ConsumeStepSnapshot().Scroll);
+
+        DeviceSnapshot second = latch.ConsumeStepSnapshot();
+        Assert.Equal(Vector2.Zero, second.Scroll);
+        Assert.True(second.IsDown(Key.Space));
     }
 
     [Fact]
