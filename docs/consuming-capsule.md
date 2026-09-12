@@ -181,7 +181,7 @@ Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-The publish directory carries the host's native libraries beside the executable, one for the window and input and one for sound — `SDL2.dll` and `openal.dll` on Windows. The window's is required; sound is not, so a machine with no audio library or output device plays the run silently and says so once on the log. The rule the publish gates is in [`architecture.md`](architecture.md#nativeaot-floor).
+The publish directory carries the host's native libraries beside the executable, one for the window and input and one for sound — `SDL2.dll` and `openal.dll` on Windows. The window's is required; sound is not, so a machine with no audio library or output device plays the run silently and says so once on the log. Sound follows the operating system's default output: when the default moves — a headset connecting or disconnecting — every playing voice moves with it. The rule the publish gates is in [`architecture.md`](architecture.md#nativeaot-floor).
 
 ## Development-only directories
 

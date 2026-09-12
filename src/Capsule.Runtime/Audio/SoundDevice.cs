@@ -5,11 +5,19 @@ using NVorbis;
 
 namespace Capsule.Runtime.Audio;
 
-// The OpenAL-backed sound device: clips decoded whole, clips decoded as they play, and the worker
-// that reads the latter ahead.
+// The OpenAL-backed sound device: clips decoded whole, clips decoded as they play, the worker that
+// reads the latter ahead, and the watch that keeps the output on the system's default device.
 internal sealed class SoundDevice : IAudioBackend
 {
     private readonly AudioStreamer _streamer = new((rate, channels) => new DynamicPcmQueue(rate, channels));
+
+    // Both null when the library offers no way to follow the default output, which leaves sound on
+    // the device the run opened.
+    private OpenAlOutput? _output;
+    private OutputFollower? _follower;
+
+    // Whether the last reopen failed, so a streak of retries warns once rather than every frame.
+    private bool _reopenFailed;
 
     private SoundDevice()
     {
@@ -32,10 +40,17 @@ internal sealed class SoundDevice : IAudioBackend
             return Silent(failure);
         }
 
-        Log.Info("audio device opened");
+        SoundDevice device = new();
+        device.FollowDefaultOutput();
 
-        return new SoundDevice();
+        Log.Info(device._output is { } output ? $"audio device opened on '{output.Name}'" : "audio device opened");
+
+        return device;
     }
+
+    // Once a frame, on the game thread: moves the output to the system's default device when the
+    // default has changed or the device has been pulled.
+    internal void Update(double elapsedSeconds) => _follower?.Update(elapsedSeconds);
 
     public IResidentSound Load(in AudioClip clip)
     {
@@ -65,12 +80,58 @@ internal sealed class SoundDevice : IAudioBackend
         return _streamer.Play(new VorbisPcmSource(reader), clip, gain, pitch, pan, loop, startSeconds);
     }
 
-    public void Dispose() => _streamer.Dispose();
+    // The watch first, so no announcement lands while the voices it would move are being torn down.
+    public void Dispose()
+    {
+        _output?.Dispose();
+        _output = null;
+        _follower = null;
+        _streamer.Dispose();
+    }
 
     private static SoundDevice? Silent(Exception failure)
     {
         Log.Warning($"audio device unavailable, so the game runs silent — {failure.Message}");
 
         return null;
+    }
+
+    private void FollowDefaultOutput()
+    {
+        OutputFollower follower = new(Reopen, () => _output is { Connected: true });
+        _output = OpenAlOutput.TryAttach(follower.DefaultChanged);
+
+        if (_output is null)
+        {
+            Log.Debug("audio output cannot follow the default device: the OpenAL library lacks the extensions");
+
+            return;
+        }
+
+        _follower = follower;
+    }
+
+    private bool Reopen()
+    {
+        if (_output is not { } output)
+        {
+            return true;
+        }
+
+        if (output.TryReopen(out int error))
+        {
+            Log.Info($"audio output moved to '{output.Name}'");
+            _reopenFailed = false;
+
+            return true;
+        }
+
+        if (!_reopenFailed)
+        {
+            Log.Warning($"audio output could not move to the default device (OpenAL error 0x{error:X}); retrying");
+            _reopenFailed = true;
+        }
+
+        return false;
     }
 }

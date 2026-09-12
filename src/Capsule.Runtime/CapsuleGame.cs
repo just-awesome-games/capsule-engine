@@ -31,8 +31,9 @@ internal sealed class CapsuleGame : Game
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
 
-    // Both null when the sound device would not open, which leaves every command and every preload
-    // a no-op rather than failing the run.
+    // All null when the sound device would not open, which leaves every command and every preload
+    // a no-op rather than failing the run. The store owns the device's disposal.
+    private SoundDevice? _device;
     private SoundStore? _sounds;
     private AudioPlayer? _audio;
 
@@ -88,6 +89,7 @@ internal sealed class CapsuleGame : Game
 
         if (SoundDevice.TryOpen() is { } device)
         {
+            _device = device;
             _sounds = new SoundStore(device);
             _audio = new AudioPlayer(_sounds);
         }
@@ -145,8 +147,10 @@ internal sealed class CapsuleGame : Game
 
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
-        // Every frame, including one that drained no step: a streamed voice hands the device its
-        // next buffers here, and base.Update is what services them.
+        // Every frame, including one that drained no step: the device follows the system's default
+        // output, a streamed voice hands the device its next buffers, and base.Update is what
+        // services them.
+        _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
         _audio?.Update();
 
         if (exiting)
