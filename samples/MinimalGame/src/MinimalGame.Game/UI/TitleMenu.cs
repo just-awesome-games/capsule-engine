@@ -6,7 +6,7 @@ using Capsule.Scenes.Input;
 using Capsule.Scenes.Rendering;
 using MinimalGame.Game.Scenes;
 
-namespace MinimalGame.Game.Entities;
+namespace MinimalGame.Game.UI;
 
 /// <summary>
 /// The title screen's menu: the title itself, the two items, and the

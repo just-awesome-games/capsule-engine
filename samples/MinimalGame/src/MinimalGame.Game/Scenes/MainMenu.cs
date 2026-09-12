@@ -1,6 +1,7 @@
 using Capsule;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
+using MinimalGame.Game.UI;
 
 namespace MinimalGame.Game.Scenes;
 

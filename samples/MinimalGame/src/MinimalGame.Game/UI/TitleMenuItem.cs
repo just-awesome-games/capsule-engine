@@ -5,7 +5,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Input;
 using Capsule.Scenes.Rendering;
 
-namespace MinimalGame.Game.Entities;
+namespace MinimalGame.Game.UI;
 
 /// <summary>
 /// One item of the title menu, and the shape an interface element takes in Capsule: a
