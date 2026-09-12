@@ -42,8 +42,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static readonly DiagnosticDescriptor AmbientRandom = Rule(
         AmbientRandomId,
-        "Game logic cannot use randomness outside the scene's seeded source",
-        "'{0}' is not reproducible across runs or runtime versions; draw from the seeded source the scene holds, which an entity or component reaches as Random");
+        "Game logic cannot use randomness outside the run's seeded source",
+        "'{0}' is not reproducible across runs or runtime versions; draw from the seeded source the run holds, which a scene, entity or component reaches as Random");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [RuntimeBoundary, PlatformBoundary, ExternalIo, Concurrency, AmbientTime, AmbientRandom];

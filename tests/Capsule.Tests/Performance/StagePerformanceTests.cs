@@ -150,7 +150,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
 
             for (int index = 0; index < 15; index++)
             {
-                host.Scene.RequestRestart();
+                host.Run.RequestRestart();
                 host.Step(Scenes.SceneFixtures.Step(index));
             }
 
@@ -166,7 +166,7 @@ public sealed class StagePerformanceTests(ITestOutputHelper output)
 
     private static (StepSample[] Samples, int Entities) Measure(SceneDocument document, StageChurn churn)
     {
-        using SceneSimulation simulation = new(StageWorkload.Compose(document, churn), null, StageWorkload.Defaults);
+        using SceneSimulation simulation = new(StageWorkload.Compose(document, churn), run: StageWorkload.Defaults);
 
         StepSample[] samples = StepMeasurement.Measure(
             simulation,

@@ -15,7 +15,7 @@ public sealed class UiPrimitiveTests
     [Fact]
     public void AFilledRect_IsOneSpriteOverTheEngineWhiteTexel()
     {
-        using SceneRun run = Run(new ColorRect(new Vector2(30f, 10f)) { Color = ColorRgba.Black });
+        using SimulationHost run = Run(new ColorRect(new Vector2(30f, 10f)) { Color = ColorRgba.Black });
         run.Step();
 
         SpriteIntent drawn = Assert.Single(run.Simulation.View.Sprites.ToArray());
@@ -30,7 +30,7 @@ public sealed class UiPrimitiveTests
     {
         ColorRect rect = new(new Vector2(30f, 10f)) { Offset = new Vector2(2f, 3f) };
 
-        using SceneRun run = Run(rect);
+        using SimulationHost run = Run(rect);
         run.Step();
 
         // The holder sits at (4, 5).
@@ -47,7 +47,7 @@ public sealed class UiPrimitiveTests
 
         Assert.Equal([SceneFixtures.Atlas], scene.CollectAssetPreloads().Textures);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         Assert.Equal(9, run.Simulation.View.Sprites.Length);
@@ -64,7 +64,7 @@ public sealed class UiPrimitiveTests
         Scene scene = new();
         scene.Add(holder);
 
-        using SceneRun run = new(scene, canvas: new Vector2(100f, 50f));
+        using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(100f, 50f) });
         run.Step();
 
         // Half the canvas, then the entity's own (4, 5).
@@ -81,8 +81,8 @@ public sealed class UiPrimitiveTests
         Scene scene = new();
         scene.Add(new Drifter(probe));
 
-        using SceneRun run = new(scene, canvas: new Vector2(100f, 50f));
-        run.Run(2);
+        using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(100f, 50f) });
+        run.Step(2);
 
         // Two steps from the canvas's centre, which the anchor resolved to (50, 25).
         Assert.Equal(new Vector2(52f, 25f), probe.Current);
@@ -102,12 +102,12 @@ public sealed class UiPrimitiveTests
         Assert.True(new NineSlice(Panel, new SliceInsets(3), new Vector2(40f, 30f)).Bounds.IsEmpty);
     }
 
-    private static SceneRun Run(Component primitive)
+    private static SimulationHost Run(Component primitive)
     {
         Scene scene = new();
         scene.Add(new Holder(primitive));
 
-        return new SceneRun(scene);
+        return new SimulationHost(scene);
     }
 
     private sealed class Holder : Entity

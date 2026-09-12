@@ -113,7 +113,7 @@ public sealed class InputDriverPlaybackTests
     private static (FixedStepScheduler Scheduler, SceneHost Host, Recording Scene) Driven(IInputDriver driver)
     {
         Recording scene = new();
-        SceneHost host = new(SceneTransition.ToScene(typeof(Recording), null), (in SceneTransition _) => scene);
+        SceneHost host = new(SceneTransition.ToScene(typeof(Recording), null), (in SceneTransition _) => scene, new Run());
 
         return (new FixedStepScheduler(StepSeconds, 32, new ActionBindings().Bind(Jump, Key.Space), driver, host), host, scene);
     }
@@ -162,7 +162,7 @@ public sealed class InputDriverPlaybackTests
         {
             if (context.Input.WasPressed(Jump))
             {
-                RequestScene<Room>();
+                Run.RequestScene<Room>();
             }
         }
     }
@@ -173,7 +173,7 @@ public sealed class InputDriverPlaybackTests
         {
             if (context.Input.WasPressed(Jump))
             {
-                RequestExit();
+                Run.RequestExit();
             }
         }
     }
@@ -191,7 +191,7 @@ public sealed class InputDriverPlaybackTests
         {
             if (context.Input.WasPressed(Jump))
             {
-                RequestExit();
+                Run.RequestExit();
             }
         }
     }

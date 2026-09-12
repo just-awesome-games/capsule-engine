@@ -160,7 +160,7 @@ public sealed class ColliderTests
 
         scene.Add(first);
         scene.Add(second);
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         ColliderHandle original = first.Collider.Handle;
@@ -196,7 +196,7 @@ public sealed class ColliderTests
         body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
 
         scene.Add(body);
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
 
         // Falling onto the floor, resting on it, then being lifted off it.
         run.Step();
@@ -292,7 +292,7 @@ public sealed class ColliderTests
         Straddler settled = new(new Vector2(0f, 8f));
         scene.Add(settled);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         // Overlapping the same floor, but never settled, so it has announced nothing to end.
@@ -450,7 +450,7 @@ public sealed class ColliderTests
         Straddler body = new(new Vector2(0f, 8f));
         scene.Add(body);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
@@ -508,7 +508,7 @@ public sealed class ColliderTests
         Straddler body = new(new Vector2(36f, 8f));
         scene.Add(body);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         // Clear of the first two cells of the row: only the third is under it.
@@ -608,7 +608,7 @@ public sealed class ColliderTests
             throw new InvalidOperationException("a handler of the consuming game's own.");
         };
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
 
         Assert.Throws<InvalidOperationException>(() => run.Step());
         Assert.Equal(["+(0,1)"], body.Log);
@@ -964,7 +964,7 @@ public sealed class ColliderTests
         body.Collider.ContactEntered += entered.Add;
         scene.Add(body);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
 
         // Just under the face, inside the contact skin and on the far side of it: nothing touched.
         run.Step();

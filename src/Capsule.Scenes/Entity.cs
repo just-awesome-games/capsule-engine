@@ -113,8 +113,17 @@ public class Entity
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
 
+    /// <summary>The run of the scene holding this entity.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// This entity is in no scene, or its scene has not started; reach the run from
+    /// <see cref="OnStart"/> on.
+    /// </exception>
+    public Run Run => Scene is { } scene
+        ? scene.Run
+        : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoRunYet}");
+
     /// <summary>
-    /// The run's deterministic random source, reached through the scene. This is the default
+    /// The run's deterministic random source, reached through the run. This is the default
     /// stream; a domain whose draws must not move another's takes its own —
     /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
@@ -123,9 +132,7 @@ public class Entity
     /// <see cref="OnStart"/>. <see cref="OnAddedToScene"/> reaches it only when the
     /// scene had already started before this was added.
     /// </exception>
-    public RandomSource Random => Scene is { } scene
-        ? scene.Random
-        : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoSourceYet}");
+    public RandomSource Random => Run.Random;
 
     // Which of a frame's two layers this entity's renderers draw on. The type is what routes them:
     // every renderer follows its entity, with no flag of its own.

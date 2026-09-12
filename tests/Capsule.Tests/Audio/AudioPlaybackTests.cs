@@ -250,12 +250,12 @@ public sealed class AudioPlaybackTests
     {
         StartupScene scene = new();
 
-        using SceneHost host = new(SceneTransition.ToScene(typeof(StartupScene), null), (in SceneTransition _) => scene);
+        using SceneHost host = new(SceneTransition.ToScene(typeof(StartupScene), null), (in SceneTransition _) => scene, new Run());
         using Fixture fixture = new();
 
         // The order LoadContent boots in: the scene's preloads, then whatever its start left standing.
         fixture.Preload(Step);
-        fixture.Player.Apply(host.Audio.Commands);
+        fixture.Player.Apply(host.Run.Audio.Commands);
 
         FakeVoice sounding = Assert.Single(fixture.Backend.Voices);
         Assert.Equal(Step, sounding.Clip);
@@ -264,7 +264,7 @@ public sealed class AudioPlaybackTests
         // Nothing carries it past here, which is what makes the boot delivery the only chance at it.
         host.Step(SceneFixtures.Step(0));
 
-        Assert.Empty(host.Audio.Commands.ToArray());
+        Assert.Empty(host.Run.Audio.Commands.ToArray());
     }
 
     private static Voice Slot(int slot, int generation) => Voice.Of(slot, generation);

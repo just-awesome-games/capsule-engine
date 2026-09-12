@@ -51,7 +51,7 @@ public sealed class TitleMenu : ScreenEntity
         Scene!.Add(_exit);
     }
 
-    private void StartGame() => Scene!.RequestScene<Room>();
+    private void StartGame() => Run.RequestScene<Room>();
 
-    private void Quit() => Scene!.RequestExit();
+    private void Quit() => Run.RequestExit();
 }

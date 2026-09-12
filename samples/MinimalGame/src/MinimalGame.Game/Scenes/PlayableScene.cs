@@ -36,7 +36,7 @@ public abstract class PlayableScene : Scene
     {
         if (context.Input.WasPressed(GameInput.Quit))
         {
-            RequestExit();
+            Run.RequestExit();
         }
     }
 
@@ -47,7 +47,7 @@ public abstract class PlayableScene : Scene
     {
         if (Player.Health == 0)
         {
-            RequestScene<MainMenu>();
+            Run.RequestScene<MainMenu>();
         }
     }
 }

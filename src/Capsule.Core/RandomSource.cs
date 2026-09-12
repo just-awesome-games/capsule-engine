@@ -3,8 +3,8 @@ using System.Numerics;
 namespace Capsule;
 
 /// <summary>
-/// The deterministic random source game logic draws from, reached from a scene, an entity or a
-/// component as their <c>Random</c>. A xoshiro256** generator seeded from <see cref="Seed"/> and
+/// The deterministic random source game logic draws from: a run's <c>Random</c>, which an entity
+/// or component reaches as its own <c>Random</c>. A xoshiro256** generator seeded from <see cref="Seed"/> and
 /// <see cref="Stream"/> by an injective map, with no wall clock, process entropy or ambient state
 /// and advanced only by a draw: the same seed, stream and sequence of calls produce the same values
 /// on every platform and under NativeAOT. Give every domain that must be independent its own stream
@@ -13,8 +13,9 @@ namespace Capsule;
 /// and <see cref="Advance"/> it by the count.
 /// </summary>
 /// <remarks>
-/// The runtime owns one instance for the whole run — stream 0 of the seed the host configured —
-/// handed to every scene it opens, so neither a transition nor a restart reseeds or rewinds it.
+/// A run holds one instance for its whole life — the source it was built with, which in a
+/// shell-built run is stream 0 of the configured seed — installed on every scene it opens, so
+/// neither a transition nor a restart reseeds or rewinds it.
 /// </remarks>
 public sealed class RandomSource
 {

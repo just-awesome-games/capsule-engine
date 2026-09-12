@@ -149,7 +149,7 @@ public sealed class CommandLineTests : IDisposable
 
     private sealed class Exiting : Scene
     {
-        protected override void OnStep(in StepContext context) => RequestExit();
+        protected override void OnStep(in StepContext context) => Run.RequestExit();
     }
 
     // Registered but never named by a RunScene call, so only --scene can open it.
@@ -159,6 +159,6 @@ public sealed class CommandLineTests : IDisposable
 
         protected override void OnStart() => Openings++;
 
-        protected override void OnStep(in StepContext context) => RequestExit();
+        protected override void OnStep(in StepContext context) => Run.RequestExit();
     }
 }

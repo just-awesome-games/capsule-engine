@@ -37,11 +37,11 @@ Nothing is read ambiently: a shell that does not pass `args` has no command line
 
 ## Running from a test
 
-A driver plays a test as readily as it plays a window. [`testing.md`](testing.md) covers `SceneRun`,
+A driver plays a test as readily as it plays a window. [`testing.md`](testing.md) covers `SimulationHost`,
 `RunHeadless`, and which to reach for.
 
 ## Screenshots
 
-Game logic cannot write a file, so a screenshot is an intent `Scene.CaptureFrame` raises and the
+Game logic cannot write a file, so a screenshot is an intent `Run.CaptureFrame` raises and the
 host fulfils on its next drawn frame. A windowed run writes the PNG; a headless run has no surface
 to save, so it clears the request and writes nothing.

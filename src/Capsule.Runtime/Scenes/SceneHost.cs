@@ -1,5 +1,4 @@
 using Capsule.Assets;
-using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -12,23 +11,21 @@ internal delegate Scene SceneResolver(in SceneTransition target);
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
-    private readonly SceneDefaults _defaults;
-    private readonly RandomSource _random;
-    private readonly AudioMixer _audio = new();
+    private readonly Run _run;
 
     private SceneTransition _target;
     private SceneSimulation _current;
     private bool _disposed;
 
-    // random is one source for the whole run: every scene the host opens draws from it, so a
-    // transition neither reseeds nor rewinds the sequence.
-    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, SceneDefaults defaults = default, RandomSource? random = null)
+    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, Run run)
     {
+        ArgumentNullException.ThrowIfNull(resolve);
+        ArgumentNullException.ThrowIfNull(run);
+
         _resolve = resolve;
-        _defaults = defaults;
-        _random = random ?? new RandomSource();
+        _run = run;
         _target = initialTarget;
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, defaults, _random, _audio);
+        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, _run);
     }
 
     public bool ExitRequested { get; private set; }
@@ -37,9 +34,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     internal Scene Scene => _current.Scene;
 
-    // One mixer for the whole run, as _random is one source: a transition neither silences a voice
-    // nor resets a bus volume.
-    internal AudioMixer Audio => _audio;
+    internal Run Run => _run;
 
     // Null until the device is ready. Later transitions prepare their incoming scene through it.
     internal Action<AssetCollection>? PrepareAssets { get; set; }
@@ -88,9 +83,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
-    // Takes the current scene's pending frame capture request. A transition builds a new scene, so
-    // a request the outgoing one raised and no frame served goes with it; an exit tears the scene
-    // down, so nothing is left to serve.
+    // Takes the run's pending frame capture request. A transition builds a new scene without
+    // discarding it; an exit leaves nothing to serve.
     internal bool TryTakeFrameCapture(out string path)
     {
         if (ExitRequested)
@@ -148,7 +142,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
 
         _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload, _defaults, _random, _audio);
+        _current = new SceneSimulation(next, target.Payload, _run);
         _target = target;
     }
 

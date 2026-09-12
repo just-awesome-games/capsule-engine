@@ -33,7 +33,7 @@ public sealed class CrowdPerformanceTests(ITestOutputHelper output)
     public void AThousandCollidingAnimatedBodies_StayWithinTheStepBudgetAndAllocateNothing()
     {
         Scene scene = CrowdWorkload.Room();
-        using SceneSimulation simulation = new(scene, null, StageWorkload.Defaults);
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
 
         StepSample[] samples = StepMeasurement.Measure(simulation, StepSeconds, WarmupSteps, MeasuredSteps);
 

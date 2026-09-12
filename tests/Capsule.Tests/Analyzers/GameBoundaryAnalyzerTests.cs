@@ -194,7 +194,7 @@ public sealed class GameBoundaryAnalyzerTests
 
     // CAP105 closes the ambient APIs, so the seam it leaves open has to stay open.
     [Fact]
-    public async Task Logic_accepts_the_seeded_random_source_reached_through_the_scene()
+    public async Task Logic_accepts_the_seeded_random_source_reached_through_the_run()
     {
         const string source = """
             using Capsule.Scenes;

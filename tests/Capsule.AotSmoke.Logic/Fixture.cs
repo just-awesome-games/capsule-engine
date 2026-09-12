@@ -33,7 +33,7 @@ public sealed class FixtureScene(SceneContent content) : Scene(content)
     {
         if (context.Input.WasPressed(FixtureInput.Quit))
         {
-            RequestExit();
+            Run.RequestExit();
         }
     }
 }

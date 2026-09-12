@@ -5,7 +5,7 @@ using Capsule.Scenes.Input;
 
 namespace Capsule.Tests.Scenes;
 
-public sealed class SceneRunTests
+public sealed class SimulationHostTests
 {
     private static readonly InputAction Jump = new("Jump");
 
@@ -15,9 +15,9 @@ public sealed class SceneRunTests
         List<long> ticks = [];
         void Hook(Scene scene, in StepContext context) => ticks.Add(context.Tick);
 
-        using SceneRun run = new(new SceneFixtures.HookScene(step: Hook));
+        using SimulationHost run = new(new SceneFixtures.HookScene(step: Hook));
 
-        run.Run(2);
+        run.Step(2);
 
         // A script is positional, so a five-step one handed a run at tick 2 serves 2, 3 and 4.
         run.Play(new InputScript().Wait(5).Build());
@@ -25,6 +25,23 @@ public sealed class SceneRunTests
 
         Assert.Equal([0L, 1, 2, 3, 4, 5], ticks);
         Assert.Equal(6, run.Tick);
+    }
+
+    [Fact]
+    public void Run_IsTheSimulationsRun_AndStepCountAdvancesThatManyTicks()
+    {
+        List<long> ticks = [];
+        void Hook(Scene scene, in StepContext context) => ticks.Add(context.Tick);
+        Run configured = new();
+
+        using SimulationHost host = new(new SceneFixtures.HookScene(step: Hook), run: configured);
+
+        Assert.Same(configured, host.Run);
+
+        host.Step(3);
+
+        Assert.Equal([0L, 1, 2], ticks);
+        Assert.Equal(3, host.Tick);
     }
 
     // The rate a caller builds a run with is the one a distance is measured against, so it has to
@@ -35,9 +52,9 @@ public sealed class SceneRunTests
         List<float> deltas = [];
         void Hook(Scene scene, in StepContext context) => deltas.Add(context.DeltaSeconds);
 
-        using SceneRun run = new(new SceneFixtures.HookScene(step: Hook), stepHertz: 120);
+        using SimulationHost run = new(new SceneFixtures.HookScene(step: Hook), stepHertz: 120);
 
-        run.Run(2);
+        run.Step(2);
 
         Assert.Equal(1.0 / 120.0, run.StepSeconds);
         Assert.Equal([1f / 120f, 1f / 120f], deltas);
@@ -52,10 +69,10 @@ public sealed class SceneRunTests
     {
         SceneFixtures.HookScene scene = new();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => new SceneRun(scene, stepHertz: stepHertz));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SimulationHost(scene, stepHertz: stepHertz));
         Assert.Equal(0, scene.Starts);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
 
         Assert.Equal(1, scene.Starts);
@@ -70,11 +87,11 @@ public sealed class SceneRunTests
         List<bool> presses = [];
         void Hook(Scene scene, in StepContext context) => presses.Add(context.Input.WasPressed(Jump));
 
-        using SceneRun run = new(
+        using SimulationHost run = new(
             new SceneFixtures.HookScene(step: Hook),
             new InputState(new ActionBindings().Bind(Jump, Key.Space)));
 
-        run.Run(3, DeviceSnapshot.Of(Key.Space));
+        run.Step(3, DeviceSnapshot.Of(Key.Space));
 
         Assert.Equal([true, false, false], presses);
     }
@@ -82,7 +99,7 @@ public sealed class SceneRunTests
     [Fact]
     public void PlayEndsOnTheExitRequest_WithStepsLeftInTheDriver()
     {
-        using SceneRun run = new(new ExitsOnTick(2));
+        using SimulationHost run = new(new ExitsOnTick(2));
 
         run.Play(new InputScript().Wait(10).Build());
 
@@ -96,7 +113,7 @@ public sealed class SceneRunTests
     [Fact]
     public void PlayRunsTheDriversFirstStep_EvenWhenTheSceneExitedFromItsStart()
     {
-        using SceneRun run = new(new ExitsOnStart());
+        using SimulationHost run = new(new ExitsOnStart());
 
         run.Play(new InputScript().Wait(10).Build());
 
@@ -111,7 +128,7 @@ public sealed class SceneRunTests
         SceneFixtures.HookScene scene = new();
         scene.Add(drifter);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
 
         Assert.True(run.RunUntil(() => drifter.Position.X >= 3f, 10));
         Assert.Equal(3, run.Tick);
@@ -120,7 +137,7 @@ public sealed class SceneRunTests
     [Fact]
     public void RunUntil_SpendsItsBudgetAndNoMore_WhenTheConditionNeverHolds()
     {
-        using SceneRun run = new(new SceneFixtures.HookScene());
+        using SimulationHost run = new(new SceneFixtures.HookScene());
 
         Assert.False(run.RunUntil(static () => false, 4));
         Assert.Equal(4, run.Tick);
@@ -128,7 +145,7 @@ public sealed class SceneRunTests
 
     private sealed class ExitsOnStart : Scene
     {
-        protected override void OnStart() => RequestExit();
+        protected override void OnStart() => Run.RequestExit();
     }
 
     private sealed class ExitsOnTick(long tick) : Scene
@@ -137,7 +154,7 @@ public sealed class SceneRunTests
         {
             if (context.Tick == tick)
             {
-                RequestExit();
+                Run.RequestExit();
             }
         }
     }

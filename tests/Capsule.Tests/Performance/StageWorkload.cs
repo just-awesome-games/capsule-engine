@@ -41,7 +41,7 @@ internal static class StageWorkload
     private static readonly Sprite ActorFrame = new(Atlas, new TextureRegion(0, 0, 16, 16));
     private static readonly Sprite SparkFrame = new(Atlas, new TextureRegion(0, 0, 4, 4));
 
-    internal static SceneDefaults Defaults => new(TextureSampling.Point);
+    internal static Run Defaults => new() { Sampling = TextureSampling.Point };
 
     internal static SceneDocument Build()
     {

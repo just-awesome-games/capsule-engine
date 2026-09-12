@@ -443,11 +443,11 @@ public sealed class AudioMixerTests
         static Scene Resolve(in SceneTransition target) =>
             target.SceneType == typeof(LevellingScene) ? new LevellingScene() : new MusicScene();
 
-        using SceneHost host = new(SceneTransition.ToScene(typeof(LevellingScene), null), Resolve);
+        using SceneHost host = new(SceneTransition.ToScene(typeof(LevellingScene), null), Resolve, new Run());
 
         host.Step(SceneFixtures.Step(0));
 
-        AudioCommand played = Assert.Single(host.Audio.Commands.ToArray());
+        AudioCommand played = Assert.Single(host.Run.Audio.Commands.ToArray());
         Assert.Equal(AudioCommandKind.Play, played.Kind);
         Assert.Equal(Music, played.Bus);
         Assert.Equal(0.25f, played.Gain);
@@ -716,6 +716,30 @@ public sealed class AudioMixerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Volume = volume }));
     }
 
+    [Fact]
+    public void UnfocusedVolume_DefaultsToSilent() => Assert.Equal(0f, new AudioMixer().UnfocusedVolume);
+
+    [Theory]
+    [InlineData(-0.001f)]
+    [InlineData(1.001f)]
+    [InlineData(float.NaN)]
+    public void UnfocusedVolume_OutsideTheUnitRange_IsRefused(float volume)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AudioMixer().UnfocusedVolume = volume);
+    }
+
+    [Fact]
+    public void SettingUnfocusedVolume_RaisesNoCommand()
+    {
+        AudioMixer mixer = new();
+        mixer.Play(Step);
+        AudioCommand[] before = mixer.Commands.ToArray();
+
+        mixer.UnfocusedVolume = 0.5f;
+
+        Assert.Equal(before, mixer.Commands.ToArray());
+    }
+
     [Theory]
     [InlineData(0f)]
     [InlineData(-1f)]
@@ -737,14 +761,14 @@ public sealed class AudioMixerTests
 
     private sealed class LevellingScene : Scene
     {
-        protected override void OnStart() => Audio.SetVolume(Music, 0.25f);
+        protected override void OnStart() => Run.Audio.SetVolume(Music, 0.25f);
 
-        protected override void OnStep(in StepContext context) => RequestScene<MusicScene>();
+        protected override void OnStep(in StepContext context) => Run.RequestScene<MusicScene>();
     }
 
     private sealed class MusicScene : Scene
     {
-        protected override void OnStart() => Audio.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
+        protected override void OnStart() => Run.Audio.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
     }
 
     private static void Advance(AudioMixer mixer, long tick) =>

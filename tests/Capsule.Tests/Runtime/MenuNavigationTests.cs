@@ -65,7 +65,10 @@ public sealed class MenuNavigationTests
     {
         Menu menu = new();
 
-        using SceneRun run = new(menu, new InputState(Bound(new ActionBindings())), canvas: Canvas);
+        using SimulationHost run = new(
+            menu,
+            new InputState(Bound(new ActionBindings())),
+            run: new Run { Canvas = Canvas });
         run.Play(driver);
 
         Assert.True(menu.SecondIsFocused);
@@ -118,7 +121,7 @@ public sealed class MenuNavigationTests
         private void Press(string item)
         {
             Pressed = item;
-            RequestExit();
+            Run.RequestExit();
         }
     }
 

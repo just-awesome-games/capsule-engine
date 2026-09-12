@@ -61,7 +61,7 @@ public sealed class SceneDrawOrderTests
         scene.Add(first);
         scene.Add(second);
 
-        using SceneRun run = new(scene);
+        using SimulationHost run = new(scene);
         run.Step();
         Assert.Equal([1, 2], Order(run.Simulation));
 

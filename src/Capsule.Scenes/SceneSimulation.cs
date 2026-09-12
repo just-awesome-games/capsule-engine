@@ -1,4 +1,3 @@
-using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Scenes.Rendering;
 
@@ -10,17 +9,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     private readonly FrameView _view = new();
     private bool _disposed;
 
-    /// <summary>Starts <paramref name="scene"/> under <paramref name="defaults"/> and builds its first frame.</summary>
+    /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/> and builds its first frame.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
-    /// <param name="defaults">The game's scene defaults, which fill in whatever the scene set nothing for.</param>
-    /// <param name="random">
-    /// The run's random source, which becomes the scene's <see cref="Scenes.Scene.Random"/> before
-    /// it starts; omitted, it is the default seed's stream 0.
-    /// </param>
-    /// <param name="audio">
-    /// The run's audio mixer, which becomes the scene's <see cref="Scenes.Scene.Audio"/> before it
-    /// starts; omitted, it is a mixer of this simulation's own, playing nothing.
+    /// <param name="run">
+    /// The run to install on the scene before it starts; omitted, a new run with default settings.
     /// </param>
     /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
@@ -28,18 +21,16 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     public SceneSimulation(
         Scene scene,
         object? entryPayload = null,
-        SceneDefaults defaults = default,
-        RandomSource? random = null,
-        AudioMixer? audio = null)
+        Run? run = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
         Scene = scene;
-        scene.Random = random ?? new RandomSource();
-        scene.Audio = audio ?? new AudioMixer();
+        Run = run ?? new Run();
+        scene.Run = Run;
         try
         {
-            scene.Start(entryPayload, defaults);
+            scene.Start(entryPayload);
             RewriteView();
         }
         catch (Exception startFailure)
@@ -63,8 +54,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>The scene being advanced, for the lifetime of this simulation.</summary>
     public Scene Scene { get; }
 
-    /// <summary>Whether the scene has asked the host to shut down; never cleared.</summary>
-    public bool ExitRequested => Scene.ExitRequested;
+    /// <summary>The run installed on <see cref="Scene"/>, shared for this simulation's lifetime.</summary>
+    public Run Run { get; }
+
+    /// <summary>Whether the run has asked the host to shut down; never cleared.</summary>
+    public bool ExitRequested => Run.ExitRequested;
 
     /// <summary>What to draw: one held instance, populated at construction and rewritten after each completed step.</summary>
     public FrameView View => _view;
@@ -82,7 +76,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
         // Ahead of everything the step runs: a sound played during it expires against this step's
         // tick, and the commands it raises are this step's rather than the previous one's.
-        Scene.Audio.BeginStep(in context);
+        Run.Audio.BeginStep(in context);
 
         Scene.BeginStep();
         Scene.RunStep(in context);
@@ -105,16 +99,16 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         RewriteView();
     }
 
-    // Takes the scene's pending frame capture request, clearing it. Not step-bound: the host calls
-    // it from the frame that will serve it. Readable without taking as Scene.FrameCaptureRequested.
-    internal bool TryTakeFrameCapture(out string path) => Scene.TryTakeFrameCapture(out path);
+    // Takes the run's pending frame capture request, clearing it. Not step-bound: the host calls it
+    // from the frame that will serve it. Readable without taking as Run.FrameCaptureRequested.
+    internal bool TryTakeFrameCapture(out string path) => Run.TryTakeFrameCapture(out path);
 
     /// <summary>Takes the deferred transition requested by the last step, if one was requested.</summary>
     /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
     public bool TryTakeTransition(out SceneTransition transition)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return Scene.TryTakeTransition(out transition);
+        return Run.TryTakeTransition(out transition);
     }
 
     /// <summary>Stops the scene and releases every entity it holds.</summary>
@@ -140,7 +134,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             Scene.Camera.ViewportSize,
             Scene.Camera.Fit,
             Scene.Camera.Bounds);
-        _view.Canvas = Scene.Canvas;
+        _view.Canvas = Run.Canvas;
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 

@@ -1,6 +1,6 @@
 namespace Capsule.Scenes;
 
-/// <summary>The operation a scene asks its host to perform after the current step.</summary>
+/// <summary>The operation a run asks its host to perform after the current step.</summary>
 public enum SceneTransitionKind
 {
     /// <summary>Shut the host down once the current step finishes.</summary>
@@ -17,7 +17,7 @@ public enum SceneTransitionKind
 }
 
 /// <summary>
-/// A deferred scene operation, exposed to a host by
+/// A deferred scene operation stored by a <see cref="Run"/>, exposed to a host by
 /// <see cref="SceneSimulation.TryTakeTransition"/> after the step that requested it has finished.
 /// </summary>
 public readonly record struct SceneTransition

@@ -65,7 +65,7 @@ public sealed class SceneViewTests
 
         SceneFixtures.HookScene scene = new();
         scene.Add(drifter);
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         run.Step();
         run.Step();

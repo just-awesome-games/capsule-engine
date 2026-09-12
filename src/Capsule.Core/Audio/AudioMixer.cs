@@ -13,8 +13,8 @@ namespace Capsule.Audio;
 /// carries is already resolved against the master and bus volumes.
 /// </para>
 /// <para>
-/// Reached as <c>Scene.Audio</c>; the host owns one for the whole run, so a voice survives a scene
-/// transition unless whatever started it stops it.
+/// Reached as <c>Run.Audio</c>; a run constructs one and holds it for its whole life, so a voice
+/// survives a scene transition unless whatever started it stops it.
 /// </para>
 /// </summary>
 public sealed class AudioMixer
@@ -43,6 +43,8 @@ public sealed class AudioMixer
     // rate change on its first step.
     private double _stepSeconds = 1f / StepContext.DefaultStepHertz;
 
+    private float _unfocusedVolume;
+
     /// <summary>An idle mixer: master at volume 1, no other bus registered, nothing playing.</summary>
     public AudioMixer()
     {
@@ -64,6 +66,23 @@ public sealed class AudioMixer
     /// </summary>
     public ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
 
+    /// <summary>
+    /// The linear amplitude the windowed host applies to the whole output while the game's window
+    /// is inactive: 0 is silent and 1 is unchanged. Zero by default. This is run state outside the
+    /// command stream, so changing it raises no command and does not alter command gains; headless
+    /// simulation reads the value but has no output to apply it to.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is outside [0, 1] or is not a number.</exception>
+    public float UnfocusedVolume
+    {
+        get => _unfocusedVolume;
+        set
+        {
+            RequireVolume(value, nameof(value));
+            _unfocusedVolume = value;
+        }
+    }
+
     /// <summary>This bus's own linear amplitude in [0, 1]; 1 for a bus nothing has changed yet.</summary>
     public float GetVolume(AudioBus bus)
     {
@@ -80,8 +99,8 @@ public sealed class AudioMixer
     /// Bus volumes are the run's, not a scene's: what one scene sets stands for every scene after
     /// it until something sets it again, and a bus nothing has set reads 1. A game therefore levels
     /// its buses once — from its boot scene's start, or from a settings screen — rather than per
-    /// scene. The mixer is installed on a scene after that scene is constructed, so a constructor
-    /// has none to reach.
+    /// scene. The mixer is installed on the run before a scene starts, so a scene constructor has
+    /// none to reach.
     /// </para>
     /// <para>
     /// A voice played before the volume it should carry goes out at the old product and is

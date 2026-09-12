@@ -94,7 +94,7 @@ public sealed class SceneVisibilityTests
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), lateStep: Pan);
         scene.Add(marker);
 
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         run.Step();
         Assert.Empty(log);
@@ -118,8 +118,8 @@ public sealed class SceneVisibilityTests
         scene.Add(marker);
         scene.Add(new SceneFixtures.Watcher(_ => seen.Add(marker.Notifier.IsOnScreen)));
 
-        using SceneRun run = new(scene);
-        run.Run(3);
+        using SimulationHost run = new(scene);
+        run.Step(3);
 
         // The step that brought the marker on screen reports it to the step after it, never to its own.
         Assert.Equal([false, false, true], seen);
@@ -143,7 +143,7 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         // It attaches after the settle the step ran, so the arrival settle is what enters it.
         run.Step();
@@ -171,7 +171,7 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         run.Step();
         run.Step();
@@ -205,7 +205,7 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         run.Step();
         Assert.True(scene.Camera.VisibleRegion.IsEmpty);
@@ -235,7 +235,7 @@ public sealed class SceneVisibilityTests
         }
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         // The arrival settle owns the entries that landed with the adds, and stops at them.
         run.Step();
@@ -257,7 +257,7 @@ public sealed class SceneVisibilityTests
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
 
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         run.Step();
         Assert.Equal(["entered"], log);

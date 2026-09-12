@@ -431,23 +431,23 @@ public sealed class RandomSourceTests
         Scene scene = new();
         scene.Add(entity);
 
-        using SceneSimulation simulation = new(scene, random: run);
+        using SceneSimulation simulation = new(scene, run: new Run(run));
 
-        Assert.Same(run, scene.Random);
+        Assert.Same(run, scene.Run.Random);
         Assert.Same(run, entity.Random);
         Assert.Same(run, entity.Probe.Random);
         Assert.Same(run, entity.SeenOnStart);
     }
 
     [Fact]
-    public void ASceneRunWithNoSourceGetsTheDefaultStream()
+    public void ASceneSimulationWithNoSourceGetsTheDefaultStream()
     {
         Scene scene = new();
 
         using SceneSimulation simulation = new(scene);
 
-        Assert.Equal(RandomSource.DefaultSeed, scene.Random.Seed);
-        Assert.Equal(0ul, scene.Random.Stream);
+        Assert.Equal(RandomSource.DefaultSeed, scene.Run.Random.Seed);
+        Assert.Equal(0ul, scene.Run.Random.Stream);
     }
 
     // No throwaway source stands in before the run's: a scene that has not started has none, so a
@@ -463,7 +463,7 @@ public sealed class RandomSourceTests
 
         scene.Add(entity);
 
-        InvalidOperationException fromScene = Assert.Throws<InvalidOperationException>(() => scene.Random);
+        InvalidOperationException fromScene = Assert.Throws<InvalidOperationException>(() => scene.Run);
         InvalidOperationException fromAttached = Assert.Throws<InvalidOperationException>(() => entity.Random);
 
         foreach (InvalidOperationException failure in new[] { fromDetached, fromComponent, fromScene, fromAttached })
@@ -487,7 +487,7 @@ public sealed class RandomSourceTests
         Assert.NotNull(prober.AddedFailure);
         Assert.Contains("OnStart", prober.AddedFailure!.Message, StringComparison.Ordinal);
 
-        using SceneSimulation simulation = new(scene, random: run);
+        using SceneSimulation simulation = new(scene, run: new Run(run));
 
         Assert.Same(run, prober.SeenOnStart);
         Assert.Equal(new RandomSource(0x5EED).NextFloat(), prober.FirstDraw);

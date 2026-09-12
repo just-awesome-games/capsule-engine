@@ -245,7 +245,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
-    /// <see cref="global::Capsule.Scenes.Scene.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
+    /// <see cref="global::Capsule.Scenes.Run.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
     /// game that never calls this replays identically run to run.
     /// </summary>
     public EngineBuilder WithRandomSeed(ulong seed)
@@ -393,7 +393,7 @@ public sealed class EngineBuilder
     /// <summary>
     /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no graphics
     /// device and no textures: everything this builder configures below the window — bindings, the
-    /// fixed step, the seed, scene defaults — applies, scene transitions are honoured, and the
+    /// fixed step, the seed, the run's canvas and sampling — applies, scene transitions are honoured, and the
     /// driver is asked for one snapshot per fixed step until it reports it is finished or the game
     /// requests exit. Replaces any driver <see cref="WithInputDriver"/> set.
     /// </summary>
@@ -437,7 +437,7 @@ public sealed class EngineBuilder
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="payload">
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
-    /// <see cref="Scene.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
+    /// <see cref="global::Capsule.Scenes.Run.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
     /// </param>
     /// <returns>The process's exit code, as <see cref="RunScene(string, object?)"/> defines it.</returns>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
@@ -455,7 +455,7 @@ public sealed class EngineBuilder
     /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
     /// <param name="payload">
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
-    /// <see cref="Scene.RequestScene(string, object?)"/> would; null unless the game supplies one.
+    /// <see cref="global::Capsule.Scenes.Run.RequestScene(string, object?)"/> would; null unless the game supplies one.
     /// </param>
     /// <returns>
     /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line, or
@@ -560,7 +560,10 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(target, composer.Resolve, new SceneDefaults(_sampling, Canvas), new RandomSource(_randomSeed));
+        using SceneHost host = new(
+            target,
+            composer.Resolve,
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling });
         Run(host, host);
 
         return 0;
@@ -626,7 +629,7 @@ public sealed class EngineBuilder
     }
 
     // No window, device or media loading: the scene host is the same one a windowed run drives, so
-    // transitions, the seed and the scene defaults behave identically.
+    // transitions, the seed and the run settings behave identically.
     private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);
@@ -635,7 +638,10 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
-        using SceneHost host = new(initialTarget, composer.Resolve, new SceneDefaults(_sampling, Canvas), new RandomSource(_randomSeed));
+        using SceneHost host = new(
+            initialTarget,
+            composer.Resolve,
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling });
 
         FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _input.Bindings, driver, host);
 

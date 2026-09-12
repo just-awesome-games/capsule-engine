@@ -56,7 +56,7 @@ public sealed class MenuPerformanceTests
 
         // Starting the run starts the navigator, which is where its first item takes the focus. The
         // steps are then driven straight into the component, so what is measured is its own work.
-        using SceneRun run = new(scene, input, canvas: new Vector2(320f, 180f));
+        using SimulationHost run = new(scene, input, run: new Run { Canvas = new Vector2(320f, 180f) });
 
         // The expensive step: the pointer moved, it is inside the last item, and the click is pressed,
         // so both hit tests walk the whole list.
@@ -136,7 +136,7 @@ public sealed class MenuPerformanceTests
             .Bind(Right, Key.Right)
             .Bind(Confirm, Key.Enter));
 
-        using SceneRun run = new(scene, input, canvas: new Vector2(320f, 180f));
+        using SimulationHost run = new(scene, input, run: new Run { Canvas = new Vector2(320f, 180f) });
 
         DeviceSnapshot down = DeviceSnapshot.Empty.With(Key.Down);
         DeviceSnapshot up = DeviceSnapshot.Empty.With(Key.Up);

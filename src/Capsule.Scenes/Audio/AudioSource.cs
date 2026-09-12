@@ -7,7 +7,7 @@ namespace Capsule.Scenes.Audio;
 /// Plays one clip for its entity, holding the voice so the entity can stop, pause and re-level it.
 /// The clip is declared as a preload, and the voice is stopped when the entity leaves the scene —
 /// so a transition silences what a scene's entities were playing while anything started through
-/// <see cref="Scene.Audio"/> plays on.
+/// <see cref="Run.Audio"/> plays on.
 /// <para>
 /// Capsule mixes no position into gain: this is a handle on a voice, not a point in space.
 /// </para>
@@ -217,6 +217,6 @@ public sealed class AudioSource(AudioClip clip) : Component
     protected internal override void OnRemovedFromScene() => Stop();
 
     private AudioMixer Mixer() =>
-        Entity?.Scene?.AudioOrNull
-        ?? throw new InvalidOperationException($"{nameof(AudioSource)} is on no entity in a scene, so {Scene.NoMixerYet}");
+        Entity?.Scene?.RunOrNull?.Audio
+        ?? throw new InvalidOperationException($"{nameof(AudioSource)} is on no entity in a scene, so {Scene.NoRunYet}");
 }

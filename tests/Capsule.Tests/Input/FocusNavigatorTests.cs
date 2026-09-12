@@ -609,7 +609,7 @@ public sealed class FocusNavigatorTests
         private readonly List<string> _log = [];
         private readonly List<Focusable> _items = [];
 
-        private SceneRun? _run;
+        private SimulationHost? _run;
         private DeviceSnapshot _held;
 
         internal Menu(params ReadOnlySpan<Focusable> items)
@@ -751,7 +751,7 @@ public sealed class FocusNavigatorTests
         /// <summary>Starts the scene, which is where the navigator's starting item takes the focus.</summary>
         internal Menu Open()
         {
-            _run = new SceneRun(_scene, new InputState(Bound()), canvas: Canvas);
+            _run = new SimulationHost(_scene, new InputState(Bound()), run: new Run { Canvas = Canvas });
 
             return this;
         }

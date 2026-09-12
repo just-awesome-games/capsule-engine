@@ -28,15 +28,15 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void TheHostsTake_YieldsTheRequestedPathAndClearsIt()
     {
-        using SceneHost host = new(ToScene<CapturingScene>(), (in SceneTransition _) => new CapturingScene("shot.png"));
+        using SceneHost host = new(ToScene<CapturingScene>(), (in SceneTransition _) => new CapturingScene("shot.png"), new Run());
 
         host.Step(SceneFixtures.Step(0));
 
-        Assert.Equal("shot.png", host.Scene.FrameCaptureRequested);
+        Assert.Equal("shot.png", host.Run.FrameCaptureRequested);
         Assert.True(host.TryTakeFrameCapture(out string path));
         Assert.Equal("shot.png", path);
 
-        Assert.Null(host.Scene.FrameCaptureRequested);
+        Assert.Null(host.Run.FrameCaptureRequested);
         Assert.False(host.TryTakeFrameCapture(out _));
     }
 
@@ -46,30 +46,13 @@ public sealed class FrameCaptureTests : IDisposable
     public void ASecondRequestBeforeTheTake_ReplacesTheFirst()
     {
         CapturingScene scene = new("first.png");
-        using SceneHost host = new(ToScene<CapturingScene>(), (in SceneTransition _) => scene);
+        using SceneHost host = new(ToScene<CapturingScene>(), (in SceneTransition _) => scene, new Run());
 
         host.Step(SceneFixtures.Step(0));
         scene.Request("second.png");
 
         Assert.True(host.TryTakeFrameCapture(out string path));
         Assert.Equal("second.png", path);
-    }
-
-    // A capture is not a transition: it lives on the scene that raised it, so a transition in the
-    // same step tears that scene down with the request still pending and no file is owed.
-    [Fact]
-    public void ATransition_DropsTheOutgoingScenesPendingRequest()
-    {
-        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(CapturingScene)
-            ? new CapturingScene("shot.png", leaves: true)
-            : new PassiveScene();
-
-        using SceneHost host = new(ToScene<CapturingScene>(), Resolve);
-
-        host.Step(SceneFixtures.Step(0));
-
-        Assert.IsType<PassiveScene>(host.Scene);
-        Assert.False(host.TryTakeFrameCapture(out _));
     }
 
     [Fact]
@@ -116,7 +99,7 @@ public sealed class FrameCaptureTests : IDisposable
             .RunHeadless<BoundCaptureScene>(driver);
 
         Assert.Equal(DrivenSteps, result.Steps);
-        Assert.Null(Assert.IsType<BoundCaptureScene>(scene).FrameCaptureRequested);
+        Assert.Null(Assert.IsType<BoundCaptureScene>(scene).Run.FrameCaptureRequested);
         Assert.False(File.Exists(BoundPath));
     }
 
@@ -170,22 +153,15 @@ public sealed class FrameCaptureTests : IDisposable
         where TScene : Scene
         => SceneTransition.ToScene(typeof(TScene), null);
 
-    private sealed class CapturingScene(string path, bool leaves = false) : Scene
+    private sealed class CapturingScene(string path) : Scene
     {
-        internal void Request(string next) => CaptureFrame(next);
+        internal void Request(string next) => Run.CaptureFrame(next);
 
         protected override void OnStep(in StepContext context)
         {
-            CaptureFrame(path);
-
-            if (leaves)
-            {
-                RequestScene<PassiveScene>();
-            }
+            Run.CaptureFrame(path);
         }
     }
-
-    private sealed class PassiveScene : Scene;
 
     private sealed class BoundCaptureScene : Scene
     {
@@ -193,7 +169,7 @@ public sealed class FrameCaptureTests : IDisposable
         {
             if (context.Input.WasPressed(Shoot))
             {
-                CaptureFrame(BoundPath);
+                Run.CaptureFrame(BoundPath);
             }
         }
     }

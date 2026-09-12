@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
-using Capsule.Audio;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
@@ -15,15 +14,12 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// An ordered world of entities and a camera. Mutations requested during a step are deferred
-/// until it ends; the first pending transition wins, except an exit request, which pre-empts one.
+/// until it ends.
 /// </summary>
 public class Scene
 {
-    internal const string NoSourceYet =
-        "the run's random source is not available yet; it is installed before the scene starts, so draw from OnStart on.";
-
-    internal const string NoMixerYet =
-        "the run's audio mixer is not available yet; it is installed before the scene starts, so play from OnStart on.";
+    internal const string NoRunYet =
+        "the run is installed before the scene starts, so reach it from OnStart on; a constructor cannot.";
 
     private readonly List<Entity> _entities = [];
     private readonly List<Entity> _pendingAdds = [];
@@ -48,8 +44,7 @@ public class Scene
     private Rect _settledRegion;
 
     private Camera _camera = new();
-    private RandomSource? _random;
-    private AudioMixer? _audio;
+    private Run? _run;
 
     private bool _stepping;
     private bool _starting;
@@ -57,9 +52,6 @@ public class Scene
 
     private bool _stopped;
     private bool _drawing;
-    private bool _exitRequested;
-    private string? _frameCapturePath;
-    private SceneTransition? _transition;
     private TextureSampling? _sampling;
 
     /// <summary>An empty world, for a scene that builds itself in code.</summary>
@@ -163,50 +155,18 @@ public class Scene
     public CollisionWorld2D Collision { get; } = new();
 
     /// <summary>
-    /// The run's deterministic random source: stream 0 of the seed the shell configured, the same
-    /// instance for the whole run, so a scene transition neither reseeds nor rewinds it.
-    /// Engine-owned. A domain whose draws must not move another's takes its own stream —
-    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// The run that owns this scene's lifetime state and requests. It is installed before the scene
+    /// starts and is shared by every scene the run opens.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The scene has not started, so no source is installed yet.</exception>
-    public RandomSource Random
+    /// <exception cref="InvalidOperationException">The run has not been installed yet.</exception>
+    public Run Run
     {
-        get => _random ?? throw new InvalidOperationException(NoSourceYet);
-        internal set => _random = value;
+        get => _run ?? throw new InvalidOperationException(NoRunYet);
+        internal set => _run = value;
     }
 
-    /// <summary>
-    /// The run's audio mixer: the same instance for the whole run, so a voice a scene starts keeps
-    /// playing across a transition unless whatever started it stops it. Engine-owned. A
-    /// <see cref="Capsule.Scenes.Audio.AudioSource"/> on an entity is the per-entity way in; this is the way to
-    /// play a sound no entity owns and to hold the game's bus volumes.
-    /// <para>
-    /// Installed after the scene is constructed and before its start, as <see cref="Random"/> is, so
-    /// a constructor cannot level a bus. Bus volumes and bus pause state are the run's and persist
-    /// across transitions: a game sets them once, from its boot scene's start or from a settings
-    /// screen, and every scene after that plays into what was set.
-    /// </para>
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The scene has not started, so no mixer is installed yet.</exception>
-    public AudioMixer Audio
-    {
-        get => _audio ?? throw new InvalidOperationException(NoMixerYet);
-        internal set => _audio = value;
-    }
-
-    // The mixer or nothing, for a component that must not throw where a scene has not started.
-    internal AudioMixer? AudioOrNull => _audio;
-
-    /// <summary>
-    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner and whose Y
-    /// runs down. A run constant, engine-owned and installed before the scene starts: the run's
-    /// declared render resolution, or the window size it was configured to open at, so it never
-    /// follows a window the player resizes. A <see cref="ScreenEntity"/> is anchored and hit-tested
-    /// against it, and a camera fit that
-    /// reveals more world than the canvas holds leaves the screen layer this extent, centred in what
-    /// the world was drawn on.
-    /// </summary>
-    public Vector2 Canvas { get; internal set; }
+    // The run or nothing, for components that must not throw before a scene has started.
+    internal Run? RunOrNull => _run;
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
@@ -229,15 +189,6 @@ public class Scene
 
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
-
-    /// <summary>Set by <see cref="RequestExit"/> and never cleared.</summary>
-    public bool ExitRequested => _exitRequested;
-
-    /// <summary>
-    /// The path <see cref="CaptureFrame"/> asked the host to save the next drawn frame to, or
-    /// null when no request is pending. Cleared when the host takes the request.
-    /// </summary>
-    public string? FrameCaptureRequested => _frameCapturePath;
 
     /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
@@ -350,85 +301,6 @@ public class Scene
     }
 
     /// <summary>
-    /// Asks the host to shut down once the current step finishes, replacing whatever transition
-    /// was already pending.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void RequestExit()
-    {
-        ThrowIfStopped();
-
-        _transition = SceneTransition.Exit();
-        _exitRequested = true;
-    }
-
-    /// <summary>
-    /// Asks the host to save the next frame it draws as a PNG at <paramref name="path"/>,
-    /// overwriting whatever is there and creating the directory the path names.
-    /// </summary>
-    /// <param name="path">
-    /// Where to write the PNG; a relative path resolves against the process working directory.
-    /// </param>
-    /// <remarks>
-    /// <para>
-    /// What is saved is the surface the world was drawn on: the declared render resolution where
-    /// the run has one, and the back buffer where it has none, so the image does not follow the
-    /// window's own size. Requesting again before the host takes the request replaces the path —
-    /// the last request standing when a frame draws is the one served. A frame with no surface to
-    /// draw on, as a minimised window has, leaves the request pending for the next frame that
-    /// draws. A run with no graphics device at all — <c>RunHeadless</c>, or <c>--headless</c> —
-    /// clears the request and writes nothing.
-    /// </para>
-    /// <para>
-    /// The host creates the directories the path names. A save that fails — a device read-back or
-    /// an encoding the backend refuses — writes no file, leaving whatever is at the path as it
-    /// was, reports itself through <see cref="Capsule.Diagnostics.Log"/> at
-    /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request rather than
-    /// throwing into the frame loop or standing for another frame.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="ArgumentException">The path is null, empty or blank.</exception>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void CaptureFrame(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        ThrowIfStopped();
-
-        _frameCapturePath = path;
-    }
-
-    /// <summary>Asks the host to reconstruct this scene once the current step finishes.</summary>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));
-
-    /// <summary>
-    /// Asks the host to reconstruct this scene with <paramref name="payload"/> once the current
-    /// step finishes.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void RequestRestart(object? payload) => TryRequest(SceneTransition.Restart(payload, true));
-
-    /// <summary>Asks the host to replace this scene with <typeparamref name="TScene"/>.</summary>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void RequestScene<TScene>(object? payload = null)
-        where TScene : Scene =>
-        TryRequest(SceneTransition.ToScene(typeof(TScene), payload));
-
-    /// <summary>
-    /// Asks the host to replace this scene with the scene the named document backs, or a plain
-    /// <see cref="Scene"/> composed from it when no class claims it.
-    /// </summary>
-    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
-    /// <param name="payload">State offered to the next scene.</param>
-    /// <exception cref="ArgumentException">The name is null or blank.</exception>
-    /// <exception cref="InvalidOperationException">The scene has stopped.</exception>
-    public void RequestScene(string name, object? payload = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        TryRequest(SceneTransition.ToName(name, payload));
-    }
-
-    /// <summary>
     /// Runs once, before the scene's first frame is built — where the camera opens. Exactly
     /// once: a scene belongs to one <see cref="SceneSimulation"/> for its lifetime.
     /// </summary>
@@ -481,7 +353,7 @@ public class Scene
         return assets;
     }
 
-    internal void Start(object? entryPayload, in SceneDefaults defaults)
+    internal void Start(object? entryPayload)
     {
         if (_started)
         {
@@ -493,10 +365,7 @@ public class Scene
         EntryPayload = entryPayload;
 
         // Whatever the scene's own construction set stands; the game default fills in behind it.
-        _sampling ??= defaults.Sampling;
-
-        // Ahead of every start below, so an entity anchoring itself to a canvas edge finds one.
-        Canvas = defaults.ResolvedCanvas;
+        _sampling ??= Run.Sampling;
 
         // Everything the scene was composed from is attached by now, so an entity starting here
         // can search the scene and find every other entry.
@@ -572,35 +441,6 @@ public class Scene
         ReleaseEntities(ref failures);
         ClearPendingState();
         CleanupFailures.Throw(failures);
-    }
-
-    // Takes the pending capture request, clearing it. Unlike a transition this is not bound to a
-    // step: the host calls it from the frame that will serve it, so an unserved request stands
-    // across steps until one does.
-    internal bool TryTakeFrameCapture(out string path)
-    {
-        if (_frameCapturePath is not { } requested)
-        {
-            path = "";
-            return false;
-        }
-
-        _frameCapturePath = null;
-        path = requested;
-        return true;
-    }
-
-    internal bool TryTakeTransition(out SceneTransition transition)
-    {
-        if (_transition is not { } requested)
-        {
-            transition = default;
-            return false;
-        }
-
-        _transition = null;
-        transition = requested;
-        return true;
     }
 
     internal ReadOnlySpan<Renderer> RenderersInDrawOrder() => _renderIndex.GetDrawOrder(Entities);
@@ -973,19 +813,6 @@ public class Scene
         _renderIndex.Clear();
         _contactReporters.Clear();
         _screenNotifiers.Clear();
-    }
-
-    private bool TryRequest(in SceneTransition transition)
-    {
-        ThrowIfStopped();
-
-        if (_transition is not null)
-        {
-            return false;
-        }
-
-        _transition = transition;
-        return true;
     }
 
     private void ThrowIfStopped()

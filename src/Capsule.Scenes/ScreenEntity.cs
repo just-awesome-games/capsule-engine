@@ -9,7 +9,7 @@ namespace Capsule.Scenes;
 /// layer however the two layers are banded. This is what an interface is built from — a menu item, a
 /// bar, a panel — and a plain <see cref="Entity"/> is what the world is built from.
 /// <para>
-/// The canvas is a run constant (<see cref="Scene.Canvas"/>), so a corner-anchored element keeps its
+/// The canvas is a run constant (<see cref="Run.Canvas"/>), so a corner-anchored element keeps its
 /// distance from that corner at every window size. Subclass it for behaviour and attach
 /// <see cref="Component"/>s for what composes, exactly as with an entity in the world.
 /// </para>
@@ -52,5 +52,5 @@ public class ScreenEntity : Entity
     internal sealed override RenderSpace Space => RenderSpace.Screen;
 
     // Zero before this entity is in a scene, which is where the run's canvas is reached.
-    internal sealed override Vector2 SpaceOrigin => Anchor.On(Scene?.Canvas ?? Vector2.Zero);
+    internal sealed override Vector2 SpaceOrigin => Anchor.On(Scene?.RunOrNull?.Canvas ?? Vector2.Zero);
 }

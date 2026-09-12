@@ -18,7 +18,7 @@ public sealed class SceneHostTests
             ? new FirstScene(log)
             : new SecondScene(log);
 
-        using SceneHost host = new(ToScene<FirstScene>(), Resolve);
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve, new Run());
 
         host.Step(SceneStep(0));
 
@@ -37,7 +37,7 @@ public sealed class SceneHostTests
     {
         SecondScene first = new([]);
 
-        using SceneHost host = new(ToScene<SecondScene>("boot"), (in SceneTransition _) => first);
+        using SceneHost host = new(ToScene<SecondScene>("boot"), (in SceneTransition _) => first, new Run());
         host.Step(SceneStep(0));
 
         Assert.Same(first, host.Scene);
@@ -52,7 +52,7 @@ public sealed class SceneHostTests
 
         Scene Resolve(in SceneTransition target) => new RestartingScene(++instances);
 
-        using SceneHost host = new(ToScene<RestartingScene>(checkpoint), Resolve);
+        using SceneHost host = new(ToScene<RestartingScene>(checkpoint), Resolve, new Run());
         host.Step(SceneStep(0));
 
         RestartingScene restarted = Assert.IsType<RestartingScene>(host.Scene);
@@ -67,7 +67,7 @@ public sealed class SceneHostTests
 
         Scene Resolve(in SceneTransition target) => new PayloadReplacingScene(++instances);
 
-        using SceneHost host = new(ToScene<PayloadReplacingScene>(new object()), Resolve);
+        using SceneHost host = new(ToScene<PayloadReplacingScene>(new object()), Resolve, new Run());
         host.Step(SceneStep(0));
 
         PayloadReplacingScene restarted = Assert.IsType<PayloadReplacingScene>(host.Scene);
@@ -86,7 +86,7 @@ public sealed class SceneHostTests
             return target.Kind == SceneTransitionKind.Scene ? new NameRequestingScene() : new RestartingScene(1);
         }
 
-        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve, new Run());
         host.Step(SceneStep(0));
         host.Step(SceneStep(1));
 
@@ -107,7 +107,7 @@ public sealed class SceneHostTests
             return target.Kind == SceneTransitionKind.Scene ? new NameRequestingScene() : new PassiveScene();
         }
 
-        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve, new Run());
         host.Step(SceneStep(0));
 
         Assert.Equal(SceneTransitionKind.Named, seen.Kind);
@@ -122,7 +122,7 @@ public sealed class SceneHostTests
 
         Scene Resolve(in SceneTransition target) => scene;
 
-        using SceneHost host = new(ToScene<ExitScene>(), Resolve);
+        using SceneHost host = new(ToScene<ExitScene>(), Resolve, new Run());
         List<int> preparedCounts = [];
         host.PrepareAssets = assets => preparedCounts.Add(assets.Textures.Count);
         host.Step(SceneStep(0));
@@ -133,11 +133,11 @@ public sealed class SceneHostTests
     }
 
     [Fact]
-    public void TheGamesSceneDefaults_ReachEverySceneTheHostOpens()
+    public void TheRunsSampling_ReachesEverySceneTheHostOpens()
     {
-        SceneDefaults defaults = new(TextureSampling.Point);
+        Run run = new() { Sampling = TextureSampling.Point };
 
-        using SceneHost host = new(ToScene<NameRequestingScene>(), ScenesByKind, defaults);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), ScenesByKind, run);
         host.Step(SceneStep(0));
 
         Assert.IsType<PassiveScene>(host.Scene);
@@ -151,7 +151,7 @@ public sealed class SceneHostTests
             ? new NameRequestingScene()
             : new FarAwayScene();
 
-        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve);
+        using SceneHost host = new(ToScene<NameRequestingScene>(), Resolve, new Run());
         host.Step(SceneStep(0));
 
         Assert.Equal(new Vector2(4000, 4000), host.View.Camera.Center);
@@ -169,20 +169,20 @@ public sealed class SceneHostTests
             ? new FirstScene(log)
             : new SecondScene(log);
 
-        using SceneHost host = new(ToScene<FirstScene>(), Resolve, default, run);
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve, new Run(run));
 
-        Assert.Same(run, host.Scene.Random);
+        Assert.Same(run, host.Scene.Run.Random);
 
-        float before = host.Scene.Random.NextFloat();
+        float before = host.Scene.Run.Random.NextFloat();
         host.Step(SceneStep(0));
 
         Assert.IsType<SecondScene>(host.Scene);
-        Assert.Same(run, host.Scene.Random);
+        Assert.Same(run, host.Scene.Run.Random);
 
         // The second scene continues the sequence rather than starting it again.
         RandomSource expected = new(0xC0FFEE);
         Assert.Equal(before, expected.NextFloat());
-        Assert.Equal(expected.NextFloat(), host.Scene.Random.NextFloat());
+        Assert.Equal(expected.NextFloat(), host.Scene.Run.Random.NextFloat());
     }
 
     // One mixer, built at boot and handed to every scene the host opens, so a voice a scene started
@@ -194,26 +194,44 @@ public sealed class SceneHostTests
             ? new FirstScene([])
             : new SecondScene([]);
 
-        using SceneHost host = new(ToScene<FirstScene>(), Resolve);
+        using SceneHost host = new(ToScene<FirstScene>(), Resolve, new Run());
 
-        AudioMixer mixer = host.Audio;
-        Assert.Same(mixer, host.Scene.Audio);
+        AudioMixer mixer = host.Run.Audio;
+        Assert.Same(mixer, host.Scene.Run.Audio);
 
         Voice ambient = mixer.Play(new AudioPlayback(new AudioClip("hum", ".ogg", 4.0)) { Loop = true });
         host.Step(SceneStep(0));
 
         Assert.IsType<SecondScene>(host.Scene);
-        Assert.Same(mixer, host.Scene.Audio);
+        Assert.Same(mixer, host.Scene.Run.Audio);
         Assert.True(mixer.IsPlaying(ambient));
+    }
+
+    // The capture belongs to the run, so replacing a scene does not discard what the outgoing
+    // scene requested for the incoming scene's next drawn frame.
+    [Fact]
+    public void ATransition_PreservesTheRunsPendingFrameCapture()
+    {
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(CapturingScene)
+            ? new CapturingScene()
+            : new PassiveScene();
+
+        using SceneHost host = new(ToScene<CapturingScene>(), Resolve, new Run());
+
+        host.Step(SceneStep(0));
+
+        Assert.IsType<PassiveScene>(host.Scene);
+        Assert.True(host.TryTakeFrameCapture(out string path));
+        Assert.Equal("shot.png", path);
     }
 
     [Fact]
     public void AHostGivenNoSourceSeedsTheSceneFromTheDefault()
     {
-        using SceneHost host = new(ToScene<FirstScene>(), (in SceneTransition _) => new FirstScene([]));
+        using SceneHost host = new(ToScene<FirstScene>(), (in SceneTransition _) => new FirstScene([]), new Run());
 
-        Assert.Equal(RandomSource.DefaultSeed, host.Scene.Random.Seed);
-        Assert.Equal(0ul, host.Scene.Random.Stream);
+        Assert.Equal(RandomSource.DefaultSeed, host.Scene.Run.Random.Seed);
+        Assert.Equal(0ul, host.Scene.Run.Random.Stream);
     }
 
     [Fact]
@@ -225,7 +243,7 @@ public sealed class SceneHostTests
             ? new MenuTextures(order)
             : new ArenaTextures();
 
-        using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
+        using SceneHost host = new(ToScene<MenuTextures>(), Resolve, new Run());
         host.PrepareAssets = assets => order.Add("prepare:" + Names(assets.Textures));
 
         host.Step(SceneStep(0));
@@ -251,7 +269,7 @@ public sealed class SceneHostTests
             return resolved;
         }
 
-        using SceneHost host = new(ToScene<MenuTextures>(), Resolve);
+        using SceneHost host = new(ToScene<MenuTextures>(), Resolve, new Run());
         host.PrepareAssets = static assets =>
         {
             if (assets.Textures.Count > 0)
@@ -272,7 +290,7 @@ public sealed class SceneHostTests
     [Fact]
     public void DisposingTheHost_ReleasesItsSceneAssets()
     {
-        SceneHost host = new(ToScene<PassiveScene>(), (in SceneTransition _) => new PassiveScene());
+        SceneHost host = new(ToScene<PassiveScene>(), (in SceneTransition _) => new PassiveScene(), new Run());
         List<int> preparedCounts = [];
         host.PrepareAssets = assets => preparedCounts.Add(assets.Textures.Count);
 
@@ -295,7 +313,7 @@ public sealed class SceneHostTests
         protected internal override void CollectAssets(AssetCollection assets) =>
             assets.Add([Hud, Shared]);
 
-        protected override void OnStep(in StepContext context) => RequestScene<ArenaTextures>();
+        protected override void OnStep(in StepContext context) => Run.RequestScene<ArenaTextures>();
 
         protected override void OnStop() => order.Add("menu.stop");
     }
@@ -355,7 +373,7 @@ public sealed class SceneHostTests
         protected override void OnStep(in StepContext context)
         {
             log.Add("first.step");
-            RequestScene<SecondScene>("handoff");
+            Run.RequestScene<SecondScene>("handoff");
         }
 
         protected override void OnStop() => log.Add("first.stop");
@@ -386,7 +404,7 @@ public sealed class SceneHostTests
         {
             if (instance == 1)
             {
-                RequestRestart();
+                Run.RequestRestart();
             }
         }
     }
@@ -401,17 +419,26 @@ public sealed class SceneHostTests
         {
             if (instance == 1)
             {
-                RequestRestart(null);
+                Run.RequestRestart(null);
             }
         }
     }
 
     private sealed class NameRequestingScene : Scene
     {
-        protected override void OnStep(in StepContext context) => RequestScene("boss-room");
+        protected override void OnStep(in StepContext context) => Run.RequestScene("boss-room");
     }
 
     private sealed class PassiveScene : Scene;
+
+    private sealed class CapturingScene : Scene
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            Run.CaptureFrame("shot.png");
+            Run.RequestScene<PassiveScene>();
+        }
+    }
 
     private sealed class FarAwayScene : Scene
     {
@@ -426,7 +453,7 @@ public sealed class SceneHostTests
     {
         internal int Stops { get; private set; }
 
-        protected override void OnStep(in StepContext context) => RequestExit();
+        protected override void OnStep(in StepContext context) => Run.RequestExit();
 
         protected override void OnStop() => Stops++;
     }

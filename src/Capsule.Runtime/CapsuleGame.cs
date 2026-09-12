@@ -37,6 +37,8 @@ internal sealed class CapsuleGame : Game
     private SoundStore? _sounds;
     private AudioPlayer? _audio;
 
+    private float _lastOutputGain = -1f;
+
     private bool _windowRaised;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
@@ -103,13 +105,13 @@ internal sealed class CapsuleGame : Game
             {
                 // Per step, not per frame: the mixer rewrites its commands every step and a frame
                 // may run several.
-                _scheduler.StepCompleted = () => audio.Apply(scenes.Audio.Commands);
+                _scheduler.StepCompleted = () => audio.Apply(scenes.Run.Audio.Commands);
 
                 // The initial scene started before the device existed, so what its start raised is
                 // still on the mixer; the first step's BeginStep would clear it unheard. A later
                 // scene starts inside the step that asked for it, so its start is delivered with
                 // that step's commands.
-                audio.Apply(scenes.Audio.Commands);
+                audio.Apply(scenes.Run.Audio.Commands);
             }
         }
 
@@ -151,6 +153,17 @@ internal sealed class CapsuleGame : Game
         // output, a streamed voice hands the device its next buffers, and base.Update is what
         // services them.
         _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
+
+        if (_device is { } device && _scenes is { } scenes)
+        {
+            float gain = IsActive ? 1f : scenes.Run.Audio.UnfocusedVolume;
+            if (gain != _lastOutputGain)
+            {
+                device.SetOutputGain(gain);
+                _lastOutputGain = gain;
+            }
+        }
+
         _audio?.Update();
 
         if (exiting)

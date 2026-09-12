@@ -15,7 +15,7 @@ public sealed class SceneStepTests
     public void PositionsAreRetained_BeforeAnythingMoves()
     {
         SceneFixtures.Drifter drifter = new(new Vector2(5, 5));
-        SceneRun run = new(Simulation(new SceneFixtures.HookScene(), drifter));
+        SimulationHost run = new(Simulation(new SceneFixtures.HookScene(), drifter));
 
         run.Step();
 
@@ -71,7 +71,7 @@ public sealed class SceneStepTests
         void Early(Scene scene, in StepContext context) => seenEarly = drifter.Position;
         void Late(Scene scene, in StepContext context) => seenLate = drifter.Position;
 
-        SceneRun run = new(Simulation(
+        SimulationHost run = new(Simulation(
             new SceneFixtures.HookScene(step: Early, lateStep: Late),
             drifter));
 
@@ -102,7 +102,7 @@ public sealed class SceneStepTests
             heldDuringTheLateStep = scene.Entities.Length;
         }
 
-        SceneRun run = new(Simulation(new SceneFixtures.HookScene(lateStep: Late), leaving));
+        SimulationHost run = new(Simulation(new SceneFixtures.HookScene(lateStep: Late), leaving));
         log.Clear();
 
         run.Step();
@@ -123,7 +123,7 @@ public sealed class SceneStepTests
     public void AStartRunsExactlyOnce_BeforeTheFirstFrame()
     {
         SceneFixtures.HookScene scene = new(start: static started => started.Camera.ViewportSize = new Vector2(320, 180));
-        SceneRun run = new(scene);
+        SimulationHost run = new(scene);
 
         Assert.Equal(new Vector2(320, 180), run.Simulation.View.Camera.Size);
 
@@ -234,7 +234,7 @@ public sealed class SceneStepTests
             }
         }
 
-        SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook)));
+        SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook)));
 
         run.Step();
 
@@ -311,7 +311,7 @@ public sealed class SceneStepTests
     [Fact]
     public void RequestingExit_ReachesTheHost()
     {
-        void Hook(Scene scene, in StepContext context) => scene.RequestExit();
+        void Hook(Scene scene, in StepContext context) => scene.Run.RequestExit();
 
         SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook));
 
@@ -498,7 +498,7 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
+        using SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
 
         run.Step();
 
@@ -601,7 +601,7 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneRun run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
+        using SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
 
         run.Step();
 
@@ -632,7 +632,7 @@ public sealed class SceneStepTests
             }
         }
 
-        using SceneRun run = new(new SceneFixtures.HookScene(step: Hook));
+        using SimulationHost run = new(new SceneFixtures.HookScene(step: Hook));
 
         Assert.Throws<InvalidOperationException>(() => run.Step());
         Assert.Equal(["stranded+"], log);

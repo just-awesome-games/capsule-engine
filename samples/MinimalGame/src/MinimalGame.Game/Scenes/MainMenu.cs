@@ -20,7 +20,7 @@ public sealed class MainMenu : Scene
     {
         if (context.Input.WasPressed(GameInput.Quit))
         {
-            RequestExit();
+            Run.RequestExit();
         }
     }
 }

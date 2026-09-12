@@ -52,6 +52,10 @@ internal sealed class SoundDevice : IAudioBackend
     // default has changed or the device has been pulled.
     internal void Update(double elapsedSeconds) => _follower?.Update(elapsedSeconds);
 
+    // MonoGame's master volume propagates to OpenAL gain for every resident and dynamic
+    // SoundEffectInstance, so the host can apply one gain to the whole output.
+    internal void SetOutputGain(float gain) => SoundEffect.MasterVolume = gain;
+
     public IResidentSound Load(in AudioClip clip)
     {
         string path = AudioFiles.Locate(AppContext.BaseDirectory, clip);

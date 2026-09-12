@@ -154,7 +154,7 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
         CollisionWorkload.Walker walker = new(CollisionWorkload.Mover.Min);
         scene.Add(walker);
 
-        using SceneSimulation simulation = new(scene, null, StageWorkload.Defaults);
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
 
         // One input state for the run: building one a step is the harness allocating, not the step.
         InputState input = new(new ActionBindings());

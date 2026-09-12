@@ -14,17 +14,17 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void ARun_OpensOnTheStandardCanvasUnlessItIsGivenOne()
     {
-        using SceneRun standard = new(new Scene());
-        using SceneRun declared = new(new Scene(), canvas: Canvas);
+        using SimulationHost standard = new(new Scene());
+        using SimulationHost declared = new(new Scene(), run: new Run { Canvas = Canvas });
 
-        Assert.Equal(SceneDefaults.StandardCanvas, standard.Scene.Canvas);
-        Assert.Equal(Canvas, declared.Scene.Canvas);
+        Assert.Equal(Capsule.Scenes.Run.StandardCanvas, standard.Run.Canvas);
+        Assert.Equal(Canvas, declared.Run.Canvas);
     }
 
     [Fact]
     public void TheCanvas_TravelsOnTheFrameTheHostDraws()
     {
-        using SceneRun run = new(new Scene(), canvas: Canvas);
+        using SimulationHost run = new(new Scene(), run: new Run { Canvas = Canvas });
         run.Step();
 
         Assert.Equal(Canvas, run.Simulation.View.Canvas);
@@ -35,9 +35,9 @@ public sealed class ScreenSpaceTests
     {
         Vector2 seen = Vector2.Zero;
         Scene scene = new();
-        scene.Add(new SceneFixtures.Starter(started => seen = started.Canvas));
+        scene.Add(new SceneFixtures.Starter(started => seen = started.Run.Canvas));
 
-        using SceneRun run = new(scene, canvas: Canvas);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
 
         Assert.Equal(Canvas, seen);
     }
@@ -45,7 +45,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AWorldEntity_DrawsOnTheWorldList()
     {
-        using SceneRun run = Run(new WorldHolder(new Vector2(4f, 5f)));
+        using SimulationHost run = Run(new WorldHolder(new Vector2(4f, 5f)));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -57,7 +57,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AScreenEntity_DrawsOnTheScreenListFromItsAnchor()
     {
-        using SceneRun run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
+        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -75,7 +75,7 @@ public sealed class ScreenSpaceTests
         // Measured from the anchor, so a far-edge anchor is reached by a negative offset.
         Vector2 offset = x + y > 1f ? new Vector2(-20f, -20f) : new Vector2(10f, 10f);
 
-        using SceneRun run = Run(new ScreenHolder(new Anchor(x, y), offset));
+        using SimulationHost run = Run(new ScreenHolder(new Anchor(x, y), offset));
         run.Step();
 
         Assert.Equal(new Vector2(left, top), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
@@ -87,8 +87,8 @@ public sealed class ScreenSpaceTests
         Scene scene = new();
         scene.Add(new Mover());
 
-        using SceneRun run = new(scene, canvas: Canvas);
-        run.Run(2);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        run.Step(2);
 
         SpriteIntent drawn = Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
 
@@ -102,7 +102,7 @@ public sealed class ScreenSpaceTests
         ScreenHolder holder = new(Anchor.TopLeft, new Vector2(1f, 2f));
         holder.Add(new ColorRect(new Vector2(4f, 4f)) { Offset = new Vector2(10f, 0f) });
 
-        using SceneRun run = Run(holder);
+        using SimulationHost run = Run(holder);
         run.Step();
 
         Assert.Empty(run.Simulation.View.Sprites.ToArray());
@@ -116,7 +116,7 @@ public sealed class ScreenSpaceTests
         scene.Add(new WorldHolder(Vector2.Zero) { ZIndex = 100 });
         scene.Add(new ScreenHolder(Anchor.TopLeft, Vector2.Zero) { ZIndex = -100 });
 
-        using SceneRun run = new(scene, canvas: Canvas);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
         run.Step();
 
         // Two lists, never one ordering: the screen layer is drawn after the world whatever the bands
@@ -134,12 +134,12 @@ public sealed class ScreenSpaceTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new ScreenHolder(new Anchor(0f, float.NaN), Vector2.Zero));
     }
 
-    private static SceneRun Run(Entity holder)
+    private static SimulationHost Run(Entity holder)
     {
         Scene scene = new();
         scene.Add(holder);
 
-        return new SceneRun(scene, canvas: Canvas);
+        return new SimulationHost(scene, run: new Run { Canvas = Canvas });
     }
 
     private sealed class WorldHolder : Entity
