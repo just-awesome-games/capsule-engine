@@ -1,11 +1,11 @@
 using System.Numerics;
-using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Collision;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Lifecycle;
 using Capsule.Scenes.Physics;
 using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
@@ -38,23 +38,14 @@ public class Scene
     // everything arriving with it has attached rather than running per attach.
     private readonly List<Entity> _pendingStarts = [];
 
-    private readonly List<Renderer> _renderers = [];
-    private readonly List<Collider2D> _contactReporters = [];
-    private readonly List<VisibleOnScreenNotifier2D> _screenNotifiers = [];
-
-    // Traversal state for the two settle loops over the lists above, which handlers may add to and
-    // remove from while the loop runs. Idle between settles, when neither list has a live cursor.
-    private SettleCursor _contactSettle;
-    private SettleCursor _notifierSettle;
+    private readonly SceneRenderIndex _renderIndex = new();
+    private readonly SettledList<Collider2D> _contactReporters = new();
+    private readonly SettledList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
 
     // The region the step's settle answered against, retained for the arrival settle that runs
     // after the deferred adds land: an OnStart there may install another camera, whose own region
     // is empty until its first late step, and the arrivals belong to the frame this step drew.
     private Rect _settledRegion;
-
-    // Sort keys for the list above, retained across rebuilds so a banded scene does not allocate
-    // one per rebuild. Only the first _renderers.Count entries mean anything.
-    private long[] _rendererKeys = [];
 
     private Camera _camera = new();
     private RandomSource? _random;
@@ -65,9 +56,7 @@ public class Scene
     private bool _started;
 
     private bool _stopped;
-    private bool _renderersStale = true;
     private bool _drawing;
-    private bool _rebuildDeferred;
     private bool _exitRequested;
     private string? _frameCapturePath;
     private SceneTransition? _transition;
@@ -290,6 +279,8 @@ public class Scene
     /// <summary>
     /// Removes an entity, deferred and idempotent within the current step. One queued to join this
     /// step is accepted too: it attaches and detaches in the same drain, with symmetric hooks.
+    /// All removal hooks run even if one throws; failures propagate after detachment, aggregated
+    /// when more than one hook fails. Deferred removals report failures from the step.
     /// </summary>
     /// <exception cref="ArgumentNullException">The entity is null.</exception>
     /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is neither in it nor queued to join it.</exception>
@@ -559,7 +550,7 @@ public class Scene
 
         ReleaseEntities(ref failures);
         ClearPendingState();
-        ThrowCleanupFailures(failures);
+        CleanupFailures.Throw(failures);
     }
 
     // Releases a composed scene the host rejected before start. Composition has already run the
@@ -580,7 +571,7 @@ public class Scene
         List<Exception>? failures = null;
         ReleaseEntities(ref failures);
         ClearPendingState();
-        ThrowCleanupFailures(failures);
+        CleanupFailures.Throw(failures);
     }
 
     // Takes the pending capture request, clearing it. Unlike a transition this is not bound to a
@@ -612,45 +603,16 @@ public class Scene
         return true;
     }
 
-    // Draw order is the entity's ZIndex plus the renderer's, then entity order, then component
-    // attachment order. Sorted when the list or a key changes, never per step, and never while a
-    // frame is being drawn — the traversal is handed this list and walks it to the end.
-    internal ReadOnlySpan<Renderer> RenderersInDrawOrder()
-    {
-        if (_renderersStale)
-        {
-            RebuildRenderers();
-        }
+    internal ReadOnlySpan<Renderer> RenderersInDrawOrder() => _renderIndex.GetDrawOrder(Entities);
 
-        return CollectionsMarshal.AsSpan(_renderers);
-    }
-
-    // Held back while the frame is being drawn, whether it is a key or the set of renderers that
-    // changed: the traversal walks the list it was handed, so rebuilding under it would drop a
-    // renderer it has not reached or repeat one it has. The rebuild lands at the end of the draw.
-    internal void InvalidateRenderers()
-    {
-        if (_drawing)
-        {
-            _rebuildDeferred = true;
-            return;
-        }
-
-        _renderersStale = true;
-    }
+    internal void InvalidateRenderers() => _renderIndex.Invalidate(_drawing);
 
     internal void BeginDraw() => _drawing = true;
 
     internal void EndDraw()
     {
         _drawing = false;
-
-        // Marked, not rebuilt: the next read does it, so a frame nothing reads costs no sort.
-        if (_rebuildDeferred)
-        {
-            _rebuildDeferred = false;
-            _renderersStale = true;
-        }
+        _renderIndex.EndDraw();
     }
 
     // Whether a renderer from the frozen draw list is still this scene's to draw. An earlier Draw
@@ -703,46 +665,23 @@ public class Scene
 
     internal void SettleContacts()
     {
-        _contactSettle.Begin(_contactReporters.Count);
+        _contactReporters.Begin();
         try
         {
-            while (_contactSettle.TryTake(_contactReporters.Count, out int index))
+            while (_contactReporters.TryTake(out Collider2D? collider))
             {
-                _contactReporters[index].SettleContacts();
+                collider.SettleContacts();
             }
         }
         finally
         {
-            _contactSettle.End();
+            _contactReporters.End();
         }
     }
 
-    // By reference, never by Equals: two distinct colliders that compare equal must both report.
-    internal void TrackContacts(Collider2D collider)
-    {
-        for (int index = 0; index < _contactReporters.Count; index++)
-        {
-            if (ReferenceEquals(_contactReporters[index], collider))
-            {
-                return;
-            }
-        }
+    internal void TrackContacts(Collider2D collider) => _contactReporters.Add(collider);
 
-        _contactReporters.Add(collider);
-    }
-
-    internal void UntrackContacts(Collider2D collider)
-    {
-        for (int index = 0; index < _contactReporters.Count; index++)
-        {
-            if (ReferenceEquals(_contactReporters[index], collider))
-            {
-                _contactReporters.RemoveAt(index);
-                _contactSettle.Removed(index);
-                return;
-            }
-        }
-    }
+    internal void UntrackContacts(Collider2D collider) => _contactReporters.Remove(collider);
 
     internal void RunLateStep(in StepContext context)
     {
@@ -763,17 +702,17 @@ public class Scene
     {
         _settledRegion = Camera.VisibleRegion;
 
-        _notifierSettle.Begin(_screenNotifiers.Count);
+        _screenNotifiers.Begin();
         try
         {
-            while (_notifierSettle.TryTake(_screenNotifiers.Count, out int index))
+            while (_screenNotifiers.TryTake(out VisibleOnScreenNotifier2D? notifier))
             {
-                _screenNotifiers[index].SettleVisibility(_settledRegion);
+                notifier.SettleVisibility(_settledRegion);
             }
         }
         finally
         {
-            _notifierSettle.Park(_screenNotifiers.Count);
+            _screenNotifiers.Park();
         }
     }
 
@@ -784,46 +723,23 @@ public class Scene
     // exactly as one registered during the ordinary settle.
     private void SettleArrivedNotifiers()
     {
-        _notifierSettle.Resume(_screenNotifiers.Count);
+        _screenNotifiers.Resume();
         try
         {
-            while (_notifierSettle.TryTake(_screenNotifiers.Count, out int index))
+            while (_screenNotifiers.TryTake(out VisibleOnScreenNotifier2D? notifier))
             {
-                _screenNotifiers[index].SettleVisibility(_settledRegion);
+                notifier.SettleVisibility(_settledRegion);
             }
         }
         finally
         {
-            _notifierSettle.End();
+            _screenNotifiers.End();
         }
     }
 
-    // By reference, as the contact reporters are: two notifiers that compare equal must both settle.
-    internal void TrackVisibility(VisibleOnScreenNotifier2D notifier)
-    {
-        for (int index = 0; index < _screenNotifiers.Count; index++)
-        {
-            if (ReferenceEquals(_screenNotifiers[index], notifier))
-            {
-                return;
-            }
-        }
+    internal void TrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Add(notifier);
 
-        _screenNotifiers.Add(notifier);
-    }
-
-    internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier)
-    {
-        for (int index = 0; index < _screenNotifiers.Count; index++)
-        {
-            if (ReferenceEquals(_screenNotifiers[index], notifier))
-            {
-                _screenNotifiers.RemoveAt(index);
-                _notifierSettle.Removed(index);
-                return;
-            }
-        }
-    }
+    internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Remove(notifier);
 
     internal void EndStep()
     {
@@ -927,7 +843,7 @@ public class Scene
         }
 
         _entities.Add(entity);
-        _renderersStale = true;
+        _renderIndex.Invalidate(_drawing);
         entity.Scene = this;
 
         // Components before the entity's own hook: one attached from inside OnAddedToScene is
@@ -1027,9 +943,8 @@ public class Scene
         Entity entity = _entities[index];
         _entities.RemoveAt(index);
 
-        _renderersStale = true;
+        _renderIndex.Invalidate(_drawing);
         entity.Scene = null;
-        entity.OnRemovedFromScene();
         entity.LeaveScene();
     }
 
@@ -1055,23 +970,9 @@ public class Scene
         _pendingAddSet.Clear();
         _pendingRemoves.Clear();
         _pendingRemoveSet.Clear();
-        _renderers.Clear();
+        _renderIndex.Clear();
         _contactReporters.Clear();
-        _renderersStale = false;
-        _rebuildDeferred = false;
-    }
-
-    private static void ThrowCleanupFailures(List<Exception>? failures)
-    {
-        if (failures is [Exception failure])
-        {
-            ExceptionDispatchInfo.Capture(failure).Throw();
-        }
-
-        if (failures is not null)
-        {
-            throw new AggregateException("One or more scene cleanup hooks failed.", failures);
-        }
+        _screenNotifiers.Clear();
     }
 
     private bool TryRequest(in SceneTransition transition)
@@ -1095,122 +996,4 @@ public class Scene
         }
     }
 
-    private void RebuildRenderers()
-    {
-        _renderers.Clear();
-
-        bool banded = false;
-        foreach (Entity entity in Entities)
-        {
-            long band = entity.ZIndex;
-            foreach (Component component in entity.Components)
-            {
-                if (component is Renderer renderer)
-                {
-                    banded |= band + renderer.ZIndex != 0;
-                    _renderers.Add(renderer);
-                }
-            }
-        }
-
-        _renderersStale = false;
-
-        // The walk yields entity order and then attachment order, which is exactly what an equal
-        // key keeps, so a scene that bands nothing is already in draw order.
-        if (banded)
-        {
-            SortRenderers();
-        }
-    }
-
-    // Each key carries its renderer's walk position in its low bits, so no two keys are equal and
-    // the runtime's unstable sort lands where a stable one would. The widened sum of two ints
-    // spans exactly 33 signed bits, which leaves 31 for the position: a scene of 2^31 or more
-    // renderers would collide two of them and lose the tie-break.
-    private void SortRenderers()
-    {
-        int count = _renderers.Count;
-        if (_rendererKeys.Length < count)
-        {
-            Array.Resize(ref _rendererKeys, Math.Max(count, _rendererKeys.Length * 2));
-        }
-
-        Span<Renderer> renderers = CollectionsMarshal.AsSpan(_renderers);
-        Span<long> keys = _rendererKeys.AsSpan(0, count);
-        for (int index = 0; index < count; index++)
-        {
-            Renderer renderer = renderers[index];
-            keys[index] = (EffectiveKey(renderer) << 31) | (long)index;
-        }
-
-        keys.Sort(renderers);
-    }
-
-    // Widened before the addition: two ints at the far end of their range sum past what an int
-    // holds, and a wrapped key would sort a foreground band under a background one.
-    private static long EffectiveKey(Renderer renderer) =>
-        (long)renderer.Entity!.ZIndex + renderer.ZIndex;
-
-    // A cursor over a list a handler may reorder under it, which holds the invariant that the
-    // entries still owed a turn are exactly the live list's [_next, _end) slice. A removal before
-    // the cursor pulls both bounds back; one inside the slice only shortens it; one past the end
-    // is an entry the settle never owned. Entries appended during a settle land at or beyond _end,
-    // so each turn goes to an entry the list held when the settle began and still holds now,
-    // exactly once, whatever the handlers do.
-    private struct SettleCursor
-    {
-        private int _next;
-        private int _end;
-
-        internal void Begin(int count)
-        {
-            _next = 0;
-            _end = count;
-        }
-
-        // The live count is re-read every turn because tearing the scene down clears the list
-        // outright, which no Removed call reports.
-        internal bool TryTake(int count, out int index)
-        {
-            index = _next;
-            if (_next >= _end || _next >= count)
-            {
-                return false;
-            }
-
-            _next++;
-            return true;
-        }
-
-        internal void End()
-        {
-            _next = 0;
-            _end = 0;
-        }
-
-        // Holds the mark a later pass resumes from as an empty slice, so the removals that arrive
-        // in between move it exactly as they would move a live cursor.
-        internal void Park(int count)
-        {
-            _next = count;
-            _end = count;
-        }
-
-        // Reopens the parked mark as the start of a slice running to the live count: the entries
-        // that registered since the park, and only those.
-        internal void Resume(int count) => _end = count;
-
-        internal void Removed(int index)
-        {
-            if (index < _next)
-            {
-                _next--;
-                _end--;
-            }
-            else if (index < _end)
-            {
-                _end--;
-            }
-        }
-    }
 }

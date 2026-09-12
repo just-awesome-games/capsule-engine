@@ -72,6 +72,7 @@ jobs:
           --runtime linux-x64
           -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
           -p:CapsuleUsePackages=true
+          -p:PublishAot=true
 
       - name: Validate release packages with NativeAOT
         run: >

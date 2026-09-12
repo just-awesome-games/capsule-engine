@@ -13,7 +13,7 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | Build-time validation and canonicalization of scene documents, the asset key pass, and measurement of audio sources. | unconstrained |
 
-`Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes` are substrate-free. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
+`Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes` have no platform dependencies. Simulation performs no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts, alongside the pure `Parse` and `ToJson` operations. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
 
 `Capsule.Runtime` is itself split: platform-neutral hosting carries no operating-system, file-system, window or MonoGame-platform assumption of its own, and those assumptions live in the desktop files. The boot surface a game's shell is generated against — `CapsuleBoot`, `CapsuleEngine` and `EngineBuilder` — exposes no desktop concept beyond an application title and texture sampling.
 

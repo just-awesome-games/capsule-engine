@@ -25,7 +25,8 @@ internal sealed class TextureStore : IDisposable
     }
 
     // Missing preloads are decoded before the prior scene's textures are released.
-    internal void ChangeScene(AssetCollection preloads) => _textures.ChangeScene(preloads.Textures);
+    internal void ChangeScene(AssetCollection preloads, Action prepareRemainingAssets) =>
+        _textures.ChangeScene(preloads.Textures, prepareRemainingAssets);
 
     // Loads on first use when the scene did not preload the handle.
     internal Texture2D Get(in TextureHandle handle) => _textures.Get(handle);

@@ -221,8 +221,7 @@ internal sealed class CapsuleGame : Game
     // fails leaves the run on the scene it was on.
     private void PrepareAssets(AssetCollection preloads)
     {
-        _textures.ChangeScene(preloads);
-        _sounds?.ChangeScene(preloads);
+        _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event

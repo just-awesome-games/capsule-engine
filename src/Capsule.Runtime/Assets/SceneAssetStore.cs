@@ -33,7 +33,7 @@ internal sealed class SceneAssetStore<THandle, TAsset>(Func<THandle, TAsset> loa
 
     // Makes preloads the next scene's initial ownership. Missing assets load before anything from
     // the current scene is released, so a failed preload leaves the current scene intact.
-    internal void ChangeScene(IReadOnlyList<THandle> preloads)
+    internal void ChangeScene(IReadOnlyList<THandle> preloads, Action? prepareRemainingAssets = null)
     {
         HashSet<THandle> wanted = new(preloads.Count);
         List<(THandle Handle, TAsset Asset)> staged = new(preloads.Count);
@@ -47,6 +47,10 @@ internal sealed class SceneAssetStore<THandle, TAsset>(Func<THandle, TAsset> loa
                     staged.Add((handle, loader(handle)));
                 }
             }
+
+            // All stores finish loading before any outgoing asset is released. If another
+            // store fails, this store rolls back its staged assets too.
+            prepareRemainingAssets?.Invoke();
         }
         catch
         {

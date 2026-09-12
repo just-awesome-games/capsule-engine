@@ -168,6 +168,7 @@ jobs:
           --configfile samples/MinimalGame/NuGet.config
           --runtime ${{ matrix.runtime }}
           -p:CapsuleUsePackages=true
+          -p:PublishAot=true
 
       - name: Publish sample shell from local packages with NativeAOT
         run: >

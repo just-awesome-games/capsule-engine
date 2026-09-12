@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Rendering;
 
+using Capsule.Scenes.Lifecycle;
+
 namespace Capsule.Scenes;
 
 /// <summary>
@@ -352,10 +354,29 @@ public class Entity
 
     internal void LeaveScene()
     {
+        List<Exception>? failures = null;
+        try
+        {
+            OnRemovedFromScene();
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
         foreach (Component component in LiveComponents)
         {
-            component.LeaveScene();
+            try
+            {
+                component.LeaveScene();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
         }
+
+        CleanupFailures.Throw(failures);
     }
 
     // Nothing steps before it has started: an entity the scene holds but never started has no time

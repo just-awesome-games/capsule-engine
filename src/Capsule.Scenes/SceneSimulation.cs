@@ -66,7 +66,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>Whether the scene has asked the host to shut down; never cleared.</summary>
     public bool ExitRequested => Scene.ExitRequested;
 
-    /// <summary>What to draw: one held instance, rewritten once per step rather than built per read.</summary>
+    /// <summary>What to draw: one held instance, populated at construction and rewritten after each completed step.</summary>
     public FrameView View => _view;
 
     /// <summary>

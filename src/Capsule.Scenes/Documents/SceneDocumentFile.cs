@@ -19,6 +19,7 @@ public static class SceneDocumentFile
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>Reads and validates the scene document at <paramref name="path"/>.</summary>
+    /// <remarks>Performs filesystem I/O for hosts and authoring tools. Use <see cref="Parse"/> for in-memory JSON.</remarks>
     /// <exception cref="SceneDocumentFormatException">The file is malformed; the message is prefixed with the path.</exception>
     /// <exception cref="IOException">The file cannot be read.</exception>
     /// <exception cref="ArgumentNullException">The path is null.</exception>
@@ -160,6 +161,7 @@ public static class SceneDocumentFile
     }
 
     /// <summary>Writes <paramref name="document"/> to <paramref name="path"/> in canonical form.</summary>
+    /// <remarks>Performs filesystem I/O for hosts and authoring tools. Use <see cref="ToJson(SceneDocument)"/> to serialize without writing a file.</remarks>
     /// <exception cref="ArgumentNullException">The document or the path is null.</exception>
     /// <exception cref="ArgumentException">The path is empty or malformed.</exception>
     /// <exception cref="SceneDocumentFormatException">A grid names a texture that has no written form.</exception>

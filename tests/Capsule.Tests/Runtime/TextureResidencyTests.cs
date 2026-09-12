@@ -181,6 +181,42 @@ public sealed class TextureResidencyTests
     }
 
     [Fact]
+    public void AFailureInAnotherStore_RollsBackAllStagedAssets()
+    {
+        FakeTexture? staged = null;
+        using SceneAssetStore<TextureHandle, FakeTexture> textures = new(handle =>
+        {
+            FakeTexture texture = new(handle.Name);
+            if (handle == Tiles)
+            {
+                staged = texture;
+            }
+
+            return texture;
+        });
+        using SceneAssetStore<string, FakeTexture> sounds = new(name =>
+            name == "broken" ? throw new InvalidDataException("audio decode failed") : new FakeTexture(name));
+        FakeTexture hero = textures.Get(Hero);
+        FakeTexture sound = sounds.Get("current");
+
+        Assert.Throws<InvalidDataException>(() =>
+            textures.ChangeScene([Tiles], () => sounds.ChangeScene(["broken"])));
+
+        Assert.Same(hero, textures.Get(Hero));
+        Assert.Same(sound, sounds.Get("current"));
+        Assert.False(hero.Disposed);
+        Assert.False(sound.Disposed);
+        Assert.True(staged!.Disposed);
+
+        textures.ChangeScene([Tiles], () => sounds.ChangeScene(["next"]));
+
+        Assert.True(hero.Disposed);
+        Assert.True(sound.Disposed);
+        Assert.False(textures.Get(Tiles).Disposed);
+        Assert.False(sounds.Get("next").Disposed);
+    }
+
+    [Fact]
     public void Dispose_ReleasesEveryAssetOwnedByTheScene()
     {
         SceneAssetStore<TextureHandle, FakeTexture> store = new(

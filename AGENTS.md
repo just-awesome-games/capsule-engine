@@ -12,7 +12,7 @@ The standard command line is Capsule's: a game opts in with `WithCommandLine(arg
 
 ## Scope
 
-Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. That bar is not a compatibility ceremony: JAG's own games are the only considered consumers, so break a public API whenever the better design needs it and migrate the consuming game in the same wave. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
+Engine features are initiated by a consuming game's need, never bounded by it: what lands must meet the bar of a high-class open-source engine — peak performance, a modern feature-set, no knowingly suboptimal or brute-force implementations, no half-built features. That bar is not a compatibility ceremony: Public APIs serve developers beyond JAG. Preserve existing integrations when simplifying internals; a justified public API break includes migrating known consuming games in the same wave. Do not add hooks, options, or abstractions no game has asked for. Keep public names game-agnostic, and leave game policy in the game.
 
 A new public member reads fluently to a developer arriving from an established engine: name the Unity or Godot precedent in the ledger entry when one exists, and prefer one primitive plus readable state over a verb shaped like the initiating game's feature.
 
@@ -42,7 +42,7 @@ Warnings are fixed or suppressed with the reason at the suppression site. Every 
 - Code the generators emit into the game is game code — members only it calls stay public and carry `[EditorBrowsable(Never)]`.
 - Cross-assembly engine use is internal plus a per-member `InternalsVisibleTo` with its reason in the csproj.
 - Test-only members are internal.
-- Nothing calls it, delete it.
+- Keep unused public affordances that serve plausible game-engine needs; delete dead implementation details.
 - Document model types are public because games author them in tests; the parser is not.
 - Engine-owned state never has a public setter.
 - Generated roots are named for the engine — `CapsuleBoot`, `CapsuleScenes`, `CapsuleEntities` and the one asset root `CapsuleAssets` — and a generated asset name mirrors its key under `Assets/`, which is its authored path normalized segment by segment.

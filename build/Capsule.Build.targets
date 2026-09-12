@@ -22,11 +22,10 @@
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleShipAssets>
     <CapsuleImportAudio Condition="'$(CapsuleImportAudio)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportAudio>
     <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportAudio)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
-    <!-- Every authored path is keyed by the tool, so reading asset sources at all needs it. -->
-    <CapsuleUsesBuildTool Condition="'$(CapsuleReadsAssetSources)' == 'true'">true</CapsuleUsesBuildTool>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+  <!-- Every authored path is keyed by the tool, so reading asset sources at all needs it. -->
+  <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
     <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
@@ -36,7 +35,7 @@
   <!-- No GlobalPropertiesToRemove: the tool project pins the publish properties with
        TreatAsLocalProperty, and removing them here would request the tool's shared engine
        subgraph under a second global-property set, so two builds would race into one output. -->
-  <ItemGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+  <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <ProjectReference Include="$(CapsuleBuildToolProject)"
                       Condition="'$(CapsuleBuildToolProject)' != ''"
                       ReferenceOutputAssembly="false"
@@ -47,7 +46,7 @@
   </ItemGroup>
 
   <!-- Resolve before import-target Inputs are evaluated; match the ProjectReference configuration. -->
-  <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleUsesBuildTool)' == 'true'">
+  <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <!-- Configuration is settled only when this target runs. -->
     <PropertyGroup>
       <_CapsuleBuildToolConfiguration>$(CapsuleSourceConfiguration)</_CapsuleBuildToolConfiguration>
@@ -183,7 +182,7 @@
       <CapsuleRequestProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleRequestProjectDir>
     </PropertyGroup>
 
-    <Error Condition="'$(CapsuleUsesBuildTool)' == 'true' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
+    <Error Condition="'$(CapsuleReadsAssetSources)' == 'true' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the build tool is unavailable, so no asset can be keyed. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
     <!-- Qualify metadata to avoid evaluating it on incompatible items. -->

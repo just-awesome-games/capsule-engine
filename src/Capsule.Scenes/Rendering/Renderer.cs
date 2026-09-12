@@ -66,7 +66,7 @@ public abstract class Renderer : Component
 
     /// <summary>
     /// Writes this renderer's intent onto the frame under construction — already cleared, with
-    /// the camera set. Called once per step, after the whole scene has stepped.
+    /// the camera set. Called after scene startup for the initial frame, then after each completed step.
     /// </summary>
     public abstract void Draw(FrameView view);
 }

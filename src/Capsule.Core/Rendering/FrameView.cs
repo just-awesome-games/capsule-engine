@@ -5,7 +5,7 @@ using Capsule.Assets;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Mutable render intent, rewritten once per fixed step and read on draw frames: two ordered lists
+/// Mutable render intent, populated at scene startup, rewritten after each fixed step and read on draw frames: two ordered lists
 /// of sprites to draw, one in world units and one in canvas pixels, the whole screen list over the
 /// whole world list. Text and nine-sliced panels are on those lists too — a <see cref="TextIntent"/>
 /// becomes one sprite per glyph and a <see cref="NineSliceIntent"/> one per slice — so

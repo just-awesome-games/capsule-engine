@@ -66,9 +66,9 @@ public sealed class VisibleOnScreenNotifier2D : Component
     }
 
     /// <summary>
-    /// Whether the rect overlapped the visible region of the last frame drawn, from its entity's
-    /// first step onwards. False for a notifier in no scene, and until the first settle after its
-    /// scene's camera has framed a step.
+    /// Whether the rect overlapped the camera's visible region at the last visibility settle,
+    /// including the arrival settle for entities added during a step. False before its first
+    /// settle and while outside a scene.
     /// </summary>
     public bool IsOnScreen { get; private set; }
 
