@@ -18,6 +18,16 @@ public readonly record struct TextureHandle(string Name, string Extension)
     internal TextureDomain Domain { get; private init; }
 
     /// <summary>
+    /// One opaque white texel the host holds: the texture a flat colour is drawn from, so a filled
+    /// rect is an ordinary sprite tinted over it. Reserved by the engine — it names no file, loads
+    /// nothing, and an <see cref="AssetCollection"/> ignores it.
+    /// </summary>
+    public static TextureHandle White => new("white", ".engine") { Domain = TextureDomain.Engine };
+
+    // Whether the host, rather than a file under a shipped root, owns this texture.
+    internal bool IsEngineOwned => Domain == TextureDomain.Engine;
+
+    /// <summary>
     /// A bitmap font page, which ships under <c>assets/fonts/</c>. Called by generated code; a game
     /// reaches a page through the <c>BitmapFont</c> that carries it.
     /// </summary>

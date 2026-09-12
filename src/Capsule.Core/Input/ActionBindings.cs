@@ -56,7 +56,26 @@ public sealed class ActionBindings
             throw new ArgumentException($"'{action.Name}' cannot be bound to {nameof(PadAxis)}.{nameof(PadAxis.None)}.", nameof(axis));
         }
 
-        return Accumulate(action, new AxisSource(axis, InputButton.None, InputButton.None));
+        return Accumulate(action, new AxisSource(axis, null, InputButton.None, InputButton.None));
+    }
+
+    /// <summary>
+    /// Adds <paramref name="axis"/> of the mouse wheel to <paramref name="action"/>: the notches it
+    /// turns each step contribute to the action's value, unbounded. Binding again accumulates rather
+    /// than replaces.
+    /// </summary>
+    /// <exception cref="ArgumentException">The action is unnamed.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The axis names no wheel axis.</exception>
+    public ActionBindings BindAxis(AxisAction action, MouseAxis axis)
+    {
+        RequireName(action.Name, nameof(action));
+
+        if (axis is not (MouseAxis.ScrollX or MouseAxis.ScrollY))
+        {
+            throw new ArgumentOutOfRangeException(nameof(axis), axis, $"{nameof(MouseAxis)} has no such axis.");
+        }
+
+        return Accumulate(action, new AxisSource(PadAxis.None, axis, InputButton.None, InputButton.None));
     }
 
     /// <summary>
@@ -70,7 +89,7 @@ public sealed class ActionBindings
         RequireButton(negative, action.Name, nameof(negative));
         RequireButton(positive, action.Name, nameof(positive));
 
-        return Accumulate(action, new AxisSource(PadAxis.None, negative, positive));
+        return Accumulate(action, new AxisSource(PadAxis.None, null, negative, positive));
     }
 
     /// <summary>Buttons bound to <paramref name="action"/>; empty when it is unbound.</summary>
@@ -97,8 +116,9 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// What <paramref name="action"/> reads in <paramref name="snapshot"/>: every bound
-    /// contribution summed, then clamped to [-1, 1]; an unbound action reads 0.
+    /// What <paramref name="action"/> reads in <paramref name="snapshot"/>: every bounded
+    /// contribution — buttons and pad axes — summed and clamped to [-1, 1], plus the wheel notches
+    /// bound to it, which are a count and so pass through unclamped; an unbound action reads 0.
     /// </summary>
     public float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
     {
@@ -107,13 +127,21 @@ public sealed class ActionBindings
             return 0f;
         }
 
-        float total = 0f;
+        float bounded = 0f;
+        float notches = 0f;
         for (int i = 0; i < sources.Length; i++)
         {
-            total += sources[i].Read(snapshot);
+            if (sources[i].Wheel is null)
+            {
+                bounded += sources[i].Read(snapshot);
+            }
+            else
+            {
+                notches += sources[i].Read(snapshot);
+            }
         }
 
-        return Math.Clamp(total, -1f, 1f);
+        return Math.Clamp(bounded, -1f, 1f) + notches;
     }
 
     private static void RequireName(string? name, string parameterName)
@@ -147,12 +175,18 @@ public sealed class ActionBindings
         return this;
     }
 
-    // One contribution to an axis action: an analog axis, or else a digital pair.
-    private readonly record struct AxisSource(PadAxis Analog, InputButton Negative, InputButton Positive)
+    // One contribution to an axis action: a pad axis, a wheel axis, or else a digital pair. A wheel
+    // source reads a count of notches rather than a bounded position, so AxisValue keeps it out of
+    // the clamp.
+    private readonly record struct AxisSource(PadAxis Analog, MouseAxis? Wheel, InputButton Negative, InputButton Positive)
     {
-        internal float Read(in DeviceSnapshot snapshot) =>
-            Analog != PadAxis.None
+        internal float Read(in DeviceSnapshot snapshot) => Wheel switch
+        {
+            MouseAxis.ScrollX => snapshot.Scroll.X,
+            MouseAxis.ScrollY => snapshot.Scroll.Y,
+            _ => Analog != PadAxis.None
                 ? snapshot.Axis(Analog)
-                : (Positive.IsDown(snapshot) ? 1f : 0f) - (Negative.IsDown(snapshot) ? 1f : 0f);
+                : (Positive.IsDown(snapshot) ? 1f : 0f) - (Negative.IsDown(snapshot) ? 1f : 0f),
+        };
     }
 }

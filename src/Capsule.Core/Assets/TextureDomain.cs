@@ -6,4 +6,8 @@ internal enum TextureDomain
 {
     Textures,
     Fonts,
+
+    // The engine's own, which ship in no directory at all: the host holds them, so nothing is
+    // located, loaded or preloaded for one.
+    Engine,
 }

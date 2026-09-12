@@ -1,4 +1,6 @@
+using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Scenes.Input;
 
 namespace Capsule.Scenes;
@@ -30,12 +32,23 @@ public sealed class SceneRun : IDisposable
     /// empty <see cref="ActionBindings"/>, which reads every action as unbound.
     /// </param>
     /// <param name="stepHertz">Simulation steps per second of simulated time; positive, 60 by default.</param>
+    /// <param name="canvas">
+    /// The canvas the scene's screen layer is laid out in (<see cref="Scene.Canvas"/>); omitted, it is
+    /// <see cref="SceneDefaults.StandardCanvas"/>.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The step rate is not positive.</exception>
     /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
     /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too; both are inner exceptions.</exception>
-    public SceneRun(Scene scene, InputState? input = null, int stepHertz = StepContext.DefaultStepHertz)
-        : this(new SceneSimulation(Rated(scene, stepHertz)), input, stepHertz)
+    public SceneRun(
+        Scene scene,
+        InputState? input = null,
+        int stepHertz = StepContext.DefaultStepHertz,
+        Vector2 canvas = default)
+        : this(
+            new SceneSimulation(Rated(scene, stepHertz), defaults: new SceneDefaults(TextureSampling.Linear, canvas)),
+            input,
+            stepHertz)
     {
     }
 

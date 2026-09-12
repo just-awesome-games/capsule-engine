@@ -7,11 +7,13 @@ namespace Capsule.Rendering;
 /// <see cref="PreviousPosition"/> to <see cref="Position"/> and lands the frame's pivot there.
 /// </summary>
 /// <param name="Sprite">The frame drawn, and the pivot its position anchors.</param>
-/// <param name="PreviousPosition">Where the pivot sat at the end of the previous step, in world units.</param>
-/// <param name="Position">Where the pivot sits now, in world units.</param>
+/// <param name="PreviousPosition">
+/// Where the pivot sat at the end of the previous step, in the drawn space's units.
+/// </param>
+/// <param name="Position">Where the pivot sits now, in the drawn space's units.</param>
 /// <param name="Size">
-/// The world extent the region is drawn at. Equal to the region's texel size draws one texel per
-/// world unit.
+/// The extent the region is drawn at, in the drawn space's units. Equal to the region's texel size
+/// draws one texel per unit.
 /// </param>
 /// <param name="FlipX">Whether the region is mirrored horizontally about the pivot.</param>
 /// <param name="FlipY">Whether the region is mirrored vertically about the pivot.</param>
@@ -33,7 +35,7 @@ public readonly record struct SpriteIntent(
 
     // The world rect this sprite sweeps between its two positions, or false where it draws nothing
     // testable: a non-positive extent, a region with no texels, or a non-finite rect.
-    internal bool TryGetSweptBounds(out ViewBounds swept)
+    internal bool TryGetSweptBounds(out Rect swept)
     {
         swept = default;
 
@@ -50,7 +52,7 @@ public readonly record struct SpriteIntent(
         // The world offset from the position back to the drawn rect's top-left corner.
         Vector2 corner = DrawOrigin * new Vector2(Size.X / region.Width, Size.Y / region.Height);
 
-        swept = new ViewBounds(
+        swept = new Rect(
             MathF.Min(PreviousPosition.X, Position.X) - corner.X,
             MathF.Min(PreviousPosition.Y, Position.Y) - corner.Y,
             MathF.Max(PreviousPosition.X, Position.X) - corner.X + Size.X,

@@ -215,7 +215,7 @@ public sealed class ColliderTests
     }
 
     [Fact]
-    public void ContactEvents_SettleBeforeTheSceneLateStepRuns()
+    public void ContactEvents_SettleBeforeEveryLateStepRuns()
     {
         Body body = new(new Vector2(4f, 8f));
         body.Collider.SetFilter("solid");
@@ -230,10 +230,15 @@ public sealed class ColliderTests
         scene.Add(new TileMap(SceneFixtures.TerrainGrid("....", "####")));
         scene.Add(body);
 
+        // An entity's own late step is between the two: what it reads there is the health a contact
+        // just spent, and the scene's late step still runs after every one of them.
+        scene.Add(new SceneFixtures.Recorder("entity", log));
+        log.Clear();
+
         using SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step(0));
 
-        Assert.Equal(["step", "enter", "late"], log);
+        Assert.Equal(["step", "entity", "enter", "entity.late", "late"], log);
     }
 
     [Fact]

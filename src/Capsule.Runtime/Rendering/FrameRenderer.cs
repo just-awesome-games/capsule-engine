@@ -35,6 +35,11 @@ internal sealed class FrameRenderer : IDisposable
     // with the resolved world rect under a fit that reveals more of it.
     private RenderTarget2D? _target;
 
+    // Where the screen layer landed on the last frame drawn, which is what turns a sampled mouse
+    // position back into a canvas position. Seeded by ResolveScreenLayer before the first frame, since
+    // the host samples the mouse ahead of that frame.
+    private ScreenPlacement _placement = ScreenPlacement.Identity;
+
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use; owned by the caller.
@@ -66,38 +71,136 @@ internal sealed class FrameRenderer : IDisposable
         int outputWidth = backBuffer.BackBufferWidth;
         int outputHeight = backBuffer.BackBufferHeight;
 
-        // The window is the output the fit answers to on both paths: a declared canvas is derived
-        // from the resolved rect rather than being the thing that shapes it. The span travels
-        // beside the rect because subtracting the rect's edges loses precision far from the
-        // origin, and the scale it feeds is what quantises every sprite to the pixel grid.
-        Vector2 output = new(outputWidth, outputHeight);
-        Vector2 span = view.Camera.ResolveSpan(output);
-        ViewBounds world = view.Camera.Resolve(alpha, output);
+        ScreenLayout layout = Layout(_canvas, view, outputWidth, outputHeight);
+        Rect world = view.Camera.Resolve(alpha, new Vector2(outputWidth, outputHeight));
 
-        if (_canvas is not { } canvas)
+        if (_canvas is null)
         {
-            DrawWorld(view, alpha, world, span, outputWidth, outputHeight);
+            DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight);
+        }
+        else
+        {
+            RenderTarget2D target = Surface(layout.Surface);
 
-            return;
+            _device.SetRenderTarget(target);
+            DrawWorld(view, alpha, world, layout.Span, target.Width, target.Height);
+
+            // Over the world's own bars: the viewport is the whole surface again and the canvas sits
+            // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
+            DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height);
+
+            _device.SetRenderTarget(null);
+            Present(target, view.Sampling, layout.Present);
         }
 
-        RenderTarget2D target = Surface(canvas, view.Camera.Size, span, outputWidth, outputHeight);
-
-        _device.SetRenderTarget(target);
-        DrawWorld(view, alpha, world, span, target.Width, target.Height);
-        _device.SetRenderTarget(null);
-        Present(target, view.Sampling);
+        if (layout.Layer.Scale > 0f)
+        {
+            _placement = layout.Layer;
+        }
     }
 
-    private RenderTarget2D Surface(
-        (int Width, int Height) canvas,
-        Vector2 declaredSpan,
-        Vector2 resolvedSpan,
+    // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
+    // settled before the first one.
+    internal ScreenPlacement ScreenLayer => _placement;
+
+    // Settles ScreenLayer for view at the back buffer's current extent, drawing nothing. The host
+    // samples the mouse before the first frame, and an unplaced layer would hand the simulation window
+    // pixels as canvas pixels for that frame.
+    internal void ResolveScreenLayer(FrameView view)
+    {
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        ScreenLayout layout = Layout(_canvas, view, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+
+        if (layout.Layer.Scale > 0f)
+        {
+            _placement = layout.Layer;
+        }
+    }
+
+    // The whole presentation geometry for view on a back buffer of this extent, on both paths: the
+    // canvas letterboxed straight into the back buffer, and the render surface presented into it where a
+    // resolution is declared. Drawing and pointer mapping must resolve from the same geometry, or a
+    // sampled window position comes back as the wrong canvas pixel.
+    internal static ScreenLayout Layout(
+        (int Width, int Height)? renderResolution,
+        FrameView view,
         int outputWidth,
         int outputHeight)
     {
+        // The window is the output the fit answers to on both paths: a declared canvas is derived
+        // from the resolved rect rather than being the thing that shapes it. The span travels beside
+        // the rect because subtracting the rect's edges loses precision far from the origin, and the
+        // scale it feeds is what quantises every sprite to the pixel grid.
+        Vector2 span = view.Camera.ResolveSpan(new Vector2(outputWidth, outputHeight));
+
+        if (renderResolution is not { } resolution)
+        {
+            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+
+            return new ScreenLayout(span, (outputWidth, outputHeight), windowed, default, windowed);
+        }
+
+        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera.Size, span, outputWidth, outputHeight);
+        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
+        ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
+
+        return new ScreenLayout(
+            span,
+            surface,
+            new ScreenPlacement(slack, 1f),
+            presented,
+            presented.Scale > 0f
+                ? new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale)
+                : default);
+    }
+
+    // Half of what the surface has over the canvas, in whole surface pixels: under Expand or
+    // FixedHeight the surface grows past the canvas to reveal more world, and the screen layer stays
+    // the canvas, centred in it.
+    internal static Vector2 ScreenSlack(int surfaceWidth, int surfaceHeight, Vector2 canvas) => new(
+        MathF.Max(MathF.Floor((surfaceWidth - canvas.X) / 2f), 0f),
+        MathF.Max(MathF.Floor((surfaceHeight - canvas.Y) / 2f), 0f));
+
+    // Where the canvas lands straight in the back buffer, with no render surface between them: its
+    // own centred fit, so the layer keeps its aspect and its place whatever the camera's fit did
+    // with the world behind it. A scale of 0 is a canvas or a window with no area.
+    internal static ScreenPlacement WindowPlacement(Vector2 canvas, int outputWidth, int outputHeight)
+    {
+        Letterbox fit = Letterbox.Fit(canvas.X, canvas.Y, outputWidth, outputHeight);
+
+        return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
+    }
+
+    // Where the render surface's own top-left corner lands in the back buffer, on the fit its
+    // sampling mode calls for. A scale of 0 is a surface or a back buffer with no area.
+    internal static ScreenPlacement TargetPlacement(
+        TextureSampling sampling,
+        int targetWidth,
+        int targetHeight,
+        int containerWidth,
+        int containerHeight)
+    {
+        Letterbox fit = PresentFit(sampling, targetWidth, targetHeight, containerWidth, containerHeight);
+        if (fit.IsEmpty)
+        {
+            return default;
+        }
+
+        // The fit's own whole-pixel corner, not the exact centre: a bar of an odd number of pixels
+        // centres on a half pixel, which under point sampling puts every texel boundary on a pixel
+        // centre and leaves the fill rule to break a tie per row. Linear sampling answers to no
+        // pixel grid, so the half pixel the rounded corner gives up is invisible there.
+        //
+        // The scale travels as one scalar rather than the fit's extents becoming a destination
+        // rectangle, whose two extents would round independently and skew the blit.
+        return new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
+    }
+
+    private RenderTarget2D Surface((int Width, int Height) extent)
+    {
         RenderTarget2D target = _target!;
-        (int width, int height) = SurfaceSize(canvas, declaredSpan, resolvedSpan, outputWidth, outputHeight);
+        (int width, int height) = extent;
 
         if (target.Width == width && target.Height == height)
         {
@@ -257,7 +360,7 @@ internal sealed class FrameRenderer : IDisposable
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox.
-    private void DrawWorld(FrameView view, float alpha, in ViewBounds world, Vector2 span, int surfaceWidth, int surfaceHeight)
+    private void DrawWorld(FrameView view, float alpha, in Rect world, Vector2 span, int surfaceWidth, int surfaceHeight)
     {
         // A minimised window can present a back buffer with no area.
         if (surfaceWidth <= 0 || surfaceHeight <= 0)
@@ -325,6 +428,36 @@ internal sealed class FrameRenderer : IDisposable
         _batch.End();
     }
 
+    // The screen layer, in canvas pixels placed by placement. Drawn after the world and over the
+    // whole surface, so it covers the bars the world's own fit left.
+    private void DrawScreen(FrameView view, float alpha, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight)
+    {
+        ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
+        if (sprites.IsEmpty || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
+        {
+            return;
+        }
+
+        _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
+
+        Matrix canvasToSurface =
+            Matrix.CreateScale(placement.Scale, placement.Scale, 1f) *
+            Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
+
+        _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: canvasToSurface);
+
+        bool snap = view.Sampling == TextureSampling.Point;
+        TextureHandle resolved = default;
+        Texture2D? texture = null;
+
+        foreach (ref readonly SpriteIntent sprite in sprites)
+        {
+            DrawSprite(sprite, alpha, snap, placement.Scale, ref resolved, ref texture);
+        }
+
+        _batch.End();
+    }
+
     // resolved is the handle texture was fetched for; both are carried across the whole stream.
     private void DrawSprite(
         in SpriteIntent sprite,
@@ -337,10 +470,13 @@ internal sealed class FrameRenderer : IDisposable
         if (texture is null || sprite.Sprite.Texture != resolved)
         {
             resolved = sprite.Sprite.Texture;
-            texture = _textures.Get(resolved);
+
+            // An engine-reserved handle names no file: the host already holds the texture, and a
+            // flat-coloured rect is one sprite over this texel.
+            texture = resolved.IsEngineOwned ? _white : _textures.Get(resolved);
         }
 
-        Vector2 position = Vector2.Lerp(sprite.PreviousPosition, sprite.Position, alpha);
+        Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha);
         if (snap)
         {
             position = PixelGrid.Snap(position, surfaceScale);
@@ -367,8 +503,8 @@ internal sealed class FrameRenderer : IDisposable
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
-    // Letterboxed a second time, into the back buffer, on the fit its sampling mode calls for.
-    private void Present(RenderTarget2D target, TextureSampling sampling)
+    // Letterboxed a second time, into the back buffer, at the placement TargetPlacement resolved.
+    private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
         PresentationParameters backBuffer = _device.PresentationParameters;
@@ -379,27 +515,20 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Clear(BarColor);
 
-        Letterbox fit = PresentFit(sampling, target.Width, target.Height, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
-        if (fit.IsEmpty)
+        if (!(placement.Scale > 0f))
         {
             return;
         }
 
-        // One scalar scale and a fractional position rather than a destination rectangle, whose
-        // two extents would round to whole pixels independently and skew the blit.
-        XnaVector2 position = new(
-            (backBuffer.BackBufferWidth - (target.Width * fit.Scale)) / 2f,
-            (backBuffer.BackBufferHeight - (target.Height * fit.Scale)) / 2f);
-
         _batch.Begin(samplerState: Sampler(sampling));
         _batch.Draw(
             target,
-            position,
+            new XnaVector2(placement.Origin.X, placement.Origin.Y),
             sourceRectangle: null,
             Color.White,
             rotation: 0f,
             origin: XnaVector2.Zero,
-            fit.Scale,
+            placement.Scale,
             SpriteEffects.None,
             layerDepth: 0f);
         _batch.End();

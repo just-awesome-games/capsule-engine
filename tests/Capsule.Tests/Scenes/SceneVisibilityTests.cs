@@ -14,7 +14,7 @@ public sealed class SceneVisibilityTests
     {
         SceneSimulation simulation = Run(SceneFixtures.Opens(new Vector2(100f, 50f), Span));
 
-        Assert.Equal(new ViewBounds(95f, 45f, 105f, 55f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(new Rect(95f, 45f, 105f, 55f), simulation.Scene.Camera.VisibleRegion);
     }
 
     [Fact]
@@ -23,11 +23,11 @@ public sealed class SceneVisibilityTests
         SceneSimulation simulation = Run(scene =>
         {
             SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = new ViewBounds(0f, -20f, 40f, 20f);
+            scene.Camera.Bounds = new Rect(0f, -20f, 40f, 20f);
         });
 
         // Confined on X to the right edge, free on Y, and the centre itself is left as framed.
-        Assert.Equal(new ViewBounds(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(new Rect(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
         Assert.Equal(new Vector2(100f, 0f), simulation.Scene.Camera.Center);
     }
 
@@ -37,28 +37,28 @@ public sealed class SceneVisibilityTests
         SceneSimulation simulation = Run(scene =>
         {
             SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = new ViewBounds(0f, -20f, 4f, 20f);
+            scene.Camera.Bounds = new Rect(0f, -20f, 4f, 20f);
         });
 
-        Assert.Equal(new ViewBounds(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(new Rect(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
     }
 
     [Fact]
     public void EveryFit_ResolvesToTheDeclaredSpan_BecauseNoOutputReachesTheSimulation()
     {
-        ViewBounds letterboxed = Run(scene =>
+        Rect letterboxed = Run(scene =>
         {
             SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
             scene.Camera.Fit = ViewportFit.Letterbox;
         }).Scene.Camera.VisibleRegion;
 
-        ViewBounds expanded = Run(scene =>
+        Rect expanded = Run(scene =>
         {
             SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
             scene.Camera.Fit = ViewportFit.Expand;
         }).Scene.Camera.VisibleRegion;
 
-        Assert.Equal(new ViewBounds(-16f, -9f, 16f, 9f), letterboxed);
+        Assert.Equal(new Rect(-16f, -9f, 16f, 9f), letterboxed);
         Assert.Equal(letterboxed, expanded);
     }
 

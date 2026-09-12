@@ -33,12 +33,14 @@
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
 
+  <!-- No GlobalPropertiesToRemove: the tool project pins the publish properties with
+       TreatAsLocalProperty, and removing them here would request the tool's shared engine
+       subgraph under a second global-property set, so two builds would race into one output. -->
   <ItemGroup Condition="'$(CapsuleUsesBuildTool)' == 'true'">
     <ProjectReference Include="$(CapsuleBuildToolProject)"
                       Condition="'$(CapsuleBuildToolProject)' != ''"
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"
-                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       ExcludeAssets="all"
                       PrivateAssets="all"
                       Private="false" />
@@ -55,8 +57,7 @@
     <MSBuild Projects="$(CapsuleBuildToolProject)"
              Condition="'$(CapsuleBuildToolProject)' != ''"
              Targets="GetTargetPath"
-             Properties="Configuration=$(_CapsuleBuildToolConfiguration)"
-             RemoveProperties="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained">
+             Properties="Configuration=$(_CapsuleBuildToolConfiguration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
     </MSBuild>
 

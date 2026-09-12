@@ -50,7 +50,7 @@ public class Scene
     // The region the step's settle answered against, retained for the arrival settle that runs
     // after the deferred adds land: an OnStart there may install another camera, whose own region
     // is empty until its first late step, and the arrivals belong to the frame this step drew.
-    private ViewBounds _settledRegion;
+    private Rect _settledRegion;
 
     // Sort keys for the list above, retained across rebuilds so a banded scene does not allocate
     // one per rebuild. Only the first _renderers.Count entries mean anything.
@@ -207,6 +207,17 @@ public class Scene
 
     // The mixer or nothing, for a component that must not throw where a scene has not started.
     internal AudioMixer? AudioOrNull => _audio;
+
+    /// <summary>
+    /// The screen layer's extent in canvas pixels, whose origin is its top-left corner and whose Y
+    /// runs down. A run constant, engine-owned and installed before the scene starts: the run's
+    /// declared render resolution, or the window size it was configured to open at, so it never
+    /// follows a window the player resizes. A <see cref="ScreenEntity"/> is anchored and hit-tested
+    /// against it, and a camera fit that
+    /// reveals more world than the canvas holds leaves the screen layer this extent, centred in what
+    /// the world was drawn on.
+    /// </summary>
+    public Vector2 Canvas { get; internal set; }
 
     /// <summary>
     /// World units the scene spans, from its origin at (0, 0); zero unless the scene sets it.
@@ -447,8 +458,9 @@ public class Scene
     }
 
     /// <summary>
-    /// Runs after entities step and before the frame is built; use it for the scene's camera
-    /// policy, which the camera's own <see cref="Scenes.Camera.OnLateStep"/> then frames.
+    /// Runs after every entity's own <see cref="Entity.OnLateStep"/> and before the frame is built;
+    /// use it for the scene's camera policy, which the camera's own
+    /// <see cref="Scenes.Camera.OnLateStep"/> then frames.
     /// </summary>
     protected virtual void OnLateStep(in StepContext context)
     {
@@ -491,6 +503,9 @@ public class Scene
 
         // Whatever the scene's own construction set stands; the game default fills in behind it.
         _sampling ??= defaults.Sampling;
+
+        // Ahead of every start below, so an entity anchoring itself to a canvas edge finds one.
+        Canvas = defaults.ResolvedCanvas;
 
         // Everything the scene was composed from is attached by now, so an entity starting here
         // can search the scene and find every other entry.
@@ -675,6 +690,14 @@ public class Scene
         foreach (Entity entity in Entities)
         {
             entity.RunStep(context);
+        }
+    }
+
+    internal void LateStepEntities(in StepContext context)
+    {
+        foreach (Entity entity in Entities)
+        {
+            entity.RunLateStep(context);
         }
     }
 

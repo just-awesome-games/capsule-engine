@@ -1,11 +1,13 @@
 <Project>
 
+  <!-- No GlobalPropertiesToRemove: the generator project pins the publish properties with
+       TreatAsLocalProperty, and removing them here would request it under a second
+       global-property set, so two builds would race into one output. -->
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj"
                       Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Generators/Capsule.Generators.csproj')"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;RuntimeIdentifier;SelfContained"
                       PrivateAssets="all" />
 
     <CompilerVisibleProperty Include="CapsuleGameLogic" />

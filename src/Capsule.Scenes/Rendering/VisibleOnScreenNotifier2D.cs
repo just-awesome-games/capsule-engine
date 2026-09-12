@@ -96,11 +96,10 @@ public sealed class VisibleOnScreenNotifier2D : Component
 
     // The whole rect against the whole region: a partial overlap is on screen, exactly as the
     // renderer would show a partly framed sprite.
-    internal void SettleVisibility(in ViewBounds region)
+    internal void SettleVisibility(in Rect region)
     {
-        Vector2 corner = Entity!.Position + _offset;
         bool onScreen = !region.IsEmpty &&
-            region.Intersects(new ViewBounds(corner.X, corner.Y, corner.X + _size.X, corner.Y + _size.Y));
+            region.Intersects(new Rect(Entity!.Position + _offset, _size));
 
         if (onScreen == IsOnScreen)
         {

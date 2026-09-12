@@ -92,6 +92,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         // enter or exit is never raised against a position something is about to leave.
         Scene.SettleContacts();
 
+        // Then the late steps, in the order the step ran: everything an entity reads here — a
+        // position a sweep came to rest at, health a contact just spent — is what the frame about to
+        // be drawn will show.
+        Scene.LateStepEntities(in context);
+
         // Ahead of EndStep, not after it: EndStep clears the deferral flag, so a late step run
         // past it would reach the entity list directly instead of queueing like everything else.
         Scene.RunLateStep(in context);
@@ -135,6 +140,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             Scene.Camera.ViewportSize,
             Scene.Camera.Fit,
             Scene.Camera.Bounds);
+        _view.Canvas = Scene.Canvas;
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
@@ -153,12 +159,15 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 Renderer renderer = renderers[index];
                 if (Scene.Draws(renderer))
                 {
+                    // The one place a space is chosen: a renderer follows its entity.
+                    _view.Space = renderer.Entity!.Space;
                     renderer.Draw(_view);
                 }
             }
         }
         finally
         {
+            _view.Space = RenderSpace.World;
             Scene.EndDraw();
         }
     }

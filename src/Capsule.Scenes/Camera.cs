@@ -38,7 +38,7 @@ public class Camera
     /// larger than. Null, the default, leaves the view free. <see cref="Center"/> is unaffected —
     /// it stays the raw framing target, and the confinement lives only in what is drawn.
     /// </summary>
-    public ViewBounds? Bounds { get; set; }
+    public Rect? Bounds { get; set; }
 
     /// <summary>
     /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/>
@@ -54,7 +54,7 @@ public class Camera
     /// an output whose aspect asks for it, which no output reaches the simulation to say.
     /// </para>
     /// </summary>
-    public ViewBounds VisibleRegion { get; private set; }
+    public Rect VisibleRegion { get; private set; }
 
     /// <summary>
     /// The scene this camera frames; null before <see cref="OnAddedToScene"/> and after

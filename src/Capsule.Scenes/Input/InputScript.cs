@@ -1,12 +1,13 @@
+using System.Numerics;
 using Capsule.Input;
 
 namespace Capsule.Scenes.Input;
 
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> of a fixed snapshot sequence the way a device produces one:
-/// a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/> and <see cref="Axis"/> edit, and
-/// <see cref="Wait"/> and <see cref="Tap(Key)"/> emit steps of. Every duration is a count of fixed
-/// steps, never seconds.
+/// a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/>, <see cref="Axis"/> and
+/// <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap(Key)"/> and
+/// <see cref="Scroll"/> emit steps of. Every duration is a count of fixed steps, never seconds.
 /// </summary>
 /// <remarks>
 /// Editing the held state emits no step of its own, so a chord is pressed by several
@@ -37,6 +38,14 @@ public sealed class InputScript
         return this;
     }
 
+    /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    public InputScript Down(MouseButton button)
+    {
+        _held = _held.With(button);
+        return this;
+    }
+
     /// <summary>Releases <paramref name="key"/>; releasing what is not held changes nothing.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
     public InputScript Up(Key key)
@@ -50,6 +59,26 @@ public sealed class InputScript
     public InputScript Up(PadButton button)
     {
         _held = _held.Without(button);
+        return this;
+    }
+
+    /// <summary>Releases <paramref name="button"/>; releasing what is not held changes nothing.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    public InputScript Up(MouseButton button)
+    {
+        _held = _held.Without(button);
+        return this;
+    }
+
+    /// <summary>
+    /// Puts the pointer on <paramref name="position"/> from the next emitted step on, as a mouse that
+    /// was moved there would. Canvas pixels from the canvas's top-left corner, unclamped: a position
+    /// outside the canvas is a pointer outside it.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
+    public InputScript MoveTo(Vector2 position)
+    {
+        _held = _held.WithPointer(position);
         return this;
     }
 
@@ -87,6 +116,33 @@ public sealed class InputScript
         _held = _held.With(button);
         _steps.Add(_held);
         _held = _held.Without(button);
+
+        return this;
+    }
+
+    /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    /// <exception cref="InvalidOperationException">The button is already held, so the tap would release it instead.</exception>
+    public InputScript Tap(MouseButton button)
+    {
+        RequireNotHeld(_held.IsDown(button), $"{nameof(MouseButton)}.{button}");
+
+        _held = _held.With(button);
+        _steps.Add(_held);
+        _held = _held.Without(button);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Emits one step with the wheel having turned <paramref name="notches"/> on top of the held
+    /// state, then stills it: a wheel is never held, so only that one step sees the notches.
+    /// </summary>
+    /// <param name="notches">Wheel notches: X positive scrolls right, Y positive scrolls away from the user. Unbounded.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The notches are not finite.</exception>
+    public InputScript Scroll(Vector2 notches)
+    {
+        _steps.Add(_held.WithScroll(notches));
 
         return this;
     }

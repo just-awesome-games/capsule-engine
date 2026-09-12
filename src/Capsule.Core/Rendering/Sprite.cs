@@ -15,4 +15,11 @@ namespace Capsule.Rendering;
 /// halfway across an axis flips in place on it, while one at the region's edge swings the region
 /// across to the other side of the position.
 /// </param>
-public readonly record struct Sprite(TextureHandle Texture, TextureRegion Region, Vector2 Pivot = default);
+public readonly record struct Sprite(TextureHandle Texture, TextureRegion Region, Vector2 Pivot = default)
+{
+    /// <summary>
+    /// The engine's one white texel, anchored at its corner: the frame a flat colour is drawn from,
+    /// stretched to whatever extent the intent asks for and tinted by its colour.
+    /// </summary>
+    public static Sprite White => new(TextureHandle.White, new TextureRegion(0, 0, 1, 1));
+}

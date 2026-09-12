@@ -140,7 +140,7 @@ public sealed class TileMap : Entity
         // camera, so a tile the camera only reaches mid-step is still drawn on this frame.
         private (int MinX, int MinY, int MaxX, int MaxY) VisibleBounds(CameraView camera)
         {
-            ViewBounds swept = camera.SweptBounds;
+            Rect swept = camera.SweptBounds;
 
             if (!(camera.Size.X > 0f) || !(camera.Size.Y > 0f) || swept.IsEmpty)
             {

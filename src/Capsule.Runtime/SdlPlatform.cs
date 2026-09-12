@@ -35,6 +35,16 @@ internal static class SdlPlatform
     // still leave the window behind that terminal.
     internal static void RaiseWindow(nint window) => SDL_RaiseWindow(window);
 
+    // The operating system's own handle for the window — an HWND on Windows — or zero when SDL
+    // will not report one. A backend window handle is SDL's own opaque pointer, not this.
+    internal static nint NativeWindowHandle(nint window)
+    {
+        SdlWindowInfo info = default;
+        SDL_GetVersion(out info.Version);
+
+        return SDL_GetWindowWMInfo(window, ref info) == 1 ? info.NativeWindow : nint.Zero;
+    }
+
     // The window's current extent in screen coordinates, which SDL updates as the OS reports it —
     // during a modal resize, ahead of the event announcing the new size.
     internal static void WindowSize(nint window, out int width, out int height) =>
@@ -149,5 +159,32 @@ internal static class SdlPlatform
 
     [DllImport(LibraryName, EntryPoint = "SDL_DelEventWatch")]
     private static extern void SDL_DelEventWatch(SdlEventFilter filter, nint userData);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetVersion")]
+    private static extern void SDL_GetVersion(out SdlVersion version);
+
+    // Refuses the call outright unless the version field names a release it can answer for, which
+    // is why the struct is stamped from SDL_GetVersion before every call.
+    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowWMInfo")]
+    private static extern int SDL_GetWindowWMInfo(nint window, ref SdlWindowInfo info);
 #pragma warning restore SYSLIB1054
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SdlVersion
+    {
+        internal byte Major;
+        internal byte Minor;
+        internal byte Patch;
+    }
+
+    // SDL_SysWMinfo. The first member of its per-platform union is the native window on every
+    // platform that has one; the declared size covers the whole union, which SDL writes through
+    // regardless of which driver answered.
+    [StructLayout(LayoutKind.Sequential, Size = 128)]
+    private struct SdlWindowInfo
+    {
+        internal SdlVersion Version;
+        internal int Subsystem;
+        internal nint NativeWindow;
+    }
 }

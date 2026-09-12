@@ -2,13 +2,17 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
 /// <summary>
-/// One thing in a scene. World units, Y-down; what <see cref="Position"/> anchors — a corner, a
-/// centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and
-/// attach <see cref="Component"/>s for what composes.
+/// One thing in a scene, in world units, Y-down; what <see cref="Position"/> anchors — a corner, a
+/// centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and attach
+/// <see cref="Component"/>s for what composes.
+/// <para>
+/// <see cref="ScreenEntity"/> is the interface counterpart, on the frame's screen layer.
+/// </para>
 /// </summary>
 public class Entity
 {
@@ -29,8 +33,9 @@ public class Entity
     }
 
     /// <summary>
-    /// Where the entity is now, in world units. Always finite: a NaN or infinite position is
-    /// refused rather than stored.
+    /// Where the entity is now, in its own units: world units, and canvas pixels from the anchor on a
+    /// <see cref="ScreenEntity"/>. Always finite: a NaN or infinite position is refused rather than
+    /// stored.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
@@ -119,6 +124,14 @@ public class Entity
     public RandomSource Random => Scene is { } scene
         ? scene.Random
         : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoSourceYet}");
+
+    // Which of a frame's two layers this entity's renderers draw on. The type is what routes them:
+    // every renderer follows its entity, with no flag of its own.
+    internal virtual RenderSpace Space => RenderSpace.World;
+
+    // What a renderer adds to a position to reach the space it draws in: nothing at all in world
+    // space, and the anchor's point on the run's canvas for a screen entity.
+    internal virtual Vector2 SpaceOrigin => Vector2.Zero;
 
     // Set by a subclass whose contents are world coordinates, so a position write is a mistake
     // rather than a move.
@@ -240,6 +253,17 @@ public class Entity
     }
 
     /// <summary>
+    /// Advances this entity a second time, before its components' own late step and after every
+    /// entity has stepped and contacts have settled, so a reading taken here is of the state the
+    /// frame about to be drawn will show — the health a contact just spent, the position a sweep
+    /// came to rest at. Runs in the same order <see cref="OnStep"/> did, and before the scene's own
+    /// <see cref="Scene.OnLateStep"/>. Never reached before <see cref="OnStart"/>.
+    /// </summary>
+    protected internal virtual void OnLateStep(in StepContext context)
+    {
+    }
+
+    /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
     /// from here. Runs before the components held at that moment start; an entity that leaves the
@@ -348,6 +372,22 @@ public class Entity
         foreach (Component component in LiveComponents)
         {
             component.RunStep(context);
+        }
+    }
+
+    // Bound by the same rule RunStep is: an entity with no time begun for it takes no late step.
+    internal void RunLateStep(in StepContext context)
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        OnLateStep(context);
+
+        foreach (Component component in LiveComponents)
+        {
+            component.RunLateStep(context);
         }
     }
 

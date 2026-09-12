@@ -32,4 +32,38 @@ public sealed class InputButtonTests
         Assert.False(InputButton.None.IsDown(snapshot));
         Assert.False(InputButton.None.IsDown(DeviceSnapshot.Empty));
     }
+
+    [Fact]
+    public void AStickDirection_IsDownOnlyPastThePressPointItsWay()
+    {
+        DeviceSnapshot pushed = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickY, 0.6f);
+
+        Assert.True(((InputButton)StickDirection.LeftStickUp).IsDown(pushed));
+        Assert.False(((InputButton)StickDirection.LeftStickDown).IsDown(pushed));
+        Assert.False(((InputButton)StickDirection.RightStickUp).IsDown(pushed));
+
+        DeviceSnapshot insideDeadband = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickY, 0.4f);
+
+        Assert.False(((InputButton)StickDirection.LeftStickUp).IsDown(insideDeadband));
+        Assert.False(((InputButton)StickDirection.LeftStickDown).IsDown(insideDeadband));
+    }
+
+    [Fact]
+    public void AHeldStickDirection_IsPressedOnceAndNeverRepeats()
+    {
+        InputAction menuUp = new("menu-up");
+        ActionBindings bindings = new ActionBindings().Bind(menuUp, StickDirection.LeftStickUp);
+        InputState input = new(bindings);
+        DeviceSnapshot pushed = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickY, 0.6f);
+
+        int presses = 0;
+        for (int step = 0; step < 3; step++)
+        {
+            input.Advance(pushed);
+            presses += input.WasPressed(menuUp) ? 1 : 0;
+        }
+
+        Assert.Equal(1, presses);
+        Assert.True(input.IsHeld(menuUp));
+    }
 }
