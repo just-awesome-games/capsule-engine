@@ -90,18 +90,57 @@ public sealed class TextBoxTests
     }
 
     [Fact]
-    public void AnAlignmentPoint_IsWhereThePositionLands()
+    public void APivot_IsWhereThePositionLands()
     {
         TextIntent centred = Text("A") with
         {
             Size = new Vector2(40f, 30f),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Middle,
+            Pivot = Pivot.Center,
             Position = new Vector2(100f, 50f),
             PreviousPosition = new Vector2(100f, 50f),
         };
 
         Assert.Equal(new Rect(80f, 35f, 120f, 65f), centred.Bounds);
+    }
+
+    [Theory]
+    [InlineData(HorizontalAlignment.Left, VerticalAlignment.Top, 1f, 2f)]
+    [InlineData(HorizontalAlignment.Center, VerticalAlignment.Middle, 18f, 12f)]
+    [InlineData(HorizontalAlignment.Right, VerticalAlignment.Bottom, 36f, 22f)]
+    public void AnAlignment_MovesTheTextAndNeverTheBox(
+        HorizontalAlignment horizontal,
+        VerticalAlignment vertical,
+        float x,
+        float y)
+    {
+        // One line of 5 by 10 in a box of 40 by 30, the pivot left at its top-left corner; 'A' carries
+        // a one-pixel bearing on X and sits two font pixels below its line's top edge. The line's own
+        // shift is whole font pixels, so the centred half-pixel floors.
+        TextIntent aligned = Text("A") with
+        {
+            Size = new Vector2(40f, 30f),
+            HorizontalAlignment = horizontal,
+            VerticalAlignment = vertical,
+        };
+
+        FrameView view = new();
+        view.Add(aligned);
+
+        Assert.Equal(new Rect(0f, 0f, 40f, 30f), aligned.Bounds);
+        Assert.Equal(new Vector2(x, y), view.Sprites[0].Position);
+    }
+
+    [Fact]
+    public void ASizelessRun_RunsRightFromItsPositionUntilThePivotSaysOtherwise()
+    {
+        // The box is the text itself, so there is nothing for the alignment to move the run inside of:
+        // right-aligned text still starts at the position, and only the pivot puts its end there.
+        TextIntent rightAligned = Text("AB") with { HorizontalAlignment = HorizontalAlignment.Right };
+
+        Assert.Equal(new Rect(0f, 0f, 9f, FontFixtures.LineHeight), rightAligned.Bounds);
+        Assert.Equal(
+            new Rect(-9f, 0f, 0f, FontFixtures.LineHeight),
+            (rightAligned with { Pivot = Pivot.TopRight }).Bounds);
     }
 
     [Fact]

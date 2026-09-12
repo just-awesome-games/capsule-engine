@@ -8,9 +8,12 @@ namespace Capsule.Rendering;
 /// <see cref="SpriteIntent"/> per glyph to the list it is drawing into, so text interpolates, culls
 /// and counts exactly as sprites do.
 /// <para>
-/// <see cref="Position"/> is the box's alignment point: the corner, edge midpoint or centre that
-/// <see cref="HorizontalAlignment"/> and <see cref="VerticalAlignment"/> name, which is also where
-/// the text sits inside the box. Left and top, the defaults, make it the box's top-left corner.
+/// <see cref="Pivot"/> places the box: the point it names on the box lands on
+/// <see cref="Position"/>, top-left by default. <see cref="HorizontalAlignment"/> and
+/// <see cref="VerticalAlignment"/> then move the text inside that box and never the box itself. A
+/// run with no <see cref="Size"/> has the measured text for its box, so a title centred on its
+/// position takes <see cref="Pivot.Top"/> or <see cref="Pivot.Center"/>, with
+/// <see cref="HorizontalAlignment.Center"/> centring its lines on each other.
 /// </para>
 /// </summary>
 /// <param name="Font">The font the run is laid out and drawn with; null draws nothing.</param>
@@ -20,9 +23,12 @@ namespace Capsule.Rendering;
 /// no glyph for draws nothing and advances nothing.
 /// </param>
 /// <param name="PreviousPosition">
-/// Where the box's alignment point sat at the end of the previous step, in the drawn space's units.
+/// Where the box's <see cref="Pivot"/> sat at the end of the previous step, in the drawn space's
+/// units.
 /// </param>
-/// <param name="Position">Where the box's alignment point sits now, in the drawn space's units.</param>
+/// <param name="Position">
+/// Where the box's <see cref="Pivot"/> sits now, in the drawn space's units.
+/// </param>
 /// <param name="Scale">
 /// Multiplies font pixels into the drawn space's units per axis. <see cref="Vector2.One"/> draws one
 /// font pixel per unit; a non-positive component draws nothing.
@@ -42,9 +48,15 @@ public readonly record struct TextIntent(
     /// <summary>
     /// The box the run is laid out in, in the drawn space's units. A non-positive component is the
     /// measured run on that axis, which is the default on both: the box is then the text itself, so
-    /// centring it centres the run on <see cref="Position"/>.
+    /// <see cref="Pivot"/> alone decides where the run sits around <see cref="Position"/>.
     /// </summary>
     public Vector2 Size { get; init; }
+
+    /// <summary>
+    /// The point on the box that sits on <see cref="Position"/>; <see cref="Pivot.TopLeft"/> by
+    /// default.
+    /// </summary>
+    public Pivot Pivot { get; init; }
 
     /// <summary>
     /// Whether a line wider than <see cref="Size"/> breaks inside the box. Wrapping needs a positive
@@ -52,10 +64,14 @@ public readonly record struct TextIntent(
     /// </summary>
     public TextWrap Wrap { get; init; }
 
-    /// <summary>Where each line sits between the box's left and right edges.</summary>
+    /// <summary>
+    /// Where each line sits between the box's left and right edges; it never moves the box.
+    /// </summary>
     public HorizontalAlignment HorizontalAlignment { get; init; }
 
-    /// <summary>Where the run sits between the box's top and bottom edges.</summary>
+    /// <summary>
+    /// Where the run sits between the box's top and bottom edges; it never moves the box.
+    /// </summary>
     public VerticalAlignment VerticalAlignment { get; init; }
 
     /// <summary>
@@ -68,9 +84,9 @@ public readonly record struct TextIntent(
     public int? VisibleCharacters { get; init; }
 
     /// <summary>
-    /// The box this run is laid out in around <see cref="Position"/>, in the drawn space's units; empty
-    /// with no font or no text. A run with no <see cref="Size"/> measures itself, so the box is then the
-    /// text's own extent.
+    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>, in the
+    /// drawn space's units; empty with no font or no text. A run with no <see cref="Size"/> measures
+    /// itself, so the box is then the text's own extent.
     /// </summary>
     public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
@@ -95,12 +111,11 @@ public readonly record struct TextIntent(
             Size.X > 0f ? Size.X : measured.X,
             Size.Y > 0f ? Size.Y : measured.Y);
 
-        Vector2 share = new(Share(HorizontalAlignment), Share(VerticalAlignment));
-        Vector2 topLeft = Position - (box * share);
+        Vector2 topLeft = Position - Pivot.On(box);
 
         placement = new TextPlacement(
             font,
-            new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * share.Y)),
+            new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * Share(VerticalAlignment))),
             new Rect(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y),
             WrapWidth(box.X, Scale.X),
             Wrap,
@@ -108,13 +123,6 @@ public readonly record struct TextIntent(
 
         return true;
     }
-
-    private static float Share(HorizontalAlignment alignment) => alignment switch
-    {
-        HorizontalAlignment.Center => 0.5f,
-        HorizontalAlignment.Right => 1f,
-        _ => 0f,
-    };
 
     private static float Share(VerticalAlignment alignment) => alignment switch
     {

@@ -9,10 +9,11 @@ namespace Capsule.Scenes.Rendering;
 /// until <see cref="Scale"/> says otherwise. Y-down, in world units on a world entity and canvas
 /// pixels on a screen one.
 /// <para>
-/// The entity's position plus <see cref="Offset"/> is the box's alignment point — the corner, edge
-/// midpoint or centre that <see cref="HorizontalAlignment"/> and <see cref="VerticalAlignment"/>
-/// name — and the text is aligned inside the box the same way. A <see cref="Size"/> of zero makes the
-/// box the measured run, so a centred label centres its text on that point.
+/// The entity's position plus <see cref="Offset"/> is where the box's <see cref="Pivot"/> sits,
+/// its top-left corner by default. <see cref="HorizontalAlignment"/> and
+/// <see cref="VerticalAlignment"/> then move the text inside that box and never the box itself. A
+/// <see cref="Size"/> of zero makes the box the measured run, so a label centred on its point takes
+/// <see cref="Capsule.Rendering.Pivot.Center"/>.
 /// </para>
 /// </summary>
 /// <param name="font">The font the run is drawn with.</param>
@@ -29,10 +30,16 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public string Text { get; set; } = text ?? throw new ArgumentNullException(nameof(text));
 
     /// <summary>
-    /// Added to the entity's position to give the box's alignment point. In the entity's own units;
-    /// zero by default.
+    /// Added to the entity's position to give the point the box's <see cref="Pivot"/> sits on. In the
+    /// entity's own units; zero by default.
     /// </summary>
     public Vector2 Offset { get; set; }
+
+    /// <summary>
+    /// The point on the box that sits on the entity's position plus <see cref="Offset"/>;
+    /// <see cref="Capsule.Rendering.Pivot.TopLeft"/> by default.
+    /// </summary>
+    public Pivot Pivot { get; set; }
 
     /// <summary>
     /// The box the run is laid out in, in the entity's units. A non-positive component is the measured
@@ -48,14 +55,14 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public TextWrap Wrap { get; set; }
 
     /// <summary>
-    /// Where each line sits between the box's left and right edges, and which of those the alignment
-    /// point is; <see cref="Capsule.Rendering.HorizontalAlignment.Left"/> by default.
+    /// Where each line sits between the box's left and right edges;
+    /// <see cref="Capsule.Rendering.HorizontalAlignment.Left"/> by default.
     /// </summary>
     public HorizontalAlignment HorizontalAlignment { get; set; }
 
     /// <summary>
-    /// Where the run sits between the box's top and bottom edges, and which of those the alignment
-    /// point is; <see cref="Capsule.Rendering.VerticalAlignment.Top"/> by default.
+    /// Where the run sits between the box's top and bottom edges;
+    /// <see cref="Capsule.Rendering.VerticalAlignment.Top"/> by default.
     /// </summary>
     public VerticalAlignment VerticalAlignment { get; set; }
 
@@ -78,8 +85,9 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
     /// <summary>
     /// The box this label lays its text out in: <see cref="Size"/> on an axis it is positive on and the
-    /// measured run on one it is not, around the alignment point. Laid out on each read, in the space
-    /// and on the terms <see cref="Renderer.Bounds"/> states.
+    /// measured run on one it is not, placed by <see cref="Pivot"/> on the entity's position plus
+    /// <see cref="Offset"/>. Laid out on each read, in the space and on the terms
+    /// <see cref="Renderer.Bounds"/> states.
     /// </summary>
     public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 
@@ -109,6 +117,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             Color)
         {
             Size = Size,
+            Pivot = Pivot,
             Wrap = Wrap,
             HorizontalAlignment = HorizontalAlignment,
             VerticalAlignment = VerticalAlignment,

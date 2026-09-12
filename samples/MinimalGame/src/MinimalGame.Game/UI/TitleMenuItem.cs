@@ -34,7 +34,8 @@ public sealed class TitleMenuItem : ScreenEntity
     public TitleMenuItem(Anchor anchor, Vector2 offset, string text)
         : base(anchor, offset)
     {
-        // The box is centred on the entity, because the label's alignment point is its centre.
+        // The bar, the caption and the focus box are one box centred on the entity, so all three hang
+        // from the same corner.
         Vector2 corner = -ItemBox / 2f;
 
         // Hidden by a zero extent rather than a transparent colour: the bar's colour then stays one
@@ -43,6 +44,7 @@ public sealed class TitleMenuItem : ScreenEntity
 
         _caption = new Label(CapsuleAssets.Fonts.Menu, text)
         {
+            Offset = corner,
             Size = ItemBox,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Middle,

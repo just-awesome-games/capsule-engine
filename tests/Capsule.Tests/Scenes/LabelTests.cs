@@ -38,7 +38,7 @@ public sealed class LabelTests
     }
 
     [Fact]
-    public void ALabelLeftAndTopAligned_LandsItsBoxCornerOnThatPoint()
+    public void ALabelWithNoPivot_LandsItsBoxCornerOnThatPoint()
     {
         Holder entity = Prompt("AB");
         Scene scene = new();
@@ -63,7 +63,12 @@ public sealed class LabelTests
 
         using SceneSimulation simulation = new(scene);
 
-        // The alignment point is the box's centre, so the box is centred on (5, 6).
+        // The entity at (4, 5) plus the label's (1, 1) offset, which the default pivot hangs the box
+        // from; centring the pivot instead centres that box on the same point.
+        Assert.Equal(new Rect(5f, 6f, 45f, 36f), entity.Text.Bounds);
+
+        entity.Text.Pivot = Pivot.Center;
+
         Assert.Equal(new Rect(-15f, -9f, 25f, 21f), entity.Text.Bounds);
     }
 

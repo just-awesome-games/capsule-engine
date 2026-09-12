@@ -29,6 +29,7 @@ public sealed class TitleMenu : ScreenEntity
     {
         Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
         {
+            Pivot = Pivot.Top,
             HorizontalAlignment = HorizontalAlignment.Center,
         });
 
