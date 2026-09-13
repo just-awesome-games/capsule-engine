@@ -6,7 +6,6 @@ using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
-using Capsule.Scenes.Input;
 
 namespace Capsule.AotSmoke;
 

@@ -3,7 +3,7 @@ using System.Text;
 using Capsule.Assets;
 using Capsule.Generators;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 
 namespace Capsule.Build.Scenes;
 

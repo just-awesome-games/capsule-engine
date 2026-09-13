@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Collision/Capsule.Collision.csproj" />
+    <ProjectReference Include="../Capsule.Physics/Capsule.Physics.csproj" />
     <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
   </ItemGroup>
 

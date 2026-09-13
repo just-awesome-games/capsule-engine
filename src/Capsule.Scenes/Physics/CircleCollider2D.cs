@@ -1,7 +1,5 @@
 using System.Numerics;
-using Capsule.Collision;
-
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// A circular collider, centred on the entity's position plus <see cref="Collider2D.Offset"/> —

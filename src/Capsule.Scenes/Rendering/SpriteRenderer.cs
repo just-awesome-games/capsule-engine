@@ -1,8 +1,8 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 /// <summary>
 /// Draws its entity as one sprite, one texel per unit of the entity's space until

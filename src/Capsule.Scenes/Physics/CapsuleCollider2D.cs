@@ -1,7 +1,5 @@
 using System.Numerics;
-using Capsule.Collision;
-
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// A stadium collider: everything within <see cref="Radius"/> of the segment from

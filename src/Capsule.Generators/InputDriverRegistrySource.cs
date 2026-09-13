@@ -136,7 +136,7 @@ internal static class InputDriverRegistrySource
     // does in a logic assembly's registry.
     internal static void AppendRegistration(StringBuilder source, InputDriverModel model)
     {
-        source.Append("new global::Capsule.Scenes.Input.InputDriverRegistration(");
+        source.Append("new global::Capsule.Input.InputDriverRegistration(");
         source.Append(SymbolDisplay.FormatLiteral(model.TypeName, quote: true));
         source.Append(", static () => new ");
         source.Append(model.QualifiedName);
@@ -156,8 +156,8 @@ internal static class InputDriverRegistrySource
         source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
         source.AppendLine("    internal static class CapsuleInputDrivers");
         source.AppendLine("    {");
-        source.AppendLine("        internal static global::Capsule.Scenes.Input.InputDriverRegistration[] Registrations { get; } =");
-        source.AppendLine("            new global::Capsule.Scenes.Input.InputDriverRegistration[]");
+        source.AppendLine("        internal static global::Capsule.Input.InputDriverRegistration[] Registrations { get; } =");
+        source.AppendLine("            new global::Capsule.Input.InputDriverRegistration[]");
         source.AppendLine("            {");
 
         foreach (InputDriverModel model in registered)

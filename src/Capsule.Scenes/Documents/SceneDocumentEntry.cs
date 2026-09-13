@@ -1,4 +1,4 @@
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
 

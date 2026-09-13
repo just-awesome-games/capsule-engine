@@ -1,6 +1,6 @@
 using Capsule.Assets;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Documents;
 

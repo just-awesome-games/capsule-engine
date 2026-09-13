@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
-using Capsule.Collision;
 using Capsule.Input;
+using Capsule.Physics;
 using Capsule.Scenes;
 using Xunit.Abstractions;
 

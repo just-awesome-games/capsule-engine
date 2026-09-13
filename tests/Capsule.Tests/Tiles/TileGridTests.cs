@@ -1,6 +1,6 @@
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Tiles;
 

@@ -1,7 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
-using Capsule.Scenes.Input;
+using Capsule.UI;
 
 namespace Capsule.Tests.Performance;
 

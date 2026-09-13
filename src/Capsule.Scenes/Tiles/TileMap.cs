@@ -1,10 +1,10 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Collision;
+using Capsule.Physics;
 using Capsule.Rendering;
-using Capsule.Scenes.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Tiles;
+namespace Capsule.Tiles;
 
 /// <summary>
 /// A tile grid anchored at the world origin — its cells are world coordinates, so its

@@ -216,7 +216,7 @@ internal static class CapsuleBootSource
         source.AppendLine("    {");
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();");
         source.AppendLine();
-        source.AppendLine("        private static global::Capsule.Scenes.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();");
+        source.AppendLine("        private static global::Capsule.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();");
         source.AppendLine();
         source.AppendLine("        /// <summary>The engine, configured with every registry this game generates.</summary>");
         source.AppendLine("        /// <param name=\"gameName\">The game's display name: its window title, and its crash-log folder as a slug.</param>");
@@ -246,9 +246,9 @@ internal static class CapsuleBootSource
         source.AppendLine("                scenes);");
         source.AppendLine("        }");
         source.AppendLine();
-        source.AppendLine("        private static global::Capsule.Scenes.Input.InputDriverRegistry CreateDrivers()");
+        source.AppendLine("        private static global::Capsule.Input.InputDriverRegistry CreateDrivers()");
         source.AppendLine("        {");
-        source.AppendLine("            var drivers = new global::System.Collections.Generic.List<global::Capsule.Scenes.Input.InputDriverRegistration>();");
+        source.AppendLine("            var drivers = new global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration>();");
         foreach (RegistryProviderModel provider in providers)
         {
             source.Append("            ");
@@ -264,7 +264,7 @@ internal static class CapsuleBootSource
             source.AppendLine(");");
         }
 
-        source.AppendLine("            return new global::Capsule.Scenes.Input.InputDriverRegistry(drivers);");
+        source.AppendLine("            return new global::Capsule.Input.InputDriverRegistry(drivers);");
         source.AppendLine("        }");
         source.AppendLine("    }");
         source.AppendLine("}");

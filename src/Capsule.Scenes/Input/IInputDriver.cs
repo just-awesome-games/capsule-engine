@@ -1,6 +1,6 @@
-using Capsule.Input;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Input;
+namespace Capsule.Input;
 
 /// <summary>
 /// A run's input in code: one <see cref="DeviceSnapshot"/> per fixed step, in step order. A driver

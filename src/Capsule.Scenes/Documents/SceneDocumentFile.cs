@@ -2,8 +2,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
-using Capsule.Collision;
-using Capsule.Scenes.Tiles;
+using Capsule.Physics;
+using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
 

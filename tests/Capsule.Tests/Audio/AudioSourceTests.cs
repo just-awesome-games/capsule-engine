@@ -2,7 +2,6 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
-using Capsule.Scenes.Audio;
 
 namespace Capsule.Tests.Audio;
 

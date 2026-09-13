@@ -1,4 +1,4 @@
-using Capsule.Collision;
+using Capsule.Physics;
 
 namespace Capsule.Scenes.Documents;
 

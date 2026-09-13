@@ -2,8 +2,7 @@ using System.Numerics;
 using Capsule.Assets.Generated;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Input;
-using Capsule.Scenes.Rendering;
+using Capsule.UI;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.UI;

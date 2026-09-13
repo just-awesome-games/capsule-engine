@@ -1,7 +1,5 @@
 using System.Numerics;
-using Capsule.Collision;
-
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// A convex polygon collider, optionally rounded. Its corners are fixed at construction, read back

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 // Owns cached draw order; changes during a draw take effect on the next frame.
 internal sealed class SceneRenderIndex

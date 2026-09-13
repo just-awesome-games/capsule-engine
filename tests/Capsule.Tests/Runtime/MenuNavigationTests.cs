@@ -1,11 +1,11 @@
 using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
-using Capsule.Scenes.Input;
-using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Rendering;
+using Capsule.UI;
 
 namespace Capsule.Tests.Runtime;
 

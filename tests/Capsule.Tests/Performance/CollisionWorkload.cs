@@ -1,11 +1,10 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Collision;
+using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Physics;
 using Capsule.Scenes.Spawning;
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Performance;
 

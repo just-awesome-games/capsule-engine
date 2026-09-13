@@ -1,8 +1,10 @@
 using System.Numerics;
 using Capsule.Audio;
 using Capsule.Rendering;
+using Capsule.Scenes;
+using Capsule.UI;
 
-namespace Capsule.Scenes;
+namespace Capsule;
 
 /// <summary>
 /// A run is one launch of the game from boot to exit as the simulation sees it. It owns the state
@@ -92,7 +94,7 @@ public sealed class Run
     /// <summary>
     /// The run's audio mixer: the same instance for the whole run, so a voice an outgoing scene
     /// starts keeps playing across a transition unless whatever started it stops it. Engine-owned.
-    /// An <see cref="Capsule.Scenes.Audio.AudioSource"/> on an entity is the per-entity way in;
+    /// An <see cref="Capsule.Audio.AudioSource"/> on an entity is the per-entity way in;
     /// this is the way to play a sound no entity owns and to hold the game's bus volumes.
     /// <para>
     /// The mixer is installed before a scene starts, so a scene constructor cannot level a bus.

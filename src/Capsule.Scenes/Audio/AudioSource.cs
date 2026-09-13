@@ -1,7 +1,7 @@
 using Capsule.Assets;
-using Capsule.Audio;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Audio;
+namespace Capsule.Audio;
 
 /// <summary>
 /// Plays one clip for its entity, holding the voice so the entity can stop, pause and re-level it.

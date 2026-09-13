@@ -3,8 +3,8 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Rendering;
-
 using Capsule.Scenes.Lifecycle;
+using Capsule.UI;
 
 namespace Capsule.Scenes;
 

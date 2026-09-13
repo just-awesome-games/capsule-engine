@@ -1,5 +1,4 @@
 using Capsule.Rendering;
-using Capsule.Scenes.Rendering;
 
 namespace Capsule.Scenes;
 

@@ -1,7 +1,8 @@
 using System.Numerics;
-using Capsule.Rendering;
+using Capsule.Scenes;
+using Capsule.UI;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 /// <summary>
 /// A component that draws. A scene walks its renderers by draw key — its entity's

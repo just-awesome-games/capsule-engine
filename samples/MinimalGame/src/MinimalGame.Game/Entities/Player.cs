@@ -1,12 +1,12 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Animation;
 using Capsule.Assets.Generated;
+using Capsule.Audio;
 using Capsule.Diagnostics;
+using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Animation;
-using Capsule.Scenes.Audio;
-using Capsule.Scenes.Physics;
-using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 
 namespace MinimalGame.Game.Entities;

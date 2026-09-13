@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
-    <ProjectReference Include="../Capsule.Collision/Capsule.Collision.csproj" />
+    <ProjectReference Include="../Capsule.Physics/Capsule.Physics.csproj" />
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
   </ItemGroup>
 

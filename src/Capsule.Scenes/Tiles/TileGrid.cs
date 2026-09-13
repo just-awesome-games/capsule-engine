@@ -1,9 +1,9 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Collision;
+using Capsule.Physics;
 using Capsule.Rendering;
 
-namespace Capsule.Scenes.Tiles;
+namespace Capsule.Tiles;
 
 /// <summary>A validated rectangular grid of palette indices.</summary>
 public sealed class TileGrid

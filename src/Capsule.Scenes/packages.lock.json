@@ -2,14 +2,14 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "capsule.collision": {
+      "capsule.core": {
+        "type": "Project"
+      },
+      "capsule.physics": {
         "type": "Project",
         "dependencies": {
           "Capsule.Core": "[0.0.0, )"
         }
-      },
-      "capsule.core": {
-        "type": "Project"
       }
     }
   }

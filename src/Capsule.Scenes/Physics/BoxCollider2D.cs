@@ -1,7 +1,5 @@
 using System.Numerics;
-using Capsule.Collision;
-
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// An axis-aligned box collider, corner-anchored: the box's corner is the entity's position plus

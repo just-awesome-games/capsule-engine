@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Collision;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>One grid cell reached by a collider contact.</summary>
 /// <param name="Grid">The collision grid that owns the cell.</param>

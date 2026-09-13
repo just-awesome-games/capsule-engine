@@ -7,15 +7,32 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | Module | Charter | May reference |
 | --- | --- | --- |
 | `Capsule.Core` | Fixed-step, input, rendering, audio mixing, asset and diagnostic contracts. | nothing |
-| `Capsule.Collision` | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver. | Core |
-| `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Collision |
+| `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver. | Core |
+| `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
 | `Capsule.Runtime` | Window, device, clock, input sampling, rendering, sound playback, scene hosting and crash reporting. | the pure modules |
 | `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | Build-time validation and canonicalization of scene documents, the asset key pass, and measurement of audio sources. | unconstrained |
 
-`Capsule.Core`, `Capsule.Collision` and `Capsule.Scenes` have no platform dependencies. Simulation performs no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts, alongside the pure `Parse` and `ToJson` operations. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
+`Capsule.Core`, `Capsule.Physics` and `Capsule.Scenes` have no platform dependencies. Simulation performs no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts, alongside the pure `Parse` and `ToJson` operations. `Capsule.Architecture.targets` enforces their reference direction and absence of package dependencies. MonoGame belongs only to `Capsule.Runtime` and never appears in a game's logic API. The same boundary applies to project-reference and package consumers.
 
 `Capsule.Runtime` is itself split: platform-neutral hosting carries no operating-system, file-system, window or MonoGame-platform assumption of its own, and those assumptions live in the desktop files. The boot surface a game's shell is generated against — `CapsuleBoot`, `CapsuleEngine` and `EngineBuilder` — exposes no desktop concept beyond an application title and texture sampling.
+
+## Placement
+
+Assemblies follow layers, so the compiler enforces reference direction; namespaces and folders follow domains, so a developer reaches a subsystem with one `using`. A type's assembly is decided by what it depends on: a contract or data plane with no scene dependency belongs in `Capsule.Core`; the collision server in `Capsule.Physics`; anything that references `Scene`, `Entity` or `Component` in `Capsule.Scenes`; anything that touches a device, window, file or MonoGame in `Capsule.Runtime`. Its namespace is its domain's, whichever assembly it lives in, and its folder is the domain inside that assembly. A new domain adds a row here; a new assembly is created only when the compiler must enforce a reference direction or isolate an algorithmic block.
+
+| Namespace | `Capsule.Core` | `Capsule.Physics` | `Capsule.Scenes` | `Capsule.Runtime` |
+| --- | --- | --- | --- | --- |
+| `Capsule` | `StepContext`, `ISimulation`, `RandomSource` | | `Run` | |
+| `Capsule.Scenes` | | | `Scene`, `Entity`, `Component`, `Camera`, `SceneSimulation`, `SimulationHost`, `SceneTransition`, composition, spawning, documents | `Runtime.Scenes` |
+| `Capsule.Physics` | | shapes, world, queries, sweeps, filters | colliders, `KinematicBody2D`, contacts | |
+| `Capsule.Rendering` | intents, `FrameView`, fonts, colors | | renderers, `Label`, `NineSlice`, `ColorRect`, visibility notifier | `Runtime.Rendering` |
+| `Capsule.Audio` | mixer, clips, buses, commands | | `AudioSource` | `Runtime.Audio` |
+| `Capsule.Animation` | clips, playback | | `SpriteAnimator` | |
+| `Capsule.Input` | bindings, snapshots, actions | | input drivers | `Runtime.Input` |
+| `Capsule.UI` | | | `ScreenEntity`, `Anchor`, `Focusable`, `FocusNavigator`, `FocusActions` | |
+| `Capsule.Tiles` | | | `TileGrid`, `TileMap`, `TileDefinition` | |
+| `Capsule.Assets`, `Capsule.Diagnostics` | as named | | | `Runtime.Assets` |
 
 ## Logic boundary
 

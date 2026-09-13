@@ -4,7 +4,6 @@ using Capsule.Audio;
 using Capsule.Runtime.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Audio;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Audio;

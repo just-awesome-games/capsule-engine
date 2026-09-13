@@ -1,9 +1,8 @@
-using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Scenes.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Animation;
+namespace Capsule.Animation;
 
 /// <summary>
 /// Plays a <see cref="SpriteClip"/> on the fixed step and writes its current frame into the

@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Xml.Linq;
 using Capsule.Assets;
-using Capsule.Collision;
+using Capsule.Physics;
 using Capsule.Runtime;
 using Capsule.Scenes;
 

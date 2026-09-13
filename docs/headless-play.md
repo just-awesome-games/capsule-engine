@@ -7,8 +7,8 @@ way every time.
 
 ## Input drivers
 
-A driver implements the one method of `Capsule.Scenes.Input.IInputDriver`, which documents its
-contract; `Capsule.Scenes.Input.InputScript` builds one from a fixed sequence of edits and waits.
+A driver implements the one method of `Capsule.Input.IInputDriver`, which documents its
+contract; `Capsule.Input.InputScript` builds one from a fixed sequence of edits and waits.
 Everything a driver measures is counted in fixed steps, never in seconds.
 
 A driver with a public parameterless constructor is registered by the build under its class name,

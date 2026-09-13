@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Capsule.Scenes.Input;
+namespace Capsule.Input;
 
 /// <summary>Constructs one input driver.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]

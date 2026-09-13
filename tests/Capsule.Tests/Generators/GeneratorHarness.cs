@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Capsule.Generators;
 using Capsule.Scenes;
-using Capsule.Scenes.Tiles;
+using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -246,7 +246,7 @@ internal static class GeneratorHarness
 
     // Whatever this test host is running against, plus the modules the generator names: it asks
     // the compilation for Capsule.Scenes.Entity and Capsule.Scenes.Scene, and the registrations it
-    // emits carry a SceneContent whose document holds a Capsule.Scenes.Tiles grid.
+    // emits carry a SceneContent whose document holds a Capsule.Tiles grid.
     private static ImmutableArray<MetadataReference> LoadReferences()
     {
         HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);

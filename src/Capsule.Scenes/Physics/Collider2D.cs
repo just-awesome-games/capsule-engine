@@ -1,8 +1,8 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using Capsule.Collision;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. It registers when

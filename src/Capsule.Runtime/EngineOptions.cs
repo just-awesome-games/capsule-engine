@@ -1,5 +1,4 @@
 using Capsule.Input;
-using Capsule.Scenes.Input;
 
 namespace Capsule.Runtime;
 

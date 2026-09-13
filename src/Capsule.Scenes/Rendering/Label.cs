@@ -1,8 +1,8 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 /// <summary>
 /// Draws its entity as one run of text inside a box, one font pixel per unit of the entity's space

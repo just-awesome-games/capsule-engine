@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 /// <summary>
 /// Draws its entity as one rectangle of flat colour. The rectangle's top-left corner lands on the

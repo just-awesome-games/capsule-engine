@@ -103,7 +103,6 @@ public sealed class CapsuleBootGeneratorTests
         const string logic = """
             using Capsule.Input;
             using Capsule.Scenes;
-            using Capsule.Scenes.Input;
 
             namespace Game;
 
@@ -122,7 +121,6 @@ public sealed class CapsuleBootGeneratorTests
             using Capsule.Input;
             using Capsule.Runtime.Generated;
             using Capsule.Scenes;
-            using Capsule.Scenes.Input;
 
             namespace Shell;
 

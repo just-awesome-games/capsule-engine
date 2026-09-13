@@ -3,9 +3,7 @@ using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Animation;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Rendering;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;

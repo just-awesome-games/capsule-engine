@@ -8,7 +8,6 @@ public sealed class InputDriverGeneratorTests
     private const string Preamble = """
         using Capsule.Input;
         using Capsule.Scenes;
-        using Capsule.Scenes.Input;
 
         namespace Game;
         """;
@@ -32,7 +31,7 @@ public sealed class InputDriverGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.Contains(
-            "new global::Capsule.Scenes.Input.InputDriverRegistration(\"Walkthrough\", static () => new global::Game.Walkthrough())",
+            "new global::Capsule.Input.InputDriverRegistration(\"Walkthrough\", static () => new global::Game.Walkthrough())",
             GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleInputDriversFile),
             StringComparison.Ordinal);
     }
@@ -67,7 +66,6 @@ public sealed class InputDriverGeneratorTests
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile("""
             using Capsule.Input;
             using Capsule.Scenes;
-            using Capsule.Scenes.Input;
 
             namespace Game.Early
             {

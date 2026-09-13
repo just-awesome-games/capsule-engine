@@ -8,7 +8,6 @@ using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Input;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
@@ -245,7 +244,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
-    /// <see cref="global::Capsule.Scenes.Run.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
+    /// <see cref="global::Capsule.Run.Random"/>. Defaults to <see cref="RandomSource.DefaultSeed"/>, so a
     /// game that never calls this replays identically run to run.
     /// </summary>
     public EngineBuilder WithRandomSeed(ulong seed)
@@ -437,7 +436,7 @@ public sealed class EngineBuilder
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="payload">
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
-    /// <see cref="global::Capsule.Scenes.Run.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
+    /// <see cref="global::Capsule.Run.RequestScene{TScene}(object?)"/> would; null unless the game supplies one.
     /// </param>
     /// <returns>The process's exit code, as <see cref="RunScene(string, object?)"/> defines it.</returns>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
@@ -455,7 +454,7 @@ public sealed class EngineBuilder
     /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
     /// <param name="payload">
     /// Boot state, which reaches the scene as its <c>EntryPayload</c> exactly as a payload given to
-    /// <see cref="global::Capsule.Scenes.Run.RequestScene(string, object?)"/> would; null unless the game supplies one.
+    /// <see cref="global::Capsule.Run.RequestScene(string, object?)"/> would; null unless the game supplies one.
     /// </param>
     /// <returns>
     /// The process's exit code: 2 when <see cref="WithCommandLine"/> rejected the command line, or

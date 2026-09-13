@@ -2,9 +2,9 @@ using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
-using Capsule.Scenes.Tiles;
 using Capsule.Tests.Documents;
 using Capsule.Tests.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Runtime;
 

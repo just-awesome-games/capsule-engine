@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Collision;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Physics;
+namespace Capsule.Physics;
 
 /// <summary>
 /// Sweeps one selected <see cref="Collider2D"/> through the scene's collision world, stopping and

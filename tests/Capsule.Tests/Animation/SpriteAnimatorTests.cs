@@ -3,8 +3,6 @@ using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Animation;
-using Capsule.Scenes.Rendering;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Animation;

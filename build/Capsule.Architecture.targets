@@ -2,40 +2,40 @@
 
   <!-- Enforce the JAG.Capsule package graph. -->
   <Target Name="CapsuleValidateModuleDependencies" BeforeTargets="ResolveReferences">
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Collision' or '$(MSBuildProjectName)' == 'Capsule.Scenes' or '$(MSBuildProjectName)' == 'Capsule'">
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Physics' or '$(MSBuildProjectName)' == 'Capsule.Scenes' or '$(MSBuildProjectName)' == 'Capsule'">
       <!-- Ignore SDK-injected references such as the NativeAOT compiler pack. -->
       <_CapsuleExplicitPackageReference Include="@(PackageReference)"
           Condition="'%(PackageReference.IsImplicitlyDefined)' != 'true'" />
     </ItemGroup>
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Collision'">
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Physics'">
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
           Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj'" />
     </ItemGroup>
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes'">
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
-          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Collision.csproj'" />
+          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Physics.csproj'" />
     </ItemGroup>
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule'">
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
-          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Collision.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />
+          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Physics.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />
     </ItemGroup>
 
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(ProjectReference)' != ''"
            Text="Capsule.Core must not reference another project." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(_CapsuleExplicitPackageReference)' != ''"
            Text="Capsule.Core must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Collision' and '@(_CapsuleExplicitPackageReference)' != ''"
-           Text="Capsule.Collision must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Collision' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="Capsule.Collision may reference Capsule.Core only; found @(_CapsuleForbiddenProjectReference)." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Physics' and '@(_CapsuleExplicitPackageReference)' != ''"
+           Text="Capsule.Physics must not reference a package." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Physics' and '@(_CapsuleForbiddenProjectReference)' != ''"
+           Text="Capsule.Physics may reference Capsule.Core only; found @(_CapsuleForbiddenProjectReference)." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleExplicitPackageReference)' != ''"
            Text="Capsule.Scenes must not reference a package." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="Capsule.Scenes may reference Capsule.Core and Capsule.Collision only; found @(_CapsuleForbiddenProjectReference)." />
+           Text="Capsule.Scenes may reference Capsule.Core and Capsule.Physics only; found @(_CapsuleForbiddenProjectReference)." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleExplicitPackageReference)' != ''"
            Text="JAG.Capsule must not reference a package." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="JAG.Capsule admits Capsule.Core, Capsule.Collision and Capsule.Scenes only; found @(_CapsuleForbiddenProjectReference)." />
+           Text="JAG.Capsule admits Capsule.Core, Capsule.Physics and Capsule.Scenes only; found @(_CapsuleForbiddenProjectReference)." />
   </Target>
 
 </Project>

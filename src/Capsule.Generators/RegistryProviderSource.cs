@@ -70,7 +70,7 @@ internal static class RegistryProviderSource
         source.AppendLine("        }");
         source.AppendLine();
         source.AppendLine("        [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]");
-        source.AppendLine("        public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Scenes.Input.InputDriverRegistration> registrations)");
+        source.AppendLine("        public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration> registrations)");
         source.AppendLine("        {");
         source.AppendLine("            global::System.ArgumentNullException.ThrowIfNull(registrations);");
         source.AppendLine("            registrations.AddRange(global::Capsule.Scenes.Generated.CapsuleInputDrivers.Registrations);");

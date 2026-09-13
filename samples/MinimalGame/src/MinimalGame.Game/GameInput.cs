@@ -1,5 +1,5 @@
 using Capsule.Input;
-using Capsule.Scenes.Input;
+using Capsule.UI;
 
 namespace MinimalGame.Game;
 

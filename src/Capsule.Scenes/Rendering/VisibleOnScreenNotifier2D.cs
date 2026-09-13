@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Rendering;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Rendering;
+namespace Capsule.Rendering;
 
 /// <summary>
 /// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and

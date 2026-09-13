@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Input;
+using Capsule.Scenes;
 
-namespace Capsule.Scenes.Input;
+namespace Capsule.Input;
 
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> of a fixed snapshot sequence the way a device produces one:

@@ -1,6 +1,6 @@
-using Capsule.Collision;
+using Capsule.Physics;
 
-namespace Capsule.Scenes.Tiles;
+namespace Capsule.Tiles;
 
 /// <summary>
 /// One entry of a grid's tile palette: its semantic type, which cell of the grid's texture it
