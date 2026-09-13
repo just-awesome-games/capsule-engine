@@ -66,4 +66,30 @@ public sealed class InputButtonTests
         Assert.Equal(1, presses);
         Assert.True(input.IsHeld(menuUp));
     }
+
+    [Fact]
+    public void DeviceSnapshot_WithoutInputButtonReleasesTheNamedDevice()
+    {
+        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A).With(PadButton.South).With(MouseButton.Left);
+
+        DeviceSnapshot released = snapshot
+            .Without((InputButton)Key.A)
+            .Without((InputButton)PadButton.South)
+            .Without((InputButton)MouseButton.Left);
+
+        Assert.False(released.IsDown(Key.A));
+        Assert.False(released.IsDown(PadButton.South));
+        Assert.False(released.IsDown(MouseButton.Left));
+    }
+
+    [Fact]
+    public void DeviceSnapshot_WithoutStickDirectionKeepsTheOppositeDirectionWhenPossible()
+    {
+        DeviceSnapshot snapshot = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -1f);
+
+        DeviceSnapshot released = snapshot.Without((InputButton)StickDirection.LeftStickRight);
+
+        Assert.False(((InputButton)StickDirection.LeftStickRight).IsDown(released));
+        Assert.True(((InputButton)StickDirection.LeftStickLeft).IsDown(released));
+    }
 }

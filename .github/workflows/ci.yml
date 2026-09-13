@@ -69,6 +69,18 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
 
+      - name: Build sample shell (package mode, shipping)
+        shell: bash
+        run: |
+          dotnet build samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:CapsuleUsePackages=true \
+            -p:CapsuleShipping=true
+          runtimeconfig_path="$(find samples/MinimalGame/src/MinimalGame.Shell/bin/Release -type f -name '*.runtimeconfig.json' -print -quit)"
+          test -n "$runtimeconfig_path"
+          grep -Fq '"Capsule.Development": false' "$runtimeconfig_path"
+
       - name: Development-only exclusion (shipping)
         run: >
           dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
@@ -179,6 +191,7 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
           -p:PublishAot=true
+          -p:IlcGenerateMapFile=true
 
       # Run the independent device-free smoke fixture on both platforms.
       - name: Publish the AOT smoke
@@ -188,7 +201,25 @@ jobs:
           --runtime ${{ matrix.runtime }}
           --self-contained true
           -p:PublishAot=true
+          -p:IlcGenerateMapFile=true
           --output artifacts/aot-smoke
+
+      - name: Assert shipping AOT maps omit development diagnostics
+        shell: bash
+        run: |
+          smoke_map_path="$(find tests/Capsule.AotSmoke/obj -type f -name '*.map.xml' -print -quit)"
+          test -n "$smoke_map_path"
+          if grep -Eq 'Capsule([._])Runtime([._])Diagnostics' "$smoke_map_path"; then
+            echo "Capsule.Runtime.Diagnostics reached the AOT smoke publish: $smoke_map_path"
+            exit 1
+          fi
+
+          sample_map_path="$(find samples/MinimalGame/src/MinimalGame.Shell/obj -type f -name '*.map.xml' -print -quit)"
+          test -n "$sample_map_path"
+          if grep -Eq 'Capsule([._])Runtime([._])Diagnostics' "$sample_map_path"; then
+            echo "Capsule.Runtime.Diagnostics reached the sample shell publish: $sample_map_path"
+            exit 1
+          fi
 
       - name: Run the published smoke binary
         run: ${{ matrix.smoke-binary }}

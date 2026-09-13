@@ -12,7 +12,7 @@ namespace Capsule;
 /// starts and shared by every scene the run opens, so bus volumes, the random sequence and a
 /// pending frame capture persist across transitions. Everything on it is either fixed before the
 /// run starts or set by game code; the host takes the requests game code raises and writes nothing
-/// of its own into it.
+/// of its own into the game's run.
 /// <para>
 /// At most one transition is pending. The first transition request wins within a step, while an
 /// exit request replaces it. The host takes the pending transition after the step.
@@ -54,7 +54,9 @@ public sealed class Run
     /// run was configured to open at, so it never follows a window the player resizes. A
     /// <see cref="ScreenEntity"/> is anchored and hit-tested against it, and a camera fit that
     /// reveals more world than the canvas holds leaves the screen layer this extent, centred in
-    /// what the world was drawn on. The value is shared by every scene the run opens.
+    /// what the world was drawn on. The value is shared by every scene the run opens. The game
+    /// fixes it for its run; the host may refit it only on a run the host itself owns, such as the
+    /// development debug overlay, never on the game's run.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Either component is not greater than zero or is NaN.
@@ -63,7 +65,7 @@ public sealed class Run
     {
         get;
 
-        init
+        internal set
         {
             if (value.X <= 0f || float.IsNaN(value.X) || value.Y <= 0f || float.IsNaN(value.Y))
             {

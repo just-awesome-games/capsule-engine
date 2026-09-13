@@ -2,6 +2,7 @@ using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
+using Capsule.Runtime.Diagnostics;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
@@ -27,6 +28,12 @@ internal sealed class CapsuleGame : Game
     // Null unless the builder opted in, and owned by it: every use on the frame path is that
     // null check.
     private readonly FrameDiagnostics? _diagnostics;
+
+    // Direct call sites would keep diagnostics methods reachable under the switch, so the host reaches them only through delegates created in the guarded block.
+    private readonly Func<DeviceSnapshot, DeviceSnapshot>? _observeDebugOverlay;
+    private readonly Action<DeviceSnapshot, FrameRenderer>? _stepDebugOverlay;
+    private readonly Action<FrameRenderer>? _drawDebugOverlay;
+    private readonly IDisposable? _debugOverlay;
 
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
@@ -56,6 +63,15 @@ internal sealed class CapsuleGame : Game
         _scenes = scenes;
         _padFilter = new PadFilter(options.Input.StickDeadzone, options.Input.TriggerDeadzone);
         _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Input.Bindings, options.Driver, scenes);
+
+        if (Development.IsSupported)
+        {
+            DebugOverlay overlay = new(options.Input.DebugMenuButton, _scheduler, scenes);
+            _debugOverlay = overlay;
+            _observeDebugOverlay = overlay.Observe;
+            _stepDebugOverlay = (snapshot, renderer) => overlay.Step(in snapshot, renderer);
+            _drawDebugOverlay = overlay.Draw;
+        }
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -147,7 +163,14 @@ internal sealed class CapsuleGame : Game
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
         }
 
+        if (_observeDebugOverlay is { } observe)
+        {
+            sampled = observe(sampled);
+        }
+
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
+
+        _stepDebugOverlay?.Invoke(sampled, _renderer);
 
         // Every frame, including one that drained no step: the device follows the system's default
         // output, a streamed voice hands the device its next buffers, and base.Update is what
@@ -202,6 +225,8 @@ internal sealed class CapsuleGame : Game
             _renderer.SaveSurface(capturePath);
         }
 
+        _drawDebugOverlay?.Invoke(_renderer);
+
         base.Draw(gameTime);
 
         // Present is not inside the measured section: Game.Tick calls EndDraw after this returns,
@@ -216,6 +241,8 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
+            _debugOverlay?.Dispose();
+
             // Ahead of the renderer: the watch draws through it.
             SdlPlatform.StopWatchingWindowRedraw();
 
@@ -275,6 +302,9 @@ internal sealed class CapsuleGame : Game
             }
 
             _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+
+            _drawDebugOverlay?.Invoke(_renderer);
+
             GraphicsDevice.Present();
         }
         finally

@@ -11,6 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(CapsuleShipping)' == 'true'">
+    <RuntimeHostConfigurationOption Include="Capsule.Development" Value="false" Trim="true" />
+
     <!-- Resolve source markers to absolute directories for compile-item comparison. -->
     <_CapsuleSourceMarker Include="**/.capsuleignore" Exclude="$(DefaultItemExcludes)" />
     <_CapsuleDevelopmentOnlySourceDir Include="@(_CapsuleSourceMarker->'%(RootDir)%(Directory)')" />

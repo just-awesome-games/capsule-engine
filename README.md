@@ -48,3 +48,4 @@ Public APIs are documented in their XML comments and ship beside the assemblies 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the build and test gates, [`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations.
 
 Capsule is licensed under the [MIT License](LICENSE).
+The runtime's embedded font is covered by the [third-party notices](THIRD-PARTY-NOTICES.md).

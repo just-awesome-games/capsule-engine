@@ -215,8 +215,8 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Registers the game's input — its bindings and its gamepad deadzones; repeated calls
-    /// accumulate.
+    /// Registers the game's input — its bindings, its gamepad deadzones and the debug-menu
+    /// button; repeated calls accumulate.
     /// </summary>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>
     public EngineBuilder WithInput(Action<InputConfiguration> configure)

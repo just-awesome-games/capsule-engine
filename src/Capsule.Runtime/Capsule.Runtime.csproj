@@ -8,6 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets/default-font.png"
+                      LogicalName="Capsule.Runtime.Assets.default-font.png"
+                      Visible="false" />
+    <None Include="../../THIRD-PARTY-NOTICES.md"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+
     <!-- "compile" in PrivateAssets is load-bearing: it keeps MonoGame's reference assemblies from
          flowing to consumers, so a game cannot write a Microsoft.Xna.Framework using. Runtime and
          native assets still flow. Dropping it silently reopens the boundary. -->

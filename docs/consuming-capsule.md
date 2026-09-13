@@ -183,7 +183,20 @@ dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self
 
 The publish directory carries the host's native libraries beside the executable, one for the window and input and one for sound — `SDL2.dll` and `openal.dll` on Windows. The window's is required; sound is not, so a machine with no audio library or output device plays the run silently and says so once on the log. Sound follows the operating system's default output: when the default moves — a headset connecting or disconnecting — every playing voice moves with it. The rule the publish gates is in [`architecture.md`](architecture.md#nativeaot-floor).
 
-## Development-only directories
+## Development builds
+
+`CapsuleShipping` is the build axis for a shipping publish. A publish sets it to `true`, excluding
+development-only game files and disabling Capsule's development plane; an ordinary build defaults
+to `false`. Set it on an ordinary build to verify what a publish will hold without running one.
+
+### The engine development switch
+
+`Capsule.Development` is the runtime feature switch for Capsule's development code. It defaults to
+on when no runtime configuration sets it. A build with `CapsuleShipping` sets it to `false`: a
+trimmed or NativeAOT publish removes the disabled code, while an untrimmed publish carries it
+disabled.
+
+### Development-only directories
 
 A directory holding a file named `.capsuleignore` is development-only. Everything under it, recursively, is part of every ordinary build — Debug and Release alike — and part of no publish. Input drivers are the case it exists for: they live in the logic project because they read the scene, and they must not ship.
 
@@ -195,8 +208,6 @@ src/MyGame.Game/
 ```
 
 The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity and driver registries hold nothing declared there. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is loaded, or is declared in `CapsuleAssets` — shipped code naming a development-only asset therefore fails to compile in a publish. A directory is marked by where it is rather than by how a project spelled the path; the marker file's contents are not read.
-
-`CapsuleShipping` is the switch, and a publish sets it. Set it on an ordinary build to see exactly what a publish will hold without running one.
 
 ## Named assets
 
@@ -249,7 +260,7 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 | `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and font pages under `assets/`. A role-free test or tool can opt in independently.                                                   |
 | `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size.                                  |
-| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane. Set it on an ordinary build to verify a publish. |
+| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane, and sets `Capsule.Development` to `false`. Set it on an ordinary build to verify a publish. |
 
 ### Application icons
 

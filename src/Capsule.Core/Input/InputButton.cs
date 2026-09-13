@@ -89,6 +89,24 @@ public readonly struct InputButton : IEquatable<InputButton>
         return Positive(_stickDirection) ? position >= StickPressPoint : position <= -StickPressPoint;
     }
 
+    internal DeviceSnapshot RemoveFrom(in DeviceSnapshot snapshot) =>
+        _key != Key.None ? snapshot.Without(_key)
+        : _padButton != PadButton.None ? snapshot.Without(_padButton)
+        : _stickDirection != StickDirection.None ? WithoutStickDirection(snapshot)
+        : snapshot.Without(_mouseButton);
+
+    private DeviceSnapshot WithoutStickDirection(in DeviceSnapshot snapshot)
+    {
+        PadAxis axis = Axis(_stickDirection);
+        float position = snapshot.Axis(axis);
+        float inside = Positive(_stickDirection)
+            ? MathF.BitDecrement(StickPressPoint)
+            : MathF.BitIncrement(-StickPressPoint);
+        float released = Positive(_stickDirection) ? MathF.Min(position, inside) : MathF.Max(position, inside);
+
+        return snapshot.WithAxis(axis, released);
+    }
+
     private static PadAxis Axis(StickDirection direction) => direction switch
     {
         StickDirection.LeftStickUp or StickDirection.LeftStickDown => PadAxis.LeftStickY,

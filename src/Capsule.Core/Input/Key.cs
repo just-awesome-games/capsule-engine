@@ -197,4 +197,7 @@ public enum Key
 
     /// <summary>The <c>F12</c> function key.</summary>
     F12,
+
+    /// <summary>The grave accent / tilde key left of the <c>1</c> key.</summary>
+    Grave,
 }

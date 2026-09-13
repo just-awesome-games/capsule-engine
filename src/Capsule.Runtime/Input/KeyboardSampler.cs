@@ -88,6 +88,8 @@ internal static class KeyboardSampler
         Key.Digit8 => Keys.D8,
         Key.Digit9 => Keys.D9,
 
+        Key.Grave => Keys.OemTilde,
+
         Key.Left => Keys.Left,
         Key.Right => Keys.Right,
         Key.Up => Keys.Up,

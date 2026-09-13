@@ -15,7 +15,8 @@ public sealed class AssetCollection
 
     /// <summary>
     /// Adds one texture unless it was already declared. A texture the engine reserves — the white
-    /// texel a flat colour is drawn from — is the host's own and is ignored here.
+    /// texel a flat colour is drawn from, or the page of <see cref="Capsule.Rendering.BitmapFont.Default"/> — is the
+    /// host's own and is ignored here.
     /// </summary>
     public void Add(TextureHandle texture)
     {

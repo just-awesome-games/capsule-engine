@@ -19,6 +19,7 @@ internal sealed class FixedStepScheduler
 
     private double _accumulatorSeconds;
     private bool _driverFinished;
+    private bool _held;
 
     internal FixedStepScheduler(
         double stepSeconds,
@@ -50,6 +51,27 @@ internal sealed class FixedStepScheduler
 
     internal long Tick { get; private set; }
 
+    internal bool Held
+    {
+        get => _held;
+        set
+        {
+            if (_held == value)
+            {
+                return;
+            }
+
+            _held = value;
+            if (value)
+            {
+                _accumulatorSeconds = 0;
+                _latch.DiscardPending();
+            }
+        }
+    }
+
+    internal int StepsThisFrame { get; private set; }
+
     // Raised after each step completes, before the next one is scheduled. A frame may run several
     // steps and a step rewrites what the host has to act on, so once a frame would lose all but the
     // last. Null unless the host set one.
@@ -57,13 +79,22 @@ internal sealed class FixedStepScheduler
 
     internal double AccumulatorSeconds => _accumulatorSeconds;
 
-    internal float InterpolationAlpha => (float)(_accumulatorSeconds / _stepSeconds);
+    internal float InterpolationAlpha => _held ? 1f : (float)(_accumulatorSeconds / _stepSeconds);
 
     internal bool Advance(double elapsedSeconds, in DeviceSnapshot snapshot, ISimulation simulation)
     {
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), elapsedSeconds, "Elapsed time must be finite and non-negative.");
+        }
+
+        StepsThisFrame = 0;
+
+        if (_held)
+        {
+            _accumulatorSeconds = 0;
+
+            return simulation.ExitRequested;
         }
 
         // Under a driver the sampled device is not input at all: the host still samples it for its
@@ -89,6 +120,8 @@ internal sealed class FixedStepScheduler
             if (stepsRun == _maxStepsPerFrame)
             {
                 _accumulatorSeconds = 0;
+                StepsThisFrame = stepsRun;
+
                 return false;
             }
 
@@ -99,6 +132,7 @@ internal sealed class FixedStepScheduler
                 if (!driver.TryNext(_scenes!.Scene, Tick, out stepped))
                 {
                     _driverFinished = true;
+                    StepsThisFrame = stepsRun;
 
                     return true;
                 }
@@ -120,6 +154,7 @@ internal sealed class FixedStepScheduler
 
             stepsRun++;
             Tick++;
+            StepsThisFrame = stepsRun;
 
             if (simulation.ExitRequested)
             {

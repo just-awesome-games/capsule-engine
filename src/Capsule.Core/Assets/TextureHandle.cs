@@ -24,6 +24,9 @@ public readonly record struct TextureHandle(string Name, string Extension)
     /// </summary>
     public static TextureHandle White => new("white", ".engine") { Domain = TextureDomain.Engine };
 
+    internal static TextureHandle DefaultFontPage =>
+        new("default-font", ".engine") { Domain = TextureDomain.Engine };
+
     // Whether the host, rather than a file under a shipped root, owns this texture.
     internal bool IsEngineOwned => Domain == TextureDomain.Engine;
 

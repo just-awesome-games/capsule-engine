@@ -111,6 +111,14 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
     public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes);
 
+    /// <summary>
+    /// This snapshot with <paramref name="button"/> released. A stick direction is removed by
+    /// moving its axis just inside the direction's press point while preserving the opposite
+    /// direction when possible.
+    /// </summary>
+    /// <param name="button">The key, pad button, mouse button or stick direction to release.</param>
+    public DeviceSnapshot Without(InputButton button) => button.RemoveFrom(this);
+
     /// <summary>This snapshot with the pointer at <paramref name="position"/>.</summary>
     /// <param name="position">Canvas pixels from the canvas's top-left corner; unclamped, so a position outside the canvas is a pointer outside it.</param>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>

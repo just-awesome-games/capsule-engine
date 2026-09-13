@@ -9,6 +9,8 @@ A game authors its fonts under the logic project's `Assets/Fonts/`, in any direc
 | `.fnt` | A BMFont description, text flavour, unpacked. Its metrics, glyphs and kerning compile into the logic assembly as a `BitmapFont`; the file itself never ships. |
 | `.png` | A page the description names. Ships under `assets/fonts/` at its own key. |
 
+The engine also carries `BitmapFont.Default`, a monospace Spleen 8×16 font covering printable ASCII and the Latin-1 Supplement. Its page ships inside `Capsule.Runtime`, so using it does not require a `Fonts/` asset.
+
 A font and its pages are keyed off their own authored paths, normalized as [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets) defines, so a page beside its font ships beside it. A description naming a page the game does not ship fails the build.
 
 A `Label` is the renderer component that puts a run of a font on an entity. `GlyphRun` is the public layout pass every placement comes from, so a consumer that emits its own per-glyph sprites enumerates the same geometry the engine draws and measures.

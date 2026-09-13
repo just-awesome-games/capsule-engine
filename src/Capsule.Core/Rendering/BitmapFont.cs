@@ -14,7 +14,7 @@ namespace Capsule.Rendering;
 /// <c>Label</c> does that for an entity.
 /// </para>
 /// </summary>
-public sealed class BitmapFont
+public sealed partial class BitmapFont
 {
     // Codepoints below this get a direct index; the rest binary-search the sorted glyphs. Covers
     // ASCII, which is every glyph of most Latin fonts and the hot path of the rest.
@@ -114,7 +114,8 @@ public sealed class BitmapFont
 
     /// <summary>
     /// The texture pages this font's glyphs are cut from, in the order the font declares them;
-    /// <see cref="Glyph.Page"/> indexes into this. Ships under <c>assets/fonts/</c>.
+    /// <see cref="Glyph.Page"/> indexes into this. A game's font ships its pages under
+    /// <c>assets/fonts/</c>; <see cref="Default"/>'s page is engine-owned and ships with the runtime.
     /// </summary>
     public ReadOnlySpan<TextureHandle> Pages => _pages;
 

@@ -38,6 +38,11 @@ internal static class Program
 
     private static int Run()
     {
+        // Source-mode smoke has no shipping runtimeconfig; when one is present, it must carry the
+        // publish's disabled switch.
+        bool developmentSwitchConfigured = AppContext.TryGetSwitch("Capsule.Development", out bool on);
+        bool developmentDisabled = developmentSwitchConfigured && !on;
+
         IInputDriver driver = new InputScript()
             .Wait(IdleSteps)
             .Tap(Key.Escape)
@@ -55,13 +60,14 @@ internal static class Program
             result.Steps == DrivenSteps &&
             result.ExitRequested &&
             result.Metrics.Visible >= MinimumVisible &&
-            contentShipped;
+            contentShipped &&
+            (!developmentSwitchConfigured || developmentDisabled);
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}."));
+                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}, development disabled {developmentDisabled}."));
             return 1;
         }
 

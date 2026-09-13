@@ -13,6 +13,8 @@ namespace Capsule.Runtime.Rendering;
 // the sprite.
 internal sealed class FrameRenderer : IDisposable
 {
+    private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
+
     // Bars are presentation rather than world intent and remain black.
     private static readonly Color BarColor = Color.FromNonPremultiplied(
         ColorRgba.Black.R,
@@ -26,6 +28,12 @@ internal sealed class FrameRenderer : IDisposable
 
     // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
+
+    // The engine's default bitmap font page, loaded from this assembly once for the renderer.
+    private readonly Texture2D _defaultFontPage;
+
+    // Every texture the engine owns, so the draw path resolves one handle through one table.
+    private readonly Dictionary<TextureHandle, Texture2D> _engineTextures;
 
     // The declared canvas, or null when the world rasterises straight into the back buffer at
     // whatever size the window is.
@@ -50,12 +58,36 @@ internal sealed class FrameRenderer : IDisposable
         _textures = textures;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
+        _defaultFontPage = LoadDefaultFontPage(device);
+        _engineTextures = new Dictionary<TextureHandle, Texture2D>
+        {
+            [TextureHandle.White] = _white,
+            [TextureHandle.DefaultFontPage] = _defaultFontPage,
+        };
         _canvas = renderResolution;
 
         if (renderResolution is { } resolution)
         {
             _target = new RenderTarget2D(device, resolution.Width, resolution.Height);
         }
+    }
+
+    internal (int Width, int Height) BackBufferSize
+    {
+        get
+        {
+            PresentationParameters backBuffer = _device.PresentationParameters;
+
+            return (backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        }
+    }
+
+    private static Texture2D LoadDefaultFontPage(GraphicsDevice device)
+    {
+        using Stream resource = typeof(FrameRenderer).Assembly.GetManifestResourceStream(DefaultFontPageResource)
+            ?? throw new InvalidOperationException($"The embedded default font page '{DefaultFontPageResource}' is missing.");
+
+        return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
     }
 
     // Draws one frame. Allocation-free at steady state.
@@ -77,7 +109,7 @@ internal sealed class FrameRenderer : IDisposable
         if (_canvas is null)
         {
             DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling);
         }
         else
         {
@@ -88,7 +120,7 @@ internal sealed class FrameRenderer : IDisposable
 
             // Over the world's own bars: the viewport is the whole surface again and the canvas sits
             // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
-            DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height);
+            DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling);
 
             _device.SetRenderTarget(null);
             Present(target, view.Sampling, layout.Present);
@@ -98,6 +130,37 @@ internal sealed class FrameRenderer : IDisposable
         {
             _placement = layout.Layer;
         }
+
+        if (outputWidth > 0 && outputHeight > 0)
+        {
+            _device.Viewport = new Viewport(0, 0, outputWidth, outputHeight);
+        }
+    }
+
+    // Draws only a host-owned screen layer over the game frame already submitted to the back
+    // buffer. The overlay is an independent canvas, so its world list and camera never enter this
+    // path.
+    internal void DrawOverlay(FrameView view, int scale)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
+
+        PresentationParameters backBuffer = _device.PresentationParameters;
+        int width = backBuffer.BackBufferWidth;
+        int height = backBuffer.BackBufferHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        _device.Viewport = new Viewport(0, 0, width, height);
+        DrawScreen(
+            view,
+            alpha: 1f,
+            new ScreenPlacement(System.Numerics.Vector2.Zero, scale),
+            width,
+            height,
+            TextureSampling.Point);
     }
 
     // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
@@ -430,7 +493,13 @@ internal sealed class FrameRenderer : IDisposable
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and over the
     // whole surface, so it covers the bars the world's own fit left.
-    private void DrawScreen(FrameView view, float alpha, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight)
+    private void DrawScreen(
+        FrameView view,
+        float alpha,
+        in ScreenPlacement placement,
+        int surfaceWidth,
+        int surfaceHeight,
+        TextureSampling sampling)
     {
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
         if (sprites.IsEmpty || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
@@ -444,9 +513,9 @@ internal sealed class FrameRenderer : IDisposable
             Matrix.CreateScale(placement.Scale, placement.Scale, 1f) *
             Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
 
-        _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: canvasToSurface);
+        _batch.Begin(samplerState: Sampler(sampling), transformMatrix: canvasToSurface);
 
-        bool snap = view.Sampling == TextureSampling.Point;
+        bool snap = sampling == TextureSampling.Point;
         TextureHandle resolved = default;
         Texture2D? texture = null;
 
@@ -471,9 +540,7 @@ internal sealed class FrameRenderer : IDisposable
         {
             resolved = sprite.Sprite.Texture;
 
-            // An engine-reserved handle names no file: the host already holds the texture, and a
-            // flat-coloured rect is one sprite over this texel.
-            texture = resolved.IsEngineOwned ? _white : _textures.Get(resolved);
+            texture = resolved.IsEngineOwned ? EngineTexture(resolved) : _textures.Get(resolved);
         }
 
         Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha);
@@ -502,6 +569,11 @@ internal sealed class FrameRenderer : IDisposable
     private static SpriteEffects Mirroring(in SpriteIntent sprite) =>
         (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
         | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
+
+    private Texture2D EngineTexture(in TextureHandle handle) =>
+        _engineTextures.TryGetValue(handle, out Texture2D? texture)
+            ? texture
+            : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
     // Letterboxed a second time, into the back buffer, at the placement TargetPlacement resolved.
     private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
@@ -561,7 +633,11 @@ internal sealed class FrameRenderer : IDisposable
     public void Dispose()
     {
         _batch.Dispose();
-        _white.Dispose();
+        foreach (Texture2D texture in _engineTextures.Values)
+        {
+            texture.Dispose();
+        }
+
         _target?.Dispose();
     }
 }
