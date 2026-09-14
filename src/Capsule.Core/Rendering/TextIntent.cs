@@ -18,9 +18,12 @@ namespace Capsule.Rendering;
 /// </summary>
 /// <param name="Font">The font the run is laid out and drawn with; null draws nothing.</param>
 /// <param name="Text">
-/// The text drawn; null or empty draws nothing. <c>\n</c> starts a new line one
-/// <see cref="BitmapFont.LineHeight"/> down, <c>\r</c> is ignored, and a codepoint the font carries
-/// no glyph for draws nothing and advances nothing.
+/// The text drawn; empty draws nothing. Read while the intent is laid out and never after, so a
+/// caller may hand a buffer it rewrites next frame; the
+/// <see cref="TextIntent(BitmapFont, string, Vector2, Vector2, Vector2, ColorRgba)"/> overload
+/// takes a string. <c>\n</c> starts a new line one <see cref="BitmapFont.LineHeight"/> down,
+/// <c>\r</c> is ignored, and a codepoint the font carries no glyph for draws nothing and advances
+/// nothing.
 /// </param>
 /// <param name="PreviousPosition">
 /// Where the box's <see cref="Pivot"/> sat at the end of the previous step, in the drawn space's
@@ -39,12 +42,24 @@ namespace Capsule.Rendering;
 /// </param>
 public readonly record struct TextIntent(
     BitmapFont? Font,
-    string? Text,
+    ReadOnlyMemory<char> Text,
     Vector2 PreviousPosition,
     Vector2 Position,
     Vector2 Scale,
     ColorRgba Color)
 {
+    /// <summary>The same run over a string, the common case; null or empty draws nothing.</summary>
+    public TextIntent(
+        BitmapFont? font,
+        string? text,
+        Vector2 previousPosition,
+        Vector2 position,
+        Vector2 scale,
+        ColorRgba color)
+        : this(font, text.AsMemory(), previousPosition, position, scale, color)
+    {
+    }
+
     /// <summary>
     /// The box the run is laid out in, in the drawn space's units. A non-positive component is the
     /// measured run on that axis, which is the default on both: the box is then the text itself, so
@@ -95,7 +110,7 @@ public readonly record struct TextIntent(
     {
         placement = default;
 
-        if (Font is not { } font || string.IsNullOrEmpty(Text))
+        if (Font is not { } font || Text.IsEmpty)
         {
             return false;
         }
@@ -105,7 +120,7 @@ public readonly record struct TextIntent(
         static int WrapWidth(float extent, float scale) => scale > 0f && extent > 0f ? (int)(extent / scale) : 0;
 
         int wrapWidth = Wrap == TextWrap.Word ? WrapWidth(Size.X, Scale.X) : 0;
-        Vector2 measured = font.Measure(Text, wrapWidth) * Scale;
+        Vector2 measured = font.Measure(Text.Span, wrapWidth) * Scale;
 
         Vector2 box = new(
             Size.X > 0f ? Size.X : measured.X,

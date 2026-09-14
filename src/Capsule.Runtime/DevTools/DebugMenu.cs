@@ -46,6 +46,7 @@ internal sealed class DebugMenu
         }
 
         items.Add(new DebugMenuItem("Debug Draw", overlay.OpenDebugDraw, DebugInput.DebugDraw));
+        items.Add(new DebugMenuItem("Frame Pane", overlay.ToggleFramePane, DebugInput.FramePane));
         items.Add(new DebugMenuItem("Hide", overlay.Hide, DebugInput.Hide));
 
         if (overlay.HasScenes)

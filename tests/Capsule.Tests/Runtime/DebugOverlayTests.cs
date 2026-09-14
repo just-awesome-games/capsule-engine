@@ -166,17 +166,21 @@ public sealed class DebugOverlayTests
     public void TheMainMenu_ListsTheEngineEntriesForARunOfScenesWithEachHotkeyInASharedColumn()
     {
         using SceneHost host = CreateHost();
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), host, host, registry: CreateRegistry());
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
         DebugScene scene = overlay.Scene;
 
-        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Hide", "Exit"], Labels(scene));
+        Open(overlay, scheduler, host);
+
+        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Frame Pane", "Hide", "Exit"], Labels(scene));
         Assert.Equal(0, scene.FocusedIndex);
         Assert.Equal("Step        Right", scene.RowText(0));
         Assert.Equal("Restart     R", scene.RowText(1));
         Assert.Equal("Load Scene  L", scene.RowText(2));
         Assert.Equal("Debug Draw  D", scene.RowText(3));
-        Assert.Equal("Hide        H", scene.RowText(4));
-        Assert.Equal("Exit        E", scene.RowText(5));
+        Assert.Equal("Frame Pane  F", scene.RowText(4));
+        Assert.Equal("Hide        H", scene.RowText(5));
+        Assert.Equal("Exit        E", scene.RowText(6));
     }
 
     [Fact]
@@ -360,6 +364,7 @@ public sealed class DebugOverlayTests
         ReadoutScene before = Assert.IsType<ReadoutScene>(host.Scene);
 
         Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);

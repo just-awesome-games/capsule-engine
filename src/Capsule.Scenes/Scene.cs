@@ -193,7 +193,8 @@ public class Scene
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
     /// <summary>
-    /// Adds an unowned entity, deferred to the end of the current step when necessary.
+    /// Adds an unowned entity, deferred to the end of the current step when necessary. Outside a
+    /// step it is attached at once, so the next view rewrite draws it.
     /// <para>
     /// A component may refuse the scene from its entry hook. The entity is then left in the scene
     /// with the components ahead of the refusal registered and the rest not; added during a step,
@@ -230,7 +231,8 @@ public class Scene
     /// Removes an entity, deferred and idempotent within the current step. One queued to join this
     /// step is accepted too: it attaches and detaches in the same drain, with symmetric hooks.
     /// All removal hooks run even if one throws; failures propagate after detachment, aggregated
-    /// when more than one hook fails. Deferred removals report failures from the step.
+    /// when more than one hook fails. Deferred removals report failures from the step. Outside a
+    /// step it is detached at once, so the next view rewrite leaves it out.
     /// </summary>
     /// <exception cref="ArgumentNullException">The entity is null.</exception>
     /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is neither in it nor queued to join it.</exception>

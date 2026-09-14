@@ -23,8 +23,8 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
 Press `` ` `` (grave) in any windowed run for the development overlay: pause, single-step, restart, load a
-scene, and toggle debug drawing — colliders, entity origins, camera bounds, and your own. A
-shipping publish turns it off. [`docs/debugging.md`](docs/debugging.md) covers it.
+scene, toggle debug drawing — colliders, entity origins, camera bounds, and your own — and a
+frame stats pane. A shipping publish turns it off. [`docs/debugging.md`](docs/debugging.md) covers it.
 
 The shell's entry point is handwritten against the generated `CapsuleBoot` builder:
 

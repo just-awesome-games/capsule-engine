@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -11,8 +12,8 @@ namespace Capsule.Runtime.DevTools;
 // When the menu is shown and what the game sees while it is: the toggle, the quarantine, the hold,
 // and the debug scene the overlay steps and draws. Owns every data source and every action the
 // menu offers; the scene knows nothing of the scheduler, the run, the registry or the debug draw
-// buffer. Debug draws are drawn whenever the overlay is wired, whatever its state; the menu only
-// while it is open.
+// buffer. Debug draws and the frame pane are drawn whenever the overlay is wired, whatever its
+// state; the menu only while it is open.
 internal sealed class DebugOverlay : IDisposable
 {
     private readonly FixedStepScheduler _scheduler;
@@ -39,6 +40,18 @@ internal sealed class DebugOverlay : IDisposable
     private OverlayState _state;
     private bool _toggleDown;
     private bool _hideDown;
+    private bool _framePaneOn;
+
+    // Ticks the menu stepped by hand since the last sample. They run inside the overlay's own step,
+    // after the frame is sampled, and the next advance clears the scheduler's count, so they are
+    // tallied here and counted on the frame that follows.
+    private int _steppedTicks;
+
+    // The frame's clock: Observe stamps its start, Step reads the update bracket and the interval
+    // from the previous frame's start. Negative while no frame is in progress or none has been.
+    private readonly Func<long> _timestamp;
+    private long _observed = -1;
+    private long _previousObserved = -1;
 
     // Set by the hide press that showed the overlay and cleared on its release: that press is
     // withheld from the menu, or the menu would read it as a fresh press and hide again.
@@ -57,7 +70,8 @@ internal sealed class DebugOverlay : IDisposable
         FixedStepScheduler scheduler,
         ISimulation simulation,
         SceneHost? scenes = null,
-        SceneRegistry? registry = null)
+        SceneRegistry? registry = null,
+        Func<long>? timestamp = null)
     {
         ArgumentNullException.ThrowIfNull(scheduler);
         ArgumentNullException.ThrowIfNull(simulation);
@@ -65,11 +79,18 @@ internal sealed class DebugOverlay : IDisposable
         _scheduler = scheduler;
         _simulation = simulation;
         _scenes = scenes;
+        _timestamp = timestamp ?? Stopwatch.GetTimestamp;
         Registrations = registry is { } registered ? registered.Registrations : [];
 
         Scene = new DebugScene(DebugInput.KeyName(button));
         _draws = new DebugDrawRenderer(_buffer, _enabledChannels);
         Scene.Add(new DebugDrawEntity(_draws));
+
+        // Withdrawn before the host builds the first frame, which is what is drawn until a Step
+        // rewrites it.
+        Scene.Push(DebugMenu.Default(this));
+        Scene.ShowMenu(false);
+
         _bindings = DebugInput.Bindings();
         _host = new SimulationHost(
             Scene,
@@ -90,7 +111,6 @@ internal sealed class DebugOverlay : IDisposable
         _quarantine = [.. quarantine];
         _withheld = new bool[_quarantine.Length];
 
-        Scene.Push(DebugMenu.Default(this));
         DebugDraw.UseBuffer(_buffer);
     }
 
@@ -112,6 +132,25 @@ internal sealed class DebugOverlay : IDisposable
     internal bool IsOpen => _state == OverlayState.Open;
 
     internal bool IsHidden => _state == OverlayState.Hidden;
+
+    internal bool IsFramePaneOn => _framePaneOn;
+
+    // The last game frame's cost as the renderer measured it, read from the renderer by Step; set
+    // directly where there is no renderer to read.
+    internal RenderStats LastFrame { get; set; }
+
+    // Flips the pane for the rest of the play session; it draws on the overlay's next frame, menu
+    // open, closed or hidden.
+    internal void ToggleFramePane()
+    {
+        _framePaneOn = !_framePaneOn;
+        if (_framePaneOn)
+        {
+            Scene.Pane.Reset();
+        }
+
+        Scene.ShowFramePane(_framePaneOn);
+    }
 
     // Every channel a DebugDraw call has named since the overlay was attached, sorted.
     internal string[] Channels
@@ -202,6 +241,8 @@ internal sealed class DebugOverlay : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        _observed = _timestamp();
+
         // Toggle: the leading edge, read on the raw state, takes closed to open, open to closed and
         // hidden back to open. The toggle is withheld from the menu, so a toggle that is also a menu
         // key does not fire that key's action on the frame it opens.
@@ -265,10 +306,14 @@ internal sealed class DebugOverlay : IDisposable
 
     // The host calls this after the game's scheduler. The game is held while the overlay is open,
     // so this advances the overlay once on the frame's sampled snapshot; otherwise the overlay's
-    // frame is rewritten without a step, so the draws follow the game's ticks and the toggles.
+    // frame is rewritten without a step, so the draws and the pane follow the game's ticks and the
+    // toggles.
     internal void Step(FrameRenderer? renderer = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // The update bracket ends here, ahead of the overlay's own work.
+        long stepped = _timestamp();
 
         SettleDraws();
 
@@ -286,12 +331,18 @@ internal sealed class DebugOverlay : IDisposable
             // menu's glyph size at any zoom; unity until a frame has drawn a world.
             float pixelsPerUnit = renderer.WorldPixelsPerUnit;
             _draws.TextScale = pixelsPerUnit > 0f ? ScaleFor(backBuffer.Height) / pixelsPerUnit : 1f;
+            LastFrame = renderer.LastFrame;
         }
+
+        SampleFrame(stepped);
 
         // The frame's own alpha, which the game frame is about to be drawn at; one while held.
         _draws.Alpha = _scheduler.InterpolationAlpha;
 
-        if (_state == OverlayState.Open)
+        bool open = _state == OverlayState.Open;
+        bool menuChanged = Scene.ShowMenu(open);
+
+        if (open)
         {
             // A channel that emitted since the submenu was last filled gets its row before the
             // menu reads this frame's input.
@@ -302,12 +353,48 @@ internal sealed class DebugOverlay : IDisposable
 
             RefreshReadout();
             _host.Step(in _sampled);
+
+            // Hidden from inside the step: the menu leaves before this frame draws.
+            if (_state != OverlayState.Open && Scene.ShowMenu(false))
+            {
+                _host.Simulation.RewriteView();
+            }
         }
-        else if (_enabledChannels.Count > 0)
+        else if (menuChanged || _enabledChannels.Count > 0 || _framePaneOn)
         {
             _host.Simulation.RewriteView();
         }
     }
+
+    // Closes the frame Observe opened and hands the pane its sample. The first frame has no
+    // predecessor to measure an interval against and is not sampled; a Step with no Observe before
+    // it is not a frame.
+    private void SampleFrame(long stepped)
+    {
+        long observed = _observed;
+        if (observed < 0)
+        {
+            return;
+        }
+
+        _observed = -1;
+        long previous = _previousObserved;
+        _previousObserved = observed;
+        int steps = _scheduler.StepsThisFrame + _steppedTicks;
+        _steppedTicks = 0;
+        if (!_framePaneOn || previous < 0)
+        {
+            return;
+        }
+
+        Scene.Pane.Push(new FrameSample(
+            Milliseconds(observed - previous),
+            Milliseconds(stepped - observed),
+            LastFrame.Milliseconds,
+            steps));
+    }
+
+    private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
 
     internal void Draw(FrameRenderer renderer)
     {
@@ -321,7 +408,7 @@ internal sealed class DebugOverlay : IDisposable
 
         Refit(renderer.BackBufferSize);
         (int _, int height) = renderer.BackBufferSize;
-        renderer.DrawOverlay(_host.Simulation.View, ScaleFor(height), screenLayer: _state == OverlayState.Open);
+        renderer.DrawOverlay(_host.Simulation.View, ScaleFor(height));
     }
 
     internal void Refit((int Width, int Height) backBuffer)
@@ -348,6 +435,7 @@ internal sealed class DebugOverlay : IDisposable
     internal void StepGame()
     {
         _exited = _scheduler.StepOnce(in _stripped, _simulation);
+        _steppedTicks += _scheduler.StepsThisFrame;
         SettleDraws();
         RefreshReadout();
     }

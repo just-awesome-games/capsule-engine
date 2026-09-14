@@ -114,6 +114,34 @@ public sealed class LabelTests
         Assert.True(new Label(FontFixtures.Font(), "AB").Bounds.IsEmpty);
     }
 
+    [Fact]
+    public void ASpanWrittenLabel_LaysOutAsTheStringWouldAndReadsBackAsOne()
+    {
+        Holder byString = Prompt("AB\nA");
+        Holder bySpan = Prompt("");
+        char[] buffer = ['A', 'B', '\n', 'A', 'X'];
+        bySpan.Text.SetText(buffer.AsSpan(0, 4));
+        buffer[0] = 'X';
+
+        Scene scene = new();
+        scene.Add(byString);
+        scene.Add(bySpan);
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal("AB\nA", bySpan.Text.Text);
+        Assert.Same(bySpan.Text.Text, bySpan.Text.Text);
+        Assert.Equal(byString.Text.Bounds, bySpan.Text.Bounds);
+
+        SpriteIntent[] drawn = simulation.View.Sprites.ToArray();
+        Assert.Equal(6, drawn.Length);
+        for (int index = 0; index < 3; index++)
+        {
+            Assert.Equal(drawn[index].Sprite, drawn[index + 3].Sprite);
+            Assert.Equal(drawn[index].Position, drawn[index + 3].Position);
+        }
+    }
+
     private static Holder Prompt(string text) =>
         new(new Label(FontFixtures.Font(), text) { Offset = Vector2.One });
 

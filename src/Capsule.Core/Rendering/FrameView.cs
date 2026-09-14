@@ -199,7 +199,7 @@ public sealed class FrameView
         // same shape at both ends.
         Vector2 travel = text.PreviousPosition - text.Position;
 
-        foreach (GlyphPlacement glyphPlacement in new GlyphRun(font, text.Text, placed.BoxWidth, placed.Wrap, placed.Alignment))
+        foreach (GlyphPlacement glyphPlacement in new GlyphRun(font, text.Text.Span, placed.BoxWidth, placed.Wrap, placed.Alignment))
         {
             if (glyphPlacement.Index >= visible)
             {

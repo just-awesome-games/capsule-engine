@@ -23,11 +23,51 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// <summary>The font the run is laid out and drawn with.</summary>
     public BitmapFont Font { get; set; } = font ?? throw new ArgumentNullException(nameof(font));
 
+    // The text in the form it was last written: a string, or a span copied into a buffer this label
+    // owns and grows only when a longer span arrives. _text is the string form, null after a span
+    // write until Text materialises it; _memory is what layout reads, so neither path allocates in
+    // Draw.
+    private string? _text = text ?? throw new ArgumentNullException(nameof(text));
+    private ReadOnlyMemory<char> _memory = text.AsMemory();
+    private char[] _buffer = [];
+
     /// <summary>
     /// The text drawn; empty draws nothing. <c>\n</c> starts a new line, and a codepoint
-    /// <see cref="Font"/> carries no glyph for draws nothing and advances nothing.
+    /// <see cref="Font"/> carries no glyph for draws nothing and advances nothing. After
+    /// <see cref="SetText"/> the getter returns the same characters as a string, built on the first
+    /// read after each write.
     /// </summary>
-    public string Text { get; set; } = text ?? throw new ArgumentNullException(nameof(text));
+    /// <exception cref="ArgumentNullException">The text is null.</exception>
+    public string Text
+    {
+        get => _text ??= _memory.ToString();
+
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            _text = value;
+            _memory = value.AsMemory();
+        }
+    }
+
+    /// <summary>
+    /// Sets <see cref="Text"/> from a span, allocating nothing once the label has held a run this
+    /// long: the characters are copied into a buffer the label owns, so the caller's span is free
+    /// to change the moment this returns. For a readout rewritten every frame; a string assignment
+    /// is the common case.
+    /// </summary>
+    public void SetText(ReadOnlySpan<char> text)
+    {
+        if (_buffer.Length < text.Length)
+        {
+            _buffer = new char[Math.Max(text.Length, _buffer.Length * 2)];
+        }
+
+        text.CopyTo(_buffer);
+        _memory = _buffer.AsMemory(0, text.Length);
+        _text = null;
+    }
 
     /// <summary>
     /// Added to the entity's position to give the point the box's <see cref="Pivot"/> sits on. In the
@@ -110,7 +150,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private TextIntent Intent() =>
         new(
             Font,
-            Text,
+            _memory,
             PreviousRenderPosition + Offset,
             RenderPosition + Offset,
             Scale,

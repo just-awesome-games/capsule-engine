@@ -16,6 +16,7 @@ internal static class DebugInput
     internal static readonly InputAction Restart = new("debug-menu.restart");
     internal static readonly InputAction LoadScene = new("debug-menu.load-scene");
     internal static readonly InputAction DebugDraw = new("debug-menu.debug-draw");
+    internal static readonly InputAction FramePane = new("debug-menu.frame-pane");
     internal static readonly InputAction Exit = new("debug-menu.exit");
     internal static readonly InputAction Click = new("debug-menu.click");
 
@@ -26,7 +27,7 @@ internal static class DebugInput
     internal static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, None, None, Confirm, Click);
 
     internal static readonly InputAction[] Actions =
-        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, Exit, Click];
+        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, Exit, Click];
 
     private static readonly ActionBindings Named = Bindings();
 
@@ -41,6 +42,7 @@ internal static class DebugInput
             .Bind(Restart, Key.R)
             .Bind(LoadScene, Key.L)
             .Bind(DebugDraw, Key.D)
+            .Bind(FramePane, Key.F)
             .Bind(Exit, Key.E)
             .Bind(Click, MouseButton.Left);
 

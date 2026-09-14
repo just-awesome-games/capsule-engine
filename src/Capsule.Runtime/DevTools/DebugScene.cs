@@ -8,9 +8,10 @@ using Capsule.UI;
 namespace Capsule.Runtime.DevTools;
 
 // How a menu looks and navigates: one top-left panel holding the readout, the current menu's
-// title, a row per item, a status line and the legend. Menus nest on a stack; the scene renders
-// the one on top, reads the default menu's hotkeys at any depth, and every action it raises is one
-// it was handed.
+// title, a row per item, a status line and the legend, and one top-right frame pane. Menus nest
+// on a stack; the scene renders the one on top, reads the default menu's hotkeys at any depth, and
+// every action it raises is one it was handed. The panel and its rows leave the scene while the
+// menu is withdrawn and the stack stays as it was; the pane comes and goes on its own switch.
 internal sealed class DebugScene : Scene
 {
     private const int Padding = 4;
@@ -28,6 +29,7 @@ internal sealed class DebugScene : Scene
 
     private static readonly BitmapFont Font = BitmapFont.Default;
 
+    private readonly ScreenEntity _panel;
     private readonly ColorRect _backdrop;
     private readonly Label _readout;
     private readonly Label _title;
@@ -42,6 +44,8 @@ internal sealed class DebugScene : Scene
     private string? _readoutScene;
     private long _readoutTick;
     private int _heldFrames;
+    private bool _menuShown = true;
+    private bool _paneShown;
 
     internal DebugScene(string toggleName)
     {
@@ -62,10 +66,13 @@ internal sealed class DebugScene : Scene
         panel.Add(_status);
         panel.Add(_legend);
         panel.Add(_navigator);
+        _panel = panel;
         Add(panel);
 
         _navigator.FocusChanged += Remember;
     }
+
+    internal FramePane Pane { get; } = new();
 
     internal DebugMenu Menu => _stack[^1];
 
@@ -80,6 +87,53 @@ internal sealed class DebugScene : Scene
     internal string Status => _status.Text;
 
     internal string RowText(int index) => _rows[index].Text;
+
+    // Withdraws the panel and its rows from the scene, or brings them back showing the current
+    // menu; the stack and every menu's remembered focus are untouched either way. Returns whether
+    // anything changed.
+    internal bool ShowMenu(bool shown)
+    {
+        if (_menuShown == shown)
+        {
+            return false;
+        }
+
+        _menuShown = shown;
+        if (shown)
+        {
+            Add(_panel);
+            if (_stack.Count > 0)
+            {
+                Show(Menu);
+            }
+        }
+        else
+        {
+            RemoveRows();
+            Remove(_panel);
+        }
+
+        return true;
+    }
+
+    // Puts the pane in the scene or takes it out; it is never touched by the menu's switch.
+    internal void ShowFramePane(bool shown)
+    {
+        if (_paneShown == shown)
+        {
+            return;
+        }
+
+        _paneShown = shown;
+        if (shown)
+        {
+            Add(Pane);
+        }
+        else
+        {
+            Remove(Pane);
+        }
+    }
 
     // Makes menu current, focused where it remembers; the menu already shown stays as it is, so a
     // hotkey pressed inside its own submenu does not stack it twice.
@@ -200,23 +254,15 @@ internal sealed class DebugScene : Scene
 
     // Replaces the rows with menu's, one per item, and asks the navigator for the one the menu
     // remembers. A hotkeyed row is its label padded to a shared column, then the key's name; the
-    // font is monospace.
+    // font is monospace. Nothing while the menu is withdrawn: the rows are built when it is shown.
     private void Show(DebugMenu menu)
     {
-        // Out of the scene before out of the navigator, so the focus is released once rather than
-        // repaired onto each row about to leave; `_rows` is cleared first so the release is not
-        // remembered against the menu being shown.
-        DebugMenuRow[] leaving = _rows;
-        _rows = [];
-        foreach (DebugMenuRow row in leaving)
+        if (!_menuShown)
         {
-            Remove(row);
+            return;
         }
 
-        foreach (DebugMenuRow row in leaving)
-        {
-            _navigator.Remove(row.Focusable);
-        }
+        RemoveRows();
 
         IReadOnlyList<DebugMenuItem> items = menu.Items;
         int column = 0;
@@ -243,6 +289,24 @@ internal sealed class DebugScene : Scene
         _navigator.Focus(rows[menu.Focus].Focusable);
         _title.Text = menu.Title ?? string.Empty;
         Layout();
+    }
+
+    // Out of the scene before out of the navigator, so the focus is released once rather than
+    // repaired onto each row about to leave; `_rows` is cleared first so the release is not
+    // remembered against the menu being shown.
+    private void RemoveRows()
+    {
+        DebugMenuRow[] leaving = _rows;
+        _rows = [];
+        foreach (DebugMenuRow row in leaving)
+        {
+            Remove(row);
+        }
+
+        foreach (DebugMenuRow row in leaving)
+        {
+            _navigator.Remove(row.Focusable);
+        }
     }
 
     // Writes the focused row's index to the current menu; a row that is not one of the current

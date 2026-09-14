@@ -27,7 +27,7 @@ namespace Capsule.Diagnostics;
 /// wins over all of it. The engine's channels: <c>Colliders</c> — every collider's shape exactly as the collision
 /// world holds it, dimmed while disabled, and the faces of the grid cells in and around the
 /// camera's view; <c>Camera</c> — the camera's bounds, while it has any; <c>Origins</c> — a cross
-/// at every entity's position. Engine objects draw themselves from their <c>OnDebugDraw</c> hook
+/// at every world entity's position. Engine objects draw themselves from their <c>OnDebugDraw</c> hook
 /// once a step, and a game's do the same; an engine draw follows its entity between steps the way
 /// its sprite does, while a call from game code lands at the settled step.
 /// </para>
@@ -43,7 +43,7 @@ public static class DebugDraw
     /// <summary>The engine channel the camera's bounds are drawn on, while it has any.</summary>
     public const string Camera = "Camera";
 
-    /// <summary>The engine channel a cross is drawn on at every entity's position.</summary>
+    /// <summary>The engine channel a cross is drawn on at every world entity's position.</summary>
     public const string Origins = "Origins";
 
     // Segments a circle is drawn as, and a capsule's half arc.

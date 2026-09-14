@@ -14,6 +14,7 @@ withholds the menu's own keys from the game; closing it resumes. The menu:
 | Restart    | `R`           | Replaces the current scene with a fresh one, in one step.                |
 | Load Scene | `L`           | Lists every registered scene; `Enter` loads it and stays held.          |
 | Debug Draw | `D`           | Lists every channel that has drawn this session; `Enter` toggles a row. |
+| Frame Pane | `F`           | Toggles the frame pane for the rest of the run.                          |
 | Hide       | `H`           | Hides the panel and keeps the hold; `H` or the toggle brings it back.  |
 | Exit       | `E`           | Ends the run through `Run.RequestExit`.                                 |
 
@@ -21,6 +22,15 @@ withholds the menu's own keys from the game; closing it resumes. The menu:
 d-pad and face buttons do the same. The overlay draws over the presented frame and never enters
 the game's frame or a frame capture; its keys never reach the simulation, and a key that served
 the menu is withheld through its release.
+
+## Frame pane
+
+The top-right readout stays up with the menu closed or hidden and shows the last whole second,
+rewritten once a second: the frame rate, the average and worst frame time, the average host
+update bracket and renderer draw submission in milliseconds, the fixed steps run per second —
+the fixed rate while the simulation keeps up, less when clamped — and, as of the second's end,
+garbage collections per generation and the managed heap. Once on it allocates nothing per frame,
+so the collection counts are the game's own.
 
 ## Debug drawing
 
@@ -33,7 +43,7 @@ steps a call asks for, counted in ticks, so a held run keeps them.
 
 The engine's own channels: `Colliders` — every collider's shape as the collision world holds
 it, dimmed while disabled, and the faces of the grid cells around the camera's view;
-`Origins` — a cross at every entity's position; `Camera` — the camera's bounds while it has any.
+`Origins` — a cross at every world entity's position; `Camera` — the camera's bounds while it has any.
 `DebugDraw.SetColor` recolours a channel or names one of your own; a colour passed on a call wins.
 
 Nothing reads back: no code can learn whether a channel is on or what colour it draws, so a run

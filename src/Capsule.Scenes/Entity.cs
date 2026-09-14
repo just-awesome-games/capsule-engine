@@ -277,15 +277,12 @@ public class Entity
     }
 
     /// <summary>
-    /// Draws this entity's debug geometry, as <see cref="Component.OnDebugDraw"/> describes. The
-    /// base draws a cross at the entity's position on the <see cref="Diagnostics.DebugDraw.Origins"/>
-    /// channel, so an override that still wants the cross calls <c>base.OnDebugDraw()</c>.
+    /// Draws this entity's debug geometry, as <see cref="Component.OnDebugDraw"/> describes;
+    /// nothing by default. A world entity's origin cross is drawn before this is called and
+    /// whatever this draws, so an override cannot lose it.
     /// </summary>
     protected internal virtual void OnDebugDraw()
     {
-        Vector2 motion = Position - PreviousPosition;
-        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(OriginArm, 0f), Position + new Vector2(OriginArm, 0f), null, motion);
-        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(0f, OriginArm), Position + new Vector2(0f, OriginArm), null, motion);
     }
 
     /// <summary>
@@ -442,12 +439,26 @@ public class Entity
             return;
         }
 
+        if (Space == RenderSpace.World)
+        {
+            DrawOrigin();
+        }
+
         OnDebugDraw();
 
         foreach (Component component in LiveComponents)
         {
             component.RunDebugDraw();
         }
+    }
+
+    // The Origins channel: a cross at the entity's position, carrying the step's motion. Engine-owned,
+    // drawn from the driver so no override can lose it.
+    private void DrawOrigin()
+    {
+        Vector2 motion = Position - PreviousPosition;
+        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(OriginArm, 0f), Position + new Vector2(OriginArm, 0f), null, motion);
+        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(0f, OriginArm), Position + new Vector2(0f, OriginArm), null, motion);
     }
 
     private static void RequireFinite(Vector2 position)

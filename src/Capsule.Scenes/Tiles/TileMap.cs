@@ -195,8 +195,6 @@ public sealed class TileMap : Entity
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()
     {
-        base.OnDebugDraw();
-
         if (Collision is not { } grid || Scene is not { } scene)
         {
             return;

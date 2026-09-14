@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
@@ -94,12 +95,17 @@ internal sealed class FrameRenderer : IDisposable
         return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
     }
 
+    // The cost of the last game frame Draw submitted; default before the first.
+    internal RenderStats LastFrame { get; private set; }
+
     // Draws one frame. Allocation-free at steady state.
     //
     // alpha: Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the
     // camera looking at it, is drawn that far from its previous position towards its current one.
     internal void Draw(FrameView view, float alpha)
     {
+        long started = Stopwatch.GetTimestamp();
+
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);
 
@@ -139,14 +145,16 @@ internal sealed class FrameRenderer : IDisposable
         {
             _device.Viewport = new Viewport(0, 0, outputWidth, outputHeight);
         }
+
+        LastFrame = new RenderStats(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     // Draws a host-owned frame over the game frame already submitted to the back buffer: its world
     // list first, placed exactly where the last game frame's world landed so it annotates that
-    // frame's sprites, then, when asked, its screen layer at an integer scale of the whole back
-    // buffer. The host's own camera never enters this path; its world list is culled against
-    // nothing and drawn at the settled step.
-    internal void DrawOverlay(FrameView view, int scale, bool screenLayer)
+    // frame's sprites, then its screen layer at an integer scale of the whole back buffer. The
+    // host's own camera never enters this path; its world list is culled against nothing and drawn
+    // at the settled step.
+    internal void DrawOverlay(FrameView view, int scale)
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
@@ -162,11 +170,6 @@ internal sealed class FrameRenderer : IDisposable
         if (_world is { } world && (!view.Sprites.IsEmpty || !view.Lines.IsEmpty))
         {
             DrawOverlayWorld(view, in world, width, height);
-        }
-
-        if (!screenLayer)
-        {
-            return;
         }
 
         _device.Viewport = new Viewport(0, 0, width, height);
