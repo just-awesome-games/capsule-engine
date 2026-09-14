@@ -102,6 +102,17 @@
            Text="BuildProof: an ordinary build does not compile casevariant/Drivers/CaseVariantDevDriver.cs, so the marker beside the case-variant sibling was never found and its survival proves nothing." />
   </Target>
 
+  <Target Name="CapsuleProveDevelopmentSymbol" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_ProofDefinesDevelopment>$(DefineConstants.Contains('CAPSULE_DEVELOPMENT'))</_ProofDefinesDevelopment>
+    </PropertyGroup>
+
+    <Error Condition="'$(CapsuleShipping)' == 'true' and '$(_ProofDefinesDevelopment)' == 'True'"
+           Text="BuildProof: a shipping build still defines CAPSULE_DEVELOPMENT, so DebugDraw calls would be compiled in." />
+    <Error Condition="'$(CapsuleShipping)' != 'true' and '$(_ProofDefinesDevelopment)' != 'True'"
+           Text="BuildProof: an ordinary build does not define CAPSULE_DEVELOPMENT, so DebugDraw calls would be compiled out of a development build." />
+  </Target>
+
   <Target Name="CapsuleProveDevelopmentOnlyAssets" BeforeTargets="CoreCompile">
     <ItemGroup>
       <_ProofMarkedAsset Include="@(CapsuleAsset)" Condition="'%(Filename)' == 'scratch'" />

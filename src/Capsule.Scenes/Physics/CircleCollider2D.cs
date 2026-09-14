@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 namespace Capsule.Physics;
 
 /// <summary>
@@ -27,4 +28,8 @@ public sealed class CircleCollider2D : Collider2D
             _radius = value;
         }
     }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugDraw() =>
+        DebugDraw.Circle(DebugDraw.Colliders, WorldShape.Point(0), WorldShape.Radius, DebugColor, Motion);
 }

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes.Lifecycle;
 using Capsule.UI;
@@ -18,6 +19,9 @@ namespace Capsule.Scenes;
 /// </summary>
 public class Entity
 {
+    // The half-length of the origin cross's arms, in world units.
+    private const float OriginArm = 1.5f;
+
     private readonly List<Component> _components = [];
 
     private int _movementTrackers;
@@ -273,6 +277,18 @@ public class Entity
     }
 
     /// <summary>
+    /// Draws this entity's debug geometry, as <see cref="Component.OnDebugDraw"/> describes. The
+    /// base draws a cross at the entity's position on the <see cref="Diagnostics.DebugDraw.Origins"/>
+    /// channel, so an override that still wants the cross calls <c>base.OnDebugDraw()</c>.
+    /// </summary>
+    protected internal virtual void OnDebugDraw()
+    {
+        Vector2 motion = Position - PreviousPosition;
+        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(OriginArm, 0f), Position + new Vector2(OriginArm, 0f), null, motion);
+        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(0f, OriginArm), Position + new Vector2(0f, OriginArm), null, motion);
+    }
+
+    /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
     /// from here. Runs before the components held at that moment start; an entity that leaves the
@@ -416,6 +432,21 @@ public class Entity
         foreach (Component component in LiveComponents)
         {
             component.RunLateStep(context);
+        }
+    }
+
+    internal void RunDebugDraw()
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        OnDebugDraw();
+
+        foreach (Component component in LiveComponents)
+        {
+            component.RunDebugDraw();
         }
     }
 

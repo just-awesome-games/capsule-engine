@@ -1,3 +1,4 @@
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes;
@@ -95,6 +96,14 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.RunLateStep(in context);
         Scene.EndStep();
 
+        // Everything the step left is settled here, and nothing the pass reads can change before
+        // the frame is drawn. Skipped outright while nothing listens, and on a run a host owns for
+        // its own overlay: the walk costs the same whether or not anything hears it.
+        if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
+        {
+            Scene.RunDebugDraw();
+        }
+
         RewriteView();
     }
 
@@ -124,7 +133,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.Stop();
     }
 
-    private void RewriteView()
+    // Rebuilds View from the scene as it stands, without a step: what a step ends with, for a host
+    // whose renderers read something that changed between steps.
+    internal void RewriteView()
     {
         _view.Clear();
         _view.Camera = new CameraView(

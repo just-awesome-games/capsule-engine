@@ -49,6 +49,10 @@ public sealed class Run
         Audio = new AudioMixer();
     }
 
+    // Whether the scenes of this run draw the engine's debug channels. On for the game's run; a
+    // host turns it off on a run it owns for its own overlay, whose entities are not the game's.
+    internal bool EmitsDebugDraw { get; init; } = true;
+
     /// <summary>
     /// The screen layer's extent in canvas pixels, whose origin is its top-left corner and whose Y
     /// runs down. In a windowed run it is the declared render resolution, or the window size the

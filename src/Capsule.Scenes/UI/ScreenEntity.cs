@@ -54,4 +54,13 @@ public class ScreenEntity : Entity
 
     // Zero before this entity is in a scene, which is where the run's canvas is reached.
     internal sealed override Vector2 SpaceOrigin => Anchor.On(Scene?.RunOrNull?.Canvas ?? Vector2.Zero);
+
+    /// <summary>
+    /// Draws nothing: <see cref="Diagnostics.DebugDraw"/> is world-space, and a screen entity's
+    /// position is canvas pixels from its anchor. An override that calls the seam draws at a world
+    /// point unrelated to where the entity is.
+    /// </summary>
+    protected internal override void OnDebugDraw()
+    {
+    }
 }

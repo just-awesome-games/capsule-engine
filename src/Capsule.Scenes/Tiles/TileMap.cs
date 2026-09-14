@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -184,6 +185,62 @@ public sealed class TileMap : Entity
             }
 
             return (int)MathF.Ceiling(coordinate);
+        }
+    }
+
+    // The grid's faces on the Colliders channel — only the faces a query can meet, of the cells
+    // the camera's view reaches plus one cell around it, which is the one bound on what a large
+    // grid costs to draw. A solid run's shared faces are already culled in the derived state, so a
+    // wall reads as its outline. The map is anchored, so its faces carry no motion.
+    /// <inheritdoc/>
+    protected internal override void OnDebugDraw()
+    {
+        base.OnDebugDraw();
+
+        if (Collision is not { } grid || Scene is not { } scene)
+        {
+            return;
+        }
+
+        Rect view = scene.Camera.VisibleRegion;
+        if (view.IsEmpty)
+        {
+            return;
+        }
+
+        int minX = Math.Max(GridCollider2D.FloorDiv(view.Left, grid.CellSize) - 1, 0);
+        int minY = Math.Max(GridCollider2D.FloorDiv(view.Top, grid.CellSize) - 1, 0);
+        int maxX = Math.Min(LastCell(view.Right, grid.CellSize) + 1, grid.Width - 1);
+        int maxY = Math.Min(LastCell(view.Bottom, grid.CellSize) + 1, grid.Height - 1);
+
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                CellState state = grid.StateAt(x, y);
+                DrawFace(grid, x, y, state, CellState.FaceMinX);
+                DrawFace(grid, x, y, state, CellState.FaceMaxX);
+                DrawFace(grid, x, y, state, CellState.FaceMinY);
+                DrawFace(grid, x, y, state, CellState.FaceMaxY);
+            }
+        }
+    }
+
+    // The last cell a half-open rect's high edge reaches: the cell the edge lies in, or the one
+    // before it when the edge sits exactly on a cell boundary and so is outside the rect.
+    private static int LastCell(float edge, int cellSize)
+    {
+        int cell = GridCollider2D.FloorDiv(edge, cellSize);
+
+        return cell * cellSize == edge ? cell - 1 : cell;
+    }
+
+    private static void DrawFace(GridCollider2D grid, int x, int y, CellState state, CellState face)
+    {
+        if ((state & face) != 0)
+        {
+            Aabb2D edge = grid.FaceEdge(x, y, face);
+            DebugDraw.Line(DebugDraw.Colliders, edge.Min, edge.Max);
         }
     }
 }

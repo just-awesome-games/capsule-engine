@@ -299,6 +299,9 @@ public sealed partial class CollisionWorld2D
     // Where a collider's shape origin sits.
     internal Vector2 PositionOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Position;
 
+    // A collider's shape where the world holds it: its local shape translated by its position.
+    internal Shape2D WorldShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].World;
+
     /// <summary>A collider's shape, in its own space.</summary>
     /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
     public Shape2D ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;

@@ -55,6 +55,18 @@ public abstract class Component
     }
 
     /// <summary>
+    /// Draws this component's debug geometry through <see cref="Diagnostics.DebugDraw"/>. Called
+    /// once per fixed step after the step has fully settled — every position, contact and the
+    /// camera's framing are final — and only while a development overlay is attached, never in a
+    /// shipping build's runtime. Draw only: state changed here makes a run with the overlay differ
+    /// from one without. The calls inside are compiled out of a shipping build, so the override
+    /// costs it nothing.
+    /// </summary>
+    protected internal virtual void OnDebugDraw()
+    {
+    }
+
+    /// <summary>
     /// Runs once, before this component's first step and after everything added alongside it: its
     /// entity has started and is in a scene, so that scene may be searched from here. Attaching to
     /// an entity that has already started and is in a scene runs it immediately; attaching to one
@@ -157,6 +169,14 @@ public abstract class Component
         }
 
         OnLateStep(context);
+    }
+
+    internal void RunDebugDraw()
+    {
+        if (_started)
+        {
+            OnDebugDraw();
+        }
     }
 
     internal void LeaveScene()

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes;
@@ -88,6 +89,16 @@ public class Camera
     /// </summary>
     protected internal virtual void OnLateStep(in StepContext context)
     {
+    }
+
+    // Draws Bounds on the Camera channel while there are any; the visible region is the frame's
+    // own edges and so says nothing.
+    internal void OnDebugDraw()
+    {
+        if (Bounds is { } bounds)
+        {
+            DebugDraw.Rect(DebugDraw.Camera, bounds);
+        }
     }
 
     /// <summary>

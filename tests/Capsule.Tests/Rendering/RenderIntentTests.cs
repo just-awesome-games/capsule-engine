@@ -230,6 +230,34 @@ public sealed class RenderIntentTests
         Assert.Throws<ArgumentOutOfRangeException>(() => view.Sampling = (TextureSampling)99);
     }
 
+    [Fact]
+    public void ALine_IsCulledByTheRectItCoversAndAnAxisAlignedHairlineStillCoversOne()
+    {
+        FrameView view = Looking();
+        LineIntent kept = new(new Vector2(2, 2), new Vector2(8, 3), ColorRgba.White);
+        LineIntent hairline = new(new Vector2(4, 1), new Vector2(4, 9), ColorRgba.White);
+        LineIntent culled = new(new Vector2(20, 20), new Vector2(30, 20), ColorRgba.White);
+        LineIntent thickEnough = new(new Vector2(12, 12), new Vector2(12, 14), 6f, ColorRgba.White);
+        LineIntent screen = new(Vector2.Zero, new Vector2(40, 40), ColorRgba.White);
+
+        view.Add(kept);
+        view.Add(hairline);
+        view.Add(culled);
+        view.Add(thickEnough);
+        view.Add(new LineIntent(new Vector2(float.NaN, 0), Vector2.One, ColorRgba.White));
+        view.Add(new LineIntent(new Vector2(5, 5), new Vector2(5, 5), 3f, ColorRgba.White));
+        view.Add(screen, RenderSpace.Screen);
+
+        Assert.Equal([kept, hairline, thickEnough], view.Lines.ToArray());
+        Assert.Equal([screen], view.ScreenLines.ToArray());
+        Assert.Equal(new RenderMetrics(Submitted: 7, Visible: 4), view.Metrics);
+
+        view.Clear();
+
+        Assert.True(view.Lines.IsEmpty);
+        Assert.True(view.ScreenLines.IsEmpty);
+    }
+
     private static FrameView Looking() =>
         new() { Camera = new CameraView(new Vector2(5, 5), new Vector2(10, 10)) };
 

@@ -291,11 +291,14 @@ public sealed class GameBoundaryAnalyzerTests
     public async Task Logic_accepts_the_engines_log_where_the_console_is_forbidden()
     {
         const string source = """
+            using System.Numerics;
             using Capsule.Diagnostics;
+            using Capsule.Rendering;
 
             public static class Logic
             {
                 public static void Say() => Log.Info("something happened");
+                public static void Show() => DebugDraw.Line("logic", Vector2.Zero, Vector2.One, ColorRgba.White);
             }
             """;
 

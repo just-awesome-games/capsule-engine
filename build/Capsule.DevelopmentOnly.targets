@@ -10,6 +10,12 @@
     <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
   </PropertyGroup>
 
+  <!-- The compile symbol Capsule's [Conditional] development calls answer to: defined for every
+       ordinary build, absent from a publish so the calls and their arguments are compiled out. -->
+  <PropertyGroup Condition="'$(CapsuleShipping)' != 'true'">
+    <DefineConstants>$(DefineConstants);CAPSULE_DEVELOPMENT</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(CapsuleShipping)' == 'true'">
     <RuntimeHostConfigurationOption Include="Capsule.Development" Value="false" Trim="true" />
 

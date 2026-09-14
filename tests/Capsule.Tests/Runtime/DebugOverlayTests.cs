@@ -3,6 +3,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
+using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -168,13 +169,41 @@ public sealed class DebugOverlayTests
         using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), host, host, registry: CreateRegistry());
         DebugScene scene = overlay.Scene;
 
-        Assert.Equal(["Step", "Restart", "Load Scene", "Hide", "Exit"], Labels(scene));
+        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Hide", "Exit"], Labels(scene));
         Assert.Equal(0, scene.FocusedIndex);
         Assert.Equal("Step        Right", scene.RowText(0));
         Assert.Equal("Restart     R", scene.RowText(1));
-        Assert.Equal("Load Scene", scene.RowText(2));
-        Assert.Equal("Hide        H", scene.RowText(3));
-        Assert.Equal("Exit", scene.RowText(4));
+        Assert.Equal("Load Scene  L", scene.RowText(2));
+        Assert.Equal("Debug Draw  D", scene.RowText(3));
+        Assert.Equal("Hide        H", scene.RowText(4));
+        Assert.Equal("Exit        E", scene.RowText(5));
+    }
+
+    [Fact]
+    public void TheHotkeys_OpenLoadSceneAndDebugDrawFromAnyDepthWithoutStackingAndExitThroughTheRun()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.L);
+
+        Assert.Equal("Load Scene", overlay.Scene.Title);
+        Assert.Equal(2, overlay.Scene.Depth);
+
+        Press(overlay, scheduler, host, Key.L);
+        Assert.Equal(2, overlay.Scene.Depth);
+
+        Press(overlay, scheduler, host, Key.D);
+
+        Assert.Equal("No debug draw channel has emitted yet", overlay.Scene.Status);
+        Assert.Equal(2, overlay.Scene.Depth);
+
+        Press(overlay, scheduler, host, Key.E);
+
+        Assert.True(host.ExitRequested);
+        Assert.Equal(1, scheduler.Tick);
     }
 
     [Fact]
@@ -197,6 +226,39 @@ public sealed class DebugOverlayTests
         Assert.Equal(1, scheduler.Tick);
         Assert.True(scheduler.Held);
         Assert.True(overlay.IsOpen);
+    }
+
+    // The game's pointer is in its canvas, letterboxed and scaled into the window; the overlay's
+    // canvas is the window at its own integer scale. A pointer over the second row in window terms
+    // must focus that row, and the game must still see the pointer it was handed.
+    [Fact]
+    public void APointerOverARow_FocusesItThroughTheGamesPlacementAndLeavesTheGamesPointerAlone()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        ScreenPlacement gameLayer = new(new System.Numerics.Vector2(100f, 20f), 3f);
+        const int overlayScale = 2;
+
+        overlay.Observe(DeviceSnapshot.Of(Key.Grave), gameLayer, overlayScale);
+        scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host);
+        overlay.Step();
+        Assert.True(overlay.IsOpen);
+
+        // The second row's box in overlay canvas pixels, then that point in the window, then the
+        // game canvas position the host would have sampled for it.
+        float lineHeight = BitmapFont.Default.LineHeight;
+        System.Numerics.Vector2 overlayPoint = new(6f, 4f + (3f * lineHeight) + (lineHeight / 2f));
+        System.Numerics.Vector2 window = overlayPoint * overlayScale;
+        System.Numerics.Vector2 gamePoint = (window - gameLayer.Origin) / gameLayer.Scale;
+
+        DeviceSnapshot game = overlay.Observe(DeviceSnapshot.Empty.WithPointer(gamePoint), gameLayer, overlayScale);
+        scheduler.Advance(StepSeconds, game, host);
+        overlay.Step();
+
+        Assert.Equal(gamePoint, game.Pointer);
+        Assert.Equal(1, overlay.Scene.FocusedIndex);
+        Assert.Equal("Restart", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
     }
 
     [Fact]
@@ -298,6 +360,7 @@ public sealed class DebugOverlayTests
         ReadoutScene before = Assert.IsType<ReadoutScene>(host.Scene);
 
         Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);

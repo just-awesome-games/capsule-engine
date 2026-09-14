@@ -32,8 +32,8 @@ Assemblies follow layers, so the compiler enforces reference direction; namespac
 | `Capsule.Input` | bindings, snapshots, actions | | input drivers | `Runtime.Input` |
 | `Capsule.UI` | | | `ScreenEntity`, `Anchor`, `Focusable`, `FocusNavigator`, `FocusActions` | |
 | `Capsule.Tiles` | | | `TileGrid`, `TileMap`, `TileDefinition` | |
-| `Capsule.Assets`, `Capsule.Diagnostics` | as named | | | `Runtime.Assets` |
-| `Capsule.Runtime.DevTools` | | | | development overlay: `DebugOverlay`, `DebugScene`, menu types; internal, off under `CapsuleShipping` |
+| `Capsule.Assets`, `Capsule.Diagnostics` | as named; `Development`, `Log`, `DebugDraw` | | | `Runtime.Assets` |
+| `Capsule.Runtime.DevTools` | | | | development overlay: `DebugOverlay`, `DebugScene`, menu types, the `DebugDraw` reader; internal, off under `CapsuleShipping` |
 
 ## Logic boundary
 

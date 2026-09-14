@@ -9,8 +9,9 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <!-- ISimulation is the host's seam, not a surface a game implements, and FrameView.Space is how a
-       scene routes a renderer onto the layer its entity lives in. -->
+  <!-- ISimulation is the host's seam, not a surface a game implements, FrameView.Space is how a
+       scene routes a renderer onto the layer its entity lives in, and DebugDraw.IsAttached and
+       ColorOf let the engine's own emitter skip an unheard walk and dim a channel's colour. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
 
@@ -19,7 +20,8 @@
          are how a command addresses the host's voice table; and StepInterpolation, the one form
          every frame-alpha interpolation takes so a stationary sample cannot drift; and
          TextureHandle.DefaultFontPage, the engine-owned page the renderer loads from its own
-         resources rather than from a shipped root. -->
+         resources rather than from a shipped root; and DebugDrawBuffer with DebugDraw.UseBuffer,
+         which the development overlay attaches and reads the way the host installs a log sink. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 

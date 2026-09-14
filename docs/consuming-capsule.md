@@ -185,20 +185,22 @@ The publish directory carries the host's native libraries beside the executable,
 
 ## Development builds
 
-`CapsuleShipping` is the build axis for a shipping publish. A publish sets it to `true`, excluding
-development-only game files and disabling Capsule's development plane; an ordinary build defaults
-to `false`. Set it on an ordinary build to verify what a publish will hold without running one.
+`CapsuleShipping` is the one axis: a publish sets it to `true`, and an ordinary build — Debug or
+Release — defaults it to `false`. Set it on an ordinary build to verify what a publish will hold
+without running one. It moves three things together, and `Capsule.Diagnostics.Development` states
+the contract between them; [`debugging.md`](debugging.md) is what the plane exists for:
 
-### The engine development switch
-
-`Capsule.Development` is the runtime feature switch for Capsule's development code. It defaults to
-on when no runtime configuration sets it. A build with `CapsuleShipping` sets it to `false`: a
-trimmed or NativeAOT publish removes the disabled code, while an untrimmed publish carries it
-disabled.
+- The runtime feature switch `Capsule.Development` is set to `false`, so a trimmed or NativeAOT
+  publish removes the engine's development code and an untrimmed publish carries it disabled.
+- The compile symbol `CAPSULE_DEVELOPMENT` (`Development.Symbol`) is left undefined, where every
+  other build of a project Capsule's targets reach defines it.
+- Every development-only directory leaves the compile and the asset plane.
 
 ### Development-only directories
 
-A directory holding a file named `.capsuleignore` is development-only. Everything under it, recursively, is part of every ordinary build — Debug and Release alike — and part of no publish. Input drivers are the case it exists for: they live in the logic project because they read the scene, and they must not ship.
+A directory holding a file named `.capsuleignore` is development-only. Everything under it,
+recursively, is part of every ordinary build and part of no publish. Input drivers are the case it
+exists for: they live in the logic project because they read the scene, and they must not ship.
 
 ```text
 src/MyGame.Game/
@@ -260,7 +262,7 @@ Capsule is configured with ordinary MSBuild properties. Put a value in the narro
 | `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and font pages under `assets/`. A role-free test or tool can opt in independently.                                                   |
 | `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
 | `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size.                                  |
-| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every [development-only directory](#development-only-directories) from the compile and from the asset plane, and sets `Capsule.Development` to `false`. Set it on an ordinary build to verify a publish. |
+| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every `.capsuleignore` directory from the compile and from the asset plane, leaves `CAPSULE_DEVELOPMENT` undefined, and sets `Capsule.Development` to `false`; see [Development builds](#development-builds). |
 
 ### Application icons
 

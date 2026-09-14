@@ -3,25 +3,26 @@ using Capsule.Scenes;
 namespace Capsule.Runtime.DevTools;
 
 // An ordered list of items under a title, which the default menu has none of. Remembers its
-// focused item so a pop lands where the opener was.
+// focused item so a pop lands where the opener was. A menu whose rows change under it keeps its
+// identity and is refilled.
 internal sealed class DebugMenu
 {
     internal DebugMenu(string? title, IReadOnlyList<DebugMenuItem> items)
     {
-        ArgumentNullException.ThrowIfNull(items);
-
-        if (items.Count == 0)
-        {
-            throw new ArgumentException("A debug menu holds at least one item.", nameof(items));
-        }
-
         Title = title;
-        Items = items;
+        Items = Require(items);
+    }
+
+    // Empty until filled, which the one caller does before the menu is shown.
+    private DebugMenu(string? title)
+    {
+        Title = title;
+        Items = [];
     }
 
     internal string? Title { get; }
 
-    internal IReadOnlyList<DebugMenuItem> Items { get; }
+    internal IReadOnlyList<DebugMenuItem> Items { get; private set; }
 
     internal int Focus { get; set; }
 
@@ -40,15 +41,16 @@ internal sealed class DebugMenu
             if (overlay.Registrations.Count > 0)
             {
                 DebugMenu sceneMenu = LoadScene(overlay);
-                items.Add(new DebugMenuItem("Load Scene", () => overlay.Scene.Push(sceneMenu)));
+                items.Add(new DebugMenuItem("Load Scene", () => overlay.Scene.Push(sceneMenu), DebugInput.LoadScene));
             }
         }
 
+        items.Add(new DebugMenuItem("Debug Draw", overlay.OpenDebugDraw, DebugInput.DebugDraw));
         items.Add(new DebugMenuItem("Hide", overlay.Hide, DebugInput.Hide));
 
         if (overlay.HasScenes)
         {
-            items.Add(new DebugMenuItem("Exit", overlay.Exit));
+            items.Add(new DebugMenuItem("Exit", overlay.Exit, DebugInput.Exit));
         }
 
         return new DebugMenu(null, items);
@@ -73,5 +75,42 @@ internal sealed class DebugMenu
         }
 
         return new DebugMenu("Load Scene", items);
+    }
+
+    // The Debug Draw submenu, filled from the channels that have emitted so far; at least one has.
+    internal static DebugMenu DebugDraw(DebugOverlay overlay)
+    {
+        DebugMenu menu = new("Debug Draw");
+        menu.FillDebugDraw(overlay);
+
+        return menu;
+    }
+
+    // Refills this menu with a row per channel, its label carrying the channel's state.
+    internal void FillDebugDraw(DebugOverlay overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+
+        string[] channels = overlay.Channels;
+        List<DebugMenuItem> items = new(channels.Length);
+        foreach (string channel in channels)
+        {
+            string label = (overlay.IsChannelEnabled(channel) ? "[x] " : "[ ] ") + channel;
+            items.Add(new DebugMenuItem(label, () => overlay.ToggleChannel(channel)));
+        }
+
+        Items = Require(items);
+    }
+
+    private static IReadOnlyList<DebugMenuItem> Require(IReadOnlyList<DebugMenuItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0)
+        {
+            throw new ArgumentException("A debug menu holds at least one item.", nameof(items));
+        }
+
+        return items;
     }
 }

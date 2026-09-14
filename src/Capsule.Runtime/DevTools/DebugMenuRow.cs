@@ -10,7 +10,7 @@ namespace Capsule.Runtime.DevTools;
 // sets its width.
 internal sealed class DebugMenuRow : ScreenEntity
 {
-    private static readonly ColorRgba HighlightColor = new(255, 255, 255, 64);
+    private static readonly ColorRgba HighlightColor = ColorRgba.White with { A = 64 };
 
     private readonly Label _label;
     private readonly ColorRect _highlight;

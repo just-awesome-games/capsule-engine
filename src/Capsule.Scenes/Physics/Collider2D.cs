@@ -1,5 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Capsule.Diagnostics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 
 namespace Capsule.Physics;
@@ -9,6 +11,8 @@ namespace Capsule.Physics;
 /// its entity joins a scene and unregisters when it leaves, and follows the entity's
 /// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
 /// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
+/// It draws itself on the <c>Colliders</c> debug channel from <see cref="Component.OnDebugDraw"/>,
+/// dimmed while disabled.
 /// <para>
 /// While this collider is dispatching its own contact handlers, what they are being told about is
 /// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
@@ -80,6 +84,21 @@ public abstract class Collider2D : Component
 
     /// <summary>The shape, in the collider's own space; <see cref="Offset"/> and the entity's position place it.</summary>
     public Shape2D Shape => _shape;
+
+    // The shape at its offset, which the world translates by the entity's position.
+    internal Shape2D Local => _local;
+
+    // What every collider's OnDebugDraw draws with: the shape exactly as the world holds it — the
+    // local shape translated by the entity's settled position, the world's own two translations
+    // in its order — the channel's colour or, while disabled, that colour at half alpha so a
+    // collider that is not working is still seen, and the entity's motion this step.
+    private protected Shape2D WorldShape => _local.Translated(Entity!.Position);
+
+    private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
+
+    private protected Vector2 Motion => Entity!.Position - Entity.PreviousPosition;
+
+    private protected static Rect Edges(in Aabb2D box) => new(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y);
 
     /// <summary>Added to the entity's position to place the shape; zero by default.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>

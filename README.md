@@ -22,6 +22,10 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
+Press `` ` `` (grave) in any windowed run for the development overlay: pause, single-step, restart, load a
+scene, and toggle debug drawing — colliders, entity origins, camera bounds, and your own. A
+shipping publish turns it off. [`docs/debugging.md`](docs/debugging.md) covers it.
+
 The shell's entry point is handwritten against the generated `CapsuleBoot` builder:
 
 ```csharp
@@ -34,6 +38,7 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 
 - [`docs/architecture.md`](docs/architecture.md) — module charters, the game-logic boundary, the determinism contract, and the NativeAOT floor.
 - [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, and every build property.
+- [`docs/debugging.md`](docs/debugging.md) — the development overlay, debug drawing, and what leaves a shipping build.
 - [`docs/project-layout.md`](docs/project-layout.md) — the directory convention inside a game's logic project.
 - [`docs/scenes.md`](docs/scenes.md) — the scene authoring model and the `*.scene.json` format.
 - [`docs/sprite-animation.md`](docs/sprite-animation.md) — the `*.sheet.json` sprite sheet format.

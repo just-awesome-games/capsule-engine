@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 namespace Capsule.Physics;
 
 /// <summary>
@@ -22,4 +23,18 @@ public sealed class PolygonCollider2D : Collider2D
 
     /// <summary>How far the collider extends beyond its hull, in world units; zero for a plain polygon.</summary>
     public float Radius => Shape.Radius;
+
+    // The hull alone: a rounded polygon's radius is not drawn.
+    /// <inheritdoc/>
+    protected internal override void OnDebugDraw()
+    {
+        Shape2D shape = WorldShape;
+        Span<Vector2> points = stackalloc Vector2[Shape2D.MaxPoints];
+        for (int index = 0; index < shape.PointCount; index++)
+        {
+            points[index] = shape.Point(index);
+        }
+
+        DebugDraw.Polygon(DebugDraw.Colliders, points[..shape.PointCount], DebugColor, Motion);
+    }
 }

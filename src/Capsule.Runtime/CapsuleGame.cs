@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
@@ -30,7 +31,7 @@ internal sealed class CapsuleGame : Game
     private readonly FrameDiagnostics? _diagnostics;
 
     // Direct call sites would keep diagnostics methods reachable under the switch, so the host reaches them only through delegates created in the guarded block.
-    private readonly Func<DeviceSnapshot, DeviceSnapshot>? _observeDebugOverlay;
+    private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _observeDebugOverlay;
     private readonly Action<FrameRenderer>? _stepDebugOverlay;
     private readonly Action<FrameRenderer>? _drawDebugOverlay;
     private readonly IDisposable? _debugOverlay;
@@ -165,7 +166,7 @@ internal sealed class CapsuleGame : Game
 
         if (_observeDebugOverlay is { } observe)
         {
-            sampled = observe(sampled);
+            sampled = observe(sampled, _renderer);
         }
 
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);

@@ -48,6 +48,10 @@ internal sealed class FrameRenderer : IDisposable
     // the host samples the mouse ahead of that frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
 
+    // Where the last frame's world landed in the back buffer, which is what a host-owned
+    // world-anchored draw over that frame is placed by; null until a frame has drawn a world.
+    private WorldPlacement? _world;
+
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use; owned by the caller.
@@ -108,7 +112,7 @@ internal sealed class FrameRenderer : IDisposable
 
         if (_canvas is null)
         {
-            DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight);
+            DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight, ScreenPlacement.Identity);
             DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling);
         }
         else
@@ -116,7 +120,7 @@ internal sealed class FrameRenderer : IDisposable
             RenderTarget2D target = Surface(layout.Surface);
 
             _device.SetRenderTarget(target);
-            DrawWorld(view, alpha, world, layout.Span, target.Width, target.Height);
+            DrawWorld(view, alpha, world, layout.Span, target.Width, target.Height, layout.Present);
 
             // Over the world's own bars: the viewport is the whole surface again and the canvas sits
             // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
@@ -137,10 +141,12 @@ internal sealed class FrameRenderer : IDisposable
         }
     }
 
-    // Draws only a host-owned screen layer over the game frame already submitted to the back
-    // buffer. The overlay is an independent canvas, so its world list and camera never enter this
-    // path.
-    internal void DrawOverlay(FrameView view, int scale)
+    // Draws a host-owned frame over the game frame already submitted to the back buffer: its world
+    // list first, placed exactly where the last game frame's world landed so it annotates that
+    // frame's sprites, then, when asked, its screen layer at an integer scale of the whole back
+    // buffer. The host's own camera never enters this path; its world list is culled against
+    // nothing and drawn at the settled step.
+    internal void DrawOverlay(FrameView view, int scale, bool screenLayer)
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
@@ -153,6 +159,16 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
+        if (_world is { } world && (!view.Sprites.IsEmpty || !view.Lines.IsEmpty))
+        {
+            DrawOverlayWorld(view, in world, width, height);
+        }
+
+        if (!screenLayer)
+        {
+            return;
+        }
+
         _device.Viewport = new Viewport(0, 0, width, height);
         DrawScreen(
             view,
@@ -161,6 +177,53 @@ internal sealed class FrameRenderer : IDisposable
             width,
             height,
             TextureSampling.Point);
+    }
+
+    // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
+    // world: what sizes a screen-sized glyph placed at a world point.
+    internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
+
+    // The world's region of the back buffer is the fit inside the surface carried through the
+    // surface's own placement, and the viewport is that region so nothing lands on the bars. With
+    // the viewport's origin at the region's corner, the transform is the world's top-left to the
+    // origin and units to back-buffer pixels.
+    private void DrawOverlayWorld(FrameView view, in WorldPlacement world, int width, int height)
+    {
+        Letterbox fit = world.Fit;
+        ScreenPlacement present = world.Present;
+        int left = (int)MathF.Round(present.Origin.X + (fit.X * present.Scale));
+        int top = (int)MathF.Round(present.Origin.Y + (fit.Y * present.Scale));
+        int right = Math.Min((int)MathF.Round(present.Origin.X + ((fit.X + fit.Width) * present.Scale)), width);
+        int bottom = Math.Min((int)MathF.Round(present.Origin.Y + ((fit.Y + fit.Height) * present.Scale)), height);
+        if (left < 0 || top < 0 || right <= left || bottom <= top)
+        {
+            return;
+        }
+
+        _device.Viewport = new Viewport(left, top, right - left, bottom - top);
+
+        float pixelsPerUnit = world.PixelsPerUnit;
+        Matrix worldToBackBuffer =
+            Matrix.CreateTranslation(-world.TopLeft.X, -world.TopLeft.Y, 0f) *
+            Matrix.CreateScale(pixelsPerUnit, pixelsPerUnit, 1f);
+
+        _batch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldToBackBuffer);
+
+        TextureHandle resolved = default;
+        Texture2D? texture = null;
+        foreach (ref readonly SpriteIntent sprite in view.Sprites)
+        {
+            DrawSprite(sprite, alpha: 1f, snap: true, pixelsPerUnit, ref resolved, ref texture);
+        }
+
+        foreach (ref readonly LineIntent line in view.Lines)
+        {
+            // Snapped on the game surface's grid, the one its sprites were quantised to, so a line
+            // lands on the sprite it outlines rather than gliding between its steps.
+            DrawLine(line, pixelsPerUnit, world.Snap, world.Fit.Scale);
+        }
+
+        _batch.End();
     }
 
     // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
@@ -422,9 +485,19 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
-    // longer reports once narrowed to the letterbox.
-    private void DrawWorld(FrameView view, float alpha, in Rect world, Vector2 span, int surfaceWidth, int surfaceHeight)
+    // longer reports once narrowed to the letterbox; present is where that surface lands in the
+    // back buffer, identity when the surface is the back buffer.
+    private void DrawWorld(
+        FrameView view,
+        float alpha,
+        in Rect world,
+        Vector2 span,
+        int surfaceWidth,
+        int surfaceHeight,
+        in ScreenPlacement present)
     {
+        _world = null;
+
         // A minimised window can present a back buffer with no area.
         if (surfaceWidth <= 0 || surfaceHeight <= 0)
         {
@@ -460,6 +533,11 @@ internal sealed class FrameRenderer : IDisposable
             topLeft = PixelGrid.Snap(topLeft, fit.Scale);
         }
 
+        if (present.Scale > 0f)
+        {
+            _world = new WorldPlacement(topLeft, fit, present, snap);
+        }
+
         Matrix worldToScreen =
             Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
             Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
@@ -488,6 +566,11 @@ internal sealed class FrameRenderer : IDisposable
             DrawSprite(sprite, alpha, snap, fit.Scale, ref resolved, ref texture);
         }
 
+        foreach (ref readonly LineIntent line in view.Lines)
+        {
+            DrawLine(line, fit.Scale, snap, fit.Scale);
+        }
+
         _batch.End();
     }
 
@@ -502,7 +585,8 @@ internal sealed class FrameRenderer : IDisposable
         TextureSampling sampling)
     {
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
-        if (sprites.IsEmpty || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
+        ReadOnlySpan<LineIntent> lines = view.ScreenLines;
+        if ((sprites.IsEmpty && lines.IsEmpty) || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
         {
             return;
         }
@@ -524,7 +608,47 @@ internal sealed class FrameRenderer : IDisposable
             DrawSprite(sprite, alpha, snap, placement.Scale, ref resolved, ref texture);
         }
 
+        foreach (ref readonly LineIntent line in lines)
+        {
+            DrawLine(line, placement.Scale, snap, placement.Scale);
+        }
+
         _batch.End();
+    }
+
+    // The white texel stretched to the segment's length and thickness and turned along it, from
+    // the middle of its left edge on A. surfaceScale is the batch's pixels per unit on the surface
+    // being drawn, which is what a hairline's one pixel is in units: the back buffer's here and
+    // on the overlay path, the render surface's where one is declared, since a quad thinner than
+    // that surface's pixel would miss its pixel centres and not rasterise at all.
+    //
+    // snap quantises both ends to the grid of snapScale pixels per unit — the grid the frame's
+    // sprites were snapped to — before the segment is measured, as DrawSprite does its position.
+    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, float snapScale)
+    {
+        Vector2 a = line.A;
+        Vector2 b = line.B;
+        if (snap)
+        {
+            a = PixelGrid.Snap(a, snapScale);
+            b = PixelGrid.Snap(b, snapScale);
+        }
+
+        Vector2 delta = b - a;
+        float length = delta.Length();
+
+        float thickness = line.Thickness > 0f ? line.Thickness : 1f / surfaceScale;
+
+        _batch.Draw(
+            _white,
+            new XnaVector2(a.X, a.Y),
+            sourceRectangle: null,
+            ToBackendColor(line.Color),
+            rotation: MathF.Atan2(delta.Y, delta.X),
+            origin: new XnaVector2(0f, 0.5f),
+            scale: new XnaVector2(length, thickness),
+            effects: SpriteEffects.None,
+            layerDepth: 0f);
     }
 
     // resolved is the handle texture was fetched for; both are carried across the whole stream.
@@ -629,6 +753,14 @@ internal sealed class FrameRenderer : IDisposable
     // ColorRgba is straight alpha and the backend blend convention is premultiplied.
     private static Color ToBackendColor(ColorRgba color) =>
         Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
+
+    // TopLeft is the world rect's snapped corner, Fit where that rect landed on the surface,
+    // Present where the surface landed in the back buffer, and Snap whether the frame quantised to
+    // the surface's pixel grid.
+    private readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap)
+    {
+        internal float PixelsPerUnit => Fit.Scale * Present.Scale;
+    }
 
     public void Dispose()
     {

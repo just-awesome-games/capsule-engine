@@ -50,7 +50,7 @@ internal sealed class DebugScene : Scene
         Sampling = TextureSampling.Point;
 
         ScreenEntity panel = new(Anchor.TopLeft, Vector2.Zero);
-        _backdrop = new ColorRect(Vector2.Zero) { Color = new ColorRgba(0, 0, 0, 160) };
+        _backdrop = new ColorRect(Vector2.Zero) { Color = ColorRgba.Black with { A = 160 } };
         _readout = new Label(Font);
         _title = new Label(Font);
         _status = new Label(Font);
@@ -81,12 +81,29 @@ internal sealed class DebugScene : Scene
 
     internal string RowText(int index) => _rows[index].Text;
 
-    // Makes menu current, focused where it remembers.
+    // Makes menu current, focused where it remembers; the menu already shown stays as it is, so a
+    // hotkey pressed inside its own submenu does not stack it twice.
     internal void Push(DebugMenu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
 
+        if (_stack.Count > 0 && ReferenceEquals(Menu, menu))
+        {
+            return;
+        }
+
         _stack.Add(menu);
+        Show(menu);
+    }
+
+    // Swaps the current menu for one rebuilt in place — its rows changed under it — keeping the
+    // depth and the focus.
+    internal void Replace(DebugMenu menu)
+    {
+        ArgumentNullException.ThrowIfNull(menu);
+
+        menu.Focus = Math.Min(Menu.Focus, menu.Items.Count - 1);
+        _stack[^1] = menu;
         Show(menu);
     }
 

@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes.Documents;
@@ -328,6 +329,14 @@ public class Scene
     }
 
     /// <summary>
+    /// Draws the scene's own debug geometry, as <see cref="Component.OnDebugDraw"/> describes;
+    /// nothing by default. The camera, every entity and every component draw themselves after it.
+    /// </summary>
+    protected virtual void OnDebugDraw()
+    {
+    }
+
+    /// <summary>
     /// Appends assets this scene declares beyond those owned by its entities and components.
     /// Collection may happen before <see cref="OnStart"/>, so declarations use construction-time
     /// state only. Override only to append declarations to <paramref name="assets"/>.
@@ -578,6 +587,19 @@ public class Scene
     internal void TrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Add(notifier);
 
     internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Remove(notifier);
+
+    // The debug pass, after the step has settled and its deferred adds have landed: the scene, the
+    // camera, then every entity and its components in step order.
+    internal void RunDebugDraw()
+    {
+        OnDebugDraw();
+        Camera.OnDebugDraw();
+
+        foreach (Entity entity in Entities)
+        {
+            entity.RunDebugDraw();
+        }
+    }
 
     internal void EndStep()
     {

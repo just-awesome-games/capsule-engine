@@ -9,12 +9,15 @@ namespace Capsule.Rendering;
 /// of sprites to draw, one in world units and one in canvas pixels, the whole screen list over the
 /// whole world list. Text and nine-sliced panels are on those lists too — a <see cref="TextIntent"/>
 /// becomes one sprite per glyph and a <see cref="NineSliceIntent"/> one per slice — so
-/// <see cref="Metrics"/> counts a run of text once per glyph.
+/// <see cref="Metrics"/> counts a run of text once per glyph. Each layer also carries an ordered
+/// list of lines, drawn over that layer's sprites and counted as sprites are.
 /// </summary>
 public sealed class FrameView
 {
     private readonly List<SpriteIntent> _sprites = [];
     private readonly List<SpriteIntent> _screen = [];
+    private readonly List<LineIntent> _lines = [];
+    private readonly List<LineIntent> _screenLines = [];
 
     private int _submitted;
 
@@ -92,14 +95,28 @@ public sealed class FrameView
     /// </summary>
     public ReadOnlySpan<SpriteIntent> ScreenSprites => CollectionsMarshal.AsSpan(_screen);
 
-    /// <summary>Sprite-submission counts from the current rewrite, across both lists.</summary>
-    public RenderMetrics Metrics => new(_submitted, _sprites.Count + _screen.Count);
+    /// <summary>
+    /// The world-space lines to draw, in the order added; drawn over every world sprite and under
+    /// every screen sprite. Invalidated by the next mutation.
+    /// </summary>
+    public ReadOnlySpan<LineIntent> Lines => CollectionsMarshal.AsSpan(_lines);
+
+    /// <summary>
+    /// The screen-space lines to draw, in canvas pixels and in the order added; drawn over the
+    /// whole of <see cref="ScreenSprites"/>. Invalidated by the next mutation.
+    /// </summary>
+    public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(_screenLines);
+
+    /// <summary>Submission counts from the current rewrite, across both layers, lines included.</summary>
+    public RenderMetrics Metrics => new(_submitted, _sprites.Count + _screen.Count + _lines.Count + _screenLines.Count);
 
     // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
         _sprites.Clear();
         _screen.Clear();
+        _lines.Clear();
+        _screenLines.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
     }
@@ -127,6 +144,31 @@ public sealed class FrameView
         }
 
         (screen ? _screen : _sprites).Add(sprite);
+    }
+
+    /// <summary>
+    /// Adds a line to the layer the running renderer's entity lives in, culled by the rect it covers
+    /// as a sprite is. Outside a renderer the layer is the world.
+    /// </summary>
+    public void Add(in LineIntent line) => Add(in line, Space);
+
+    /// <summary>Adds a line to <paramref name="space"/>'s list, culled as that space culls.</summary>
+    public void Add(in LineIntent line, RenderSpace space)
+    {
+        _submitted++;
+
+        if (!line.TryGetBounds(out Rect bounds))
+        {
+            return;
+        }
+
+        bool screen = space == RenderSpace.Screen;
+        if ((screen ? _hasCanvasBounds : _hasCullBounds) && !bounds.Intersects(screen ? _canvasBounds : _cullBounds))
+        {
+            return;
+        }
+
+        (screen ? _screenLines : _lines).Add(line);
     }
 
     /// <summary>

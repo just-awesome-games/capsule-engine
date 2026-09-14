@@ -1,4 +1,6 @@
 using System.Numerics;
+using Capsule.Diagnostics;
+using Capsule.Rendering;
 namespace Capsule.Physics;
 
 /// <summary>
@@ -33,4 +35,8 @@ public sealed class BoxCollider2D : Collider2D
             _size = value;
         }
     }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugDraw() =>
+        DebugDraw.Rect(DebugDraw.Colliders, Edges(WorldShape.Bounds), DebugColor, Motion);
 }

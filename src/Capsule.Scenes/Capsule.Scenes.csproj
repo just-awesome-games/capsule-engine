@@ -8,6 +8,9 @@
     <RootNamespace>Capsule.Scenes</RootNamespace>
     <!-- Packed as part of JAG.Capsule, never as an ID of its own: Capsule/Capsule.csproj. -->
     <IsPackable>false</IsPackable>
+    <!-- The engine's own DebugDraw emitters are compiled into the one package build; in a shipping
+         game they stop at the seam's null check, since no host attaches a buffer there. -->
+    <DefineConstants>$(DefineConstants);CAPSULE_DEVELOPMENT</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +23,8 @@
          driver registry a game declaring no driver is configured with; the runtime also sets
          Run.Canvas, only on the run it owns for its debug overlay, to follow the back buffer, and
          its debug menu requests a registered scene through Run.TryRequest by whichever form the
-         registry composes it from. -->
+         registry composes it from, and rewrites that overlay's frame through
+         SceneSimulation.RewriteView between steps. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>
