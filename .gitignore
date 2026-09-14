@@ -36,12 +36,8 @@ BenchmarkDotNet.Artifacts/
 .vs/
 .idea/
 
-# Workspace config is committed; anything else under .vscode/ is personal.
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/tasks.json
+# Editor configuration is personal.
+.vscode/
 
 *.suo
 *.user

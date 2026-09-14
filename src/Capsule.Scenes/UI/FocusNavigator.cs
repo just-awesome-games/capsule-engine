@@ -57,6 +57,12 @@ public sealed class FocusNavigator : Component
     private bool _repairQueued;
     private Focusable? _pending;
 
+    // Steps a direction has been held past its press, counted while any direction is held and
+    // none was pressed this step; a press edge restarts it.
+    private int _heldSteps;
+    private int _repeatDelay = 30;
+    private int _repeatInterval = 6;
+
     /// <summary>
     /// Navigates <paramref name="items"/>, the first of which is the starting item. Their order carries
     /// no layout: each direction is read from where the items sit, so the same call serves a column,
@@ -89,6 +95,37 @@ public sealed class FocusNavigator : Component
     /// the item that will take the focus then.
     /// </summary>
     public Focusable? Focused { get; private set; }
+
+    /// <summary>
+    /// Steps a direction is held past its press before it first repeats; 30 by default, half a
+    /// second at sixty steps. Read on each step, so a change takes effect on the next.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+    public int RepeatDelay
+    {
+        get => _repeatDelay;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _repeatDelay = value;
+        }
+    }
+
+    /// <summary>
+    /// Steps between one repeat of a held direction and the next; 6 by default, a tenth of a
+    /// second at sixty steps. Zero means a held direction never repeats: it moves once on its
+    /// press alone. Read on each step, so a change takes effect on the next.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+    public int RepeatInterval
+    {
+        get => _repeatInterval;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _repeatInterval = value;
+        }
+    }
 
     /// <summary>
     /// The items the focus moves between, in list order, which is the order the pointer hit-tests
@@ -244,13 +281,19 @@ public sealed class FocusNavigator : Component
     /// Reads one step of the directions, the pointer and the presses, raising at most one focus move
     /// and at most one press.
     /// <para>
-    /// Every action is read on its press edge alone, so a held direction moves the focus once and
-    /// never repeats, and a step holding two directions reads the first of up, down, left and right.
-    /// A direction the focused item names a neighbour for resolves to that neighbour, or to what the
-    /// chain this class documents reaches through it, and moves nothing where the item names itself or
-    /// the chain ends without a live item. A direction it names none for resolves by the geometry: the
-    /// live item lying that way with the highest <c>dot(direction, delta) / |delta|²</c>, or the wrap
-    /// where none lies that way.
+    /// A direction moves the focus on its press edge, and a direction held on moves it again once
+    /// it has been held <see cref="RepeatDelay"/> steps, then every <see cref="RepeatInterval"/>
+    /// steps after that; a repeat resolves exactly as the press did. One counter serves every
+    /// direction: it runs while any direction is held and no direction was pressed this step, and
+    /// any press edge restarts it, so tapping another direction during a hold starts the delay
+    /// over. A step holding two directions reads the first of up, down, left and right, press or
+    /// repeat. <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on
+    /// their press edge alone and never repeat, and the pointer is not a direction. A direction the
+    /// focused item names a neighbour for resolves to that neighbour, or to what the chain this
+    /// class documents reaches through it, and moves nothing where the item names itself or the
+    /// chain ends without a live item. A direction it names none for resolves by the geometry: the
+    /// live item lying that way with the highest <c>dot(direction, delta) / |delta|²</c>, or the
+    /// wrap where none lies that way.
     /// </para>
     /// <para>
     /// A pointer that moved this step and lies inside an item's bounds focuses it; a pointer resting
@@ -277,6 +320,14 @@ public sealed class FocusNavigator : Component
     /// </exception>
     protected internal override void OnStep(in StepContext context)
     {
+        InputState input = context.Input;
+
+        // Counted whatever else the step does, so a hold through a repair or a pending landing
+        // keeps its timing.
+        Side? pressedSide = Pressed(input);
+        Side? heldSide = Held(input);
+        _heldSteps = heldSide is not null && pressedSide is null ? _heldSteps + 1 : 0;
+
         if (_pending is { } pending && (Live(pending) ? pending : FirstLive()) is { } requested)
         {
             _pending = null;
@@ -290,7 +341,6 @@ public sealed class FocusNavigator : Component
             return;
         }
 
-        InputState input = context.Input;
         Focusable target = focused;
         bool press = false;
 
@@ -299,7 +349,9 @@ public sealed class FocusNavigator : Component
             target = hovered;
         }
 
-        if (Stepped(input, target) is { } moved)
+        bool repeat = _repeatInterval > 0 && _heldSteps >= _repeatDelay
+            && (_heldSteps - _repeatDelay) % _repeatInterval == 0;
+        if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Stepped(target, side) is { } moved)
         {
             target = moved;
         }
@@ -326,26 +378,46 @@ public sealed class FocusNavigator : Component
         }
     }
 
-    // The direction this step asks for, resolved against `from`, or null where it asks for no move or
-    // the direction it asks for reaches nothing.
-    private Focusable? Stepped(InputState input, Focusable from)
+    // The first of up, down, left and right pressed this step, or null.
+    private Side? Pressed(InputState input)
     {
         if (input.WasPressed(_actions.Up))
         {
-            return Stepped(from, Side.Up);
+            return Side.Up;
         }
 
         if (input.WasPressed(_actions.Down))
         {
-            return Stepped(from, Side.Down);
+            return Side.Down;
         }
 
         if (input.WasPressed(_actions.Left))
         {
-            return Stepped(from, Side.Left);
+            return Side.Left;
         }
 
-        return input.WasPressed(_actions.Right) ? Stepped(from, Side.Right) : null;
+        return input.WasPressed(_actions.Right) ? Side.Right : null;
+    }
+
+    // The first of up, down, left and right held this step, or null.
+    private Side? Held(InputState input)
+    {
+        if (input.IsHeld(_actions.Up))
+        {
+            return Side.Up;
+        }
+
+        if (input.IsHeld(_actions.Down))
+        {
+            return Side.Down;
+        }
+
+        if (input.IsHeld(_actions.Left))
+        {
+            return Side.Left;
+        }
+
+        return input.IsHeld(_actions.Right) ? Side.Right : null;
     }
 
     // The item `side` reaches from `from`: the neighbour it names for that side, and the geometry only

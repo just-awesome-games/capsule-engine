@@ -77,4 +77,13 @@ public sealed class CapsuleCollider2D : Collider2D
     /// <inheritdoc/>
     protected internal override void OnDebugDraw() =>
         DebugDraw.Capsule(DebugDraw.Colliders, WorldShape.Point(0), WorldShape.Point(1), WorldShape.Radius, DebugColor, Motion);
+
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        base.OnInspect(inspector);
+        inspector.Field("Start", Start);
+        inspector.Field("End", End);
+        inspector.Field("Radius", Radius);
+    }
 }

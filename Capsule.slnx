@@ -11,6 +11,7 @@
   <Folder Name="/samples/">
     <Project Path="samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
     <Project Path="samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
+    <Project Path="samples/MinimalGame/tests/MinimalGame.Tests/MinimalGame.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj" />

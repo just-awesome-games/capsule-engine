@@ -30,9 +30,10 @@ public static class Development
     /// <summary>
     /// Whether this process's development plane is on: the <c>Capsule.Development</c> runtime
     /// feature switch, on unless the build set it, which a publish under <c>CapsuleShipping</c>
-    /// does. Constant for the process.
+    /// does. Constant for the process: read once at type initialisation, as
+    /// <c>Debugger.IsSupported</c> is.
     /// </summary>
     [FeatureSwitchDefinition("Capsule.Development")]
-    public static bool IsSupported =>
+    public static bool IsSupported { get; } =
         AppContext.TryGetSwitch("Capsule.Development", out bool on) ? on : true;
 }

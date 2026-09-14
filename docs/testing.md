@@ -13,7 +13,7 @@ API's behavior; this page helps choose the appropriate boundary.
 
 Supply input as `DeviceSnapshot` values, script a sequence with `InputScript`, or implement an
 `IInputDriver` that observes the scene. See [headless-play.md](headless-play.md) for driver discovery
-and command-line execution.
+and command-line execution. [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the worked example: the sample's own room under `SimulationHost`, and the whole game under `RunHeadless`.
 
 Audio mixing is pure simulation state and can be asserted through `Run.Audio` without playback.
 Use a seeded `RandomSource` for repeatable runs; the cross-cutting guarantees are in

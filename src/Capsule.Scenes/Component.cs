@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 
 namespace Capsule.Scenes;
 
@@ -63,6 +64,18 @@ public abstract class Component
     /// costs it nothing.
     /// </summary>
     protected internal virtual void OnDebugDraw()
+    {
+    }
+
+    /// <summary>
+    /// Reports this component's state through <paramref name="inspector"/>, one
+    /// <see cref="Inspector.Field(string, string?)"/> per value. Called only while the development
+    /// overlay is showing this component's entity, never in a shipping build's runtime, and never
+    /// before <see cref="OnStart"/>. Report only: state changed here makes a run that was inspected
+    /// differ from one that was not. The calls inside are compiled out of a shipping build, so the
+    /// override costs it nothing.
+    /// </summary>
+    protected internal virtual void OnInspect(Inspector inspector)
     {
     }
 
@@ -176,6 +189,14 @@ public abstract class Component
         if (_started)
         {
             OnDebugDraw();
+        }
+    }
+
+    internal void RunInspect(Inspector inspector)
+    {
+        if (_started)
+        {
+            OnInspect(inspector);
         }
     }
 

@@ -286,6 +286,15 @@ public class Entity
     }
 
     /// <summary>
+    /// Reports this entity's own state, as <see cref="Component.OnInspect"/> describes; nothing by
+    /// default. <see cref="Position"/> and <see cref="ZIndex"/> are written before this is called,
+    /// so an override cannot lose them, and each component reports under its own heading after it.
+    /// </summary>
+    protected internal virtual void OnInspect(Inspector inspector)
+    {
+    }
+
+    /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
     /// from here. Runs before the components held at that moment start; an entity that leaves the
@@ -449,6 +458,26 @@ public class Entity
         foreach (Component component in LiveComponents)
         {
             component.RunDebugDraw();
+        }
+    }
+
+    // The innate rows are the engine's, written before any hook so no override can lose them;
+    // the hooks are bound by the rule RunStep is. Every component gets its heading whether or not
+    // it has started, so the panel still shows what the entity is made of.
+    internal void RunInspect(Inspector inspector)
+    {
+        inspector.Field("Position", Position);
+        inspector.Field("ZIndex", ZIndex);
+
+        if (_started)
+        {
+            OnInspect(inspector);
+        }
+
+        foreach (Component component in LiveComponents)
+        {
+            inspector.Section(component.GetType().Name);
+            component.RunInspect(inspector);
         }
     }
 

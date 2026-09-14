@@ -105,8 +105,9 @@ public sealed class DebugDrawTests
         Assert.Equal("Debug Draw", overlay.Scene.Title);
         Assert.False(overlay.IsChannelEnabled(Labels));
 
+        // Readout, title, blank, then the rows: the second row is the fifth line.
         float lineHeight = BitmapFont.Default.LineHeight;
-        Vector2 secondRow = new(6f, 4f + (3f * lineHeight) + (lineHeight / 2f));
+        Vector2 secondRow = new(6f, 4f + (4f * lineHeight) + (lineHeight / 2f));
         DeviceSnapshot game = overlay.Observe(DeviceSnapshot.Empty.WithPointer(secondRow).With(MouseButton.Left));
         scheduler.Advance(StepSeconds, game, host);
         overlay.Step();

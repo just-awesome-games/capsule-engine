@@ -636,6 +636,91 @@ public sealed class FocusNavigatorTests
         Assert.Equal(1, menu.FocusedIndex);
     }
 
+    // A held direction moves on its press, again once held past the delay, then every interval,
+    // wrapping through the column as a press would; releasing it ends the run.
+    [Fact]
+    public void AHeldDirection_RepeatsAfterTheDelayThenEveryIntervalUntilReleased()
+    {
+        using Menu menu = Triple().Open();
+        menu.Navigator.RepeatDelay = 4;
+        menu.Navigator.RepeatInterval = 2;
+
+        menu.Hold(Key.Down);
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Rest().Rest().Rest();
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Rest();
+        Assert.Equal(2, menu.FocusedIndex);
+
+        menu.Rest();
+        Assert.Equal(2, menu.FocusedIndex);
+
+        menu.Rest();
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Release(Key.Down).Rest().Rest().Rest().Rest();
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Hold(Key.Down);
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Rest().Rest().Rest().Rest();
+        Assert.Equal(2, menu.FocusedIndex);
+    }
+
+    [Fact]
+    public void APressOnAnotherDirection_RestartsTheRepeatCounter()
+    {
+        using Menu menu = Triple().Open();
+        menu.Navigator.RepeatDelay = 4;
+        menu.Navigator.RepeatInterval = 2;
+
+        menu.Hold(Key.Down).Rest().Rest();
+        Assert.Equal(1, menu.FocusedIndex);
+
+        // Up is read first of the two, so its press moves up; the counter starts over from it.
+        menu.Hold(Key.Up);
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Rest().Rest().Rest();
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Rest();
+        Assert.Equal(2, menu.FocusedIndex);
+    }
+
+    [Fact]
+    public void AnIntervalOfZero_NeverRepeatsAndAHeldConfirmNeverRePresses()
+    {
+        using Menu menu = Triple().Open();
+        menu.Navigator.RepeatDelay = 0;
+        menu.Navigator.RepeatInterval = 0;
+
+        menu.Hold(Key.Down);
+        for (int step = 0; step < 40; step++)
+        {
+            menu.Rest();
+        }
+
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Release(Key.Down);
+        menu.Navigator.RepeatInterval = 1;
+        menu.Hold(Key.Enter);
+        Assert.Equal(["pressed 1"], menu.Log);
+
+        for (int step = 0; step < 40; step++)
+        {
+            menu.Rest();
+            Assert.Empty(menu.Log);
+        }
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => menu.Navigator.RepeatDelay = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => menu.Navigator.RepeatInterval = -1);
+    }
+
     private static Menu Column() => new(Item(Vector2.Zero), Item(new Vector2(0f, 40f)));
 
     // The column with a third box on the same 40-pixel centres, for the cases that need an item past
@@ -867,6 +952,14 @@ public sealed class FocusNavigatorTests
 
         /// <summary>Steps with nothing new: the held state exactly as it stands.</summary>
         internal Menu Rest() => Advance(_held);
+
+        /// <summary>Lets go of <paramref name="key"/> and steps.</summary>
+        internal Menu Release(Key key)
+        {
+            _held = _held.Without(key);
+
+            return Advance(_held);
+        }
 
         /// <summary>Focuses an item outright, as a game opening a menu on one does; steps nothing.</summary>
         internal Menu FocusOn(int index)

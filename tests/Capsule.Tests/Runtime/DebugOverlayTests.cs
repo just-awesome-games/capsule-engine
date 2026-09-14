@@ -172,15 +172,16 @@ public sealed class DebugOverlayTests
 
         Open(overlay, scheduler, host);
 
-        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Frame Pane", "Hide", "Exit"], Labels(scene));
+        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Frame Pane", "Inspect", "Hide", "Exit"], Labels(scene));
         Assert.Equal(0, scene.FocusedIndex);
         Assert.Equal("Step        Right", scene.RowText(0));
         Assert.Equal("Restart     R", scene.RowText(1));
         Assert.Equal("Load Scene  L", scene.RowText(2));
         Assert.Equal("Debug Draw  D", scene.RowText(3));
         Assert.Equal("Frame Pane  F", scene.RowText(4));
-        Assert.Equal("Hide        H", scene.RowText(5));
-        Assert.Equal("Exit        E", scene.RowText(6));
+        Assert.Equal("Inspect     I", scene.RowText(5));
+        Assert.Equal("Hide        H", scene.RowText(6));
+        Assert.Equal("Exit        E", scene.RowText(7));
     }
 
     [Fact]
@@ -369,6 +370,7 @@ public sealed class DebugOverlayTests
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
         Press(overlay, scheduler, host, Key.Down);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter));
@@ -409,7 +411,7 @@ public sealed class DebugOverlayTests
         Assert.Equal(0, scheduler.AccumulatorSeconds);
         Assert.True(scheduler.Held);
 
-        for (int frame = 0; frame < 19; frame++)
+        for (int frame = 0; frame < DebugScene.RepeatDelayFrames - 1; frame++)
         {
             Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
         }
@@ -419,7 +421,11 @@ public sealed class DebugOverlayTests
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
         Assert.Equal(2, simulation.Steps.Count);
 
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        for (int frame = 0; frame < DebugScene.RepeatIntervalFrames - 1; frame++)
+        {
+            Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        }
+
         Assert.Equal(2, simulation.Steps.Count);
 
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));

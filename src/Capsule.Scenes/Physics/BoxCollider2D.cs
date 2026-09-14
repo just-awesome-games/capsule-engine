@@ -39,4 +39,11 @@ public sealed class BoxCollider2D : Collider2D
     /// <inheritdoc/>
     protected internal override void OnDebugDraw() =>
         DebugDraw.Rect(DebugDraw.Colliders, Edges(WorldShape.Bounds), DebugColor, Motion);
+
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        base.OnInspect(inspector);
+        inspector.Field("Size", _size);
+    }
 }

@@ -22,12 +22,16 @@ my-game/
   tests/
     MyGame.Tests/
       MyGame.Tests.csproj
+  hooks/
+    pre-commit
   Directory.Build.props
   Directory.Build.targets
   MyGame.slnx
 ```
 
 The directory convention inside `src/MyGame.Game/` is in [`project-layout.md`](project-layout.md); this file stops at the project boundary.
+
+The everyday commands over this shape — run, test, format, the gate `hooks/pre-commit` carries — are in [`workflow.md`](workflow.md).
 
 The authoring tree lives inside the logic project: Capsule looks for authored sources at `<project>/Assets` by default, and the logic role is the one that reads them. The build derives `assets/` beside the executable, which the shell receives through its project reference.
 
@@ -106,11 +110,17 @@ The logic role activates source generation and purity analysis, owns the authori
 </Project>
 ```
 
-Tests reference the logic project and `JAG.Capsule`; they take no Capsule role. From `tests/MyGame.Tests/MyGame.Tests.csproj`, the logic reference is:
+Tests reference the logic project, which brings `JAG.Capsule` with it; they take no Capsule role. A test that drives `CapsuleEngine.RunHeadless` also references the runtime, switched between package and source the way the shell's is. From `tests/MyGame.Tests/MyGame.Tests.csproj`:
 
 ```xml
 <ItemGroup>
   <ProjectReference Include="../../src/MyGame.Game/MyGame.Game.csproj" />
+</ItemGroup>
+<ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+  <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+</ItemGroup>
+<ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+  <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
 </ItemGroup>
 ```
 

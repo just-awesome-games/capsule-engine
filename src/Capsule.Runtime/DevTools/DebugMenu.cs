@@ -3,8 +3,9 @@ using Capsule.Scenes;
 namespace Capsule.Runtime.DevTools;
 
 // An ordered list of items under a title, which the default menu has none of. Remembers its
-// focused item so a pop lands where the opener was. A menu whose rows change under it keeps its
-// identity and is refilled.
+// focused item, and the first item of the window the scene shows when the list is longer than
+// it, so a pop lands where the opener was. A menu whose rows change under it keeps its identity
+// and is refilled, or is replaced by one rebuilt in its place.
 internal sealed class DebugMenu
 {
     internal DebugMenu(string? title, IReadOnlyList<DebugMenuItem> items)
@@ -25,6 +26,8 @@ internal sealed class DebugMenu
     internal IReadOnlyList<DebugMenuItem> Items { get; private set; }
 
     internal int Focus { get; set; }
+
+    internal int First { get; set; }
 
     // Scene actions need a run of scenes; loading needs a registry with something in it.
     internal static DebugMenu Default(DebugOverlay overlay)
@@ -47,6 +50,12 @@ internal sealed class DebugMenu
 
         items.Add(new DebugMenuItem("Debug Draw", overlay.OpenDebugDraw, DebugInput.DebugDraw));
         items.Add(new DebugMenuItem("Frame Pane", overlay.ToggleFramePane, DebugInput.FramePane));
+
+        if (overlay.HasScenes)
+        {
+            items.Add(new DebugMenuItem("Inspect", overlay.OpenInspect, DebugInput.Inspect));
+        }
+
         items.Add(new DebugMenuItem("Hide", overlay.Hide, DebugInput.Hide));
 
         if (overlay.HasScenes)

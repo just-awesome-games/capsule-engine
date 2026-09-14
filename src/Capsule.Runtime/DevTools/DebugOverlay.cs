@@ -32,6 +32,9 @@ internal sealed class DebugOverlay : IDisposable
     // or a toggle flipped, so its focus and identity survive.
     private DebugMenu? _debugDrawMenu;
 
+    // The Inspect menus over the held scene; none without a run of scenes to inspect.
+    private readonly DebugInspection? _inspection;
+
     // The toggle first, then every button the menu binds; each is stripped from the game's
     // snapshot while the overlay is open and, once it is not, until the button is released.
     private readonly InputButton[] _quarantine;
@@ -85,6 +88,7 @@ internal sealed class DebugOverlay : IDisposable
         Scene = new DebugScene(DebugInput.KeyName(button));
         _draws = new DebugDrawRenderer(_buffer, _enabledChannels);
         Scene.Add(new DebugDrawEntity(_draws));
+        _inspection = scenes is { } held ? new DebugInspection(Scene, held) : null;
 
         // Withdrawn before the host builds the first frame, which is what is drawn until a Step
         // rewrites it.
@@ -197,6 +201,10 @@ internal sealed class DebugOverlay : IDisposable
         Scene.Push(_debugDrawMenu);
     }
 
+    // Pushes the type list of the held scene's entities, or says the scene is empty.
+    internal void OpenInspect() =>
+        (_inspection ?? throw new InvalidOperationException("The debug menu's Inspect needs a run of scenes.")).Open();
+
     private void RefillDebugDrawMenu()
     {
         if (_debugDrawMenu is not { } menu)
@@ -251,6 +259,13 @@ internal sealed class DebugOverlay : IDisposable
         bool toggleDown = toggle.IsDown(snapshot);
         if (toggleDown && !_toggleDown)
         {
+            // Closed to open: the game ran, or replaced its scene, since the menus were last
+            // built. Hidden to open needs nothing, since the game was held throughout.
+            if (_state == OverlayState.Closed)
+            {
+                _inspection?.Invalidate();
+            }
+
             _state = wasOpen ? OverlayState.Closed : OverlayState.Open;
             _scheduler.Held = _state != OverlayState.Closed;
         }
@@ -297,6 +312,12 @@ internal sealed class DebugOverlay : IDisposable
                 _withheld[index] = button.IsDown(snapshot);
                 snapshot = snapshot.Without(button);
             }
+        }
+
+        // The wheel serves the menu while the overlay is open, so a stepped tick sees none of it.
+        if (open)
+        {
+            snapshot = snapshot.WithScroll(Vector2.Zero);
         }
 
         _stripped = snapshot;
@@ -352,6 +373,10 @@ internal sealed class DebugOverlay : IDisposable
             }
 
             RefreshReadout();
+
+            // An Inspect menu that became current since the last stepped tick is rebuilt before
+            // the menu reads this frame's input.
+            _inspection?.Refresh();
             _host.Step(in _sampled);
 
             // Hidden from inside the step: the menu leaves before this frame draws.
@@ -430,14 +455,19 @@ internal sealed class DebugOverlay : IDisposable
     internal static int ScaleFor(int height) => height < 1080 ? 1 : height < 2160 ? 2 : 3;
 
     // A stepped tick is an ordinary tick: a game that throws inside one crashes as it always did.
-    // The readout is refreshed inside the menu's own step, so the frame that stepped shows the
-    // result.
+    // The readout and the Inspect menus are refreshed inside the menu's own step, so the frame
+    // that stepped shows the result; an exit tore the scene down, so nothing is read from it.
     internal void StepGame()
     {
         _exited = _scheduler.StepOnce(in _stripped, _simulation);
         _steppedTicks += _scheduler.StepsThisFrame;
         SettleDraws();
         RefreshReadout();
+        if (!_exited && _inspection is { } inspection)
+        {
+            inspection.Invalidate();
+            inspection.Refresh();
+        }
     }
 
     internal void Hide() => _state = OverlayState.Hidden;

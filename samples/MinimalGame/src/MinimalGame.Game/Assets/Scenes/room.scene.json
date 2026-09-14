@@ -26,9 +26,7 @@
             "cell": 1,
             "layer": "platform",
             "collidableFaces": [
-              "top",
-              "left",
-              "right"
+              "top"
             ]
           }
         ],

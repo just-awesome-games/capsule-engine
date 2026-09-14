@@ -1,0 +1,48 @@
+#!/bin/sh
+# The local gate: the restore the mode calls for, the build, the format check and the tests on
+# every commit.
+# Activate once with: git config core.hooksPath hooks
+# Git ignores hooks/ until that is configured, and an unconfigured clone commits straight past
+# this file without reporting anything.
+# Inside the engine repository the locked branch never runs, and would hold nothing if it did: the
+# sample sets no RestorePackagesWithLockFile, because its package mode pins the 0.0.0 packages the
+# tree just packed, whose hashes change on every pack. A copy adopts the shared configuration in
+# docs/consuming-capsule.md, which locks, and commits packages.lock.json.
+set -u
+
+# The repository root is the hook's parent, not `git rev-parse --show-toplevel`: this tree also
+# runs as a sample nested inside the engine's repository, where the toplevel is the engine's.
+cd "$(dirname "$0")/.." || exit 1
+
+run() {
+    step=$1
+    shift
+    echo "pre-commit: $step"
+    if ! "$@"; then
+        echo "pre-commit: $step FAILED"
+        exit 1
+    fi
+}
+
+# The mode is the evaluated CapsuleSourceRoot property, which folds in every way the source
+# override can be set (Directory.Build.props, Directory.Build.local.props, the CapsuleSourcePath
+# and CapsuleUsePackages environment variables) rather than a guess from the environment. A source
+# build resolves the engine through project references and its lock file lands under obj/, so
+# only a package restore is held to the committed lock file. Every later step runs with
+# --no-restore: an implicit unlocked restore would regenerate a drifted lock file locally instead
+# of failing the way CI does.
+echo "pre-commit: mode"
+if ! source_root=$(dotnet msbuild src/MinimalGame.Game/MinimalGame.Game.csproj -getProperty:CapsuleSourceRoot); then
+    echo "pre-commit: mode FAILED"
+    exit 1
+fi
+if [ -n "$source_root" ]; then
+    run "source-mode restore" dotnet restore
+else
+    run "locked restore" dotnet restore --locked-mode
+fi
+run "build" dotnet build --no-restore
+run "format check" dotnet format --verify-no-changes --no-restore
+run "tests" dotnet test --no-build
+
+echo "pre-commit: all gates passed"

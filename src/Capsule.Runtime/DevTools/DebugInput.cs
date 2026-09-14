@@ -17,8 +17,10 @@ internal static class DebugInput
     internal static readonly InputAction LoadScene = new("debug-menu.load-scene");
     internal static readonly InputAction DebugDraw = new("debug-menu.debug-draw");
     internal static readonly InputAction FramePane = new("debug-menu.frame-pane");
+    internal static readonly InputAction Inspect = new("debug-menu.inspect");
     internal static readonly InputAction Exit = new("debug-menu.exit");
     internal static readonly InputAction Click = new("debug-menu.click");
+    internal static readonly AxisAction Scroll = new("debug-menu.scroll");
 
     // Sideways moves are the menu's own (back and step), so the navigator is given a direction
     // bound to nothing.
@@ -27,7 +29,7 @@ internal static class DebugInput
     internal static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, None, None, Confirm, Click);
 
     internal static readonly InputAction[] Actions =
-        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, Exit, Click];
+        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, Inspect, Exit, Click];
 
     private static readonly ActionBindings Named = Bindings();
 
@@ -43,8 +45,10 @@ internal static class DebugInput
             .Bind(LoadScene, Key.L)
             .Bind(DebugDraw, Key.D)
             .Bind(FramePane, Key.F)
+            .Bind(Inspect, Key.I)
             .Bind(Exit, Key.E)
-            .Bind(Click, MouseButton.Left);
+            .Bind(Click, MouseButton.Left)
+            .BindAxis(Scroll, MouseAxis.ScrollY);
 
     internal static string KeyName(InputAction action) => KeyName(Named.ButtonsFor(action)[0]);
 

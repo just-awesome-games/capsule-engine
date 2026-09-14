@@ -32,4 +32,11 @@ public sealed class CircleCollider2D : Collider2D
     /// <inheritdoc/>
     protected internal override void OnDebugDraw() =>
         DebugDraw.Circle(DebugDraw.Colliders, WorldShape.Point(0), WorldShape.Radius, DebugColor, Motion);
+
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        base.OnInspect(inspector);
+        inspector.Field("Radius", Radius);
+    }
 }

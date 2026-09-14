@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Scene behavior is tested through the logic project alone; the runtime is referenced for
+       CapsuleEngine.RunHeadless, which drives transitions and exit the way the shell does. -->
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+    <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/MinimalGame.Game/MinimalGame.Game.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

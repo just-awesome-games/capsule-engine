@@ -6,20 +6,29 @@ using Capsule.UI;
 namespace Capsule.Runtime.DevTools;
 
 // One row of the debug panel: its text, the highlight bar it shows while focused, and the box the
-// navigator focuses. It says it was pressed, never what pressing it means. The scene places it and
-// sets its width.
+// navigator focuses. It says it was pressed, never what pressing it means. The scene places it,
+// sets its width, and hides it while it lies outside the menu's window: a hidden row draws nothing
+// and has no extent, so the pointer never finds it, while its position still serves the
+// navigator's direction geometry.
 internal sealed class DebugMenuRow : ScreenEntity
 {
     private static readonly ColorRgba HighlightColor = ColorRgba.White with { A = 64 };
 
     private readonly Label _label;
     private readonly ColorRect _highlight;
+    private readonly string _text;
+    private readonly Vector2 _corner;
+    private float _width;
+    private bool _shown = true;
 
     internal DebugMenuRow(string text, float inset)
         : base(Anchor.TopLeft, Vector2.Zero)
     {
+        _text = text;
+
         // The bar and the box start at the panel's left edge, `inset` to the left of the text.
         Vector2 corner = new(-inset, 0f);
+        _corner = corner;
 
         // Hidden by a zero extent rather than a transparent colour: the size is what the focus
         // already changes.
@@ -43,18 +52,43 @@ internal sealed class DebugMenuRow : ScreenEntity
     // Handed to the scene's navigator, which is the only thing that may move this row's focus.
     internal Focusable Focusable { get; }
 
-    internal string Text => _label.Text;
+    // The row's text, whether or not it is shown.
+    internal string Text => _text;
 
     internal float Width
     {
         set
         {
-            Focusable.Size = new Vector2(value, BitmapFont.Default.LineHeight);
-
-            if (Focusable.IsFocused)
-            {
-                _highlight.Size = Focusable.Size;
-            }
+            _width = value;
+            Apply();
         }
+    }
+
+    // Whether the row is in the menu's window. Hidden, the label is blank and the box and the
+    // highlight have no extent; shown again, all three come back, the highlight only if focused.
+    internal bool Shown
+    {
+        get => _shown;
+        set
+        {
+            if (_shown == value)
+            {
+                return;
+            }
+
+            _shown = value;
+            Apply();
+        }
+    }
+
+    // A hidden box collapses onto the centre the shown box would have, so the navigator's
+    // geometry still sees one straight column.
+    private void Apply()
+    {
+        Vector2 size = new(_width, BitmapFont.Default.LineHeight);
+        _label.SetText(_shown ? _text : string.Empty);
+        Focusable.Size = _shown ? size : Vector2.Zero;
+        Focusable.Offset = _shown ? _corner : _corner + (size / 2f);
+        _highlight.Size = Focusable.IsFocused ? Focusable.Size : Vector2.Zero;
     }
 }

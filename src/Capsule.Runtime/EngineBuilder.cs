@@ -645,20 +645,37 @@ public sealed class EngineBuilder
 
         FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _input.Bindings, driver, host);
 
-        // Exactly one step's worth of time per call, so the accumulator drains one step and the
-        // per-frame step bound never binds.
-        while (!scheduler.Advance(_stepSeconds, DeviceSnapshot.Empty, host))
+        // The clock is the scheduler's for exactly as long as it runs: a line written after the run,
+        // or by the next run's scene construction, is before any clock again.
+        if (_consoleSink is not null)
         {
-            // No surface is ever drawn here, so a capture request is taken and dropped rather than
-            // standing for a frame that never comes.
-            host.TryTakeFrameCapture(out _);
+            _consoleSink.Tick = () => scheduler.Tick;
         }
 
-        // The advance that ends the run may have executed a step of its own, whose request the loop
-        // body never reaches.
-        host.TryTakeFrameCapture(out _);
+        try
+        {
+            // Exactly one step's worth of time per call, so the accumulator drains one step and the
+            // per-frame step bound never binds.
+            while (!scheduler.Advance(_stepSeconds, DeviceSnapshot.Empty, host))
+            {
+                // No surface is ever drawn here, so a capture request is taken and dropped rather than
+                // standing for a frame that never comes.
+                host.TryTakeFrameCapture(out _);
+            }
 
-        return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
+            // The advance that ends the run may have executed a step of its own, whose request the loop
+            // body never reaches.
+            host.TryTakeFrameCapture(out _);
+
+            return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
+        }
+        finally
+        {
+            if (_consoleSink is not null)
+            {
+                _consoleSink.Tick = null;
+            }
+        }
     }
 
     private void InstallLogging()
@@ -686,6 +703,16 @@ public sealed class EngineBuilder
             _consoleSink.Tick = () => game.SimulationTick;
         }
 
-        game.Run();
+        try
+        {
+            game.Run();
+        }
+        finally
+        {
+            if (_consoleSink is not null)
+            {
+                _consoleSink.Tick = null;
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="src/MinimalGame.Game/MinimalGame.Game.csproj" />
   <Project Path="src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
+  <Project Path="tests/MinimalGame.Tests/MinimalGame.Tests.csproj" />
 </Solution>

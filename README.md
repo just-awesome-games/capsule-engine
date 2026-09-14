@@ -22,6 +22,8 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
+[`docs/workflow.md`](docs/workflow.md) lists the everyday commands: run, test, format, the gate, and ship.
+
 Press `` ` `` (grave) in any windowed run for the development overlay: pause, single-step, restart, load a
 scene, toggle debug drawing — colliders, entity origins, camera bounds, and your own — and a
 frame stats pane. A shipping publish turns it off. [`docs/debugging.md`](docs/debugging.md) covers it.
@@ -38,6 +40,7 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 
 - [`docs/architecture.md`](docs/architecture.md) — module charters, the game-logic boundary, the determinism contract, and the NativeAOT floor.
 - [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, and every build property.
+- [`docs/workflow.md`](docs/workflow.md) — the everyday commands of a game built on Capsule, and their Unity and Godot equivalents.
 - [`docs/debugging.md`](docs/debugging.md) — the development overlay, debug drawing, and what leaves a shipping build.
 - [`docs/project-layout.md`](docs/project-layout.md) — the directory convention inside a game's logic project.
 - [`docs/scenes.md`](docs/scenes.md) — the scene authoring model and the `*.scene.json` format.

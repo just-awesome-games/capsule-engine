@@ -11,7 +11,8 @@
 
   <!-- ISimulation is the host's seam, not a surface a game implements, FrameView.Space is how a
        scene routes a renderer onto the layer its entity lives in, and DebugDraw.IsAttached and
-       ColorOf let the engine's own emitter skip an unheard walk and dim a channel's colour. -->
+       ColorOf let the engine's own emitter skip an unheard walk and dim a channel's colour, and
+       Inspector.Section is how the entity walk opens each component's heading. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
 
@@ -21,7 +22,9 @@
          every frame-alpha interpolation takes so a stationary sample cannot drift; and
          TextureHandle.DefaultFontPage, the engine-owned page the renderer loads from its own
          resources rather than from a shipped root; and DebugDrawBuffer with DebugDraw.UseBuffer,
-         which the development overlay attaches and reads the way the host installs a log sink. -->
+         which the development overlay attaches and reads the way the host installs a log sink;
+         and Inspector.Rows, Clear and Format, with which the overlay's inspection panel lays out
+         one entity's walk and spells a position the same way in its lists. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
 

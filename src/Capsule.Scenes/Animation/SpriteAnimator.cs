@@ -1,4 +1,6 @@
+using System.Globalization;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -162,5 +164,23 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
         _playback.Step(clip.FrameTicks, clip.Loop);
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+    }
+
+    // A clip has no name, so the frame's place in it is what identifies where playback is.
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+
+        inspector.Field("Playing", Clip is not null);
+        if (Clip is not { } clip)
+        {
+            return;
+        }
+
+        inspector.Field("Frame", string.Create(CultureInfo.InvariantCulture, $"{FrameIndex} of {clip.Frames.Length}"));
+        inspector.Field("Tick", Tick);
+        inspector.Field("Loop", clip.Loop);
+        inspector.Field("IsFinished", IsFinished);
     }
 }

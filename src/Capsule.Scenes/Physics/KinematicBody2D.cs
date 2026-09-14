@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Physics;
@@ -232,6 +233,18 @@ public sealed class KinematicBody2D : Component
                     $"A {entity.GetType().Name} already holds a KinematicBody2D; two would each write the entity's position from their own sweep.");
             }
         }
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+
+        inspector.Field("IsOnFloor", IsOnFloor);
+        inspector.Field("IsOnWall", IsOnWall);
+        inspector.Field("IsOnCeiling", IsOnCeiling);
+        inspector.Field("FloorNormal", FloorNormal);
+        inspector.Field("WallNormal", WallNormal);
     }
 
     // Asked as the whole entity joins, not as the body is attached: a constructor may add the body

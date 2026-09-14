@@ -12,7 +12,8 @@ namespace Capsule.Physics;
 /// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
 /// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
 /// It draws itself on the <c>Colliders</c> debug channel from <see cref="Component.OnDebugDraw"/>,
-/// dimmed while disabled.
+/// dimmed while disabled, and reports <see cref="Enabled"/>, <see cref="Offset"/>,
+/// <see cref="Layer"/> and its shape from <see cref="Component.OnInspect"/>.
 /// <para>
 /// While this collider is dispatching its own contact handlers, what they are being told about is
 /// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
@@ -462,6 +463,17 @@ public abstract class Collider2D : Component
     // No dispatch guard: a handler detaching its own collider is legal, and by the time this runs
     // Entity.Remove has already taken the collider out of the world through LeaveScene.
     internal override void OnDetachingFrom(Entity entity) => entity.TrackMovement(-1);
+
+    // What every collider reports; a subclass adds its shape after calling this.
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        ArgumentNullException.ThrowIfNull(inspector);
+
+        inspector.Field("Enabled", _enabled);
+        inspector.Field("Offset", _offset);
+        inspector.Field("Layer", _layer);
+    }
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()

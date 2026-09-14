@@ -37,4 +37,12 @@ public sealed class PolygonCollider2D : Collider2D
 
         DebugDraw.Polygon(DebugDraw.Colliders, points[..shape.PointCount], DebugColor, Motion);
     }
+
+    /// <inheritdoc/>
+    protected internal override void OnInspect(Inspector inspector)
+    {
+        base.OnInspect(inspector);
+        inspector.Field("Points", Shape.PointCount);
+        inspector.Field("Radius", Radius);
+    }
 }

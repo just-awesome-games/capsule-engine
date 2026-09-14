@@ -23,8 +23,9 @@
          driver registry a game declaring no driver is configured with; the runtime also sets
          Run.Canvas, only on the run it owns for its debug overlay, to follow the back buffer, and
          its debug menu requests a registered scene through Run.TryRequest by whichever form the
-         registry composes it from, and rewrites that overlay's frame through
-         SceneSimulation.RewriteView between steps. -->
+         registry composes it from, rewrites that overlay's frame through
+         SceneSimulation.RewriteView between steps, and fills its inspection panel through
+         Entity.RunInspect. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

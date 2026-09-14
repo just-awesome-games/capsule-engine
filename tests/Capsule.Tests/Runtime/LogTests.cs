@@ -1,5 +1,8 @@
 using Capsule.Diagnostics;
+using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -116,6 +119,49 @@ public sealed class LogTests : IDisposable
 
         Assert.Equal("[   boot] info  ready", line);
         Assert.Equal(ConsoleLogSink.Format(LogLevel.Info, 0L, "ready").Length, line.Length);
+    }
+
+    // The tick column is only worth reading if a headless run fills it in as the windowed one does.
+    [Fact]
+    public void AHeadlessRun_PrefixesALineASceneWritesFromAStepWithThatStepsTick()
+    {
+        TextWriter output = Console.Out;
+        using StringWriter captured = new();
+        Console.SetOut(captured);
+
+        try
+        {
+            CapsuleEngine.Configure(
+                    "Logging Game",
+                    new SceneRegistry(
+                        new EntityRegistry([]),
+                        [SceneRegistration.Plain(typeof(Announcing), static () => new Announcing())]))
+                .WithFixedStep(10)
+                .WithoutCrashLog()
+                .RunHeadless<Announcing>(new InputScript().Wait(4).Build());
+
+            // The clock left with the run: a line written afterwards is not the last step's.
+            Log.Info("after");
+        }
+        finally
+        {
+            Console.SetOut(output);
+        }
+
+        string[] lines = captured.ToString().Split(Environment.NewLine);
+        Assert.Contains("[      2] info  stepped", lines);
+        Assert.Contains("[   boot] info  after", lines);
+    }
+
+    private sealed class Announcing : Scene
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            if (context.Tick == 2)
+            {
+                Log.Info("stepped");
+            }
+        }
     }
 
     private sealed class ThrowingLogSink : ILogSink

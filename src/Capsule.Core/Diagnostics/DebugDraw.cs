@@ -85,8 +85,10 @@ public static class DebugDraw
     internal static void UseBuffer(DebugDrawBuffer? buffer) => Buffer = buffer;
 
     // Whether a call would land anywhere, so an engine pass can skip the walk that feeds it.
-    // Internal: no game may branch on it.
-    internal static bool IsAttached => Buffer is not null;
+    // Internal: no game may branch on it. The development switch comes first so a trimmed
+    // shipping publish, where it folds to false, drops the walk and every OnDebugDraw override
+    // with it; only the overlay attaches a buffer, so at runtime the two agree.
+    internal static bool IsAttached => Development.IsSupported && Buffer is not null;
 
     /// <summary>Draws the segment from <paramref name="a"/> to <paramref name="b"/>.</summary>
     /// <param name="channel">The channel the draw is shown under.</param>
