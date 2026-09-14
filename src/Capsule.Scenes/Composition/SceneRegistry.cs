@@ -45,6 +45,9 @@ public sealed class SceneRegistry
         }
     }
 
+    // Every registration, in no particular order.
+    internal Dictionary<Type, SceneRegistration>.ValueCollection Registrations => _byType.Values;
+
     // The scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
 

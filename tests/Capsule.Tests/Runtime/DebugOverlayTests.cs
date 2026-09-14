@@ -1,22 +1,29 @@
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Diagnostics;
+using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
+// A failed menu action logs, and the sink is one process-wide slot.
+[Collection(LogSinkCollection.Name)]
 public sealed class DebugOverlayTests
 {
     private const double StepSeconds = 0.1;
+    private const string NamedDocument = "levels/named";
     private static readonly InputAction SharedAction = new("shared");
+    private static readonly InputAction SpaceAction = new("space");
+    private static readonly InputAction RightAction = new("right");
 
     [Fact]
     public void LeadingEdgeTogglesAndQuarantinesTheBoundButtonUntilRelease()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(Key.Grave, scheduler);
+        DebugOverlay overlay = new(Key.Grave, scheduler, new RecordingSimulation());
 
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Grave, Key.Space);
         snapshot = overlay.Observe(snapshot);
@@ -52,7 +59,7 @@ public sealed class DebugOverlayTests
             StepSeconds,
             5,
             new ActionBindings().Bind(SharedAction, Key.Grave));
-        DebugOverlay overlay = new(Key.Grave, scheduler);
+        DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
 
         DeviceSnapshot opening = DeviceSnapshot.Of(Key.Grave);
         opening = overlay.Observe(opening);
@@ -66,16 +73,16 @@ public sealed class DebugOverlayTests
         closing = overlay.Observe(closing);
         scheduler.Advance(StepSeconds, closing, simulation);
 
-        Assert.Single(simulation.Steps);
-        Assert.False(simulation.Steps[0].Pressed);
-        Assert.False(simulation.Steps[0].Held);
+        RecordedStep step = Assert.Single(simulation.Steps);
+        Assert.False(step.Pressed);
+        Assert.False(step.Held);
     }
 
     [Fact]
     public void ReboundPadButtonOpensAndIsQuarantined()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new((InputButton)PadButton.South, scheduler);
+        DebugOverlay overlay = new((InputButton)PadButton.South, scheduler, new RecordingSimulation());
         DeviceSnapshot snapshot = DeviceSnapshot.Empty.With(PadButton.South).With(Key.Space);
 
         snapshot = overlay.Observe(snapshot);
@@ -90,7 +97,7 @@ public sealed class DebugOverlayTests
     public void NoneNeverOpensOrChangesTheSnapshot()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(InputButton.None, scheduler);
+        DebugOverlay overlay = new(InputButton.None, scheduler, new RecordingSimulation());
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Grave);
 
         snapshot = overlay.Observe(snapshot);
@@ -103,47 +110,45 @@ public sealed class DebugOverlayTests
     [Fact]
     public void ClosedOverlay_DoesNotStepItsHost()
     {
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler());
+        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), new RecordingSimulation());
 
-        overlay.Step(DeviceSnapshot.Empty, null!);
+        overlay.Step();
 
         Assert.False(overlay.IsOpen);
-        Assert.Equal(0, overlay.DebugHost.Tick);
+        Assert.Equal(0, overlay.Host.Tick);
     }
 
     [Fact]
-    public void Refit_ChangesOnlyTheOverlayRunAndReanchorsItsLabelAtOneAndTwoTimes()
+    public void Refit_ChangesOnlyTheOverlayRunAtOneAndTwoTimes()
     {
         Run gameRun = new() { Canvas = new System.Numerics.Vector2(100f, 50f) };
         using SceneHost game = CreateHost(gameRun);
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), game);
+        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), game, game);
 
         overlay.Refit((640, 720));
 
-        Assert.Equal(new System.Numerics.Vector2(640f, 720f), overlay.DebugHost.Run.Canvas);
-        Assert.Equal(new System.Numerics.Vector2(4f, 4f), overlay.DebugScene.Label.Bounds.Position);
+        Assert.Equal(new System.Numerics.Vector2(640f, 720f), overlay.Host.Run.Canvas);
         Assert.Same(gameRun, game.Run);
-        Assert.NotSame(game.Run, overlay.DebugHost.Run);
+        Assert.NotSame(game.Run, overlay.Host.Run);
 
         overlay.Refit((1280, 1080));
 
-        Assert.Equal(new System.Numerics.Vector2(640f, 540f), overlay.DebugHost.Run.Canvas);
-        Assert.Equal(new System.Numerics.Vector2(4f, 4f), overlay.DebugScene.Label.Bounds.Position);
+        Assert.Equal(new System.Numerics.Vector2(640f, 540f), overlay.Host.Run.Canvas);
         Assert.Equal(new System.Numerics.Vector2(100f, 50f), game.Run.Canvas);
     }
 
     [Fact]
-    public void ReadoutUsesTheCurrentSceneTickAndStepCountAndCachesUnchangedText()
+    public void ReadoutUsesTheCurrentSceneAndTickAndCachesUnchangedText()
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(Key.Grave, scheduler, host);
+        DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
 
         DeviceSnapshot opening = DeviceSnapshot.Of(Key.Grave);
         opening = overlay.Observe(opening);
         scheduler.Advance(StepSeconds, opening, host);
 
-        Assert.Equal("ReadoutScene  tick 0  steps 0", overlay.Readout);
+        Assert.Equal("ReadoutScene  tick 0", overlay.Readout);
         string cached = overlay.Readout;
         Assert.Same(cached, overlay.Readout);
 
@@ -153,19 +158,563 @@ public sealed class DebugOverlayTests
         closing = overlay.Observe(closing);
         scheduler.Advance(StepSeconds, closing, host);
 
-        Assert.Equal("ReadoutScene  tick 1  steps 1", overlay.Readout);
+        Assert.Equal("ReadoutScene  tick 1", overlay.Readout);
+    }
+
+    [Fact]
+    public void TheMainMenu_ListsTheEngineEntriesForARunOfScenesWithEachHotkeyInASharedColumn()
+    {
+        using SceneHost host = CreateHost();
+        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), host, host, registry: CreateRegistry());
+        DebugScene scene = overlay.Scene;
+
+        Assert.Equal(["Step", "Restart", "Load Scene", "Hide", "Exit"], Labels(scene));
+        Assert.Equal(0, scene.FocusedIndex);
+        Assert.Equal("Step        Right", scene.RowText(0));
+        Assert.Equal("Restart     R", scene.RowText(1));
+        Assert.Equal("Load Scene", scene.RowText(2));
+        Assert.Equal("Hide        H", scene.RowText(3));
+        Assert.Equal("Exit", scene.RowText(4));
+    }
+
+    [Fact]
+    public void NavigatingDownAndEnter_ActivatesTheFocusedEntry()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Assert.Equal(0, overlay.Scene.FocusedIndex);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Down));
+
+        Assert.Equal(1, overlay.Scene.FocusedIndex);
+        Assert.Equal(0, scheduler.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.Equal(1, scheduler.Tick);
+        Assert.True(scheduler.Held);
+        Assert.True(overlay.IsOpen);
+    }
+
+    [Fact]
+    public void Restart_ReplacesTheSceneInExactlyOneTickAndStaysHeld()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        Scene before = host.Scene;
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.R));
+
+        Assert.NotSame(before, host.Scene);
+        Assert.IsType<ReadoutScene>(host.Scene);
+        Assert.Equal(1, scheduler.Tick);
+        Assert.True(scheduler.Held);
+        Assert.Equal("ReadoutScene  tick 1", overlay.Readout);
+    }
+
+    [Fact]
+    public void LoadSceneSubmenu_ListsTheRegisteredClassesSortedRequestsEachByItsRegisteredFormAndStaysOpen()
+    {
+        List<SceneTransition> resolved = [];
+        using SceneHost host = CreateHost(resolved: resolved);
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Enter);
+
+        Assert.Equal(["NamedScene", "PayloadScene", "PlainScene"], Labels(overlay.Scene));
+        Assert.Equal("Load Scene", overlay.Scene.Title);
+        Assert.Equal(2, overlay.Scene.Depth);
+        Assert.Equal(0, overlay.Scene.FocusedIndex);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.IsType<NamedScene>(host.Scene);
+        Assert.Equal(2, resolved.Count);
+        SceneTransition named = resolved[^1];
+        Assert.Equal(SceneTransitionKind.Named, named.Kind);
+        Assert.Equal(NamedDocument, named.DocumentName);
+        Assert.Null(named.Payload);
+        Assert.Equal(1, scheduler.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+
+        Assert.Equal(2, overlay.Scene.Depth);
+        Assert.Equal("NamedScene  tick 1", overlay.Readout);
+
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Enter);
+
+        Assert.IsType<PlainScene>(host.Scene);
+        Assert.Equal(SceneTransitionKind.Scene, resolved[^1].Kind);
+        Assert.Equal(typeof(PlainScene), resolved[^1].SceneType);
+        Assert.Equal(2, overlay.Scene.Depth);
+    }
+
+    [Fact]
+    public void Back_PopsTheSubmenuAndReturnsTheFocusToTheItemThatOpenedIt()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        DebugScene scene = overlay.Scene;
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Enter);
+        Press(overlay, scheduler, host, Key.Down);
+
+        Assert.Equal("Load Scene", scene.Title);
+        Assert.Equal(1, scene.FocusedIndex);
+
+        Press(overlay, scheduler, host, Key.Backspace);
+
+        Assert.Equal(1, scene.Depth);
+        Assert.Equal(string.Empty, scene.Title);
+        Assert.Equal("Load Scene", Labels(scene)[scene.FocusedIndex]);
+
+        Press(overlay, scheduler, host, Key.Left);
+
+        Assert.Equal(1, scene.Depth);
+        Assert.Equal(0, scheduler.Tick);
+    }
+
+    [Fact]
+    public void ALoadWhoseStartFails_ShowsTheFailureKeepsTheSceneAndStillSteps()
+    {
+        Log.UseSink(null);
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        ReadoutScene before = Assert.IsType<ReadoutScene>(host.Scene);
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Enter);
+        Press(overlay, scheduler, host, Key.Down);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.Equal("Load failed: InvalidOperationException: PayloadScene needs a payload.", overlay.Scene.Status);
+        Assert.Same(before, host.Scene);
+        Assert.False(before.Stopped);
+        Assert.True(scheduler.Held);
+        Assert.Equal(0, scheduler.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+
+        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(2, before.Steps);
+        Assert.Equal(string.Empty, overlay.Scene.Status);
+    }
+
+    [Fact]
+    public void Step_RunsOneTickThroughTheInputPathWithoutTheMenusKeysAndRepeatsOnAHeldKey()
+    {
+        RecordingSimulation simulation = new();
+        FixedStepScheduler scheduler = new(
+            StepSeconds,
+            5,
+            new ActionBindings().Bind(SpaceAction, Key.Space).Bind(RightAction, Key.Right));
+        using DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
+
+        Open(overlay, scheduler, simulation);
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right, Key.Space));
+
+        RecordedStep step = Assert.Single(simulation.Steps);
+        Assert.True(step.Held);
+        Assert.False(step.RightHeld);
+        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(1, scheduler.StepsThisFrame);
+        Assert.Equal(1f, scheduler.InterpolationAlpha);
+        Assert.Equal(0, scheduler.AccumulatorSeconds);
+        Assert.True(scheduler.Held);
+
+        for (int frame = 0; frame < 19; frame++)
+        {
+            Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        }
+
+        Assert.Single(simulation.Steps);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        Assert.Equal(2, simulation.Steps.Count);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        Assert.Equal(2, simulation.Steps.Count);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
+        Assert.Equal(3, simulation.Steps.Count);
+        Assert.Equal(3, scheduler.Tick);
+    }
+
+    [Fact]
+    public void Hide_WithdrawsTheOverlayWhileHeldAndTheToggleRestoresIt()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+        long overlayTick = overlay.Host.Tick;
+
+        Assert.True(overlay.IsHidden);
+        Assert.False(overlay.IsOpen);
+        Assert.True(scheduler.Held);
+
+        DeviceSnapshot passed = Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Space));
+
+        Assert.Equal(overlayTick, overlay.Host.Tick);
+        Assert.True(passed.IsDown(Key.Space));
+        Assert.Equal(0, scheduler.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
+
+        Assert.True(overlay.IsOpen);
+        Assert.True(scheduler.Held);
+        Assert.Equal(overlayTick + 1, overlay.Host.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
+
+        Assert.False(overlay.IsOpen);
+        Assert.False(overlay.IsHidden);
+        Assert.False(scheduler.Held);
+    }
+
+    [Fact]
+    public void TheHPressThatShowsAnOverlayHiddenByTheMenuItem_IsConsumed()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Up);
+        Assert.Equal("Hide", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
+
+        Press(overlay, scheduler, host, Key.Enter);
+        Assert.True(overlay.IsHidden);
+
+        DeviceSnapshot game = Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsOpen);
+        Assert.False(game.IsDown(Key.H));
+        Assert.False(overlay.Host.Input.IsHeld(DebugInput.Hide));
+
+        game = Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsOpen);
+        Assert.False(game.IsDown(Key.H));
+        Assert.False(overlay.Host.Input.IsHeld(DebugInput.Hide));
+        Assert.True(scheduler.Held);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsHidden);
+    }
+
+    [Fact]
+    public void H_HidesAndPressedAgainShowsTheOverlayStillHeld()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsHidden);
+        Assert.True(scheduler.Held);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsOpen);
+        Assert.False(overlay.IsHidden);
+        Assert.True(scheduler.Held);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
+
+        Assert.True(overlay.IsHidden);
+        Assert.True(scheduler.Held);
+        Assert.Equal(0, scheduler.Tick);
+    }
+
+    [Fact]
+    public void Exit_TearsDownTheRunAndTheNextHeldAdvanceReportsIt()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Up));
+        Assert.Equal("Exit", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.True(host.ExitRequested);
+        Assert.True(scheduler.Held);
+
+        DeviceSnapshot stripped = overlay.Observe(DeviceSnapshot.Empty);
+        Assert.True(scheduler.Advance(StepSeconds, stripped, host));
+
+        long overlayTick = overlay.Host.Tick;
+        overlay.Step();
+        Assert.Equal(overlayTick, overlay.Host.Tick);
+    }
+
+    [Fact]
+    public void AStepThatExhaustsTheDriver_EndsTheRunOnTheNextHeldAdvance()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings(), new EmptyDriver(), host);
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+
+        Assert.Equal(0, scheduler.Tick);
+        Assert.True(scheduler.Held);
+
+        DeviceSnapshot stripped = overlay.Observe(DeviceSnapshot.Empty);
+        Assert.True(scheduler.Advance(StepSeconds, stripped, host));
+    }
+
+    [Fact]
+    public void AToggleThatIsAlsoAMenuKey_DoesNotFireThatKeysActionOnTheFrameItOpens()
+    {
+        RecordingSimulation simulation = new();
+        FixedStepScheduler enterScheduler = CreateScheduler();
+        using DebugOverlay enterOverlay = new(Key.Enter, enterScheduler, simulation);
+
+        Frame(enterOverlay, enterScheduler, simulation, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.True(enterOverlay.IsOpen);
+        Assert.True(enterScheduler.Held);
+
+        using SceneHost host = CreateHost();
+        FixedStepScheduler rightScheduler = CreateScheduler();
+        using DebugOverlay rightOverlay = new(Key.Right, rightScheduler, host, host);
+
+        Frame(rightOverlay, rightScheduler, host, DeviceSnapshot.Of(Key.Right));
+        Frame(rightOverlay, rightScheduler, host, DeviceSnapshot.Of(Key.Right));
+
+        Assert.True(rightOverlay.IsOpen);
+        Assert.Equal(0, rightScheduler.Tick);
+    }
+
+    [Fact]
+    public void RestartWhileTheRunHasAlreadyRequestedExit_ShowsTheRefusalAndKeepsTheHold()
+    {
+        Log.UseSink(null);
+        using SceneHost host = new(
+            SceneTransition.ToScene(typeof(ExitOnStartScene), null),
+            static (in SceneTransition _) => new ExitOnStartScene(),
+            new Run());
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.R));
+
+        Assert.StartsWith("Restart failed: InvalidOperationException: ", overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.True(scheduler.Held);
+        Assert.True(overlay.IsOpen);
+        Assert.Equal(0, scheduler.Tick);
+    }
+
+    [Fact]
+    public void RestartWhileATransitionIsAlreadyPending_ShowsTheRefusalAndDoesNotStep()
+    {
+        using SceneHost host = new(
+            SceneTransition.ToScene(typeof(RequestOnStartScene), null),
+            static (in SceneTransition target) => target.SceneType == typeof(RequestOnStartScene)
+                ? new RequestOnStartScene()
+                : new PlainScene(),
+            new Run());
+        FixedStepScheduler scheduler = CreateScheduler();
+        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        Scene before = host.Scene;
+
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.R));
+
+        Assert.Equal("Restart refused: a transition is already pending", overlay.Scene.Status);
+        Assert.Same(before, host.Scene);
+        Assert.True(scheduler.Held);
+        Assert.Equal(0, scheduler.Tick);
+    }
+
+    [Fact]
+    public void AnEnterThatActivatesAnItem_IsWithheldFromTheStepItCausesAndFromTheResumedStep()
+    {
+        RecordingSimulation simulation = new();
+        FixedStepScheduler scheduler = new(
+            StepSeconds,
+            5,
+            new ActionBindings().Bind(SharedAction, Key.Enter));
+        using DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
+
+        Open(overlay, scheduler, simulation);
+        Assert.Equal("Step", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Enter));
+
+        RecordedStep stepped = Assert.Single(simulation.Steps);
+        Assert.False(stepped.Pressed);
+        Assert.False(stepped.Held);
+        Assert.True(overlay.IsOpen);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Enter, Key.Grave));
+
+        Assert.False(overlay.IsOpen);
+        Assert.False(scheduler.Held);
+        Assert.Equal(2, simulation.Steps.Count);
+        Assert.False(simulation.Steps[^1].Pressed);
+        Assert.False(simulation.Steps[^1].Held);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.True(simulation.Steps[^1].Pressed);
+    }
+
+    private static string[] Labels(DebugScene scene)
+    {
+        IReadOnlyList<DebugMenuItem> items = scene.Menu.Items;
+        string[] labels = new string[items.Count];
+        for (int index = 0; index < items.Count; index++)
+        {
+            labels[index] = items[index].Label;
+        }
+
+        return labels;
+    }
+
+    // Opens the overlay on the toggle's edge and releases it, so the next frame's keys are the
+    // menu's.
+    private static void Open(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation)
+    {
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
+
+        Assert.True(overlay.IsOpen);
+    }
+
+    // One press: the key's frame and the release after it.
+    private static void Press(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
+    {
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
+    }
+
+    // One host frame: observe, advance the game, step the overlay. Returns what the game saw.
+    private static DeviceSnapshot Frame(
+        DebugOverlay overlay,
+        FixedStepScheduler scheduler,
+        ISimulation simulation,
+        DeviceSnapshot sampled)
+    {
+        DeviceSnapshot stripped = overlay.Observe(sampled);
+        scheduler.Advance(StepSeconds, stripped, simulation);
+        overlay.Step();
+
+        return stripped;
     }
 
     private static FixedStepScheduler CreateScheduler() =>
         new(StepSeconds, 5, new ActionBindings());
 
-    private static SceneHost CreateHost(Run? run = null) =>
+    private static SceneHost CreateHost(Run? run = null, List<SceneTransition>? resolved = null) =>
         new(
             SceneTransition.ToScene(typeof(ReadoutScene), null),
-            static (in SceneTransition _) => new ReadoutScene(),
+            (in SceneTransition target) =>
+            {
+                resolved?.Add(target);
+
+                return target.Kind switch
+                {
+                    SceneTransitionKind.Named when target.DocumentName == NamedDocument => new NamedScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(PlainScene) => new PlainScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(PayloadScene) => new PayloadScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(ReadoutScene) => new ReadoutScene(),
+                    _ => throw new InvalidOperationException($"Unexpected transition {target.Kind}."),
+                };
+            },
             run ?? new Run());
 
-    private sealed class ReadoutScene : Scene;
+    private static SceneRegistry CreateRegistry() =>
+        new(
+            new EntityRegistry([]),
+            [
+                SceneRegistration.Plain(typeof(PlainScene), static () => new PlainScene()),
+                SceneRegistration.Plain(typeof(PayloadScene), static () => new PayloadScene()),
+                SceneRegistration.FromDocument(typeof(NamedScene), NamedDocument, static _ => new NamedScene()),
+            ]);
+
+    private sealed class ReadoutScene : Scene
+    {
+        internal int Steps { get; private set; }
+
+        internal bool Stopped { get; private set; }
+
+        protected override void OnStep(in StepContext context) => Steps++;
+
+        protected override void OnStop() => Stopped = true;
+    }
+
+    private sealed class PlainScene : Scene;
+
+    private sealed class ExitOnStartScene : Scene
+    {
+        protected override void OnStart() => Run.RequestExit();
+    }
+
+    private sealed class RequestOnStartScene : Scene
+    {
+        protected override void OnStart() => Run.RequestScene<PlainScene>();
+    }
+
+    private sealed class EmptyDriver : IInputDriver
+    {
+        public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+        {
+            snapshot = DeviceSnapshot.Empty;
+
+            return false;
+        }
+    }
+
+    private sealed class NamedScene : Scene;
+
+    private sealed class PayloadScene : Scene
+    {
+        protected override void OnStart()
+        {
+            if (EntryPayload is null)
+            {
+                throw new InvalidOperationException("PayloadScene needs a payload.\nSecond line.");
+            }
+        }
+    }
 
     private sealed class RecordingSimulation : ISimulation
     {
@@ -178,8 +727,9 @@ public sealed class DebugOverlayTests
         public void Step(in StepContext context) =>
             Steps.Add(new RecordedStep(
                 context.Input.WasPressed(SharedAction),
-                context.Input.IsHeld(SharedAction)));
+                context.Input.IsHeld(SharedAction) || context.Input.IsHeld(SpaceAction),
+                context.Input.IsHeld(RightAction)));
     }
 
-    private readonly record struct RecordedStep(bool Pressed, bool Held);
+    private readonly record struct RecordedStep(bool Pressed, bool Held, bool RightHeld);
 }

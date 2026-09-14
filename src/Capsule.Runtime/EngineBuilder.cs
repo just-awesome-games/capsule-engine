@@ -487,7 +487,8 @@ public sealed class EngineBuilder
             _stepSeconds,
             _maxStepsPerFrame,
             _input,
-            _driver);
+            _driver,
+            _scenes);
 
         try
         {

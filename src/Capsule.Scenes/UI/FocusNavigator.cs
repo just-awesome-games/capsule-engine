@@ -41,7 +41,9 @@ namespace Capsule.UI;
 /// entity has left its scene or is queued to leave it this step. A focus found on one is released —
 /// its <see cref="Focusable.Unfocused"/> raised — and the first live item in list order takes it, or
 /// this navigator holds none until one is live again. An item that re-enters a scene is live again;
-/// it never leaves <see cref="Items"/>.
+/// liveness never takes an item out of <see cref="Items"/>, which only <see cref="Remove"/> does. A
+/// request to focus an item that is not live — one whose entity is queued to join the scene this
+/// step — is kept <em>pending</em> and resolved at the next step, per <see cref="Focus"/>.
 /// </para>
 /// </summary>
 public sealed class FocusNavigator : Component
@@ -52,6 +54,8 @@ public sealed class FocusNavigator : Component
     private bool _started;
     private bool _raising;
     private Focusable? _queued;
+    private bool _repairQueued;
+    private Focusable? _pending;
 
     /// <summary>
     /// Navigates <paramref name="items"/>, the first of which is the starting item. Their order carries
@@ -61,6 +65,7 @@ public sealed class FocusNavigator : Component
     /// <param name="actions">The actions this navigator is driven by, for its whole life.</param>
     /// <param name="items">The items the focus moves between; each must be non-null and named once.</param>
     /// <exception cref="ArgumentNullException">Some item is null.</exception>
+    /// <exception cref="ArgumentException">Some item is named twice.</exception>
     public FocusNavigator(FocusActions actions, params ReadOnlySpan<Focusable> items)
     {
         _actions = actions;
@@ -88,23 +93,30 @@ public sealed class FocusNavigator : Component
     /// <summary>
     /// The items the focus moves between, in list order, which is the order the pointer hit-tests
     /// them in and the order ties in a direction are broken by. Invalidated by the next
-    /// <see cref="Add"/>.
+    /// <see cref="Add"/> or <see cref="Remove"/>.
     /// </summary>
     public ReadOnlySpan<Focusable> Items => CollectionsMarshal.AsSpan(_items);
 
     /// <summary>
     /// Appends <paramref name="item"/> to the end of the list. The first one appended is the starting
-    /// item: it takes the focus at this navigator's start, or at once where this navigator has
-    /// already started.
+    /// item: it takes the focus at this navigator's start. Appended while this navigator has started
+    /// and holds no focus and no pending request, it is requested as <see cref="Focus"/> requests it —
+    /// taking the focus at once where it is live, and pending where it is not.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
+    /// <exception cref="ArgumentException">The item is already one of <see cref="Items"/>.</exception>
     public void Add(Focusable item)
     {
         ArgumentNullException.ThrowIfNull(item);
 
+        if (_items.Contains(item))
+        {
+            throw new ArgumentException($"{nameof(Focusable)} is already an item of this navigator.", nameof(item));
+        }
+
         _items.Add(item);
 
-        if (Focused is not null)
+        if (Focused is not null || _pending is not null)
         {
             return;
         }
@@ -120,21 +132,77 @@ public sealed class FocusNavigator : Component
     }
 
     /// <summary>
+    /// Takes <paramref name="item"/> out of the list; false, doing nothing, where this navigator does
+    /// not hold it. An item that held the focus is released — its <see cref="Focusable.Unfocused"/>
+    /// raised where this navigator has started — and the focus lands at once on the first live item
+    /// in list order, or on none, raising exactly what a step's repair raises. A pending request
+    /// naming the item is dropped, as is one queued behind the sequence under way.
+    /// <para>
+    /// A call arriving from inside this navigator's own focus events takes the item out of the list at
+    /// once, and its repair is queued the way <see cref="Focus"/> queues: the sequence under way
+    /// finishes, then the repair runs as its own sequence.
+    /// </para>
+    /// </summary>
+    /// <returns>Whether the item was one of <see cref="Items"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
+    public bool Remove(Focusable item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (!_items.Remove(item))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(_pending, item))
+        {
+            _pending = null;
+        }
+
+        if (ReferenceEquals(_queued, item))
+        {
+            _queued = null;
+        }
+
+        if (!ReferenceEquals(Focused, item))
+        {
+            return true;
+        }
+
+        if (_raising)
+        {
+            _repairQueued = true;
+
+            return true;
+        }
+
+        Move(_started ? FirstLive() : First());
+
+        return true;
+    }
+
+    /// <summary>
     /// Moves the focus onto <paramref name="item"/>, raising exactly what an input move raises; a
     /// no-op, raising nothing, where that item already has it. Called before this navigator starts it
     /// names the starting item instead, raising nothing. This is how a game opens a menu on something
     /// other than its first item, or restores the focus it left.
+    /// <para>
+    /// A request naming an item that is not live is kept pending rather than applied: the focus is
+    /// released now where the item holding it is not live either, and otherwise stays where it is.
+    /// The next step at which any item is live first lands the pending item where it is live by
+    /// then, or the first live item in list order, clears the request, and then reads its input as
+    /// usual — it is not the repair a step spends itself on; a step at which no item is live leaves
+    /// the request pending. A later request replaces a pending one, and <see cref="Remove"/> of the
+    /// pending item drops it. Before this navigator starts there is no liveness to read: the request
+    /// names the starting item, and the start resolves it.
+    /// </para>
     /// <para>
     /// A call arriving from inside this navigator's own focus events is queued, not applied: the
     /// sequence under way finishes, then the request runs as its own full sequence from the item that
     /// just landed, and only the last request one sequence queued is kept.
     /// </para>
     /// </summary>
-    /// <param name="item">
-    /// The item to focus, which this navigator must already hold. Naming one that is not live
-    /// releases the focus instead, as a step finding it not live would; named before this navigator
-    /// starts, it is the start that reads its liveness.
-    /// </param>
+    /// <param name="item">The item to focus, which this navigator must already hold.</param>
     /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
     /// <exception cref="ArgumentException">The item is not one of <see cref="Items"/>.</exception>
     public void Focus(Focusable item)
@@ -194,10 +262,14 @@ public sealed class FocusNavigator : Component
     /// by the directions and <see cref="FocusActions.Confirm"/> alone.
     /// </para>
     /// <para>
-    /// A step that finds no live focus spends itself repairing one and reads nothing else, so the
-    /// item it lands on is never pressed by an action aimed at the item that held the focus before.
-    /// For the same reason a handler of this step's own focus move that takes the landing item out of
-    /// its scene drops the press rather than redirecting it; the next step repairs the focus.
+    /// A pending <see cref="Focus"/> request is resolved before anything else: the focus lands on the
+    /// pending item where it is live now, or on the first live item in list order, and the step then
+    /// reads its input from there; where no item is live the request stays pending. A step that
+    /// finds no live focus spends itself repairing one and
+    /// reads nothing else, so the item it lands on is never pressed by an action aimed at the item
+    /// that held the focus before. For the same reason a handler of this step's own focus move that
+    /// takes the landing item out of its scene drops the press rather than redirecting it; the next
+    /// step repairs the focus.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
@@ -205,6 +277,12 @@ public sealed class FocusNavigator : Component
     /// </exception>
     protected internal override void OnStep(in StepContext context)
     {
+        if (_pending is { } pending && (Live(pending) ? pending : FirstLive()) is { } requested)
+        {
+            _pending = null;
+            Move(requested);
+        }
+
         if (Focused is not { } focused || !Live(focused))
         {
             Move(FirstLive());
@@ -421,20 +499,45 @@ public sealed class FocusNavigator : Component
         return null;
     }
 
+    private Focusable? First() => _items.Count > 0 ? _items[0] : null;
+
     // A move asked for from outside the step: queued while this navigator's events are being raised,
-    // and otherwise applied at once, with an item that is not live standing for the release of the
-    // focus. Before the start there is no scene to be live in, so the item is recorded as asked for
-    // and the start resolves it.
+    // and otherwise applied at once. Before the start there is no scene to be live in, so the item is
+    // recorded as asked for and the start resolves it. Either way the request replaces a pending one.
     private void Request(Focusable item)
     {
         if (_raising)
         {
+            _pending = null;
             _queued = ReferenceEquals(item, Focused) ? null : item;
 
             return;
         }
 
-        Move(_started ? (Live(item) ? item : FirstLive()) : item);
+        Move(_started ? Land(item, repair: false) : item);
+    }
+
+    // Where a request for `item` lands now: the item itself where it is live. Otherwise it is kept
+    // pending for the next step, and the focus stays where it is — unless `repair` says the item
+    // holding it has been removed, or it is not live either, in which case the first live item
+    // takes it or it is released.
+    private Focusable? Land(Focusable item, bool repair)
+    {
+        _pending = null;
+
+        if (Live(item))
+        {
+            return item;
+        }
+
+        _pending = item;
+
+        if (repair)
+        {
+            return FirstLive();
+        }
+
+        return Focused is { } focused && Live(focused) ? focused : null;
     }
 
     // One move, raised in the order the game writes its handlers against. Before this navigator has
@@ -457,9 +560,10 @@ public sealed class FocusNavigator : Component
         Announce(left, landing);
     }
 
-    // The ordered sequence, and then every move a handler inside it asked for, each run whole from
-    // the item the one before it landed on. The flag is what keeps a nested request out of the
-    // middle of a sequence, where it would leave two items claiming the focus.
+    // The ordered sequence, and then every move a handler inside it asked for — a request, or the
+    // repair of a focused item removed — each run whole from the item the one before it landed on.
+    // The flag is what keeps a nested request out of the middle of a sequence, where it would leave
+    // two items claiming the focus.
     private void Announce(Focusable? left, Focusable? landing)
     {
         while (true)
@@ -481,14 +585,18 @@ public sealed class FocusNavigator : Component
                 _raising = false;
             }
 
-            if (_queued is not { } next)
+            Focusable? next = _queued;
+            bool repair = _repairQueued;
+            _queued = null;
+            _repairQueued = false;
+
+            if (next is null && !repair)
             {
                 return;
             }
 
-            _queued = null;
             left = landing;
-            landing = Live(next) ? next : FirstLive();
+            landing = next is { } requested ? Land(requested, repair) : FirstLive();
 
             if (ReferenceEquals(landing, left))
             {

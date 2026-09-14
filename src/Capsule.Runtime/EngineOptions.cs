@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Scenes;
 
 namespace Capsule.Runtime;
 
@@ -14,7 +15,9 @@ internal sealed record EngineOptions(
     int MaxStepsPerFrame,
     InputConfiguration Input,
     // Null unless the run is driven in code instead of sampling the devices.
-    IInputDriver? Driver)
+    IInputDriver? Driver,
+    // The registered scenes, which the development overlay lists.
+    SceneRegistry Scenes)
 {
     // The canvas rule: the declared render resolution, and the configured window where there is none.
     internal static (int Width, int Height) CanvasOf((int Width, int Height)? renderResolution, int windowWidth, int windowHeight) =>

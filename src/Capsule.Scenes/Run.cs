@@ -12,7 +12,8 @@ namespace Capsule;
 /// starts and shared by every scene the run opens, so bus volumes, the random sequence and a
 /// pending frame capture persist across transitions. Everything on it is either fixed before the
 /// run starts or set by game code; the host takes the requests game code raises and writes nothing
-/// of its own into the game's run.
+/// of its own into the game's run. The one exception is the development debug overlay, which
+/// raises scene-flow requests on a developer's behalf through these same members.
 /// <para>
 /// At most one transition is pending. The first transition request wins within a step, while an
 /// exit request replaces it. The host takes the pending transition after the step.
@@ -231,7 +232,9 @@ public sealed class Run
         return true;
     }
 
-    private bool TryRequest(in SceneTransition transition)
+    // The non-generic entry the public requests share; the host's development overlay requests a
+    // registered scene by whichever form the registry composes it from.
+    internal bool TryRequest(in SceneTransition transition)
     {
         ThrowIfExitRequested();
 

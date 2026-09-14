@@ -430,13 +430,15 @@ public sealed class FocusNavigatorTests
     }
 
     [Fact]
-    public void FocusOnAnItemTheNavigatorDoesNotHold_IsRefused()
+    public void FocusOnAnItemTheNavigatorDoesNotHold_AndAddingOneItHolds_AreRefused()
     {
         using Menu menu = Column().Open();
 
         Assert.Throws<ArgumentException>(() => menu.Navigator.Focus(Item(Vector2.Zero)));
         Assert.Throws<ArgumentNullException>(() => menu.Navigator.Focus(null!));
+        Assert.Throws<ArgumentException>(() => menu.Navigator.Add(menu.Navigator.Items[0]));
         Assert.Equal(0, menu.FocusedIndex);
+        Assert.Equal(2, menu.Navigator.Items.Length);
     }
 
     [Fact]
@@ -553,6 +555,85 @@ public sealed class FocusNavigatorTests
 
         Assert.Equal(["focused 0", "changed 0"], menu.Log);
         Assert.Equal(0, menu.FocusedIndex);
+    }
+
+    // Taking the focused item out of the navigator is the release and the repair in one call, not a
+    // step later: the item hears it lost the focus before the game lets go of it.
+    [Fact]
+    public void RemovingTheFocusedItem_ReleasesItAndLandsTheNextLiveItemAtOnce()
+    {
+        using Menu menu = Column().Open();
+
+        Assert.True(menu.Drop(0));
+
+        Assert.Equal(["unfocused 0", "focused 1", "changed 1"], menu.Log);
+        Assert.Equal(1, menu.FocusedIndex);
+        Assert.Equal(1, menu.OnlyFocusedIndex);
+        Assert.Equal(1, menu.Navigator.Items.Length);
+    }
+
+    [Fact]
+    public void RemovingAnItemTheNavigatorDoesNotHold_ReturnsFalseAndRaisesNothing()
+    {
+        using Menu menu = Column().Open().Rest();
+
+        Assert.False(menu.Navigator.Remove(Item(Vector2.Zero)));
+        Assert.Throws<ArgumentNullException>(() => menu.Navigator.Remove(null!));
+        Assert.Empty(menu.Log);
+        Assert.Equal(0, menu.FocusedIndex);
+    }
+
+    // A menu rebuilt inside a step: every row leaves, new rows arrive queued to join the scene, and
+    // the one the menu remembers is asked for while it is not yet live. The request waits for the
+    // next step, which lands it and still reads the direction pressed that step.
+    [Fact]
+    public void AMenuRebuiltInsideAStep_OpensOnTheItemItAskedForAtTheNextStepAndReadsThatStepsInput()
+    {
+        using Menu menu = Column().Open();
+
+        menu.At(0).Pressed += () =>
+        {
+            menu.Navigator.Remove(menu.At(0));
+            menu.Navigator.Remove(menu.At(1));
+            menu.Remove(0).Remove(1);
+
+            menu.Navigator.Add(menu.Latecomer(Vector2.Zero));
+            menu.Navigator.Add(menu.Latecomer(new Vector2(0f, 40f)));
+            menu.Navigator.Add(menu.Latecomer(new Vector2(0f, 80f)));
+            menu.Navigator.Focus(menu.At(3));
+        };
+
+        menu.Tap(Key.Enter);
+
+        Assert.Equal(["pressed 0", "unfocused 0", "focused 1", "changed 1", "unfocused 1"], menu.Log);
+        Assert.Null(menu.Navigator.Focused);
+
+        menu.Tap(Key.Down);
+
+        Assert.Equal(["focused 3", "changed 3", "unfocused 3", "focused 4", "changed 4"], menu.Log);
+        Assert.Equal(4, menu.FocusedIndex);
+        Assert.Equal(4, menu.OnlyFocusedIndex);
+    }
+
+    // The pending request is spent at the next step whether or not its item arrived: one that is
+    // still not live hands the focus to the first live item, and the step goes on to read its input
+    // rather than being spent on the landing.
+    [Fact]
+    public void APendingRequestWhoseItemIsStillNotLive_LandsTheFirstLiveItemAndTheStepReadsOn()
+    {
+        using Menu menu = Column().Open();
+        Focusable absent = menu.Latecomer(new Vector2(0f, 80f));
+
+        menu.Tap(Key.Down).Rest().Remove(2).Navigator.Add(absent);
+        menu.FocusOn(2);
+
+        Assert.Empty(menu.Log);
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Tap(Key.Down);
+
+        Assert.Equal(["unfocused 1", "focused 0", "changed 0", "unfocused 0", "focused 1", "changed 1"], menu.Log);
+        Assert.Equal(1, menu.FocusedIndex);
     }
 
     private static Menu Column() => new(Item(Vector2.Zero), Item(new Vector2(0f, 40f)));
@@ -794,6 +875,17 @@ public sealed class FocusNavigatorTests
             Navigator.Focus(_items[index]);
 
             return this;
+        }
+
+        /// <summary>
+        /// Takes item <paramref name="index"/> out of the navigator, leaving it in the scene and in
+        /// the log; steps nothing.
+        /// </summary>
+        internal bool Drop(int index)
+        {
+            _log.Clear();
+
+            return Navigator.Remove(_items[index]);
         }
 
         public void Dispose() => _run?.Dispose();

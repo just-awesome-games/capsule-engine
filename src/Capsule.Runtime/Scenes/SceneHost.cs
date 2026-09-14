@@ -141,8 +141,32 @@ internal sealed class SceneHost : ISimulation, IDisposable
             throw;
         }
 
-        _current.Dispose();
-        _current = new SceneSimulation(next, target.Payload, _run);
+        // The incoming scene starts before the outgoing one is torn down, so a start that fails
+        // leaves the run on the scene it was on; the failed scene was stopped by its simulation.
+        SceneSimulation incoming = new(next, target.Payload, _run);
+
+        try
+        {
+            _current.Dispose();
+        }
+        catch (Exception disposeFailure)
+        {
+            try
+            {
+                incoming.Dispose();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    $"Stopping {_current.Scene.GetType().Name} and then releasing {next.GetType().Name} both failed.",
+                    disposeFailure,
+                    cleanupFailure);
+            }
+
+            throw;
+        }
+
+        _current = incoming;
         _target = target;
     }
 

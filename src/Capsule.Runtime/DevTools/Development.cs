@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Capsule.Runtime.Diagnostics;
+namespace Capsule.Runtime.DevTools;
 
 internal static class Development
 {

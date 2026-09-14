@@ -2,7 +2,7 @@ using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
-using Capsule.Runtime.Diagnostics;
+using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
@@ -31,7 +31,7 @@ internal sealed class CapsuleGame : Game
 
     // Direct call sites would keep diagnostics methods reachable under the switch, so the host reaches them only through delegates created in the guarded block.
     private readonly Func<DeviceSnapshot, DeviceSnapshot>? _observeDebugOverlay;
-    private readonly Action<DeviceSnapshot, FrameRenderer>? _stepDebugOverlay;
+    private readonly Action<FrameRenderer>? _stepDebugOverlay;
     private readonly Action<FrameRenderer>? _drawDebugOverlay;
     private readonly IDisposable? _debugOverlay;
 
@@ -66,10 +66,10 @@ internal sealed class CapsuleGame : Game
 
         if (Development.IsSupported)
         {
-            DebugOverlay overlay = new(options.Input.DebugMenuButton, _scheduler, scenes);
+            DebugOverlay overlay = new(options.Input.DebugMenuButton, _scheduler, simulation, scenes, options.Scenes);
             _debugOverlay = overlay;
             _observeDebugOverlay = overlay.Observe;
-            _stepDebugOverlay = (snapshot, renderer) => overlay.Step(in snapshot, renderer);
+            _stepDebugOverlay = overlay.Step;
             _drawDebugOverlay = overlay.Draw;
         }
 
@@ -170,7 +170,7 @@ internal sealed class CapsuleGame : Game
 
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
-        _stepDebugOverlay?.Invoke(sampled, _renderer);
+        _stepDebugOverlay?.Invoke(_renderer);
 
         // Every frame, including one that drained no step: the device follows the system's default
         // output, a streamed voice hands the device its next buffers, and base.Update is what

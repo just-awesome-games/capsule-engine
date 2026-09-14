@@ -90,11 +90,13 @@ internal sealed class FixedStepScheduler
 
         StepsThisFrame = 0;
 
+        // A single step taken during the hold may have exhausted the driver, which ends the run
+        // the same way it does when a played step exhausts it.
         if (_held)
         {
             _accumulatorSeconds = 0;
 
-            return simulation.ExitRequested;
+            return _driverFinished || simulation.ExitRequested;
         }
 
         // Under a driver the sampled device is not input at all: the host still samples it for its
@@ -163,5 +165,44 @@ internal sealed class FixedStepScheduler
         }
 
         return false;
+    }
+
+    // One fixed step while held, through the same input path a played step takes: the sampled
+    // snapshot is latched and consumed, or the driver is asked for the step's snapshot. The
+    // accumulator is untouched, so a held run stays drawn at the settled step. Returns whether the
+    // simulation has requested exit.
+    internal bool StepOnce(in DeviceSnapshot snapshot, ISimulation simulation)
+    {
+        if (!_held)
+        {
+            throw new InvalidOperationException("A single step is taken only while the scheduler is held.");
+        }
+
+        StepsThisFrame = 0;
+
+        DeviceSnapshot stepped;
+        if (_driver is { } driver)
+        {
+            if (_driverFinished || !driver.TryNext(_scenes!.Scene, Tick, out stepped))
+            {
+                _driverFinished = true;
+
+                return true;
+            }
+        }
+        else
+        {
+            _latch.Observe(snapshot);
+            stepped = _latch.ConsumeStepSnapshot();
+        }
+
+        _input.Advance(stepped);
+        simulation.Step(new StepContext(_stepSeconds, _input, Tick));
+        StepCompleted?.Invoke();
+
+        Tick++;
+        StepsThisFrame = 1;
+
+        return simulation.ExitRequested;
     }
 }

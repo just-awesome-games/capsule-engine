@@ -1,5 +1,5 @@
 using System.Xml.Linq;
-using Capsule.Runtime.Diagnostics;
+using Capsule.Runtime.DevTools;
 
 namespace Capsule.Tests.Runtime;
 

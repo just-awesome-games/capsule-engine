@@ -24,7 +24,7 @@ public sealed class SceneHostTests
 
         SecondScene second = Assert.IsType<SecondScene>(host.Scene);
         Assert.Equal("handoff", second.ReceivedPayload);
-        Assert.Equal(["first.start", "first.step", "first.stop", "second.start"], log);
+        Assert.Equal(["first.start", "first.step", "second.start", "first.stop"], log);
 
         host.Step(SceneStep(1));
 
@@ -288,6 +288,69 @@ public sealed class SceneHostTests
     }
 
     [Fact]
+    public void ATransitionWhoseSceneFailsToStart_LeavesTheHostOnTheOutgoingSceneAndRethrows()
+    {
+        List<string> log = [];
+        OnceRequestingScene first = new(log);
+
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(OnceRequestingScene)
+            ? first
+            : new StartFailingScene(log);
+
+        using SceneHost host = new(ToScene<OnceRequestingScene>(), Resolve, new Run());
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => host.Step(SceneStep(0)));
+
+        Assert.Equal("no payload", failure.Message);
+        Assert.Same(first, host.Scene);
+        Assert.Equal(["first.step:0", "failing.start", "failing.stop"], log);
+
+        host.Step(SceneStep(1));
+
+        Assert.Equal(["first.step:0", "failing.start", "failing.stop", "first.step:1"], log);
+    }
+
+    [Fact]
+    public void AnOutgoingSceneWhoseStopFails_ReleasesTheStartedIncomingSceneAndRethrows()
+    {
+        List<string> log = [];
+        StopFailingScene? outgoing = null;
+
+        Scene Resolve(in SceneTransition target) => target.SceneType == typeof(StopFailingScene) && outgoing is null
+            ? outgoing = new StopFailingScene(log, fail: true, requestOnTickZero: true)
+            : new StopFailingScene(log, fail: false, requestOnTickZero: false);
+
+        using SceneHost host = new(ToScene<StopFailingScene>(), Resolve, new Run());
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => host.Step(SceneStep(0)));
+
+        Assert.Equal("stop failed", failure.Message);
+        Assert.Equal(["stop:fail", "stop:ok"], log);
+    }
+
+    [Fact]
+    public void AnOutgoingStopAndAnIncomingReleaseThatBothFail_SurfaceTogether()
+    {
+        List<string> log = [];
+        bool first = true;
+
+        Scene Resolve(in SceneTransition target)
+        {
+            bool requesting = first;
+            first = false;
+
+            return new StopFailingScene(log, fail: true, requestOnTickZero: requesting);
+        }
+
+        using SceneHost host = new(ToScene<StopFailingScene>(), Resolve, new Run());
+
+        AggregateException failure = Assert.Throws<AggregateException>(() => host.Step(SceneStep(0)));
+
+        Assert.Equal(2, failure.InnerExceptions.Count);
+        Assert.Equal(["stop:fail", "stop:fail"], log);
+    }
+
+    [Fact]
     public void DisposingTheHost_ReleasesItsSceneAssets()
     {
         SceneHost host = new(ToScene<PassiveScene>(), (in SceneTransition _) => new PassiveScene(), new Run());
@@ -377,6 +440,49 @@ public sealed class SceneHostTests
         }
 
         protected override void OnStop() => log.Add("first.stop");
+    }
+
+    private sealed class OnceRequestingScene(List<string> log) : Scene
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            log.Add($"first.step:{context.Tick}");
+            if (context.Tick == 0)
+            {
+                Run.RequestScene<StartFailingScene>();
+            }
+        }
+    }
+
+    private sealed class StopFailingScene(List<string> log, bool fail, bool requestOnTickZero) : Scene
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            if (requestOnTickZero && context.Tick == 0)
+            {
+                Run.RequestScene<StopFailingScene>();
+            }
+        }
+
+        protected override void OnStop()
+        {
+            log.Add(fail ? "stop:fail" : "stop:ok");
+            if (fail)
+            {
+                throw new InvalidOperationException("stop failed");
+            }
+        }
+    }
+
+    private sealed class StartFailingScene(List<string> log) : Scene
+    {
+        protected override void OnStart()
+        {
+            log.Add("failing.start");
+            throw new InvalidOperationException("no payload");
+        }
+
+        protected override void OnStop() => log.Add("failing.stop");
     }
 
     private sealed class SecondScene(List<string> log) : Scene
