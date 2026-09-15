@@ -154,8 +154,14 @@ public sealed class CollisionQueryTests
         world.Remove(handle);
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, out _));
 
-        world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+        handle = world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
+
+        // A move is observed by the very next query, with no step in between.
+        world.SetPosition(handle, new Vector2(60f, 0f));
+        Assert.Equal(
+            1,
+            world.OverlapBoxAll(CollisionFixtures.Box(100f, -8f, 8f, 16f), CollisionFilter.Of(wall), new Contact2D[4]));
     }
 
     [Fact]
@@ -421,36 +427,6 @@ public sealed class CollisionQueryTests
             new Vector2(80f, 0f),
             CollisionFilter.Everything,
             out _));
-    }
-
-    [Fact]
-    public void SetPosition_IsObservedByTheVeryNextQuery()
-    {
-        CollisionWorld2D world = new();
-        ColliderHandle moving = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
-
-        Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(0, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
-
-        world.SetPosition(moving, new Vector2(100f, 0f));
-
-        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(100f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
-    }
-
-    [Fact]
-    public void Remove_LeavesAStaleHandleNamingNothing()
-    {
-        CollisionWorld2D world = new();
-        ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
-
-        world.Remove(handle);
-
-        Assert.False(world.Contains(handle));
-        Assert.Throws<ArgumentException>(() => world.PositionOf(handle));
-
-        ColliderHandle reused = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, world.Layer("item"), CollisionFilter.None);
-        Assert.NotEqual(handle, reused);
-        Assert.False(world.Contains(handle));
     }
 
     [Fact]

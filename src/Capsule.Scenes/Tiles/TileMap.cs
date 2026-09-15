@@ -35,7 +35,7 @@ public sealed class TileMap : Entity
         Add(new VisibleTiles(grid));
     }
 
-    /// <summary>World units a tile spans on each axis.</summary>
+    /// <summary>The edge length of one tile, as <see cref="TileGrid.TileSize"/> gives it.</summary>
     public int TileSize => _grid.TileSize;
 
     /// <summary>Grid width in tiles.</summary>

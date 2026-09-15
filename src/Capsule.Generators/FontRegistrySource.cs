@@ -7,61 +7,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-internal enum FontFault
-{
-    None,
-    UnsafeName,
-    Unreadable,
-}
-
-// One authored '.fnt' as the generator read it. Description is compared by reference: a re-parse
-// regenerates the registry whether or not the bytes changed, which is conservative, never stale.
-internal readonly struct FontModel(
-    string key,
-    string display,
-    FontFault fault,
-    string? message,
-    BmFontDescription? description,
-    Location location)
-    : IEquatable<FontModel>
-{
-    /// <summary>The source's key under the fonts root, or its authored path when that is no key.</summary>
-    internal string Key { get; } = key;
-
-    /// <summary>What a diagnostic names the font by: its path under the source tree.</summary>
-    internal string Display { get; } = display;
-
-    internal FontFault Fault { get; } = fault;
-
-    /// <summary>Why the font could not be read, when it could not.</summary>
-    internal string? Message { get; } = message;
-
-    internal BmFontDescription? Description { get; } = description;
-
-    /// <summary>The '.fnt' itself, at the line the defect is on: what a build error navigates to.</summary>
-    internal Location Location { get; } = location;
-
-    public bool Equals(FontModel other) =>
-        Fault == other.Fault
-        && string.Equals(Key, other.Key, StringComparison.Ordinal)
-        && string.Equals(Display, other.Display, StringComparison.Ordinal)
-        && string.Equals(Message, other.Message, StringComparison.Ordinal)
-        && ReferenceEquals(Description, other.Description)
-        && Location.Equals(other.Location);
-
-    public override bool Equals(object? obj) => obj is FontModel other && Equals(other);
-
-    public override int GetHashCode()
-    {
-        int hash = 17;
-        hash = (hash * 31) + Key.GetHashCode();
-        hash = (hash * 31) + Display.GetHashCode();
-        hash = (hash * 31) + (int)Fault;
-
-        return hash;
-    }
-}
-
 // One shipped font, with every page resolved to the key and spelling the build ships it at.
 internal sealed class FontSource(string key, BmFontDescription description, string[] pageKeys, string[] pageExtensions)
 {
@@ -94,61 +39,18 @@ internal static class FontRegistrySource
     private const string KerningType = "global::Capsule.Rendering.KerningPair";
 
     /// <summary>Reads one <c>.fnt</c> additional file into the model the registry is built from.</summary>
-    internal static FontModel Describe(AdditionalText text, string authored, CancellationToken cancellation)
-    {
-        string display = Domain + "/" + authored + BmFontParser.BmFontExtension;
-        SourceText? content = text.GetText(cancellation);
-
-        if (TypeNaming.NormalizeKey(authored, out _) is not { } key)
-        {
-            return new FontModel(authored, display, FontFault.UnsafeName, null, null, At(text.Path, content, 0));
-        }
-
-        if (!AssetPaths.IsKey(key))
-        {
-            return new FontModel(
-                key,
-                display,
-                FontFault.Unreadable,
-                $"keys as \"{key}\"; a segment of a key is no reserved Windows device name (nul, con, ...).",
-                null,
-                At(text.Path, content, 0));
-        }
-
-        if (content is null)
-        {
-            return new FontModel(
-                key,
-                display,
-                FontFault.Unreadable,
-                "cannot be read as text; export the font as text.",
-                null,
-                At(text.Path, null, 0));
-        }
-
-        BmFontDescription? described = BmFontParser.Parse(content.ToString(), out string? error, out int line);
-
-        return described is null
-            ? new FontModel(key, display, FontFault.Unreadable, error, null, At(text.Path, content, line))
-            : new FontModel(key, display, FontFault.None, null, described, At(text.Path, content, 0));
-    }
-
-    // The '.fnt' as a location a build error navigates to. The compiler holds no syntax tree for an
-    // additional file, so the span is spelled out against the file itself.
-    private static Location At(string path, SourceText? content, int line)
-    {
-        if (content is null || line >= content.Lines.Count)
-        {
-            return Location.Create(path, new TextSpan(0, 0), new LinePositionSpan(default, default));
-        }
-
-        TextLine text = content.Lines[line];
-
-        return Location.Create(
-            path,
-            text.Span,
-            new LinePositionSpan(new LinePosition(line, 0), new LinePosition(line, text.Span.Length)));
-    }
+    internal static ParsedAsset<BmFontDescription> Describe(
+        AdditionalText text,
+        string authored,
+        CancellationToken cancellation) =>
+        ParsedAsset.Describe<BmFontDescription>(
+            text,
+            authored,
+            Domain,
+            BmFontParser.BmFontExtension,
+            "cannot be read as text; export the font as text.",
+            BmFontParser.Parse,
+            cancellation);
 
     /// <summary>
     /// Where each page ships. A page is a fonts-domain asset of its own, so the key pass has already

@@ -68,7 +68,6 @@ internal sealed class ResidentSoundEffect(SoundEffect effect, AudioClip clip, Au
 
         public void Update()
         {
-            // A resident sound is queued whole; nothing is handed to the device per frame.
         }
 
         public void Dispose()

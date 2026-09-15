@@ -19,6 +19,10 @@ public sealed class GridCollider2D
     // through NeighbourAdmits; a cell with fewer than four faces keeps exactly what it declared.
     private readonly CellState[] _state;
 
+    // Derived alongside _state so a query reads a colliding cell's layer in one indirection; the
+    // entry of a cell that collides as nothing is never reached.
+    private readonly CollisionLayer[] _cellLayers;
+
     internal GridCollider2D(
         ColliderHandle handle,
         int cellSize,
@@ -36,6 +40,7 @@ public sealed class GridCollider2D
         _layers = layers;
         _faces = faces;
         _state = new CellState[cells.Length];
+        _cellLayers = new CollisionLayer[cells.Length];
 
         Bounds = new Aabb2D(Vector2.Zero, new Vector2(width * (float)cellSize, height * (float)cellSize));
 
@@ -94,27 +99,21 @@ public sealed class GridCollider2D
     internal CellState StateAt(int x, int y) =>
         (uint)x < (uint)Width && (uint)y < (uint)Height ? _state[(y * Width) + x] : CellState.None;
 
-    // The layer of a cell the caller has already found to collide, which is what makes the value
-    // present: a cell whose palette entry names no layer derives to CellState.None and never
-    // reaches a query.
-    internal CollisionLayer LayerOf(int x, int y) => _layers[_cells[(y * Width) + x]]!.Value;
+    // The layer of a cell the caller has already found to collide: a cell whose palette entry names
+    // no layer derives to CellState.None and never reaches a query.
+    internal CollisionLayer LayerOf(int x, int y) => _cellLayers[(y * Width) + x];
 
     // Whether the derived face culling answers a query outright. It was derived over every cell of
     // the grid, so it holds only while the query can see every cell.
     internal bool AdmitsEveryLayer(CollisionFilter filter) => (Layers & filter) == Layers;
 
-    // Whether the cell across the face a normal points out of is one the query both collides with
-    // and reads as solid. A cell the filter excludes is empty space, so it shares no face.
-    internal bool NeighbourAdmits(int x, int y, Vector2 normal, CollisionFilter filter)
+    // Whether the cell across a face is one the query both collides with and reads as solid. A cell
+    // the filter excludes is empty space, so it shares no face.
+    internal bool NeighbourAdmits(int x, int y, CellState face, CollisionFilter filter)
     {
-        if (MathF.Abs(normal.X) >= MathF.Abs(normal.Y))
-        {
-            x += normal.X < 0f ? -1 : 1;
-        }
-        else
-        {
-            y += normal.Y < 0f ? -1 : 1;
-        }
+        Vector2 step = FaceNormal(face);
+        x += (int)step.X;
+        y += (int)step.Y;
 
         if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
         {
@@ -125,7 +124,7 @@ public sealed class GridCollider2D
 
         return _faces[cell] == CellFaces2D.All
             && _layers[cell] is { } layer
-            && filter.Matches(layer);
+            && filter.Admits(layer);
     }
 
     internal Aabb2D CellBox(int x, int y) =>
@@ -156,6 +155,12 @@ public sealed class GridCollider2D
         CellState.FaceMinY => new Vector2(0f, -1f),
         _ => new Vector2(0f, 1f),
     };
+
+    // Which of a cell's four sides a normal names: the dominant axis, then its sign.
+    internal static CellState FaceOf(Vector2 normal) =>
+        MathF.Abs(normal.X) >= MathF.Abs(normal.Y)
+            ? (normal.X < 0f ? CellState.FaceMinX : CellState.FaceMaxX)
+            : (normal.Y < 0f ? CellState.FaceMinY : CellState.FaceMaxY);
 
     internal static int FloorDiv(float world, int cellSize) =>
         (int)MathF.Floor(world / cellSize);
@@ -232,6 +237,7 @@ public sealed class GridCollider2D
                     _state[index] = state;
                 }
 
+                _cellLayers[index] = layer;
                 layers = layers.With(layer);
             }
         }

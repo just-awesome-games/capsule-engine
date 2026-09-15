@@ -195,7 +195,6 @@ internal sealed class RegistryDomain<T>(
             .Append(RegistryFile.ListMember).Append(" => ").Append(BackingField).AppendLine(";");
     }
 
-    // How the member is named from inside this class.
     private static string Reference(RegistryNode<T> node, string key)
     {
         StringBuilder reference = new();

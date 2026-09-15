@@ -5,7 +5,9 @@ namespace Capsule.Input;
 
 /// <summary>
 /// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, the
-/// pointer, and the wheel notches turned since the previous sample.
+/// pointer, and the wheel notches turned since the previous sample. A key or button outside the
+/// capacity its device declares is not representable and throws
+/// <see cref="ArgumentOutOfRangeException"/> wherever it is read or written.
 /// </summary>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {
@@ -43,7 +45,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// </summary>
     public static DeviceSnapshot Empty => default;
 
-    /// <exception cref="ArgumentOutOfRangeException">Some key is not representable.</exception>
+    /// <summary>A snapshot holding <paramref name="keys"/> and nothing else.</summary>
     public static DeviceSnapshot Of(params ReadOnlySpan<Key> keys)
     {
         UInt128 down = UInt128.Zero;
@@ -78,15 +80,12 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public Vector2 Scroll => _scroll;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
     public bool IsDown(Key key) => (_down & Bit(key)) != UInt128.Zero;
 
     /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public bool IsDown(PadButton button) => (_padDown & PadBit(button)) != 0;
 
     /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public bool IsDown(MouseButton button) => (_mouseDown & MouseBit(button)) != 0;
 
     /// <summary>Position of <paramref name="axis"/>, past deadzone filtering; 0 at rest.</summary>
@@ -110,6 +109,27 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
     public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes);
+
+    // A sampler walks a device's held buttons once and folds them into one mask, so the whole
+    // sample costs one snapshot rather than one per button. Each mask is the set the matching Bit
+    // builder produces, unioned into or cleared out of what this snapshot already holds.
+    internal static UInt128 MaskOf(Key key) => Bit(key);
+
+    internal static uint MaskOf(PadButton button) => PadBit(button);
+
+    internal static uint MaskOf(MouseButton button) => MouseBit(button);
+
+    internal DeviceSnapshot WithKeys(UInt128 keys) => new(_down | keys, _padDown, _mouseDown, _pointer, _scroll, _axes);
+
+    internal DeviceSnapshot WithPadButtons(uint buttons) => new(_down, _padDown | buttons, _mouseDown, _pointer, _scroll, _axes);
+
+    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes);
+
+    internal DeviceSnapshot WithoutKeys(UInt128 keys) => new(_down & ~keys, _padDown, _mouseDown, _pointer, _scroll, _axes);
+
+    internal DeviceSnapshot WithoutPadButtons(uint buttons) => new(_down, _padDown & ~buttons, _mouseDown, _pointer, _scroll, _axes);
+
+    internal DeviceSnapshot WithoutMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown & ~buttons, _pointer, _scroll, _axes);
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> released. A stick direction is removed by
@@ -232,13 +252,14 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Whether the two snapshots differ in anything held, any axis, the wheel or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
+    // A None value is the empty set and never a member, so bit 0 is deliberately unused by all
+    // three masks.
     private static UInt128 Bit(Key key)
     {
         int index = (int)key;
         ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(key));
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Capacity, nameof(key));
 
-        // Key.None is the empty set, never a member, so bit 0 is deliberately unused.
         return key == Key.None ? UInt128.Zero : UInt128.One << index;
     }
 
@@ -248,7 +269,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, PadCapacity, nameof(button));
 
-        // PadButton.None is the empty set, never a member, so bit 0 is deliberately unused.
         return button == PadButton.None ? 0u : 1u << index;
     }
 
@@ -258,7 +278,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, MouseCapacity, nameof(button));
 
-        // MouseButton.None is the empty set, never a member, so bit 0 is deliberately unused.
         return button == MouseButton.None ? 0u : 1u << index;
     }
 

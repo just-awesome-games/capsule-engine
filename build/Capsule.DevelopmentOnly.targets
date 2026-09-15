@@ -29,8 +29,8 @@
     <_CapsuleDevelopmentOnly Include="@(_CapsuleAssetMarker->'%(RootDir)%(Directory)**/*')" />
   </ItemGroup>
 
-  <!-- Filter after compile items exist but before the dependency cache; keep CoreCompile for design-time builds. -->
-  <!-- Compare normalized absolute paths using the host's path case rules. -->
+  <!-- Filter after compile items exist but before the dependency cache; CoreCompile is what a
+       design-time build reaches. Paths are compared normalized, under the host's case rules. -->
   <Target Name="CapsuleRemoveDevelopmentOnlySources"
           Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySourceDir)' != ''"
           Outputs="%(_CapsuleDevelopmentOnlySourceDir.Identity)"

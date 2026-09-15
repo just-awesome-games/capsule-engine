@@ -6,6 +6,7 @@ using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
@@ -37,14 +38,14 @@ public sealed class DebugDrawTests
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal("Debug Draw", overlay.Scene.Title);
-        Assert.Equal(["[ ] hitboxes", "[ ] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[ ] hitboxes", "[ ] labels"], Labels(overlay.Scene));
         Assert.Equal(1, scheduler.Tick);
         Assert.True(view.Lines.IsEmpty);
         Assert.True(view.Sprites.IsEmpty);
 
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal(["[x] hitboxes", "[ ] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[x] hitboxes", "[ ] labels"], Labels(overlay.Scene));
         Assert.Equal(2, overlay.Scene.Depth);
         Assert.Equal(0, overlay.Scene.FocusedIndex);
         Assert.Equal(1, scheduler.Tick);
@@ -64,7 +65,7 @@ public sealed class DebugDrawTests
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal(["[x] hitboxes", "[x] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[x] hitboxes", "[x] labels"], Labels(overlay.Scene));
         Assert.Equal(1, overlay.Scene.FocusedIndex);
         Assert.Equal(1, view.Lines.Length);
         Assert.Equal("hi".Length, view.Sprites.Length);
@@ -72,7 +73,7 @@ public sealed class DebugDrawTests
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal(["[ ] hitboxes", "[x] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[ ] hitboxes", "[x] labels"], Labels(overlay.Scene));
         Assert.True(view.Lines.IsEmpty);
 
         // Leaving and re-entering finds the same menu, and a channel that first emits while the
@@ -85,7 +86,7 @@ public sealed class DebugDrawTests
         Press(overlay, scheduler, host, Key.Right);
 
         Assert.Same(menu, overlay.Scene.Current);
-        Assert.Equal(["[ ] extra", "[ ] hitboxes", "[x] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[ ] extra", "[ ] hitboxes", "[x] labels"], Labels(overlay.Scene));
         Assert.Equal(2, overlay.Scene.Depth);
     }
 
@@ -115,7 +116,7 @@ public sealed class DebugDrawTests
         Assert.False(game.IsDown(MouseButton.Left));
         Assert.True(overlay.IsChannelEnabled(Labels));
         Assert.False(overlay.IsChannelEnabled(Hitboxes));
-        Assert.Equal(["[ ] hitboxes", "[x] labels"], MenuLabels(overlay.Scene));
+        Assert.Equal(["[ ] hitboxes", "[x] labels"], Labels(overlay.Scene));
         Assert.Equal(1, scheduler.Tick);
     }
 
@@ -244,45 +245,10 @@ public sealed class DebugDrawTests
 
         Assert.Equal(before, after);
 
-        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), new EmptySimulation());
+        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), new RecordingSimulation());
 
         Assert.Empty(overlay.Channels);
     }
-
-    private static string[] MenuLabels(OverlayScene scene)
-    {
-        IReadOnlyList<MenuItem> items = scene.Current.Items;
-        string[] labels = new string[items.Count];
-        for (int index = 0; index < items.Count; index++)
-        {
-            labels[index] = items[index].Label;
-        }
-
-        return labels;
-    }
-
-    private static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-
-        Assert.True(overlay.IsOpen);
-    }
-
-    private static void Press(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-    }
-
-    private static void Frame(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, DeviceSnapshot sampled)
-    {
-        DeviceSnapshot stripped = overlay.Observe(sampled);
-        scheduler.Advance(StepSeconds, stripped, simulation);
-        overlay.Step();
-    }
-
-    private static FixedStepScheduler CreateScheduler() => new(StepSeconds, 5, new ActionBindings());
 
     private static SceneHost CreateHost(Scene scene) =>
         new(SceneTransition.ToScene(scene.GetType(), null), (in SceneTransition _) => scene, new Run());
@@ -323,17 +289,6 @@ public sealed class DebugDrawTests
             DebugDraw.Circle(Hitboxes, new Vector2(10f, 10f), 2f, ColorRgba.White);
             DebugDraw.Capsule(Hitboxes, new Vector2(0f, 0f), new Vector2(6f, 0f), 1f, ColorRgba.White);
             DebugDraw.Polygon(Hitboxes, [new Vector2(20f, 20f), new Vector2(21f, 20f), new Vector2(21f, 21f)], ColorRgba.White);
-        }
-    }
-
-    private sealed class EmptySimulation : ISimulation
-    {
-        public bool ExitRequested => false;
-
-        public FrameView View { get; } = new();
-
-        public void Step(in StepContext context)
-        {
         }
     }
 }

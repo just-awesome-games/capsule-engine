@@ -57,15 +57,29 @@ public static class TileFaceNames
             return null;
         }
 
-        List<string> names = [];
-        foreach (string name in All)
+        string[] names = new string[4];
+        int written = 0;
+
+        if ((faces & CellFaces2D.Left) != 0)
         {
-            if (TryParse(name, out CellFaces2D face) && (faces & face) != 0)
-            {
-                names.Add(name);
-            }
+            names[written++] = Left;
         }
 
-        return [.. names];
+        if ((faces & CellFaces2D.Right) != 0)
+        {
+            names[written++] = Right;
+        }
+
+        if ((faces & CellFaces2D.Top) != 0)
+        {
+            names[written++] = Top;
+        }
+
+        if ((faces & CellFaces2D.Bottom) != 0)
+        {
+            names[written++] = Bottom;
+        }
+
+        return names[..written];
     }
 }

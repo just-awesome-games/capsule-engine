@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Capsule.Input;
 
 /// <summary>
@@ -8,6 +10,12 @@ public sealed class ActionBindings
 {
     private readonly Dictionary<InputAction, InputButton[]> _buttonsByAction = [];
     private readonly Dictionary<AxisAction, AxisSource[]> _sourcesByAction = [];
+
+    // The read tables, built on the first read after a bind and dropped by the next one: a step
+    // looks an action up far more often than configuration rebinds it, and a frozen lookup hashes
+    // an action's name faster than a dictionary does.
+    private FrozenDictionary<InputAction, InputButton[]>? _buttons;
+    private FrozenDictionary<AxisAction, AxisSource[]>? _sources;
 
     /// <summary>
     /// Adds <paramref name="buttons"/> to <paramref name="action"/>; any of them then stands for
@@ -38,6 +46,7 @@ public sealed class ActionBindings
         }
 
         _buttonsByAction[action] = [.. merged];
+        _buttons = null;
 
         return this;
     }
@@ -94,12 +103,12 @@ public sealed class ActionBindings
 
     /// <summary>Buttons bound to <paramref name="action"/>; empty when it is unbound.</summary>
     public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) =>
-        _buttonsByAction.TryGetValue(action, out InputButton[]? buttons) ? buttons : ReadOnlySpan<InputButton>.Empty;
+        Buttons.TryGetValue(action, out InputButton[]? buttons) ? buttons : ReadOnlySpan<InputButton>.Empty;
 
     /// <summary>Whether any button bound to <paramref name="action"/> is held in <paramref name="snapshot"/>.</summary>
     public bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot)
     {
-        if (!_buttonsByAction.TryGetValue(action, out InputButton[]? buttons))
+        if (!Buttons.TryGetValue(action, out InputButton[]? buttons))
         {
             return false;
         }
@@ -122,7 +131,7 @@ public sealed class ActionBindings
     /// </summary>
     public float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
     {
-        if (!_sourcesByAction.TryGetValue(action, out AxisSource[]? sources))
+        if (!Sources.TryGetValue(action, out AxisSource[]? sources))
         {
             return 0f;
         }
@@ -143,6 +152,12 @@ public sealed class ActionBindings
 
         return Math.Clamp(bounded, -1f, 1f) + notches;
     }
+
+    private FrozenDictionary<InputAction, InputButton[]> Buttons =>
+        _buttons ??= _buttonsByAction.ToFrozenDictionary();
+
+    private FrozenDictionary<AxisAction, AxisSource[]> Sources =>
+        _sources ??= _sourcesByAction.ToFrozenDictionary();
 
     private static void RequireName(string? name, string parameterName)
     {
@@ -171,6 +186,7 @@ public sealed class ActionBindings
         }
 
         _sourcesByAction[action] = [.. merged];
+        _sources = null;
 
         return this;
     }

@@ -8,6 +8,7 @@ using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Audio;
 
@@ -135,7 +136,7 @@ public sealed class AudioPlaybackTests
             SceneTransition.ToScene(typeof(StartupScene), null),
             static (in SceneTransition _) => new StartupScene(),
             new Run());
-        FixedStepScheduler scheduler = new(0.1, 5, new ActionBindings());
+        FixedStepScheduler scheduler = CreateScheduler();
         scheduler.StepCompleted = () => fixture.Player.Apply(host.Run.Audio.Commands);
         fixture.Player.Apply(host.Run.Audio.Commands);
         FakeVoice voice = Assert.Single(fixture.Backend.Voices);
@@ -182,19 +183,6 @@ public sealed class AudioPlaybackTests
         }
 
         Press(overlay, scheduler, host, Key.Enter);
-    }
-
-    private static void Press(OverlayHost overlay, FixedStepScheduler scheduler, SceneHost host, Key key)
-    {
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(key));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-    }
-
-    private static void Frame(OverlayHost overlay, FixedStepScheduler scheduler, SceneHost host, DeviceSnapshot sampled)
-    {
-        DeviceSnapshot stripped = overlay.Observe(sampled);
-        scheduler.Advance(0.1, stripped, host);
-        overlay.Step();
     }
 
     // A handle whose generation has moved on addresses a voice that was stolen, stopped or expired.

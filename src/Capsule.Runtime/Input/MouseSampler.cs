@@ -69,17 +69,15 @@ internal sealed class MouseSampler
         return snapshot.WithPointer(_pointer);
     }
 
-    // Resumes with the wheel standing where it already stood, so this sample turns it nothing.
-    internal DeviceSnapshot Resume(DeviceSnapshot snapshot, Vector2 pointer, params ReadOnlySpan<MouseButton> held) =>
-        Resume(snapshot, pointer, _wheelHorizontal, _wheelVertical, Down(held));
-
+    // horizontal and vertical are the OS wheel's cumulative values; repeating the pair this sample
+    // was last given turns the wheel nothing.
     internal DeviceSnapshot Resume(
         DeviceSnapshot snapshot,
         Vector2 pointer,
         int horizontal,
         int vertical,
-        params ReadOnlySpan<MouseButton> held) =>
-        Resume(snapshot, pointer, horizontal, vertical, Down(held));
+        params ReadOnlySpan<MouseButton> buttons) =>
+        Resume(snapshot, pointer, horizontal, vertical, Down(buttons));
 
     private DeviceSnapshot Resume(DeviceSnapshot snapshot, Vector2 pointer, int horizontal, int vertical, uint held)
     {

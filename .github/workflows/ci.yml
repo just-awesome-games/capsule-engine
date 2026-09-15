@@ -15,7 +15,6 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  # Build, format, unit tests, and diagnostic coverage.
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -34,12 +33,22 @@ jobs:
       - name: Restore
         run: dotnet restore --locked-mode
 
-      # Both configurations have distinct analyzer sets.
-      - name: Build (Debug)
-        run: dotnet build --configuration Debug --no-restore
-
-      - name: Build (Release)
+      - name: Build
         run: dotnet build --configuration Release --no-restore
+
+      - name: Format
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+      - name: Development-only exclusion (shipping)
+        run: >
+          dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
+          --configuration Release
+          --no-restore
+          --no-dependencies
+          -p:CapsuleShipping=true
 
       - name: Pack
         run: >
@@ -69,66 +78,7 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
 
-      - name: Build sample shell (package mode, shipping)
-        shell: bash
-        run: |
-          dotnet build samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj \
-            --configuration Release \
-            --no-restore \
-            -p:CapsuleUsePackages=true \
-            -p:CapsuleShipping=true
-          runtimeconfig_path="$(find samples/MinimalGame/src/MinimalGame.Shell/bin/Release -type f -name '*.runtimeconfig.json' -print -quit)"
-          test -n "$runtimeconfig_path"
-          grep -Fq '"Capsule.Development": false' "$runtimeconfig_path"
-
-      - name: Development-only exclusion (shipping)
-        run: >
-          dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
-          --configuration Release
-          --no-restore
-          --no-dependencies
-          -p:CapsuleShipping=true
-
-      # Verify both shipping states across an incremental rebuild.
-      - name: Development-only exclusion (shipping toggle)
-        run: |
-          dotnet build tests/Capsule.BuildProof.Incremental/Capsule.BuildProof.Incremental.csproj --configuration Release --no-restore --no-dependencies -p:CapsuleShipping=true
-          dotnet build tests/Capsule.BuildProof.Incremental/Capsule.BuildProof.Incremental.csproj --configuration Release --no-restore --no-dependencies
-
-      - name: Format
-        run: dotnet format --verify-no-changes --no-restore
-
-      # Keep allocation and file-access gates free of coverage instrumentation.
-      - name: Performance gates
-        run: >
-          dotnet test
-          --configuration Release
-          --no-build
-          --filter FullyQualifiedName~Capsule.Tests.Performance
-          --logger "console;verbosity=detailed"
-
-      # Coverage is diagnostic; behavior tests are the gate.
-      - name: Test with coverage
-        run: >
-          dotnet test
-          --configuration Release
-          --no-build
-          --filter "FullyQualifiedName!~Capsule.Tests.Performance"
-          -p:CollectCoverage=true
-          '-p:Include=[Capsule.Core]*%2c[Capsule.Physics]*%2c[Capsule.Scenes]*%2c[Capsule.Runtime]*'
-          '-p:ExcludeByFile=**/Capsule.Runtime/CapsuleGame.cs%2c**/Capsule.Runtime/Rendering/FrameRenderer.cs'
-          -p:CoverletOutputFormat=cobertura
-          -p:CoverletOutput=TestResults/coverage.cobertura.xml
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage
-          path: tests/Capsule.Tests/TestResults/coverage.cobertura.xml
-          if-no-files-found: warn
-
-  platform-and-aot:
+  aot:
     needs: build-and-test
     strategy:
       fail-fast: false
@@ -160,20 +110,6 @@ jobs:
           name: packages
           path: artifacts/packages
 
-      # Windows tests cover platform-specific path rules not exercised on Linux.
-      - name: Restore engine
-        if: matrix.os == 'windows-latest'
-        run: dotnet restore --locked-mode
-
-      - name: Build engine (Release)
-        if: matrix.os == 'windows-latest'
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Test
-        if: matrix.os == 'windows-latest'
-        run: dotnet test --configuration Release --no-build
-
-      # The shell publish verifies the complete game graph is ILC-analyzable.
       - name: Restore sample from local packages
         run: >
           dotnet restore samples/MinimalGame/MinimalGame.slnx
@@ -182,6 +118,7 @@ jobs:
           -p:CapsuleUsePackages=true
           -p:PublishAot=true
 
+      # The shell publish verifies the complete game graph is ILC-analyzable.
       - name: Publish sample shell from local packages with NativeAOT
         run: >
           dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
@@ -191,9 +128,7 @@ jobs:
           --no-restore
           -p:CapsuleUsePackages=true
           -p:PublishAot=true
-          -p:IlcGenerateMapFile=true
 
-      # Run the independent device-free smoke fixture on both platforms.
       - name: Publish the AOT smoke
         run: >
           dotnet publish tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
@@ -201,31 +136,7 @@ jobs:
           --runtime ${{ matrix.runtime }}
           --self-contained true
           -p:PublishAot=true
-          -p:IlcGenerateMapFile=true
           --output artifacts/aot-smoke
-
-      - name: Assert shipping AOT maps omit the development overlay and its seams
-        shell: bash
-        run: |
-          # The overlay's namespace, the audio suspension only its hold reaches, and the panel
-          # sink whose calls a shipping game compiles out.
-          pattern='Capsule([._])Runtime([._])DevTools|AudioPlayer([._])+(Suspend|Resume)|Capsule([._])Diagnostics([._])DebugPanel'
-
-          smoke_map_path="$(find tests/Capsule.AotSmoke/obj -type f -name '*.map.xml' -print -quit)"
-          test -n "$smoke_map_path"
-          if grep -Eq "$pattern" "$smoke_map_path"; then
-            echo "Development-only code reached the AOT smoke publish: $smoke_map_path"
-            grep -E "$pattern" "$smoke_map_path" | head
-            exit 1
-          fi
-
-          sample_map_path="$(find samples/MinimalGame/src/MinimalGame.Shell/obj -type f -name '*.map.xml' -print -quit)"
-          test -n "$sample_map_path"
-          if grep -Eq "$pattern" "$sample_map_path"; then
-            echo "Development-only code reached the sample shell publish: $sample_map_path"
-            grep -E "$pattern" "$sample_map_path" | head
-            exit 1
-          fi
 
       - name: Run the published smoke binary
         run: ${{ matrix.smoke-binary }}

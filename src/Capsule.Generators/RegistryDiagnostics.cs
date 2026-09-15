@@ -57,17 +57,17 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor ConflictingProjectRoles = Scene(
         "CAP011",
         "A project cannot be both game logic and shell",
-        "This project declares both CapsuleGameLogic and CapsuleGameShell; keep substrate-free game logic and the runtime shell in separate projects");
+        "This project's file declares both <CapsuleGameLogic> and <CapsuleGameShell>; keep substrate-free game logic and the runtime shell in separate projects, each declaring one of the two");
 
     internal static readonly DiagnosticDescriptor LogicRoleMissingScenes = Scene(
         "CAP012",
         "A game-logic project must reference Capsule.Scenes",
-        "This project declares CapsuleGameLogic but Capsule.Scenes.Scene is unavailable; reference Capsule.Scenes or remove the role");
+        "This project's file declares <CapsuleGameLogic> but Capsule.Scenes.Scene is unavailable; reference Capsule.Scenes or drop the property");
 
     internal static readonly DiagnosticDescriptor ShellRoleMissingRuntime = Scene(
         "CAP013",
         "A game-shell project must reference Capsule.Runtime",
-        "This project declares CapsuleGameShell but Capsule.Runtime.CapsuleEngine is unavailable; reference Capsule.Runtime or remove the role");
+        "This project's file declares <CapsuleGameShell> but Capsule.Runtime.CapsuleEngine is unavailable; reference Capsule.Runtime or drop the property");
 
     internal static readonly DiagnosticDescriptor InvalidRegistryProvider = Scene(
         "CAP014",
@@ -77,7 +77,7 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor ShellRoleMissingLogic = Scene(
         "CAP015",
         "A game-shell project must reference a game-logic assembly",
-        "This project declares CapsuleGameShell but references no assembly declaring CapsuleGameLogic, so its entry point would name no scenes; reference the game's logic project");
+        "This project's file declares <CapsuleGameShell> but the project references no assembly declaring <CapsuleGameLogic>, so its entry point would name no scenes; reference the game's logic project");
 
     internal static readonly DiagnosticDescriptor DuplicateAssetIdentifier = Asset(
         "CAP016",
@@ -112,22 +112,26 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor UnreadableFont = Asset(
         "CAP022",
         "A bitmap font source cannot be compiled",
-        "'{0}' {1}");
+        "'{0}' {1}",
+        CapsuleDocs.Fonts);
 
     internal static readonly DiagnosticDescriptor UnshippedFontPage = Asset(
         "CAP023",
         "A bitmap font names a page the game does not ship",
-        "'{0}' {1}");
+        "'{0}' {1}",
+        CapsuleDocs.Fonts);
 
     internal static readonly DiagnosticDescriptor UnreadableSheet = Asset(
         "CAP024",
         "A sprite sheet cannot be compiled",
-        "'{0}' {1}");
+        "'{0}' {1}",
+        CapsuleDocs.Sheets);
 
     internal static readonly DiagnosticDescriptor UnshippedSheetTexture = Asset(
         "CAP025",
         "A sprite sheet cuts from a texture the game does not ship",
-        "'{0}' {1}");
+        "'{0}' {1}",
+        CapsuleDocs.Sheets);
 
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";
@@ -135,9 +139,9 @@ internal static class RegistryDiagnostics
     private const string KeyGrammar =
         "a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension";
 
-    private static DiagnosticDescriptor Scene(string id, string title, string message) =>
-        new(id, title, message, "Capsule.Scenes", DiagnosticSeverity.Error, isEnabledByDefault: true);
+    private static DiagnosticDescriptor Scene(string id, string title, string message, string page = CapsuleDocs.Scenes) =>
+        new(id, title, message, "Capsule.Scenes", DiagnosticSeverity.Error, true, null, CapsuleDocs.At(page));
 
-    private static DiagnosticDescriptor Asset(string id, string title, string message) =>
-        new(id, title, message, "Capsule.Assets", DiagnosticSeverity.Error, isEnabledByDefault: true);
+    private static DiagnosticDescriptor Asset(string id, string title, string message, string page = CapsuleDocs.NamedAssets) =>
+        new(id, title, message, "Capsule.Assets", DiagnosticSeverity.Error, true, null, CapsuleDocs.At(page));
 }

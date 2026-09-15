@@ -40,7 +40,7 @@ public sealed class KinematicBodyTests
 
         Assert.Same(scene, body.Scene);
         Assert.True(result.BlockedY);
-        Assert.Equal(24f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(24f, body.Position.Y, CollisionFixtures.Tolerance);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class KinematicBodyTests
 
         Assert.True(body.Mover.IsOnFloor);
         Assert.Equal(new Vector2(0f, -1f), body.Mover.FloorNormal);
-        Assert.Equal(24f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(24f, body.Position.Y, CollisionFixtures.Tolerance);
     }
 
     // Airborne, so nothing but the wall can be reported; the normal points back from the wall, which

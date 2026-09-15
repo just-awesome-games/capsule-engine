@@ -6,16 +6,6 @@ public sealed class AnimationPlaybackTests
 {
     private static readonly int[] Three = [3, 1, 2];
 
-    [Fact]
-    public void AFreshCursorIsOnTheFirstFrameWithNothingElapsed()
-    {
-        AnimationPlayback playback = default;
-
-        Assert.Equal(0, playback.FrameIndex);
-        Assert.Equal(0, playback.TicksElapsed);
-        Assert.False(playback.IsFinished);
-    }
-
     // The whole contract in one walk: a frame of n ticks is current across exactly n steps.
     [Theory]
     [InlineData(0, 0, 0)]

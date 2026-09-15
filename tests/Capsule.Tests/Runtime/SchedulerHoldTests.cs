@@ -14,14 +14,14 @@ public sealed class SchedulerHoldTests
     [Fact]
     public void Hold_DropsAccumulatedTimeAndResumesWithOneStepAndNoHeldPress()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(HeldAction);
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
             new ActionBindings().Bind(HeldAction, Key.Space));
 
         scheduler.Advance(StepSeconds, DeviceSnapshot.Of(Key.Space), simulation);
-        simulation.Steps.Clear();
+        simulation.Recorded.Clear();
 
         scheduler.Advance(StepSeconds / 2, DeviceSnapshot.Of(Key.Space), simulation);
         scheduler.Held = true;
@@ -29,7 +29,7 @@ public sealed class SchedulerHoldTests
         scheduler.Advance(0.7, DeviceSnapshot.Of(Key.Space), simulation);
         scheduler.Advance(0.7, DeviceSnapshot.Of(Key.Space), simulation);
 
-        Assert.Empty(simulation.Steps);
+        Assert.Empty(simulation.Recorded);
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal(0, scheduler.StepsThisFrame);
         Assert.Equal(0, scheduler.AccumulatorSeconds);
@@ -38,10 +38,10 @@ public sealed class SchedulerHoldTests
         scheduler.Held = false;
         scheduler.Advance(StepSeconds, DeviceSnapshot.Of(Key.Space), simulation);
 
-        Assert.Single(simulation.Steps);
-        Assert.Equal(1, simulation.Steps[0].Tick);
-        Assert.False(simulation.Steps[0].Pressed);
-        Assert.True(simulation.Steps[0].Held);
+        Assert.Single(simulation.Recorded);
+        Assert.Equal(1, simulation.Recorded[0].Tick);
+        Assert.False(simulation.Recorded[0].First.Pressed);
+        Assert.True(simulation.Recorded[0].First.Held);
         Assert.Equal(2, scheduler.Tick);
         Assert.Equal(1, scheduler.StepsThisFrame);
     }
@@ -49,7 +49,7 @@ public sealed class SchedulerHoldTests
     [Fact]
     public void StepOnce_RunsOneTickWhileHeldOnTheSampledSnapshotAndLeavesTheHoldInPlace()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(HeldAction);
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
@@ -62,9 +62,9 @@ public sealed class SchedulerHoldTests
 
         Assert.False(scheduler.StepOnce(DeviceSnapshot.Of(Key.Space), simulation));
 
-        RecordedStep step = Assert.Single(simulation.Steps);
+        RecordedStep step = Assert.Single(simulation.Recorded);
         Assert.Equal(0, step.Tick);
-        Assert.True(step.Pressed);
+        Assert.True(step.First.Pressed);
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal(1, scheduler.StepsThisFrame);
         Assert.Equal(0, scheduler.AccumulatorSeconds);
@@ -73,7 +73,7 @@ public sealed class SchedulerHoldTests
 
         scheduler.Advance(StepSeconds, DeviceSnapshot.Of(Key.Space), simulation);
 
-        Assert.Single(simulation.Steps);
+        Assert.Single(simulation.Recorded);
         Assert.Equal(0, scheduler.StepsThisFrame);
     }
 
@@ -82,7 +82,7 @@ public sealed class SchedulerHoldTests
     {
         RecordingDriver driver = new();
         using SceneHost host = CreateHost();
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(HeldAction);
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
@@ -100,7 +100,7 @@ public sealed class SchedulerHoldTests
         Assert.True(scheduler.StepOnce(DeviceSnapshot.Empty, simulation));
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal(0, scheduler.StepsThisFrame);
-        Assert.Single(simulation.Steps);
+        Assert.Single(simulation.Recorded);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class SchedulerHoldTests
     {
         RecordingDriver driver = new();
         using SceneHost host = CreateHost();
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(HeldAction);
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
@@ -128,7 +128,7 @@ public sealed class SchedulerHoldTests
         scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, simulation);
 
         Assert.Equal([0L, 1L], driver.Ticks);
-        Assert.Equal(1, simulation.Steps[^1].Tick);
+        Assert.Equal(1, simulation.Recorded[^1].Tick);
         Assert.Equal(2, scheduler.Tick);
     }
 
@@ -159,21 +159,4 @@ public sealed class SchedulerHoldTests
             return true;
         }
     }
-
-    private sealed class RecordingSimulation : ISimulation
-    {
-        public List<RecordedStep> Steps { get; } = [];
-
-        public bool ExitRequested => false;
-
-        public FrameView View { get; } = new();
-
-        public void Step(in StepContext context) =>
-            Steps.Add(new RecordedStep(
-                context.Tick,
-                context.Input.WasPressed(HeldAction),
-                context.Input.IsHeld(HeldAction)));
-    }
-
-    private readonly record struct RecordedStep(long Tick, bool Pressed, bool Held);
 }

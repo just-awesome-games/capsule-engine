@@ -42,7 +42,7 @@ public sealed class ViewportFitTests
         int worldWidth,
         int worldHeight)
     {
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), View(fit), windowWidth, windowHeight);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), View(fit), windowWidth, windowHeight);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
         Assert.Equal(new Letterbox(worldX, worldY, worldWidth, worldHeight, PixelsPerUnit), layout.World);
@@ -84,7 +84,7 @@ public sealed class ViewportFitTests
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(200f, 90f), fit);
         FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
 
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), view, windowWidth, windowHeight);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), view, windowWidth, windowHeight);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
         Assert.Equal(new Letterbox(worldX, worldY, worldWidth, worldHeight, scale), layout.World);
@@ -104,7 +104,7 @@ public sealed class ViewportFitTests
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(200f, 90f), ViewportFit.Letterbox);
         FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
 
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), view, 1280, 720);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), view, 1280, 720);
 
         Assert.Equal((320, 180), layout.Surface);
         Assert.Equal(new Vector2(200f, 90f), layout.Span);
@@ -121,7 +121,7 @@ public sealed class ViewportFitTests
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(300f, 100f), ViewportFit.Expand);
         FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
 
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), view, 1600, 400);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), view, 1600, 400);
         Rect placed = camera.Place(1f, layout.Span);
         Rect swept = camera.SweptBounds;
 
@@ -153,7 +153,7 @@ public sealed class ViewportFitTests
     [InlineData(2560, 1080)]
     public void Letterbox_KeepsTheDeclaredSpanOnTheCanvasWithBars(int windowWidth, int windowHeight)
     {
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), View(ViewportFit.Letterbox), windowWidth, windowHeight);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), View(ViewportFit.Letterbox), windowWidth, windowHeight);
 
         Assert.Equal((320, 180), layout.Surface);
         Assert.Equal(Size, layout.Span);
@@ -222,9 +222,9 @@ public sealed class ViewportFitTests
         FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
         Vector2 window = new(windowWidth, windowHeight);
 
-        Assert.Equal((grownPixels, null), FrameRenderer.GrownPixels(camera, (320, 180), camera.ResolveSpan(window), 3f, windowWidth, windowHeight));
+        Assert.Equal((grownPixels, null), FrameLayout.GrownPixels(camera, (320, 180), camera.ResolveSpan(window), 3f, windowWidth, windowHeight));
 
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), view, windowWidth, windowHeight);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), view, windowWidth, windowHeight);
         int surfaceWidth = Math.Max(320, grownPixels);
 
         Assert.Equal((surfaceWidth, 180), layout.Surface);
@@ -256,10 +256,10 @@ public sealed class ViewportFitTests
         Vector2 window = new(windowWidth, windowHeight);
         float scale = 320f / sizeX;
 
-        Assert.Equal(scale, FrameRenderer.PixelsPerUnit((320, 180), camera));
-        Assert.Equal((grownPixels, null), FrameRenderer.GrownPixels(camera, (320, 180), camera.ResolveSpan(window), scale, windowWidth, windowHeight));
+        Assert.Equal(scale, FrameLayout.PixelsPerUnit((320, 180), camera));
+        Assert.Equal((grownPixels, null), FrameLayout.GrownPixels(camera, (320, 180), camera.ResolveSpan(window), scale, windowWidth, windowHeight));
 
-        ScreenLayout layout = FrameRenderer.Layout((320, 180), view, windowWidth, windowHeight);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), view, windowWidth, windowHeight);
 
         Assert.Equal(grownPixels, layout.Surface.Width);
         Assert.Equal(grownPixels, layout.World.Width);
@@ -294,7 +294,7 @@ public sealed class ViewportFitTests
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(100f, 100f), ViewportFit.Expand);
         FrameView view = new() { Canvas = new Vector2(500f, 100f), Sampling = TextureSampling.Point, Camera = camera };
 
-        ScreenLayout layout = FrameRenderer.Layout((500, 100), view, 500, 500);
+        ScreenLayout layout = FrameLayout.Layout((500, 100), view, 500, 500);
         Rect placed = camera.Place(1f, layout.Span);
         Rect swept = camera.SweptBounds;
 

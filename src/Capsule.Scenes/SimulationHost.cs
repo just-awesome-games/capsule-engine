@@ -5,12 +5,9 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// The substrate-free host of one <see cref="SceneSimulation"/>, owning its tick, input state and
-/// disposal.
+/// disposal. The tick starts at zero and advances across calls, and the one input state retains
+/// held buttons and detects press edges for the whole run.
 /// </summary>
-/// <remarks>
-/// Tick starts at zero and advances across calls. The same input state retains held buttons
-/// and detects press edges throughout the run.
-/// </remarks>
 public sealed class SimulationHost : IDisposable
 {
     /// <summary>

@@ -7,19 +7,8 @@ namespace Capsule.Tests.Input;
 // and the wheel ride the snapshot in canvas pixels and in notches.
 public sealed class PointerTests
 {
-    private const float Tolerance = 1e-6f;
-
     private static readonly InputAction Confirm = new("Confirm");
     private static readonly AxisAction Zoom = new("Zoom");
-
-    [Fact]
-    public void AnEmptySnapshot_HoldsNoMouseButtonAndRestsOnTheOrigin()
-    {
-        Assert.Equal(Vector2.Zero, DeviceSnapshot.Empty.Pointer);
-        Assert.Equal(Vector2.Zero, DeviceSnapshot.Empty.Scroll);
-        Assert.False(DeviceSnapshot.Empty.IsDown(MouseButton.Left));
-        Assert.True(DeviceSnapshot.Empty.IsEmpty);
-    }
 
     [Fact]
     public void AScrollAmount_IsKeptExactlyAndLeavesEverythingElseAlone()
@@ -54,29 +43,21 @@ public sealed class PointerTests
     }
 
     [Fact]
-    public void APointerPosition_IsKeptExactlyAndUnclamped()
+    public void APointerPosition_IsKeptExactlyAndTellsTwoSnapshotsApart()
     {
         DeviceSnapshot outside = DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f));
 
         Assert.Equal(new Vector2(-40f, 5000.5f), outside.Pointer);
         Assert.False(outside.IsEmpty);
+        Assert.NotEqual(DeviceSnapshot.Empty, outside);
+        Assert.Equal(DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f)), outside);
+        Assert.NotEqual(outside.With(MouseButton.Middle), outside);
     }
 
     [Fact]
     public void APointerPositionThatIsNotFinite_IsRefused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPointer(new Vector2(float.NaN, 0f)));
-    }
-
-    [Fact]
-    public void TwoSnapshots_DifferOnTheirPointerAndTheirMouseButtons()
-    {
-        DeviceSnapshot at = DeviceSnapshot.Empty.WithPointer(new Vector2(3f, 4f));
-
-        Assert.NotEqual(at, DeviceSnapshot.Empty);
-        Assert.Equal(at, DeviceSnapshot.Empty.WithPointer(new Vector2(3f, 4f)));
-        Assert.Equal(at.GetHashCode(), DeviceSnapshot.Empty.WithPointer(new Vector2(3f, 4f)).GetHashCode());
-        Assert.NotEqual(at.With(MouseButton.Middle), at);
     }
 
     [Fact]
@@ -172,16 +153,16 @@ public sealed class PointerTests
         InputState input = new(bindings);
         input.Advance(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 1f));
 
-        Assert.Equal(1f, input.Axis(Zoom), Tolerance);
+        Assert.Equal(1f, input.Axis(Zoom), InputFixtures.Tolerance);
 
         // The stick stays bounded while three notches in one step read as three.
         input.Advance(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 1f).WithScroll(new Vector2(5f, 3f)));
 
-        Assert.Equal(4f, input.Axis(Zoom), Tolerance);
+        Assert.Equal(4f, input.Axis(Zoom), InputFixtures.Tolerance);
 
         input.Advance(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f)));
 
-        Assert.Equal(-1f, input.Axis(Zoom), Tolerance);
+        Assert.Equal(-1f, input.Axis(Zoom), InputFixtures.Tolerance);
     }
 
     [Fact]

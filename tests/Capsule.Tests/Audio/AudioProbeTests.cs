@@ -127,58 +127,6 @@ public sealed class AudioProbeTests
         Assert.Equal(18000 / 48000.0, region.EndSeconds, 12);
     }
 
-    // A comment header the file does not finish is a malformed container, not a clip without a
-    // region: reading the tags that happen to precede the cut would ship a loop nobody authored.
-    [Fact]
-    public void AnOggWhoseCommentHeaderTheFileDoesNotFinish_FailsTheBuildNamingTheFile()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        Directory.CreateDirectory("music");
-
-        byte[] whole = Ogg(
-            48000,
-            [0, 24000],
-            Comments(["PADDING=" + new string('x', 300), "LOOPSTART=6000"]),
-            255);
-
-        // Cut before the comment header's second page, so the file ends on a page whose lacing says
-        // the packet runs on.
-        File.WriteAllBytes("music/theme.ogg", whole[..Pages(whole)[2]]);
-
-        StringWriter error = new();
-        int exitCode = AudioTool.Emit(
-            [new DocumentSource("music/theme", "music/theme.ogg")],
-            "CapsuleAssets.Audio.g.cs",
-            TextWriter.Null,
-            error);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("music/theme.ogg:", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("truncated", error.ToString(), StringComparison.Ordinal);
-    }
-
-    // A packet closes on the first segment shorter than the maximum, wherever in the page that
-    // falls. A comment declaring more bytes than its own packet holds is a malformed header, not
-    // licence to read the setup packet laced behind it on the same page as tag text.
-    [Fact]
-    public void AnOggWhoseCommentOverrunsItsOwnPacket_FailsTheBuildNamingTheFile()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        Directory.CreateDirectory("music");
-        File.WriteAllBytes("music/theme.ogg", OggPairedOnAPage(48000, 24000, Overrunning("LOOPSTART=6000")));
-
-        StringWriter error = new();
-        int exitCode = AudioTool.Emit(
-            [new DocumentSource("music/theme", "music/theme.ogg")],
-            "CapsuleAssets.Audio.g.cs",
-            TextWriter.Null,
-            error);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("music/theme.ogg:", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("truncated", error.ToString(), StringComparison.Ordinal);
-    }
-
     // The same lacing, well formed: stopping at the comment packet's end must not cost the tags in
     // front of it.
     [Fact]
@@ -224,25 +172,6 @@ public sealed class AudioProbeTests
     }
 
     [Fact]
-    public void AWavLoopingPastItsOwnEnd_FailsTheBuildNamingTheFileAndTheRegion()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        Directory.CreateDirectory("music");
-        File.WriteAllBytes("music/theme.wav", Wav(1, 16, 22050, 1764, loop: (441, 2000)));
-
-        StringWriter error = new();
-        int exitCode = AudioTool.Emit(
-            [new DocumentSource("music/theme", "music/theme.wav")],
-            "CapsuleAssets.Audio.g.cs",
-            TextWriter.Null,
-            error);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("music/theme.wav:", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("[441, 2001) in 1764 sample(s)", error.ToString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void AnOggOpeningWithNoVorbisHeader_IsRefused()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
@@ -274,27 +203,64 @@ public sealed class AudioProbeTests
         Assert.Contains("PCM", refused.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void AMalformedSource_FailsTheBuildNamingTheFileAndTheDefect()
+    // Whatever the defect, the hook names the source that failed and what is wrong with it, and
+    // writes nothing: a game never compiles against half a registry. A truncated comment header is
+    // a malformed container rather than a clip without a region, since reading the tags that
+    // happen to precede the cut would ship a loop nobody authored; a comment declaring more bytes
+    // than its own packet holds is no licence to read the setup packet laced behind it either.
+    [Theory]
+    [InlineData("unfinished-comment-header", ".ogg", "truncated")]
+    [InlineData("comment-overrunning-its-packet", ".ogg", "truncated")]
+    [InlineData("empty", ".wav", "truncated")]
+    [InlineData("loop-past-the-end", ".wav", "[441, 2001) in 1764 sample(s)")]
+    public void AMalformedSource_FailsTheBuildNamingTheFileAndTheDefect(
+        string defect,
+        string extension,
+        string expected)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        Directory.CreateDirectory("steps");
-        File.WriteAllBytes("steps/stone.wav", []);
+        Directory.CreateDirectory("music");
+        string source = "music/theme" + extension;
+        File.WriteAllBytes(source, Malformed(defect));
         File.WriteAllBytes("good.wav", Wav(1, 16, 22050, 1764));
 
         StringWriter error = new();
         int exitCode = AudioTool.Emit(
-            [new DocumentSource("steps/stone", "steps/stone.wav"), new DocumentSource("good", "good.wav")],
+            [new DocumentSource("music/theme", source), new DocumentSource("good", "good.wav")],
             "CapsuleAssets.Audio.g.cs",
             TextWriter.Null,
             error);
 
         Assert.Equal(1, exitCode);
-        Assert.Contains("steps/stone.wav:", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("truncated", error.ToString(), StringComparison.Ordinal);
-
-        // Nothing is written where a source failed: a game never compiles against half a registry.
+        Assert.Contains(source + ":", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains(expected, error.ToString(), StringComparison.Ordinal);
         Assert.False(File.Exists("CapsuleAssets.Audio.g.cs"));
+    }
+
+    private static byte[] Malformed(string defect)
+    {
+        switch (defect)
+        {
+            case "unfinished-comment-header":
+                byte[] whole = Ogg(
+                    48000,
+                    [0, 24000],
+                    Comments(["PADDING=" + new string('x', 300), "LOOPSTART=6000"]),
+                    255);
+
+                // Cut before the comment header's second page, so the file ends on a page whose
+                // lacing says the packet runs on.
+                return whole[..Pages(whole)[2]];
+
+            case "comment-overrunning-its-packet":
+                return OggPairedOnAPage(48000, 24000, Overrunning("LOOPSTART=6000"));
+
+            case "loop-past-the-end":
+                return Wav(1, 16, 22050, 1764, loop: (441, 2000));
+
+            default:
+                return [];
+        }
     }
 
     private static byte[] Wav(
@@ -303,64 +269,8 @@ public sealed class AudioProbeTests
         int rate,
         int frames,
         bool padded = false,
-        (uint Start, uint End)? loop = null)
-    {
-        int blockAlign = channels * (bits / 8);
-        int dataBytes = frames * blockAlign;
-
-        using MemoryStream file = new();
-        using BinaryWriter writer = new(file);
-
-        writer.Write("RIFF"u8);
-        writer.Write(0);
-        writer.Write("WAVE"u8);
-
-        writer.Write("fmt "u8);
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write((short)channels);
-        writer.Write(rate);
-        writer.Write(rate * blockAlign);
-        writer.Write((short)blockAlign);
-        writer.Write((short)bits);
-
-        if (padded)
-        {
-            // An odd-sized chunk the walk must step over its pad byte to leave.
-            writer.Write("LIST"u8);
-            writer.Write(5);
-            writer.Write("INFOx"u8);
-            writer.Write((byte)0);
-        }
-
-        if (loop is { } region)
-        {
-            // 36 fixed bytes, the last of which count the loops, then 24 bytes for the one loop.
-            writer.Write("smpl"u8);
-            writer.Write(36 + 24);
-            writer.Write(new byte[28]);
-            writer.Write(1);
-            writer.Write(0);
-            writer.Write(0);
-            writer.Write(0);
-            writer.Write(region.Start);
-            writer.Write(region.End);
-            writer.Write(0);
-            writer.Write(0);
-        }
-
-        writer.Write("data"u8);
-        writer.Write(dataBytes);
-        writer.Write(new byte[dataBytes]);
-
-        writer.Flush();
-        byte[] bytes = file.ToArray();
-
-        // The RIFF size covers everything after it.
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), bytes.Length - 8);
-
-        return bytes;
-    }
+        (uint Start, uint End)? loop = null) =>
+        WavFixtures.Wav(rate, bits, channels, new byte[frames * channels * (bits / 8)], padded: padded, loop: loop);
 
     // One identification page, then one page per granule after the first, the second carrying the
     // comment header. commentPage laces that header across as many pages as it needs, which is what

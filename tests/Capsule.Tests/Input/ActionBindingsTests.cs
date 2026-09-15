@@ -4,28 +4,17 @@ namespace Capsule.Tests.Input;
 
 public sealed class ActionBindingsTests
 {
-    private const float Tolerance = 1e-6f;
-
     private static readonly InputAction Jump = new("Jump");
     private static readonly AxisAction Move = new("Move");
 
     [Fact]
-    public void AnUnboundAction_HasNoButtonsAndIsNeverDown()
+    public void AnUnboundAction_HasNoButtonsAndReadsNothing()
     {
         ActionBindings bindings = new();
 
         Assert.True(bindings.ButtonsFor(Jump).IsEmpty);
         Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-    }
-
-    [Fact]
-    public void Bind_MakesEveryBoundKeyStandForTheAction()
-    {
-        ActionBindings bindings = new ActionBindings().Bind(Jump, Key.Space, Key.W);
-
-        Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-        Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.W)));
-        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.A)));
+        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
     }
 
     [Fact]
@@ -66,14 +55,7 @@ public sealed class ActionBindingsTests
         yield return [new Action<ActionBindings>(b => b.Bind(Jump, Key.Space, Key.None))];
         yield return [new Action<ActionBindings>(b => b.Bind(Jump, PadButton.None))];
         yield return [new Action<ActionBindings>(b => b.Bind(Jump, InputButton.None))];
-    }
-
-    [Fact]
-    public void AnUnboundAxisAction_ReadsZero()
-    {
-        ActionBindings bindings = new();
-
-        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
+        yield return [new Action<ActionBindings>(b => b.BindAxis(Move, PadAxis.None))];
     }
 
     [Fact]
@@ -81,9 +63,9 @@ public sealed class ActionBindingsTests
     {
         ActionBindings bindings = new ActionBindings().BindAxis(Move, PadAxis.LeftStickX);
 
-        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), Tolerance);
-        Assert.Equal(-1f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f)), Tolerance);
-        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickY, 1f)), Tolerance);
+        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f)), InputFixtures.Tolerance);
+        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickY, 1f)), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -91,9 +73,9 @@ public sealed class ActionBindingsTests
     {
         ActionBindings bindings = new ActionBindings().BindAxis(Move, Key.A, Key.D);
 
-        Assert.Equal(-1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A)), Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), Tolerance);
-        Assert.Equal(0f, bindings.AxisValue(Move, DeviceSnapshot.Empty), Tolerance);
+        Assert.Equal(-1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A)), InputFixtures.Tolerance);
+        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(0f, bindings.AxisValue(Move, DeviceSnapshot.Empty), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -101,7 +83,7 @@ public sealed class ActionBindingsTests
     {
         ActionBindings bindings = new ActionBindings().BindAxis(Move, Key.A, Key.D);
 
-        Assert.Equal(0f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A, Key.D)), Tolerance);
+        Assert.Equal(0f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A, Key.D)), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -113,9 +95,9 @@ public sealed class ActionBindingsTests
 
         DeviceSnapshot halfLeftStick = Stick(PadAxis.LeftStickX, -0.5f);
 
-        Assert.Equal(-0.5f, bindings.AxisValue(Move, halfLeftStick), Tolerance);
-        Assert.Equal(0.5f, bindings.AxisValue(Move, halfLeftStick.With(Key.D)), Tolerance);
-        Assert.Equal(-1f, bindings.AxisValue(Move, halfLeftStick.With(Key.A)), Tolerance);
+        Assert.Equal(-0.5f, bindings.AxisValue(Move, halfLeftStick), InputFixtures.Tolerance);
+        Assert.Equal(0.5f, bindings.AxisValue(Move, halfLeftStick.With(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, bindings.AxisValue(Move, halfLeftStick.With(Key.A)), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -128,9 +110,9 @@ public sealed class ActionBindingsTests
 
         DeviceSnapshot bothSticksRight = Stick(PadAxis.LeftStickX, 1f).WithAxis(PadAxis.RightStickX, 1f);
 
-        Assert.Equal(1f, bindings.AxisValue(Move, bothSticksRight), Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, bothSticksRight.With(Key.D)), Tolerance);
-        Assert.Equal(-1f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f).WithAxis(PadAxis.RightStickX, -1f)), Tolerance);
+        Assert.Equal(1f, bindings.AxisValue(Move, bothSticksRight), InputFixtures.Tolerance);
+        Assert.Equal(1f, bindings.AxisValue(Move, bothSticksRight.With(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f).WithAxis(PadAxis.RightStickX, -1f)), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -142,8 +124,8 @@ public sealed class ActionBindingsTests
             .BindAxis(Move, Key.A, Key.D)
             .BindAxis(Move, Key.A, Key.D);
 
-        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), Tolerance);
+        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
+        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
     }
 
     [Fact]
@@ -155,12 +137,6 @@ public sealed class ActionBindingsTests
 
         Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
         Assert.Equal(0f, bindings.AxisValue(new AxisAction("Jump"), DeviceSnapshot.Of(Key.Space)));
-    }
-
-    [Fact]
-    public void BindAxis_RejectsTheNoneAxis()
-    {
-        Assert.Throws<ArgumentException>(() => new ActionBindings().BindAxis(Move, PadAxis.None));
     }
 
     private static DeviceSnapshot Stick(PadAxis axis, float value) => DeviceSnapshot.Empty.WithAxis(axis, value);

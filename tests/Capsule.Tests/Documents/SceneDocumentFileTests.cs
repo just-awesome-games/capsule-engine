@@ -1,5 +1,6 @@
 using Capsule.Assets;
 using Capsule.Scenes.Documents;
+using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Documents;
@@ -18,7 +19,7 @@ public sealed class SceneDocumentFileTests
             }
         """;
 
-    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     [Theory]
     [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
@@ -137,55 +138,38 @@ public sealed class SceneDocumentFileTests
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 
-    [Fact]
-    public void ADocumentWithNoEntries_IsAnEmptyScene()
+    // Entry order is the document's, and nothing about a tile map makes it first or unique.
+    [Theory]
+    [InlineData("coin")]
+    [InlineData("tile-map")]
+    public void Parse_AllowsATileMapAfterAnyEntry(string firstType)
     {
-        SceneDocument document = SceneDocumentFile.Parse("""{"formatVersion": 5, "entities": [], "nextEntityId": 1}""");
+        string first = firstType == "tile-map"
+            ? """{ "id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": { "tileSize": 16, "width": 1, "height": 1, "tileTypes": [ { "type": "empty" } ], "tiles": [0] } }"""
+            : """{ "id": 1, "type": "coin", "x": 0, "y": 0 }""";
 
-        Assert.Empty(document.Entries.ToArray());
-    }
-
-    [Fact]
-    public void Parse_AllowsATileMapAfterAnEntity()
-    {
-        string json = """
+        SceneDocument document = SceneDocumentFile.Parse($$"""
             {
               "formatVersion": 5,
               "entities": [
-                { "id": 1, "type": "coin", "x": 0, "y": 0 },
+                {{first}},
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
                   "properties": { "tileSize": 16, "width": 1, "height": 1,
                                   "tileTypes": [ { "type": "empty" } ], "tiles": [0] } }
               ],
               "nextEntityId": 3
             }
-            """;
+            """);
 
-        SceneDocument document = SceneDocumentFile.Parse(json);
-
-        Assert.NotNull(document.Entries[0].Entity);
         Assert.NotNull(document.Entries[1].TileMap);
-    }
-
-    [Fact]
-    public void Parse_AllowsMoreThanOneTileMapEntry()
-    {
-        SceneDocument document = SceneDocumentFile.Parse(DocumentText(
-                entities: """
-                    ,
-                        {
-                          "id": 2,
-                          "type": "tile-map",
-                          "x": 0,
-                          "y": 0,
-                          "properties": { "tileSize": 16, "width": 1, "height": 1,
-                                          "tileTypes": [ { "type": "empty" } ], "tiles": [0] }
-                        }
-                    """,
-                nextEntityId: 3));
-
-        Assert.NotNull(document.Entries[0].TileMap);
-        Assert.NotNull(document.Entries[1].TileMap);
+        if (firstType == "tile-map")
+        {
+            Assert.NotNull(document.Entries[0].TileMap);
+        }
+        else
+        {
+            Assert.NotNull(document.Entries[0].Entity);
+        }
     }
 
     [Theory]
@@ -313,7 +297,7 @@ public sealed class SceneDocumentFileTests
     }
 
     private static SceneDocument Drawing(TextureHandle texture) =>
-        new([new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], texture, 4))], 2);
+        new([new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], texture, 4))], 2);
 
     [Fact]
     public void AGridThatDrawsNothingWritesNeitherTextureNorCell()
@@ -434,9 +418,10 @@ public sealed class SceneDocumentFileTests
                         }
                     """)));
 
-        Assert.Equal(
-            "entity 'coin' at (128, 64) has no id — every entry takes one from nextEntityId when it is created.",
-            error.Message);
+        Assert.Contains("coin", error.Message, StringComparison.Ordinal);
+        Assert.Contains("128", error.Message, StringComparison.Ordinal);
+        Assert.Contains("64", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no id", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -450,7 +435,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = new(
             [
-                new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4)),
+                new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], Atlas, 4)),
                 new EntityPlacement(2, "coin", 8f, 0f),
             ],
             3);
@@ -558,7 +543,7 @@ public sealed class SceneDocumentFileTests
     {
         SceneDocument document = new(
             [
-                new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, Ground(0)], [1, 0], Atlas, 4)),
+                new TileMapPlacement(1, new TileGrid(8, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [1, 0], Atlas, 4)),
                 new EntityPlacement(3, "player", 40.5f, 24f),
             ],
             4,
@@ -633,12 +618,10 @@ public sealed class SceneDocumentFileTests
 
 
     private static TileMapPlacement Terrain() =>
-        new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Ground(0)], [0, 1], Atlas, 4));
+        new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], Atlas, 4));
 
     private static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
         document.Entries[index].TileMap!.Value;
-
-    private static TileDefinition Ground(int cell) => new("ground", cell);
 
     private static string Palette(int cell) =>
         $$"""[{"type": "empty"}, {"type": "ground", "cell": {{cell}}}]""";

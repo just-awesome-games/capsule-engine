@@ -32,11 +32,9 @@ internal static class OverlayActions
     internal static readonly InputAction[] Actions =
         [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, Exit, Click];
 
-    private static readonly ActionBindings Named = Bindings();
-
-    // The keyboard key is bound first on every action: KeyName reads an action's first button as
-    // its keyboard name.
-    internal static ActionBindings Bindings() =>
+    // Read-only once built, so the one instance serves every overlay. The keyboard key is bound
+    // first on every action: KeyName reads an action's first button as its keyboard name.
+    internal static readonly ActionBindings Bindings =
         new ActionBindings()
             .Bind(MenuUp, Key.Up, PadButton.DPadUp)
             .Bind(MenuDown, Key.Down, PadButton.DPadDown)
@@ -54,7 +52,7 @@ internal static class OverlayActions
             .Bind(Click, MouseButton.Left)
             .BindAxis(Scroll, MouseAxis.ScrollY);
 
-    internal static string KeyName(InputAction action) => KeyName(Named.ButtonsFor(action)[0]);
+    internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
 
     internal static string KeyName(InputButton button) => button == Key.Grave ? "~" : button.ToString();
 }

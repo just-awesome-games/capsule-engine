@@ -16,9 +16,6 @@ internal static class AudioFiles
     internal static bool IsStreamed(in AudioClip clip) =>
         string.Equals(clip.Extension, OggExtension, StringComparison.OrdinalIgnoreCase);
 
-    internal static string RelativePathOf(in AudioClip clip) =>
-        Files.RelativePathOf(clip.Name, clip.Extension);
-
     internal static string Locate(string baseDirectory, in AudioClip clip) =>
         Files.Locate(baseDirectory, clip.Name, clip.Extension);
 }

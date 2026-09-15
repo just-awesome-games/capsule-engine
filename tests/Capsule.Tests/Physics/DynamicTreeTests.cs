@@ -36,18 +36,6 @@ public sealed class DynamicTreeTests
         Assert.Empty(Found(tree, Cell(0, 0), Everything));
     }
 
-    [Fact]
-    public void Query_ReachesNothingOnALayerNoProxyCarries()
-    {
-        DynamicTree tree = new();
-        for (int index = 0; index < 32; index++)
-        {
-            tree.CreateProxy(Cell(index % 8, index / 8), index, Red);
-        }
-
-        Assert.Empty(Found(tree, All, Blue));
-    }
-
     // Interleaved, so no box test can do the culling the mask is there for.
     [Fact]
     public void Query_VisitsOnlyTheProxiesOnTheMaskedLayersWhenLayersAreInterleaved()

@@ -15,24 +15,14 @@ namespace Capsule.Runtime;
 /// <summary>
 /// Fluent, eagerly validated host configuration for a game's generated scene registry. A
 /// <c>RunScene</c> blocks until the game requests exit and returns the process's exit code.
+/// Every setting has a default, and a game that never calls <see cref="WithInput"/> reads every
+/// action as unbound.
 /// </summary>
 public sealed class EngineBuilder
 {
     private const int DefaultWindowWidth = 1280;
     private const int DefaultWindowHeight = 720;
     private const int DefaultMaxStepsPerFrame = 8;
-
-    // Capsule's standard command line, in one place: what WithCommandLine parses, what --help
-    // prints, and what a rejected command line is answered with.
-    private const string StandardFlags = """
-          --driver <Name>            drive the run from the input driver of that class name
-          --headless                 run with no window, which needs a driver
-          --scene <Name>             boot the registered scene of that class name
-          --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
-          --help                     print this and exit
-        """;
-
-    private const int BadArgumentExitCode = 2;
 
     // The boot trace's first stage after process start, so it is taken before any configuration.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
@@ -58,11 +48,7 @@ public sealed class EngineBuilder
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
     private IInputDriver? _driver;
-    private string? _driverName;
-    private string? _sceneName;
-    private bool _headless;
-    private string? _commandLineError;
-    private bool _helpRequested;
+    private CommandLine _commandLine = CommandLine.None;
 
     internal EngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
     {
@@ -81,7 +67,7 @@ public sealed class EngineBuilder
                 nameof(gameName));
     }
 
-    internal string Usage => $"usage: {_gameName} [options]{Environment.NewLine}{StandardFlags}";
+    internal string Usage => CommandLine.UsageFor(_gameName);
 
     // The canvas the run's screen layer is laid out in, resolved once by the rule EngineOptions owns.
     private Vector2 Canvas
@@ -154,10 +140,9 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// The most fixed steps one frame may run to catch up on a stall or on steps that cost more
-    /// than the step length. Once the bound is reached the frame drops the time it did not run, so
-    /// the simulation falls behind wall-clock instead of the frame spiralling. Defaults to 8, which
-    /// at 60 Hz absorbs a stall of about an eighth of a second.
+    /// The most fixed steps one frame may run to catch up on a stall. Once the bound is reached
+    /// the frame drops the time it did not run, so the simulation falls behind wall-clock instead
+    /// of the frame spiralling. Defaults to 8, an eighth of a second at 60 Hz.
     /// </summary>
     /// <param name="steps">Steps per frame; positive.</param>
     /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
@@ -222,7 +207,8 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// Registers the game's input — its bindings, its gamepad deadzones and the debug-menu
-    /// button; repeated calls accumulate.
+    /// button; repeated calls accumulate. A game that never calls this reads every action as
+    /// unbound.
     /// </summary>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>
     public EngineBuilder WithInput(Action<InputConfiguration> configure)
@@ -260,12 +246,12 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Writes host timing to a CSV at <paramref name="path"/>: a boot trace giving the
-    /// milliseconds from process start to each of builder entry, host construction, device
-    /// readiness, initial scene assets loaded, the first update and the first submitted frame, then
-    /// one row per frame holding the interval since the previous frame began, the time spent
-    /// updating and the time spent submitting the draw, all in milliseconds. Present is excluded:
-    /// the backend waits for the display after the host's draw returns. Off unless this is called.
+    /// Writes host timing to a CSV at <paramref name="path"/>, off unless this is called: a boot
+    /// trace giving the milliseconds from process start to each of builder entry, host
+    /// construction, device readiness, initial scene assets loaded, the first update and the first
+    /// submitted frame, then one row per frame holding the interval since the previous frame began,
+    /// the time spent updating and the time spent submitting the draw, all in milliseconds. Present
+    /// is excluded: the backend waits for the display after the host's draw returns.
     /// </summary>
     /// <param name="path">The CSV to write; an existing file is overwritten.</param>
     /// <param name="exitAfterSeconds">
@@ -295,10 +281,9 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Drives the run from <paramref name="driver"/> rather than from the keyboard and gamepad: the
-    /// driver is asked once per fixed step whatever the frame rate, and the run exits itself once
-    /// the driver reports it is finished. The fullscreen chord stays the host's and never reaches
-    /// the driver or the simulation.
+    /// Drives the run from <paramref name="driver"/> rather than from the keyboard and gamepad: it
+    /// is asked once per fixed step whatever the frame rate, and the run exits itself once the
+    /// driver reports it is finished. The fullscreen chord stays the host's.
     /// </summary>
     /// <exception cref="ArgumentNullException">The driver is null.</exception>
     public EngineBuilder WithInputDriver(IInputDriver driver)
@@ -320,87 +305,31 @@ public sealed class EngineBuilder
     /// <remarks>
     /// <c>--driver</c> on its own opens the window and plays the driver in it; <c>--headless</c>
     /// alongside it opens no window at all. <c>--scene</c> replaces the scene the <c>RunScene</c>
-    /// call names with the registered scene class of that name, keeping that call's boot payload; a
-    /// scene a document backs is opened through that document.
-    /// <para>
-    /// Nothing is thrown, no driver is built and no scene is looked up: a malformed command line, a
-    /// driver name no registered driver answers to and a scene name no registered scene class
-    /// answers to are held so the fluent chain completes, and <c>RunScene</c> reports the defect and
-    /// returns 2.
-    /// </para>
+    /// call names, keeping that call's boot payload, and a scene a document backs is opened through
+    /// that document. Nothing is thrown and nothing is looked up here: a defect is held so the
+    /// fluent chain completes, and <c>RunScene</c> reports it and returns 2.
     /// </remarks>
     /// <exception cref="ArgumentNullException">The argument array is null.</exception>
     public EngineBuilder WithCommandLine(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        HashSet<string> given = new(StringComparer.Ordinal);
+        _commandLine = CommandLine.Parse(args);
 
-        for (int index = 0; index < args.Length; index++)
+        if (_commandLine.FramesPath is { } frames)
         {
-            string flag = args[index];
-
-            if (!given.Add(flag))
-            {
-                return RejectCommandLine($"{flag} was given more than once.");
-            }
-
-            switch (flag)
-            {
-                case "--help":
-                    _helpRequested = true;
-                    break;
-
-                case "--driver":
-                    if (!TryValue(args, ref index, out string driver))
-                    {
-                        return RejectCommandLine("--driver needs a driver name.");
-                    }
-
-                    _driverName = driver;
-                    break;
-
-                case "--headless":
-                    _headless = true;
-                    break;
-
-                case "--scene":
-                    if (!TryValue(args, ref index, out string scene))
-                    {
-                        return RejectCommandLine("--scene needs a scene class name.");
-                    }
-
-                    _sceneName = scene;
-                    break;
-
-                case "--frames":
-                    if (!TryValue(args, ref index, out string frames))
-                    {
-                        return RejectCommandLine("--frames needs a path.");
-                    }
-
-                    if (!TrySeconds(args, ref index, out double? seconds))
-                    {
-                        return RejectCommandLine("--frames takes a finite duration in seconds above zero.");
-                    }
-
-                    WithFrameDiagnostics(frames, seconds);
-                    break;
-
-                default:
-                    return RejectCommandLine($"unknown option '{flag}'.");
-            }
+            WithFrameDiagnostics(frames, _commandLine.FramesSeconds);
         }
 
         return this;
     }
 
     /// <summary>
-    /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no graphics
-    /// device and no textures: everything this builder configures below the window — bindings, the
-    /// fixed step, the seed, the run's canvas and sampling — applies, scene transitions are honoured, and the
-    /// driver is asked for one snapshot per fixed step until it reports it is finished or the game
-    /// requests exit. Replaces any driver <see cref="WithInputDriver"/> set.
+    /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no
+    /// graphics device and no textures: everything this builder configures below the window
+    /// applies, scene transitions are honoured, and the driver is asked for one snapshot per fixed
+    /// step until it reports it is finished or the game requests exit. Replaces any driver
+    /// <see cref="WithInputDriver"/> set.
     /// </summary>
     /// <remarks>
     /// A headless run writes no crash log whatever <see cref="WithCrashLog"/> configured: an
@@ -511,23 +440,23 @@ public sealed class EngineBuilder
 
     private int RunScene(in SceneTransition initialTarget)
     {
-        if (_commandLineError is not null)
+        if (_commandLine.Error is { } defect)
         {
-            return Reject(_commandLineError);
+            return CommandLine.Reject(_gameName, defect);
         }
 
-        if (_helpRequested)
+        if (_commandLine.HelpRequested)
         {
             Console.Out.WriteLine(Usage);
 
             return 0;
         }
 
-        if (_driverName is not null)
+        if (_commandLine.DriverName is { } driverName)
         {
-            if (!_drivers.TryCreate(_driverName, out IInputDriver? named))
+            if (!_drivers.TryCreate(driverName, out IInputDriver? named))
             {
-                return Reject($"no input driver is named '{_driverName}'. Registered: {_drivers.RegisteredNames()}.");
+                return CommandLine.Reject(_gameName, $"no input driver is named '{driverName}'. Registered: {_drivers.RegisteredNames()}.");
             }
 
             _driver = named;
@@ -535,11 +464,11 @@ public sealed class EngineBuilder
 
         SceneTransition target = initialTarget;
 
-        if (_sceneName is not null)
+        if (_commandLine.SceneName is { } sceneName)
         {
-            if (_scenes.SceneNamed(_sceneName) is not { } selected)
+            if (_scenes.SceneNamed(sceneName) is not { } selected)
             {
-                return Reject($"no one registered scene is named '{_sceneName}'. Registered: {_scenes.RegisteredSceneNames()}.");
+                return CommandLine.Reject(_gameName, $"no one registered scene is named '{sceneName}'. Registered: {_scenes.RegisteredTypes()}.");
             }
 
             // A document-backed scene is composed through its document, so the flag opens it the
@@ -549,11 +478,11 @@ public sealed class EngineBuilder
                 : SceneTransition.ToScene(selected, initialTarget.Payload);
         }
 
-        if (_headless)
+        if (_commandLine.Headless)
         {
             if (_driver is null)
             {
-                return Reject("--headless has no one to play the game: name an input driver with --driver.");
+                return CommandLine.Reject(_gameName, "--headless has no one to play the game: name an input driver with --driver.");
             }
 
             RunHeadless(target, _driver);
@@ -573,65 +502,6 @@ public sealed class EngineBuilder
         Run(host, host);
 
         return 0;
-    }
-
-    private EngineBuilder RejectCommandLine(string error)
-    {
-        _commandLineError ??= error;
-
-        return this;
-    }
-
-    private int Reject(string message)
-    {
-        Console.Error.WriteLine(message);
-        Console.Error.WriteLine(Usage);
-
-        return BadArgumentExitCode;
-    }
-
-    // A value never starts with the flag prefix, so a missing one is caught here rather than
-    // swallowing the flag that follows it. Blank is missing too: every value reaches a setter that
-    // rejects a blank path.
-    private static bool TryValue(string[] args, ref int index, out string value)
-    {
-        if (index + 1 >= args.Length
-            || args[index + 1].StartsWith("--", StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(args[index + 1]))
-        {
-            value = string.Empty;
-
-            return false;
-        }
-
-        value = args[++index];
-
-        return true;
-    }
-
-    // --frames takes an optional duration, so a following token is only its own when it parses as a
-    // number; one that does but is not a duration the builder accepts is a malformed command line,
-    // not a run that fails late.
-    private static bool TrySeconds(string[] args, ref int index, out double? seconds)
-    {
-        seconds = null;
-
-        if (index + 1 >= args.Length
-            || !double.TryParse(args[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
-        {
-            return true;
-        }
-
-        index++;
-
-        if (!double.IsFinite(parsed) || parsed <= 0d)
-        {
-            return false;
-        }
-
-        seconds = parsed;
-
-        return true;
     }
 
     // No window, device or media loading: the scene host is the same one a windowed run drives, so

@@ -169,8 +169,6 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         base.OnDebugPanel(panel);
         panel.Field("Text", Text);
         panel.Field("Font", string.Create(CultureInfo.InvariantCulture, $"{Font.LineHeight}px line"));

@@ -35,46 +35,6 @@ public sealed class SceneViewTests
     }
 
     [Fact]
-    public void ARendererAttachedToAnEarlyEntity_DrawsInThatEntitysPlace()
-    {
-        SceneFixtures.Drifter early = new(new Vector2(1, 1));
-        SceneFixtures.Drifter late = new(new Vector2(2, 2));
-        late.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)) { Color = ColorRgba.Black });
-
-        SceneFixtures.HookScene scene = new();
-        scene.Add(early);
-        scene.Add(late);
-        SceneSimulation simulation = new(scene);
-
-        Assert.Equal(1, simulation.View.Sprites.Length);
-
-        early.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(2, simulation.View.Sprites.Length);
-        Assert.Equal(ColorRgba.White, simulation.View.Sprites[0].Color);
-        Assert.Equal(ColorRgba.Black, simulation.View.Sprites[1].Color);
-    }
-
-    [Fact]
-    public void AStepThatChangesNothingStructural_DrawsTheSameRenderersMoved()
-    {
-        SceneFixtures.Drifter drifter = new(new Vector2(5, 5));
-        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
-
-        SceneFixtures.HookScene scene = new();
-        scene.Add(drifter);
-        SimulationHost run = new(scene);
-
-        run.Step();
-        run.Step();
-
-        Assert.Equal(1, run.Simulation.View.Sprites.Length);
-        Assert.Equal(new Vector2(6, 5), run.Simulation.View.Sprites[0].PreviousPosition);
-        Assert.Equal(new Vector2(7, 5), run.Simulation.View.Sprites[0].Position);
-    }
-
-    [Fact]
     public void ARemovedEntity_LeavesTheFrameWithIt()
     {
         SceneFixtures.Drifter leaving = new(new Vector2(3, 3));

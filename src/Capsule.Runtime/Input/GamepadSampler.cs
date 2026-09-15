@@ -8,7 +8,16 @@ namespace Capsule.Runtime.Input;
 // engine.
 internal static class GamepadSampler
 {
+    // How many samples pass between sweeps for a pad on another player index while none is
+    // connected: each index costs a backend call, and a run played on the keyboard would otherwise
+    // pay four of them every frame for pads it never finds.
+    private const int SweepInterval = 30;
+
     private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
+
+    // The player index the last connected pad was found on, which is the one tried every sample.
+    private static PlayerIndex ConnectedPlayer = PlayerIndex.One;
+    private static int SweepCountdown;
 
     // snapshot with this frame's pad buttons additionally held and its axes set through filter.
     // With no pad connected it is returned untouched.
@@ -59,11 +68,31 @@ internal static class GamepadSampler
     // deadzone under PadFilter's.
     private static GamePadState FirstConnected()
     {
+        GamePadState remembered = GamePad.GetState(ConnectedPlayer, GamePadDeadZone.None);
+        if (remembered.IsConnected)
+        {
+            return remembered;
+        }
+
+        if (--SweepCountdown > 0)
+        {
+            return default;
+        }
+
+        SweepCountdown = SweepInterval;
+
         for (PlayerIndex player = PlayerIndex.One; player <= PlayerIndex.Four; player++)
         {
+            if (player == ConnectedPlayer)
+            {
+                continue;
+            }
+
             GamePadState state = GamePad.GetState(player, GamePadDeadZone.None);
             if (state.IsConnected)
             {
+                ConnectedPlayer = player;
+
                 return state;
             }
         }

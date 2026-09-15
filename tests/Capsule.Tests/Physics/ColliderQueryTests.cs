@@ -159,17 +159,4 @@ public sealed class ColliderQueryTests
         Assert.False(prober.Collider.Overlaps(unregistered.Collider));
     }
 
-    /// <summary>A bare 8x8 collider that queries the world for itself; nothing ever moves it.</summary>
-    private sealed class Prober : Entity
-    {
-        internal Prober(Vector2 position, params string[] detects)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(8f, 8f));
-            Collider.SetFilter(detects);
-            Add(Collider);
-        }
-
-        internal BoxCollider2D Collider { get; }
-    }
 }

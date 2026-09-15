@@ -16,7 +16,7 @@ public sealed class SceneDrawOrderTests
             SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "prop", 0f, 0f, ZIndex: 10)),
             SceneFixtures.Registry(("prop", Spawns(2))));
 
-        Marker background = new() { ZIndex = -5 };
+        Layered background = new() { ZIndex = -5 };
         background.Add(Tag(1));
         scene.Add(background);
 
@@ -29,11 +29,11 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void EntitiesSharingABand_KeepInsertionAndAttachmentOrder()
     {
-        Marker first = new() { ZIndex = 3 };
+        Layered first = new() { ZIndex = 3 };
         first.Add(Tag(11));
         first.Add(Tag(12));
 
-        Marker second = new() { ZIndex = 3 };
+        Layered second = new() { ZIndex = 3 };
         second.Add(Tag(21));
         second.Add(Tag(22));
 
@@ -50,9 +50,9 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ABandChangedAfterAttaching_ReordersTheFrame()
     {
-        Marker first = new();
+        Layered first = new();
         first.Add(Tag(1));
-        Marker second = new();
+        Layered second = new();
         SpriteRenderer offset = Tag(2);
         second.Add(offset);
 
@@ -76,10 +76,10 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererOffset_ComposesWithItsEntitysBand()
     {
-        Marker banded = new() { ZIndex = 5 };
+        Layered banded = new() { ZIndex = 5 };
         banded.Add(Tag(2));
 
-        Marker split = new();
+        Layered split = new();
         split.Add(Tag(1));
         split.Add(Tag(3, zIndex: 10));
 
@@ -98,10 +98,10 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ASumPastAnInt_StillDrawsOverTheBandBelowIt()
     {
-        Marker ceiling = new() { ZIndex = int.MaxValue };
+        Layered ceiling = new() { ZIndex = int.MaxValue };
         ceiling.Add(Tag(1));
 
-        Marker beyond = new() { ZIndex = int.MaxValue };
+        Layered beyond = new() { ZIndex = int.MaxValue };
         beyond.Add(Tag(2, zIndex: 1));
 
         SceneFixtures.HookScene scene = new();
@@ -118,10 +118,10 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ASumPastAnInt_SortsAboveItsBandFromEitherInsertionOrder()
     {
-        Marker beyond = new() { ZIndex = int.MaxValue };
+        Layered beyond = new() { ZIndex = int.MaxValue };
         beyond.Add(Tag(2, zIndex: 1));
 
-        Marker ceiling = new() { ZIndex = int.MaxValue };
+        Layered ceiling = new() { ZIndex = int.MaxValue };
         ceiling.Add(Tag(1));
 
         SceneFixtures.HookScene scene = new();
@@ -139,10 +139,10 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererRaisingItsOwnKeyWhileDrawing_DrawsOnceThatStepAndLastOnTheNext()
     {
-        Marker raising = new();
+        Layered raising = new();
         raising.Add(new Raising(1, raisedTo: 5));
 
-        Marker above = new() { ZIndex = 1 };
+        Layered above = new() { ZIndex = 1 };
         above.Add(Tag(2));
 
         SceneFixtures.HookScene scene = new();
@@ -167,12 +167,12 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererRaisingItsKeyAndDetachingAPeer_StillDrawsOnce()
     {
-        Marker above = new() { ZIndex = 1 };
+        Layered above = new() { ZIndex = 1 };
         SpriteRenderer detached = Tag(2);
         above.Add(detached);
         above.Add(Tag(3));
 
-        Marker raising = new();
+        Layered raising = new();
         raising.Add(new Raising(1, raisedTo: 5, detaches: detached));
 
         SceneFixtures.HookScene scene = new();
@@ -189,14 +189,14 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererLoweringALaterPeerWhileDrawing_StillDrawsEveryRenderer()
     {
-        Marker first = new();
+        Layered first = new();
         first.Add(Tag(1));
 
-        Marker last = new() { ZIndex = 2 };
+        Layered last = new() { ZIndex = 2 };
         SpriteRenderer lowered = Tag(3);
         last.Add(lowered);
 
-        Marker middle = new() { ZIndex = 1 };
+        Layered middle = new() { ZIndex = 1 };
         middle.Add(new Lowering(2, lowered, loweredTo: -10));
 
         SceneFixtures.HookScene scene = new();
@@ -219,18 +219,18 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererLoweringOnePeerAndDetachingAnother_DrawsEveryRendererThatRemains()
     {
-        Marker first = new();
+        Layered first = new();
         first.Add(Tag(1));
 
-        Marker third = new() { ZIndex = 2 };
+        Layered third = new() { ZIndex = 2 };
         SpriteRenderer lowered = Tag(3);
         third.Add(lowered);
 
-        Marker fourth = new() { ZIndex = 3 };
+        Layered fourth = new() { ZIndex = 3 };
         SpriteRenderer detached = Tag(4);
         fourth.Add(detached);
 
-        Marker second = new() { ZIndex = 1 };
+        Layered second = new() { ZIndex = 1 };
         second.Add(new Lowering(2, lowered, loweredTo: -10, detaches: detached));
 
         SceneFixtures.HookScene scene = new();
@@ -254,7 +254,7 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void AnEntityMovedToAnotherSimulation_DrawsInThatSimulationsFirstFrame()
     {
-        Marker traveller = new();
+        Layered traveller = new();
         traveller.Add(Tag(1));
 
         SceneFixtures.HookScene origin = new();
@@ -305,7 +305,7 @@ public sealed class SceneDrawOrderTests
 
     private static EntitySpawner Spawns(int tag) => _ =>
     {
-        Marker marker = new();
+        Layered marker = new();
         marker.Add(Tag(tag));
 
         return marker;
@@ -328,7 +328,7 @@ public sealed class SceneDrawOrderTests
         return tags;
     }
 
-    private sealed class Marker() : Entity(Vector2.Zero);
+    private sealed class Layered() : Entity(Vector2.Zero);
 
     private static void Emit(FrameView view, int tag)
     {

@@ -2,69 +2,50 @@ using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
 internal static class AssetRegistrySource
 {
-    internal const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
-
-    internal const string PathMetadata = "build_metadata.AdditionalFiles.CapsuleAssetPath";
-
     private const string FileName = "CapsuleAssets.g.cs";
 
     private const string TextureDomain = "textures";
 
     private const string HandleType = "global::Capsule.Assets.TextureHandle";
 
-    /// <summary>Whether the domain <paramref name="text"/> declares is one this generator emits.</summary>
-    internal static bool InDomain(AdditionalText text, AnalyzerConfigOptionsProvider options, string domain) =>
-        options.GetOptions(text).TryGetValue(DomainMetadata, out string? declared)
-        && string.Equals(declared, domain, StringComparison.Ordinal);
-
-    /// <summary>The path the asset hook authored <paramref name="text"/> at, with one spelling.</summary>
-    internal static string Authored(AdditionalText text, AnalyzerConfigOptionsProvider options) =>
-        // MSBuild's %(RecursiveDir) carries the platform's separator; a handle has one spelling.
-        options.GetOptions(text).TryGetValue(PathMetadata, out string? authored) && !string.IsNullOrEmpty(authored)
-            ? authored!.Replace('\\', '/')
-            : Path.GetFileNameWithoutExtension(text.Path);
-
-    internal static AssetModel? Describe(AdditionalText text, AnalyzerConfigOptionsProvider options)
+    internal static AssetModel? Describe(AssetFile file)
     {
         // Every other additional file a project carries reaches this the same way and is no asset.
         // A domain this generator declares no class for is no asset of its either: audio arrives
         // here like every other shipped file, and its registry is emitted by the build tool, which
         // measures each clip's duration.
-        if (!options.GetOptions(text).TryGetValue(DomainMetadata, out string? domain)
-            || !string.Equals(domain, TextureDomain, StringComparison.Ordinal))
+        if (!file.InDomain(TextureDomain))
         {
             return null;
         }
 
-        string path = Authored(text, options);
-
         // The key, not the spelling: the build ships the asset at the normalized path, so the
         // handle this declares must name that and no other.
-        string extension = Path.GetExtension(text.Path);
+        string path = file.Authored;
+        string extension = Path.GetExtension(file.Text.Path);
 
         return TypeNaming.NormalizeKey(path, out _) is { } key
-            ? new AssetModel(domain!, key, path, extension, AssetFault.None)
-            : new AssetModel(domain!, path, path, extension, AssetFault.UnsafeName);
+            ? new AssetModel(TextureDomain, key, path, extension, file.Text.Path, AssetFault.None)
+            : new AssetModel(TextureDomain, path, path, extension, file.Text.Path, AssetFault.UnsafeName);
     }
 
     /// <summary>Reads one fonts-domain page into the key and spelling the build ships it at.</summary>
-    internal static KeyValuePair<string, string>? DescribePage(AdditionalText text, AnalyzerConfigOptionsProvider options)
+    internal static KeyValuePair<string, string>? DescribePage(AssetFile file)
     {
-        string extension = Path.GetExtension(text.Path);
+        string extension = Path.GetExtension(file.Text.Path);
         if (string.Equals(extension, BmFontParser.BmFontExtension, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
         // A page whose path is no key fails the key pass, which reads the same authored paths.
-        return TypeNaming.NormalizeKey(Authored(text, options), out _) is { } key
+        return TypeNaming.NormalizeKey(file.Authored, out _) is { } key
             ? new KeyValuePair<string, string>(key, extension)
             : null;
     }
@@ -73,8 +54,8 @@ internal static class AssetRegistrySource
         SourceProductionContext context,
         ImmutableArray<AssetModel> models,
         ImmutableArray<KeyValuePair<string, string>> pages,
-        ImmutableArray<FontModel> fonts,
-        ImmutableArray<SheetModel> sheets,
+        ImmutableArray<ParsedAsset<BmFontDescription>> fonts,
+        ImmutableArray<ParsedAsset<SheetDocument>> sheets,
         bool emitting)
     {
         if (!emitting)
@@ -98,7 +79,7 @@ internal static class AssetRegistrySource
             if (model.Fault == AssetFault.UnsafeName)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.UnsafeAssetName, Location.None, model.Display));
+                    RegistryDiagnostics.UnsafeAssetName, ParsedAsset.At(model.Source), model.Display));
                 continue;
             }
 
@@ -114,7 +95,7 @@ internal static class AssetRegistrySource
 
         foreach (AssetModel model in sound)
         {
-            textures.Add(model.Path, model.Display, model, Claimable<AssetModel>(context));
+            textures.Add(model.Path, model.Display, model, Claimable<AssetModel>(context, ParsedAsset.At(model.Source)));
         }
 
         StringBuilder source = RegistryFile.Open();
@@ -130,7 +111,7 @@ internal static class AssetRegistrySource
     private static RegistryDomain<SheetDocument> Sprites(
         SourceProductionContext context,
         List<AssetModel> textures,
-        ImmutableArray<SheetModel> sheets)
+        ImmutableArray<ParsedAsset<SheetDocument>> sheets)
     {
         RegistryDomain<SheetDocument> registry = SpriteRegistrySource.Registry();
 
@@ -142,19 +123,19 @@ internal static class AssetRegistrySource
             shipped.Add(texture.Path + texture.Extension);
         }
 
-        List<SheetModel> ordered = [.. sheets];
+        List<ParsedAsset<SheetDocument>> ordered = [.. sheets];
         ordered.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
 
-        foreach (SheetModel sheet in ordered)
+        foreach (ParsedAsset<SheetDocument> sheet in ordered)
         {
-            if (sheet.Fault == SheetFault.UnsafeName)
+            if (sheet.Fault == ParsedFault.UnsafeName)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.UnsafeAssetName, sheet.Location, sheet.Display));
                 continue;
             }
 
-            if (sheet.Fault != SheetFault.None || sheet.Document is not { } document)
+            if (sheet.Parsed is not { } document)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.UnreadableSheet, sheet.Location, sheet.Display, sheet.Message));
@@ -171,7 +152,11 @@ internal static class AssetRegistrySource
                 continue;
             }
 
-            registry.Add(sheet.Key, sheet.Display, document, Claimable<SheetDocument>(context, SpriteRegistrySource.Reserves));
+            registry.Add(
+                sheet.Key,
+                sheet.Display,
+                document,
+                Claimable<SheetDocument>(context, sheet.Location, SpriteRegistrySource.Reserves));
         }
 
         return registry;
@@ -180,7 +165,7 @@ internal static class AssetRegistrySource
     private static RegistryDomain<FontSource> Fonts(
         SourceProductionContext context,
         ImmutableArray<KeyValuePair<string, string>> pages,
-        ImmutableArray<FontModel> fonts)
+        ImmutableArray<ParsedAsset<BmFontDescription>> fonts)
     {
         RegistryDomain<FontSource> registry = FontRegistrySource.Registry();
 
@@ -190,19 +175,19 @@ internal static class AssetRegistrySource
             shipped[page.Key] = page.Value;
         }
 
-        List<FontModel> ordered = [.. fonts];
+        List<ParsedAsset<BmFontDescription>> ordered = [.. fonts];
         ordered.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
 
-        foreach (FontModel font in ordered)
+        foreach (ParsedAsset<BmFontDescription> font in ordered)
         {
-            if (font.Fault == FontFault.UnsafeName)
+            if (font.Fault == ParsedFault.UnsafeName)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.UnsafeAssetName, font.Location, font.Display));
                 continue;
             }
 
-            if (font.Fault != FontFault.None || font.Description is not { } described)
+            if (font.Parsed is not { } described)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     RegistryDiagnostics.UnreadableFont, font.Location, font.Display, font.Message));
@@ -216,7 +201,7 @@ internal static class AssetRegistrySource
                 continue;
             }
 
-            registry.Add(font.Key, font.Display, source, Claimable<FontSource>(context));
+            registry.Add(font.Key, font.Display, source, Claimable<FontSource>(context, font.Location));
         }
 
         return registry;
@@ -226,6 +211,7 @@ internal static class AssetRegistrySource
     // name the domain's own generated members take, and not one already claimed here.
     private static RegistryClaimCheck<T> Claimable<T>(
         SourceProductionContext context,
+        Location location,
         Func<string, bool, bool>? reserves = null) =>
         (node, identifier, display, leaf) =>
         {
@@ -236,7 +222,7 @@ internal static class AssetRegistrySource
             if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal) || reserved)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.AssetNamedAfterItsDomain, Location.None, display, identifier, node.Display));
+                    RegistryDiagnostics.AssetNamedAfterItsDomain, location, display, identifier, node.Display));
 
                 return false;
             }
@@ -250,7 +236,7 @@ internal static class AssetRegistrySource
                 }
 
                 context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateAssetIdentifier, Location.None, claimed, display, identifier, node.Display));
+                    RegistryDiagnostics.DuplicateAssetIdentifier, location, claimed, display, identifier, node.Display));
 
                 return false;
             }

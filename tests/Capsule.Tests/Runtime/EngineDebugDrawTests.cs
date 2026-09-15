@@ -10,6 +10,7 @@ using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 using Capsule.UI;
+using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
@@ -26,7 +27,7 @@ public sealed class EngineDebugDrawTests
         // view reaches two cells, the margin adds one, and the fourth solid cell must not emit.
         Physical scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
+        FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
@@ -106,7 +107,7 @@ public sealed class EngineDebugDrawTests
     {
         Physical scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
+        FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
         overlay.ToggleChannel("Colliders");
@@ -137,7 +138,7 @@ public sealed class EngineDebugDrawTests
         List<string> log = [];
         Scene scene = new HookScene(log);
         using SceneHost host = new(SceneTransition.ToScene(typeof(HookScene), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
+        FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
@@ -163,7 +164,7 @@ public sealed class EngineDebugDrawTests
     {
         Scene scene = new SilentScene();
         using SceneHost host = new(SceneTransition.ToScene(typeof(SilentScene), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
+        FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
         overlay.ToggleChannel("Origins");
@@ -179,18 +180,6 @@ public sealed class EngineDebugDrawTests
         Assert.Equal((origin - new Vector2(1.5f, 0f), origin + new Vector2(1.5f, 0f)), (lines[0].A, lines[0].B));
         Assert.Equal((origin - new Vector2(0f, 1.5f), origin + new Vector2(0f, 1.5f)), (lines[1].A, lines[1].B));
         Assert.Equal((origin, origin + Vector2.One), (lines[2].A, lines[2].B));
-    }
-
-    private static void Frame(
-        OverlayHost overlay,
-        FixedStepScheduler scheduler,
-        ISimulation simulation,
-        DeviceSnapshot sampled,
-        double elapsed = StepSeconds)
-    {
-        DeviceSnapshot stripped = overlay.Observe(sampled);
-        scheduler.Advance(elapsed, stripped, simulation);
-        overlay.Step();
     }
 
     private sealed class Physical : Scene

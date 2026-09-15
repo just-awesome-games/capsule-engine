@@ -6,6 +6,7 @@ using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
+using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
@@ -17,15 +18,16 @@ public sealed class PanelMenusTests
     private const ulong Seed = 42;
 
     // The page's head for a scene with no hook of its own: the Scene section holding the engine's
-    // own rows, then the Entities heading. The first entity row is at index FirstEntity.
+    // own rows, then the Entities heading. The first entity row is at index FirstEntity. Rows are
+    // named rather than spelt out — what each one reads is DebugPanelTests' to hold.
     private static readonly string[] Head =
     [
         "[Scene]",
-        "Seed        42",
-        "Size        (0, 0)",
-        "ClearColor  #000000ff",
-        "Sampling    Linear",
-        "Camera      (0, 0)",
+        "Seed",
+        "Size",
+        "ClearColor",
+        "Sampling",
+        "Camera",
         string.Empty,
         "[Entities]",
     ];
@@ -47,7 +49,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
 
         Assert.Equal("Populated", scene.Title);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Labels(scene));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Rows(scene));
         Assert.Equal(FirstEntity, scene.FocusedIndex);
         Assert.Equal(2, scene.Depth);
 
@@ -56,8 +58,8 @@ public sealed class PanelMenusTests
         Assert.Equal("Lone", scene.Title);
         Assert.Equal(3, scene.Depth);
         Assert.Equal(
-            ["[Entity]", "Position  (5, 6)", "ZIndex    3", "Name      solitary", "  (Commands)", "  Remove", "", "[Tag]", "Label     one"],
-            Labels(scene));
+            ["[Entity]", "Position", "ZIndex", "Name", "  (Commands)", "  Remove", "", "[Tag]", "Label"],
+            Rows(scene));
 
         Press(overlay, scheduler, host, Key.Down);
         Assert.Equal(5, scene.FocusedIndex);
@@ -89,8 +91,8 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Seamed", scene.Title);
         Assert.Equal(
-            [.. Head[..6], "Spawned     0", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
-            Labels(scene));
+            [.. Head[..6], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
+            Rows(scene));
         Assert.Equal(8, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Enter);
@@ -117,7 +119,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal("Nudger", scene.Title);
-        Assert.Equal(["[Entity]", "Position  (1, 2)", "ZIndex    0", "  (Commands)", "  Remove", "  Nudge"], Labels(scene));
+        Assert.Equal(["[Entity]", "Position", "ZIndex", "  (Commands)", "  Remove", "  Nudge"], Rows(scene));
         Assert.Equal(4, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Down);
@@ -150,12 +152,13 @@ public sealed class PanelMenusTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..6], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Labels(scene));
+        Assert.Equal([.. Head[..6], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Rows(scene));
         Assert.Equal(7, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal("Command failed: InvalidOperationException: PayloadScene needs a payload.", scene.Status);
+        Assert.StartsWith("Command failed", scene.Status, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), scene.Status, StringComparison.Ordinal);
         Assert.Same(requesting, host.Scene);
         Assert.True(scheduler.Held);
         Assert.Equal("Requesting", scene.Title);
@@ -166,7 +169,7 @@ public sealed class PanelMenusTests
         Assert.IsType<OtherScene>(host.Scene);
         Assert.Equal("OtherScene", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal([.. Head, "Lone"], Labels(scene));
+        Assert.Equal([.. Head, "Lone"], Rows(scene));
         Assert.Equal(string.Empty, scene.Status);
     }
 
@@ -193,7 +196,7 @@ public sealed class PanelMenusTests
 
         Press(overlay, scheduler, host, Key.Backspace);
 
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Labels(scene));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Rows(scene));
         Assert.Equal(FirstEntity + 3, scene.FocusedIndex);
     }
 
@@ -221,8 +224,8 @@ public sealed class PanelMenusTests
         Assert.Equal(2, scheduler.Tick);
         Assert.Equal("Populated", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal("Vanisher left the scene", scene.Status);
-        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Labels(scene));
+        Assert.Contains("Vanisher", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Rows(scene));
         Assert.Equal(FirstEntity + 2, scene.FocusedIndex);
     }
 
@@ -238,7 +241,7 @@ public sealed class PanelMenusTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head, "Vanisher", "Lone", "Vanisher (1)"], Labels(scene));
+        Assert.Equal([.. Head, "Vanisher", "Lone", "Vanisher (1)"], Rows(scene));
 
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
@@ -252,7 +255,7 @@ public sealed class PanelMenusTests
         Assert.Equal(3, scene.Depth);
 
         Press(overlay, scheduler, host, Key.Backspace);
-        Assert.Equal([.. Head, "Lone", "Vanisher"], Labels(scene));
+        Assert.Equal([.. Head, "Lone", "Vanisher"], Rows(scene));
     }
 
     [Fact]
@@ -265,7 +268,7 @@ public sealed class PanelMenusTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Labels(scene));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Rows(scene));
 
         Press(overlay, scheduler, host, Key.L);
         Press(overlay, scheduler, host, Key.Down);
@@ -277,7 +280,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.Backspace);
 
         Assert.Equal("OtherScene", scene.Title);
-        Assert.Equal([.. Head, "Lone"], Labels(scene));
+        Assert.Equal([.. Head, "Lone"], Rows(scene));
 
         Press(overlay, scheduler, host, Key.L);
         Press(overlay, scheduler, host, Key.Up);
@@ -288,7 +291,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("EmptyScene", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal([.. Head, "<Nothing to show>"], Labels(scene));
+        Assert.Equal([.. Head, "<Nothing to show>"], Rows(scene));
     }
 
     // A panel open across a load: its entity's scene is gone, so it pops to the page, which is
@@ -310,8 +313,8 @@ public sealed class PanelMenusTests
 
         Assert.Equal("OtherScene", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal("Lone left the scene", scene.Status);
-        Assert.Equal([.. Head, "Lone"], Labels(scene));
+        Assert.Contains("Lone", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone"], Rows(scene));
     }
 
     // A load from its submenu leaves the panel beneath stale; the frame whose Back exposes it
@@ -339,8 +342,8 @@ public sealed class PanelMenusTests
 
         Assert.Equal("OtherScene", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal("Lone left the scene", scene.Status);
-        Assert.Equal([.. Head, "Lone"], Labels(scene));
+        Assert.Contains("Lone", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone"], Rows(scene));
     }
 
     // The engine's own Remove command on an entity: the tick after it takes the entity out, and
@@ -365,8 +368,8 @@ public sealed class PanelMenusTests
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal("Populated", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal("Walker left the scene", scene.Status);
-        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], Labels(scene));
+        Assert.Contains("Walker", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], Rows(scene));
     }
 
     // Only a transition that fails to bring its scene up is a status-line matter; the tick's own
@@ -381,7 +384,7 @@ public sealed class PanelMenusTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..6], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Labels(scene));
+        Assert.Equal([.. Head[..6], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Rows(scene));
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
             () => Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter)));
@@ -430,7 +433,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Populated", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Labels(scene));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Rows(scene));
     }
 
     // Closed, the game runs; reopened, the panel shows where it got to, and a scene it replaced
@@ -471,8 +474,8 @@ public sealed class PanelMenusTests
 
         Assert.True(overlay.IsOpen);
         Assert.Equal("OtherScene", scene.Title);
-        Assert.Equal("Walker left the scene", scene.Status);
-        Assert.Equal([.. Head, "Lone"], Labels(scene));
+        Assert.Contains("Walker", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone"], Rows(scene));
     }
 
     // Sections are set apart by a blank row, and a component that writes nothing says so.
@@ -492,44 +495,26 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Vanisher", scene.Title);
         Assert.Equal(
-            ["[Entity]", "Position  (0, 0)", "ZIndex    0", "  (Commands)", "  Remove", "", "[Tag]", "Label     v", "", "[Mute]", "<Nothing to show>"],
-            Labels(scene));
+            ["[Entity]", "Position", "ZIndex", "  (Commands)", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
+            Rows(scene));
     }
 
-    private static string[] Labels(OverlayScene scene)
+    // Every row named rather than read: its heading, its command, or the field's name without the
+    // column the panel pads it into. What a field reads is DebugPanelTests'.
+    private static string[] Rows(OverlayScene scene)
     {
-        IReadOnlyList<MenuItem> items = scene.Current.Items;
-        string[] labels = new string[items.Count];
-        for (int index = 0; index < items.Count; index++)
+        string[] rows = Labels(scene);
+        for (int index = 0; index < rows.Length; index++)
         {
-            labels[index] = items[index].Label;
+            string row = rows[index];
+            string named = row.TrimStart();
+            int column = named.IndexOf("  ", StringComparison.Ordinal);
+
+            rows[index] = row[..(row.Length - named.Length)] + (column < 0 ? named.TrimEnd() : named[..column]);
         }
 
-        return labels;
+        return rows;
     }
-
-    private static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-
-        Assert.True(overlay.IsOpen);
-    }
-
-    private static void Press(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-    }
-
-    private static void Frame(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, DeviceSnapshot sampled)
-    {
-        DeviceSnapshot stripped = overlay.Observe(sampled);
-        scheduler.Advance(StepSeconds, stripped, simulation);
-        overlay.Step();
-    }
-
-    private static FixedStepScheduler CreateScheduler() => new(StepSeconds, 5, new ActionBindings());
 
     private static SceneHost CreateHost(Scene? first = null) =>
         new(

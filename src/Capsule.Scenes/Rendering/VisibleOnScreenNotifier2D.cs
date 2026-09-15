@@ -132,8 +132,6 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("IsOnScreen", IsOnScreen);
         panel.Field("Size", Size);
         panel.Field("Offset", Offset);

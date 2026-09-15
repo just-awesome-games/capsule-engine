@@ -19,8 +19,7 @@ namespace Capsule.Animation;
 /// <see cref="Entity.OnStep"/> reads the frame the previous step drew, and a
 /// <see cref="Play(SpriteClip, int)"/> made there at that <see cref="Tick"/> re-enters the
 /// previous step's position and costs the clip a tick. Logic that depends on the frame drawn
-/// belongs in a component attached after the animator, which sees this step's frame; a
-/// <see cref="Play(SpriteClip, bool)"/> from there still draws at once.
+/// belongs in a component attached after the animator.
 /// </remarks>
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
 public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
@@ -118,9 +117,8 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// <paramref name="clip"/> is the clip already playing.
     /// </para>
     /// <para>
-    /// A pose variant — the same motion drawn with the weapon raised — is played at
-    /// <see cref="Tick"/>: given the same frame count and per-frame ticks as the clip playing it
-    /// draws the frame that clip stood on, this step, and carries on from there, a finished clip
+    /// Played at <see cref="Tick"/>, a clip with the same frame count and per-frame ticks as the
+    /// one playing draws the frame that clip stood on and carries on from there, a finished clip
     /// staying finished. A clip of any other shape simply seeks; nothing is checked.
     /// </para>
     /// </summary>
@@ -171,8 +169,6 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("Playing", Clip is not null);
         if (Clip is not { } clip)
         {

@@ -45,7 +45,6 @@ public sealed class SceneRegistry
         }
     }
 
-    // Every registration, in no particular order.
     internal Dictionary<Type, SceneRegistration>.ValueCollection Registrations => _byType.Values;
 
     // The scene document backing sceneType, or null when none does.
@@ -74,9 +73,6 @@ public sealed class SceneRegistry
 
         return found;
     }
-
-    // Every registered scene class, for a message naming what a caller could have asked for.
-    internal string RegisteredSceneNames() => RegisteredTypes();
 
     internal Scene Create(Type sceneType)
     {
@@ -125,8 +121,9 @@ public sealed class SceneRegistry
         return registration;
     }
 
+    // Every registered scene class, for a message naming what a caller could have asked for.
     // Sorted so the message reads the same whatever order the registry was built in.
-    private string RegisteredTypes()
+    internal string RegisteredTypes()
     {
         if (_byType.Count == 0)
         {

@@ -19,10 +19,9 @@ public sealed class FrameCaptureTests : IDisposable
     // factory, so the path the headless test wants cannot be handed to its constructor.
     private static string BoundPath = "shot.png";
 
-    private readonly string _directory =
-        Directory.CreateTempSubdirectory(nameof(FrameCaptureTests)).FullName;
+    private readonly TempWorkspace _workspace = new(nameof(FrameCaptureTests));
 
-    public void Dispose() => Directory.Delete(_directory, recursive: true);
+    public void Dispose() => _workspace.Dispose();
 
     [Fact]
     public void TheHostsTake_YieldsTheRequestedPathAndClearsIt()
@@ -57,7 +56,7 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void RunHeadless_CompletesWithARequestPendingAndWritesNoFile()
     {
-        BoundPath = Path.Combine(_directory, "shots", "headless.png");
+        BoundPath = Path.Combine(_workspace.Root, "shots", "headless.png");
         IInputDriver driver = new InputScript().Tap(Key.Space).Wait(3).Build();
 
         HeadlessRunResult result = CapsuleEngine.Configure(
@@ -81,7 +80,7 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void RunHeadless_ClearsARequestRaisedOnTheFinalStep()
     {
-        BoundPath = Path.Combine(_directory, "final.png");
+        BoundPath = Path.Combine(_workspace.Root, "final.png");
         IInputDriver driver = new InputScript().Wait(3).Tap(Key.Space).Build();
 
         BoundCaptureScene? scene = null;
@@ -109,16 +108,16 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void WriteCapture_ThatCannotReplaceTheDestination_LeavesItIntactAndNoTemporary()
     {
-        string path = Path.Combine(_directory, "shot.png");
+        string path = Path.Combine(_workspace.Root, "shot.png");
         Directory.CreateDirectory(path);
 
         string occupant = Path.Combine(path, "occupant");
         File.WriteAllText(occupant, "an earlier capture");
 
-        FrameRenderer.WriteCapture([1, 2, 3], path);
+        FrameCapture.Write([1, 2, 3], path);
 
         Assert.Equal("an earlier capture", File.ReadAllText(occupant));
-        Assert.Empty(Directory.GetFiles(_directory));
+        Assert.Empty(Directory.GetFiles(_workspace.Root));
     }
 
     // A path the file system rejects is a warning, not an exception thrown into the frame loop. A
@@ -126,11 +125,11 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void WriteCapture_ToAPathTheFileSystemRejects_WritesNothingAndDoesNotThrow()
     {
-        string path = _directory + Path.DirectorySeparatorChar + "sh\0t.png";
+        string path = _workspace.Root + Path.DirectorySeparatorChar + "sh\0t.png";
 
-        FrameRenderer.WriteCapture([1, 2, 3], path);
+        FrameCapture.Write([1, 2, 3], path);
 
-        Assert.Empty(Directory.GetFiles(_directory));
+        Assert.Empty(Directory.GetFiles(_workspace.Root));
     }
 
     // The staging name is unique per capture, so a file already sitting on the plain staging name
@@ -138,11 +137,11 @@ public sealed class FrameCaptureTests : IDisposable
     [Fact]
     public void WriteCapture_LeavesAFileOnThePlainStagingNameUntouched()
     {
-        string path = Path.Combine(_directory, "shot.png");
-        string staging = path + FrameRenderer.TemporarySuffix;
+        string path = Path.Combine(_workspace.Root, "shot.png");
+        string staging = path + FrameCapture.TemporarySuffix;
         File.WriteAllText(staging, "an unrelated file");
 
-        FrameRenderer.WriteCapture([1, 2, 3], path);
+        FrameCapture.Write([1, 2, 3], path);
 
         Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
         Assert.Equal("an unrelated file", File.ReadAllText(staging));

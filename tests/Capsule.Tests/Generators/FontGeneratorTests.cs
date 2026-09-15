@@ -241,28 +241,18 @@ public sealed class FontGeneratorTests
             })]);
 
     private static Assembly Compiled(params (string Path, string? Content)[] assets) =>
-        Probed(string.Empty, assets);
+        GeneratorHarness.Compiled(assets);
 
     // A game naming the sets it was given: a span cannot come back through reflection, so each set
     // is counted where a call site counts it.
-    private static Assembly Probed(string sets, params (string Path, string? Content)[] assets)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
-            "using Capsule.Assets.Generated;\n\nnamespace Game;\n\npublic static class Probe\n{\n"
-            + "    public static int[] Counts => new int[] { " + sets + " };\n}\n",
-            logic: true,
-            assets);
-
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-
-        return GeneratorHarness.Loaded(compiled);
-    }
+    private static Assembly Probed(string sets, params (string Path, string? Content)[] assets) =>
+        GeneratorHarness.Probed("    public static int[] Counts => new int[] { " + sets + " };", assets);
 
     private static int[] Counts(Assembly game) =>
         (int[])game.GetType("Game.Probe")!.GetProperty("Counts")!.GetValue(null)!;
 
     private static IEnumerable<Diagnostic> Refused(params (string Path, string? Content)[] assets) =>
-        GeneratorHarness.Errors(GeneratorHarness.CompileWithSources(logic: true, assets).Diagnostics);
+        GeneratorHarness.Refused(assets);
 
     // CapsuleAssets.Fonts.<path>, as the game names it.
     private static BitmapFont Font(Assembly game, params string[] path)

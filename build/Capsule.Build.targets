@@ -16,7 +16,6 @@
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- Compose hook paths with forward slashes; backslashes are not separators on Linux. -->
   <PropertyGroup>
     <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportScenes>
     <CapsuleShipAssets Condition="'$(CapsuleShipAssets)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleShipAssets>
@@ -32,9 +31,8 @@
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
 
-  <!-- No GlobalPropertiesToRemove: the tool project pins the publish properties with
-       TreatAsLocalProperty, and removing them here would request the tool's shared engine
-       subgraph under a second global-property set, so two builds would race into one output. -->
+  <!-- No GlobalPropertiesToRemove: it would request the tool's shared engine subgraph under a
+       second global-property set, and two builds would race into one output. -->
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <ProjectReference Include="$(CapsuleBuildToolProject)"
                       Condition="'$(CapsuleBuildToolProject)' != ''"
@@ -45,9 +43,9 @@
                       Private="false" />
   </ItemGroup>
 
-  <!-- Resolve before import-target Inputs are evaluated; match the ProjectReference configuration. -->
+  <!-- Resolve before import-target Inputs are evaluated; match the ProjectReference configuration.
+       Configuration is settled only when this target runs. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleReadsAssetSources)' == 'true'">
-    <!-- Configuration is settled only when this target runs. -->
     <PropertyGroup>
       <_CapsuleBuildToolConfiguration>$(CapsuleSourceConfiguration)</_CapsuleBuildToolConfiguration>
       <_CapsuleBuildToolConfiguration Condition="'$(_CapsuleBuildToolConfiguration)' == ''">$(Configuration)</_CapsuleBuildToolConfiguration>
@@ -70,13 +68,11 @@
     </ItemGroup>
   </Target>
 
-  <!-- Resolved for every importing project, read only by one that reads asset sources: an empty
-       value would leave the authoring globs rooted at the drive. -->
+  <!-- Resolved for every importing project, not only one that reads asset sources: an empty value
+       would leave the authoring globs rooted at the drive. -->
   <PropertyGroup>
-    <!-- Capture an explicit override before applying the default. -->
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/Assets</CapsuleAssetSourcesDir>
-    <!-- Normalize overrides against the project directory before Exists checks. -->
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
   </PropertyGroup>
 
@@ -164,15 +160,13 @@
           DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSheetDocumentsDependsOn)"
           BeforeTargets="GenerateMSBuildEditorConfigFile;BeforeCompile;CoreCompile" />
 
-  <!-- The whole authoring plane as one manifest. A key is the authored path normalized segment by
-       segment, which is a C# rule shared with the generators, so nothing here derives one: every
-       authored path goes out to the build tool and every name the later hooks need comes back in
-       the manifests it writes. -->
+  <!-- The whole authoring plane as one manifest. Keying is a C# rule shared with the generators, so
+       nothing here derives a key: authored paths go out to the build tool and every name the later
+       hooks need comes back in the manifests it writes. -->
   <Target Name="CapsuleBuildRequests"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleAssetsInit;CapsuleCollectSceneDocuments;CapsuleResolveBuildTool">
 
-    <!-- Configuration is settled only when this target runs. -->
     <PropertyGroup>
       <CapsuleObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
       <CapsuleBuildRequestFile>$(CapsuleObjDir)/build-requests.txt</CapsuleBuildRequestFile>
@@ -185,10 +179,9 @@
     <Error Condition="'$(CapsuleReadsAssetSources)' == 'true' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the build tool is unavailable, so no asset can be keyed. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- Qualify metadata to avoid evaluating it on incompatible items. -->
+    <!-- Qualify metadata to avoid evaluating it on incompatible items. A font description is
+         compiled in by the generator from the same authored file: keyed by nothing, ships nowhere. -->
     <ItemGroup>
-      <!-- A font description is compiled into the game by the generator, which reads the same
-           authored file: it is keyed by nothing and ships nowhere. -->
       <_CapsuleAssetRequest Include="@(CapsuleAsset)"
                             Condition="'@(CapsuleAsset)' != '' and '%(CapsuleAsset.Extension)' != '.fnt'">
         <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleAsset.FullPath)))</Relative>
@@ -215,8 +208,8 @@
 
     <MakeDir Directories="$(CapsuleObjDir)" />
 
-    <!-- The declared tile size travels in the manifest, so changing it changes the one incremental
-         input of the run. An unset property leaves an empty entry, which the list drops. -->
+    <!-- The tile size travels in the manifest, so changing it changes the run's incremental input.
+         An unset property leaves an empty entry, which the list drops. -->
     <PropertyGroup>
       <_CapsuleTileSizeOption Condition="'$(CapsuleTileSize)' != ''">tile-size|$(CapsuleTileSize)</_CapsuleTileSizeOption>
     </PropertyGroup>
@@ -246,9 +239,8 @@
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- Runs on up-to-date builds too: every hook below reads its items from the manifests on disk,
-       never from a run that skipped. AssignTargetPaths carries the content halves; the compile half
-       also hooks BeforeCompile, which is all a design-time build reaches. -->
+  <!-- Runs on up-to-date builds too: every hook below reads the manifests on disk, never a run that
+       skipped. BeforeCompile as well as AssignTargetPaths — a design-time build reaches no further. -->
   <Target Name="CapsuleReadBuildOutputs"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleRunBuildTool"
@@ -262,8 +254,7 @@
       <Output TaskParameter="Lines" ItemName="_CapsuleSceneContentLine" />
     </ReadLinesFromFile>
 
-    <!-- Each line is the shipped path, a '|', and the file it comes from; splitting a manifest line
-         is not deriving a key. -->
+    <!-- Each line is the shipped path, a '|', and the file it comes from. -->
     <ItemGroup>
       <_CapsuleShippedAsset Condition="'@(_CapsuleShippedAssetLine)' != ''"
                             Include="$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Substring($([MSBuild]::Add(1, $([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').IndexOf('|'))))))">

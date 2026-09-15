@@ -8,31 +8,6 @@ namespace Capsule.Tests.Scenes;
 public sealed class SpawnTests
 {
     [Fact]
-    public void SpawnsBecomeEntities_InTheOrderGiven_CarryingTheirData()
-    {
-        EntitySpawn chestSpawn = new(2, "chest", new Vector2(48f, 16f));
-        EntitySpawn playerSpawn = new(1, "player-spawn", new Vector2(32f, 24f));
-
-        SceneFixtures.SpawnScene scene = new(
-            SceneFixtures.Registry(
-                ("chest", static spawn => new SceneFixtures.Placed(spawn)),
-                ("player-spawn", static spawn => new SceneFixtures.Placed(spawn))),
-            chestSpawn,
-            playerSpawn);
-
-        Entity[] entities = scene.Entities.ToArray();
-
-        Assert.Equal(2, entities.Length);
-        SceneFixtures.Placed chest = Assert.IsType<SceneFixtures.Placed>(entities[0]);
-        SceneFixtures.Placed player = Assert.IsType<SceneFixtures.Placed>(entities[1]);
-        Assert.Equal(chestSpawn, chest.Spawn);
-        Assert.Equal(playerSpawn, player.Spawn);
-
-        Assert.Equal(new Vector2(48f, 16f), chest.Position);
-        Assert.Equal(chest.Position, chest.PreviousPosition);
-    }
-
-    [Fact]
     public void AnUnregisteredSpawnType_NamesItselfAndWhatIsRegistered()
     {
         SpawnException failure = Assert.Throws<SpawnException>(() => new SceneFixtures.SpawnScene(

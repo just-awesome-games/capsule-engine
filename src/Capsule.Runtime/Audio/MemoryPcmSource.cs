@@ -17,8 +17,6 @@ internal sealed class MemoryPcmSource : IPcmSource
 
     public int SampleRate => _samples.SampleRate;
 
-    public long Frames => _samples.Samples.Length / _samples.Channels;
-
     // Points this cursor at samples, from their start.
     internal void Arm(PcmAudio samples)
     {

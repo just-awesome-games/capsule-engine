@@ -9,6 +9,14 @@ namespace Capsule.Tests.Animation;
 
 public sealed class SpriteAnimatorTests
 {
+    /// <summary>Where a <c>Play</c> is made from, which must not change the frames drawn.</summary>
+    public enum PlaySite
+    {
+        EntityStart,
+        EntityStep,
+        ComponentAfterTheAnimator,
+    }
+
     private static readonly TextureHandle Sheet = new("player", ".png");
 
     private static readonly SpriteClip Walk = new(
@@ -137,34 +145,28 @@ public sealed class SpriteAnimatorTests
     }
 
     // The frame view is what the player sees: an animator that advanced on the step its clip
-    // started would retire this one-tick first frame before a single view held it.
-    [Fact]
-    public void AClipPlayedFromOnStartDrawsItsFirstFrameForItsOwnTicks()
+    // started would retire this one-tick first frame before a single view held it. Wherever the
+    // Play came from — an entity that asks every step, where only the first is a change, or the
+    // natural Capsule shape of a component the entity attached after the animator, whose Play
+    // reaches it only on the following step — the hold is counted from the tick Play ran in.
+    [Theory]
+    [InlineData(PlaySite.EntityStart)]
+    [InlineData(PlaySite.EntityStep)]
+    [InlineData(PlaySite.ComponentAfterTheAnimator)]
+    public void AClipPlayedFromAnywhereDrawsItsFirstFrameForItsOwnTicks(PlaySite site)
     {
-        Animated entity = new(onStart: Blink);
-        SimulationHost run = Simulate(entity);
+        Animated entity = site switch
+        {
+            PlaySite.EntityStart => new Animated(onStart: Blink),
+            PlaySite.EntityStep => new Animated(onStep: Blink),
+            _ => new Animated(),
+        };
 
-        Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(run, 5));
-    }
+        if (site == PlaySite.ComponentAfterTheAnimator)
+        {
+            entity.Add(new Driver(entity.Animator, Blink));
+        }
 
-    [Fact]
-    public void AClipPlayedFromTheEntitysOwnStepDrawsItsFirstFrameForItsOwnTicks()
-    {
-        Animated entity = new(onStep: Blink);
-        SimulationHost run = Simulate(entity);
-
-        // The entity asks every step; only the first is a change, and the rest are ignored.
-        Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(run, 5));
-    }
-
-    // The natural Capsule shape: the animator is driven by a component beside it, which the entity
-    // attached second and the scene therefore steps after it. The Play reaches the animator only on
-    // its following step, and counting the hold from there would draw this one-tick frame twice.
-    [Fact]
-    public void AClipPlayedByAComponentSteppedAfterTheAnimatorDrawsItsFirstFrameForItsOwnTicks()
-    {
-        Animated entity = new();
-        entity.Add(new Driver(entity.Animator, Blink));
         SimulationHost run = Simulate(entity);
 
         Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(run, 5));
@@ -247,18 +249,6 @@ public sealed class SpriteAnimatorTests
 
         Assert.True(animator.IsFinished);
         Assert.Equal(Frame(14), renderer.Sprite);
-    }
-
-    [Fact]
-    public void TheTickIsZeroUntilAClipPlays()
-    {
-        (_, SpriteAnimator animator, SimulationHost run) = Animating();
-
-        Assert.Equal(0, animator.Tick);
-
-        run.Step(3);
-
-        Assert.Equal(0, animator.Tick);
     }
 
     [Fact]

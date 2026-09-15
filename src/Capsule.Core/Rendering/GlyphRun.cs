@@ -109,7 +109,7 @@ public ref struct GlyphRun
                 // position in the text whatever the layout did with the character.
                 while (_index < _nextLine)
                 {
-                    Rune.DecodeFromUtf16(_text[_index..], out _, out int skipped);
+                    CodepointAt(_index, out int skipped);
                     _index += skipped;
                     _codepoint++;
                 }
@@ -127,25 +127,18 @@ public ref struct GlyphRun
                 continue;
             }
 
-            // Malformed UTF-16 decodes to the replacement character and consumes one unit, so a
-            // lone surrogate is a codepoint the font has no glyph for rather than a throw.
-            Rune.DecodeFromUtf16(_text[_index..], out Rune rune, out int consumed);
+            bool drawn = TryAdvance(_index, _previous, ref _pen, out int codepoint, out Glyph glyph, out int consumed);
             _index += consumed;
             int index = _codepoint++;
 
-            if (rune.Value == '\r' || !_font.TryGetGlyph(rune.Value, out Glyph glyph))
+            if (!drawn)
             {
                 continue;
             }
 
-            if (_previous >= 0)
-            {
-                _pen += _font.GetKerning(_previous, rune.Value);
-            }
-
             Current = new GlyphPlacement(glyph, _pen + _shift, _line, index);
             _pen += glyph.XAdvance;
-            _previous = rune.Value;
+            _previous = codepoint;
 
             return true;
         }
@@ -177,9 +170,10 @@ public ref struct GlyphRun
         int cursor = _index;
         while (cursor < _text.Length)
         {
-            Rune.DecodeFromUtf16(_text[cursor..], out Rune rune, out int consumed);
+            int start = pen;
+            bool drawn = TryAdvance(cursor, previous, ref start, out int codepoint, out Glyph glyph, out int consumed);
 
-            if (rune.Value == '\n')
+            if (codepoint == '\n')
             {
                 _lineEnd = cursor;
                 _nextLine = cursor + consumed;
@@ -187,18 +181,16 @@ public ref struct GlyphRun
                 break;
             }
 
-            if (rune.Value == '\r' || !_font.TryGetGlyph(rune.Value, out Glyph glyph))
+            if (!drawn)
             {
                 cursor += consumed;
 
                 continue;
             }
 
-            int start = pen + (previous >= 0 ? _font.GetKerning(previous, rune.Value) : 0);
-
             // Taken before the overflow check, so a space that overflows the box is itself the break
             // rather than opening a line the word after it then overflows in turn.
-            if (rune.Value == ' ')
+            if (codepoint == ' ')
             {
                 spaceAt = cursor;
                 spaceNext = cursor + consumed;
@@ -226,7 +218,7 @@ public ref struct GlyphRun
 
             pen = start + glyph.XAdvance;
             width = pen;
-            previous = rune.Value;
+            previous = codepoint;
             cursor += consumed;
         }
 
@@ -235,6 +227,46 @@ public ref struct GlyphRun
             int slack = _boxWidth - width;
             _shift = _alignment == HorizontalAlignment.Center ? slack / 2 : slack;
         }
+    }
+
+    // The codepoint at cursor and the UTF-16 units it spans. ASCII is answered without decoding,
+    // which is the whole of most runs; malformed UTF-16 decodes to the replacement character over
+    // one unit, so a lone surrogate is a codepoint the font has no glyph for rather than a throw.
+    private readonly int CodepointAt(int cursor, out int consumed)
+    {
+        char unit = _text[cursor];
+        if (unit < 0x80)
+        {
+            consumed = 1;
+
+            return unit;
+        }
+
+        Rune.DecodeFromUtf16(_text[cursor..], out Rune rune, out consumed);
+
+        return rune.Value;
+    }
+
+    // The one step both walks take over a codepoint: read it, find its glyph, and kern the pen
+    // against the codepoint drawn before it. False where the run draws nothing for it — a break, a
+    // \r, or a codepoint the font carries none for — and pen is then left where it was, so the pair
+    // either side still kerns. codepoint and consumed are set whatever the answer.
+    private readonly bool TryAdvance(int cursor, int previous, ref int pen, out int codepoint, out Glyph glyph, out int consumed)
+    {
+        codepoint = CodepointAt(cursor, out consumed);
+        glyph = default;
+
+        if (codepoint is '\n' or '\r' || !_font.TryGetGlyph(codepoint, out glyph))
+        {
+            return false;
+        }
+
+        if (previous >= 0)
+        {
+            pen += _font.GetKerning(previous, codepoint);
+        }
+
+        return true;
     }
 
     // The widest line and the line count of a run laid out this way, in font pixels. Walking the

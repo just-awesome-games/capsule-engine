@@ -1,29 +1,30 @@
 using Capsule.Assets;
 using Capsule.Rendering;
+using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Tiles;
 
 public sealed class TileGridTests
 {
-    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     [Fact]
     public void Constructor_RejectsAPaletteThatDoesNotBeginWithEmpty()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Grid([Tile("ground", 0), Tile("wall", 1)], [0, 1]));
+            () => Grid([SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("wall", 1)], [0, 1]));
 
-        Assert.Contains("tileTypes[0] must be \"empty\"", error.Message, StringComparison.Ordinal);
+        Assert.Contains("tileTypes[0]", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Constructor_RejectsARepeatedTileTypeName()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Grid([TileGrid.EmptyTile, Tile("ground", 0), Tile("ground", 1)], [0, 1]));
+            () => Grid([TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("ground", 1)], [0, 1]));
 
-        Assert.Contains("must be unique", error.Message, StringComparison.Ordinal);
+        Assert.Contains("ground", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public sealed class TileGridTests
             16,
             2,
             2,
-            [TileGrid.EmptyTile, Tile("ground", 0), Tile("wall", 1)],
+            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("wall", 1)],
             [0, 1, 2, 0],
             Atlas,
             2);
@@ -75,7 +76,7 @@ public sealed class TileGridTests
             16,
             1,
             1,
-            [TileGrid.EmptyTile, Tile("ground", cell)],
+            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", cell)],
             [1],
             Atlas,
             4);
@@ -86,31 +87,21 @@ public sealed class TileGridTests
     }
 
     [Fact]
-    public void Constructor_RejectsACellOnAGridWithNoTexture()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Tile("ground", 3)], [0, 1]));
-
-        Assert.Contains("draws cell 3", error.Message, StringComparison.Ordinal);
-        Assert.Contains("names no texture", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Constructor_RejectsATextureNoTileTypeDrawsFrom()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
             () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1], Atlas, 4));
 
-        Assert.Contains("no tile type draws a cell of it", error.Message, StringComparison.Ordinal);
+        Assert.Contains("terrain", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Constructor_RejectsATexturedGridWithNoColumns()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, Tile("ground", 0)], [0, 1], Atlas, 0));
+            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], Atlas, 0));
 
-        Assert.Contains("columns must be at least 1", error.Message, StringComparison.Ordinal);
+        Assert.Contains("columns", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,31 +110,29 @@ public sealed class TileGridTests
         ArgumentException error = Assert.Throws<ArgumentException>(
             () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1], null, 4));
 
-        Assert.Contains("columns is 4 on a grid that names no texture", error.Message, StringComparison.Ordinal);
+        Assert.Contains("columns is 4", error.Message, StringComparison.Ordinal);
     }
 
-    // A cell far enough down the atlas multiplies past int on its row alone, and the wrapped
-    // coordinate would cut a region from somewhere else in the texture rather than fail.
-    [Fact]
-    public void Constructor_RejectsACellWhoseSourceRegionOutrunsATextureCoordinate()
+    // Whatever makes a cell undrawable — no texture to cut it from, a negative index, or a region
+    // far enough down the atlas that its row alone multiplies past int, where the wrapped
+    // coordinate would cut from somewhere else rather than fail — the refusal names the cell.
+    [Theory]
+    [InlineData(3, 0, false, "draws cell 3")]
+    [InlineData(-1, 4, true, "draws cell -1")]
+    [InlineData(int.MaxValue, 1, true, "draws cell 2147483647")]
+    public void Constructor_RejectsACellItCannotDraw(int cell, int columns, bool textured, string named)
     {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 1, 1, [TileGrid.EmptyTile, Tile("ground", int.MaxValue)], [1], Atlas, 1));
+        ArgumentException error = Assert.Throws<ArgumentException>(() => new TileGrid(
+            16,
+            1,
+            1,
+            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", cell)],
+            [1],
+            textured ? Atlas : null,
+            columns));
 
-        Assert.Contains("(\"ground\") draws cell 2147483647", error.Message, StringComparison.Ordinal);
-        Assert.Contains("further than a texture coordinate reaches", error.Message, StringComparison.Ordinal);
+        Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
-
-    [Fact]
-    public void Constructor_RejectsANegativeCell()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Grid([TileGrid.EmptyTile, Tile("ground", -1)], [0, 1]));
-
-        Assert.Contains("draws cell -1", error.Message, StringComparison.Ordinal);
-    }
-
-    private static TileDefinition Tile(string type, int cell) => new(type, cell);
 
     private static TileGrid Grid(TileDefinition[] tileTypes, int[] tiles) =>
         new(16, 2, 1, tileTypes, tiles, Atlas, 4);

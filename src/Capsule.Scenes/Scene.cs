@@ -13,8 +13,11 @@ using Capsule.Tiles;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// An ordered world of entities and a camera. Mutations requested during a step are deferred
-/// until it ends.
+/// An ordered world of entities, with a <see cref="Camera"/> framing it and a
+/// <see cref="Collision"/> world everything in it collides through. Mutations requested during a
+/// step are deferred until it ends. Populate it with <see cref="Add"/>, reach into it with
+/// <see cref="FindSingle{T}"/>, and override <see cref="OnStart"/>, <see cref="OnStep"/>,
+/// <see cref="OnLateStep"/> and <see cref="CollectAssets"/> for what it does and what it loads.
 /// </summary>
 public class Scene
 {
@@ -484,7 +487,8 @@ public class Scene
     // Held and not on its way out. An entity queued for removal never steps, so it must never
     // start either — nor start the components it holds.
     internal bool Keeps(Entity entity) =>
-        ReferenceEquals(entity.Scene, this) && !_pendingRemoveSet.Contains(entity);
+        ReferenceEquals(entity.Scene, this) &&
+        (_pendingRemoveSet.Count == 0 || !_pendingRemoveSet.Contains(entity));
 
     // The tick being stepped, and null outside a step. It is what lets an object act on the tick
     // it was told something in rather than on its own position in the step order.
@@ -552,39 +556,31 @@ public class Scene
         // The framing is final here, so what the frame will show is known before anything is told
         // about it: every notifier settles against the one region this step drew.
         Camera.SettleVisibleRegion();
-        SettleScreenNotifiers();
+        SettleNotifiers(arrivals: false);
     }
 
     // Bound by the same rule the contact reporters are: a handler may take notifiers out of the
     // scene, and every one still registered when the loop reaches it must still settle this step.
-    // The cursor parks at the end rather than closing: whatever registers behind that mark while
-    // the step's deferred adds land is the window SettleArrivedNotifiers owns.
-    private void SettleScreenNotifiers()
-    {
-        _settledRegion = Camera.VisibleRegion;
-
-        _screenNotifiers.Begin();
-        try
-        {
-            while (_screenNotifiers.TryTake(out VisibleOnScreenNotifier2D? notifier))
-            {
-                notifier.SettleVisibility(_settledRegion);
-            }
-        }
-        finally
-        {
-            _screenNotifiers.Park();
-        }
-    }
-
+    // The ordinary settle parks the cursor at the end rather than closing it: whatever registers
+    // behind that mark while the step's deferred adds land is the arrivals window.
+    //
     // An entity the step's deferred adds landed is drawn by the frame about to be rewritten, so its
     // notifier answers for that frame too, against the region that frame was drawn with rather than
-    // whatever camera is installed by the time this runs. The window is the arrivals and only them:
-    // one registered from inside a handler here lands past the end and first settles next step,
-    // exactly as one registered during the ordinary settle.
-    private void SettleArrivedNotifiers()
+    // whatever camera is installed by the time the arrivals pass runs. The window is the arrivals
+    // and only them: one registered from inside a handler there lands past the end and first
+    // settles next step, exactly as one registered during the ordinary settle.
+    private void SettleNotifiers(bool arrivals)
     {
-        _screenNotifiers.Resume();
+        if (arrivals)
+        {
+            _screenNotifiers.Resume();
+        }
+        else
+        {
+            _settledRegion = Camera.VisibleRegion;
+            _screenNotifiers.Begin();
+        }
+
         try
         {
             while (_screenNotifiers.TryTake(out VisibleOnScreenNotifier2D? notifier))
@@ -594,7 +590,14 @@ public class Scene
         }
         finally
         {
-            _screenNotifiers.End();
+            if (arrivals)
+            {
+                _screenNotifiers.End();
+            }
+            else
+            {
+                _screenNotifiers.Park();
+            }
         }
     }
 
@@ -640,7 +643,7 @@ public class Scene
 
             // Still inside the step, so what a handler here spawns queues and lands in the second
             // drain rather than attaching alone the way a between-steps add does.
-            SettleArrivedNotifiers();
+            SettleNotifiers(arrivals: true);
             DrainPending();
         }
         finally
@@ -696,22 +699,6 @@ public class Scene
             // attached; whatever an OnStart queues is drained by the next turn of this loop.
             StartPending();
         }
-    }
-
-    // Membership is reference identity: a subclass may override Equals, and two distinct instances
-    // that compare equal must never stand in for each other here.
-    internal static int IndexOf<T>(List<T> items, T item)
-        where T : class
-    {
-        for (int index = 0; index < items.Count; index++)
-        {
-            if (ReferenceEquals(items[index], item))
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     // Drops the processed prefix from a queue and from the set that mirrors it.
@@ -822,7 +809,7 @@ public class Scene
 
     private void Detach(Entity entity)
     {
-        int held = IndexOf(_entities, entity);
+        int held = ReferenceList.IndexOf(_entities, entity);
         if (held >= 0)
         {
             DetachAt(held);

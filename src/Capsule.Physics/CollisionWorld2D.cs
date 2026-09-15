@@ -99,7 +99,11 @@ public sealed partial class CollisionWorld2D
         return layer;
     }
 
-    /// <summary>The layer <paramref name="name"/> was interned under, without interning it.</summary>
+    /// <summary>Looks up the layer <paramref name="name"/> was interned under, without interning it.</summary>
+    /// <returns>
+    /// Whether the name was interned. <paramref name="layer"/> is that layer when it was, and
+    /// otherwise the default value, which belongs to no world and every filter rejects.
+    /// </returns>
     /// <exception cref="ArgumentException"><paramref name="name"/> is null or blank.</exception>
     public bool TryFindLayer(string name, out CollisionLayer layer)
     {
@@ -143,16 +147,14 @@ public sealed partial class CollisionWorld2D
         return filter;
     }
 
-    /// <summary>Adds a collider at <paramref name="position"/> and returns its handle.</summary>
-    /// <param name="shape">The shape, in the collider's own space; <paramref name="position"/> places it.</param>
-    /// <param name="position">Where the shape's origin sits in the world.</param>
-    /// <param name="layer">The layer this collider is on, for other queries' filters to match.</param>
-    /// <param name="detects">What this collider's own moves and contact queries may hit.</param>
-    /// <param name="userData">Anything the caller wants to find its way back from a query result.</param>
-    /// <exception cref="ArgumentException">
-    /// The shape is a default <see cref="Shape2D"/>, the layer or the filter came from another
-    /// world, or the shape placed at this position exceeds what a float box holds.
-    /// </exception>
+    /// <summary>
+    /// Adds a collider whose <paramref name="shape"/>, held in the collider's own space, has its
+    /// origin at <paramref name="position"/>. <paramref name="detects"/> is what this collider's
+    /// own moves and contact queries may hit, and <paramref name="userData"/> is anything the
+    /// caller wants to find its way back from a query result.
+    /// </summary>
+    /// <returns>The handle naming the new collider.</returns>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or placed at this position it exceeds what a float box holds, or the layer or filter was interned by another world.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     public ColliderHandle Add(
         in Shape2D shape,
@@ -185,7 +187,7 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>Removes a collider; a handle to it reads as absent afterwards.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider, or was issued by another world.</exception>
+    /// <exception cref="ArgumentException">The handle names no live collider.</exception>
     public void Remove(ColliderHandle handle)
     {
         int index = RequireSlot(handle);
@@ -226,14 +228,8 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>Moves a collider, refitting its broadphase entry.</summary>
-    /// <exception cref="ArgumentException">
-    /// The handle names no live collider, names a grid, was issued by another world, or the
-    /// shape placed at this position exceeds what a float box holds.
-    /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The position is not finite, or the step from where the collider stands to it is not — two
-    /// positions at opposite ends of the float range have an infinite one between them.
-    /// </exception>
+    /// <exception cref="ArgumentException">The handle names no live collider or names a grid, or the shape placed at this position exceeds what a float box holds.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The position is not finite, or the step from where the collider stands to it is not.</exception>
     public void SetPosition(ColliderHandle handle, Vector2 position)
     {
         RequireFinite(position, nameof(position));
@@ -259,11 +255,7 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>Replaces a collider's shape, keeping its position.</summary>
-    /// <exception cref="ArgumentException">
-    /// The handle names no live collider, names a grid, or was issued by another world; or the
-    /// shape is a default <see cref="Shape2D"/>, or exceeds what a float box holds where the collider
-    /// stands.
-    /// </exception>
+    /// <exception cref="ArgumentException">The handle names no live collider or names a grid, or the shape is a default <see cref="Shape2D"/> or exceeds what a float box holds where the collider stands.</exception>
     public void SetShape(ColliderHandle handle, in Shape2D shape)
     {
         RequireShape(shape, nameof(shape));
@@ -279,10 +271,7 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>Replaces the layer a collider is on and what it may hit.</summary>
-    /// <exception cref="ArgumentException">
-    /// The handle names no live collider, names a grid, or was issued by another world; or the
-    /// layer or the filter came from another world.
-    /// </exception>
+    /// <exception cref="ArgumentException">The handle names no live collider, or names a grid, or the layer or filter was interned by another world.</exception>
     public void SetFilter(ColliderHandle handle, CollisionLayer layer, CollisionFilter detects)
     {
         RequireOwn(layer);
@@ -303,28 +292,27 @@ public sealed partial class CollisionWorld2D
     internal Shape2D WorldShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].World;
 
     /// <summary>A collider's shape, in its own space.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
+    /// <exception cref="ArgumentException">The handle names no live collider, or names a grid.</exception>
     public Shape2D ShapeOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Local;
 
     /// <summary>
     /// The layer a collider is on. A grid's cells carry the layers of the profiles they were
     /// painted from, which <see cref="GridCollider2D.LayerAt"/> reads.
     /// </summary>
-    /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
+    /// <exception cref="ArgumentException">The handle names no live collider, or names a grid.</exception>
     public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
 
     // What a collider may hit. A grid collider never moves and hits nothing.
     internal CollisionFilter FilterOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Detects;
 
     /// <summary>Whatever the caller attached to a collider or grid when it was added.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider of this world.</exception>
+    /// <exception cref="ArgumentException">The handle names no live collider.</exception>
     public object? UserDataOf(ColliderHandle handle) => _slots[RequireSlot(handle)].UserData;
 
     /// <summary>
-    /// The grid collider a handle names, or null when it names a shape collider. The per-collider
-    /// accessors describe a single shape and refuse a grid's handle.
+    /// The grid collider a handle names; null when it names a shape collider or nothing live. The
+    /// per-collider accessors describe a single shape and refuse a grid's handle.
     /// </summary>
-    /// <exception cref="ArgumentException">The handle was issued by another world.</exception>
     public GridCollider2D? GridOf(ColliderHandle handle)
     {
         RequireOwn(handle, nameof(handle));
@@ -332,10 +320,7 @@ public sealed partial class CollisionWorld2D
         return TryIndexOf(handle, out int index) ? _slots[index].Grid : null;
     }
 
-    /// <summary>
-    /// Adds a grid of collidable cells anchored at the world origin. The cell array is copied, and
-    /// its faces are derived once.
-    /// </summary>
+    /// <summary>Adds a grid of collidable cells anchored at the world origin; the cell array is copied.</summary>
     /// <param name="cellSize">World units a cell spans on each axis.</param>
     /// <param name="width">Cells across.</param>
     /// <param name="height">Cells down.</param>
@@ -444,16 +429,14 @@ public sealed partial class CollisionWorld2D
         return grid;
     }
 
-    /// <summary>The first thing a ray meets.</summary>
-    /// <param name="origin">Where the ray starts, in world units.</param>
-    /// <param name="direction">Which way it points; normalised here, so any non-zero length will do.</param>
-    /// <param name="distance">How far along <paramref name="direction"/> to look, in world units.</param>
-    /// <param name="filter">What the ray may hit.</param>
-    /// <param name="hit">The nearest hit, when there is one.</param>
-    /// <param name="ignore">A collider the ray passes through, typically the caster's own.</param>
-    /// <returns>Whether the ray met anything.</returns>
+    /// <summary>
+    /// The first thing a ray from <paramref name="origin"/> meets within <paramref name="distance"/>
+    /// world units, passing through <paramref name="ignore"/> — typically the caster's own collider.
+    /// Any non-zero <paramref name="direction"/> will do; it is normalised here.
+    /// </summary>
+    /// <returns>Whether the ray met anything; <paramref name="hit"/> is the nearest when it did.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is negative or not finite.</exception>
-    /// <exception cref="ArgumentException"><paramref name="filter"/> was built from another world's layers, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentException"><paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public bool Raycast(
         Vector2 origin,
         Vector2 direction,
@@ -483,19 +466,14 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// The nearest things a ray meets, written into <paramref name="hits"/> in ascending distance.
-    /// The span is the budget as well as the destination: a span of <c>n</c> receives the <c>n</c>
-    /// nearest hits, and a nearer hit displaces the farthest already stored.
+    /// The nearest things a ray meets, as <see cref="Raycast"/> casts it, written into
+    /// <paramref name="hits"/> nearest first. The span is the budget as well as the destination: a
+    /// span of <c>n</c> receives the <c>n</c> nearest hits, and a nearer hit displaces the farthest
+    /// already stored.
     /// </summary>
-    /// <param name="origin">Where the ray starts, in world units.</param>
-    /// <param name="direction">Which way it points; normalised here, so any non-zero length will do.</param>
-    /// <param name="distance">How far along <paramref name="direction"/> to look, in world units.</param>
-    /// <param name="filter">What the ray may hit.</param>
-    /// <param name="hits">Where the nearest hits are written, nearest first.</param>
-    /// <param name="ignore">A collider the ray passes through, typically the caster's own.</param>
     /// <returns>How many hits were written, never more than <paramref name="hits"/> holds.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is negative or not finite.</exception>
-    /// <exception cref="ArgumentException"><paramref name="filter"/> was built from another world's layers, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentException"><paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public int RaycastAll(
         Vector2 origin,
         Vector2 direction,
@@ -522,21 +500,14 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Where a shape swept along <paramref name="translation"/> first meets something. A shape
-    /// already touching something reports it at fraction 0 when the sweep drives into it, and
-    /// passes it by when the sweep moves away — there is no solver to push out of a penetration.
+    /// Where <paramref name="shape"/> — in its own space, starting at <paramref name="origin"/> —
+    /// first meets something when swept <paramref name="translation"/> world units, passing through
+    /// <paramref name="ignore"/>. A shape already touching something reports it at fraction 0 when
+    /// the sweep drives into it, and passes it by when the sweep moves away.
     /// </summary>
-    /// <param name="shape">The shape to sweep, in its own space.</param>
-    /// <param name="origin">Where that shape starts.</param>
-    /// <param name="translation">How far and which way to sweep it, in world units.</param>
-    /// <param name="filter">What the sweep may hit.</param>
-    /// <param name="hit">The nearest hit, when there is one.</param>
-    /// <param name="ignore">A collider the sweep passes through, typically the sweeper's own.</param>
-    /// <returns>Whether the sweep met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The origin or the translation is not finite, or the box the sweep covers between them is not.
-    /// </exception>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <returns>Whether the sweep met anything; <paramref name="hit"/> is the nearest when it did.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The origin or the translation is not finite, or the box the sweep covers between them is not.</exception>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public bool ShapeCast(
         in Shape2D shape,
         Vector2 origin,
@@ -567,13 +538,13 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Everything a shape at <paramref name="origin"/> is inside or touching, written into
-    /// <paramref name="contacts"/>. Grid cells come first, in the order their grids were added and
-    /// then row-major within each; colliders follow in collider-handle slot order.
+    /// Everything a shape at <paramref name="origin"/> is inside or touching. Grid cells come
+    /// first, in the order their grids were added and then row-major within each; colliders follow
+    /// in slot order.
     /// </summary>
     /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The origin is not finite.</exception>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public int OverlapAll(
         in Shape2D shape,
         Vector2 origin,
@@ -594,7 +565,7 @@ public sealed partial class CollisionWorld2D
     /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
-    /// <exception cref="ArgumentException">The box spans nothing on an axis, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentException">The box spans nothing on an axis, or <paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public int OverlapBoxAll(
         in Aabb2D box,
         CollisionFilter filter,
@@ -608,7 +579,7 @@ public sealed partial class CollisionWorld2D
     /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
-    /// <exception cref="ArgumentException">The handle names no live collider, names a grid, or was issued by another world.</exception>
+    /// <exception cref="ArgumentException">The handle names no live collider, or names a grid.</exception>
     public int OverlapColliderAll(ColliderHandle handle, Span<Contact2D> contacts)
     {
         int index = RequireShapeSlot(handle);
@@ -644,22 +615,17 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Moves a shape as far along <paramref name="translation"/> as it can go, one axis at a time:
-    /// X first to its first contact, then Y from there, so stopping on one axis never stops the
-    /// other. The move is swept, so nothing is passed through at any speed. Contacts come X sweep
-    /// first and then Y; within each, grid cells in traversal order and then colliders by handle.
+    /// Moves <paramref name="shape"/> — in its own space, starting at <paramref name="origin"/> —
+    /// as far along <paramref name="translation"/> world units as it can go, one axis at a time: X
+    /// first to its first contact, then Y from there, so stopping on one axis never stops the
+    /// other. The move is swept, so nothing is passed through at any speed, and it passes through
+    /// <paramref name="ignore"/>. The surfaces it reached are written into
+    /// <paramref name="contacts"/>, which may be empty: X sweep first and then Y, and within each,
+    /// grid cells in traversal order and then colliders by handle.
     /// </summary>
-    /// <param name="shape">The shape to move, in its own space.</param>
-    /// <param name="origin">Where that shape starts.</param>
-    /// <param name="translation">How far and which way to move the shape, in world units.</param>
-    /// <param name="filter">What may block the move.</param>
-    /// <param name="contacts">Where the surfaces the sweep reached are written; may be empty.</param>
-    /// <param name="ignore">A collider the move passes through, typically the mover's own.</param>
     /// <returns>How far the shape actually moved, which axes were blocked, and how many contacts were written.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The origin or the translation is not finite, or the box the sweep covers between them is not.
-    /// </exception>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The origin or the translation is not finite, or the box the sweep covers between them is not.</exception>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public MoveResult2D Move(
         in Shape2D shape,
         Vector2 origin,
@@ -697,10 +663,8 @@ public sealed partial class CollisionWorld2D
     /// <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
     /// <returns>How far the box actually moved, which axes were blocked, and how many contacts were written.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The translation is not finite, or the box the move covers between its ends is not.
-    /// </exception>
-    /// <exception cref="ArgumentException">The box spans nothing on an axis, the filter came from another world, or <paramref name="ignore"/> is not <see cref="ColliderHandle.None"/> and names no live collider of this world.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The translation is not finite, or the box the move covers between its ends is not.</exception>
+    /// <exception cref="ArgumentException">The box spans nothing on an axis, or <paramref name="ignore"/> names no live collider of this world, or the filter was interned by another one.</exception>
     public MoveResult2D MoveBox(
         in Aabb2D box,
         Vector2 translation,

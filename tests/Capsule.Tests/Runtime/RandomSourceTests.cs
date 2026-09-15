@@ -7,42 +7,18 @@ namespace Capsule.Tests.Runtime;
 
 public sealed class RandomSourceTests
 {
+    // The raw stream is the replay contract: every other draw is derived from it, so pinning it
+    // pins them all. The distributions are covered by their own specs rather than by golden bits.
     [Fact]
     public void ReplayOutputsAreStable()
     {
         RandomSource raw = new(0, 0);
-        ulong[] rawExpected =
+        ulong[] expected =
         [
             6214935894119219593, 17444575831771567405, 16051968927679601219, 2122169594285274152,
         ];
-        Assert.Equal(rawExpected, Enumerable.Range(0, rawExpected.Length).Select(_ => raw.NextUInt64()));
 
-        RandomSource transformed = new(0x9E3779B97F4A7C15, 0xD1342543DE82EF95);
-        uint[] normalExpected = [3199893504, 3225403392, 3209822208, 3187736576];
-        Assert.Equal(normalExpected, Enumerable.Range(0, normalExpected.Length)
-            .Select(_ => BitConverter.SingleToUInt32Bits(transformed.Normal())));
-
-        uint[] circleExpected =
-        [
-            3204134063, 3210200131, 1058200721, 1055484926,
-            1057237927, 3190291420, 3205715381, 1034720418,
-        ];
-        uint[] circleActual = [.. Enumerable.Range(0, circleExpected.Length / 2)
-            .SelectMany(_ =>
-            {
-                Vector2 point = transformed.InsideUnitCircle();
-                return new[] { BitConverter.SingleToUInt32Bits(point.X), BitConverter.SingleToUInt32Bits(point.Y) };
-            })];
-        Assert.Equal(circleExpected, circleActual);
-    }
-
-    [Fact]
-    public void TheSameSeedAndDrawsReplayTheSameSequence()
-    {
-        static (int Int, float Float, bool Bool)[] Draw(RandomSource random) =>
-            [.. Enumerable.Range(0, 64).Select(_ => (random.Range(-5, 5), random.NextFloat(), random.Chance(0.5f)))];
-
-        Assert.Equal(Draw(new RandomSource(7)), Draw(new RandomSource(7)));
+        Assert.Equal(expected, Enumerable.Range(0, expected.Length).Select(_ => raw.NextUInt64()));
     }
 
     // A seed of zero is the one value that could leave a xoshiro state at its all-zero fixed
@@ -162,30 +138,23 @@ public sealed class RandomSourceTests
     }
 
     // The bug this exists to prevent: StS2 seeded its streams additively and shipped correlated
-    // first draws across them. Streams of one seed must share nothing but the seed.
-    [Fact]
-    public void StreamsOfOneSeedAreDecorrelatedInTheirFirstDraws()
+    // first draws. Neither axis may sit adjacent in state — streams of one seed share nothing but
+    // the seed, and adjacent seeds of one stream are as far apart as distant ones.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AdjacentSeedsOrStreamsAreDecorrelatedInTheirFirstDraws(bool varyTheStream)
     {
-        ulong[] first = [.. Enumerable.Range(0, 1_024).Select(stream => new RandomSource(9, (ulong)stream).NextUInt64())];
+        ulong[] first =
+        [
+            .. Enumerable.Range(0, 1_024).Select(index => varyTheStream
+                ? new RandomSource(9, (ulong)index).NextUInt64()
+                : new RandomSource((ulong)index, 7).NextUInt64()),
+        ];
 
         Assert.Equal(1_024, first.Distinct().Count());
 
-        // Every bit of a decorrelated first draw is a coin flip across the streams.
-        for (int bit = 0; bit < 64; bit++)
-        {
-            int ones = first.Count(draw => ((draw >> bit) & 1) == 1);
-            Assert.InRange(ones, 448, 576);
-        }
-    }
-
-    // The other axis of the same bug: adjacent seeds must not be adjacent states.
-    [Fact]
-    public void AdjacentSeedsOfOneStreamAreDecorrelatedInTheirFirstDraws()
-    {
-        ulong[] first = [.. Enumerable.Range(0, 1_024).Select(seed => new RandomSource((ulong)seed, 7).NextUInt64())];
-
-        Assert.Equal(1_024, first.Distinct().Count());
-
+        // Every bit of a decorrelated first draw is a coin flip across the thousand sources.
         for (int bit = 0; bit < 64; bit++)
         {
             int ones = first.Count(draw => ((draw >> bit) & 1) == 1);

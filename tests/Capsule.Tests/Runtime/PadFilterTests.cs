@@ -13,48 +13,29 @@ public sealed class PadFilterTests
     private static readonly PadFilter Default =
         new(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
+    // A stick's whole response on one axis: dead to the deadzone, barely off centre on the first
+    // reading past it, half at halfway to the edge, and one at full deflection — whatever radius the
+    // host was configured with. The other axis never leaves centre.
     [Theory]
-    [InlineData(0f, 0f)]
-    [InlineData(0.17f, 0.17f)]
-    [InlineData(InputConfiguration.DefaultStickDeadzone, 0f)]
-    public void AStickInsideTheDeadzone_ReadsCentred(float x, float y)
+    [InlineData(InputConfiguration.DefaultStickDeadzone, 0f, 0f)]
+    [InlineData(InputConfiguration.DefaultStickDeadzone, 0.17f, 0f)]
+    [InlineData(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultStickDeadzone, 0f)]
+    [InlineData(
+        InputConfiguration.DefaultStickDeadzone,
+        InputConfiguration.DefaultStickDeadzone + 0.001f,
+        0.001f / (1f - InputConfiguration.DefaultStickDeadzone))]
+    [InlineData(
+        InputConfiguration.DefaultStickDeadzone,
+        InputConfiguration.DefaultStickDeadzone + ((1f - InputConfiguration.DefaultStickDeadzone) / 2f),
+        0.5f)]
+    [InlineData(ConfiguredStickDeadzone, ConfiguredStickDeadzone + ((1f - ConfiguredStickDeadzone) / 2f), 0.5f)]
+    [InlineData(InputConfiguration.DefaultStickDeadzone, 1f, 1f)]
+    public void AStick_IsDeadToItsDeadzoneAndRemappedPastIt(float deadzone, float raw, float expected)
     {
-        (float filteredX, float filteredY) = Default.Stick(x, y);
+        (float x, float y) = new PadFilter(deadzone, InputConfiguration.DefaultTriggerDeadzone).Stick(raw, 0f);
 
-        Assert.Equal(0f, filteredX);
-        Assert.Equal(0f, filteredY);
-    }
-
-    [Fact]
-    public void AStickJustOutsideTheDeadzone_ReadsNearZero()
-    {
-        (float x, float y) = Default.Stick(InputConfiguration.DefaultStickDeadzone + 0.001f, 0f);
-
-        Assert.InRange(x, 0f, 0.01f);
-        Assert.Equal(0f, y);
-    }
-
-    [Fact]
-    public void AFullyDeflectedStick_ReadsOne()
-    {
-        (float x, float y) = Default.Stick(1f, 0f);
-
-        Assert.Equal(1f, x, Tolerance);
+        Assert.Equal(expected, x, Tolerance);
         Assert.Equal(0f, y, Tolerance);
-    }
-
-    [Theory]
-    [InlineData(InputConfiguration.DefaultStickDeadzone)]
-    [InlineData(ConfiguredStickDeadzone)]
-    public void TheRemap_SpansTheDeadzoneToOne(float deadzone)
-    {
-        PadFilter filter = new(deadzone, InputConfiguration.DefaultTriggerDeadzone);
-
-        float halfway = deadzone + ((1f - deadzone) / 2f);
-
-        (float x, _) = filter.Stick(halfway, 0f);
-
-        Assert.Equal(0.5f, x, Tolerance);
     }
 
     [Fact]
@@ -83,25 +64,18 @@ public sealed class PadFilterTests
         }
     }
 
+    // A trigger's whole pull: dead to the deadzone, remapped past it, clamped at the top.
     [Theory]
-    [InlineData(0f)]
-    [InlineData(InputConfiguration.DefaultTriggerDeadzone)]
-    public void ATriggerInsideTheDeadzone_ReadsReleased(float raw)
-    {
-        Assert.Equal(0f, Default.Trigger(raw));
-    }
-
-    [Theory]
-    [InlineData(InputConfiguration.DefaultTriggerDeadzone)]
-    [InlineData(ConfiguredTriggerDeadzone)]
-    public void ATriggerRemapsFromTheDeadzoneToOne(float deadzone)
-    {
-        PadFilter filter = new(InputConfiguration.DefaultStickDeadzone, deadzone);
-
-        float halfway = deadzone + ((1f - deadzone) / 2f);
-
-        Assert.Equal(0.5f, filter.Trigger(halfway), Tolerance);
-    }
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone, 0f, 0f)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone, InputConfiguration.DefaultTriggerDeadzone, 0f)]
+    [InlineData(
+        InputConfiguration.DefaultTriggerDeadzone,
+        InputConfiguration.DefaultTriggerDeadzone + ((1f - InputConfiguration.DefaultTriggerDeadzone) / 2f),
+        0.5f)]
+    [InlineData(ConfiguredTriggerDeadzone, ConfiguredTriggerDeadzone + ((1f - ConfiguredTriggerDeadzone) / 2f), 0.5f)]
+    [InlineData(InputConfiguration.DefaultTriggerDeadzone, 1.2f, 1f)]
+    public void ATrigger_IsDeadToItsDeadzoneAndRemappedPastIt(float deadzone, float raw, float expected) =>
+        Assert.Equal(expected, new PadFilter(InputConfiguration.DefaultStickDeadzone, deadzone).Trigger(raw), Tolerance);
 
     [Theory]
     [InlineData(0f, false)]
@@ -111,11 +85,5 @@ public sealed class PadFilterTests
     public void TheTriggerButton_IsHeldExactlyPastTheDeadzone(float raw, bool held)
     {
         Assert.Equal(held, PadFilter.TriggerHeld(Default.Trigger(raw)));
-    }
-
-    [Fact]
-    public void ATriggerPastTheEndOfItsRange_Clamps()
-    {
-        Assert.Equal(1f, Default.Trigger(1.2f), Tolerance);
     }
 }

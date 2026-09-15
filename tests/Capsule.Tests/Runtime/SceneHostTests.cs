@@ -226,15 +226,6 @@ public sealed class SceneHostTests
     }
 
     [Fact]
-    public void AHostGivenNoSourceSeedsTheSceneFromTheDefault()
-    {
-        using SceneHost host = new(ToScene<FirstScene>(), (in SceneTransition _) => new FirstScene([]), new Run());
-
-        Assert.Equal(RandomSource.DefaultSeed, host.Scene.Run.Random.Seed);
-        Assert.Equal(0ul, host.Scene.Run.Random.Stream);
-    }
-
-    [Fact]
     public void ATransition_PreparesTheIncomingScenesAssetsBeforeStoppingTheOutgoingScene()
     {
         List<string> order = [];

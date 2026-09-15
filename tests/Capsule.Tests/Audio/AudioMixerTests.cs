@@ -8,8 +8,12 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioMixerTests
 {
-    // 0.08 s is 4.8 steps at 60 Hz, so it ends on the fifth.
     private static readonly AudioClip Step = new("step-soft", ".wav", 0.08);
+
+    // The tick a voice on Step has run out by: its duration in steps at the run's default rate,
+    // rounded up, rather than the 5 that rate happens to give.
+    private static readonly long StepEnds =
+        (long)Math.Ceiling(Step.DurationSeconds * StepContext.DefaultStepHertz);
 
     private static readonly AudioClip Theme = new("music/theme", ".ogg", 4.0);
 
@@ -17,16 +21,25 @@ public sealed class AudioMixerTests
 
     private static readonly AudioBus Music = new("music");
 
+    // How a voice stopped owning its slot.
+    public enum Ending
+    {
+        Stopped,
+        Expired,
+        Stolen,
+        SlotReused,
+    }
+
     [Fact]
     public void AOneShot_RunsForCeilingOfItsDurationInSteps()
     {
         AudioMixer mixer = new();
         Voice voice = mixer.Play(Step);
 
-        Advance(mixer, 4);
+        Advance(mixer, StepEnds - 1);
         Assert.True(mixer.IsPlaying(voice));
 
-        Advance(mixer, 5);
+        Advance(mixer, StepEnds);
         Assert.False(mixer.IsPlaying(voice));
     }
 
@@ -192,11 +205,11 @@ public sealed class AudioMixerTests
         mixer.SetPitch(voice, 2f);
         mixer.SetPitch(voice, 1f);
 
-        // Still the five steps the clip runs for on its own; no time has passed.
-        Advance(mixer, 4);
+        // Still the steps the clip runs for on its own; no time has passed.
+        Advance(mixer, StepEnds - 1);
         Assert.True(mixer.IsPlaying(voice));
 
-        Advance(mixer, 5);
+        Advance(mixer, StepEnds);
         Assert.False(mixer.IsPlaying(voice));
     }
 
@@ -249,7 +262,7 @@ public sealed class AudioMixerTests
             mixer.Play(Step);
         }
 
-        Advance(mixer, 5);
+        Advance(mixer, StepEnds);
         Voice next = mixer.Play(Step);
 
         Assert.True(mixer.IsPlaying(next));
@@ -266,7 +279,7 @@ public sealed class AudioMixerTests
         AudioMixer mixer = new();
         Voice voice = mixer.Play(Step);
 
-        Advance(mixer, 5);
+        Advance(mixer, StepEnds);
         Assert.False(mixer.IsPlaying(voice));
 
         mixer.Pause(AudioBus.Master);
@@ -292,11 +305,11 @@ public sealed class AudioMixerTests
         }
         else
         {
-            Advance(mixer, 5);
+            Advance(mixer, StepEnds);
         }
 
         // The slot is handed to another voice, so the stale handle now names a live slot.
-        Advance(mixer, 6);
+        Advance(mixer, StepEnds + 1);
         Voice reused = mixer.Play(Step);
         Assert.NotEqual(voice, reused);
 
@@ -348,58 +361,49 @@ public sealed class AudioMixerTests
         Assert.False(mixer.IsPlaying(voice));
     }
 
-    [Fact]
-    public void AStoppedVoice_IsNotLive()
+    // However a voice ends, its handle is dead from then on, and so is Voice.None.
+    [Theory]
+    [InlineData(Ending.Stopped)]
+    [InlineData(Ending.Expired)]
+    [InlineData(Ending.Stolen)]
+    [InlineData(Ending.SlotReused)]
+    public void AVoiceThatHasEnded_IsNotLive(Ending ending)
     {
         AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
+        Voice voice = mixer.Play(ending == Ending.Stolen ? Theme : Step);
 
-        mixer.Stop(voice);
-
-        Assert.False(mixer.IsLive(voice));
-    }
-
-    [Fact]
-    public void AnExpiredOneShot_IsNotLive()
-    {
-        AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
-
-        Advance(mixer, 5);
-
-        Assert.False(mixer.IsLive(voice));
-    }
-
-    [Fact]
-    public void AStolenVoice_IsNotLive()
-    {
-        AudioMixer mixer = new();
-        Voice oldest = mixer.Play(Theme);
-        for (int i = 1; i < AudioMixer.MaxVoices; i++)
+        switch (ending)
         {
-            Advance(mixer, i);
-            mixer.Play(Theme);
+            case Ending.Stopped:
+                mixer.Stop(voice);
+                break;
+
+            case Ending.Expired:
+                Advance(mixer, StepEnds);
+                break;
+
+            case Ending.Stolen:
+                for (int i = 1; i < AudioMixer.MaxVoices; i++)
+                {
+                    Advance(mixer, i);
+                    mixer.Play(Theme);
+                }
+
+                Advance(mixer, AudioMixer.MaxVoices);
+                mixer.Play(Theme);
+                break;
+
+            default:
+                // The slot is handed to another voice, so the stale handle names a live slot at an
+                // older generation rather than an empty one.
+                mixer.Stop(voice);
+                Voice reused = mixer.Play(Step);
+
+                Assert.NotEqual(voice, reused);
+                Assert.True(mixer.IsLive(reused));
+                break;
         }
 
-        Advance(mixer, AudioMixer.MaxVoices);
-        mixer.Play(Theme);
-
-        Assert.False(mixer.IsLive(oldest));
-    }
-
-    [Fact]
-    public void VoiceNoneAndAStaleHandle_AreNotLive()
-    {
-        AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
-        mixer.Stop(voice);
-
-        // The slot is handed to another voice, so the stale handle names a live slot at an older
-        // generation rather than an empty one.
-        Voice reused = mixer.Play(Step);
-
-        Assert.NotEqual(voice, reused);
-        Assert.True(mixer.IsLive(reused));
         Assert.False(mixer.IsLive(voice));
         Assert.False(mixer.IsLive(Voice.None));
     }
@@ -451,32 +455,6 @@ public sealed class AudioMixerTests
         Assert.Equal(AudioCommandKind.Play, played.Kind);
         Assert.Equal(Music, played.Bus);
         Assert.Equal(0.25f, played.Gain);
-    }
-
-    [Fact]
-    public void BeginStep_DropsTheCommandsTheStepBeforeItRaised()
-    {
-        AudioMixer mixer = new();
-        mixer.Play(Step);
-
-        Assert.NotEmpty(mixer.Commands.ToArray());
-
-        Advance(mixer, 1);
-
-        Assert.Empty(mixer.Commands.ToArray());
-    }
-
-    [Fact]
-    public void PlayedBeforeAnyStep_AVoiceExpiresAgainstTickZeroAndTheDefaultStepLength()
-    {
-        AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
-
-        Assert.True(mixer.IsPlaying(voice));
-
-        Advance(mixer, 5);
-
-        Assert.False(mixer.IsPlaying(voice));
     }
 
     // 0.08 s is 9.6 steps at 120 Hz. The rate reaches the mixer on the first step, after the voice
@@ -716,9 +694,6 @@ public sealed class AudioMixerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Volume = volume }));
     }
 
-    [Fact]
-    public void UnfocusedVolume_DefaultsToSilent() => Assert.Equal(0f, new AudioMixer().UnfocusedVolume);
-
     [Theory]
     [InlineData(-0.001f)]
     [InlineData(1.001f)]
@@ -734,6 +709,8 @@ public sealed class AudioMixerTests
         AudioMixer mixer = new();
         mixer.Play(Step);
         AudioCommand[] before = mixer.Commands.ToArray();
+
+        Assert.Equal(0f, mixer.UnfocusedVolume);
 
         mixer.UnfocusedVolume = 0.5f;
 

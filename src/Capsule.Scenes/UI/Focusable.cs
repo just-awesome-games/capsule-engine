@@ -46,28 +46,13 @@ public sealed class Focusable(Vector2 size) : Component
     /// </summary>
     public Focusable? Up { get; set; }
 
-    /// <summary>
-    /// The item a navigator's down direction moves to from this one, read before the geometry. Null —
-    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
-    /// it, moving nothing; a named item that is not live hands the move on to its own
-    /// <see cref="Down"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
-    /// </summary>
+    /// <summary>The item a navigator's down direction moves to, read as <see cref="Up"/> is.</summary>
     public Focusable? Down { get; set; }
 
-    /// <summary>
-    /// The item a navigator's left direction moves to from this one, read before the geometry. Null —
-    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
-    /// it, moving nothing; a named item that is not live hands the move on to its own
-    /// <see cref="Left"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
-    /// </summary>
+    /// <summary>The item a navigator's left direction moves to, read as <see cref="Up"/> is.</summary>
     public Focusable? Left { get; set; }
 
-    /// <summary>
-    /// The item a navigator's right direction moves to from this one, read before the geometry. Null
-    /// — the default — leaves that direction to the geometry and its wrap, and this item itself
-    /// blocks it, moving nothing; a named item that is not live hands the move on to its own
-    /// <see cref="Right"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
-    /// </summary>
+    /// <summary>The item a navigator's right direction moves to, read as <see cref="Up"/> is.</summary>
     public Focusable? Right { get; set; }
 
     /// <summary>
@@ -114,8 +99,6 @@ public sealed class Focusable(Vector2 size) : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("IsFocused", IsFocused);
         panel.Field("Size", Size);
         panel.Field("Offset", Offset);

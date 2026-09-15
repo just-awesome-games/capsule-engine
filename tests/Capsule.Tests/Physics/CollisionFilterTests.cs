@@ -20,18 +20,6 @@ public sealed class CollisionFilterTests
     }
 
     [Fact]
-    public void Layer_IsDeterministicAcrossWorldsRegisteredInTheSameOrder()
-    {
-        CollisionWorld2D first = new();
-        CollisionWorld2D second = new();
-
-        foreach (string name in new[] { "solid", "platform", "hazard" })
-        {
-            Assert.Equal(first.Layer(name).Index, second.Layer(name).Index);
-        }
-    }
-
-    [Fact]
     public void Layer_RefusesToInternMoreThanTheWorldsCap()
     {
         CollisionWorld2D world = new();
@@ -43,7 +31,10 @@ public sealed class CollisionFilterTests
         Assert.Equal(CollisionWorld2D.MaxLayers, world.LayerCount);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => world.Layer("one too many"));
-        Assert.Contains("at most 64 layers", error.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            $"at most {CollisionWorld2D.MaxLayers} layers",
+            error.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -72,15 +63,14 @@ public sealed class CollisionFilterTests
         Assert.False(filter.Matches(world.Layer("hazard")));
         Assert.True(CollisionFilter.Everything.Matches(world.Layer("hazard")));
         Assert.True(CollisionFilter.None.IsEmpty);
-    }
 
-    [Fact]
-    public void TryFindLayer_DoesNotInternAName()
-    {
-        CollisionWorld2D world = new();
+        // A lookup that finds nothing interns nothing.
+        Assert.False(world.TryFindLayer("climb", out _));
+        Assert.Equal(4, world.LayerCount);
 
-        Assert.False(world.TryFindLayer("solid", out _));
-        Assert.Equal(1, world.LayerCount);
+        CollisionFilter narrowed = filter.With(world.Layer("hazard")).Without(world.Layer("solid"));
+        Assert.False(narrowed.Matches(world.Layer("solid")));
+        Assert.True(narrowed.Matches(world.Layer("hazard")));
     }
 
     // A layer no world interned is the zero value of a type that is nothing but a table index; read
@@ -120,19 +110,6 @@ public sealed class CollisionFilterTests
         Assert.Equal(solid, world.LayerOf(handle));
     }
 
-    [Fact]
-    public void WithAndWithout_AddAndRemoveOneLayer()
-    {
-        CollisionWorld2D world = new();
-        CollisionLayer solid = world.Layer("solid");
-        CollisionLayer hazard = world.Layer("hazard");
-
-        CollisionFilter filter = CollisionFilter.None.With(solid).With(hazard).Without(solid);
-
-        Assert.False(filter.Matches(solid));
-        Assert.True(filter.Matches(hazard));
-    }
-
     // Two worlds hand the same bit to unrelated names, so one world's mask read against another's
     // table is a silent mismatch.
     [Fact]
@@ -164,8 +141,6 @@ public sealed class CollisionFilterTests
         Assert.Throws<ArgumentException>(() => left.Without(solid));
         Assert.Throws<ArgumentException>(() => left | right);
         Assert.Throws<ArgumentException>(() => left & right);
-        Assert.Throws<ArgumentException>(() => left.Union(right));
-        Assert.Throws<ArgumentException>(() => left.Intersect(right));
     }
 
     [Fact]

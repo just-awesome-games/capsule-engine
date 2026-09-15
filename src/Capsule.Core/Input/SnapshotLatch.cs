@@ -11,7 +11,7 @@ internal sealed class SnapshotLatch
 
     // Records one sampled frame. Buttons stay latched until a step consumes them, and the wheel's
     // notches accumulate until one does.
-    public void Observe(in DeviceSnapshot snapshot)
+    internal void Observe(in DeviceSnapshot snapshot)
     {
         _latched = _observedSinceStep ? _latched.LatchedWith(snapshot) : snapshot;
         _live = snapshot;
@@ -28,7 +28,7 @@ internal sealed class SnapshotLatch
     // Consumes latched buttons and the latest axis values for one fixed step. A second step drained
     // in the same frame sees the same held state and positions, and no scroll: notches are a delta
     // one step spends, where a held button is a state every step reads.
-    public DeviceSnapshot ConsumeStepSnapshot()
+    internal DeviceSnapshot ConsumeStepSnapshot()
     {
         DeviceSnapshot consumed = _observedSinceStep ? _latched : _live;
         _observedSinceStep = false;

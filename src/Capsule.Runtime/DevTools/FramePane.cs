@@ -11,6 +11,16 @@ namespace Capsule.Runtime.DevTools;
 // steps the frame ran.
 internal readonly record struct FrameSample(double IntervalMs, double UpdateMs, double DrawMs, int Steps);
 
+// One second's figures as the pane published them, which is what its lines are formatted from;
+// every field zero until a whole second has been pushed.
+internal readonly record struct FrameFigures(
+    double Fps,
+    double FrameMs,
+    double WorstMs,
+    double UpdateMs,
+    double DrawMs,
+    double StepsPerSecond);
+
 // The corner readout: a backdrop and one three-line label hanging from the canvas's top-right,
 // showing the last whole second and rewritten only when a second completes. Every figure sits in
 // a fixed-width field, so the pane keeps one width. Allocation-free once on: the text is formatted
@@ -56,6 +66,8 @@ internal sealed class FramePane : ScreenEntity
 
     internal string Text => _label.Text;
 
+    internal FrameFigures Figures { get; private set; }
+
     // Drops the second in progress and shows zeros until a whole second has been pushed, so a
     // pane switched back on never joins samples from before it was off.
     internal void Reset()
@@ -99,6 +111,7 @@ internal sealed class FramePane : ScreenEntity
     {
         double fps = frameMs > 0 ? SecondMs / frameMs : 0;
         double heapMb = GC.GetTotalMemory(false) / (1024.0 * 1024.0);
+        Figures = new FrameFigures(fps, frameMs, worstMs, updateMs, drawMs, stepsPerSecond);
 
         _length = 0;
         Write("fps ");

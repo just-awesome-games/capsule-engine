@@ -12,13 +12,14 @@ namespace Capsule.Runtime.DevTools;
 // action does, which is handed in.
 internal sealed class OverlayScene : Scene
 {
-    private const int Padding = 4;
+    // Panel pixels between the backdrop's edge and the text inside it, on every side.
+    internal const int Padding = 4;
 
     // Rows a menu shows at once; a longer menu is windowed.
     internal const int MaxRows = 24;
 
     // Rows the window moves per wheel notch.
-    private const int RowsPerNotch = 3;
+    internal const int RowsPerNotch = 3;
 
     // Spaces between the widest label of a menu and the hotkey column.
     private const int HotkeyGap = 2;
@@ -79,7 +80,7 @@ internal sealed class OverlayScene : Scene
         _readout = new Label(Font);
         _title = new Label(Font);
         _status = new Label(Font);
-        _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
+        _legend = new Label(Font, Legend(toggleName));
         _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
         _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };
 
@@ -125,6 +126,10 @@ internal sealed class OverlayScene : Scene
     internal string RowText(int index) => _rows[index].Text;
 
     // The scrollbar's track and thumb as drawn; each empty while the menu fits its window.
+    // The hint bar under every menu, naming the key that closes the overlay.
+    internal static string Legend(string toggleName) =>
+        $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back";
+
     internal Rect ScrollTrack => _track.Bounds;
 
     internal Rect ScrollThumb => _thumb.Bounds;

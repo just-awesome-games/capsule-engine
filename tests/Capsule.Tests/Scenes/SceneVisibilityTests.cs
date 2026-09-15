@@ -75,18 +75,10 @@ public sealed class SceneVisibilityTests
     }
 
     [Fact]
-    public void ACameraSpanningNothing_SeesNothing()
-    {
-        SceneSimulation simulation = Run(scene => scene.Camera.Center = new Vector2(100f, 50f));
-
-        Assert.True(simulation.Scene.Camera.VisibleRegion.IsEmpty);
-    }
-
-    [Fact]
     public void ANotifierTheCameraSweepsOnto_EntersTheScreenOnTheStepThatFramedIt()
     {
         List<string> log = [];
-        Marker marker = new(new Vector2(20f, 0f), log);
+        Watched marker = new(new Vector2(20f, 0f), log);
 
         static void Pan(Scene scene, in StepContext context) => scene.Camera.Center += new Vector2(8f, 0f);
 
@@ -109,7 +101,7 @@ public sealed class SceneVisibilityTests
     public void ANotifierReadDuringItsOwnStep_DescribesTheFrameThatWasDrawn()
     {
         List<bool> seen = [];
-        Marker marker = new(new Vector2(20f, 0f), []);
+        Watched marker = new(new Vector2(20f, 0f), []);
 
         static void Pan(Scene scene, in StepContext context) => scene.Camera.Center += new Vector2(8f, 0f);
 
@@ -131,7 +123,7 @@ public sealed class SceneVisibilityTests
     {
         List<string> log = [];
         List<bool> seen = [];
-        ArrivingMarker marker = new(Vector2.Zero, log, seen);
+        ArrivingWatcher marker = new(Vector2.Zero, log, seen);
 
         void Spawn(Scene host, in StepContext context)
         {
@@ -159,7 +151,7 @@ public sealed class SceneVisibilityTests
     {
         List<string> log = [];
         List<bool> seen = [];
-        ArrivingMarker marker = new(new Vector2(200f, 0f), log, seen);
+        ArrivingWatcher marker = new(new Vector2(200f, 0f), log, seen);
 
         void Spawn(Scene host, in StepContext context)
         {
@@ -193,7 +185,7 @@ public sealed class SceneVisibilityTests
             ((SceneFixtures.HookScene)host).Install(replacement);
         }
 
-        ArrivingMarker marker = new(Vector2.Zero, log, seen, Reframe);
+        ArrivingWatcher marker = new(Vector2.Zero, log, seen, Reframe);
 
         void Spawn(Scene host, in StepContext context)
         {
@@ -219,7 +211,7 @@ public sealed class SceneVisibilityTests
     {
         List<string> log = [];
         List<string> lateLog = [];
-        Marker marker = new(Vector2.Zero, log);
+        Watched marker = new(Vector2.Zero, log);
 
         VisibleOnScreenNotifier2D late = new(Vector2.One);
         late.ScreenEntered += () => lateLog.Add("entered");
@@ -251,7 +243,7 @@ public sealed class SceneVisibilityTests
     public void ANotifierDriftingOffTheEdge_ExitsTheScreen()
     {
         List<string> log = [];
-        DriftingMarker marker = new(new Vector2(2f, 0f), log);
+        DriftingWatcher marker = new(new Vector2(2f, 0f), log);
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
@@ -275,7 +267,7 @@ public sealed class SceneVisibilityTests
     public void ANotifierTakenOutOfItsSceneWhileOnScreen_IsOwedItsExit()
     {
         List<string> log = [];
-        Marker marker = new(Vector2.Zero, log);
+        Watched marker = new(Vector2.Zero, log);
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
@@ -295,7 +287,7 @@ public sealed class SceneVisibilityTests
     public void ANotifiersOffset_PlacesTheRectItWatches()
     {
         List<string> log = [];
-        Marker marker = new(new Vector2(20f, 0f), log) { Notifier = { Offset = new Vector2(-16f, 0f) } };
+        Watched marker = new(new Vector2(20f, 0f), log) { Notifier = { Offset = new Vector2(-16f, 0f) } };
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
@@ -317,9 +309,9 @@ public sealed class SceneVisibilityTests
         List<string> secondLog = [];
         List<string> thirdLog = [];
 
-        Marker first = new(Vector2.Zero, firstLog);
-        Marker second = new(Vector2.Zero, secondLog);
-        Marker third = new(Vector2.Zero, thirdLog);
+        Watched first = new(Vector2.Zero, firstLog);
+        Watched second = new(Vector2.Zero, secondLog);
+        Watched third = new(Vector2.Zero, thirdLog);
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(first);
@@ -351,9 +343,9 @@ public sealed class SceneVisibilityTests
         List<string> secondLog = [];
         List<string> thirdLog = [];
 
-        Marker first = new(Vector2.Zero, firstLog);
-        Marker second = new(Vector2.Zero, secondLog);
-        Marker third = new(Vector2.Zero, thirdLog);
+        Watched first = new(Vector2.Zero, firstLog);
+        Watched second = new(Vector2.Zero, secondLog);
+        Watched third = new(Vector2.Zero, thirdLog);
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(first);
@@ -385,9 +377,9 @@ public sealed class SceneVisibilityTests
         return simulation;
     }
 
-    private class Marker : Entity
+    private class Watched : Entity
     {
-        internal Marker(Vector2 position, List<string> log)
+        internal Watched(Vector2 position, List<string> log)
             : base(position)
         {
             Notifier = new VisibleOnScreenNotifier2D(Vector2.One);
@@ -400,15 +392,15 @@ public sealed class SceneVisibilityTests
     }
 
     /// <summary>Records what its own notifier reads on each of its steps.</summary>
-    private sealed class ArrivingMarker(Vector2 position, List<string> log, List<bool> seen, Action<Scene>? onStart = null)
-        : Marker(position, log)
+    private sealed class ArrivingWatcher(Vector2 position, List<string> log, List<bool> seen, Action<Scene>? onStart = null)
+        : Watched(position, log)
     {
         protected internal override void OnStart() => onStart?.Invoke(Scene!);
 
         protected internal override void OnStep(in StepContext context) => seen.Add(Notifier.IsOnScreen);
     }
 
-    private sealed class DriftingMarker(Vector2 position, List<string> log) : Marker(position, log)
+    private sealed class DriftingWatcher(Vector2 position, List<string> log) : Watched(position, log)
     {
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }

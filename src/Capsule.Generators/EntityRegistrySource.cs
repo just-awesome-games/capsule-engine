@@ -16,15 +16,8 @@ internal static class EntityRegistrySource
     // The namespace segment an entity is filed under says nothing its key has to repeat.
     private const string DomainSegment = "Entities";
 
-    internal static EntityModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
+    internal static EntityModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
-        TypeDeclarationSyntax declaration = (TypeDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(declaration, cancellation) is not INamedTypeSymbol type)
-        {
-            return null;
-        }
-
-        Compilation compilation = context.SemanticModel.Compilation;
         bool concreteEntity = Symbols.IsConcreteClass(type) && Symbols.DerivesFrom(type, compilation, Symbols.Entity);
         int spawnConstructors = concreteEntity
             ? Symbols.PublicConstructorsTaking(type, compilation, Symbols.EntitySpawn)
@@ -92,54 +85,29 @@ internal static class EntityRegistrySource
             return;
         }
 
-        List<EntityModel> ordered = new(models);
-        ordered.Sort(static (left, right) =>
-            DeclarationOrder.Compare(left.QualifiedName, left.Location, right.QualifiedName, right.Location));
+        List<Registration> sound = [];
+        RegistryPass.Sound(
+            context,
+            models,
+            static model => model.QualifiedName,
+            static model => model.DisplayName,
+            static model => model.Location,
+            static model => Reported(model.Fault),
+            model => Resolve(context, sound, model, rootNamespace));
 
-        List<Registration> sound = new(ordered.Count);
-        HashSet<string> described = new(StringComparer.Ordinal);
-        foreach (EntityModel model in ordered)
-        {
-            // The parts of a partial class are one type, registered or faulted once.
-            if (!described.Add(model.QualifiedName))
+        List<Registration> registered = RegistryPass.Claimed(
+            context,
+            sound,
+            static (left, right) =>
             {
-                continue;
-            }
+                int byType = string.CompareOrdinal(left.SpawnType, right.SpawnType);
 
-            if (Reported(model.Fault) is { } descriptor)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(descriptor, model.Location, model.DisplayName));
-                continue;
-            }
-
-            Resolve(context, sound, model, rootNamespace);
-        }
-
-        // Sorted before the duplicate check and the render read off it: the collected order is
-        // whichever syntax trees the compiler handed over.
-        sound.Sort(static (left, right) =>
-        {
-            int byType = string.CompareOrdinal(left.SpawnType, right.SpawnType);
-
-            return byType != 0 ? byType : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
-        });
-
-        List<Registration> registered = new(sound.Count);
-        foreach (Registration entry in sound)
-        {
-            if (registered.Count > 0 && string.Equals(registered[registered.Count - 1].SpawnType, entry.SpawnType, StringComparison.Ordinal))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateSpawnType,
-                    entry.Model.Location,
-                    registered[registered.Count - 1].Model.DisplayName,
-                    entry.Model.DisplayName,
-                    entry.SpawnType));
-                continue;
-            }
-
-            registered.Add(entry);
-        }
+                return byType != 0 ? byType : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
+            },
+            static entry => entry.SpawnType,
+            static entry => entry.Model.DisplayName,
+            static entry => entry.Model.Location,
+            RegistryDiagnostics.DuplicateSpawnType);
 
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }

@@ -7,11 +7,9 @@ namespace Capsule.Runtime;
 public static class CapsuleEngine
 {
     /// <summary>
-    /// Begins host configuration. Two callers reach it: the
-    /// <c>Capsule.Runtime.Generated.CapsuleBoot</c> the compiler generates into a game's shell, and
-    /// a project that is not that shell — a test project or a CI harness running the game
-    /// headlessly — which references the runtime and the game's logic assembly and passes the
-    /// generated registry itself.
+    /// Begins host configuration. Called by the <c>Capsule.Runtime.Generated.CapsuleBoot</c> the
+    /// compiler generates into a game's shell, or by a project that is not that shell — a test
+    /// project or a CI harness — passing the generated registry itself.
     /// </summary>
     /// <param name="gameName">
     /// The game's display name: the window's title, and the crash log's folder as a slug of it.

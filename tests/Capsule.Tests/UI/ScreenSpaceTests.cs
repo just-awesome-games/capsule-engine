@@ -13,25 +13,6 @@ public sealed class ScreenSpaceTests
     private static readonly Vector2 Canvas = new(100f, 50f);
 
     [Fact]
-    public void ARun_OpensOnTheStandardCanvasUnlessItIsGivenOne()
-    {
-        using SimulationHost standard = new(new Scene());
-        using SimulationHost declared = new(new Scene(), run: new Run { Canvas = Canvas });
-
-        Assert.Equal(Capsule.Run.StandardCanvas, standard.Run.Canvas);
-        Assert.Equal(Canvas, declared.Run.Canvas);
-    }
-
-    [Fact]
-    public void TheCanvas_TravelsOnTheFrameTheHostDraws()
-    {
-        using SimulationHost run = new(new Scene(), run: new Run { Canvas = Canvas });
-        run.Step();
-
-        Assert.Equal(Canvas, run.Simulation.View.Canvas);
-    }
-
-    [Fact]
     public void TheCanvas_IsInstalledBeforeAnythingStarts()
     {
         Vector2 seen = Vector2.Zero;

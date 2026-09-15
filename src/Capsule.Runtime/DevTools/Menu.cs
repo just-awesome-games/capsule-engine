@@ -12,13 +12,6 @@ internal sealed class Menu
         Items = Require(items);
     }
 
-    // Empty until filled, which the one caller does before the menu is shown.
-    private Menu(string? title)
-    {
-        Title = title;
-        Items = [];
-    }
-
     internal string? Title { get; }
 
     internal IReadOnlyList<MenuItem> Items { get; private set; }
@@ -87,55 +80,9 @@ internal sealed class Menu
         return new Menu("Load Scene", items);
     }
 
-    // The Debug Draw submenu, filled from the channels that have emitted so far; at least one has.
-    internal static Menu DebugDraw(OverlayHost overlay)
-    {
-        Menu menu = new("Debug Draw");
-        menu.FillDebugDraw(overlay);
-
-        return menu;
-    }
-
-    // Refills this menu with a row per channel, its label carrying the channel's state.
-    internal void FillDebugDraw(OverlayHost overlay)
-    {
-        ArgumentNullException.ThrowIfNull(overlay);
-
-        string[] channels = overlay.Channels;
-        List<MenuItem> items = new(channels.Length);
-        foreach (string channel in channels)
-        {
-            string label = (overlay.IsChannelEnabled(channel) ? "[x] " : "[ ] ") + channel;
-            items.Add(new MenuItem(label, () => overlay.ToggleChannel(channel)));
-        }
-
-        Items = Require(items);
-    }
-
-    // The Time Scale submenu, one row per host pace on the ladder.
-    internal static Menu TimeScale(OverlayHost overlay)
-    {
-        Menu menu = new("Time Scale");
-        menu.FillTimeScale(overlay);
-
-        return menu;
-    }
-
-    // Refills this menu with a row per pace, marked where it is the one in force; exactly one is.
-    internal void FillTimeScale(OverlayHost overlay)
-    {
-        ArgumentNullException.ThrowIfNull(overlay);
-
-        (double Scale, string Label)[] paces = OverlayHost.TimeScales;
-        List<MenuItem> items = new(paces.Length);
-        foreach ((double scale, string label) in paces)
-        {
-            string row = (overlay.IsTimeScale(scale) ? "(x) " : "( ) ") + label;
-            items.Add(new MenuItem(row, () => overlay.SetTimeScale(scale)));
-        }
-
-        Items = Require(items);
-    }
+    // Rewrites every row, for a submenu whose labels carry a mark the host flips: the menu keeps
+    // its focus and its identity, so the row under the cursor stays under it.
+    internal void Fill(IReadOnlyList<MenuItem> rows) => Items = Require(rows);
 
     private static IReadOnlyList<MenuItem> Require(IReadOnlyList<MenuItem> items)
     {

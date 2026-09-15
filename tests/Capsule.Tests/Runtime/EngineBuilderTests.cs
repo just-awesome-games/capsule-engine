@@ -100,15 +100,4 @@ public sealed class EngineBuilderTests
     private sealed class Menu : Scene;
 
     private sealed class Room01(SceneContent content) : Scene(content);
-
-    private sealed class IdleSimulation : ISimulation
-    {
-        public bool ExitRequested => true;
-
-        public FrameView View { get; } = new();
-
-        public void Step(in StepContext context)
-        {
-        }
-    }
 }

@@ -12,15 +12,11 @@ public sealed class NineSliceTests
     private static readonly Sprite Frame = new(new TextureHandle("panel", ".png"), new TextureRegion(10, 20, 12, 12));
 
     [Fact]
-    public void APanel_ExpandsToNineSlices()
-    {
-        Assert.Equal(9, Expand(new Vector2(40f, 30f)).Length);
-    }
-
-    [Fact]
     public void EveryCorner_KeepsItsOwnTexelsAtItsOwnCornerOfThePanel()
     {
         ReadOnlySpan<SpriteIntent> slices = Expand(new Vector2(40f, 30f));
+
+        Assert.Equal(9, slices.Length);
 
         // Source texels, then where the slice lands and how large it is drawn.
         Assert.Equal(new TextureRegion(10, 20, 3, 3), slices[0].Sprite.Region);

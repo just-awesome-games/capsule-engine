@@ -79,7 +79,7 @@ Every `type` other than `tile-map` names an entity class in the game's own logic
 
 ## From source to game
 
-Documents are authored under the logic project's `Assets/Scenes/`; the build validates each, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, normalized as [Named assets](consuming-capsule.md#named-assets) defines, and the class that composes it is the one whose own key matches. Two sources sharing a key fail the build; derived documents are never committed. The logic role imports scenes on its own; any other project opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match ([`consuming-capsule.md`](consuming-capsule.md#build-configuration-reference)).
+Documents are authored under the logic project's `Assets/Scenes/`; the build validates each, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, normalized as [Named assets](consuming-capsule.md#named-assets) defines, and the class that composes it is the one whose own key matches. Two sources sharing a key fail the build; derived documents are never committed. The logic role imports scenes on its own; any other project opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match ([`build-properties.md`](build-properties.md)).
 
 ## Authoring tools
 

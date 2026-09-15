@@ -60,27 +60,32 @@ internal sealed class DebugDrawBuffer
     internal void Settle(long tick)
     {
         _tick = tick;
-        Prune(_segments, tick, static (in DebugDrawSegment segment) => segment.ExpiresAtTick);
-        Prune(_labels, tick, static (in DebugDrawLabel label) => label.ExpiresAtTick);
-    }
 
-    private long ExpiryFor(int steps) => _tick + Math.Max(steps, 1);
-
-    // Compacts in place, so the lists keep their capacity and a warm buffer allocates nothing.
-    private static void Prune<T>(List<T> items, long tick, ExpiryOf<T> expiryOf)
-    {
-        Span<T> span = CollectionsMarshal.AsSpan(items);
-        int kept = 0;
-        for (int index = 0; index < span.Length; index++)
+        // Compacted in place, so the lists keep their capacity and a warm buffer allocates nothing.
+        Span<DebugDrawSegment> segments = CollectionsMarshal.AsSpan(_segments);
+        int keptSegments = 0;
+        for (int index = 0; index < segments.Length; index++)
         {
-            if (expiryOf(in span[index]) >= tick)
+            if (segments[index].ExpiresAtTick >= tick)
             {
-                span[kept++] = span[index];
+                segments[keptSegments++] = segments[index];
             }
         }
 
-        items.RemoveRange(kept, span.Length - kept);
+        _segments.RemoveRange(keptSegments, segments.Length - keptSegments);
+
+        Span<DebugDrawLabel> labels = CollectionsMarshal.AsSpan(_labels);
+        int keptLabels = 0;
+        for (int index = 0; index < labels.Length; index++)
+        {
+            if (labels[index].ExpiresAtTick >= tick)
+            {
+                labels[keptLabels++] = labels[index];
+            }
+        }
+
+        _labels.RemoveRange(keptLabels, labels.Length - keptLabels);
     }
 
-    private delegate long ExpiryOf<T>(in T item);
+    private long ExpiryFor(int steps) => _tick + Math.Max(steps, 1);
 }

@@ -4,6 +4,7 @@ using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Performance;
@@ -28,7 +29,7 @@ internal static class CrowdWorkload
 
     private const int PlatformRow = 8;
 
-    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     private static readonly Sprite[] Walk =
     [

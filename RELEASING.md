@@ -18,8 +18,8 @@ If CI on `HEAD` is red or still running, stop: a tag publishes whatever it point
 
 ## 2. Run the gates locally
 
-The pre-commit hook runs the first four; the build compiles the NativeAOT smoke with the rest of
-the solution. The last one boots that smoke, which the build alone does not do.
+The pre-commit hook runs the first four. The last one boots the NativeAOT smoke, which the build
+compiles but does not run; CI runs it published, and a release is worth the local check too.
 
 ```bash
 dotnet restore --locked-mode

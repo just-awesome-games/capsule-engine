@@ -11,42 +11,21 @@ public sealed class TextureResidencyTests
 
     private static readonly TextureHandle Tiles = new("tiles", ".png");
 
-    // A handle's name is the source's path under the textures root, so a nested asset resolves to
-    // a nested file — with the format's separator, whatever the platform's is.
+    // A handle's name is the source's path under its own root, so a nested asset resolves to a
+    // nested file — with the format's separator, whatever the platform's is — and a bitmap font's
+    // pages ship under the fonts root beside the font they were cut for. What the handle names is
+    // what Locate finds once the file ships there.
     [Theory]
-    [InlineData("hero", "assets/textures/hero.png")]
-    [InlineData("enemies/bat", "assets/textures/enemies/bat.png")]
-    public void AHandle_NamesItsFileUnderTheTexturesDomain(string name, string expected)
+    [InlineData("hero", false, "assets/textures/hero.png")]
+    [InlineData("enemies/bat", false, "assets/textures/enemies/bat.png")]
+    [InlineData("ui/menu", true, "assets/fonts/ui/menu.png")]
+    public void AHandle_NamesAndLocatesItsFileUnderItsOwnDomain(string name, bool fontPage, string expected)
     {
-        Assert.Equal(expected, TextureFiles.RelativePathOf(new TextureHandle(name, ".png")));
-    }
+        TextureHandle handle = fontPage ? TextureHandle.FontPage(name, ".png") : new TextureHandle(name, ".png");
+        using Shipped shipped = new(handle);
 
-    [Fact]
-    public void Locate_FindsAShippedTextureUnderTheDirectoryItWasAuthoredIn()
-    {
-        TextureHandle bat = new("enemies/bat", ".png");
-        using Shipped shipped = new(bat);
-
-        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, bat));
-    }
-
-    // A bitmap font's pages ship beside the font they were cut for, so the same handle shape
-    // resolves under a second root.
-    [Fact]
-    public void AFontPage_NamesItsFileUnderTheFontsDomain()
-    {
-        Assert.Equal(
-            "assets/fonts/ui/menu.png",
-            TextureFiles.RelativePathOf(TextureHandle.FontPage("ui/menu", ".png")));
-    }
-
-    [Fact]
-    public void Locate_FindsAShippedFontPageUnderTheFontsDomain()
-    {
-        TextureHandle page = TextureHandle.FontPage("ui/menu", ".png");
-        using Shipped shipped = new(page);
-
-        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, page));
+        Assert.Equal(expected, TextureFiles.RelativePathOf(handle));
+        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, handle));
     }
 
     // One name under two roots is two files and therefore two textures, which the store has to keep
@@ -108,19 +87,6 @@ public sealed class TextureResidencyTests
 
         Assert.Same(first, second);
         Assert.Equal(1, loads);
-    }
-
-    [Fact]
-    public void AnAssetNotPreloaded_LoadsOnFirstUse()
-    {
-        using SceneAssetStore<TextureHandle, FakeTexture> store = new(
-            static handle => new FakeTexture(handle.Name));
-        store.ChangeScene([]);
-
-        FakeTexture loaded = store.Get(Hero);
-
-        Assert.Equal("hero", loaded.Name);
-        Assert.Same(loaded, store.Get(Hero));
     }
 
     [Fact]
@@ -233,24 +199,23 @@ public sealed class TextureResidencyTests
 
     private sealed class Shipped : IDisposable
     {
-        private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("capsule-textures-");
+        private readonly TempWorkspace _workspace = new("capsule-textures-");
 
         internal Shipped(params TextureHandle[] textures)
         {
             foreach (TextureHandle handle in textures)
             {
-                Path = System.IO.Path.Combine(BaseDirectory, TextureFiles.RelativePathOf(handle));
-                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
+                Path = _workspace.PathTo(TextureFiles.RelativePathOf(handle));
                 File.WriteAllBytes(Path, []);
             }
         }
 
-        internal string BaseDirectory => _directory.FullName;
+        internal string BaseDirectory => _workspace.Root;
 
         /// <summary>The last file shipped, which is the only one the single-handle specs ship.</summary>
         internal string Path { get; private set; } = string.Empty;
 
-        public void Dispose() => _directory.Delete(recursive: true);
+        public void Dispose() => _workspace.Dispose();
     }
 
     private sealed class FakeTexture(string name) : IDisposable

@@ -24,7 +24,6 @@ internal sealed class OverlayHost : IDisposable
     private readonly ISimulation _simulation;
     private readonly SceneHost? _scenes;
     private readonly SimulationHost _host;
-    private readonly ActionBindings _bindings;
 
     // Where the game's DebugDraw calls land while this overlay is attached, the channels switched
     // on — every channel starts off — and the renderer that reads the two onto the scene's world.
@@ -103,10 +102,9 @@ internal sealed class OverlayHost : IDisposable
         Scene.Push(Menu.Default(this));
         Scene.ShowMenu(false);
 
-        _bindings = OverlayActions.Bindings();
         _host = new SimulationHost(
             Scene,
-            new InputState(_bindings),
+            new InputState(OverlayActions.Bindings),
             run: new Run
             {
                 Canvas = Run.StandardCanvas,
@@ -117,13 +115,13 @@ internal sealed class OverlayHost : IDisposable
         List<InputButton> quarantine = [button];
         foreach (InputAction action in OverlayActions.Actions)
         {
-            quarantine.AddRange(_bindings.ButtonsFor(action));
+            quarantine.AddRange(OverlayActions.Bindings.ButtonsFor(action));
         }
 
         _quarantine = [.. quarantine];
         _withheld = new bool[_quarantine.Length];
 
-        DebugDraw.UseBuffer(_buffer);
+        AttachBuffer();
     }
 
     private enum OverlayState
@@ -182,9 +180,6 @@ internal sealed class OverlayHost : IDisposable
 
     internal bool IsChannelEnabled(string channel) => _enabledChannels.Contains(channel);
 
-    // The one Debug Draw submenu, or null before any channel has emitted.
-    internal Menu? DebugDrawMenu => _debugDrawMenu;
-
     // Flips a channel for the rest of the play session. Draws follow on the overlay's next frame,
     // whether or not the game steps; the submenu's row follows at once, keeping its focus.
     internal void ToggleChannel(string channel)
@@ -196,7 +191,8 @@ internal sealed class OverlayHost : IDisposable
             _enabledChannels.Add(channel);
         }
 
-        RefillDebugDrawMenu();
+        AttachBuffer();
+        Refill(_debugDrawMenu, DebugDrawRows());
     }
 
     // Pushes the submenu, filling it the first time. With no channel emitted yet there is nothing
@@ -209,7 +205,7 @@ internal sealed class OverlayHost : IDisposable
             return;
         }
 
-        _debugDrawMenu ??= Menu.DebugDraw(this);
+        _debugDrawMenu ??= new Menu("Debug Draw", DebugDrawRows());
         Scene.Push(_debugDrawMenu);
     }
 
@@ -217,18 +213,19 @@ internal sealed class OverlayHost : IDisposable
     internal void OpenScenePage() =>
         (_panels ?? throw new InvalidOperationException("The debug menu's Scene needs a run of scenes.")).Open();
 
-    private void RefillDebugDrawMenu()
+    // A row per channel that has emitted, in name order, its label carrying the channel's state.
+    private List<MenuItem> DebugDrawRows()
     {
-        if (_debugDrawMenu is not { } menu)
+        string[] channels = Channels;
+        List<MenuItem> rows = new(channels.Length);
+        foreach (string channel in channels)
         {
-            return;
+            rows.Add(new MenuItem(
+                (IsChannelEnabled(channel) ? "[x] " : "[ ] ") + channel,
+                () => ToggleChannel(channel)));
         }
 
-        menu.FillDebugDraw(this);
-        if (ReferenceEquals(Scene.Current, menu))
-        {
-            Scene.Replace(menu);
-        }
+        return rows;
     }
 
     // The host pace, which is the game's on a run of scenes — a value a game set marks its ladder
@@ -258,7 +255,7 @@ internal sealed class OverlayHost : IDisposable
     internal void SetTimeScale(double scale)
     {
         Pace = scale;
-        RefillTimeScaleMenu();
+        Refill(_timeScaleMenu, TimeScaleRows());
     }
 
     // Pushes the submenu, built the first time and filled on every open: the game may have moved
@@ -268,24 +265,39 @@ internal sealed class OverlayHost : IDisposable
     {
         if (_timeScaleMenu is null)
         {
-            _timeScaleMenu = Menu.TimeScale(this);
+            _timeScaleMenu = new Menu("Time Scale", TimeScaleRows());
         }
         else
         {
-            RefillTimeScaleMenu();
+            Refill(_timeScaleMenu, TimeScaleRows());
         }
 
         Scene.Push(_timeScaleMenu);
     }
 
-    private void RefillTimeScaleMenu()
+    // A row per pace on the ladder, marked where it is the one in force; exactly one is, unless a
+    // game set a pace off the ladder.
+    private List<MenuItem> TimeScaleRows()
     {
-        if (_timeScaleMenu is not { } menu)
+        List<MenuItem> rows = new(TimeScales.Length);
+        foreach ((double scale, string label) in TimeScales)
+        {
+            rows.Add(new MenuItem((IsTimeScale(scale) ? "(x) " : "( ) ") + label, () => SetTimeScale(scale)));
+        }
+
+        return rows;
+    }
+
+    // Rewrites a marked submenu's rows, and the frame beneath it when it is the one on screen, so
+    // a mark follows the act at once while the menu keeps its focus and identity.
+    private void Refill(Menu? menu, IReadOnlyList<MenuItem> rows)
+    {
+        if (menu is null)
         {
             return;
         }
 
-        menu.FillTimeScale(this);
+        menu.Fill(rows);
         if (ReferenceEquals(Scene.Current, menu))
         {
             Scene.Replace(menu);
@@ -340,6 +352,7 @@ internal sealed class OverlayHost : IDisposable
             }
 
             _state = wasOpen ? OverlayState.Closed : OverlayState.Open;
+            AttachBuffer();
             bool held = _state != OverlayState.Closed;
             if (held != _scheduler.Held)
             {
@@ -353,7 +366,7 @@ internal sealed class OverlayHost : IDisposable
 
         // Hide: the scene is not stepped while hidden, so the edge that shows it again is read here,
         // and that press is withheld from the menu until released.
-        bool hideDown = _bindings.IsAnyDown(OverlayActions.Hide, snapshot);
+        bool hideDown = OverlayActions.Bindings.IsAnyDown(OverlayActions.Hide, snapshot);
         if (hideDown && !_hideDown && _state == OverlayState.Hidden)
         {
             _state = OverlayState.Open;
@@ -364,7 +377,7 @@ internal sealed class OverlayHost : IDisposable
         _hidePressConsumed &= hideDown;
         if (_hidePressConsumed)
         {
-            foreach (InputButton hide in _bindings.ButtonsFor(OverlayActions.Hide))
+            foreach (InputButton hide in OverlayActions.Bindings.ButtonsFor(OverlayActions.Hide))
             {
                 sampled = sampled.Without(hide);
             }
@@ -447,7 +460,7 @@ internal sealed class OverlayHost : IDisposable
             // menu reads this frame's input.
             if (_debugDrawMenu is { } menu && menu.Items.Count != _buffer.Channels.Count)
             {
-                RefillDebugDrawMenu();
+                Refill(menu, DebugDrawRows());
             }
 
             RefreshReadout();
@@ -507,12 +520,13 @@ internal sealed class OverlayHost : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(renderer);
 
-        if (_exited)
+        // Nothing of the overlay is on screen — no menu, no pane, no channel — so the frame it
+        // would submit holds nothing. Step has already refitted this back buffer.
+        if (_exited || (_state == OverlayState.Closed && !_framePaneOn && _enabledChannels.Count == 0))
         {
             return;
         }
 
-        Refit(renderer.BackBufferSize);
         (int _, int height) = renderer.BackBufferSize;
         renderer.DrawOverlay(_host.Simulation.View, ScaleFor(height));
     }
@@ -649,4 +663,11 @@ internal sealed class OverlayHost : IDisposable
     // step left. A frame that ran several steps settles once, at its last tick: draws emitted by
     // its later steps are stamped with its first, and so leave up to that many ticks early.
     private void SettleDraws() => _buffer.Settle(_scheduler.Tick);
+
+    // The buffer is attached only while what it holds can be seen — the overlay open or hidden, or
+    // a channel switched on — so an ordinary frame runs no debug-draw walk at all. The consequence
+    // is that the Debug Draw menu lists the channels that emitted while the overlay was open, not
+    // every channel the run has drawn on since boot.
+    private void AttachBuffer() =>
+        DebugDraw.UseBuffer(_state != OverlayState.Closed || _enabledChannels.Count > 0 ? _buffer : null);
 }

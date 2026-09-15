@@ -149,6 +149,11 @@ public sealed partial class BitmapFont
     /// <param name="second">The codepoint drawn immediately after it.</param>
     public int GetKerning(int first, int second)
     {
+        if (_pairs.Length == 0)
+        {
+            return 0;
+        }
+
         int found = _pairs.AsSpan().BinarySearch(Pair(first, second));
 
         return found < 0 ? 0 : _kernings[found].Amount;
@@ -166,14 +171,10 @@ public sealed partial class BitmapFont
     public Vector2 Measure(ReadOnlySpan<char> text) => Measured(text, 0, TextWrap.None);
 
     /// <summary>
-    /// The extent <paramref name="text"/> occupies in font pixels once word-wrapped into a box
-    /// <paramref name="wrapWidth"/> font pixels wide, measured exactly as
-    /// <see cref="Measure(ReadOnlySpan{char})"/> measures an unwrapped run. X is the widest line the
-    /// wrap produced, which is at most <paramref name="wrapWidth"/> except where one glyph is wider
-    /// than the box on its own.
+    /// The same extent once the text is word-wrapped into a box <paramref name="wrapWidth"/> font
+    /// pixels wide, zero or less wrapping nothing: X is the widest line the wrap produced, at most
+    /// the box except where one glyph is wider than it on its own.
     /// </summary>
-    /// <param name="text">The text to measure.</param>
-    /// <param name="wrapWidth">The box's width in font pixels; zero or less wraps nothing.</param>
     public Vector2 Measure(ReadOnlySpan<char> text, int wrapWidth) => Measured(text, wrapWidth, TextWrap.Word);
 
     private Vector2 Measured(ReadOnlySpan<char> text, int boxWidth, TextWrap wrap)

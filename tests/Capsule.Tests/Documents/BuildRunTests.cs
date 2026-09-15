@@ -14,16 +14,7 @@ public sealed class BuildRunTests
 
     private const string Stamp = Out + "/build.stamp";
 
-    private const string Authored = """
-        { "formatVersion": 5,
-          "entities": [
-            { "id": 1, "type": "tile-map", "x": 0, "y": 0,
-              "properties": { "tileSize": 16, "width": 2, "height": 1,
-                              "texture": "terrain.png", "columns": 4,
-                              "tileTypes": [ { "type": "empty" }, { "type": "ground", "cell": 0 } ],
-                              "tiles": [0, 1] } } ],
-          "nextEntityId": 2 }
-        """;
+    private const string Authored = SceneDocumentFixtures.AuthoredTileMap;
 
     [Fact]
     public void ARunOverAValidManifest_DerivesEveryKindAndStampsItselfLast()

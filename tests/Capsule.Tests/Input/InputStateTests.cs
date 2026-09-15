@@ -4,46 +4,32 @@ namespace Capsule.Tests.Input;
 
 public sealed class InputStateTests
 {
-    private const float Tolerance = 1e-6f;
-
     private static readonly InputAction Jump = new("Jump");
     private static readonly AxisAction Move = new("Move");
 
     private static InputState Bound(params ReadOnlySpan<InputButton> buttons) =>
         new(new ActionBindings().Bind(Jump, buttons));
 
+    // The whole edge walk: the press on the first step down, held only while it stays down, the
+    // release on the first step up, and nothing on the step after that.
     [Fact]
-    public void TheFirstAdvanceWithTheKeyDown_IsAPress()
-    {
-        InputState input = Bound(Key.Space);
-
-        input.Advance(DeviceSnapshot.Of(Key.Space));
-
-        Assert.True(input.IsHeld(Jump));
-        Assert.True(input.WasPressed(Jump));
-        Assert.False(input.WasReleased(Jump));
-    }
-
-    [Fact]
-    public void HoldingAcrossSteps_IsAPressThenHeldOnly()
+    public void AKeyHeldAndThenReleased_EdgesOnceEachWay()
     {
         InputState input = Bound(Key.Space);
         DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
 
         input.Advance(down);
+
+        Assert.True(input.IsHeld(Jump));
+        Assert.True(input.WasPressed(Jump));
+        Assert.False(input.WasReleased(Jump));
+
         input.Advance(down);
 
         Assert.True(input.IsHeld(Jump));
         Assert.False(input.WasPressed(Jump));
         Assert.False(input.WasReleased(Jump));
-    }
 
-    [Fact]
-    public void ReleasingTheKey_IsAReleaseOnTheNextStepOnly()
-    {
-        InputState input = Bound(Key.Space);
-
-        input.Advance(DeviceSnapshot.Of(Key.Space));
         input.Advance(DeviceSnapshot.Empty);
 
         Assert.False(input.IsHeld(Jump));
@@ -78,10 +64,10 @@ public sealed class InputStateTests
 
         input.Advance(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.75f));
 
-        Assert.Equal(-0.75f, input.Axis(Move), Tolerance);
+        Assert.Equal(-0.75f, input.Axis(Move), InputFixtures.Tolerance);
 
         input.Advance(DeviceSnapshot.Empty);
 
-        Assert.Equal(0f, input.Axis(Move), Tolerance);
+        Assert.Equal(0f, input.Axis(Move), InputFixtures.Tolerance);
     }
 }

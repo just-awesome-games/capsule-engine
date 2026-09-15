@@ -9,28 +9,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <!-- ISimulation is the host's seam, not a surface a game implements, FrameView.Space is how a
-       scene routes a renderer onto the layer its entity lives in, and DebugDraw.IsAttached and
-       ColorOf let the engine's own emitter skip an unheard walk and dim a channel's colour, and
-       DebugPanel.Section is how the entity walk opens each component's heading. -->
+  <!-- Host seams and test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Scenes" />
-
-    <!-- Also SnapshotLatch, which carries a frame's sample to the step that consumes it; the
-         audio the host plays: AssetCollection.Clips, and Voice.Slot and Voice.Generation, which
-         are how a command addresses the host's voice table; and StepInterpolation, the one form
-         every frame-alpha interpolation takes so a stationary sample cannot drift; and
-         TextureHandle.DefaultFontPage, the engine-owned page the renderer loads from its own
-         resources rather than from a shipped root; and DebugDrawBuffer with DebugDraw.UseBuffer,
-         which the development overlay attaches and reads the way the host installs a log sink;
-         and DebugPanel.Rows, Clear and Format, with which the overlay lays out a scene page or an
-         entity panel and spells a position the same way in its lists; and CameraView.Place, with
-         which the renderer places the view on the span it quantised to its surface's pixels. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
-
-    <!-- AssetPaths is the grammar both document formats name a texture by, and the sheet format
-         lives in the build tool. -->
     <InternalsVisibleTo Include="Capsule.Build" />
   </ItemGroup>
 

@@ -70,13 +70,22 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// not supported.
     /// </summary>
     /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
-    public void Step(in StepContext context)
+    public void Step(in StepContext context) => Step(in context, null);
+
+    // The host's before-step act runs once the mixer's step has opened, so the sounds it plays and
+    // stops are this step's commands, and before the scene's own step, so its mutations are what
+    // the step then reads.
+    void ISimulation.Step(in StepContext context, Action before) => Step(in context, before);
+
+    private void Step(in StepContext context, Action? before)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         // Ahead of everything the step runs: a sound played during it expires against this step's
         // tick, and the commands it raises are this step's rather than the previous one's.
         Run.Audio.BeginStep(in context);
+
+        before?.Invoke();
 
         Scene.BeginStep();
         Scene.RunStep(in context);
@@ -99,34 +108,6 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         // Everything the step left is settled here, and nothing the pass reads can change before
         // the frame is drawn. Skipped outright while nothing listens, and on a run a host owns for
         // its own overlay: the walk costs the same whether or not anything hears it.
-        if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
-        {
-            Scene.RunDebugDraw();
-        }
-
-        RewriteView();
-    }
-
-    // Step with the host's before-step act inside it, run once the mixer's step has opened so the
-    // sounds it plays and stops are this step's commands, and before the scene's own step so its
-    // mutations are what the step then reads. The same step as Step, spelt out again rather than
-    // shared, so the ordinary step carries no branch for an act it never has.
-    void ISimulation.Step(in StepContext context, Action before)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        Run.Audio.BeginStep(in context);
-
-        before();
-
-        Scene.BeginStep();
-        Scene.RunStep(in context);
-        Scene.StepEntities(in context);
-        Scene.SettleContacts();
-        Scene.LateStepEntities(in context);
-        Scene.RunLateStep(in context);
-        Scene.EndStep();
-
         if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
         {
             Scene.RunDebugDraw();

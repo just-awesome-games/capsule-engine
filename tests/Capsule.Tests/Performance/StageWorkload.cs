@@ -4,6 +4,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Performance;
@@ -32,7 +33,7 @@ internal static class StageWorkload
     private const int HeroTileY = 55;
 
     // One atlas of two cells across, the shape a real terrain tileset takes.
-    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
     private static readonly TileDefinition Solid = new("solid", 0);
     private static readonly TileDefinition Platform = new("platform", 1);
 

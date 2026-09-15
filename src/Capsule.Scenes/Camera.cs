@@ -15,10 +15,12 @@ public class Camera
     private bool _started;
     private Scene? _scene;
 
-    /// <summary>The world point the viewport is centred on.</summary>
+    /// <summary>The point the viewport is centred on, in world units.</summary>
     public Vector2 Center { get; set; }
 
-    /// <summary><see cref="Center"/> at the previous fixed step, retained by the engine.</summary>
+    /// <summary>
+    /// <see cref="Center"/> at the previous fixed step, in world units; retained by the engine.
+    /// </summary>
     public Vector2 PreviousCenter { get; internal set; }
 
     /// <summary>

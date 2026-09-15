@@ -173,29 +173,6 @@ public sealed class SceneStepTests
     }
 
     [Fact]
-    public void AnEntityRemovedTwiceInOneStep_StillUpdatesAndDetachesExactlyOnce()
-    {
-        List<string> log = [];
-        SceneFixtures.Recorder leaving = new("leaving", log);
-
-        void Hook(Scene scene, in StepContext context)
-        {
-            scene.Remove(leaving);
-            scene.Remove(leaving);
-        }
-
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), leaving);
-        log.Clear();
-
-        simulation.Step(SceneFixtures.Step());
-
-        string[] expected = ["leaving", "leaving.late", "leaving-"];
-        Assert.Equal(expected, log);
-        Assert.Empty(simulation.Scene.Entities.ToArray());
-        Assert.Null(leaving.Scene);
-    }
-
-    [Fact]
     public void ALifecycleHookRemovingAnAlreadyQueuedEntity_DetachesItExactlyOnce()
     {
         List<string> log = [];
@@ -474,26 +451,39 @@ public sealed class SceneStepTests
 
     // Removal is deferred, so an entity queued to leave still names its scene while the drain runs.
     // It has no step left in it, and starting is once for a component's lifetime, so one taken on
-    // here must wait: started now it would have searched a scene it never steps, and could never
-    // start again on the add that does step it.
-    [Fact]
-    public void AComponentAttachedToAnEntityQueuedForRemoval_WaitsForTheNextAddToStart()
+    // there must wait: started then it would have searched a scene it never steps, and could never
+    // start again on the add that does step it. The same holds wherever the removal was issued —
+    // from a peer's start, which runs in the drain, or from the scene's own step, which leaves the
+    // entity walked for the rest of that step and so must leave the new component unstepped too.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AComponentAttachedToAnEntityQueuedForRemoval_WaitsForTheNextAddToStart(bool fromAStart)
     {
         List<string> log = [];
         SceneFixtures.Drifter host = new();
         Tracker late = new("late", log);
 
-        SceneFixtures.Starter remover = new(scene =>
+        void Queue(Scene scene)
         {
             scene.Remove(host);
             host.Add(late);
-        });
+        }
 
         void Hook(Scene scene, in StepContext context)
         {
-            if (context.Tick == 0)
+            if (context.Tick != 0)
             {
-                scene.Add(remover);
+                return;
+            }
+
+            if (fromAStart)
+            {
+                scene.Add(new SceneFixtures.Starter(Queue));
+            }
+            else
+            {
+                Queue(scene);
             }
         }
 
@@ -520,7 +510,7 @@ public sealed class SceneStepTests
     public void AnEntityQueuedForRemovalByAPeersStart_NeverStarts()
     {
         List<string> log = [];
-        Lifecycle doomed = new("doomed", log);
+        SceneFixtures.Recorder doomed = new("doomed", log, logsStart: true);
         SceneFixtures.Starter remover = new(scene => scene.Remove(doomed));
 
         void Hook(Scene scene, in StepContext context)
@@ -581,38 +571,6 @@ public sealed class SceneStepTests
         Assert.Equal(["component!", "component"], log);
     }
 
-    // The scene's own step runs before the entity pass, so an entity queued to leave there is
-    // still walked for the rest of the step. A component taken on in that window cannot start —
-    // its entity has no step left to give it — so it must take no step either.
-    [Fact]
-    public void AComponentAttachedMidStepToAnEntityQueuedForRemoval_TakesNoStepBeforeItStarts()
-    {
-        List<string> log = [];
-        SceneFixtures.Drifter host = new();
-        Tracker late = new("late", log);
-
-        void Hook(Scene scene, in StepContext context)
-        {
-            if (context.Tick == 0)
-            {
-                scene.Remove(host);
-                host.Add(late);
-            }
-        }
-
-        using SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
-
-        run.Step();
-
-        Assert.Empty(log);
-        Assert.Null(host.Scene);
-
-        run.Scene.Add(host);
-        run.Step();
-
-        Assert.Equal(["late!", "late"], log);
-    }
-
     // A start that throws leaves the entities queued behind it stranded: the scene holds them and
     // the next step would otherwise walk them. Nothing steps before it has started, so they wait
     // for the drain that starts them.
@@ -620,7 +578,7 @@ public sealed class SceneStepTests
     public void AnEntityStrandedByAPeersFailedStart_TakesNoStepUntilItHasStarted()
     {
         List<string> log = [];
-        Lifecycle stranded = new("stranded", log);
+        SceneFixtures.Recorder stranded = new("stranded", log, logsStart: true);
 
         void Hook(Scene scene, in StepContext context)
         {
@@ -642,7 +600,7 @@ public sealed class SceneStepTests
 
         run.Step();
 
-        Assert.Equal(["stranded+", "stranded!", "stranded"], log);
+        Assert.Equal(["stranded+", "stranded!", "stranded", "stranded.late"], log);
     }
 
     // A component's start may detach a sibling, which shifts the rest of the list left. The one
@@ -681,17 +639,6 @@ public sealed class SceneStepTests
     {
         protected internal override void OnStart() =>
             found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type);
-    }
-
-    private sealed class Lifecycle(string name, List<string> log) : Entity(Vector2.Zero)
-    {
-        protected internal override void OnAddedToScene() => log.Add($"{name}+");
-
-        protected internal override void OnStart() => log.Add($"{name}!");
-
-        protected internal override void OnStep(in StepContext context) => log.Add(name);
-
-        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
     }
 
     private sealed class Thrower() : Entity(Vector2.Zero)

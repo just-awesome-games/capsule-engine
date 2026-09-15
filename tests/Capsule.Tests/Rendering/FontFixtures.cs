@@ -25,6 +25,12 @@ internal static class FontFixtures
 
     internal static readonly KerningPair AgainstB = new('A', 'B', -2);
 
+    // "AB" laid out: A's advance, the pair's kerning behind it, then B's advance.
+    internal const int WordWidth = 9;
+
+    // "AB AB" on one line: two words and the space between them.
+    internal const int TwoWordsWidth = (2 * WordWidth) + 4;
+
     internal static BitmapFont Font() =>
         new(LineHeight, 8, [Page], [B, A, Emoji, Space], [AgainstB]);
 }

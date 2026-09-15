@@ -32,8 +32,8 @@ internal static class AudioTool
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
-        RegistryNames declared = new(AudioRegistrySource.RegistryClass, AudioRegistrySource.Reserved);
         List<AudioSourceClip> clips = new(sources.Count);
+        Dictionary<string, string> sourceOf = new(StringComparer.Ordinal);
         int failures = 0;
 
         foreach (DocumentSource source in sources)
@@ -48,22 +48,31 @@ internal static class AudioTool
 
             try
             {
-                if (declared.Declare(source.Key) is { } collision)
-                {
-                    throw new AudioFormatException(collision);
-                }
-
                 AudioProbe.Measurement measured = AudioProbe.Measure(source.Path);
                 clips.Add(new AudioSourceClip(
                     source.Key,
                     Path.GetExtension(source.Path),
                     measured.DurationSeconds,
                     measured.Loop));
+                sourceOf[source.Key] = source.Path;
                 output.WriteLine($"{Name}: {source.Path} -> {source.Key}");
             }
             catch (Exception ex) when (IsReportable(ex))
             {
                 error.WriteLine($"{source.Path}: {ex.Message}");
+                failures++;
+            }
+        }
+
+        // Every key the generated classes cannot declare beside each other, caught against the
+        // source that claimed it.
+        string? generated = null;
+        if (failures == 0)
+        {
+            generated = AudioRegistrySource.Render(clips, out string? refused, out string? because);
+            if (generated is null)
+            {
+                error.WriteLine($"{sourceOf[refused!]}: {because}");
                 failures++;
             }
         }
@@ -77,11 +86,7 @@ internal static class AudioTool
 
         try
         {
-            // Written whole every time, so a clip deleted since the last build leaves nothing behind
-            // for a game to still compile against.
-            AtomicFile.Write(
-                generatedPath,
-                path => File.WriteAllText(path, AudioRegistrySource.Render(clips), Utf8NoBom));
+            AtomicFile.Write(generatedPath, path => File.WriteAllText(path, generated!, Utf8NoBom));
         }
         catch (Exception ex) when (IsReportable(ex))
         {

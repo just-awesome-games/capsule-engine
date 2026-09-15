@@ -4,8 +4,6 @@ namespace Capsule.Tests.Input;
 
 public sealed class DeviceSnapshotTests
 {
-    private const float Tolerance = 1e-6f;
-
     [Fact]
     public void EveryKey_FitsTheBitset()
     {
@@ -40,8 +38,12 @@ public sealed class DeviceSnapshotTests
     }
 
     [Fact]
-    public void EveryPadButton_IsItsOwnBit()
+    public void EveryPadButton_IsItsOwnBitAndSharesNoneWithAKey()
     {
+        DeviceSnapshot keysOnly = DeviceSnapshot.Of(Key.A, Key.Space);
+
+        Assert.All(Enum.GetValues<PadButton>(), button => Assert.False(keysOnly.IsDown(button)));
+
         foreach (PadButton button in Enum.GetValues<PadButton>())
         {
             if (button == PadButton.None)
@@ -49,23 +51,12 @@ public sealed class DeviceSnapshotTests
                 continue;
             }
 
-            DeviceSnapshot snapshot = DeviceSnapshot.Empty.With(button);
+            DeviceSnapshot padOnly = DeviceSnapshot.Empty.With(button);
 
-            Assert.All(
-                Enum.GetValues<PadButton>(),
-                other => Assert.Equal(other == button, snapshot.IsDown(other)));
+            Assert.All(Enum.GetValues<PadButton>(), other => Assert.Equal(other == button, padOnly.IsDown(other)));
+            Assert.All(Enum.GetValues<Key>(), key => Assert.False(padOnly.IsDown(key)));
+            Assert.NotEqual(keysOnly, padOnly);
         }
-    }
-
-    [Fact]
-    public void KeysAndPadButtons_DoNotShareBits()
-    {
-        DeviceSnapshot keysOnly = DeviceSnapshot.Of(Key.A, Key.Space);
-        DeviceSnapshot padOnly = DeviceSnapshot.Empty.With(PadButton.South);
-
-        Assert.All(Enum.GetValues<PadButton>(), button => Assert.False(keysOnly.IsDown(button)));
-        Assert.All(Enum.GetValues<Key>(), key => Assert.False(padOnly.IsDown(key)));
-        Assert.NotEqual(keysOnly, padOnly);
     }
 
     [Fact]
@@ -87,18 +78,13 @@ public sealed class DeviceSnapshotTests
             .WithAxis(PadAxis.LeftStickX, -0.5f)
             .WithAxis(PadAxis.RightTrigger, 0.25f);
 
-        Assert.Equal(-0.5f, snapshot.Axis(PadAxis.LeftStickX), Tolerance);
-        Assert.Equal(0.25f, snapshot.Axis(PadAxis.RightTrigger), Tolerance);
+        Assert.Equal(-0.5f, snapshot.Axis(PadAxis.LeftStickX), InputFixtures.Tolerance);
+        Assert.Equal(0.25f, snapshot.Axis(PadAxis.RightTrigger), InputFixtures.Tolerance);
         Assert.Equal(0f, snapshot.Axis(PadAxis.LeftStickY));
         Assert.Equal(0f, snapshot.Axis(PadAxis.RightStickX));
         Assert.Equal(0f, snapshot.Axis(PadAxis.RightStickY));
         Assert.Equal(0f, snapshot.Axis(PadAxis.LeftTrigger));
-    }
-
-    [Fact]
-    public void AnAxisAwayFromRest_IsNotEmpty()
-    {
-        Assert.False(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 0.5f).IsEmpty);
+        Assert.False(snapshot.IsEmpty);
     }
 
     [Theory]
@@ -108,7 +94,7 @@ public sealed class DeviceSnapshotTests
     [InlineData(PadAxis.RightTrigger, 1f)]
     public void WithAxis_AcceptsTheEndsOfTheRange(PadAxis axis, float value)
     {
-        Assert.Equal(value, DeviceSnapshot.Empty.WithAxis(axis, value).Axis(axis), Tolerance);
+        Assert.Equal(value, DeviceSnapshot.Empty.WithAxis(axis, value).Axis(axis), InputFixtures.Tolerance);
     }
 
     [Theory]
@@ -152,7 +138,7 @@ public sealed class DeviceSnapshotTests
 
         DeviceSnapshot folded = older.LatchedWith(newer);
 
-        Assert.Equal(-0.25f, folded.Axis(PadAxis.LeftStickX), Tolerance);
+        Assert.Equal(-0.25f, folded.Axis(PadAxis.LeftStickX), InputFixtures.Tolerance);
         Assert.Equal(0f, folded.Axis(PadAxis.LeftTrigger));
     }
 

@@ -358,22 +358,13 @@ public sealed class SpriteGeneratorTests
             .GetNestedType("Sprites"));
 
     private static Assembly Compiled(params (string Path, string? Content)[] assets) =>
-        Probed(string.Empty, assets);
+        GeneratorHarness.Compiled(assets);
 
-    private static Assembly Probed(string members, params (string Path, string? Content)[] assets)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
-            "using Capsule.Assets.Generated;\n\nnamespace Game;\n\npublic static class Probe\n{\n" + members + "\n}\n",
-            logic: true,
-            assets);
-
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-
-        return GeneratorHarness.Loaded(compiled);
-    }
+    private static Assembly Probed(string members, params (string Path, string? Content)[] assets) =>
+        GeneratorHarness.Probed(members, assets);
 
     private static IEnumerable<Diagnostic> Refused(params (string Path, string? Content)[] assets) =>
-        GeneratorHarness.Errors(GeneratorHarness.CompileWithSources(logic: true, assets).Diagnostics);
+        GeneratorHarness.Refused(assets);
 
     private static object Read(Assembly game, string member) =>
         game.GetType("Game.Probe")!.GetProperty(member)!.GetValue(null)!;

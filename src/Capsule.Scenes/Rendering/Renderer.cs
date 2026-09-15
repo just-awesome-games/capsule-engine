@@ -75,8 +75,6 @@ public abstract class Renderer : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("ZIndex", ZIndex);
     }
 }

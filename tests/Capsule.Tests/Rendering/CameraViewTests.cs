@@ -49,14 +49,6 @@ public sealed class CameraViewTests
     }
 
     [Fact]
-    public void Expand_ShowsTheDeclaredSpanWhenTheOutputMatchesIt()
-    {
-        CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.Expand);
-
-        Assert.Equal(new Rect(-160f, -90f, 160f, 90f), view.Resolve(1f, new Vector2(1280f, 720f)));
-    }
-
-    [Fact]
     public void FixedHeight_HoldsTheVerticalSpanAndLetsTheWidthFollowTheOutput()
     {
         CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.FixedHeight);
@@ -84,36 +76,6 @@ public sealed class CameraViewTests
         CameraView view = new(Vector2.Zero, new Vector2(width, height));
 
         Assert.True(view.Resolve(1f, Wider).IsEmpty);
-    }
-
-    [Fact]
-    public void Bounds_ClampTheViewInsideThemOnTheHorizontalAxis()
-    {
-        Rect room = new(0f, 0f, 1000f, 1000f);
-        CameraView left = new(new Vector2(20f, 500f), Span) { Bounds = room };
-        CameraView right = new(new Vector2(980f, 500f), Span) { Bounds = room };
-
-        Assert.Equal(new Rect(0f, 410f, 320f, 590f), left.Resolve(1f, Wider));
-        Assert.Equal(new Rect(680f, 410f, 1000f, 590f), right.Resolve(1f, Wider));
-    }
-
-    [Fact]
-    public void Bounds_ClampTheViewInsideThemOnTheVerticalAxis()
-    {
-        Rect room = new(0f, 0f, 1000f, 1000f);
-        CameraView top = new(new Vector2(500f, 10f), Span) { Bounds = room };
-        CameraView bottom = new(new Vector2(500f, 990f), Span) { Bounds = room };
-
-        Assert.Equal(new Rect(340f, 0f, 660f, 180f), top.Resolve(1f, Wider));
-        Assert.Equal(new Rect(340f, 820f, 660f, 1000f), bottom.Resolve(1f, Wider));
-    }
-
-    [Fact]
-    public void Bounds_LeaveAViewAlreadyInsideThemUntouched()
-    {
-        CameraView view = new(new Vector2(500f, 500f), Span) { Bounds = new Rect(0f, 0f, 1000f, 1000f) };
-
-        Assert.Equal(new Rect(340f, 410f, 660f, 590f), view.Resolve(1f, Wider));
     }
 
     // Clamping an overshooting axis would pin one edge to the bounds and show world past the other.
@@ -161,11 +123,13 @@ public sealed class CameraViewTests
     }
 
     // A camera whose centre the game clamped by hand and one confined by Bounds must cull
-    // identically, or the same room draws two different frames across the migration.
+    // identically, or the same room draws two different frames across the migration. The rows walk
+    // a view clamped on each edge, clamped on both at once, and one already inside the room.
     [Theory]
     [InlineData(20f, 500f)]
     [InlineData(980f, 500f)]
     [InlineData(500f, 10f)]
+    [InlineData(500f, 990f)]
     [InlineData(-9000f, 990f)]
     [InlineData(500f, 500f)]
     public void SweptBounds_UnderLetterbox_MatchAHandClampedCameraWithNoBounds(float x, float y)

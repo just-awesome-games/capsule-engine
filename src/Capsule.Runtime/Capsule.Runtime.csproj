@@ -16,16 +16,14 @@
           PackagePath="/"
           Visible="false" />
 
-    <!-- "compile" in PrivateAssets is load-bearing: it keeps MonoGame's reference assemblies from
-         flowing to consumers, so a game cannot write a Microsoft.Xna.Framework using. Runtime and
-         native assets still flow. Dropping it silently reopens the boundary. -->
+    <!-- "compile" in PrivateAssets is load-bearing: without it MonoGame's reference assemblies
+         flow to consumers and a game can write a Microsoft.Xna.Framework using. -->
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
 
-    <!-- Already in the graph as MonoGame's own dependency; named here because the streaming voice
-         decodes against it directly. Pinned to the version MonoGame resolves, and private on the
-         same terms, so a game cannot write an NVorbis using either. -->
+    <!-- Already in the graph as MonoGame's dependency; named here because the streaming voice
+         decodes against it directly. Pinned to the version MonoGame resolves. -->
     <PackageReference Include="NVorbis" Version="0.10.4">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
@@ -38,8 +36,8 @@
   </ItemGroup>
 
   <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
-       release are a matched set. The item belongs to NuGet's own pack targets, so the Error is the
-       tripwire for it going away rather than silently reverting to the open range. -->
+       release are a matched set. The Error is the tripwire for NuGet's item going away rather than
+       this silently reverting to the open range. -->
   <Target Name="CapsulePinPureModuleDependency" AfterTargets="_GetProjectReferenceVersions">
     <Error Condition="'@(_ProjectReferencesWithVersions)' == ''"
            Text="Capsule.Runtime could not pin its JAG.Capsule dependency: NuGet no longer exposes _ProjectReferencesWithVersions." />
@@ -49,8 +47,7 @@
     </ItemGroup>
   </Target>
 
-  <!-- The specs assert the headless internals — deadzone filtering, scheduling, letterboxing —
-       without widening the public surface. -->
+  <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

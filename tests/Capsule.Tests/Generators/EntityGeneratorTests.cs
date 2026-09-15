@@ -70,19 +70,6 @@ public sealed class EntityGeneratorTests
     }
 
     [Fact]
-    public void TheGeneratedRegistry_CompilesAndResolvesTheSpawnType()
-    {
-        Compilation compiled = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            [SpawnType("player-spawn")]
-            public sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
-            """).Updated;
-
-        Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
-    }
-
-    [Fact]
     public void TwoClassesClaimingOneType_FailTheBuildNamingBoth()
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""

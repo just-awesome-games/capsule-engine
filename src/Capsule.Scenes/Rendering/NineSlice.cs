@@ -72,8 +72,6 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         base.OnDebugPanel(panel);
         TextureRegion region = Sprite.Region;
         panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));

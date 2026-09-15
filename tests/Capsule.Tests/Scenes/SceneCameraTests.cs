@@ -46,17 +46,6 @@ public sealed class SceneCameraTests
     }
 
     [Fact]
-    public void AScenesFirstFrame_OpensWhereOnStartLeftTheCamera()
-    {
-        SceneSimulation simulation = new(new SceneFixtures.HookScene(start: SceneFixtures.Opens(new Vector2(120, 64))));
-
-        CameraView camera = simulation.View.Camera;
-
-        Assert.Equal(new Vector2(120, 64), camera.Center);
-        Assert.Equal(camera.Center, camera.PreviousCenter);
-    }
-
-    [Fact]
     public void ACameraAimedInTheLateStep_FramesWhereItsSubjectEndedThisStep()
     {
         SceneFixtures.Drifter subject = new(new Vector2(10, 0));

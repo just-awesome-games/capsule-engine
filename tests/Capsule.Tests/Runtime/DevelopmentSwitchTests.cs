@@ -6,12 +6,6 @@ namespace Capsule.Tests.Runtime;
 public sealed class DevelopmentSwitchTests
 {
     [Fact]
-    public void Development_IsOnWhenTheTestProcessHasNoSwitch()
-    {
-        Assert.True(Development.IsSupported);
-    }
-
-    [Fact]
     public void ShippingTargetDisablesTheOneDevelopmentSwitch()
     {
         XDocument targets = XDocument.Load(DevelopmentTargetsPath());

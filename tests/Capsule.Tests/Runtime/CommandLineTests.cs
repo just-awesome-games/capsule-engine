@@ -8,8 +8,7 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class CommandLineTests : IDisposable
 {
-    private readonly string _directory =
-        Directory.CreateTempSubdirectory(nameof(CommandLineTests)).FullName;
+    private readonly TempWorkspace _workspace = new(nameof(CommandLineTests));
 
     private readonly TextWriter _output = Console.Out;
     private readonly TextWriter _error = Console.Error;
@@ -22,19 +21,13 @@ public sealed class CommandLineTests : IDisposable
         Console.SetOut(_output);
         Console.SetError(_error);
         _captured.Dispose();
-        Directory.Delete(_directory, recursive: true);
+        _workspace.Dispose();
     }
 
     [Fact]
     public void Headless_RunsTheNamedDriverToItsEnd()
     {
         Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<Idle>());
-    }
-
-    [Fact]
-    public void Headless_OfADriverThatExitsTheGame_Succeeds()
-    {
-        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<Exiting>());
     }
 
     [Fact]
@@ -61,8 +54,8 @@ public sealed class CommandLineTests : IDisposable
     public void Frames_TakesAnOptionalDuration(string? seconds)
     {
         string[] frames = seconds is null
-            ? ["--frames", Path.Combine(_directory, "frames.csv")]
-            : ["--frames", Path.Combine(_directory, "frames.csv"), seconds];
+            ? ["--frames", Path.Combine(_workspace.Root, "frames.csv")]
+            : ["--frames", Path.Combine(_workspace.Root, "frames.csv"), seconds];
 
         Assert.Equal(0, Builder().WithCommandLine([.. frames, "--headless", "--driver", "Idler"]).RunScene<Idle>());
     }

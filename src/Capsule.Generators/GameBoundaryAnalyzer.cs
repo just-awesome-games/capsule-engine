@@ -28,17 +28,17 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor ExternalIo = Rule(
         ExternalIoId,
         "Game logic cannot perform external I/O",
-        "'{0}' performs external I/O; move it behind the shell/runtime boundary");
+        "'{0}' performs external I/O; the build reads what a game ships and hands it over as CapsuleAssets, and the shell owns every other file, socket and device");
 
     private static readonly DiagnosticDescriptor Concurrency = Rule(
         ConcurrencyId,
         "Game logic cannot schedule ambient concurrency",
-        "'{0}' schedules work outside the deterministic simulation");
+        "'{0}' schedules work outside the deterministic simulation; do the work inside the step instead");
 
     private static readonly DiagnosticDescriptor AmbientTime = Rule(
         AmbientTimeId,
         "Game logic cannot read ambient time",
-        "'{0}' reads process or wall-clock time; use the simulation time supplied by Capsule");
+        "'{0}' reads process or wall-clock time; use the simulation time the step is given, which a scene, entity or component reaches as StepContext.TotalSeconds or StepContext.DeltaSeconds");
 
     private static readonly DiagnosticDescriptor AmbientRandom = Rule(
         AmbientRandomId,
@@ -108,42 +108,20 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     {
         IInvocationOperation operation = (IInvocationOperation)context.Operation;
         IMethodSymbol method = operation.TargetMethod;
-        DiagnosticDescriptor? rule = ClassifyMethod(method);
+        DiagnosticDescriptor? rule = Classify(new Subject(method));
         if (rule is not null && (rule != Concurrency || operation.Parent is not IAwaitOperation))
         {
-            Report(
-                context,
-                rule,
-                operation.Syntax.GetLocation(),
-                method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+            Report(context, rule, operation.Syntax.GetLocation(), Display(method));
         }
     }
 
     private static void AnalyzeObjectCreation(OperationAnalysisContext context)
     {
         IObjectCreationOperation operation = (IObjectCreationOperation)context.Operation;
-        IMethodSymbol? constructor = operation.Constructor;
-        if (constructor is null)
+        if (operation.Constructor is { } constructor && Classify(new Subject(constructor)) is { } rule)
         {
-            return;
-        }
-
-        string display = constructor.ContainingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        if (IsExternalIo(constructor) || IsExternalState(constructor))
-        {
-            Report(context, ExternalIo, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsConcurrency(constructor))
-        {
-            Report(context, Concurrency, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsAmbientTime(constructor))
-        {
-            Report(context, AmbientTime, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsSystemType(constructor.ContainingType, "Random"))
-        {
-            Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
+            // The type, not the constructor: a call site reads as 'new Random(...)'.
+            Report(context, rule, operation.Syntax.GetLocation(), Display(constructor.ContainingType));
         }
     }
 
@@ -151,61 +129,56 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     {
         IMethodReferenceOperation operation = (IMethodReferenceOperation)context.Operation;
         IMethodSymbol method = operation.Method;
-        DiagnosticDescriptor? rule = ClassifyMethod(method);
+        if (Classify(new Subject(method)) is { } rule)
+        {
+            Report(context, rule, operation.Syntax.GetLocation(), Display(method));
+        }
+    }
+
+    private static void AnalyzeProperty(OperationAnalysisContext context)
+    {
+        IPropertyReferenceOperation operation = (IPropertyReferenceOperation)context.Operation;
+        Subject subject = new(operation.Property);
+
+        // Time and randomness are judged first: the types they live on are external state too, and
+        // the narrower rule is the one that names what to reach for instead.
+        DiagnosticDescriptor? rule = IsAmbientTime(subject) ? AmbientTime
+            : subject.IsSystem("Random") ? AmbientRandom
+            : IsExternalIo(subject) || IsExternalState(subject) ? ExternalIo
+            : IsConcurrency(subject) ? Concurrency
+            : null;
+
         if (rule is not null)
         {
-            Report(
-                context,
-                rule,
-                operation.Syntax.GetLocation(),
-                method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+            Report(context, rule, operation.Syntax.GetLocation(), Display(operation.Property));
         }
     }
 
-    private static DiagnosticDescriptor? ClassifyMethod(IMethodSymbol method)
+    private static void AnalyzeField(OperationAnalysisContext context)
     {
-        if (IsExternalIo(method) || IsExternalState(method))
+        IFieldReferenceOperation operation = (IFieldReferenceOperation)context.Operation;
+        if (IsExternalIo(new Subject(operation.Field)))
         {
-            return ExternalIo;
+            Report(context, ExternalIo, operation.Syntax.GetLocation(), Display(operation.Field));
         }
-
-        if (IsConcurrency(method))
-        {
-            return Concurrency;
-        }
-
-        if (IsAmbientTime(method))
-        {
-            return AmbientTime;
-        }
-
-        return IsAmbientRandom(method) ? AmbientRandom : null;
     }
 
-    private static void AnalyzeAwait(OperationAnalysisContext context)
-    {
-        IAwaitOperation operation = (IAwaitOperation)context.Operation;
-        Report(context, Concurrency, operation.Syntax.GetLocation(), "await");
-    }
+    private static void AnalyzeAwait(OperationAnalysisContext context) =>
+        Report(context, Concurrency, context.Operation.Syntax.GetLocation(), "await");
 
-    private static void AnalyzeLock(OperationAnalysisContext context)
-    {
-        ILockOperation operation = (ILockOperation)context.Operation;
-        Report(context, Concurrency, operation.Syntax.GetLocation(), "lock");
-    }
+    private static void AnalyzeLock(OperationAnalysisContext context) =>
+        Report(context, Concurrency, context.Operation.Syntax.GetLocation(), "lock");
 
     private static void AnalyzeNativeImport(SymbolAnalysisContext context)
     {
         IMethodSymbol method = (IMethodSymbol)context.Symbol;
-        if (!method.GetAttributes().Any(attribute => IsNativeImportAttribute(attribute.AttributeClass)))
+        if (method.GetAttributes().Any(attribute => IsNativeImportAttribute(attribute.AttributeClass)))
         {
-            return;
+            context.ReportDiagnostic(Diagnostic.Create(
+                ExternalIo,
+                method.Locations.FirstOrDefault() ?? Location.None,
+                Display(method)));
         }
-
-        context.ReportDiagnostic(Diagnostic.Create(
-            ExternalIo,
-            method.Locations.FirstOrDefault() ?? Location.None,
-            method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)));
     }
 
     // Construction is caught at its own site, but a seeded instance can also arrive from
@@ -219,50 +192,33 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             _ => throw new InvalidOperationException($"Unexpected symbol kind '{context.Symbol.Kind}'."),
         };
 
-        if (stored is INamedTypeSymbol named && IsSystemType(named, "Random"))
+        if (stored.Name == "Random" && stored.ContainingNamespace.ToDisplayString() == "System")
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 AmbientRandom,
                 context.Symbol.Locations.FirstOrDefault() ?? Location.None,
-                context.Symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)));
+                Display(context.Symbol)));
         }
     }
 
-    private static void AnalyzeProperty(OperationAnalysisContext context)
+    private static DiagnosticDescriptor? Classify(in Subject subject)
     {
-        IPropertyReferenceOperation operation = (IPropertyReferenceOperation)context.Operation;
-        IPropertySymbol property = operation.Property;
-        string display = property.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        if (IsExternalIo(subject) || IsExternalState(subject))
+        {
+            return ExternalIo;
+        }
 
-        if (IsAmbientTime(property))
+        if (IsConcurrency(subject))
         {
-            Report(context, AmbientTime, operation.Syntax.GetLocation(), display);
+            return Concurrency;
         }
-        else if (IsSystemType(property.ContainingType, "Random"))
-        {
-            Report(context, AmbientRandom, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsExternalIo(property) || IsExternalState(property))
-        {
-            Report(context, ExternalIo, operation.Syntax.GetLocation(), display);
-        }
-        else if (IsConcurrency(property))
-        {
-            Report(context, Concurrency, operation.Syntax.GetLocation(), display);
-        }
-    }
 
-    private static void AnalyzeField(OperationAnalysisContext context)
-    {
-        IFieldReferenceOperation operation = (IFieldReferenceOperation)context.Operation;
-        if (IsExternalIo(operation.Field))
+        if (IsAmbientTime(subject))
         {
-            Report(
-                context,
-                ExternalIo,
-                operation.Syntax.GetLocation(),
-                operation.Field.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+            return AmbientTime;
         }
+
+        return IsAmbientRandom(subject) ? AmbientRandom : null;
     }
 
     private static bool Enabled(AnalyzerOptions options, string property) =>
@@ -275,37 +231,28 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     // The whole namespace tree is banned, so a sub-namespace nobody anticipated stays closed;
     // only members proven to have no external effect are carved back out.
-    private static bool IsExternalIo(ISymbol symbol)
-    {
-        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
-        bool external = namespaceName is "System.IO" or "System.Net"
-            || namespaceName.StartsWith("System.IO.", StringComparison.Ordinal)
-            || namespaceName.StartsWith("System.Net.", StringComparison.Ordinal);
+    private static bool IsExternalIo(in Subject subject) =>
+        (subject.Under("System.IO") || subject.Under("System.Net")) && !TouchesNothingOutside(subject);
 
-        return external && !TouchesNothingOutside(symbol);
-    }
-
-    private static bool TouchesNothingOutside(ISymbol symbol)
+    private static bool TouchesNothingOutside(in Subject subject)
     {
-        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
-        INamedTypeSymbol? type = symbol.ContainingType;
-        if (namespaceName == "System.IO.Enumeration")
+        if (subject.In("System.IO.Enumeration"))
         {
-            return type?.Name == "FileSystemName";
+            return subject.Type?.Name == "FileSystemName";
         }
 
-        if (namespaceName != "System.IO")
+        if (!subject.In("System.IO"))
         {
             return false;
         }
 
         // GetRandomFileName is exempt here so CAP105 reports it as ambient randomness instead.
-        if (type?.Name == "Path")
+        if (subject.Type?.Name == "Path")
         {
-            return !IsAmbientPath(symbol);
+            return !IsAmbientPath(subject.Symbol);
         }
 
-        if (type?.Name is "MemoryStream" or "StringReader" or "StringWriter" or "BufferedStream"
+        if (subject.Type?.Name is "MemoryStream" or "StringReader" or "StringWriter" or "BufferedStream"
             or "Stream" or "TextReader" or "TextWriter")
         {
             return true;
@@ -313,8 +260,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
         // A reader or writer over a stream is only as external as that stream, which is judged
         // where it is created; one opened from a path opens the file itself.
-        return type?.Name is "BinaryReader" or "BinaryWriter" or "StreamReader" or "StreamWriter"
-            && (symbol is not IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
+        return subject.Type?.Name is "BinaryReader" or "BinaryWriter" or "StreamReader" or "StreamWriter"
+            && (subject.Symbol is not IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
                 || constructor.Parameters.Length == 0
                 || constructor.Parameters[0].Type.SpecialType != SpecialType.System_String);
     }
@@ -333,34 +280,22 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
                 || (method.Name == "GetFullPath" && method.Parameters.Length == 1));
     }
 
-    private static bool IsConcurrency(ISymbol symbol)
+    private static bool IsConcurrency(in Subject subject) =>
+        subject.In("System.Timers")
+            ? subject.Type?.Name == "Timer"
+            : subject.Under("System.Threading") && !NeitherSchedulesNorBlocks(subject);
+
+    private static bool NeitherSchedulesNorBlocks(in Subject subject)
     {
-        INamedTypeSymbol? type = symbol.ContainingType;
-        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
-        if (namespaceName == "System.Timers")
+        if (subject.In("System.Threading"))
         {
-            return type?.Name == "Timer";
-        }
-
-        bool threading = namespaceName == "System.Threading"
-            || namespaceName.StartsWith("System.Threading.", StringComparison.Ordinal);
-
-        return threading && !NeitherSchedulesNorBlocks(symbol);
-    }
-
-    private static bool NeitherSchedulesNorBlocks(ISymbol symbol)
-    {
-        INamedTypeSymbol? type = symbol.ContainingType;
-        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
-        if (namespaceName == "System.Threading")
-        {
-            return type?.Name is "Interlocked" or "Volatile" or "CancellationToken" or "CancellationTokenSource";
+            return subject.Type?.Name is "Interlocked" or "Volatile" or "CancellationToken" or "CancellationTokenSource";
         }
 
         // Every other Task member either queues work or waits on it; construction does both.
-        return namespaceName == "System.Threading.Tasks"
-            && type?.Name == "Task"
-            && symbol.Name is "FromResult" or "CompletedTask" or "FromException" or "FromCanceled"
+        return subject.In("System.Threading.Tasks")
+            && subject.Type?.Name == "Task"
+            && subject.Symbol.Name is "FromResult" or "CompletedTask" or "FromException" or "FromCanceled"
                 or "WhenAll" or "WhenAny";
     }
 
@@ -368,58 +303,67 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         type?.Name is "DllImportAttribute" or "LibraryImportAttribute"
         && type.ContainingNamespace.ToDisplayString() == "System.Runtime.InteropServices";
 
-    private static bool IsAmbientTime(ISymbol symbol)
+    private static bool IsAmbientTime(in Subject subject)
     {
-        INamedTypeSymbol type = symbol.ContainingType;
-        if ((IsSystemType(type, "DateTime") || IsSystemType(type, "DateTimeOffset"))
-            && symbol.Name is "Now" or "UtcNow" or "Today")
+        if ((subject.IsSystem("DateTime") || subject.IsSystem("DateTimeOffset"))
+            && subject.Symbol.Name is "Now" or "UtcNow" or "Today")
         {
             return true;
         }
 
-        if (IsSystemType(type, "Environment") && symbol.Name is "TickCount" or "TickCount64")
+        if (subject.IsSystem("Environment") && subject.Symbol.Name is "TickCount" or "TickCount64")
         {
             return true;
         }
 
-        if (IsSystemType(type, "TimeProvider") && symbol.Name == "System")
+        if (subject.IsSystem("TimeProvider") && subject.Symbol.Name == "System")
         {
             return true;
         }
 
-        return type.Name == "Stopwatch"
-            && type.ContainingNamespace.ToDisplayString() == "System.Diagnostics";
+        return subject.Type?.Name == "Stopwatch" && subject.In("System.Diagnostics");
     }
 
-    private static bool IsAmbientRandom(ISymbol symbol) =>
-        IsSystemType(symbol.ContainingType, "Random")
-        || (symbol.ContainingType?.Name == "Path"
-            && symbol.ContainingNamespace.ToDisplayString() == "System.IO"
-            && symbol.Name == "GetRandomFileName")
-        || (IsSystemType(symbol.ContainingType, "Guid") && symbol.Name == "NewGuid")
-        || (symbol.ContainingType?.Name == "RandomNumberGenerator"
-            && symbol.ContainingNamespace.ToDisplayString() == "System.Security.Cryptography");
+    private static bool IsAmbientRandom(in Subject subject) =>
+        subject.IsSystem("Random")
+        || (subject.Type?.Name == "Path" && subject.In("System.IO") && subject.Symbol.Name == "GetRandomFileName")
+        || (subject.IsSystem("Guid") && subject.Symbol.Name == "NewGuid")
+        || (subject.Type?.Name == "RandomNumberGenerator" && subject.In("System.Security.Cryptography"));
 
-    private static bool IsExternalState(ISymbol symbol)
-    {
-        INamedTypeSymbol? type = symbol.ContainingType;
-        if (IsSystemType(type, "Console") || IsSystemType(type, "Environment"))
-        {
-            return true;
-        }
+    private static bool IsExternalState(in Subject subject) =>
+        subject.IsSystem("Console")
+        || subject.IsSystem("Environment")
+        || (subject.Type?.Name == "Process" && subject.In("System.Diagnostics"))
+        || subject.Under("System.Reflection");
 
-        string namespaceName = symbol.ContainingNamespace.ToDisplayString();
-        return (type?.Name == "Process" && namespaceName == "System.Diagnostics")
-            || namespaceName == "System.Reflection"
-            || namespaceName.StartsWith("System.Reflection.", StringComparison.Ordinal);
-    }
-
-    private static bool IsSystemType(INamedTypeSymbol? type, string name) =>
-        type?.Name == name && type.ContainingNamespace.ToDisplayString() == "System";
+    private static string Display(ISymbol symbol) => symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
     private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, string display) =>
         context.ReportDiagnostic(Diagnostic.Create(rule, location, display));
 
     private static DiagnosticDescriptor Rule(string id, string title, string message) =>
-        new(id, title, message, "Capsule.Architecture", DiagnosticSeverity.Error, isEnabledByDefault: true);
+        new(
+            id, title, message, "Capsule.Architecture", DiagnosticSeverity.Error, true, null,
+            CapsuleDocs.At(CapsuleDocs.LogicBoundary));
+
+    // Every rule asks the same things of a symbol, and spelling a namespace out allocates a string;
+    // spelt once per operation here and read by all of them.
+    private readonly struct Subject(ISymbol symbol)
+    {
+        internal ISymbol Symbol { get; } = symbol;
+
+        internal INamedTypeSymbol? Type { get; } = symbol.ContainingType;
+
+        internal string Space { get; } = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+
+        internal bool IsSystem(string name) => Type?.Name == name && In("System");
+
+        internal bool In(string space) => string.Equals(Space, space, StringComparison.Ordinal);
+
+        internal bool Under(string space) =>
+            In(space)
+            || (Space.Length > space.Length
+                && Space[space.Length] == '.'
+                && Space.StartsWith(space, StringComparison.Ordinal));
+    }
 }

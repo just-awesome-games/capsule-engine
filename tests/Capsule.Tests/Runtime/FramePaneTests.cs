@@ -16,7 +16,7 @@ public sealed class FramePaneTests
     [Fact]
     public void AFreshOverlay_SteppedClosed_DrawsNothing()
     {
-        using Rig rig = new();
+        using OverlayRig rig = new();
 
         Assert.Empty(rig.Overlay.Host.Simulation.View.ScreenSprites.ToArray());
 
@@ -29,7 +29,7 @@ public sealed class FramePaneTests
     [Fact]
     public void TheToggle_LastsThePlaySessionAcrossCloseHideAndRestore()
     {
-        using Rig rig = new();
+        using OverlayRig rig = new();
         OverlayHost overlay = rig.Overlay;
 
         rig.Open();
@@ -65,7 +65,7 @@ public sealed class FramePaneTests
             rig.Frame(intervalMs: 16, updateMs: 1);
         }
 
-        Assert.StartsWith("fps   62.5", overlay.Scene.Pane.Text, StringComparison.Ordinal);
+        Assert.Equal(62.5, overlay.Scene.Pane.Figures.Fps, 1);
 
         rig.Press(Key.Enter);
         Assert.False(overlay.IsFramePaneOn);
@@ -73,13 +73,13 @@ public sealed class FramePaneTests
         // Switched back on, the pane starts a fresh second from zero.
         rig.Press(Key.Enter);
         Assert.True(overlay.IsFramePaneOn);
-        Assert.StartsWith("fps    0.0", overlay.Scene.Pane.Text, StringComparison.Ordinal);
+        Assert.Equal(default, overlay.Scene.Pane.Figures);
     }
 
     [Fact]
     public void AWithdrawnMenu_LeavesOnlyThePaneInTheViewAndComesBackAtItsDepthAndFocus()
     {
-        using Rig rig = new();
+        using OverlayRig rig = new();
         OverlayHost overlay = rig.Overlay;
         OverlayScene scene = overlay.Scene;
 
@@ -92,7 +92,7 @@ public sealed class FramePaneTests
         rig.Press(Key.Up);
         rig.Press(Key.F);
         Assert.Equal(1, scene.Depth);
-        Assert.Equal(3, scene.FocusedIndex);
+        Assert.Equal("Frame Pane", scene.Current.Items[scene.FocusedIndex].Label);
 
         rig.Press(Key.Grave);
         Assert.False(overlay.IsOpen);
@@ -119,24 +119,24 @@ public sealed class FramePaneTests
         rig.Open();
 
         Assert.Equal(1, scene.Depth);
-        Assert.Equal(3, scene.FocusedIndex);
-        Assert.Equal("Frame Pane  F", scene.RowText(3));
+        Assert.Equal("Frame Pane", scene.Current.Items[scene.FocusedIndex].Label);
         Assert.Contains(overlay.Host.Simulation.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
     }
 
     [Fact]
     public void TheFigures_ArePublishedOnceASecondFromTheWholeSecond()
     {
-        using Rig rig = new();
+        using OverlayRig rig = new();
         rig.Overlay.ToggleFramePane();
         rig.Overlay.LastFrame = new RenderStats(1.5);
 
         // Zeros until a second completes. The first frame has no interval to measure; the second
         // is the first sampled.
         string[] lines = rig.PaneLines();
+        Assert.Equal(default, rig.Overlay.Scene.Pane.Figures);
+
+        // One line read whole, so the pane is known to be formatted rather than only measured.
         Assert.Equal("fps    0.0   frame   0.00 ms  max   0.00", lines[0]);
-        Assert.Equal("update   0.00 ms   draw   0.00 ms", lines[1]);
-        Assert.StartsWith("steps    0.0/s   gc ", lines[2], StringComparison.Ordinal);
         Assert.EndsWith(" MB", lines[2], StringComparison.Ordinal);
 
         rig.Frame(intervalMs: 0, updateMs: 2);
@@ -155,9 +155,13 @@ public sealed class FramePaneTests
         }
 
         lines = rig.PaneLines();
-        Assert.Equal("fps   55.6   frame  18.00 ms  max  20.00", lines[0]);
-        Assert.Equal("update   2.00 ms   draw   1.50 ms", lines[1]);
-        Assert.StartsWith("steps    9.9/s   gc ", lines[2], StringComparison.Ordinal);
+        FrameFigures figures = rig.Overlay.Scene.Pane.Figures;
+        Assert.Equal(55.6, figures.Fps, 1);
+        Assert.Equal(18.0, figures.FrameMs, 2);
+        Assert.Equal(20.0, figures.WorstMs, 2);
+        Assert.Equal(2.0, figures.UpdateMs, 2);
+        Assert.Equal(1.5, figures.DrawMs, 2);
+        Assert.Equal(9.9, figures.StepsPerSecond, 1);
         Assert.Equal(10, rig.Simulation.Steps);
 
         // Mid-second nothing moves, however the frames vary.
@@ -178,13 +182,13 @@ public sealed class FramePaneTests
             rig.Frame(intervalMs: 16, updateMs: 2);
         }
 
-        Assert.StartsWith("steps    5.0/s   gc ", rig.PaneLines()[2], StringComparison.Ordinal);
+        Assert.Equal(5.0, rig.Overlay.Scene.Pane.Figures.StepsPerSecond, 1);
     }
 
     [Fact]
     public void OnceOnAndWarm_AFrameAllocatesNothing()
     {
-        using Rig rig = new();
+        using OverlayRig rig = new();
         rig.Overlay.ToggleFramePane();
         rig.Overlay.LastFrame = new RenderStats(1.5);
 
@@ -200,62 +204,6 @@ public sealed class FramePaneTests
         }
 
         Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
-        Assert.StartsWith("fps   62.5", rig.Overlay.Scene.Pane.Text, StringComparison.Ordinal);
-    }
-
-    // An overlay over an idle simulation on a clock the test advances: every frame starts a set
-    // interval after the last, observes, spends the update bracket, advances the game and steps
-    // the overlay.
-    private sealed class Rig : IDisposable
-    {
-        private readonly FixedStepScheduler _scheduler = new(StepSeconds, 5, new ActionBindings());
-        private long _ticks;
-        private long _frameStart;
-
-        internal Rig() => Overlay = new OverlayHost(Key.Grave, _scheduler, Simulation, timestamp: () => _ticks);
-
-        internal OverlayHost Overlay { get; }
-
-        internal IdleSimulation Simulation { get; } = new();
-
-        internal string[] PaneLines() => Overlay.Scene.Pane.Text.Split('\n');
-
-        internal void Open()
-        {
-            Press(Key.Grave);
-
-            Assert.True(Overlay.IsOpen);
-        }
-
-        internal void Press(Key key)
-        {
-            Frame(intervalMs: 16, updateMs: 1, elapsedSeconds: 0, DeviceSnapshot.Of(key));
-            Frame(intervalMs: 16, updateMs: 1, elapsedSeconds: 0, DeviceSnapshot.Empty);
-        }
-
-        internal void Frame(double intervalMs, double updateMs, double elapsedSeconds = 0, DeviceSnapshot sampled = default)
-        {
-            _frameStart += Ticks(intervalMs);
-            _ticks = _frameStart;
-            DeviceSnapshot stripped = Overlay.Observe(sampled);
-            _ticks += Ticks(updateMs);
-            _scheduler.Advance(elapsedSeconds, stripped, Simulation);
-            Overlay.Step();
-        }
-
-        public void Dispose() => Overlay.Dispose();
-
-        private static long Ticks(double ms) => (long)Math.Round(ms * Stopwatch.Frequency / 1000.0);
-    }
-
-    private sealed class IdleSimulation : ISimulation
-    {
-        public int Steps { get; private set; }
-
-        public bool ExitRequested => false;
-
-        public FrameView View { get; } = new();
-
-        public void Step(in StepContext context) => Steps++;
+        Assert.Equal(62.5, rig.Overlay.Scene.Pane.Figures.Fps, 1);
     }
 }

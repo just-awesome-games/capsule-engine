@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Capsule.Diagnostics;
 using Capsule.Generators;
 using Capsule.Scenes;
+using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -11,7 +11,11 @@ namespace Capsule.Tests.Analyzers;
 
 public sealed class GameBoundaryAnalyzerTests
 {
-    private static readonly ImmutableArray<MetadataReference> References = LoadReferences();
+    // The boundary rules are about what a game-logic project references, so a case declares its
+    // own: nothing Capsule and nothing MonoGame is in scope until a test puts it there.
+    private static readonly ImmutableArray<MetadataReference> References = GeneratorHarness.Referenced(
+        static name => name.StartsWith("Capsule.", StringComparison.Ordinal)
+            || name.StartsWith("MonoGame.Framework", StringComparison.Ordinal));
 
     [Fact]
     public async Task Logic_rejects_external_io_concurrency_time_and_ambient_randomness()
@@ -383,7 +387,7 @@ public sealed class GameBoundaryAnalyzerTests
         CompilationWithAnalyzers analyzed = compilation.WithAnalyzers(
             [new GameBoundaryAnalyzer()],
             new CompilationWithAnalyzersOptions(
-                new AnalyzerOptions([], new DeclaredRole(logic, shell)),
+                new AnalyzerOptions([], new GeneratorHarness.DeclaredRole(logic, shell)),
                 onAnalyzerException: null,
                 concurrentAnalysis: true,
                 logAnalyzerExecutionTime: false));
@@ -402,43 +406,5 @@ public sealed class GameBoundaryAnalyzerTests
         Microsoft.CodeAnalysis.Emit.EmitResult result = compilation.Emit(image);
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
         return MetadataReference.CreateFromImage(image.ToArray());
-    }
-
-    private static ImmutableArray<MetadataReference> LoadReferences()
-    {
-        string trusted = (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty;
-        return trusted.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Where(path => !Path.GetFileNameWithoutExtension(path).StartsWith("Capsule.", StringComparison.Ordinal))
-            .Where(path => !Path.GetFileNameWithoutExtension(path).StartsWith("MonoGame.Framework", StringComparison.Ordinal))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(path => MetadataReference.CreateFromFile(path))
-            .ToImmutableArray<MetadataReference>();
-    }
-
-    private sealed class DeclaredRole(bool logic, bool shell) : AnalyzerConfigOptionsProvider
-    {
-        private static readonly AnalyzerConfigOptions None = new Properties(false, false);
-
-        public override AnalyzerConfigOptions GlobalOptions { get; } = new Properties(logic, shell);
-
-        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
-
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => None;
-
-        private sealed class Properties(bool logic, bool shell) : AnalyzerConfigOptions
-        {
-            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
-            {
-                bool enabled = key switch
-                {
-                    "build_property.CapsuleGameLogic" => logic,
-                    "build_property.CapsuleGameShell" => shell,
-                    _ => false,
-                };
-
-                value = enabled ? "true" : null;
-                return enabled;
-            }
-        }
     }
 }

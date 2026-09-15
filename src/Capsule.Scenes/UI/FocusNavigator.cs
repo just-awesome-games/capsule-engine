@@ -222,8 +222,7 @@ public sealed class FocusNavigator : Component
     /// <summary>
     /// Moves the focus onto <paramref name="item"/>, raising exactly what an input move raises; a
     /// no-op, raising nothing, where that item already has it. Called before this navigator starts it
-    /// names the starting item instead, raising nothing. This is how a game opens a menu on something
-    /// other than its first item, or restores the focus it left.
+    /// names the starting item instead, raising nothing.
     /// <para>
     /// A request naming an item that is not live is kept pending rather than applied: the focus is
     /// released now where the item holding it is not live either, and otherwise stays where it is.
@@ -282,19 +281,14 @@ public sealed class FocusNavigator : Component
     /// Reads one step of the directions, the pointer and the presses, raising at most one focus move
     /// and at most one press.
     /// <para>
-    /// A direction moves the focus on its press edge, and a direction held on moves it again once
-    /// it has been held <see cref="RepeatDelay"/> steps, then every <see cref="RepeatInterval"/>
-    /// steps after that; a repeat resolves exactly as the press did. One counter serves every
-    /// direction: it runs while any direction is held and no direction was pressed this step, and
-    /// any press edge restarts it, so tapping another direction during a hold starts the delay
-    /// over. A step holding two directions reads the first of up, down, left and right, press or
+    /// A direction moves the focus on its press edge, and again once it has been held
+    /// <see cref="RepeatDelay"/> steps, then every <see cref="RepeatInterval"/> steps after that; a
+    /// repeat resolves exactly as the press did. One counter serves every direction: it runs while
+    /// any direction is held and no direction was pressed this step, and any press edge restarts
+    /// it. A step holding two directions reads the first of up, down, left and right, press or
     /// repeat. <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on
-    /// their press edge alone and never repeat, and the pointer is not a direction. A direction the
-    /// focused item names a neighbour for resolves to that neighbour, or to what the chain this
-    /// class documents reaches through it, and moves nothing where the item names itself or the
-    /// chain ends without a live item. A direction it names none for resolves by the geometry: the
-    /// live item lying that way with the highest <c>dot(direction, delta) / |delta|²</c>, or the
-    /// wrap where none lies that way.
+    /// their press edge alone and never repeat, and the pointer is not a direction. A direction
+    /// resolves through the named neighbour, the score and the wrap this class documents.
     /// </para>
     /// <para>
     /// A pointer that moved this step and lies inside an item's bounds focuses it; a pointer resting
@@ -308,12 +302,11 @@ public sealed class FocusNavigator : Component
     /// <para>
     /// A pending <see cref="Focus"/> request is resolved before anything else: the focus lands on the
     /// pending item where it is live now, or on the first live item in list order, and the step then
-    /// reads its input from there; where no item is live the request stays pending. A step that
-    /// finds no live focus spends itself repairing one and
-    /// reads nothing else, so the item it lands on is never pressed by an action aimed at the item
-    /// that held the focus before. For the same reason a handler of this step's own focus move that
-    /// takes the landing item out of its scene drops the press rather than redirecting it; the next
-    /// step repairs the focus.
+    /// reads its input from there; where no item is live the request stays pending. A step that finds
+    /// no live focus spends itself repairing one and reads nothing else, so the item it lands on is
+    /// never pressed by an action aimed at the item that held the focus before. For the same reason a
+    /// handler of this step's own focus move that takes the landing item out of its scene drops the
+    /// press rather than redirecting it; the next step repairs the focus.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
@@ -345,9 +338,15 @@ public sealed class FocusNavigator : Component
         Focusable target = focused;
         bool press = false;
 
-        if (input.PointerMoved && Under(input.Pointer) is { } hovered)
+        // One hit test for the step. The pointer's own focusing needs the pointer to have moved;
+        // the click's does not, so a player who clicks without nudging the mouse first still picks
+        // what is under it.
+        bool clicking = _actions.Click is { } click && input.WasPressed(click);
+        Focusable? under = input.PointerMoved || clicking ? Under(input.Pointer) : null;
+
+        if (input.PointerMoved && under is not null)
         {
-            target = hovered;
+            target = under;
         }
 
         bool repeat = _repeatInterval > 0 && _heldSteps >= _repeatDelay
@@ -357,11 +356,9 @@ public sealed class FocusNavigator : Component
             target = moved;
         }
 
-        // The click's own hit test, which a resting pointer passes: a player who clicks without
-        // nudging the mouse first still picks what is under it.
-        if (_actions.Click is { } click && input.WasPressed(click) && Under(input.Pointer) is { } clicked)
+        if (clicking && under is not null)
         {
-            target = clicked;
+            target = under;
             press = true;
         }
 
@@ -691,8 +688,6 @@ public sealed class FocusNavigator : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("Items", Items.Length);
         panel.Field("Focused", Focused?.Entity?.GetType().Name);
     }

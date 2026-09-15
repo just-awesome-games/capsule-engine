@@ -4,6 +4,7 @@ using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Performance;
@@ -26,7 +27,7 @@ internal static class CollisionWorkload
     private const int FloorRow = 40;
     private const int RoofRow = 30;
 
-    private static readonly TextureHandle Atlas = new("terrain", ".png");
+    private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     private static readonly TileDefinition[] Palette =
     [

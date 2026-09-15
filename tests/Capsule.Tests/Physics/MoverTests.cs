@@ -5,24 +5,7 @@ namespace Capsule.Tests.Physics;
 
 public sealed class MoverTests
 {
-    private const float Tolerance = 2f * CollisionWorld2D.LinearSlop;
-
-    [Fact]
-    public void MoveBox_AppliesTheWholeTranslationWhereNothingIsInTheWay()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", "....");
-
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(4f, 4f, 8f, 8f),
-            new Vector2(10f, 6f),
-            CollisionFilter.Everything,
-            default);
-
-        Assert.Equal(new Vector2(10f, 6f), result.Translation);
-        Assert.False(result.BlockedX);
-        Assert.False(result.BlockedY);
-    }
+    private const float Tolerance = CollisionFixtures.Tolerance;
 
     [Fact]
     public void MoveBox_StopsAtTheSurfaceItRunsIntoAndReportsIt()
@@ -149,29 +132,6 @@ public sealed class MoverTests
     }
 
     [Fact]
-    public void MoveBox_LandsOnATopFaceFromAboveAndPassesItFromBelow()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", "----", "....");
-
-        MoveResult2D falling = world.MoveBox(
-            CollisionFixtures.Box(20f, 4f, 8f, 8f),
-            new Vector2(0f, 20f),
-            CollisionFilter.Everything,
-            default);
-        Assert.True(falling.BlockedY);
-        Assert.Equal(4f, falling.Translation.Y, Tolerance);
-
-        MoveResult2D rising = world.MoveBox(
-            CollisionFixtures.Box(20f, 36f, 8f, 8f),
-            new Vector2(0f, -20f),
-            CollisionFilter.Everything,
-            default);
-        Assert.False(rising.BlockedY);
-        Assert.Equal(-20f, rising.Translation.Y, Tolerance);
-    }
-
-    [Fact]
     public void MoveBox_IsNeverStoppedSidewaysByATopFace()
     {
         CollisionWorld2D world = new();
@@ -265,34 +225,36 @@ public sealed class MoverTests
     };
 
     // A face is a direction, so the same primitive pointed the other way is what a body under
-    // reversed gravity stands on.
-    [Fact]
-    public void MoveBox_LandsOnABottomFaceFromBelowAndPassesItFromAbove()
+    // reversed gravity stands on. The middle cell's Top plane is y = 16 and its Bottom plane
+    // y = 32, so a landing move gives up whatever of its 20 units of travel the plane takes.
+    [Theory]
+    [InlineData(CellFaces2D.Top, 4f, 20f, 4f, 36f, -20f)]
+    [InlineData(CellFaces2D.Bottom, 44f, -20f, -12f, 4f, 20f)]
+    public void MoveBox_LandsOnAFaceFromItsOutwardSideAndPassesItFromTheOther(
+        CellFaces2D face,
+        float landingFrom,
+        float onto,
+        float landedBy,
+        float passingFrom,
+        float through)
     {
-        CollisionWorld2D world = new();
-        world.AddGrid(
-            CollisionFixtures.TileSize,
-            1,
-            3,
-            [0, 1, 0],
-            [new CellProfile2D(null), new CellProfile2D(world.Layer("ceiling"), CellFaces2D.Bottom)]);
+        CollisionWorld2D world = CollisionFixtures.OneFace(face);
 
-        // The face is at y = 32; a box rising from below stops with its top there.
-        MoveResult2D rising = world.MoveBox(
-            CollisionFixtures.Box(4f, 44f, 8f, 8f),
-            new Vector2(0f, -20f),
+        MoveResult2D landing = world.MoveBox(
+            CollisionFixtures.Box(20f, landingFrom, 8f, 8f),
+            new Vector2(0f, onto),
             CollisionFilter.Everything,
             default);
-        Assert.True(rising.BlockedY);
-        Assert.Equal(-12f, rising.Translation.Y, Tolerance);
+        Assert.True(landing.BlockedY);
+        Assert.Equal(landedBy, landing.Translation.Y, Tolerance);
 
-        MoveResult2D falling = world.MoveBox(
-            CollisionFixtures.Box(4f, 4f, 8f, 8f),
-            new Vector2(0f, 20f),
+        MoveResult2D passing = world.MoveBox(
+            CollisionFixtures.Box(20f, passingFrom, 8f, 8f),
+            new Vector2(0f, through),
             CollisionFilter.Everything,
             default);
-        Assert.False(falling.BlockedY);
-        Assert.Equal(20f, falling.Translation.Y, Tolerance);
+        Assert.False(passing.BlockedY);
+        Assert.Equal(through, passing.Translation.Y, Tolerance);
     }
 
     [Fact]

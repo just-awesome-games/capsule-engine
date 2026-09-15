@@ -58,15 +58,6 @@ internal readonly struct EntityModel : IEquatable<EntityModel>
 
     public override bool Equals(object? obj) => obj is EntityModel other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        int hash = 17;
-        hash = (hash * 31) + QualifiedName.GetHashCode();
-        hash = (hash * 31) + ContainingNamespace.GetHashCode();
-        hash = (hash * 31) + TypeName.GetHashCode();
-        hash = (hash * 31) + (Declared is null ? 0 : Declared.GetHashCode());
-        hash = (hash * 31) + (int)Fault;
-
-        return hash;
-    }
+    public override int GetHashCode() =>
+        (QualifiedName.GetHashCode() * 31) ^ (TypeName.GetHashCode() * 17) ^ (int)Fault;
 }

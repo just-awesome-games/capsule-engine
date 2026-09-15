@@ -67,6 +67,10 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
         return (_mask & Bit(layer)) != 0;
     }
 
+    // The bit test alone, for call sites inside a per-cell or per-proxy loop where the layer came
+    // from this world's own tables and has nothing left to validate.
+    internal bool Admits(CollisionLayer layer) => (_mask & Bit(layer)) != 0;
+
     /// <summary>This filter, also matching <paramref name="layer"/>.</summary>
     /// <exception cref="ArgumentException">No world interned the layer, or another world did.</exception>
     public CollisionFilter With(CollisionLayer layer) =>
@@ -86,14 +90,6 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
     /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
     public static CollisionFilter operator &(CollisionFilter left, CollisionFilter right) =>
         new(Shared(left._world, right._world, nameof(right)), left._mask & right._mask);
-
-    /// <summary>A filter matching what either matches; the named form of <c>|</c>.</summary>
-    /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
-    public CollisionFilter Union(CollisionFilter other) => this | other;
-
-    /// <summary>A filter matching what both match; the named form of <c>&amp;</c>.</summary>
-    /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
-    public CollisionFilter Intersect(CollisionFilter other) => this & other;
 
     /// <summary>Whether two filters match the same set of layers of the same world.</summary>
     public static bool operator ==(CollisionFilter left, CollisionFilter right) => left.Equals(right);

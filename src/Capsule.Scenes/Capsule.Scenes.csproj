@@ -1,8 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The world: a scene, its entities and their components, the tile grid its terrain is, and the
-       scene document it is composed from. Substrate-free — Core only. Parsers for authoring formats
-       live outside this repository. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Scenes</RootNamespace>
@@ -19,13 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Runtime and tests access the scene registry, document composition, and the empty input
-         driver registry a game declaring no driver is configured with; the runtime also sets
-         Run.Canvas, only on the run it owns for its debug overlay, to follow the back buffer, and
-         its debug menu requests a registered scene through Run.TryRequest by whichever form the
-         registry composes it from, rewrites that overlay's frame through
-         SceneSimulation.RewriteView between steps, and fills its scene page and entity panels
-         through Scene.RunDebugPanel and Entity.RunDebugPanel. -->
+    <!-- Host seams and test access; see AGENTS.md section Public surface. -->
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

@@ -8,7 +8,8 @@ namespace Capsule.Tests.Rendering;
 public sealed class TextBoxTests
 {
     // 'A' advances 5, 'B' advances 6 and kerns -2 behind 'A', and the space advances 4, so "AB AB"
-    // measures 22 font pixels and breaks into two lines of 9 at any box between 9 and 21.
+    // measures FontFixtures.TwoWordsWidth and breaks into two lines of FontFixtures.WordWidth at any
+    // box from that width up to one under the whole run.
     private const string TwoWords = "AB AB";
 
     [Theory]
@@ -21,27 +22,30 @@ public sealed class TextBoxTests
     {
         // 9 is the narrowest box a word fits in, and up to 12 the space behind the second word is
         // itself what overflows: the break falls on it rather than on the word after it.
-        Assert.Equal(new Vector2(9f, 2 * FontFixtures.LineHeight), FontFixtures.Font().Measure(TwoWords, boxWidth));
+        Assert.Equal(
+            new Vector2(FontFixtures.WordWidth, 2 * FontFixtures.LineHeight),
+            FontFixtures.Font().Measure(TwoWords, boxWidth));
     }
 
     [Fact]
     public void ABoxTooNarrowForAWord_BreaksInsideIt()
     {
-        // One pixel under the 9 a word needs, so every glyph takes a line of its own.
-        Assert.Equal(new Vector2(6f, 4 * FontFixtures.LineHeight), FontFixtures.Font().Measure(TwoWords, 8));
+        // One pixel under the width a word needs, so every glyph takes a line of its own.
+        Assert.Equal(
+            new Vector2(FontFixtures.B.XAdvance, 4 * FontFixtures.LineHeight),
+            FontFixtures.Font().Measure(TwoWords, FontFixtures.WordWidth - 1));
     }
 
-    [Fact]
-    public void AWordWiderThanTheBox_BreaksAtTheCharacter()
+    // No space to break at, so the word breaks at the character; 'B' alone needs the 6 the first box
+    // has, and a box narrower than one glyph still gives that glyph a line of its own.
+    [Theory]
+    [InlineData(6)]
+    [InlineData(1)]
+    public void AWordWiderThanTheBox_BreaksAtTheCharacter(int boxWidth)
     {
-        // No space to break at, and 'B' alone needs 6 of the 6 the box has.
-        Assert.Equal(new Vector2(6f, 2 * FontFixtures.LineHeight), FontFixtures.Font().Measure("AB", 6));
-    }
-
-    [Fact]
-    public void AGlyphWiderThanTheWholeBox_StillTakesALineOfItsOwn()
-    {
-        Assert.Equal(new Vector2(6f, 2 * FontFixtures.LineHeight), FontFixtures.Font().Measure("AB", 1));
+        Assert.Equal(
+            new Vector2(FontFixtures.B.XAdvance, 2 * FontFixtures.LineHeight),
+            FontFixtures.Font().Measure("AB", boxWidth));
     }
 
     [Fact]
@@ -137,16 +141,10 @@ public sealed class TextBoxTests
         // right-aligned text still starts at the position, and only the pivot puts its end there.
         TextIntent rightAligned = Text("AB") with { HorizontalAlignment = HorizontalAlignment.Right };
 
-        Assert.Equal(new Rect(0f, 0f, 9f, FontFixtures.LineHeight), rightAligned.Bounds);
+        Assert.Equal(new Rect(0f, 0f, FontFixtures.WordWidth, FontFixtures.LineHeight), rightAligned.Bounds);
         Assert.Equal(
-            new Rect(-9f, 0f, 0f, FontFixtures.LineHeight),
+            new Rect(-FontFixtures.WordWidth, 0f, 0f, FontFixtures.LineHeight),
             (rightAligned with { Pivot = Pivot.TopRight }).Bounds);
-    }
-
-    [Fact]
-    public void ABoxOfNoSize_IsTheMeasuredRun()
-    {
-        Assert.Equal(new Rect(0f, 0f, 9f, FontFixtures.LineHeight), Text("AB").Bounds);
     }
 
     [Fact]
@@ -197,6 +195,32 @@ public sealed class TextBoxTests
     {
         Assert.True(Text("").Bounds.IsEmpty);
         Assert.True((Text("A") with { Font = null }).Bounds.IsEmpty);
+    }
+
+    // A run given its box on both axes and sitting at its top never reads its own extent, so the
+    // layout that skips measuring it has to place every glyph where a measured one does.
+    [Fact]
+    public void ASizedTopAlignedRun_PlacesItsGlyphsWhereAMeasuredRunDoes()
+    {
+        TextIntent measured = Text(TwoWords);
+        TextIntent sized = measured with
+        {
+            Size = new Vector2(FontFixtures.TwoWordsWidth, FontFixtures.LineHeight),
+        };
+
+        FrameView byMeasure = new();
+        byMeasure.Add(measured);
+
+        FrameView byBox = new();
+        byBox.Add(sized);
+
+        Assert.Equal(measured.Bounds, sized.Bounds);
+        Assert.Equal(byMeasure.Sprites.Length, byBox.Sprites.Length);
+
+        for (int glyph = 0; glyph < byMeasure.Sprites.Length; glyph++)
+        {
+            Assert.Equal(byMeasure.Sprites[glyph].Position, byBox.Sprites[glyph].Position);
+        }
     }
 
     private static TextIntent Text(string text) =>

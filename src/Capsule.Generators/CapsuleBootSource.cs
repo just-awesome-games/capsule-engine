@@ -5,57 +5,96 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-internal readonly struct RegistryClaimModel
+// Every model the boot pipeline carries is compared by value: without that the pipeline sees a new
+// model on every pass and re-emits the entry point whatever the edit was.
+internal static class Models
 {
-    internal RegistryClaimModel(int kind, string key, string declaringType)
+    internal static bool SequenceEqual<T>(ImmutableArray<T> left, ImmutableArray<T> right)
     {
-        Kind = kind;
-        Key = key;
-        DeclaringType = declaringType;
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Length; i++)
+        {
+            if (!EqualityComparer<T>.Default.Equals(left[i], right[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
-
-    internal int Kind { get; }
-
-    internal string Key { get; }
-
-    internal string DeclaringType { get; }
 }
 
-internal readonly struct RegistryProviderModel
+internal readonly struct RegistryClaimModel(int kind, string key, string declaringType) : IEquatable<RegistryClaimModel>
 {
-    internal RegistryProviderModel(string assemblyName, string qualifiedName, ImmutableArray<RegistryClaimModel> claims)
-    {
-        AssemblyName = assemblyName;
-        QualifiedName = qualifiedName;
-        Claims = claims;
-    }
+    internal int Kind { get; } = kind;
 
-    internal string AssemblyName { get; }
+    internal string Key { get; } = key;
 
-    internal string QualifiedName { get; }
+    internal string DeclaringType { get; } = declaringType;
 
-    internal ImmutableArray<RegistryClaimModel> Claims { get; }
+    public bool Equals(RegistryClaimModel other) =>
+        Kind == other.Kind
+        && string.Equals(Key, other.Key, StringComparison.Ordinal)
+        && string.Equals(DeclaringType, other.DeclaringType, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) => obj is RegistryClaimModel other && Equals(other);
+
+    public override int GetHashCode() => (((17 * 31) + Kind) * 31) + Key.GetHashCode();
 }
 
-internal sealed class BootModel
+internal readonly struct RegistryProviderModel(
+    string assemblyName,
+    string qualifiedName,
+    ImmutableArray<RegistryClaimModel> claims)
+    : IEquatable<RegistryProviderModel>
+{
+    internal string AssemblyName { get; } = assemblyName;
+
+    internal string QualifiedName { get; } = qualifiedName;
+
+    internal ImmutableArray<RegistryClaimModel> Claims { get; } = claims;
+
+    public bool Equals(RegistryProviderModel other) =>
+        string.Equals(AssemblyName, other.AssemblyName, StringComparison.Ordinal)
+        && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
+        && Models.SequenceEqual(Claims, other.Claims);
+
+    public override bool Equals(object? obj) => obj is RegistryProviderModel other && Equals(other);
+
+    public override int GetHashCode() => (((17 * 31) + AssemblyName.GetHashCode()) * 31) + Claims.Length;
+}
+
+internal sealed class BootModel(
+    bool runtimePresent,
+    ImmutableArray<RegistryProviderModel> providers,
+    ImmutableArray<string> invalidAssemblies)
+    : IEquatable<BootModel>
 {
     internal static readonly BootModel None = new(
         false,
         ImmutableArray<RegistryProviderModel>.Empty,
         ImmutableArray<string>.Empty);
 
-    internal BootModel(bool runtimePresent, ImmutableArray<RegistryProviderModel> providers, ImmutableArray<string> invalidAssemblies)
-    {
-        RuntimePresent = runtimePresent;
-        Providers = providers;
-        InvalidAssemblies = invalidAssemblies;
-    }
+    internal bool RuntimePresent { get; } = runtimePresent;
 
-    internal bool RuntimePresent { get; }
+    internal ImmutableArray<RegistryProviderModel> Providers { get; } = providers;
 
-    internal ImmutableArray<RegistryProviderModel> Providers { get; }
+    internal ImmutableArray<string> InvalidAssemblies { get; } = invalidAssemblies;
 
-    internal ImmutableArray<string> InvalidAssemblies { get; }
+    public bool Equals(BootModel? other) =>
+        other is not null
+        && RuntimePresent == other.RuntimePresent
+        && Models.SequenceEqual(Providers, other.Providers)
+        && Models.SequenceEqual(InvalidAssemblies, other.InvalidAssemblies);
+
+    public override bool Equals(object? obj) => Equals(obj as BootModel);
+
+    public override int GetHashCode() =>
+        (((17 * 31) + (RuntimePresent ? 1 : 0)) * 31) + Providers.Length;
 }
 
 internal static class CapsuleBootSource

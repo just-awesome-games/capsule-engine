@@ -30,10 +30,9 @@ internal sealed class FrameRenderer : IDisposable
     // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
 
-    // The engine's default bitmap font page, loaded from this assembly once for the renderer.
     private readonly Texture2D _defaultFontPage;
 
-    // Every texture the engine owns, so the draw path resolves one handle through one table.
+    // Every engine-owned texture, so the draw path resolves one handle through one table.
     private readonly Dictionary<TextureHandle, Texture2D> _engineTextures;
 
     // The declared canvas, or null when the world rasterises straight into the back buffer at
@@ -45,12 +44,11 @@ internal sealed class FrameRenderer : IDisposable
     private RenderTarget2D? _target;
 
     // Where the screen layer landed on the last frame drawn, which is what turns a sampled mouse
-    // position back into a canvas position. Seeded by ResolveScreenLayer before the first frame, since
-    // the host samples the mouse ahead of that frame.
+    // position back into a canvas position; seeded by ResolveScreenLayer before the first frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
 
-    // Where the last frame's world landed in the back buffer, which is what a host-owned
-    // world-anchored draw over that frame is placed by; null until a frame has drawn a world.
+    // Where the last frame's world landed in the back buffer, which places a host-owned
+    // world-anchored draw over that frame; null until a frame has drawn a world.
     private WorldPlacement? _world;
 
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
@@ -113,7 +111,7 @@ internal sealed class FrameRenderer : IDisposable
         int outputWidth = backBuffer.BackBufferWidth;
         int outputHeight = backBuffer.BackBufferHeight;
 
-        ScreenLayout layout = Layout(_canvas, view, outputWidth, outputHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view, outputWidth, outputHeight);
         Rect world = view.Camera.Place(alpha, layout.Span);
 
         if (_canvas is null)
@@ -172,7 +170,8 @@ internal sealed class FrameRenderer : IDisposable
             DrawOverlayWorld(view, in world, width, height);
         }
 
-        _device.Viewport = new Viewport(0, 0, width, height);
+        // DrawScreen restores the whole back buffer itself, so nothing is written here for a view
+        // whose screen layer is empty.
         DrawScreen(
             view,
             alpha: 1f,
@@ -239,199 +238,12 @@ internal sealed class FrameRenderer : IDisposable
     internal void ResolveScreenLayer(FrameView view)
     {
         PresentationParameters backBuffer = _device.PresentationParameters;
-        ScreenLayout layout = Layout(_canvas, view, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
 
         if (layout.Layer.Scale > 0f)
         {
             _placement = layout.Layer;
         }
-    }
-
-    // The whole presentation geometry for view on a back buffer of this extent, on both paths: the
-    // canvas letterboxed straight into the back buffer, and the render surface presented into it where a
-    // resolution is declared. Drawing and pointer mapping must resolve from the same geometry, or a
-    // sampled window position comes back as the wrong canvas pixel.
-    internal static ScreenLayout Layout(
-        (int Width, int Height)? renderResolution,
-        FrameView view,
-        int outputWidth,
-        int outputHeight)
-    {
-        // The window is the output the fit answers to on both paths: a declared canvas is derived
-        // from the resolved rect rather than being the thing that shapes it. The span travels beside
-        // the rect because subtracting the rect's edges loses precision far from the origin, and the
-        // scale it feeds is what quantises every sprite to the pixel grid.
-        Vector2 span = view.Camera.ResolveSpan(new Vector2(outputWidth, outputHeight));
-
-        if (renderResolution is not { } resolution)
-        {
-            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
-
-            return new ScreenLayout(
-                span,
-                (outputWidth, outputHeight),
-                Letterbox.Fit(span.X, span.Y, outputWidth, outputHeight),
-                windowed,
-                default,
-                windowed);
-        }
-
-        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera, span, outputWidth, outputHeight);
-        float pixelsPerUnit = PixelsPerUnit(resolution, view.Camera);
-        span = QuantisedSpan(view.Camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
-        Letterbox world = WorldFit(view.Camera, span, pixelsPerUnit, surface);
-        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
-        ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
-
-        return new ScreenLayout(
-            span,
-            surface,
-            world,
-            new ScreenPlacement(slack, 1f),
-            presented,
-            presented.Scale > 0f
-                ? new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale)
-                : default);
-    }
-
-    // The span the world is placed on. Under Letterbox the declared span, as ever. Under Expand or
-    // FixedHeight the axis the fit grew is quantised down to whole surface pixels at the declared
-    // scale, and to what the surface holds, while the binding axis stays the camera's own: so the
-    // placed span never exceeds the one the fit resolved — which is what the camera culled against —
-    // and a surface the canvas clamp left larger gets bars around it.
-    internal static Vector2 QuantisedSpan(
-        in CameraView camera,
-        (int Width, int Height) canvas,
-        Vector2 span,
-        float pixelsPerUnit,
-        (int Width, int Height) surface,
-        int outputWidth,
-        int outputHeight)
-    {
-        if (camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f))
-        {
-            return span;
-        }
-
-        (int? grownX, int? grownY) = GrownPixels(camera, canvas, span, pixelsPerUnit, outputWidth, outputHeight);
-
-        return new Vector2(
-            grownX is { } x ? Math.Min(x, surface.Width) / pixelsPerUnit : camera.Size.X,
-            grownY is { } y ? Math.Min(y, surface.Height) / pixelsPerUnit : camera.Size.Y);
-    }
-
-    // The whole surface pixels the fit's grown axis covers, null on an axis it did not grow — the
-    // one count the grown axis's surface extent and its quantised span are both taken from, so the
-    // two cannot disagree. Where the scale is what the other axis implies, the camera's size
-    // cancels and the count is the binding canvas extent times the output's ratio, taken exactly
-    // in integers; where the canvas holds the grown axis tighter than the other, it is the floor
-    // of the true fraction evaluated once in double from the source quantities, never of a float
-    // product that may already have rounded up past it. Never a pixel up either way, so the
-    // placed span never exceeds the one the fit resolved.
-    internal static (int? X, int? Y) GrownPixels(
-        in CameraView camera,
-        (int Width, int Height) canvas,
-        Vector2 span,
-        float pixelsPerUnit,
-        int outputWidth,
-        int outputHeight)
-    {
-        if (camera.Fit == ViewportFit.Letterbox || outputWidth <= 0 || outputHeight <= 0)
-        {
-            return (null, null);
-        }
-
-        Vector2 size = camera.Size;
-        bool heightBinds = camera.Fit == ViewportFit.FixedHeight || canvas.Height / size.Y <= canvas.Width / size.X;
-        bool widthBinds = camera.Fit == ViewportFit.Expand && canvas.Width / size.X <= canvas.Height / size.Y;
-
-        if (camera.Fit == ViewportFit.FixedHeight || span.X > size.X)
-        {
-            int count = heightBinds
-                ? (int)((long)canvas.Height * outputWidth / outputHeight)
-                : FloorExact((double)size.Y * canvas.Width * outputWidth / ((double)size.X * outputHeight));
-
-            return (count, null);
-        }
-
-        if (span.Y > size.Y)
-        {
-            int count = widthBinds
-                ? (int)((long)canvas.Width * outputHeight / outputWidth)
-                : FloorExact((double)size.X * canvas.Height * outputHeight / ((double)size.Y * outputWidth));
-
-            return (null, count);
-        }
-
-        return (null, null);
-    }
-
-    // The floor of a pixel count computed in double, guarded only against double's own rounding:
-    // the quotient is four operations, each within half an ulp, so a count that is truly a whole
-    // number can land at most a few ulps under it, and lifting the value by four ulps recovers
-    // exactly that and nothing else — a relative or absolute epsilon, however small, is wider
-    // than some genuinely fractional gap a window's integers and a camera's size can produce, and
-    // would round that count up past the resolved span.
-    private static int FloorExact(double pixels)
-    {
-        for (int ulp = 0; ulp < 4; ulp++)
-        {
-            pixels = Math.BitIncrement(pixels);
-        }
-
-        return (int)Math.Floor(pixels);
-    }
-
-    // Where the world lands on the render surface. Under Letterbox the declared span is fitted
-    // into the surface at whatever scale it allows and the slack is bars, as ever. Under Expand or
-    // FixedHeight the quantised span is a whole number of surface pixels at exactly the declared
-    // pixels per unit, so it is placed at that stated scale — never one recomputed from a division
-    // that can land an ulp off — centred, with bars where the surface is larger than it.
-    internal static Letterbox WorldFit(in CameraView camera, Vector2 span, float pixelsPerUnit, (int Width, int Height) surface) =>
-        camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f)
-            ? Letterbox.Fit(span.X, span.Y, surface.Width, surface.Height)
-            : Letterbox.FitAt(span.X, span.Y, surface.Width, surface.Height, pixelsPerUnit);
-
-    // Half of what the surface has over the canvas, in whole surface pixels: under Expand or
-    // FixedHeight the surface grows past the canvas to reveal more world, and the screen layer stays
-    // the canvas, centred in it.
-    internal static Vector2 ScreenSlack(int surfaceWidth, int surfaceHeight, Vector2 canvas) => new(
-        MathF.Max(MathF.Floor((surfaceWidth - canvas.X) / 2f), 0f),
-        MathF.Max(MathF.Floor((surfaceHeight - canvas.Y) / 2f), 0f));
-
-    // Where the canvas lands straight in the back buffer, with no render surface between them: its
-    // own centred fit, so the layer keeps its aspect and its place whatever the camera's fit did
-    // with the world behind it. A scale of 0 is a canvas or a window with no area.
-    internal static ScreenPlacement WindowPlacement(Vector2 canvas, int outputWidth, int outputHeight)
-    {
-        Letterbox fit = Letterbox.Fit(canvas.X, canvas.Y, outputWidth, outputHeight);
-
-        return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
-    }
-
-    // Where the render surface's own top-left corner lands in the back buffer, on the fit its
-    // sampling mode calls for. A scale of 0 is a surface or a back buffer with no area.
-    internal static ScreenPlacement TargetPlacement(
-        TextureSampling sampling,
-        int targetWidth,
-        int targetHeight,
-        int containerWidth,
-        int containerHeight)
-    {
-        Letterbox fit = PresentFit(sampling, targetWidth, targetHeight, containerWidth, containerHeight);
-        if (fit.IsEmpty)
-        {
-            return default;
-        }
-
-        // The fit's own whole-pixel corner, not the exact centre: a bar of an odd number of pixels
-        // centres on a half pixel, which under point sampling puts every texel boundary on a pixel
-        // centre and leaves the fill rule to break a tie per row. Linear sampling answers to no
-        // pixel grid, so the half pixel the rounded corner gives up is invisible there.
-        //
-        // The scale travels as one scalar rather than the fit's extents becoming a destination
-        // rectangle, whose two extents would round independently and skew the blit.
-        return new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
     }
 
     private RenderTarget2D Surface((int Width, int Height) extent)
@@ -452,170 +264,11 @@ internal sealed class FrameRenderer : IDisposable
         return _target;
     }
 
-    // The surface a declared canvas draws on for a resolved world rect. Pixels per world unit are
-    // whatever the canvas gives the camera's declared span on the fit's binding axis, so the fit
-    // changes how much world is on the surface and never how large a world unit is on it. Under
-    // Letterbox the resolved rect is that declared span, so the surface is the canvas exactly. It
-    // never shrinks below the canvas, and never exceeds the back buffer on an axis: past that the
-    // present can only scale the extra pixels back down, so they buy nothing and cost the whole
-    // surface every frame.
-    internal static (int Width, int Height) SurfaceSize(
-        (int Width, int Height) canvas,
-        in CameraView camera,
-        Vector2 resolvedSpan,
-        int outputWidth,
-        int outputHeight)
-    {
-        float pixelsPerUnit = PixelsPerUnit(canvas, camera);
-        if (!(pixelsPerUnit > 0f) || !(resolvedSpan.X > 0f) || !(resolvedSpan.Y > 0f))
-        {
-            return canvas;
-        }
+    // Whether this frame drew at all, so a capture request can stand until one does.
+    internal bool CanCaptureFrame => FrameCapture.CanCapture(_device);
 
-        (int? grownX, int? grownY) = GrownPixels(camera, canvas, resolvedSpan, pixelsPerUnit, outputWidth, outputHeight);
-
-        return (
-            Extent(grownX ?? (int)MathF.Floor(resolvedSpan.X * pixelsPerUnit), canvas.Width, outputWidth),
-            Extent(grownY ?? (int)MathF.Floor(resolvedSpan.Y * pixelsPerUnit), canvas.Height, outputHeight));
-    }
-
-    // Surface pixels per world unit: what the canvas gives the camera's declared span on the axis
-    // its fit binds — the height under FixedHeight, whose height is exact; whichever axis the canvas
-    // holds tighter otherwise, the scale Letterbox draws at and Expand keeps. Zero for a span with
-    // no area.
-    internal static float PixelsPerUnit((int Width, int Height) canvas, in CameraView camera)
-    {
-        Vector2 size = camera.Size;
-        if (!(size.X > 0f) || !(size.Y > 0f))
-        {
-            return 0f;
-        }
-
-        return camera.Fit == ViewportFit.FixedHeight
-            ? canvas.Height / size.Y
-            : MathF.Min(canvas.Width / size.X, canvas.Height / size.Y);
-    }
-
-    // GrownPixels' count on an axis the fit grew, so the surface is exactly the quantised span
-    // there, never a pixel more that would show as a one-pixel bar; the clamp's floor absorbs a
-    // binding axis whose float product lands under the canvas it equals.
-    private static int Extent(int pixels, int canvas, int output) =>
-        Math.Clamp(pixels, canvas, Math.Max(canvas, output));
-
-    // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
-    // presents nothing and leaves no frame to save — including behind a render target, which is
-    // drawn but never presented.
-    internal bool CanCaptureFrame =>
-        _device.PresentationParameters.BackBufferWidth > 0 && _device.PresentationParameters.BackBufferHeight > 0;
-
-    // The capture is staged beside its destination under a name ending in this suffix. A random
-    // segment precedes it, so a capture never touches a file it did not create.
-    internal const string TemporarySuffix = ".tmp";
-
-    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
-    // and overwriting the file. Called after Draw and before the frame is presented, while that
-    // surface still holds the frame: the render target where one is configured, whose extent is
-    // the declared render resolution and so is independent of the window, and the back buffer
-    // where there is none. Read-back and encoding failures are logged rather than thrown into the
-    // frame loop, and the destination is replaced only once a whole PNG is in hand, so whatever is
-    // already there survives a capture that failed.
-    internal void SaveSurface(string path)
-    {
-        if (!CanCaptureFrame)
-        {
-            return;
-        }
-
-        byte[] png;
-
-        try
-        {
-            using MemoryStream encoded = new();
-            EncodeSurface(encoded);
-            png = encoded.ToArray();
-        }
-        catch (Exception error)
-        {
-            Log.Warning($"Frame capture to '{path}' failed before writing: {error.Message}");
-            return;
-        }
-
-        WriteCapture(png, path);
-    }
-
-    // Encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
-    // destination only once it is whole: neither a partial write nor a denied one touches the file
-    // already at path, nor any other file already beside it. Resolving path is part of the
-    // protected operation, so a path the file system rejects is logged rather than thrown.
-    internal static void WriteCapture(byte[] png, string path)
-    {
-        // Null until this call owns a staging file, so cleanup never deletes a sibling it found.
-        string? created = null;
-
-        try
-        {
-            string full = Path.GetFullPath(path);
-
-            if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            string temporary = full + '.' + Path.GetRandomFileName() + TemporarySuffix;
-
-            using (FileStream staging = new(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                created = temporary;
-                staging.Write(png);
-            }
-
-            File.Move(temporary, full, overwrite: true);
-            created = null;
-        }
-        catch (Exception error)
-        {
-            Log.Warning($"Frame capture to '{path}' failed while writing: {error.Message}");
-
-            if (created is not null)
-            {
-                Discard(created);
-            }
-        }
-    }
-
-    // The temporary is all a failed write can have left behind, and a truncated PNG nobody can
-    // read is worse than none.
-    private static void Discard(string temporary)
-    {
-        try
-        {
-            File.Delete(temporary);
-        }
-        catch (Exception error)
-        {
-            Log.Warning($"Removing the failed frame capture at '{temporary}' failed: {error.Message}");
-        }
-    }
-
-    private void EncodeSurface(Stream destination)
-    {
-        if (_target is not null)
-        {
-            _target.SaveAsPng(destination, _target.Width, _target.Height);
-            return;
-        }
-
-        PresentationParameters backBuffer = _device.PresentationParameters;
-        int width = backBuffer.BackBufferWidth;
-        int height = backBuffer.BackBufferHeight;
-
-        Color[] pixels = new Color[width * height];
-        _device.GetBackBufferData(pixels);
-
-        using Texture2D surface = new(_device, width, height);
-        surface.SetData(pixels);
-        surface.SaveAsPng(destination, width, height);
-    }
+    // Saves the surface the world was drawn on as a PNG at path; see FrameCapture.
+    internal void SaveSurface(string path) => FrameCapture.Save(_device, _target, path);
 
     // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
     // longer reports once narrowed to the letterbox; present is where that surface lands in the
@@ -857,19 +510,6 @@ internal sealed class FrameRenderer : IDisposable
             layerDepth: 0f);
         _batch.End();
     }
-
-    // Which fit the render surface takes into the back buffer. Point sampling owes its source
-    // pixels a square block each, so it takes the whole scale and lets the bars absorb the
-    // remainder; linear sampling answers to no pixel grid and fills the window.
-    internal static Letterbox PresentFit(
-        TextureSampling sampling,
-        int targetWidth,
-        int targetHeight,
-        int containerWidth,
-        int containerHeight) =>
-        sampling == TextureSampling.Point
-            ? Letterbox.FitPixels(targetWidth, targetHeight, containerWidth, containerHeight)
-            : Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
 
     private static SamplerState Sampler(TextureSampling sampling) => sampling switch
     {

@@ -21,19 +21,8 @@ public sealed class SceneGeneratorTests
 
         // The document names are the registry's contract with scene sources.
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
-        AssertClaimedBy(generated, "room-01", "Game.Room01");
-        AssertClaimedBy(generated, "boss-arena", "Game.BossArena");
-    }
-
-    // Asserted as a pairing, so how the emitted line is spelled is not pinned.
-    private static void AssertClaimedBy(string generated, string documentName, string type)
-    {
-        string[] claims = generated.Split((char)10)
-            .Where(line => line.Contains($"\"{documentName}\"", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.NotEmpty(claims);
-        Assert.All(claims, line => Assert.Contains(type, line, StringComparison.Ordinal));
+        GeneratorHarness.AssertPairs(generated, "room-01", "Game.Room01");
+        GeneratorHarness.AssertPairs(generated, "boss-arena", "Game.BossArena");
     }
 
     [Fact]
@@ -49,7 +38,7 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.NotNull(compiled.GetTypeByMetadataName("Game.OpeningRoom"));
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
-        AssertClaimedBy(generated, "room-01", "Game.OpeningRoom");
+        GeneratorHarness.AssertPairs(generated, "room-01", "Game.OpeningRoom");
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
 
@@ -87,7 +76,7 @@ public sealed class SceneGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
-        AssertClaimedBy(generated, "stage-1/room-01", "Game.OpeningRoom");
+        GeneratorHarness.AssertPairs(generated, "stage-1/room-01", "Game.OpeningRoom");
         Assert.DoesNotContain("Stage1/Room01", generated, StringComparison.Ordinal);
     }
 
@@ -225,22 +214,6 @@ public sealed class SceneGeneratorTests
 
         Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleEntities"));
         Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleScenes"));
-        Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
-    }
-
-    [Fact]
-    public void TheGeneratedRegistry_CompilesOverBothKindsOfScene()
-    {
-        Compilation compiled = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public sealed class Room01(SceneContent content) : Scene(content);
-
-            public sealed class MainMenu : Scene;
-
-            public sealed class Chest(EntitySpawn spawn) : Entity(spawn.Position);
-            """).Updated;
-
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 }

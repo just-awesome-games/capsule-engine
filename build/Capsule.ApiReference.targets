@@ -1,23 +1,31 @@
 <Project>
 
-  <!-- Stage source-consumer API documentation before compilation. -->
-
   <PropertyGroup Condition="'$(CapsuleSourceRoot)' != ''">
     <!-- Resolve overrides against the consumer repository root. -->
     <CapsuleApiReferenceDirectory Condition="'$(CapsuleApiReferenceDirectory)' == ''">artifacts/capsule-api</CapsuleApiReferenceDirectory>
     <CapsuleApiReferenceDirectory>$([MSBuild]::NormalizePath('$([System.IO.Path]::GetDirectoryName("$(DirectoryBuildTargetsPath)"))', '$(CapsuleApiReferenceDirectory)'))</CapsuleApiReferenceDirectory>
   </PropertyGroup>
 
+  <!-- Stage source-consumer API documentation before compilation. -->
   <Target Name="CapsuleStageApiReference"
           Condition="'$(CapsuleSourceRoot)' != ''"
           DependsOnTargets="ResolveReferences"
           BeforeTargets="CoreCompile">
 
-    <!-- Stage only resolved Capsule references. -->
     <ItemGroup>
       <_CapsuleApiReferenceFile Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Extension', '.xml'))"
                                Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
+
+      <!-- A renamed or dropped module would otherwise leave its documentation here forever. The
+           stale set is named against the engine's modules, not against this project's references:
+           parallel role projects share this destination and each stages only its own subset, so
+           comparing with that subset would have them deleting each other's current files. -->
+      <_CapsuleModuleProject Include="$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))*/*.csproj" />
+      <_CapsuleStaleApiReferenceFile Include="$(CapsuleApiReferenceDirectory)/Capsule.*.xml"
+                                     Exclude="@(_CapsuleModuleProject->'$(CapsuleApiReferenceDirectory)/%(Filename).xml')" />
     </ItemGroup>
+
+    <Delete Files="@(_CapsuleStaleApiReferenceFile)" ContinueOnError="true" />
 
     <!-- Parallel role projects share this destination. -->
     <Copy SourceFiles="@(_CapsuleApiReferenceFile)"

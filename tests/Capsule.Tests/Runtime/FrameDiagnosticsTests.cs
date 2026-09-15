@@ -81,14 +81,14 @@ public sealed class FrameDiagnosticsTests
     /// <summary>One capture in a temp file, driven the way the host drives it.</summary>
     private sealed class Capture : IDisposable
     {
-        private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("capsule-diagnostics-");
+        private readonly TempWorkspace _workspace = new("capsule-diagnostics-");
         private readonly string _path;
 
         private FrameDiagnostics? _diagnostics;
 
         internal Capture(double? exitAfterSeconds = null, ManualClock? clock = null)
         {
-            _path = Path.Combine(_directory.FullName, "frames.csv");
+            _path = _workspace.PathTo("frames.csv");
             _diagnostics = clock is null
                 ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds)
                 : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
@@ -128,7 +128,7 @@ public sealed class FrameDiagnosticsTests
         public void Dispose()
         {
             Close();
-            _directory.Delete(recursive: true);
+            _workspace.Dispose();
         }
     }
 

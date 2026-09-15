@@ -57,12 +57,9 @@ public sealed class AudioMixer
 
     /// <summary>
     /// The commands the last step raised, in the order they were raised. Rewritten every step and
-    /// invalidated by the next mixer call, so a host applies them before stepping again. Commands
-    /// raised before the first step, by the boot scene's start, stand until that step rewrites them:
-    /// a host applies them once before stepping, and a test reads them before it steps. A scene
-    /// entered by a transition starts inside the step that requested it, so its start rides that
-    /// step's commands; a second scene started on the same mixer outside a step appends to what the
-    /// last step raised.
+    /// invalidated by the next mixer call, so a host applies them before stepping again. A command
+    /// raised outside a step — by a boot scene's start, say — is appended to what the last step
+    /// raised and stands until the next step rewrites them.
     /// </summary>
     public ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
 
@@ -96,16 +93,11 @@ public sealed class AudioMixer
     /// <see cref="AudioCommandKind.SetGain"/> for every live voice on it — for every live voice at
     /// all when the bus is <see cref="AudioBus.Master"/>.
     /// <para>
-    /// Bus volumes are the run's, not a scene's: what one scene sets stands for every scene after
-    /// it until something sets it again, and a bus nothing has set reads 1. A game therefore levels
-    /// its buses once — from its boot scene's start, or from a settings screen — rather than per
-    /// scene. The mixer is installed on the run before a scene starts, so a scene constructor has
-    /// none to reach.
-    /// </para>
-    /// <para>
-    /// A voice played before the volume it should carry goes out at the old product and is
-    /// re-levelled by the <see cref="AudioCommandKind.SetGain"/> this raises for it. Ordering the
-    /// two within one start changes what the host is told, never what it settles at.
+    /// Bus volumes are the run's, not a scene's: what one scene sets stands for every scene after it
+    /// until something sets it again, and a bus nothing has set reads 1. A voice played before the
+    /// volume it should carry goes out at the old product and is re-levelled by the
+    /// <see cref="AudioCommandKind.SetGain"/> this raises for it, so ordering the two within one
+    /// start changes what the host is told, never what it settles at.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="volume"/> is outside [0, 1] or is not a number.</exception>
@@ -361,9 +353,6 @@ public sealed class AudioMixer
     /// an <see cref="AudioClip.LoopRegion"/> runs past the region's end once and then reads inside
     /// the region, and one whose clip carries none wraps at the clip's duration.
     /// </para>
-    /// <para>
-    /// Unity's <c>AudioSource.time</c> reads this way.
-    /// </para>
     /// </summary>
     public double GetTime(Voice voice)
     {
@@ -404,10 +393,6 @@ public sealed class AudioMixer
     /// <see cref="IsPaused(Voice)"/> partition it — exactly one of them holds while a voice is live, both
     /// are false once it is not — so reading <see cref="IsPlaying"/> alone stacks a duplicate voice
     /// over one its bus is holding.
-    /// </para>
-    /// <para>
-    /// FMOD's <c>Channel::isPlaying</c> reads this way, true for a paused channel and failing for a
-    /// dead handle; Unity's <c>AudioSource.isPlaying</c> reads the way <see cref="IsPlaying"/> does.
     /// </para>
     /// </summary>
     public bool IsLive(Voice voice) => TryResolve(voice, out _);

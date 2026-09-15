@@ -4,8 +4,12 @@ using Capsule.Diagnostics;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// A slot of behaviour or appearance on one <see cref="Scenes.Entity"/>. Stepped after its
-/// entity, in the order it was attached.
+/// A slot of behaviour or appearance on one <see cref="Scenes.Entity"/> — a renderer, a collider,
+/// an animator, or a game's own. It owns no place of its own: it reads its entity's position and
+/// the scene through it. Stepped after its entity, in attachment order. Override
+/// <see cref="OnStart"/> to find what it needs, <see cref="OnStep"/> to advance it,
+/// <see cref="OnDebugPanel"/> to expose it to the overlay, and <see cref="CollectAssets"/> to
+/// declare what it loads.
 /// </summary>
 public abstract class Component
 {
@@ -27,14 +31,12 @@ public abstract class Component
         : throw new InvalidOperationException($"{GetType().Name} is on no entity in a scene, so {Scene.NoRunYet}");
 
     /// <summary>
-    /// The run's deterministic random source, reached through the run. This is the default
-    /// stream; a domain whose draws must not move another's takes its own —
-    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// The run's default deterministic random stream. A domain whose draws must not move another's
+    /// takes its own — <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// This component is on no entity, is on one in no scene, or its scene has not started;
-    /// randomness is discovered in <see cref="OnStart"/>. <see cref="OnAddedToScene"/> reaches it only when the
-    /// scene had already started before this was added.
+    /// This component is on no entity, is on one in no scene, or its scene has not started; reach
+    /// it from <see cref="OnStart"/> on.
     /// </exception>
     public RandomSource Random => Run.Random;
 
@@ -59,9 +61,8 @@ public abstract class Component
     /// Draws this component's debug geometry through <see cref="Diagnostics.DebugDraw"/>. Called
     /// once per fixed step after the step has fully settled — every position, contact and the
     /// camera's framing are final — and only while a development overlay is attached, never in a
-    /// shipping build's runtime. Draw only: state changed here makes a run with the overlay differ
-    /// from one without. The calls inside are compiled out of a shipping build, so the override
-    /// costs it nothing.
+    /// shipping build's runtime, whose compile-out leaves the override costing nothing. Draw only:
+    /// state changed here makes a run with the overlay differ from one without.
     /// </summary>
     protected internal virtual void OnDebugDraw()
     {
@@ -74,11 +75,10 @@ public abstract class Component
     /// worth doing to it. The section is headed by the component's type name and shows its fields
     /// first, then its commands and toggles under a <c>Commands</c> sub-heading, in write order
     /// within each group; a command or toggle runs inside the one stepped tick that follows it,
-    /// ahead of the scene's own step. Called only while the overlay is showing this component's entity, never in a
-    /// shipping build's runtime, and never before <see cref="OnStart"/>. Write only: state
-    /// changed here, outside a command, makes a run whose panel was opened differ from one whose
-    /// was not. The calls inside are compiled out of a shipping build, so the override costs it
-    /// nothing.
+    /// ahead of the scene's own step. Called only while the overlay is showing this component's
+    /// entity, never before <see cref="OnStart"/>, and never in a shipping build's runtime, whose
+    /// compile-out leaves the override costing nothing. Write only: state changed here, outside a
+    /// command, makes a run whose panel was opened differ from one whose was not.
     /// </summary>
     protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -124,8 +124,8 @@ public abstract class Component
         ArgumentNullException.ThrowIfNull(assets);
     }
 
-    // Runs once entity holds this component. Whatever the component registers with its entity — an
-    // interest in its movement, say — is registered here.
+    // Whatever the component registers with its entity — an interest in its movement, say — is
+    // registered here.
     internal virtual void OnAttachedTo(Entity entity)
     {
     }

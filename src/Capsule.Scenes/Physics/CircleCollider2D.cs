@@ -30,8 +30,11 @@ public sealed class CircleCollider2D : Collider2D
     }
 
     /// <inheritdoc/>
-    protected internal override void OnDebugDraw() =>
-        DebugDraw.Circle(DebugDraw.Colliders, WorldShape.Point(0), WorldShape.Radius, DebugColor, Motion);
+    protected internal override void OnDebugDraw()
+    {
+        Shape2D shape = WorldShape;
+        DebugDraw.Circle(DebugDraw.Colliders, shape.Point(0), shape.Radius, DebugColor, Motion);
+    }
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)

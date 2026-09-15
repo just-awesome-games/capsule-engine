@@ -18,7 +18,7 @@ public sealed class TileGrid
     // arithmetic per tile. Null where a tile type draws nothing.
     private readonly Sprite?[] _sprites;
 
-    /// <param name="tileSize">The edge length of one tile, in pixels and in world units.</param>
+    /// <param name="tileSize">The edge length of one tile; see <see cref="TileSize"/>.</param>
     /// <param name="width">Grid width in tiles.</param>
     /// <param name="height">Grid height in tiles.</param>
     /// <param name="tileTypes">The palette, starting with <see cref="EmptyTile"/>.</param>
@@ -58,7 +58,10 @@ public sealed class TileGrid
     /// <summary>The palette entry every unpainted cell points at.</summary>
     public static TileDefinition EmptyTile => new(EmptyTileType, null);
 
-    /// <summary>The edge length of one tile in pixels. Supplied by the grid; the engine has no opinion.</summary>
+    /// <summary>
+    /// The edge length of one tile in world units, which is also its edge in atlas pixels: the two
+    /// are equal by construction. Supplied by the grid; the engine has no opinion.
+    /// </summary>
     public int TileSize { get; }
 
     /// <summary>Grid width in tiles.</summary>
@@ -103,7 +106,6 @@ public sealed class TileGrid
     // tens of thousands of ints.
     internal int[] Cells => _tiles;
 
-    // One frame per palette index, in palette order.
     internal ReadOnlySpan<Sprite?> Sprites => _sprites;
 
     /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>

@@ -31,7 +31,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         Bounds = bounds;
     }
 
-    /// <summary>Which member of the shape union this is.</summary>
+    /// <summary>Which <see cref="ShapeKind2D"/> this shape is.</summary>
     public ShapeKind2D Kind { get; }
 
     /// <summary>How far the shape extends beyond the hull of its points, in world units.</summary>
@@ -181,14 +181,20 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     }
 
     // A hull of two points with no radius: one face of a grid cell. Never public — every shape a
-    // game can build has an interior.
+    // game can build has an interior. The ends are grid coordinates the world already validated, so
+    // the bounds are taken rather than checked.
     internal static Shape2D Segment(Vector2 start, Vector2 end)
     {
         PointBuffer points = default;
         points[0] = start;
         points[1] = end;
 
-        return new Shape2D(ShapeKind2D.Capsule, points, 2, 0f, Bounded(points, 2, 0f, nameof(start)));
+        return new Shape2D(
+            ShapeKind2D.Capsule,
+            points,
+            2,
+            0f,
+            new Aabb2D(Vector2.Min(start, end), Vector2.Max(start, end)));
     }
 
     /// <summary>The point at <paramref name="index"/>, in the shape's own space.</summary>

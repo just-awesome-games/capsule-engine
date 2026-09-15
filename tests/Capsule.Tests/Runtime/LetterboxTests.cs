@@ -22,21 +22,22 @@ public sealed class LetterboxTests
         Assert.Equal(contentHeight * fit.Scale, fit.Height, 0.5);
     }
 
-    [Fact]
-    public void Fit_PillarboxesAContainerWiderThanTheContent()
-    {
-        Letterbox fit = Letterbox.Fit(320f, 180f, 3440, 1440);
-
-        Assert.Equal(new Letterbox(440, 0, 2560, 1440, 8f), fit);
-    }
-
-    [Fact]
-    public void Fit_LetterboxesAContainerTallerThanTheContent()
-    {
-        Letterbox fit = Letterbox.Fit(320f, 180f, 1920, 1480);
-
-        Assert.Equal(new Letterbox(0, 200, 1920, 1080, 6f), fit);
-    }
+    // A container the content's aspect does not match gets bars on the axis with room to spare:
+    // pillars on a wider container, a letterbox on a taller one.
+    [Theory]
+    [InlineData(3440, 1440, 440, 0, 2560, 1440, 8f)]
+    [InlineData(1920, 1480, 0, 200, 1920, 1080, 6f)]
+    public void Fit_BarsTheAxisTheContentDoesNotFill(
+        int containerWidth,
+        int containerHeight,
+        int x,
+        int y,
+        int width,
+        int height,
+        float scale) =>
+        Assert.Equal(
+            new Letterbox(x, y, width, height, scale),
+            Letterbox.Fit(320f, 180f, containerWidth, containerHeight));
 
     [Theory]
     [InlineData(320f, 180f, 1000, 1000)]
@@ -147,7 +148,7 @@ public sealed class LetterboxTests
 
         Assert.Equal(
             (320, 180),
-            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(window), windowWidth, windowHeight));
+            FrameLayout.SurfaceSize((320, 180), camera, camera.ResolveSpan(window), windowWidth, windowHeight));
     }
 
     // Subtracting the resolved rect's edges reconstructs 320.001953125 this far out, whose scale
@@ -164,7 +165,7 @@ public sealed class LetterboxTests
 
         Vector2 span = camera.ResolveSpan(window);
 
-        Assert.Equal((320, 180), FrameRenderer.SurfaceSize((320, 180), camera, span, 1280, 720));
+        Assert.Equal((320, 180), FrameLayout.SurfaceSize((320, 180), camera, span, 1280, 720));
         Assert.Equal(4f, Letterbox.Fit(span.X, span.Y, 1280, 720).Scale);
         Assert.NotEqual(4f, Letterbox.Fit(world.Right - world.Left, world.Bottom - world.Top, 1280, 720).Scale);
     }
@@ -178,7 +179,7 @@ public sealed class LetterboxTests
 
         Assert.Equal(
             (430, 180),
-            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(3440, 1440)), 3440, 1440));
+            FrameLayout.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(3440, 1440)), 3440, 1440));
     }
 
     [Fact]
@@ -190,7 +191,7 @@ public sealed class LetterboxTests
         // more than 1200 pixels of; the 12-pixel height still gets the whole canvas.
         Assert.Equal(
             (1200, 180),
-            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(1200, 12)), 1200, 12));
+            FrameLayout.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(1200, 12)), 1200, 12));
     }
 
     [Fact]
@@ -198,9 +199,9 @@ public sealed class LetterboxTests
     {
         Assert.Equal(
             Letterbox.FitPixels(320, 180, 1366, 768),
-            FrameRenderer.PresentFit(TextureSampling.Point, 320, 180, 1366, 768));
+            FrameLayout.PresentFit(TextureSampling.Point, 320, 180, 1366, 768));
         Assert.Equal(
             Letterbox.Fit(320, 180, 1366, 768),
-            FrameRenderer.PresentFit(TextureSampling.Linear, 320, 180, 1366, 768));
+            FrameLayout.PresentFit(TextureSampling.Linear, 320, 180, 1366, 768));
     }
 }

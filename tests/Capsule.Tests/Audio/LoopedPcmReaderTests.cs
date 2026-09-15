@@ -193,28 +193,13 @@ public sealed class LoopedPcmReaderTests
 
     // One 'fmt ' chunk and one 'data' chunk holding silence, half scale and minus half scale at the
     // width the format declares: 8-bit unsigned, 16- and 24-bit signed, or IEEE float at tag 3.
-    private static byte[] Wav(int tag, int bits, int channels = 1)
+    private static byte[] Wav(int tag, int bits, int channels = 1) =>
+        WavFixtures.Wav(Rate, bits, channels, Samples(bits), formatTag: tag);
+
+    private static byte[] Samples(int bits)
     {
-        int width = bits / 8;
-
-        using MemoryStream file = new();
-        using BinaryWriter writer = new(file);
-
-        writer.Write("RIFF"u8);
-        writer.Write(0);
-        writer.Write("WAVE"u8);
-
-        writer.Write("fmt "u8);
-        writer.Write(16);
-        writer.Write((short)tag);
-        writer.Write((short)channels);
-        writer.Write(Rate);
-        writer.Write(Rate * width * channels);
-        writer.Write((short)(width * channels));
-        writer.Write((short)bits);
-
-        writer.Write("data"u8);
-        writer.Write(3 * width);
+        using MemoryStream data = new();
+        using BinaryWriter writer = new(data);
 
         foreach (float sample in new[] { 0f, 0.5f, -0.5f })
         {
@@ -242,6 +227,6 @@ public sealed class LoopedPcmReaderTests
 
         writer.Flush();
 
-        return file.ToArray();
+        return data.ToArray();
     }
 }

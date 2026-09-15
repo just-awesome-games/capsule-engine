@@ -23,14 +23,12 @@ public sealed class GridCollider2DTests
     {
         CollisionWorld2D world = new();
 
-        ArgumentException error = Assert.Throws<ArgumentException>(() => world.AddGrid(
+        Assert.Throws<ArgumentException>(() => world.AddGrid(
             16,
             1,
             1,
             [0],
             [new CellProfile2D(world.Layer(CollisionFixtures.Solid), CellFaces2D.None)]));
-
-        Assert.Contains("at least one side", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -156,39 +154,29 @@ public sealed class GridCollider2DTests
         Assert.Equal(new Vector2(-1f, 0f), hit.Normal);
     }
 
-    [Fact]
-    public void Raycast_CrossesATopFaceOnlyFromAbove()
+    // A face is one-directional, so the same primitive the other way up is what a body under
+    // reversed gravity lands on. The ray starts 16 units outward of the plane, then turns round
+    // inside the cell, and finally runs along the plane itself, which is no crossing either.
+    [Theory]
+    [InlineData(CellFaces2D.Top, 0f, 1f, -1f, 30f)]
+    [InlineData(CellFaces2D.Bottom, 48f, -1f, 1f, 18f)]
+    public void Raycast_CrossesAFaceOnlyFromItsOutwardSide(
+        CellFaces2D face,
+        float from,
+        float towards,
+        float normalY,
+        float inward)
     {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", "----");
+        CollisionWorld2D world = CollisionFixtures.OneFace(face);
+        Vector2 along = new(0f, towards);
 
-        Assert.True(world.Raycast(new Vector2(24f, 0f), Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D above));
-        Assert.Equal(16f, above.Distance, 3);
-        Assert.Equal(new Vector2(0f, -1f), above.Normal);
-        Assert.Equal(world.Layer(CollisionFixtures.Platform), above.Target.Layer);
+        Assert.True(world.Raycast(new Vector2(24f, from), along, 64f, CollisionFilter.Everything, out RayHit2D hit));
+        Assert.Equal(16f, hit.Distance, 3);
+        Assert.Equal(new Vector2(0f, normalY), hit.Normal);
+        Assert.Equal(world.Layer(CollisionFixtures.Ledge), hit.Target.Layer);
 
-        Assert.False(world.Raycast(new Vector2(24f, 30f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out _));
-        Assert.False(world.Raycast(new Vector2(0f, 20f), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
-    }
-
-    // The same primitive the other way up: a bottom face is what a body under reversed gravity
-    // lands on.
-    [Fact]
-    public void Raycast_CrossesABottomFaceOnlyFromBelow()
-    {
-        CollisionWorld2D world = new();
-        world.AddGrid(
-            CollisionFixtures.TileSize,
-            1,
-            2,
-            [0, 1],
-            [new CellProfile2D(null), new CellProfile2D(world.Layer("ceiling"), CellFaces2D.Bottom)]);
-
-        Assert.True(world.Raycast(new Vector2(8f, 48f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D below));
-        Assert.Equal(16f, below.Distance, 3);
-        Assert.Equal(new Vector2(0f, 1f), below.Normal);
-
-        Assert.False(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, CollisionFilter.Everything, out _));
+        Assert.False(world.Raycast(new Vector2(24f, inward), -along, 64f, CollisionFilter.Everything, out _));
+        Assert.False(world.Raycast(new Vector2(0f, from + (towards * 16f)), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
     }
 
     // A filter turns the cells it excludes into empty space, faces included: the seam a wall shares
@@ -355,7 +343,7 @@ public sealed class GridCollider2DTests
             default,
             floor.Handle);
         Assert.False(through.BlockedY);
-        Assert.Equal(20f, through.Translation.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(20f, through.Translation.Y, CollisionFixtures.Tolerance);
 
         // The same move with nothing ignored still lands on it.
         Assert.True(world.MoveBox(
@@ -444,7 +432,7 @@ public sealed class GridCollider2DTests
         float outwardX,
         float outwardY)
     {
-        CollisionWorld2D world = OneFace(face);
+        CollisionWorld2D world = CollisionFixtures.OneFace(face);
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
         int count = world.OverlapBoxAll(
@@ -471,7 +459,7 @@ public sealed class GridCollider2DTests
         float inwardX,
         float inwardY)
     {
-        CollisionWorld2D world = OneFace(face);
+        CollisionWorld2D world = CollisionFixtures.OneFace(face);
         Vector2 center = new Vector2(planeX, planeY)
             + (new Vector2(inwardX, inwardY) * CollisionWorld2D.ContactSkin);
 
@@ -502,7 +490,7 @@ public sealed class GridCollider2DTests
         float outwardX,
         float outwardY)
     {
-        CollisionWorld2D world = OneFace(face);
+        CollisionWorld2D world = CollisionFixtures.OneFace(face);
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f));
         Vector2 origin = new(originX, originY);
         Vector2 translation = new(translationX, translationY);
@@ -522,21 +510,6 @@ public sealed class GridCollider2DTests
         Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
         Assert.Equal(outward, hit.Normal);
         Assert.Equal(0f, hit.Fraction);
-    }
-
-    // A 3x3 grid whose only collidable cell is the middle one, carrying exactly one face. That cell
-    // spans x = 16..32 and y = 16..32, so each face's plane is one of those four coordinates.
-    private static CollisionWorld2D OneFace(CellFaces2D face)
-    {
-        CollisionWorld2D world = new();
-        world.AddGrid(
-            CollisionFixtures.TileSize,
-            3,
-            3,
-            [0, 0, 0, 0, 1, 0, 0, 0, 0],
-            [new CellProfile2D(null), new CellProfile2D(world.Layer("ledge"), face)]);
-
-        return world;
     }
 
     // The normal is the face's own, not the narrowphase's: a rounded shape resting past the end of

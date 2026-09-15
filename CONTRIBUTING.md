@@ -16,6 +16,6 @@ A NativeAOT publish on Windows also needs the Visual Studio Installer directory 
 
 ## The gate
 
-[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit: a locked restore, the build, the format check, the tests, and booting `tests/Capsule.AotSmoke`. CI adds Release, pack, consumer and NativeAOT publishes of the sample shell and the smoke, and runs the published binary. Releases follow [`RELEASING.md`](RELEASING.md).
+[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit: a locked restore, the build, the format check, and the tests. CI adds pack, the package-mode sample, and NativeAOT publishes of the sample shell and `tests/Capsule.AotSmoke`, whose binary it then runs. Releases follow [`RELEASING.md`](RELEASING.md).
 
 By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE).

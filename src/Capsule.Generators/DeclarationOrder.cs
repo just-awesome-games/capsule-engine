@@ -15,19 +15,12 @@ internal static class DeclarationOrder
             return byName;
         }
 
-        string? leftPath = leftLocation.SourceTree?.FilePath;
-        string? rightPath = rightLocation.SourceTree?.FilePath;
-        int byPath = string.CompareOrdinal(leftPath ?? string.Empty, rightPath ?? string.Empty);
-        if (byPath != 0)
-        {
-            return byPath;
-        }
+        int byPath = string.CompareOrdinal(
+            leftLocation.SourceTree?.FilePath ?? string.Empty,
+            rightLocation.SourceTree?.FilePath ?? string.Empty);
 
-        if ((leftPath is null) != (rightPath is null))
-        {
-            return leftPath is null ? 1 : -1;
-        }
-
-        return leftLocation.SourceSpan.Start.CompareTo(rightLocation.SourceSpan.Start);
+        return byPath != 0
+            ? byPath
+            : leftLocation.SourceSpan.Start.CompareTo(rightLocation.SourceSpan.Start);
     }
 }

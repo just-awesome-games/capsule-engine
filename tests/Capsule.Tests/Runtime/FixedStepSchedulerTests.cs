@@ -14,30 +14,18 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void Advance_AccumulatesPartialFramesAndReportsInterpolation()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler();
 
         Assert.False(scheduler.Advance(0.04, DeviceSnapshot.Empty, simulation));
         Assert.False(scheduler.Advance(0.05, DeviceSnapshot.Empty, simulation));
-        Assert.Empty(simulation.Steps);
+        Assert.Empty(simulation.Recorded);
         Assert.Equal(0.9f, scheduler.InterpolationAlpha, 5);
 
         Assert.False(scheduler.Advance(0.02, DeviceSnapshot.Empty, simulation));
-        Assert.Single(simulation.Steps);
+        Assert.Single(simulation.Recorded);
         Assert.Equal(0.01, scheduler.AccumulatorSeconds, 10);
         Assert.Equal(0.1f, scheduler.InterpolationAlpha, 5);
-    }
-
-    [Fact]
-    public void Advance_BoundsAStallToTheStepBoundAndDropsWhatItDidNotRun()
-    {
-        RecordingSimulation simulation = new();
-        FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
-
-        scheduler.Advance(30, DeviceSnapshot.Empty, simulation);
-
-        Assert.Equal(3, simulation.Steps.Count);
-        Assert.Equal(0, scheduler.AccumulatorSeconds);
     }
 
     // The spiral of death: a step costing more than the step length would otherwise queue two steps
@@ -45,16 +33,16 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void Advance_HoldsTheStepBoundWhenEveryFrameArrivesLateAndNeverCarriesABacklog()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
         const double FrameSecondsWorthOfSteps = StepSeconds * 4.5;
 
         for (int frame = 0; frame < 10; frame++)
         {
-            simulation.Steps.Clear();
+            simulation.Recorded.Clear();
             scheduler.Advance(FrameSecondsWorthOfSteps, DeviceSnapshot.Empty, simulation);
 
-            Assert.Equal(3, simulation.Steps.Count);
+            Assert.Equal(3, simulation.Recorded.Count);
             Assert.Equal(0, scheduler.AccumulatorSeconds);
         }
 
@@ -64,14 +52,14 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void Advance_SuppliesContiguousTicksAndDerivedTime()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler();
 
         scheduler.Advance(0.3, DeviceSnapshot.Empty, simulation);
         scheduler.Advance(0.1, DeviceSnapshot.Empty, simulation);
 
         Assert.Collection(
-            simulation.Steps,
+            simulation.Recorded,
             step => AssertStep(step, 0),
             step => AssertStep(step, 1),
             step => AssertStep(step, 2),
@@ -82,12 +70,12 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void Advance_StopsQueuedStepsImmediatelyWhenSimulationRequestsExit()
     {
-        RecordingSimulation simulation = new(exitOnTick: 1);
+        RecordingSimulation simulation = new(Jump) { ExitOnTick = 1 };
         FixedStepScheduler scheduler = CreateScheduler();
 
         Assert.True(scheduler.Advance(0.5, DeviceSnapshot.Empty, simulation));
 
-        Assert.Equal(2, simulation.Steps.Count);
+        Assert.Equal(2, simulation.Recorded.Count);
         Assert.Equal(2, scheduler.Tick);
         Assert.Equal(0.3, scheduler.AccumulatorSeconds, 10);
     }
@@ -95,7 +83,7 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void Advance_LatchesATapAcrossFramesThatDrainNoStep()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler();
 
         scheduler.Advance(0.02, DeviceSnapshot.Of(Key.Space), simulation);
@@ -104,33 +92,33 @@ public sealed class FixedStepSchedulerTests
         scheduler.Advance(0.1, DeviceSnapshot.Empty, simulation);
 
         Assert.Collection(
-            simulation.Steps,
+            simulation.Recorded,
             first =>
             {
-                Assert.True(first.JumpPressed);
-                Assert.True(first.JumpHeld);
+                Assert.True(first.First.Pressed);
+                Assert.True(first.First.Held);
             },
             second =>
             {
-                Assert.True(second.JumpReleased);
-                Assert.False(second.JumpHeld);
+                Assert.True(second.First.Released);
+                Assert.False(second.First.Held);
             });
     }
 
     [Fact]
     public void Advance_ReusesOneSampleAcrossSeveralStepsWithoutRepeatingAnEdge()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler();
 
         scheduler.Advance(0.3, DeviceSnapshot.Of(Key.Space), simulation);
 
         Assert.Collection(
-            simulation.Steps,
-            first => Assert.True(first.JumpPressed),
-            second => Assert.False(second.JumpPressed),
-            third => Assert.False(third.JumpPressed));
-        Assert.All(simulation.Steps, step => Assert.True(step.JumpHeld));
+            simulation.Recorded,
+            first => Assert.True(first.First.Pressed),
+            second => Assert.False(second.First.Pressed),
+            third => Assert.False(third.First.Pressed));
+        Assert.All(simulation.Recorded, step => Assert.True(step.First.Held));
     }
 
     [Theory]
@@ -142,7 +130,7 @@ public sealed class FixedStepSchedulerTests
         FixedStepScheduler scheduler = CreateScheduler();
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => scheduler.Advance(elapsedSeconds, DeviceSnapshot.Empty, new RecordingSimulation()));
+            () => scheduler.Advance(elapsedSeconds, DeviceSnapshot.Empty, new RecordingSimulation(Jump)));
     }
 
     // A frame worth exactly one step at 1x buys `scale` steps at `scale`: halves run a step every
@@ -155,22 +143,22 @@ public sealed class FixedStepSchedulerTests
     [InlineData(4.0, new[] { 4, 4, 4, 4, 4, 4, 4, 4 })]
     public void TimeScale_BuysTheFramesElapsedTimeThatManyStepsWithoutMovingTheStepLength(double scale, int[] perFrame)
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 8);
         scheduler.TimeScale = scale;
 
         long ticks = 0;
         foreach (int expected in perFrame)
         {
-            simulation.Steps.Clear();
+            simulation.Recorded.Clear();
             scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, simulation);
             ticks += expected;
 
-            Assert.Equal(expected, simulation.Steps.Count);
+            Assert.Equal(expected, simulation.Recorded.Count);
             Assert.Equal(expected, scheduler.StepsThisFrame);
             Assert.Equal(ticks, scheduler.Tick);
             Assert.InRange(scheduler.InterpolationAlpha, 0f, 0.9999f);
-            Assert.All(simulation.Steps, static step => Assert.Equal((float)StepSeconds, step.DeltaSeconds));
+            Assert.All(simulation.Recorded, static step => Assert.Equal((float)StepSeconds, step.DeltaSeconds));
         }
     }
 
@@ -179,14 +167,14 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void TimeScale_LeavesEveryStepTheSimulationIsHandedIdentical()
     {
-        RecordingSimulation fast = new();
+        RecordingSimulation fast = new(Jump);
         FixedStepScheduler atOne = CreateScheduler();
         for (int frame = 0; frame < 8; frame++)
         {
             atOne.Advance(StepSeconds, DeviceSnapshot.Empty, fast);
         }
 
-        RecordingSimulation slow = new();
+        RecordingSimulation slow = new(Jump);
         FixedStepScheduler atQuarter = CreateScheduler();
         atQuarter.TimeScale = 0.25;
         for (int frame = 0; frame < 32; frame++)
@@ -194,8 +182,8 @@ public sealed class FixedStepSchedulerTests
             atQuarter.Advance(StepSeconds, DeviceSnapshot.Empty, slow);
         }
 
-        Assert.Equal(8, fast.Steps.Count);
-        Assert.Equal(fast.Steps, slow.Steps);
+        Assert.Equal(8, fast.Recorded.Count);
+        Assert.Equal(fast.Recorded, slow.Recorded);
         Assert.Equal(atOne.Tick, atQuarter.Tick);
     }
 
@@ -203,14 +191,14 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void TimeScale_DoesNotChangeAStepTakenByHandWhileHeld()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler();
         scheduler.TimeScale = 4;
         scheduler.Held = true;
 
         Assert.False(scheduler.StepOnce(DeviceSnapshot.Empty, simulation));
 
-        Assert.Single(simulation.Steps);
+        Assert.Single(simulation.Recorded);
         Assert.Equal(1, scheduler.StepsThisFrame);
         Assert.Equal(0, scheduler.AccumulatorSeconds);
     }
@@ -220,13 +208,13 @@ public sealed class FixedStepSchedulerTests
     [Fact]
     public void TimeScale_StillGivesWayToTheFrameStepBound()
     {
-        RecordingSimulation simulation = new();
+        RecordingSimulation simulation = new(Jump);
         FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
         scheduler.TimeScale = 4;
 
         scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, simulation);
 
-        Assert.Equal(3, simulation.Steps.Count);
+        Assert.Equal(3, simulation.Recorded.Count);
         Assert.Equal(0, scheduler.AccumulatorSeconds);
     }
 
@@ -316,35 +304,6 @@ public sealed class FixedStepSchedulerTests
             {
                 Run.TimeScale = 2;
             }
-        }
-    }
-
-    private readonly record struct RecordedStep(
-        long Tick,
-        float DeltaSeconds,
-        double TotalSeconds,
-        bool JumpPressed,
-        bool JumpReleased,
-        bool JumpHeld);
-
-    private sealed class RecordingSimulation(long? exitOnTick = null) : ISimulation
-    {
-        public List<RecordedStep> Steps { get; } = [];
-
-        public bool ExitRequested { get; private set; }
-
-        public FrameView View { get; } = new();
-
-        public void Step(in StepContext context)
-        {
-            Steps.Add(new RecordedStep(
-                context.Tick,
-                context.DeltaSeconds,
-                context.TotalSeconds,
-                context.Input.WasPressed(Jump),
-                context.Input.WasReleased(Jump),
-                context.Input.IsHeld(Jump)));
-            ExitRequested = context.Tick == exitOnTick;
         }
     }
 }

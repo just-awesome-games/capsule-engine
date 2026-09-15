@@ -47,65 +47,42 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     public void Step(in StepContext context)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        TransitionFailed = false;
-
-        // The exit already tore the current scene down; there is nothing left to step.
-        if (ExitRequested)
+        if (!CanStep())
         {
             return;
         }
 
         _current.Step(context);
-        if (!_current.TryTakeTransition(out SceneTransition transition))
-        {
-            return;
-        }
-
-        switch (transition.Kind)
-        {
-            case SceneTransitionKind.Exit:
-                ExitRequested = true;
-                try
-                {
-                    _current.Dispose();
-                }
-                finally
-                {
-                    ReleaseAssets();
-                }
-                break;
-
-            case SceneTransitionKind.Restart:
-                Replace(transition.HasPayload ? _target.WithPayload(transition.Payload) : _target);
-                break;
-
-            case SceneTransitionKind.Scene:
-            case SceneTransitionKind.Named:
-                Replace(transition);
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unknown scene transition kind '{transition.Kind}'.");
-        }
+        Consume();
     }
 
-    // Step with the host's before-step act inside the current scene's own step, so a scene the
-    // act asks for is the transition this step then consumes. Spelt out again rather than shared
-    // with Step, so the ordinary step carries no branch for an act it never has.
+    // Step with the host's before-step act inside the current scene's own step, so a scene the act
+    // asks for is the transition this step then consumes.
     void ISimulation.Step(in StepContext context, Action before)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        TransitionFailed = false;
-
-        if (ExitRequested)
+        if (!CanStep())
         {
             return;
         }
 
         ((ISimulation)_current).Step(context, before);
+        Consume();
+    }
+
+    // Opens a step and answers whether there is one to run: the exit already tore the current
+    // scene down, and a disposed host is nobody's to step.
+    private bool CanStep()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        TransitionFailed = false;
+
+        return !ExitRequested;
+    }
+
+    // The transition the step just taken asked for, resolved at the host boundary.
+    private void Consume()
+    {
         if (!_current.TryTakeTransition(out SceneTransition transition))
         {
             return;

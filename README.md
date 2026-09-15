@@ -36,7 +36,7 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 
 - [`docs/architecture.md`](docs/architecture.md) — the module boundaries, the logic boundary, the determinism contract, and the NativeAOT floor.
 - [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, publishing, and the build properties.
-- [`docs/workflow.md`](docs/workflow.md) — the everyday commands of a game built on Capsule.
+- [`docs/build-properties.md`](docs/build-properties.md) — every `Capsule*` MSBuild property.
 - [`docs/debugging.md`](docs/debugging.md) — the development plane: the overlay and what a shipping publish drops.
 - [`docs/project-layout.md`](docs/project-layout.md) — the directory convention inside a game's logic project.
 - [`docs/scenes.md`](docs/scenes.md) — the scene authoring model and the `*.scene.json` format.

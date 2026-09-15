@@ -44,6 +44,10 @@ A frame carries two ordered lists: the world, placed by the camera and culled ag
 
 On a declared render surface the world is drawn at exactly the declared pixels per unit under either sampling; `ViewportFit.Expand` and `FixedHeight` quantise the axis they grow to whole surface pixels, never past the span the fit resolved; and point sampling alone snaps each sprite to the surface's pixel grid from the camera's corner and presents the surface at a whole scale whenever the output can hold it at least once (a smaller output falls back to a fractional fit).
 
+A sound is an `AudioSource` component playing an `AudioClip` on a named `AudioBus`; `Run.Audio` is the one mixer every source mixes into, so a voice survives a scene transition and a bus is levelled, paused or resumed once at boot rather than per scene.
+
+The screen layer is `ScreenEntity` placed by an `Anchor` — a fraction of the canvas on each axis — so an interface element keeps its distance from the edge it was anchored to whatever the canvas is. A menu is `Focusable` components under one `FocusNavigator`, which owns which item has focus and moves it from the game's own focus actions, pointer included.
+
 At a scene boundary the runtime synchronously preloads the media the composed scene, its entities and their components collect; a resource not collected there loads on first rendered or audible use and is cached for the rest of that scene, and the outgoing scene's resources are released at transition or exit except where the incoming preload also uses them. `Run` owns one mixer, so a voice survives a scene transition. Headless simulation loads no media.
 
 ## NativeAOT floor

@@ -35,51 +35,55 @@ internal static class Segments
         float lower = 0f;
         float upper = limit;
 
-        for (int axis = 0; axis < 2; axis++)
+        // X then Y, in that order: the entry the caller reads is whichever slab pushed it last.
+        if (!Slab(direction.X, origin.X, box.Min.X, box.Max.X, true, ref lower, ref upper, ref normal)
+            || !Slab(direction.Y, origin.Y, box.Min.Y, box.Max.Y, false, ref lower, ref upper, ref normal))
         {
-            float component = axis == 0 ? direction.X : direction.Y;
-            float start = axis == 0 ? origin.X : origin.Y;
-            float min = axis == 0 ? box.Min.X : box.Min.Y;
-            float max = axis == 0 ? box.Max.X : box.Max.Y;
-
-            if (MathF.Abs(component) < Parallel)
-            {
-                if (start < min || start > max)
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            float inverse = 1f / component;
-            float near = (min - start) * inverse;
-            float far = (max - start) * inverse;
-            float sign = -1f;
-
-            if (near > far)
-            {
-                (near, far) = (far, near);
-                sign = 1f;
-            }
-
-            if (near > lower)
-            {
-                lower = near;
-                normal = axis == 0 ? new Vector2(sign, 0f) : new Vector2(0f, sign);
-            }
-
-            upper = MathF.Min(upper, far);
-            if (lower > upper)
-            {
-                return false;
-            }
+            return false;
         }
 
         t = lower;
         exit = upper;
 
         return true;
+    }
+
+    // One axis of the slab clip, narrowing the surviving interval and naming the face it entered by.
+    private static bool Slab(
+        float component,
+        float start,
+        float min,
+        float max,
+        bool horizontal,
+        ref float lower,
+        ref float upper,
+        ref Vector2 normal)
+    {
+        if (MathF.Abs(component) < Parallel)
+        {
+            return !(start < min || start > max);
+        }
+
+        float inverse = 1f / component;
+        float near = (min - start) * inverse;
+        float far = (max - start) * inverse;
+        float sign = -1f;
+
+        if (near > far)
+        {
+            (near, far) = (far, near);
+            sign = 1f;
+        }
+
+        if (near > lower)
+        {
+            lower = near;
+            normal = horizontal ? new Vector2(sign, 0f) : new Vector2(0f, sign);
+        }
+
+        upper = MathF.Min(upper, far);
+
+        return lower <= upper;
     }
 
     // The nearest point of a shape a ray reaches; the shape's points are in world space.
@@ -269,7 +273,7 @@ internal static class Segments
         t = 0f;
         normal = Vector2.Zero;
 
-        if (Hulls.Contains(shape, origin))
+        if (Contains(shape, origin))
         {
             return true;
         }
@@ -315,6 +319,59 @@ internal static class Segments
 
         t = nearest;
         normal = nearestNormal;
+
+        return true;
+    }
+
+    // Whether a point lies inside a shape whose points are already in world space, or on its outline.
+    private static bool Contains(in Shape2D shape, Vector2 point)
+    {
+        int count = shape.PointCount;
+
+        if (count >= 3 && Inside(shape, point))
+        {
+            return true;
+        }
+
+        int edges = count == 2 ? 1 : count;
+        for (int index = 0; index < edges; index++)
+        {
+            Vector2 a = shape.PointAt(index);
+            Vector2 b = shape.PointAt((index + 1) % count);
+            if (Vector2.Distance(point, ClosestOnSegment(a, b, point)) <= shape.Radius)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Vector2 ClosestOnSegment(Vector2 a, Vector2 b, Vector2 point)
+    {
+        Vector2 edge = b - a;
+        float lengthSquared = Vector2.Dot(edge, edge);
+        if (lengthSquared <= 0f)
+        {
+            return a;
+        }
+
+        float t = Math.Clamp(Vector2.Dot(point - a, edge) / lengthSquared, 0f, 1f);
+
+        return a + (edge * t);
+    }
+
+    // Winding is normalised on construction, so one sign test per edge decides the question.
+    private static bool Inside(in Shape2D shape, Vector2 point)
+    {
+        for (int index = 0; index < shape.PointCount; index++)
+        {
+            Vector2 edge = shape.PointAt((index + 1) % shape.PointCount) - shape.PointAt(index);
+            if (Cross(edge, point - shape.PointAt(index)) < 0f)
+            {
+                return false;
+            }
+        }
 
         return true;
     }

@@ -30,10 +30,10 @@ public sealed class InputDriverGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
-        Assert.Contains(
-            "new global::Capsule.Input.InputDriverRegistration(\"Walkthrough\", static () => new global::Game.Walkthrough())",
+        GeneratorHarness.AssertPairs(
             GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleInputDriversFile),
-            StringComparison.Ordinal);
+            "Walkthrough",
+            "Game.Walkthrough");
     }
 
     // The registry constructs a driver with no arguments, so one that takes any is no driver a

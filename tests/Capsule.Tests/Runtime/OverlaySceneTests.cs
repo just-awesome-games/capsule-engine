@@ -10,6 +10,11 @@ public sealed class OverlaySceneTests
 {
     private static readonly int LineHeight = BitmapFont.Default.LineHeight;
 
+    // The last row a menu of Items(50) shows before the window moves, and the window's last
+    // position over it.
+    private const int LastShown = OverlayScene.MaxRows - 1;
+    private const int LastFirst = 50 - OverlayScene.MaxRows;
+
     [Fact]
     public void MenusNest_AndPoppingReturnsTheFocusToTheItemThatOpenedEachLevel()
     {
@@ -74,14 +79,16 @@ public sealed class OverlaySceneTests
         SpriteIntent[] sprites = host.Simulation.View.ScreenSprites.ToArray();
         SpriteIntent backdrop = sprites[0];
         SpriteIntent highlight = Assert.Single(sprites, static sprite => sprite.Color == new ColorRgba(255, 255, 255, 64));
-        float widest = BitmapFont.Default.Measure("[~] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back").X;
+        float widest = BitmapFont.Default.Measure(OverlayScene.Legend("~")).X;
 
         Assert.Empty(host.Simulation.View.Sprites.ToArray());
         Assert.Equal(Sprite.White, backdrop.Sprite);
         Assert.Equal(new ColorRgba(0, 0, 0, 160), backdrop.Color);
         Assert.Equal(Vector2.Zero, backdrop.Position);
-        Assert.Equal(new Vector2((int)widest + 8f, (8 * LineHeight) + 8f), backdrop.Size);
-        Assert.Equal(new Vector2(0f, 4f + (4 * LineHeight)), highlight.Position);
+        Assert.Equal(
+            new Vector2((int)widest + (2 * OverlayScene.Padding), (8 * LineHeight) + (2 * OverlayScene.Padding)),
+            backdrop.Size);
+        Assert.Equal(new Vector2(0f, OverlayScene.Padding + (4 * LineHeight)), highlight.Position);
         Assert.Equal(new Vector2(backdrop.Size.X, LineHeight), highlight.Size);
         Assert.Equal("Gameplay  tick 17", scene.Readout);
         Assert.Equal("Paused", scene.Title);
@@ -96,24 +103,24 @@ public sealed class OverlaySceneTests
 
         Assert.Equal(50, scene.RowCount);
         Assert.Equal(0, scene.First);
-        Assert.True(scene.IsRowShown(23));
-        Assert.False(scene.IsRowShown(24));
-        Assert.True(scene.RowBounds(23).Size.X > 0f);
-        Assert.Equal(LineHeight, scene.RowBounds(23).Size.Y);
-        Assert.Equal(Vector2.Zero, scene.RowBounds(24).Size);
-        Assert.Equal("Item 24", scene.RowText(24));
+        Assert.True(scene.IsRowShown(LastShown));
+        Assert.False(scene.IsRowShown(OverlayScene.MaxRows));
+        Assert.True(scene.RowBounds(LastShown).Size.X > 0f);
+        Assert.Equal(LineHeight, scene.RowBounds(LastShown).Size.Y);
+        Assert.Equal(Vector2.Zero, scene.RowBounds(OverlayScene.MaxRows).Size);
+        Assert.Equal($"Item {OverlayScene.MaxRows}", scene.RowText(OverlayScene.MaxRows));
 
-        for (int press = 0; press < 24; press++)
+        for (int press = 0; press < OverlayScene.MaxRows; press++)
         {
             Press(host, Key.Down);
         }
 
-        Assert.Equal(24, scene.FocusedIndex);
+        Assert.Equal(OverlayScene.MaxRows, scene.FocusedIndex);
         Assert.Equal(1, scene.First);
         Assert.False(scene.IsRowShown(0));
-        Assert.True(scene.IsRowShown(24));
+        Assert.True(scene.IsRowShown(OverlayScene.MaxRows));
 
-        for (int press = 0; press < 24; press++)
+        for (int press = 0; press < OverlayScene.MaxRows; press++)
         {
             Press(host, Key.Up);
         }
@@ -139,9 +146,9 @@ public sealed class OverlaySceneTests
         host.Step(OverlayScene.RepeatDelayFrames + (OverlayScene.RepeatIntervalFrames * 47), DeviceSnapshot.Of(Key.Down));
 
         Assert.Equal(49, scene.FocusedIndex);
-        Assert.Equal(26, scene.First);
+        Assert.Equal(LastFirst, scene.First);
         Assert.True(scene.IsRowShown(49));
-        Assert.False(scene.IsRowShown(25));
+        Assert.False(scene.IsRowShown(LastFirst - 1));
 
         host.Step(OverlayScene.RepeatIntervalFrames, DeviceSnapshot.Of(Key.Down));
 
@@ -167,17 +174,18 @@ public sealed class OverlaySceneTests
         Assert.Equal(0, scene.First);
 
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -30f)));
-        Assert.Equal(26, scene.First);
+        Assert.Equal(LastFirst, scene.First);
         Assert.Equal(0, scene.FocusedIndex);
 
-        // A fine wheel: a tenth of a notch is three tenths of a row, and the fourth step makes one.
+        // A fine wheel: a tenth of a notch is RowsPerNotch tenths of a row, and the fourth step
+        // makes one.
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, 0.1f)));
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, 0.1f)));
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, 0.1f)));
-        Assert.Equal(26, scene.First);
+        Assert.Equal(LastFirst, scene.First);
 
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, 0.1f)));
-        Assert.Equal(25, scene.First);
+        Assert.Equal(LastFirst - 1, scene.First);
 
         Press(host, Key.Down);
 
@@ -248,26 +256,12 @@ public sealed class OverlaySceneTests
         scene.Push(new Menu(null, [new MenuItem("Open", () => scene.Push(titled))]));
         using SimulationHost host = CreateHost(scene);
 
-        Assert.Equal(4f + (2 * LineHeight), scene.RowBounds(0).Position.Y);
+        Assert.Equal(OverlayScene.Padding + (2 * LineHeight), scene.RowBounds(0).Position.Y);
 
         Press(host, Key.Enter);
 
         Assert.Equal("Sub", scene.Title);
-        Assert.Equal(4f + (3 * LineHeight), scene.RowBounds(0).Position.Y);
-    }
-
-    [Fact]
-    public void AMenuThatFits_StillWraps()
-    {
-        OverlayScene scene = new("~");
-        scene.Push(new Menu("Short", Items(3)));
-        using SimulationHost host = CreateHost(scene);
-
-        Press(host, Key.Up);
-
-        Assert.Equal(2, scene.FocusedIndex);
-        Assert.Equal(3, scene.RowCount);
-        Assert.Equal("Item 2", scene.RowText(2));
+        Assert.Equal(OverlayScene.Padding + (3 * LineHeight), scene.RowBounds(0).Position.Y);
     }
 
     // The bar spans the row window at the panel's right edge; the thumb is the window's share of
@@ -297,11 +291,14 @@ public sealed class OverlaySceneTests
         host.Step(DeviceSnapshot.Empty);
 
         Assert.Equal(6, scene.First);
-        Assert.Equal(track.Position.Y + ((trackHeight - thumbHeight) * 6 / 26), scene.ScrollThumb.Position.Y, 3);
+        Assert.Equal(
+            track.Position.Y + ((trackHeight - thumbHeight) * (2 * OverlayScene.RowsPerNotch) / LastFirst),
+            scene.ScrollThumb.Position.Y,
+            3);
 
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -30f)));
 
-        Assert.Equal(26, scene.First);
+        Assert.Equal(LastFirst, scene.First);
         Assert.Equal(track.Position.Y + trackHeight - thumbHeight, scene.ScrollThumb.Position.Y, 3);
 
         scene.Replace(new Menu("Short", Items(OverlayScene.MaxRows)));
@@ -362,7 +359,7 @@ public sealed class OverlaySceneTests
     private static SimulationHost CreateHost(OverlayScene scene) =>
         new(
             scene,
-            new InputState(OverlayActions.Bindings()),
+            new InputState(OverlayActions.Bindings),
             run: new Run
             {
                 Canvas = new Vector2(640f, 360f),

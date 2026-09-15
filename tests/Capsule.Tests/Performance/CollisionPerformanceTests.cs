@@ -120,8 +120,8 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
 
     // A RaycastAll whose span is full has the same reach left as the Raycast that took one hit, so
     // it must stop in the same place. Left to run to the grid's far edge it would cell-test the
-    // rest of the map for results it has already decided it cannot keep — measurable here as a
-    // multiple of the bounded cast rather than a near-equal to it.
+    // rest of the map for results it has already decided it cannot keep — counted in cells
+    // reached, which reads the same on every machine.
     [Fact]
     public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()
     {
@@ -129,22 +129,23 @@ public sealed class CollisionPerformanceTests(ITestOutputHelper output)
         CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
         RayHit2D[] one = new RayHit2D[1];
 
-        // Along the floor: every cell of the row is solid, so an unpruned walk tests all 256 of
+        // Along the floor: every cell of the row is solid, so an unpruned walk reaches every one of
         // them after the very first has already filled the span.
         Vector2 origin = new(8f, (41.5f * CollisionWorkload.TileSize) + 0.5f);
         const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
 
-        TimeSpan bounded = Measure(_ => world.Raycast(origin, Vector2.UnitX, across, filter, out RayHit2D _) ? 1 : 0).Elapsed;
-        TimeSpan saturated = Measure(_ => world.RaycastAll(origin, Vector2.UnitX, across, filter, one)).Elapsed;
+        world.ResetDiagnostics();
+        Assert.True(world.Raycast(origin, Vector2.UnitX, across, filter, out RayHit2D _));
+        long bounded = world.GridCellsTested;
 
-        output.WriteLine(string.Create(
-            CultureInfo.InvariantCulture,
-            $"nearest {bounded.TotalMilliseconds * 1000.0 / MeasuredSteps:0.00} us, saturated {saturated.TotalMilliseconds * 1000.0 / MeasuredSteps:0.00} us"));
+        world.ResetDiagnostics();
+        Assert.Equal(1, world.RaycastAll(origin, Vector2.UnitX, across, filter, one));
+        long saturated = world.GridCellsTested;
 
         Assert.True(
-            saturated < bounded * 5,
+            saturated <= bounded + 1,
             FormattableString.Invariant(
-                $"a saturated RaycastAll took {saturated.TotalMilliseconds:0.000} ms against the nearest cast's {bounded.TotalMilliseconds:0.000} ms, so it is still walking the grid past its limit."));
+                $"a saturated RaycastAll reached {saturated} grid cells against the nearest cast's {bounded}, so it is still walking the grid past its limit."));
     }
 
     [Fact]

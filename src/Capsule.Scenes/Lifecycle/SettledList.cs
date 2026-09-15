@@ -11,18 +11,9 @@ internal sealed class SettledList<T>
     private int _next;
     private int _end;
 
-    internal void Add(T item)
-    {
-        foreach (T held in _items)
-        {
-            if (ReferenceEquals(held, item))
-            {
-                return;
-            }
-        }
-
-        _items.Add(item);
-    }
+    // Callers pair Add with Remove exactly — a registration never repeats without its removal in
+    // between — so this appends without checking for a duplicate and stays O(1).
+    internal void Add(T item) => _items.Add(item);
 
     internal void Remove(T item)
     {

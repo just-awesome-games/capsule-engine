@@ -19,7 +19,7 @@ Rules no compiler enforces; module direction, role purity, public XML documentat
 
 - XML comments are the API reference and the only prose copy of a contract: units, ownership, lifecycle, exceptions, non-obvious behaviour; never a narrated signature.
 - Markdown holds only what spans many types — the model, cross-cutting invariants, sequence walk-throughs, data formats, build configuration — one idea once, cross-linked; never a contract, a list the code enumerates, a decision's why, or history.
-- A shipped package's README is a charter: what it is, what is inside, where the deeper documentation lives.
+- [`PACKAGE.md`](PACKAGE.md) is every package's README and stays a charter: what ships, what is inside, where the deeper documentation lives. No module carries a second one.
 - A code comment states an invariant or a why the code cannot; a comment restating the line below it is deleted, as is any addressed to a reviewer.
 
 ## Boundaries
@@ -33,7 +33,7 @@ Rules no compiler enforces; module direction, role purity, public XML documentat
 
 ## Public surface
 
-- A member is public iff a game calls it or any plausible 2D game must; test-only and cross-assembly engine members are internal, the latter with a per-member `InternalsVisibleTo` reason in the csproj.
+- A member is public iff a game calls it or any plausible 2D game must; test-only and cross-assembly engine members are internal, reached through `InternalsVisibleTo`.
 - Code the generators emit into the game is game code: a member only it calls stays public and carries `[EditorBrowsable(Never)]`.
 - Unused public affordances that serve plausible engine needs stay; dead implementation details go.
 - Document model types are public because games author them in tests; the parser is not. Engine-owned state never has a public setter.

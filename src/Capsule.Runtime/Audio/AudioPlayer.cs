@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Audio;
 
 namespace Capsule.Runtime.Audio;
@@ -12,6 +13,10 @@ namespace Capsule.Runtime.Audio;
 internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
 {
     private readonly Entry[] _slots = new Entry[AudioMixer.MaxVoices];
+
+    // One bit per slot holding a voice, so the per-frame walks touch only the slots that sound
+    // rather than the whole table; the mask is exactly as wide as AudioMixer.MaxVoices.
+    private ulong _live;
 
     // The host's suspension, a layer over each voice's own pause: while on, every voice is held
     // whatever the game asked, and what the game asks meanwhile is remembered, not applied, so a
@@ -28,10 +33,10 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
 
         _suspended = true;
-        Span<Entry> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
+        for (ulong live = _live; live != 0; live &= live - 1)
         {
-            if (slots[i].Voice is { } voice && !slots[i].Paused)
+            ref Entry entry = ref _slots[BitOperations.TrailingZeroCount(live)];
+            if (entry.Voice is { } voice && !entry.Paused)
             {
                 voice.Pause();
             }
@@ -47,22 +52,18 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
 
         _suspended = false;
-        Span<Entry> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
+        for (ulong live = _live; live != 0; live &= live - 1)
         {
-            if (slots[i].Voice is { } voice && !slots[i].Paused)
+            ref Entry entry = ref _slots[BitOperations.TrailingZeroCount(live)];
+            if (entry.Voice is { } voice && !entry.Paused)
             {
                 voice.Resume();
             }
         }
     }
 
-    // Applied after every step rather than once a frame: the mixer rewrites its commands each step
-    // and a frame may run several.
     internal void Apply(ReadOnlySpan<AudioCommand> commands)
     {
-        RetireFinished();
-
         foreach (AudioCommand command in commands)
         {
             int slot = command.Voice.Slot;
@@ -85,6 +86,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
                     command.Loop,
                     command.StartSeconds);
                 _slots[slot] = new Entry(command.Voice.Generation, started);
+                _live |= 1UL << slot;
                 if (_suspended)
                 {
                     started.Pause();
@@ -141,35 +143,32 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
     // buffers here, and the queue it feeds drains at display rate rather than at step rate.
     internal void Update()
     {
-        Span<Entry> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
+        for (ulong live = _live; live != 0; live &= live - 1)
         {
-            if (slots[i].Voice is { } voice)
+            int slot = BitOperations.TrailingZeroCount(live);
+            if (_slots[slot].Voice is { } voice)
             {
                 voice.Update();
             }
         }
 
-        RetireFinished();
+        // Here rather than on each step's Apply: a voice the device finished is retired on the
+        // frame that noticed, and a frame that ran eight steps walks the table once.
+        for (ulong live = _live; live != 0; live &= live - 1)
+        {
+            int slot = BitOperations.TrailingZeroCount(live);
+            if (_slots[slot].Voice is { Finished: true })
+            {
+                Retire(slot);
+            }
+        }
     }
 
     public void Dispose()
     {
-        for (int i = 0; i < _slots.Length; i++)
+        for (ulong live = _live; live != 0; live &= live - 1)
         {
-            Retire(i);
-        }
-    }
-
-    private void RetireFinished()
-    {
-        Span<Entry> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (slots[i].Voice is { Finished: true })
-            {
-                Retire(i);
-            }
+            Retire(BitOperations.TrailingZeroCount(live));
         }
     }
 
@@ -178,6 +177,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         ref Entry entry = ref _slots[slot];
         IAudioVoice? voice = entry.Voice;
         entry = default;
+        _live &= ~(1UL << slot);
         voice?.Dispose();
     }
 

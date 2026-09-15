@@ -6,18 +6,6 @@ namespace Capsule.Tests.Generators;
 public sealed class AssetGeneratorTests
 {
     [Fact]
-    public void AnAsset_BecomesATypedHandleUnderItsDomain()
-    {
-        Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true, "textures/body-text.png", "textures/hero.png").Updated;
-
-        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
-        Assert.NotNull(capsuleAssets);
-        INamedTypeSymbol textures = capsuleAssets.GetTypeMembers().First(t => t.Name == "Textures");
-        Assert.NotNull(textures.GetMembers("BodyText").FirstOrDefault());
-        Assert.NotNull(textures.GetMembers("Hero").FirstOrDefault());
-    }
-
-    [Fact]
     public void EveryDomain_IsDeclaredWhateverTheGameAuthored()
     {
         Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true).Updated;
@@ -34,16 +22,6 @@ public sealed class AssetGeneratorTests
             GeneratorHarness.CompileWithAssets(logic: true, "textures/foot-step.png", "textures/foot_step.png").Diagnostics;
 
         Assert.Equal("CAP016", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Theory]
-    [InlineData("textures/all.png")]
-    public void AnAssetTakingANameItsDomainReserves_FailsTheBuild(string asset)
-    {
-        ImmutableArray<Diagnostic> diagnostics =
-            GeneratorHarness.CompileWithAssets(logic: true, asset).Diagnostics;
-
-        Assert.Equal("CAP018", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     // Boot loads exactly the textures the build registered, from one place it can read.
@@ -65,11 +43,14 @@ public sealed class AssetGeneratorTests
     [Theory]
     [InlineData("textures/01-intro.png")]
     [InlineData("textures/hero sprite.png")]
-    public void AFileNameThatCannotBecomeAnIdentifier_FailsTheBuild(string asset)
+    public void AFileNameThatCannotBecomeAnIdentifier_FailsTheBuildNamingTheFile(string asset)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithAssets(logic: true, asset).Diagnostics;
 
-        Assert.Equal("CAP017", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        // A build error a developer can navigate to: the offending file, not the project.
+        Diagnostic refused = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP017", refused.Id);
+        Assert.Equal(asset, refused.Location.GetLineSpan().Path);
     }
 
     // A source's directory under its domain root is its class path, its handle's name, and where
@@ -150,6 +131,7 @@ public sealed class AssetGeneratorTests
     [InlineData("textures/textures/tiles.png")]
     [InlineData("textures/enemies/all.png")]
     [InlineData("textures/all/tiles.png")]
+    [InlineData("textures/all.png")]
     public void ANameItsEnclosingClassReserves_FailsTheBuild(string asset)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithAssets(logic: true, asset).Diagnostics;

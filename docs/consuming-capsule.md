@@ -27,7 +27,7 @@ my-game/
   MyGame.slnx
 ```
 
-The convention inside `src/MyGame.Game/` is [`project-layout.md`](project-layout.md); the commands over this shape are [`workflow.md`](workflow.md). The authoring tree lives inside the logic project, which is the role that reads it; the build derives `assets/` beside the executable, which the shell receives through its project reference.
+The convention inside `src/MyGame.Game/` is [`project-layout.md`](project-layout.md). The authoring tree lives inside the logic project, which is the role that reads it; the build derives `assets/` beside the executable, which the shell receives through its project reference.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
@@ -151,8 +151,13 @@ The shell role generates `CapsuleBoot` and supplies default application icons; i
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
+return CapsuleBoot.Configure("My Game")
+    .WithCommandLine(args)
+    .WithInput(GameInput.Configure)
+    .RunScene<MainMenu>();
 ```
+
+`WithInput` installs the game's action bindings; a game that omits it reads every action unbound.
 
 A role-free project that needs derived content opts into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportAudio>` independently.
 
@@ -211,57 +216,27 @@ Each generated domain and directory class exposes an allocation-free `All` span 
 
 Game logic cannot reach `System.Console`, so it writes through `Capsule.Diagnostics.Log`; the shell's console sink, `EngineBuilder.WithLogSink` and `WithoutLogging` document where it lands, and a headless test installs `CollectingLogSink`. On Windows, `SDL_DIRECTINPUT_ENABLED=0` in the environment isolates DirectInput's controller-enumeration cost at boot.
 
-## Build configuration reference
+## Commands
 
-Ordinary MSBuild properties, each in the narrowest project that owns it; paths are absolute or relative to the importing project unless a row says otherwise.
+Capsule has no editor and no CLI of its own: `dotnet` is the whole command surface, and any C# IDE runs and tests a game through its ordinary affordances. Every command below is the editor-free path from a game's repository root.
 
-### Project roles
+| Task | Command |
+| --- | --- |
+| Clone and first run | `dotnet restore --locked-mode`, then `dotnet run --project src/MyGame.Shell`. |
+| Run | `dotnet run --project src/MyGame.Shell`; `--no-build` starts the last build as it stands. |
+| Run a named scene | `dotnet run --project src/MyGame.Shell -- --scene <Name>`. |
+| Run headless with a driver | `dotnet run --project src/MyGame.Shell -- --headless --driver <Name>` ([`headless-play.md`](headless-play.md)). |
+| Test | `dotnet test`. |
+| Format check / fix | `dotnet format --verify-no-changes` / `dotnet format`. |
+| The gate | `sh hooks/pre-commit`: restore, build, format check, tests. |
+| Source or package mode | Set or remove `CapsuleSourcePath`; `CapsuleUsePackages=true` forces the package lane ([Package and source modes](#package-and-source-modes)). |
+| Ship | The `dotnet publish` line under [Publishing](#publishing). |
+| Debug | The development overlay in the window, and the console the game was launched from ([`debugging.md`](debugging.md)). |
 
-| Property           | Value  | Effect                                                                                                                                        |
-| ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the game's scene, entity, and asset registries, compiles its sprite sheets, and defaults scene import and asset shipping on. Set it only on the substrate-free logic library. |
-| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it only on the executable shell.               |
+The gate is also the commit hook, once per clone: `git config core.hooksPath hooks`. Git ignores `hooks/` until it is set, and an unconfigured clone commits straight past it without reporting anything.
 
-### Authoring sources and output
+Designer-owned tunables are plain C# — the sample's `src/MinimalGame.Game/Entities/PlayerTuning.cs` is the pattern — and the engine version is pinned once, in `Directory.Build.props`.
 
-| Property                 | Default                                       | Effect                                                                                                                                                                 |
-| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleAssetSourcesDir` | `Assets` under the importing project          | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Audio/`, and `Fonts/` trees. An explicitly named directory must exist. `Sprites/` is read by the compiler in the logic role and carries no property of its own. |
-| `CapsuleImportScenes`    | `true` for the logic library; otherwise `false` | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`.          A role-free test or tool can opt in independently. |
-| `CapsuleShipAssets`      | `true` for the logic library; otherwise `false` | Ships admitted textures, audio, and font pages under `assets/`. A role-free test or tool can opt in independently.                                                   |
-| `CapsuleImportAudio`     | `true` for the logic library; otherwise `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here; a role-free project that has to name a clip opts in independently.        |
-| `CapsuleTileSize`        | unset                                         | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size.                                  |
-| `CapsuleShipping`        | `true` for the duration of a publish          | Excludes every `.capsuleignore` directory from the compile and from the asset plane, leaves `CAPSULE_DEVELOPMENT` undefined, and sets `Capsule.Development` to `false`; see [Development builds](#development-builds). |
+## Build properties
 
-### Application icons
-
-A shell with no icon configuration receives Capsule's executable and window icons. Override either or both beside the shell project:
-
-| Input                                            | Effect                                                                                   |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `Icon.ico`                                       | Becomes the executable icon through the standard .NET `ApplicationIcon` property.        |
-| `Icon.bmp`                                       | Becomes the window and taskbar icon: a 128x128, 32-bit uncompressed BMP, alpha honoured. |
-| `ApplicationIcon`                                | Overrides the executable icon with any path accepted by the .NET SDK.                    |
-| `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap is not beside the shell project.               |
-
-```xml
-<PropertyGroup>
-  <ApplicationIcon>branding/MyGame.ico</ApplicationIcon>
-</PropertyGroup>
-
-<ItemGroup>
-  <EmbeddedResource Include="branding/MyGame.bmp" LogicalName="Icon.bmp" />
-</ItemGroup>
-```
-
-Defining only one half is allowed; the build warns because the other half keeps Capsule branding. An `Icon.bmp` whose alpha is entirely zero reads as fully opaque, and most viewers draw a `BI_RGB` alpha bitmap on black, so a transparent one looks black-backed outside the window.
-
-### Package and source properties
-
-| Property                       | Default                                           | Effect                                                                                                                                                                                        |
-| ------------------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CapsuleVersion`               | consumer-defined                                  | Pins `JAG.Capsule`, `JAG.Capsule.Runtime`, and `JAG.Capsule.Build` to one release.                                                                                                            |
-| `CapsuleSourcePath`            | unset                                             | Points at an engine clone. The standard wiring resolves it relative to the `Directory.Build.props` that declares `CapsuleSourceRoot`, not the command's working directory.                    |
-| `CapsuleUsePackages`           | `false`                                           | Set to `true` to ignore a source override and verify the pinned NuGet graph.                                                                                                                  |
-| `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where a source build stages Capsule's XML documentation. A relative path is resolved against the repository root. Read only in source mode; a package consumer reads the NuGet cache instead. |
-| `CapsuleSourceConfiguration`   | `Release`                                         | The configuration the engine clone's own projects build in under a source consumer, whatever the game builds. Set it to `Debug` to step into engine source.                                   |
+Every `Capsule*` MSBuild property, with its default and effect, is [`build-properties.md`](build-properties.md).

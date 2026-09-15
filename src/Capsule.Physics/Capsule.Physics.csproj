@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Physics without dynamics: shapes, broadphase, queries, sweeps and the mover. No dynamics and no
-       solver, and no knowledge of entities, components or tile maps — Capsule.Scenes adapts
-       both sides onto this. Substrate-free — Core only — so it passes the purity admission
-       test and a game's headless tests query a world directly. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Physics</RootNamespace>
@@ -16,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- OverlapPair is the pair test behind Collider2D.Overlaps; no game names a pair by handle. -->
+    <!-- Host seams and test access; see AGENTS.md section Public surface. -->
     <InternalsVisibleTo Include="Capsule.Scenes" />
     <InternalsVisibleTo Include="Capsule.Tests" />
   </ItemGroup>

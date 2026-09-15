@@ -40,34 +40,21 @@ internal readonly struct InputDriverModel : IEquatable<InputDriverModel>
 
     public override bool Equals(object? obj) => obj is InputDriverModel other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        int hash = 17;
-        hash = (hash * 31) + QualifiedName.GetHashCode();
-        hash = (hash * 31) + TypeName.GetHashCode();
-        hash = (hash * 31) + (Accessible ? 1 : 0);
-
-        return hash;
-    }
+    public override int GetHashCode() =>
+        (QualifiedName.GetHashCode() * 31) ^ (TypeName.GetHashCode() * 17) ^ (Accessible ? 1 : 0);
 }
 
 internal static class InputDriverRegistrySource
 {
     private const string FileName = "CapsuleInputDrivers.g.cs";
 
-    internal static InputDriverModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
+    internal static InputDriverModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
-        TypeDeclarationSyntax declaration = (TypeDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(declaration, cancellation) is not INamedTypeSymbol type)
-        {
-            return null;
-        }
-
         // A driver the command line names is constructed by the generated registry, so one that
         // takes arguments registers under no name; it reaches a run through WithInputDriver.
         if (!Symbols.IsConcreteClass(type)
             || !Symbols.HasPublicParameterlessConstructor(type)
-            || !Symbols.Implements(type, context.SemanticModel.Compilation, Symbols.InputDriver))
+            || !Symbols.Implements(type, compilation, Symbols.InputDriver))
         {
             return null;
         }
@@ -88,46 +75,38 @@ internal static class InputDriverRegistrySource
         }
     }
 
-    // Every driver the assembly registers, in a stable order: one entry per class, each accessible
-    // to generated code and each claiming a name no other class in the assembly claims.
+    // Every driver the assembly registers, in declaration order: one entry per class, each
+    // accessible to generated code and each claiming a name no other class in the assembly claims.
+    // The name is claimed here rather than by a second sort, so the registry keeps that order.
     internal static List<InputDriverModel> Sound(SourceProductionContext context, ImmutableArray<InputDriverModel> models)
     {
-        List<InputDriverModel> ordered = new(models);
-        ordered.Sort(static (left, right) =>
-            DeclarationOrder.Compare(left.QualifiedName, left.Location, right.QualifiedName, right.Location));
-
-        List<InputDriverModel> sound = new(ordered.Count);
-        HashSet<string> described = new(StringComparer.Ordinal);
+        List<InputDriverModel> sound = [];
         Dictionary<string, InputDriverModel> claimed = new(StringComparer.Ordinal);
-        foreach (InputDriverModel model in ordered)
-        {
-            // The parts of a partial class are one type.
-            if (!described.Add(model.QualifiedName))
-            {
-                continue;
-            }
 
-            if (!model.Accessible)
+        RegistryPass.Sound(
+            context,
+            models,
+            static model => model.QualifiedName,
+            static model => model.DisplayName,
+            static model => model.Location,
+            static model => model.Accessible ? null : RegistryDiagnostics.InaccessibleRegisteredType,
+            model =>
             {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.InaccessibleRegisteredType, model.Location, model.DisplayName));
-                continue;
-            }
+                if (claimed.TryGetValue(model.TypeName, out InputDriverModel previous))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        RegistryDiagnostics.DuplicateInputDriverName,
+                        model.Location,
+                        previous.DisplayName,
+                        model.DisplayName,
+                        model.TypeName));
 
-            if (claimed.TryGetValue(model.TypeName, out InputDriverModel previous))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateInputDriverName,
-                    model.Location,
-                    previous.DisplayName,
-                    model.DisplayName,
-                    model.TypeName));
-                continue;
-            }
+                    return;
+                }
 
-            claimed.Add(model.TypeName, model);
-            sound.Add(model);
-        }
+                claimed.Add(model.TypeName, model);
+                sound.Add(model);
+            });
 
         return sound;
     }

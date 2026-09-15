@@ -95,7 +95,7 @@ internal static class SheetJsonReader
 
     private static SheetDocument Validate(RawSheet raw)
     {
-        if (raw.FormatVersion is not { } formatVersion)
+        if (raw.FormatVersion.Value is not { } formatVersion)
         {
             throw new SheetFormatException(
                 Invariant($"has no formatVersion; this build supports formatVersion {FormatVersion}."),
@@ -106,7 +106,7 @@ internal static class SheetJsonReader
         {
             throw new SheetFormatException(
                 Invariant($"declares formatVersion {formatVersion}, which is unsupported; this build supports formatVersion {FormatVersion}."),
-                raw.FormatVersionIndex);
+                raw.FormatVersion.Index);
         }
 
         (string key, string extension) = Texture(raw);
@@ -117,18 +117,18 @@ internal static class SheetJsonReader
 
     private static (string Key, string Extension) Texture(RawSheet raw)
     {
-        if (raw.Texture is not { Length: > 0 } path)
+        if (raw.Texture.Value is not { Length: > 0 } path)
         {
             throw new SheetFormatException(
                 "names no texture; a sheet cuts its frames from one texture under assets/textures.",
-                raw.TextureIndex is 0 ? raw.Index : raw.TextureIndex);
+                raw.Texture.Index is 0 ? raw.Index : raw.Texture.Index);
         }
 
         if (!AssetPaths.TrySplit(path, out string name, out string extension))
         {
             throw new SheetFormatException(
                 $"has texture \"{path}\"; a texture is one asset's path under assets/textures, extension included — \"player.png\" at the root, \"actors/player.png\" below it — with forward slashes and no empty, \".\" or \"..\" segment.",
-                raw.TextureIndex);
+                raw.Texture.Index);
         }
 
         // However the document spelled it, a texture is reached by its key: the handle this emits
@@ -137,12 +137,12 @@ internal static class SheetJsonReader
             ? (key, extension)
             : throw new SheetFormatException(
                 $"has texture \"{path}\", whose \"{rejected}\" is no C# name; every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.",
-                raw.TextureIndex);
+                raw.Texture.Index);
     }
 
     private static SheetFrame[] Frames(RawSheet raw)
     {
-        if (raw.Frames is not { } entries)
+        if (raw.Frames.Value is not { } entries)
         {
             throw new SheetFormatException(
                 "has no frames; a sheet names at least one region of its texture.",
@@ -153,7 +153,7 @@ internal static class SheetJsonReader
         {
             throw new SheetFormatException(
                 "has an empty frames list; a sheet names at least one region of its texture.",
-                raw.FramesIndex);
+                raw.Frames.Index);
         }
 
         SheetFrame[] frames = new SheetFrame[entries.Count];
@@ -162,7 +162,7 @@ internal static class SheetJsonReader
         for (int i = 0; i < entries.Count; i++)
         {
             RawFrame entry = entries[i];
-            string name = named.Read(entry.Name, $"frames[{i}]", entry.NameIndex, entry.Index);
+            string name = named.Read(entry.Name.Value, $"frames[{i}]", entry.Name.Index, entry.Index);
 
             if (entry.X is not { } x || entry.Y is not { } y || entry.Width is not { } width || entry.Height is not { } height)
             {
@@ -214,7 +214,7 @@ internal static class SheetJsonReader
         for (int i = 0; i < entries.Count; i++)
         {
             RawClip entry = entries[i];
-            string name = named.Read(entry.Name, $"clips[{i}]", entry.NameIndex, entry.Index);
+            string name = named.Read(entry.Name.Value, $"clips[{i}]", entry.Name.Index, entry.Index);
 
             if (entry.Frames is not { Count: > 0 } clipFrames)
             {
@@ -261,7 +261,7 @@ internal static class SheetJsonReader
 
     private static (float X, float Y) Pivot(RawFrame entry, string name)
     {
-        if (entry.Pivot is not { } pivot)
+        if (entry.Pivot.Value is not { } pivot)
         {
             return (0F, 0F);
         }
@@ -270,13 +270,13 @@ internal static class SheetJsonReader
         {
             throw new SheetFormatException(
                 Invariant($"has frame \"{name}\" with a pivot of {pivot.Count} components; a pivot is written [x, y] in texels of the frame from its top-left corner, and a frame anchored at that corner leaves it out."),
-                entry.PivotIndex);
+                entry.Pivot.Index);
         }
 
         return !IsFinite(pivot[0]) || !IsFinite(pivot[1])
             ? throw new SheetFormatException(
                 $"has frame \"{name}\" with a pivot that is not finite; a pivot is a pair of texel offsets.",
-                entry.PivotIndex)
+                entry.Pivot.Index)
             : (pivot[0], pivot[1]);
     }
 
@@ -335,36 +335,39 @@ internal static class SheetJsonReader
 
     // The document as the JSON spelled it, before any rule is applied to it: every member is
     // optional here so a missing one is refused by name rather than as a parse failure.
+    // One member the JSON may or may not carry, paired with the byte it started at: what a message
+    // about that member points to, and the object's own start where it was never declared.
+    private readonly struct Member<T>(int index, T value)
+    {
+        internal int Index { get; } = index;
+
+        internal T Value { get; } = value;
+    }
+
     private sealed class RawSheet
     {
         internal int Index;
-        internal int? FormatVersion;
-        internal int FormatVersionIndex;
-        internal string? Texture;
-        internal int TextureIndex;
-        internal List<RawFrame>? Frames;
-        internal int FramesIndex;
+        internal Member<int?> FormatVersion;
+        internal Member<string?> Texture;
+        internal Member<List<RawFrame>?> Frames;
         internal List<RawClip>? Clips;
     }
 
     private sealed class RawFrame
     {
         internal int Index;
-        internal string? Name;
-        internal int NameIndex;
+        internal Member<string?> Name;
         internal int? X;
         internal int? Y;
         internal int? Width;
         internal int? Height;
-        internal List<float>? Pivot;
-        internal int PivotIndex;
+        internal Member<List<float>?> Pivot;
     }
 
     private sealed class RawClip
     {
         internal int Index;
-        internal string? Name;
-        internal int NameIndex;
+        internal Member<string?> Name;
         internal bool? Loop;
         internal List<RawClipFrame>? Frames;
     }
@@ -403,18 +406,15 @@ internal static class SheetJsonReader
                 switch (name)
                 {
                     case "formatVersion":
-                        sheet.FormatVersionIndex = _index;
-                        sheet.FormatVersion = ReadInt("formatVersion");
+                        sheet.FormatVersion = new(_index, ReadInt("formatVersion"));
                         break;
 
                     case "texture":
-                        sheet.TextureIndex = _index;
-                        sheet.Texture = ReadString();
+                        sheet.Texture = new(_index, ReadString());
                         break;
 
                     case "frames":
-                        sheet.FramesIndex = _index;
-                        sheet.Frames = ReadArray(ReadFrame);
+                        sheet.Frames = new(_index, ReadArray(ReadFrame));
                         break;
 
                     case "clips":
@@ -465,8 +465,7 @@ internal static class SheetJsonReader
                 switch (name)
                 {
                     case "name":
-                        frame.NameIndex = _index;
-                        frame.Name = ReadString();
+                        frame.Name = new(_index, ReadString());
                         break;
 
                     case "x":
@@ -483,8 +482,7 @@ internal static class SheetJsonReader
                         break;
 
                     case "pivot":
-                        frame.PivotIndex = _index;
-                        frame.Pivot = TryNull() ? null : ReadArray(ReadFloat);
+                        frame.Pivot = new(_index, TryNull() ? null : ReadArray(ReadFloat));
                         break;
 
                     default:
@@ -504,8 +502,7 @@ internal static class SheetJsonReader
                 switch (name)
                 {
                     case "name":
-                        clip.NameIndex = _index;
-                        clip.Name = ReadString();
+                        clip.Name = new(_index, ReadString());
                         break;
 
                     case "loop":

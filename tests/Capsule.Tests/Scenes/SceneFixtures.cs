@@ -20,6 +20,9 @@ internal static class SceneFixtures
     /// <summary>The one texture every fixture draws from; a column of <see cref="TileSize"/> cells.</summary>
     internal static readonly TextureHandle Atlas = new("atlas", ".png");
 
+    /// <summary>The tile atlas the tile, document and workload fixtures name.</summary>
+    internal static readonly TextureHandle TerrainAtlas = new("terrain", ".png");
+
     /// <summary>The viewport span a scene opens at unless a test needs another.</summary>
     internal static readonly Vector2 Viewport = new(320, 180);
 
@@ -34,6 +37,14 @@ internal static class SceneFixtures
     /// <summary>A document of entities alone: no tile-map entry composes out of it.</summary>
     internal static SceneDocument RoomWithoutTerrain(params EntityPlacement[] entities) =>
         new([.. entities], TerrainId + 1);
+
+    /// <summary>One palette entry: <paramref name="type"/> drawing <paramref name="cell"/>.</summary>
+    internal static TileDefinition Tile(
+        string type,
+        int cell,
+        string? layer = null,
+        CellFaces2D collidableFaces = CellFaces2D.All) =>
+        new(type, cell, layer, collidableFaces);
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", 0)], [0, 1, 0, 0, 0, 0], Atlas, 1);
@@ -206,8 +217,18 @@ internal static class SceneFixtures
         internal EntitySpawn Spawn { get; } = spawn;
     }
 
-    internal sealed class Recorder(string name, List<string> log) : Entity(Vector2.Zero)
+    /// <param name="logsStart">Also log <c>name!</c> as time begins; off, so a log cleared before
+    /// the scene starts stays a record of the steps alone.</param>
+    internal sealed class Recorder(string name, List<string> log, bool logsStart = false) : Entity(Vector2.Zero)
     {
+        protected internal override void OnStart()
+        {
+            if (logsStart)
+            {
+                log.Add($"{name}!");
+            }
+        }
+
         protected internal override void OnStep(in StepContext context) => log.Add(name);
 
         protected internal override void OnLateStep(in StepContext context) => log.Add($"{name}.late");

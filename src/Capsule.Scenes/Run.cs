@@ -91,24 +91,20 @@ public sealed class Run
     public TextureSampling Sampling { get; init; } = TextureSampling.Linear;
 
     /// <summary>
-    /// The run's deterministic random source: the instance the run was built with — stream 0 of
-    /// the seed the shell configured, in a shell-built run — held for the whole run, so a scene
-    /// transition neither reseeds nor rewinds it. A domain whose draws must not move another's takes its own stream
-    /// — <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// The run's deterministic random source, the instance the run was built with and held for the
+    /// whole run, so a scene transition neither reseeds nor rewinds it; in a shell-built run it is
+    /// stream 0 of the seed the shell configured. A domain whose draws must not move another's
+    /// takes its own stream — <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
     public RandomSource Random { get; }
 
     /// <summary>
-    /// The run's audio mixer: the same instance for the whole run, so a voice an outgoing scene
-    /// starts keeps playing across a transition unless whatever started it stops it. Engine-owned.
-    /// An <see cref="Capsule.Audio.AudioSource"/> on an entity is the per-entity way in;
-    /// this is the way to play a sound no entity owns and to hold the game's bus volumes.
-    /// <para>
-    /// The mixer is installed before a scene starts, so a scene constructor cannot level a bus.
-    /// Bus volumes and bus pause state are the run's and persist across transitions: a game sets
-    /// them once, from its boot scene's start or from a settings screen, and every scene after that
-    /// plays into what was set.
-    /// </para>
+    /// The run's audio mixer, engine-owned and the same instance for the whole run, so a voice an
+    /// outgoing scene starts keeps playing across a transition unless whatever started it stops it,
+    /// and bus volumes and bus pause state set once hold for every scene after. An
+    /// <see cref="Capsule.Audio.AudioSource"/> on an entity is the per-entity way in; this is the
+    /// way to play a sound no entity owns. Installed before a scene starts, so a scene constructor
+    /// cannot level a bus.
     /// </summary>
     public AudioMixer Audio { get; }
 
@@ -116,17 +112,13 @@ public sealed class Run
     /// Host pace: the simulation seconds a wall second is worth. One by default. The run steps
     /// fewer or more times per wall second and nothing the simulation is handed changes — the fixed
     /// step, each step's tick and each step's time are the same at any pace — so a run at 0.25x is
-    /// the same run as at 1x, played slower. It is the run's and persists across transitions: a
-    /// game sets it once, from its boot scene's start or from a settings screen, and every scene
-    /// after that runs at what was set.
+    /// the same run as at 1x, played slower.
     /// <para>
     /// It is never simulation input. A simulation that branches on it is no longer a function of
     /// its snapshots, and a driven run of it diverges; read it only from host-facing code. A
-    /// headless run ignores it, being counted in steps rather than wall time.
-    /// </para>
-    /// <para>
-    /// The per-frame step bound is unchanged, so a pace that asks for more steps than a frame may
-    /// run leaves that frame at its bound and drops the backlog rather than running faster.
+    /// headless run ignores it, being counted in steps rather than wall time. The per-frame step
+    /// bound is unchanged, so a pace that asks for more steps than a frame may run leaves that
+    /// frame at its bound and drops the backlog rather than running faster.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -217,23 +209,15 @@ public sealed class Run
     /// Where to write the PNG; a relative path resolves against the process working directory.
     /// </param>
     /// <remarks>
-    /// <para>
-    /// What is saved is the surface the world was drawn on: the declared render resolution where
-    /// the run has one, and the back buffer where it has none, so the image does not follow the
-    /// window's own size. Requesting again before the host takes the request replaces the path —
-    /// the last request standing when a frame draws is the one served. A request remains with this
-    /// run across a scene transition. A frame with no surface to draw on, as a minimised window
-    /// has, leaves the request pending for the next frame that draws. A run with no graphics
-    /// device at all — <c>RunHeadless</c>, or <c>--headless</c> — clears the request and writes
-    /// nothing.
-    /// </para>
-    /// <para>
-    /// The host creates the directories the path names. A save that fails — a device read-back or
-    /// an encoding the backend refuses — writes no file, leaving whatever is at the path as it
-    /// was, reports itself through <see cref="Capsule.Diagnostics.Log"/> at
+    /// The image is the surface the world was drawn on — the declared render resolution, or the
+    /// back buffer where the run declares none — so it never follows the window's own size.
+    /// Requesting again before the host takes the request replaces the path, and the request
+    /// remains with this run across a scene transition. A frame with no surface to draw on, as a
+    /// minimised window has, leaves it pending; a run with no graphics device at all
+    /// (<c>RunHeadless</c>, or <c>--headless</c>) clears it and writes nothing. A save that fails
+    /// writes no file, reports itself through <see cref="Capsule.Diagnostics.Log"/> at
     /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request rather than
-    /// throwing into the frame loop or standing for another frame.
-    /// </para>
+    /// throwing into the frame loop. See <c>docs/headless-play.md</c> for the host side.
     /// </remarks>
     /// <exception cref="ArgumentException">The path is null, empty or blank.</exception>
     /// <exception cref="InvalidOperationException">Exit has already been requested.</exception>

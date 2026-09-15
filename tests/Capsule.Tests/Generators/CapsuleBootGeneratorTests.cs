@@ -29,12 +29,11 @@ public sealed class CapsuleBootGeneratorTests
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(ShellSource, LogicSource);
 
+        // The shell's own source calls CapsuleBoot.Configure, so a clean compilation is the entry
+        // point standing up over the referenced assembly's registry.
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
-        Assert.Contains(
-            "CapsuleEngine.Configure(gameName, Scenes, Drivers)",
-            GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile),
-            StringComparison.Ordinal);
+        Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Runtime.Generated.CapsuleBoot"));
     }
 
     [Fact]
@@ -92,9 +91,10 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
 
+        // Each referenced logic assembly hands its registry over through a provider of its own.
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
-        Assert.Equal(2, generated.Split(".AddEntities(entities);", StringSplitOptions.None).Length - 1);
-        Assert.Equal(2, generated.Split(".AddScenes(scenes);", StringSplitOptions.None).Length - 1);
+        Assert.Contains("CapsuleRegistryProvider_Game_Actors_", generated, StringComparison.Ordinal);
+        Assert.Contains("CapsuleRegistryProvider_Game_Rooms_", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,9 +144,11 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
 
+        // The logic assembly's drivers arrive through its provider; the shell's own is registered
+        // in the entry point itself, under its class name.
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
-        Assert.Contains(".AddDrivers(drivers);", generated, StringComparison.Ordinal);
-        Assert.Contains("InputDriverRegistration(\"Idler\", static () => new global::Shell.Idler())", generated, StringComparison.Ordinal);
+        Assert.Contains("CapsuleRegistryProvider_GameSpecs_", generated, StringComparison.Ordinal);
+        GeneratorHarness.AssertPairs(generated, "Idler", "Shell.Idler");
     }
 
     [Fact]

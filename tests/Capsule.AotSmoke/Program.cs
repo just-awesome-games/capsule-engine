@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Capsule.AotSmoke.Logic;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
@@ -38,10 +39,10 @@ internal static class Program
 
     private static int Run()
     {
-        // Source-mode smoke has no shipping runtimeconfig; when one is present, it must carry the
-        // publish's disabled switch.
-        bool developmentSwitchConfigured = AppContext.TryGetSwitch("Capsule.Development", out bool on);
-        bool developmentDisabled = developmentSwitchConfigured && !on;
+        // A NativeAOT binary is the publish, where the switch must be present and off; an ordinary
+        // source-mode run has no shipping runtimeconfig at all.
+        bool published = !RuntimeFeature.IsDynamicCodeSupported;
+        bool developmentDisabled = AppContext.TryGetSwitch("Capsule.Development", out bool on) && !on;
 
         IInputDriver driver = new InputScript()
             .Wait(IdleSteps)
@@ -61,7 +62,7 @@ internal static class Program
             result.ExitRequested &&
             result.Metrics.Visible >= MinimumVisible &&
             contentShipped &&
-            (!developmentSwitchConfigured || developmentDisabled);
+            (!published || developmentDisabled);
 
         if (!booted)
         {

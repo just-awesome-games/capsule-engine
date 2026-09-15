@@ -10,8 +10,6 @@ internal sealed class VorbisPcmSource(VorbisReader reader) : IPcmSource
 
     public int SampleRate => reader.SampleRate;
 
-    public long Frames => reader.TotalSamples;
-
     public void SeekTo(long frame) => reader.SeekTo(frame);
 
     public int Read(Span<float> target) => reader.ReadSamples(target);

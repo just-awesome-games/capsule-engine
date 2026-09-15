@@ -75,8 +75,11 @@ public sealed class CapsuleCollider2D : Collider2D
     }
 
     /// <inheritdoc/>
-    protected internal override void OnDebugDraw() =>
-        DebugDraw.Capsule(DebugDraw.Colliders, WorldShape.Point(0), WorldShape.Point(1), WorldShape.Radius, DebugColor, Motion);
+    protected internal override void OnDebugDraw()
+    {
+        Shape2D shape = WorldShape;
+        DebugDraw.Capsule(DebugDraw.Colliders, shape.Point(0), shape.Point(1), shape.Radius, DebugColor, Motion);
+    }
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)

@@ -83,18 +83,16 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     /// <summary>
     /// The clip time this source's voice is at on the step being taken, in seconds from the clip's
-    /// start; 0 when it owns no voice. Mirrors Unity's <c>AudioSource.time</c>, and moves in whole
-    /// simulation steps.
+    /// start; 0 when it owns no voice. Moves in whole simulation steps.
     /// </summary>
     public double Time => _playing?.GetTime(_voice) ?? 0.0;
 
     /// <summary>
-    /// Whether <see cref="Play()"/> starts a voice that repeats forever; read at each play. Where the
-    /// clip carries an <see cref="AudioClip.LoopRegion"/>, the voice plays from the clip's beginning
-    /// to the region's end and then repeats the region; <see cref="PlayOneShot"/> never loops and so
-    /// always plays a clip to its end. The region repeated is the clip's own
-    /// <see cref="AudioClip.LoopRegion"/>, whether the build read it out of the audio file or the
-    /// game set it on the clip, and a clip carrying no region repeats whole.
+    /// Whether <see cref="Play()"/> starts a voice that repeats forever; read at each play. Where
+    /// the clip carries an <see cref="AudioClip.LoopRegion"/> — read out of the audio file by the
+    /// build or set by the game — the voice plays from the clip's beginning to the region's end and
+    /// then repeats the region; a clip carrying no region repeats whole.
+    /// <see cref="PlayOneShot"/> never loops.
     /// </summary>
     public bool Loop { get; set; }
 
@@ -128,7 +126,7 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// </summary>
     /// <param name="startSeconds">
     /// Clip time to begin at, in seconds from the clip's start: at or after zero, and before the
-    /// clip's duration unless it is zero. Godot's <c>play(from_position)</c> reads this way.
+    /// clip's duration unless it is zero.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="startSeconds"/> is negative, not finite, or at or past the clip's duration.</exception>
     /// <exception cref="InvalidOperationException">This source is on no entity in a started scene.</exception>
@@ -153,9 +151,7 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// Plays <paramref name="clip"/> as a separate one-shot on this source's bus and at its
     /// <see cref="Pan"/>, with <see cref="Volume"/> and <see cref="Pitch"/> multiplied by the scales
     /// given, leaving this source's own <see cref="Volume"/>, <see cref="Pitch"/> and voice alone.
-    /// The voice is not tracked here; the caller holds it. Drawing <paramref name="pitchScale"/> from
-    /// <see cref="Component.Random"/> over a small range — 0.95 to 1.05, say — keeps a repeated
-    /// footfall or attack from reading as the same sample twice.
+    /// The voice is not tracked here; the caller holds it.
     /// </summary>
     /// <param name="clip">The clip to play once.</param>
     /// <param name="volumeScale">Factor on <see cref="Volume"/> for this play, itself in [0, 1].</param>
@@ -224,8 +220,6 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("Clip", Clip.Name + Clip.Extension);
         panel.Field("Bus", Bus.Name);
         panel.Field("Volume", Volume);

@@ -10,10 +10,7 @@ namespace Capsule.Rendering;
 /// <para>
 /// <see cref="Pivot"/> places the box: the point it names on the box lands on
 /// <see cref="Position"/>, top-left by default. <see cref="HorizontalAlignment"/> and
-/// <see cref="VerticalAlignment"/> then move the text inside that box and never the box itself. A
-/// run with no <see cref="Size"/> has the measured text for its box, so a title centred on its
-/// position takes <see cref="Pivot.Top"/> or <see cref="Pivot.Center"/>, with
-/// <see cref="HorizontalAlignment.Center"/> centring its lines on each other.
+/// <see cref="VerticalAlignment"/> then move the text inside that box and never the box itself.
 /// </para>
 /// </summary>
 /// <param name="Font">The font the run is laid out and drawn with; null draws nothing.</param>
@@ -99,9 +96,8 @@ public readonly record struct TextIntent(
     public int? VisibleCharacters { get; init; }
 
     /// <summary>
-    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>, in the
-    /// drawn space's units; empty with no font or no text. A run with no <see cref="Size"/> measures
-    /// itself, so the box is then the text's own extent.
+    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>, in
+    /// the drawn space's units; empty with no font or no text. Reading it lays the run out.
     /// </summary>
     public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
@@ -119,8 +115,12 @@ public readonly record struct TextIntent(
         // wants; a degenerate one still submits its glyphs, which cull on their own extent.
         static int WrapWidth(float extent, float scale) => scale > 0f && extent > 0f ? (int)(extent / scale) : 0;
 
-        int wrapWidth = Wrap == TextWrap.Word ? WrapWidth(Size.X, Scale.X) : 0;
-        Vector2 measured = font.Measure(Text.Span, wrapWidth) * Scale;
+        // Laying the run out to measure it costs a pass over the text, so it is skipped where the
+        // box is given on both axes and the run sits at its top: nothing then reads the extent.
+        float share = Share(VerticalAlignment);
+        Vector2 measured = Size.X > 0f && Size.Y > 0f && share == 0f
+            ? Vector2.Zero
+            : font.Measure(Text.Span, Wrap == TextWrap.Word ? WrapWidth(Size.X, Scale.X) : 0) * Scale;
 
         Vector2 box = new(
             Size.X > 0f ? Size.X : measured.X,
@@ -130,7 +130,7 @@ public readonly record struct TextIntent(
 
         placement = new TextPlacement(
             font,
-            new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * Share(VerticalAlignment))),
+            new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * share)),
             new Rect(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y),
             WrapWidth(box.X, Scale.X),
             Wrap,

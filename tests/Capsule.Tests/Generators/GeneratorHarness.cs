@@ -30,7 +30,8 @@ internal static class GeneratorHarness
         namespace Game;
         """;
 
-    private static readonly ImmutableArray<MetadataReference> References = LoadReferences();
+    private static readonly ImmutableArray<MetadataReference> References =
+        Referenced(null, typeof(Entity).Assembly, typeof(TileGrid).Assembly, typeof(object).Assembly);
 
     internal static IEnumerable<Diagnostic> Errors(IEnumerable<Diagnostic> diagnostics)
     {
@@ -41,6 +42,20 @@ internal static class GeneratorHarness
                 yield return diagnostic;
             }
         }
+    }
+
+    /// <summary>
+    /// Asserts every emitted line naming <paramref name="key"/> names <paramref name="type"/> too.
+    /// A pairing, so how the line is spelled is not pinned by a test.
+    /// </summary>
+    internal static void AssertPairs(string generated, string key, string type)
+    {
+        string[] lines = generated.Split((char)10)
+            .Where(line => line.Contains($"\"{key}\"", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line => Assert.Contains(type, line, StringComparison.Ordinal));
     }
 
     internal static string Emitted(Compilation compiled, string fileName)
@@ -68,7 +83,7 @@ internal static class GeneratorHarness
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Compile(string source) =>
-        Run(Compiled("RegistrySpecs", source, References), Role.Logic);
+        Run(Created("RegistrySpecs", source, References), Role.Logic);
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithRoles(
         string source,
@@ -86,7 +101,7 @@ internal static class GeneratorHarness
             }
         }
 
-        return Run(Compiled("RoleSpecs", source, references.ToImmutable()), logic, shell);
+        return Run(Created("RoleSpecs", source, references.ToImmutable()), logic, shell);
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileShell(string shellSource, string? logicSource = null)
@@ -95,7 +110,7 @@ internal static class GeneratorHarness
             ? References
             : References.Add(LogicAssembly("GameSpecs", logicSource));
 
-        return Run(Compiled("ShellSpecs", shellSource, references), Role.Shell);
+        return Run(Created("ShellSpecs", shellSource, references), Role.Shell);
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileShellWithLogicAssemblies(
@@ -108,7 +123,7 @@ internal static class GeneratorHarness
             references.Add(LogicAssembly(assemblyName, source));
         }
 
-        return Run(Compiled("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
+        return Run(Created("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
@@ -130,7 +145,7 @@ internal static class GeneratorHarness
     {
         (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> declared) = Assets(assets);
 
-        return Run(Compiled("AssetSpecs", source, References), logic, shell: !logic, texts, declared);
+        return Run(Created("AssetSpecs", source, References), logic, shell: !logic, texts, declared);
     }
 
     /// <summary>The generated registry as the game runs it, so a member hands back what it declares.</summary>
@@ -152,7 +167,7 @@ internal static class GeneratorHarness
         (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> assets) =
             Assets([.. assetPaths.Select(static path => (path, (string?)null))]);
 
-        return Run(Compiled("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
+        return Run(Created("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
     }
 
     // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
@@ -179,10 +194,31 @@ internal static class GeneratorHarness
             }
 
             assets[path] = (path[..separator], relative);
-            texts.Add(new AssetFile(path, content));
+            texts.Add(new AssetText(path, content));
         }
 
         return (texts.ToImmutable(), assets);
+    }
+
+    /// <summary>
+    /// Runs both generators twice over one unchanged compilation, with every step tracked, which is
+    /// what the compiler does between keystrokes that changed nothing a generator reads.
+    /// </summary>
+    internal static GeneratorDriverRunResult RanTwice(params (string Path, string? Content)[] assets)
+    {
+        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path)> declared) = Assets(assets);
+        CSharpCompilation compilation = Created("CachingSpecs", "namespace Game; public sealed class Marker;", References);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [new RegistryGenerator().AsSourceGenerator(), new AssetRegistryGenerator().AsSourceGenerator()],
+            additionalTexts: texts,
+            parseOptions: null,
+            optionsProvider: new DeclaredRole(logic: true, shell: false, declared),
+            driverOptions: new GeneratorDriverOptions(
+                IncrementalGeneratorOutputKind.None,
+                trackIncrementalGeneratorSteps: true));
+
+        return driver.RunGenerators(compilation).RunGenerators(compilation).GetRunResult();
     }
 
     /// <summary>Compiles <paramref name="source"/> in an assembly declaring that root namespace.</summary>
@@ -190,7 +226,7 @@ internal static class GeneratorHarness
         string rootNamespace,
         string source) =>
         Run(
-            Compiled("KeySpecs", source, References),
+            Created("KeySpecs", source, References),
             logic: true,
             shell: false,
             assets: null,
@@ -204,7 +240,7 @@ internal static class GeneratorHarness
 
     private static MetadataReference LogicAssembly(string assemblyName, string source)
     {
-        Compilation logic = Run(Compiled(assemblyName, source, References), Role.Logic).Updated;
+        Compilation logic = Run(Created(assemblyName, source, References), Role.Logic).Updated;
 
         using MemoryStream image = new();
         EmitResult emitted = logic.Emit(image);
@@ -214,7 +250,7 @@ internal static class GeneratorHarness
         return MetadataReference.CreateFromImage(image.ToArray());
     }
 
-    private static CSharpCompilation Compiled(string assemblyName, string source, ImmutableArray<MetadataReference> references) =>
+    private static CSharpCompilation Created(string assemblyName, string source, ImmutableArray<MetadataReference> references) =>
         CSharpCompilation.Create(
             assemblyName,
             [CSharpSyntaxTree.ParseText(source)],
@@ -244,24 +280,48 @@ internal static class GeneratorHarness
         return (diagnostics, updated);
     }
 
-    // Whatever this test host is running against, plus the modules the generator names: it asks
-    // the compilation for Capsule.Scenes.Entity and Capsule.Scenes.Scene, and the registrations it
-    // emits carry a SceneContent whose document holds a Capsule.Tiles grid.
-    private static ImmutableArray<MetadataReference> LoadReferences()
+    /// <summary>The generated registry as a game names it, off a Probe class holding <paramref name="members"/>.</summary>
+    internal static Assembly Probed(string members, params (string Path, string? Content)[] assets)
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = CompileAgainstSources(
+            "using Capsule.Assets.Generated;\n\nnamespace Game;\n\npublic static class Probe\n{\n" + members + "\n}\n",
+            logic: true,
+            assets);
+
+        Assert.Empty(Errors(diagnostics));
+
+        return Loaded(compiled);
+    }
+
+    /// <summary>The generated registry as a game loads it, with nothing named off it.</summary>
+    internal static Assembly Compiled(params (string Path, string? Content)[] assets) => Probed(string.Empty, assets);
+
+    /// <summary>Why the generators refused those assets.</summary>
+    internal static IEnumerable<Diagnostic> Refused(params (string Path, string? Content)[] assets) =>
+        Errors(CompileWithSources(logic: true, assets).Diagnostics);
+
+    /// <summary>
+    /// Whatever this test host is running against, minus what <paramref name="excluding"/> names,
+    /// plus the assemblies a case needs whether or not the host loaded them.
+    /// </summary>
+    internal static ImmutableArray<MetadataReference> Referenced(
+        Func<string, bool>? excluding,
+        params Assembly[] also)
     {
         HashSet<string> paths = new(StringComparer.OrdinalIgnoreCase);
         string trusted = (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty;
         foreach (string path in trusted.Split(Path.PathSeparator))
         {
-            if (path.Length > 0)
+            if (path.Length > 0 && excluding?.Invoke(Path.GetFileNameWithoutExtension(path)) != true)
             {
                 paths.Add(path);
             }
         }
 
-        paths.Add(typeof(Entity).Assembly.Location);
-        paths.Add(typeof(TileGrid).Assembly.Location);
-        paths.Add(typeof(object).Assembly.Location);
+        foreach (Assembly assembly in also)
+        {
+            paths.Add(assembly.Location);
+        }
 
         ImmutableArray<MetadataReference>.Builder references = ImmutableArray.CreateBuilder<MetadataReference>(paths.Count);
         foreach (string path in paths)
@@ -272,7 +332,7 @@ internal static class GeneratorHarness
         return references.ToImmutable();
     }
 
-    private sealed class AssetFile(string path, string? content) : AdditionalText
+    private sealed class AssetText(string path, string? content) : AdditionalText
     {
         public override string Path { get; } = path;
 
@@ -281,7 +341,8 @@ internal static class GeneratorHarness
             content is null ? null : SourceText.From(content);
     }
 
-    private sealed class DeclaredRole : AnalyzerConfigOptionsProvider
+    /// <summary>The roles a project declares, as the compiler hands them to a generator or analyzer.</summary>
+    internal sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
         private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false, rootNamespace: null);
 

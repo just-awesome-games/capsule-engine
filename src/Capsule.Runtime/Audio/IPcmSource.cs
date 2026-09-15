@@ -9,9 +9,6 @@ internal interface IPcmSource : IDisposable
 
     int SampleRate { get; }
 
-    // Frames the source holds, one frame being one sample per channel.
-    long Frames { get; }
-
     // Positions the next read at this frame.
     void SeekTo(long frame);
 

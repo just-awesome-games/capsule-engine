@@ -16,15 +16,8 @@ internal static class SceneRegistrySource
     // The namespace segment a scene is filed under says nothing its key has to repeat.
     private const string DomainSegment = "Scenes";
 
-    internal static SceneModel? Describe(GeneratorSyntaxContext context, CancellationToken cancellation)
+    internal static SceneModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
-        TypeDeclarationSyntax declaration = (TypeDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(declaration, cancellation) is not INamedTypeSymbol type)
-        {
-            return null;
-        }
-
-        Compilation compilation = context.SemanticModel.Compilation;
         Location location = declaration.Identifier.GetLocation();
         string qualifiedName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string displayName = type.ToDisplayString();
@@ -91,56 +84,30 @@ internal static class SceneRegistrySource
             return;
         }
 
-        List<SceneModel> ordered = new(models);
-        ordered.Sort(static (left, right) =>
-            DeclarationOrder.Compare(left.QualifiedName, left.Location, right.QualifiedName, right.Location));
+        List<Registration> sound = [];
+        RegistryPass.Sound(
+            context,
+            models,
+            static model => model.QualifiedName,
+            static model => model.DisplayName,
+            static model => model.Location,
+            static model => Reported(model.Fault),
+            model => Resolve(context, sound, model, rootNamespace));
 
-        List<Registration> sound = new(ordered.Count);
-        HashSet<string> described = new(StringComparer.Ordinal);
-        foreach (SceneModel model in ordered)
-        {
-            // The parts of a partial class are one type.
-            if (!described.Add(model.QualifiedName))
+        // Scenes no document backs sort first and never collide.
+        List<Registration> registered = RegistryPass.Claimed(
+            context,
+            sound,
+            static (left, right) =>
             {
-                continue;
-            }
+                int byDocument = string.CompareOrdinal(left.DocumentName ?? string.Empty, right.DocumentName ?? string.Empty);
 
-            if (Reported(model.Fault) is { } descriptor)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(descriptor, model.Location, model.DisplayName));
-                continue;
-            }
-
-            Resolve(context, sound, model, rootNamespace);
-        }
-
-        // Sorted before the duplicate check reads off it: the collected order is whichever syntax
-        // trees the compiler handed over. Scenes no document backs sort first and never collide.
-        sound.Sort(static (left, right) =>
-        {
-            int byDocument = string.CompareOrdinal(left.DocumentName ?? string.Empty, right.DocumentName ?? string.Empty);
-
-            return byDocument != 0 ? byDocument : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
-        });
-
-        List<Registration> registered = new(sound.Count);
-        foreach (Registration entry in sound)
-        {
-            if (entry.DocumentName is not null
-                && registered.Count > 0
-                && string.Equals(registered[registered.Count - 1].DocumentName, entry.DocumentName, StringComparison.Ordinal))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateSceneDocumentName,
-                    entry.Model.Location,
-                    registered[registered.Count - 1].Model.DisplayName,
-                    entry.Model.DisplayName,
-                    entry.DocumentName));
-                continue;
-            }
-
-            registered.Add(entry);
-        }
+                return byDocument != 0 ? byDocument : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
+            },
+            static entry => entry.DocumentName,
+            static entry => entry.Model.DisplayName,
+            static entry => entry.Model.Location,
+            RegistryDiagnostics.DuplicateSceneDocumentName);
 
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
     }

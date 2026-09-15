@@ -11,9 +11,8 @@ namespace Capsule.Physics;
 /// its entity joins a scene and unregisters when it leaves, and follows the entity's
 /// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
 /// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
-/// It draws itself on the <c>Colliders</c> debug channel from <see cref="Component.OnDebugDraw"/>,
-/// dimmed while disabled, and reports <see cref="Enabled"/>, <see cref="Offset"/>,
-/// <see cref="Layer"/> and its shape from <see cref="Component.OnDebugPanel"/>.
+/// It draws itself on the <c>Colliders</c> debug channel, dimmed while disabled, and reports its
+/// configuration and its shape to the debug panel.
 /// <para>
 /// While this collider is dispatching its own contact handlers, what they are being told about is
 /// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
@@ -89,12 +88,12 @@ public abstract class Collider2D : Component
     // The shape at its offset, which the world translates by the entity's position.
     internal Shape2D Local => _local;
 
-    // What every collider's OnDebugDraw draws with: the shape exactly as the world holds it — the
-    // local shape translated by the entity's settled position, the world's own two translations
-    // in its order — the channel's colour or, while disabled, that colour at half alpha so a
-    // collider that is not working is still seen, and the entity's motion this step.
+    // The shape exactly as the world holds it: the local shape translated by the entity's settled
+    // position, the world's own two translations in its order.
     private protected Shape2D WorldShape => _local.Translated(Entity!.Position);
 
+    // The channel's colour, or, while disabled, that colour at half alpha, so a collider that is
+    // not working is still seen.
     private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
 
     private protected Vector2 Motion => Entity!.Position - Entity.PreviousPosition;
@@ -326,16 +325,11 @@ public abstract class Collider2D : Component
     public bool Overlaps(Collider2D other) => Overlaps(other, out _);
 
     /// <summary>
-    /// Where this collider touches <paramref name="other"/>, bound in every other way by
-    /// <see cref="Overlaps(Collider2D)"/>. The contact describes <paramref name="other"/>'s surface,
-    /// exactly as an overlap query over the same pair would.
+    /// Where this collider touches <paramref name="other"/>, written to
+    /// <paramref name="contact"/>; bound in every other way by <see cref="Overlaps(Collider2D)"/>.
+    /// The contact describes <paramref name="other"/>'s surface, exactly as an overlap query over
+    /// the same pair would.
     /// </summary>
-    /// <param name="other">The collider to test against.</param>
-    /// <param name="contact">Where the two touch, when they do.</param>
-    /// <returns>Whether the two are touching.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
-    /// <exception cref="InvalidOperationException">This collider is disabled or in no scene.</exception>
     public bool Overlaps(Collider2D other, out Contact2D contact)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -376,17 +370,11 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Casts a ray against <paramref name="filter"/> instead of <see cref="Filter"/>, for this call
-    /// alone; <see cref="SetFilter"/> is untouched. Bound in every other way by
+    /// alone — <see cref="CollisionFilter.None"/> hits nothing and <see cref="SetFilter"/> is
+    /// untouched. Bound in every other way by
     /// <see cref="Raycast(Vector2, float, out RayHit2D)"/>.
     /// </summary>
-    /// <param name="direction">Which way to look; normalised here, so any non-zero length will do.</param>
-    /// <param name="distance">How far to look, in world units.</param>
-    /// <param name="filter">What the ray may hit; <see cref="CollisionFilter.None"/> hits nothing.</param>
-    /// <param name="hit">The nearest thing met, when there is one.</param>
-    /// <returns>Whether the ray met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is not positive and finite.</exception>
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
-    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
         // The world admits a zero distance; a ray of no length out of a collider that ignores itself
@@ -416,16 +404,11 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's own shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call alone; <see cref="SetFilter"/> is untouched. Bound in
-    /// every other way by <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
+    /// <see cref="Filter"/>, for this call alone — <see cref="CollisionFilter.None"/> hits nothing
+    /// and <see cref="SetFilter"/> is untouched. Bound in every other way by
+    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
     /// </summary>
-    /// <param name="translation">How far and which way to sweep, in world units.</param>
-    /// <param name="filter">What the sweep may hit; <see cref="CollisionFilter.None"/> hits nothing.</param>
-    /// <param name="hit">The nearest thing met, when there is one.</param>
-    /// <returns>Whether the sweep met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The translation, or the box the sweep covers, is not finite.</exception>
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
-    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.Position, translation, filter, out hit, _handle);
 
@@ -468,8 +451,6 @@ public abstract class Collider2D : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(panel);
-
         panel.Field("Offset", _offset);
         panel.Field("Layer", _layer);
         panel.Field("Touching", Touching.Length);
@@ -636,7 +617,9 @@ public abstract class Collider2D : Component
         }
     }
 
-    // Two passes over the gather rather than a scratch buffer, stable within each group.
+    // One pass over the gather rather than a scratch buffer: carried contacts are written forward
+    // from the head and new ones backward from the tail, whose order is then put back. Stable
+    // within each group.
     private static int DescribeCarriedFirst(
         CollisionWorld2D world,
         ReadOnlySpan<Contact2D> found,
@@ -650,26 +633,29 @@ public abstract class Collider2D : Component
             Array.Resize(ref into, found.Length);
         }
 
-        int written = 0;
+        int head = 0;
+        int tail = found.Length;
         for (int index = 0; index < found.Length; index++)
         {
+            ColliderContact2D described = Describe(world, found[index]);
             if (Holds(previous, previousCount, found[index].Target))
             {
-                into[written++] = Describe(world, found[index]);
+                into[head++] = described;
             }
-        }
-
-        carried = written;
-
-        for (int index = 0; index < found.Length; index++)
-        {
-            if (!Holds(previous, previousCount, found[index].Target))
+            else
             {
-                into[written++] = Describe(world, found[index]);
+                into[--tail] = described;
             }
         }
 
-        return written;
+        carried = head;
+
+        for (int left = head, right = found.Length - 1; left < right; left++, right--)
+        {
+            (into[left], into[right]) = (into[right], into[left]);
+        }
+
+        return found.Length;
     }
 
     // The shape as the world would have to hold it, checked before anything is committed, so an

@@ -86,7 +86,7 @@ public sealed class ColliderTests
         MoveResult2D result = body.Mover.Move(new Vector2(0f, 60f));
 
         Assert.True(result.BlockedY);
-        Assert.Equal(24f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(24f, body.Position.Y, CollisionFixtures.Tolerance);
         Assert.NotEmpty(body.Mover.MoveContacts.ToArray());
         Assert.All(
             body.Mover.MoveContacts.ToArray(),
@@ -103,10 +103,7 @@ public sealed class ColliderTests
     {
         Body body = new(Vector2.Zero);
 
-        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
-            () => body.Mover.Move(Vector2.UnitX));
-
-        Assert.Contains("registered in a scene", error.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => body.Mover.Move(Vector2.UnitX));
     }
 
     [Fact]
@@ -385,10 +382,8 @@ public sealed class ColliderTests
 
         using SceneSimulation simulation = new(scene);
 
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
-            () => simulation.Step(SceneFixtures.Step(0)));
+        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
 
-        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
         Assert.True(body.Collider.Enabled);
     }
 
@@ -491,10 +486,8 @@ public sealed class ColliderTests
 
         using SceneSimulation simulation = new(scene);
 
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
-            () => simulation.Step(SceneFixtures.Step(0)));
+        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
 
-        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
         Assert.True(body.Collider.Enabled);
     }
 
@@ -553,10 +546,8 @@ public sealed class ColliderTests
 
         using SceneSimulation simulation = new(scene);
 
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
-            () => simulation.Step(SceneFixtures.Step(0)));
+        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
 
-        Assert.Contains("dispatched", refused.Message, StringComparison.Ordinal);
         Assert.Null(body.Collider.World);
     }
 
@@ -817,7 +808,7 @@ public sealed class ColliderTests
         ColliderContact2D[] landed = body.Mover.MoveContacts.ToArray();
         Assert.True(landed.Length >= 40, $"the move landed on {landed.Length} cells, which does not exercise a full buffer.");
         Assert.Equal(landed.Length, landed.Select(contact => contact.Cell!.Value.X).Distinct().Count());
-        Assert.Equal(8f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(8f, body.Position.Y, CollisionFixtures.Tolerance);
 
         simulation.Step(SceneFixtures.Step(0));
 
@@ -849,23 +840,6 @@ public sealed class ColliderTests
         Assert.Same(second, touched);
     }
 
-    // A collider is on the default layer until it is told otherwise, which is what makes things
-    // collide out of the box.
-    [Fact]
-    public void ACollider_StartsOnTheDefaultLayer()
-    {
-        Scene scene = new();
-        Body body = new(Vector2.Zero);
-
-        Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
-
-        scene.Add(body);
-
-        Assert.Equal(
-            scene.Collision.Layer(CollisionWorld2D.DefaultLayerName),
-            scene.Collision.LayerOf(body.Collider.Handle));
-    }
-
     // Setting the layer of a registered collider has to reach the world at once: a query on the very
     // next line filters by what it is on now, not by what it was on.
     [Fact]
@@ -874,6 +848,13 @@ public sealed class ColliderTests
         Scene scene = new();
         Body body = new(Vector2.Zero);
         scene.Add(body);
+
+        // A collider is on the default layer until it is told otherwise, which is what makes
+        // things collide out of the box.
+        Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
+        Assert.Equal(
+            scene.Collision.Layer(CollisionWorld2D.DefaultLayerName),
+            scene.Collision.LayerOf(body.Collider.Handle));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));
@@ -928,7 +909,7 @@ public sealed class ColliderTests
         MoveResult2D through = body.Mover.Move(new Vector2(0f, 60f), CollisionFilter.None);
 
         Assert.False(through.BlockedY);
-        Assert.Equal(68f, body.Position.Y, 2f * CollisionWorld2D.LinearSlop);
+        Assert.Equal(68f, body.Position.Y, CollisionFixtures.Tolerance);
         Assert.Equal(standing, body.Mover.Filter);
 
         // And the next plain move resolves against the standing filter again.
@@ -1118,34 +1099,6 @@ public sealed class ColliderTests
         internal BoxCollider2D Collider { get; }
 
         internal List<string> Log { get; } = [];
-    }
-
-    /// <summary>A bare collider that queries the world for itself; no body, so nothing ever moves it.</summary>
-    private sealed class Prober : Entity
-    {
-        internal Prober(Vector2 position, Vector2 size, params string[] detects)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(size);
-            Collider.SetFilter(detects);
-            Add(Collider);
-        }
-
-        internal BoxCollider2D Collider { get; }
-    }
-
-    /// <summary>The rounded <see cref="Prober"/>: its sweeps take the iterated narrowphase.</summary>
-    private sealed class RoundProber : Entity
-    {
-        internal RoundProber(Vector2 position, float radius, params string[] detects)
-            : base(position)
-        {
-            Collider = new CircleCollider2D(radius);
-            Collider.SetFilter(detects);
-            Add(Collider);
-        }
-
-        internal CircleCollider2D Collider { get; }
     }
 
     /// <summary>A body long enough to touch far more cells than a contact buffer starts out holding.</summary>

@@ -127,14 +127,12 @@ public class Entity
         : throw new InvalidOperationException($"{GetType().Name} is in no scene, so {Scene.NoRunYet}");
 
     /// <summary>
-    /// The run's deterministic random source, reached through the run. This is the default
-    /// stream; a domain whose draws must not move another's takes its own —
-    /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
+    /// The run's default deterministic random stream. A domain whose draws must not move another's
+    /// takes its own — <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// This entity is in no scene, or its scene has not started; randomness is discovered in
-    /// <see cref="OnStart"/>. <see cref="OnAddedToScene"/> reaches it only when the
-    /// scene had already started before this was added.
+    /// This entity is in no scene, or its scene has not started; reach it from
+    /// <see cref="OnStart"/> on.
     /// </exception>
     public RandomSource Random => Run.Random;
 
@@ -220,7 +218,7 @@ public class Entity
                 $"A {component.GetType().Name} that this entity does not hold cannot be removed from it.");
         }
 
-        _components.RemoveAt(Scene.IndexOf(_components, component));
+        _components.RemoveAt(ReferenceList.IndexOf(_components, component));
 
         // Cleared before the hooks, so a hook that reaches back through Entity cannot find this
         // entity still claiming a component it no longer holds.
@@ -266,11 +264,11 @@ public class Entity
     }
 
     /// <summary>
-    /// Advances this entity a second time, before its components' own late step and after every
-    /// entity has stepped and contacts have settled, so a reading taken here is of the state the
-    /// frame about to be drawn will show — the health a contact just spent, the position a sweep
-    /// came to rest at. Runs in the same order <see cref="OnStep"/> did, and before the scene's own
-    /// <see cref="Scene.OnLateStep"/>. Never reached before <see cref="OnStart"/>.
+    /// Advances this entity a second time, after every entity has stepped and contacts have
+    /// settled, so what is read here is what the frame about to be drawn will show. Runs before
+    /// this entity's components' own late step, in the same order <see cref="OnStep"/> did, and
+    /// before the scene's <see cref="Scene.OnLateStep"/>. Never reached before
+    /// <see cref="OnStart"/>.
     /// </summary>
     protected internal virtual void OnLateStep(in StepContext context)
     {
@@ -346,7 +344,6 @@ public class Entity
         }
     }
 
-    // Counts the components that want telling when this entity moves.
     internal void TrackMovement(int delta) => _movementTrackers += delta;
 
     // The entity's own start is once for its lifetime; the component sweep is not. An entity
