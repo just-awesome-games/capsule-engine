@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -66,4 +68,18 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
         RenderPosition + Offset,
         Size,
         Color);
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        base.OnDebugPanel(panel);
+        TextureRegion region = Sprite.Region;
+        panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));
+        panel.Field("Insets", string.Create(CultureInfo.InvariantCulture, $"{Insets.Left}, {Insets.Top}, {Insets.Right}, {Insets.Bottom}"));
+        panel.Field("Size", Size);
+        panel.Field("Offset", Offset);
+        panel.Field("Color", Color);
+    }
 }

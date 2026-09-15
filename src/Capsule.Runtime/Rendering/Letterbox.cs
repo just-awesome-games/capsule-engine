@@ -39,6 +39,21 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
         return Place(contentWidth, contentHeight, containerWidth, containerHeight, scale);
     }
 
+    // Fits content at a stated scale rather than the largest that fits: for content whose grown
+    // axis is already a whole number of container pixels at that scale, so the scale is not
+    // recomputed from a division that can land an ulp off it; the other axis's extent is rounded
+    // as Fit rounds it. Content the container cannot hold at that scale is clipped to the
+    // container, centred.
+    internal static Letterbox FitAt(float contentWidth, float contentHeight, int containerWidth, int containerHeight, float scale)
+    {
+        if (!(contentWidth > 0f) || !(contentHeight > 0f) || containerWidth <= 0 || containerHeight <= 0 || !(scale > 0f))
+        {
+            return default;
+        }
+
+        return Place(contentWidth, contentHeight, containerWidth, containerHeight, scale);
+    }
+
     private static float UniformScale(float contentWidth, float contentHeight, int containerWidth, int containerHeight) =>
         MathF.Min(containerWidth / contentWidth, containerHeight / contentHeight);
 

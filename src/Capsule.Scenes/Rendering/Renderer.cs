@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 using Capsule.UI;
 
@@ -70,4 +71,12 @@ public abstract class Renderer : Component
     /// the camera set. Called after scene startup for the initial frame, then after each completed step.
     /// </summary>
     public abstract void Draw(FrameView view);
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.Field("ZIndex", ZIndex);
+    }
 }

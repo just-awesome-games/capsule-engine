@@ -6,18 +6,18 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
-public sealed class DebugSceneTests
+public sealed class OverlaySceneTests
 {
     private static readonly int LineHeight = BitmapFont.Default.LineHeight;
 
     [Fact]
     public void MenusNest_AndPoppingReturnsTheFocusToTheItemThatOpenedEachLevel()
     {
-        DebugScene scene = new("~");
+        OverlayScene scene = new("~");
         int activated = 0;
-        DebugMenu inner = new("Inner", [new DebugMenuItem("Leaf", () => activated++)]);
-        DebugMenu outer = new("Outer", [new DebugMenuItem("Noop", static () => { }), new DebugMenuItem("Deeper", () => scene.Push(inner))]);
-        scene.Push(new DebugMenu(null, [new DebugMenuItem("First", static () => { }), new DebugMenuItem("Nested", () => scene.Push(outer))]));
+        Menu inner = new("Inner", [new MenuItem("Leaf", () => activated++)]);
+        Menu outer = new("Outer", [new MenuItem("Noop", static () => { }), new MenuItem("Deeper", () => scene.Push(inner))]);
+        scene.Push(new Menu(null, [new MenuItem("First", static () => { }), new MenuItem("Nested", () => scene.Push(outer))]));
         using SimulationHost host = CreateHost(scene);
 
         Press(host, Key.Down);
@@ -38,24 +38,24 @@ public sealed class DebugSceneTests
         Press(host, Key.Backspace);
 
         Assert.Equal("Outer", scene.Title);
-        Assert.Equal("Deeper", scene.Menu.Items[scene.FocusedIndex].Label);
+        Assert.Equal("Deeper", scene.Current.Items[scene.FocusedIndex].Label);
 
         Press(host, Key.Left);
 
         Assert.Equal(string.Empty, scene.Title);
-        Assert.Equal("Nested", scene.Menu.Items[scene.FocusedIndex].Label);
+        Assert.Equal("Nested", scene.Current.Items[scene.FocusedIndex].Label);
 
         Press(host, Key.Backspace);
 
         Assert.Equal(1, scene.Depth);
-        Assert.Equal("Nested", scene.Menu.Items[scene.FocusedIndex].Label);
+        Assert.Equal("Nested", scene.Current.Items[scene.FocusedIndex].Label);
     }
 
     [Fact]
     public void ARow_ShowsItsHotkeyInTheColumnPastTheWidestLabelOrTheBareLabel()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu(null, [new DebugMenuItem("Go", static () => { }, DebugInput.Restart), new DebugMenuItem("Longer", static () => { })]));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu(null, [new MenuItem("Go", static () => { }, OverlayActions.Restart), new MenuItem("Longer", static () => { })]));
 
         Assert.Equal("Go      R", scene.RowText(0));
         Assert.Equal("Longer", scene.RowText(1));
@@ -64,8 +64,8 @@ public sealed class DebugSceneTests
     [Fact]
     public void ThePanel_DrawsTheBackdropFirstAndTheHighlightOnTheFocusedRowAlone()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu("Paused", [new DebugMenuItem("Resume", static () => { }), new DebugMenuItem("Step", static () => { })]));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Paused", [new MenuItem("Resume", static () => { }), new MenuItem("Step", static () => { })]));
         scene.SetReadout("Gameplay", 17);
         using SimulationHost host = CreateHost(scene);
 
@@ -90,8 +90,8 @@ public sealed class DebugSceneTests
     [Fact]
     public void AMenuLongerThanTheWindow_HidesTheRowsOutsideItAndTheWindowFollowsTheFocus()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu("Long", Items(50)));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Long", Items(50)));
         using SimulationHost host = CreateHost(scene);
 
         Assert.Equal(50, scene.RowCount);
@@ -128,22 +128,22 @@ public sealed class DebugSceneTests
     [Fact]
     public void AHeldDown_RepeatsToTheEndOfAWindowedMenuAndWrapsToTheTop()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu("Long", Items(50)));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Long", Items(50)));
         using SimulationHost host = CreateHost(scene);
 
         host.Step(DeviceSnapshot.Of(Key.Down));
         Assert.Equal(1, scene.FocusedIndex);
 
         // The delay, then one repeat every interval: 48 more moves reach item 49.
-        host.Step(DebugScene.RepeatDelayFrames + (DebugScene.RepeatIntervalFrames * 47), DeviceSnapshot.Of(Key.Down));
+        host.Step(OverlayScene.RepeatDelayFrames + (OverlayScene.RepeatIntervalFrames * 47), DeviceSnapshot.Of(Key.Down));
 
         Assert.Equal(49, scene.FocusedIndex);
         Assert.Equal(26, scene.First);
         Assert.True(scene.IsRowShown(49));
         Assert.False(scene.IsRowShown(25));
 
-        host.Step(DebugScene.RepeatIntervalFrames, DeviceSnapshot.Of(Key.Down));
+        host.Step(OverlayScene.RepeatIntervalFrames, DeviceSnapshot.Of(Key.Down));
 
         Assert.Equal(0, scene.FocusedIndex);
         Assert.Equal(0, scene.First);
@@ -152,8 +152,8 @@ public sealed class DebugSceneTests
     [Fact]
     public void TheWheel_ScrollsTheWindowWithoutMovingTheFocusAndTheNextPressSnapsItBack()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu("Long", Items(50)));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Long", Items(50)));
         using SimulationHost host = CreateHost(scene);
 
         host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -2f)));
@@ -191,9 +191,9 @@ public sealed class DebugSceneTests
     [Fact]
     public void ANonInteractiveRow_IsSkippedByTheFocusAndByReplace()
     {
-        DebugScene scene = new("~");
-        DebugMenuItem[] items = [new("Head", static () => { }), new(string.Empty, null), new("Tail", static () => { })];
-        scene.Push(new DebugMenu("Sections", items));
+        OverlayScene scene = new("~");
+        MenuItem[] items = [new("Head", static () => { }), new(string.Empty, null), new("Tail", static () => { })];
+        scene.Push(new Menu("Sections", items));
         using SimulationHost host = CreateHost(scene);
 
         Press(host, Key.Down);
@@ -204,12 +204,12 @@ public sealed class DebugSceneTests
         Press(host, Key.Up);
         Assert.Equal(0, scene.FocusedIndex);
 
-        scene.Replace(new DebugMenu("Sections", [new(string.Empty, null), new("Only", static () => { })]));
+        scene.Replace(new Menu("Sections", [new(string.Empty, null), new("Only", static () => { })]));
         host.Step(DeviceSnapshot.Empty);
 
         Assert.Equal(1, scene.FocusedIndex);
 
-        scene.Replace(new DebugMenu("Sections", [new("First", static () => { }), new(string.Empty, null)]));
+        scene.Replace(new Menu("Sections", [new("First", static () => { }), new(string.Empty, null)]));
         host.Step(DeviceSnapshot.Empty);
 
         Assert.Equal(0, scene.FocusedIndex);
@@ -220,20 +220,20 @@ public sealed class DebugSceneTests
     [Fact]
     public void AFocusRememberedOnANote_LandsOnTheNearestInteractiveRowPreferringTheOneAbove()
     {
-        DebugScene scene = new("~");
-        DebugMenuItem[] items =
+        OverlayScene scene = new("~");
+        MenuItem[] items =
         [
             new("[Heading]", static () => { }),
             new("Field", static () => { }),
             new(string.Empty, null),
             new("[Next]", static () => { }),
         ];
-        scene.Push(new DebugMenu("Panel", items));
+        scene.Push(new Menu("Panel", items));
         using SimulationHost host = CreateHost(scene);
         Press(host, Key.Down);
         Assert.Equal(1, scene.FocusedIndex);
 
-        scene.Replace(new DebugMenu("Panel", [new("[Heading]", static () => { }), new("<Nothing to inspect>", null), new(string.Empty, null), new("[Next]", static () => { })]));
+        scene.Replace(new Menu("Panel", [new("[Heading]", static () => { }), new("<Nothing to show>", null), new(string.Empty, null), new("[Next]", static () => { })]));
         host.Step(DeviceSnapshot.Empty);
 
         Assert.Equal(0, scene.FocusedIndex);
@@ -243,9 +243,9 @@ public sealed class DebugSceneTests
     [Fact]
     public void ABlankRow_SeparatesTheHeaderFromTheItemsWithoutDoublingOnTheUntitledRoot()
     {
-        DebugScene scene = new("~");
-        DebugMenu titled = new("Sub", [new DebugMenuItem("Leaf", static () => { })]);
-        scene.Push(new DebugMenu(null, [new DebugMenuItem("Open", () => scene.Push(titled))]));
+        OverlayScene scene = new("~");
+        Menu titled = new("Sub", [new MenuItem("Leaf", static () => { })]);
+        scene.Push(new Menu(null, [new MenuItem("Open", () => scene.Push(titled))]));
         using SimulationHost host = CreateHost(scene);
 
         Assert.Equal(4f + (2 * LineHeight), scene.RowBounds(0).Position.Y);
@@ -259,8 +259,8 @@ public sealed class DebugSceneTests
     [Fact]
     public void AMenuThatFits_StillWraps()
     {
-        DebugScene scene = new("~");
-        scene.Push(new DebugMenu("Short", Items(3)));
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Short", Items(3)));
         using SimulationHost host = CreateHost(scene);
 
         Press(host, Key.Up);
@@ -270,12 +270,83 @@ public sealed class DebugSceneTests
         Assert.Equal("Item 2", scene.RowText(2));
     }
 
-    private static DebugMenuItem[] Items(int count)
+    // The bar spans the row window at the panel's right edge; the thumb is the window's share of
+    // the list and travels the rest of the track as First runs to the end. A menu that fits has
+    // no bar at all.
+    [Fact]
+    public void AWindowedMenu_ShowsAScrollbarWhoseThumbFollowsFirstAndAFittingOneShowsNone()
     {
-        DebugMenuItem[] items = new DebugMenuItem[count];
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Long", Items(50)));
+        using SimulationHost host = CreateHost(scene);
+        host.Step(DeviceSnapshot.Empty);
+
+        float trackHeight = OverlayScene.MaxRows * LineHeight;
+        float thumbHeight = trackHeight * OverlayScene.MaxRows / 50;
+        Rect track = scene.ScrollTrack;
+        Rect thumb = scene.ScrollThumb;
+        Assert.Equal(scene.RowBounds(0).Position.Y, track.Position.Y);
+        Assert.Equal(trackHeight, track.Size.Y);
+        Assert.Equal(thumbHeight, thumb.Size.Y);
+        Assert.Equal(track.Position.Y, thumb.Position.Y);
+        Assert.Equal(track.Position.X, thumb.Position.X);
+        Assert.True(track.Position.X > scene.RowBounds(0).Position.X);
+        Assert.True(track.Position.X + track.Size.X <= scene.RowBounds(0).Position.X + scene.RowBounds(0).Size.X);
+
+        host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -2f)));
+        host.Step(DeviceSnapshot.Empty);
+
+        Assert.Equal(6, scene.First);
+        Assert.Equal(track.Position.Y + ((trackHeight - thumbHeight) * 6 / 26), scene.ScrollThumb.Position.Y, 3);
+
+        host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -30f)));
+
+        Assert.Equal(26, scene.First);
+        Assert.Equal(track.Position.Y + trackHeight - thumbHeight, scene.ScrollThumb.Position.Y, 3);
+
+        scene.Replace(new Menu("Short", Items(OverlayScene.MaxRows)));
+        host.Step(DeviceSnapshot.Empty);
+
+        Assert.Equal(Vector2.Zero, scene.ScrollTrack.Size);
+        Assert.Equal(Vector2.Zero, scene.ScrollThumb.Size);
+    }
+
+    // With nothing to focus there is no row for the window to follow, so a rebuild keeps the
+    // window where the wheel left it.
+    [Fact]
+    public void AMenuWithNothingToFocus_KeepsItsScrolledWindowAcrossAReplace()
+    {
+        OverlayScene scene = new("~");
+        scene.Push(new Menu("Read", Notes(OverlayScene.MaxRows + 10)));
+        using SimulationHost host = CreateHost(scene);
+
+        host.Step(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -2f)));
+        Assert.Equal(6, scene.First);
+
+        scene.Replace(new Menu("Read", Notes(OverlayScene.MaxRows + 10)));
+        host.Step(DeviceSnapshot.Empty);
+
+        Assert.Equal(6, scene.First);
+        Assert.False(scene.IsRowShown(0));
+    }
+
+    private static MenuItem[] Notes(int count)
+    {
+        MenuItem[] items = new MenuItem[count];
         for (int index = 0; index < count; index++)
         {
-            items[index] = new DebugMenuItem($"Item {index}", static () => { });
+            items[index] = new MenuItem($"Note {index}", null);
+        }
+
+        return items;
+    }
+
+    private static MenuItem[] Items(int count)
+    {
+        MenuItem[] items = new MenuItem[count];
+        for (int index = 0; index < count; index++)
+        {
+            items[index] = new MenuItem($"Item {index}", static () => { });
         }
 
         return items;
@@ -288,10 +359,10 @@ public sealed class DebugSceneTests
         host.Step(DeviceSnapshot.Empty);
     }
 
-    private static SimulationHost CreateHost(DebugScene scene) =>
+    private static SimulationHost CreateHost(OverlayScene scene) =>
         new(
             scene,
-            new InputState(DebugInput.Bindings()),
+            new InputState(OverlayActions.Bindings()),
             run: new Run
             {
                 Canvas = new Vector2(640f, 360f),

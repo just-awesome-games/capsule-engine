@@ -236,15 +236,16 @@ public sealed class KinematicBody2D : Component
     }
 
     /// <inheritdoc/>
-    protected internal override void OnInspect(Inspector inspector)
+    protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(inspector);
+        ArgumentNullException.ThrowIfNull(panel);
 
-        inspector.Field("IsOnFloor", IsOnFloor);
-        inspector.Field("IsOnWall", IsOnWall);
-        inspector.Field("IsOnCeiling", IsOnCeiling);
-        inspector.Field("FloorNormal", FloorNormal);
-        inspector.Field("WallNormal", WallNormal);
+        panel.Field("IsOnFloor", IsOnFloor);
+        panel.Field("IsOnWall", IsOnWall);
+        panel.Field("IsOnCeiling", IsOnCeiling);
+        panel.Field("FloorNormal", FloorNormal);
+        panel.Field("WallNormal", WallNormal);
+        panel.Field("MoveContacts", MoveContacts.Length);
     }
 
     // Asked as the whole entity joins, not as the body is attached: a constructor may add the body

@@ -1,8 +1,6 @@
 # Consuming Capsule
 
-Capsule games use two projects: a substrate-free logic library and a small executable shell. This file contains the MSBuild wiring that cannot live in API comments.
-
-> A complete minimal game — a logic project, a shell and an authoring tree — is at [`samples/MinimalGame/`](../samples/MinimalGame/). Copy it to start a game.
+Capsule games use two projects: a substrate-free logic library and a small executable shell. This file is the MSBuild wiring and the build's contracts; [`samples/MinimalGame/`](../samples/MinimalGame/) is a complete game in this shape, to copy.
 
 ## Repository shape
 
@@ -29,11 +27,7 @@ my-game/
   MyGame.slnx
 ```
 
-The directory convention inside `src/MyGame.Game/` is in [`project-layout.md`](project-layout.md); this file stops at the project boundary.
-
-The everyday commands over this shape — run, test, format, the gate `hooks/pre-commit` carries — are in [`workflow.md`](workflow.md).
-
-The authoring tree lives inside the logic project: Capsule looks for authored sources at `<project>/Assets` by default, and the logic role is the one that reads them. The build derives `assets/` beside the executable, which the shell receives through its project reference.
+The convention inside `src/MyGame.Game/` is [`project-layout.md`](project-layout.md); the commands over this shape are [`workflow.md`](workflow.md). The authoring tree lives inside the logic project, which is the role that reads it; the build derives `assets/` beside the executable, which the shell receives through its project reference.
 
 From the repository root, create the modern solution and add the three projects after writing the project files below:
 
@@ -93,7 +87,7 @@ The matching source-development import is:
 
 ## Logic project
 
-The logic role activates source generation and purity analysis, owns the authoring tree under `Assets/`, compiles the game's sprite sheets, fonts and audio, and imports and ships the game's scene documents, textures, audio and font pages:
+The logic role — source generation, purity analysis, the authoring tree, and shipping its assets:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -110,7 +104,7 @@ The logic role activates source generation and purity analysis, owns the authori
 </Project>
 ```
 
-Tests reference the logic project, which brings `JAG.Capsule` with it; they take no Capsule role. A test that drives `CapsuleEngine.RunHeadless` also references the runtime, switched between package and source the way the shell's is. From `tests/MyGame.Tests/MyGame.Tests.csproj`:
+Tests reference the logic project and take no role; one that drives `CapsuleEngine.RunHeadless` also references the runtime, switched between package and source as the shell's is:
 
 ```xml
 <ItemGroup>
@@ -126,15 +120,14 @@ Tests reference the logic project, which brings `JAG.Capsule` with it; they take
 
 ## Shell project
 
-A shell is one host family: the desktop shell publishes for Windows, Linux and macOS from one project by runtime identifier, and a platform carrying its own host module takes its own shell project.
+A shell is one host family: the desktop shell publishes for Windows, Linux and macOS from one project by runtime identifier.
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!-- A console-subsystem executable double-clicked from Explorer opens a console window, and
-         the console host's startup (~230 ms) lands inside the game's boot. Release ships as a
-         Windows-subsystem app; Debug keeps the console for the log sink. -->
+    <!-- Release ships as a Windows-subsystem app, so a double-click opens no console; Debug
+         keeps the console for the log sink. -->
     <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MyGame</AssemblyName>
     <CapsuleGameShell>true</CapsuleGameShell>
@@ -152,7 +145,7 @@ A shell is one host family: the desktop shell publishes for Windows, Linux and m
 </Project>
 ```
 
-The shell role generates `CapsuleBoot` and supplies default application icons; it reads no authoring sources of its own, and the logic project's derived scene documents and shipped assets reach its output and its publish through the project reference. Its entry point is the whole of the shell's hand-written code:
+The shell role generates `CapsuleBoot` and supplies default application icons; its entry point is the whole of its hand-written code:
 
 ```csharp
 using Capsule.Runtime.Generated;
@@ -161,13 +154,11 @@ using MyGame.Game;
 return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
 ```
 
-A role-free project that needs derived content — a test project, a headless smoke binary — can opt into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportAudio>` independently.
+A role-free project that needs derived content opts into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportAudio>` independently.
 
 ## Package and source modes
 
-Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`; a source build resolves the engine through project references, so a source-mode restore runs without it.
-
-An ignored `Directory.Build.local.props` sets a persistent source override, and the source-mode lock file lands under `obj/` so the committed one is untouched:
+Commit each package-consuming project's `packages.lock.json` and restore CI with `--locked-mode`; a source build resolves the engine through project references and its lock file lands under `obj/`, so the committed one is untouched. An ignored `Directory.Build.local.props` sets a persistent source override:
 
 ```xml
 <Project>
@@ -177,11 +168,9 @@ An ignored `Directory.Build.local.props` sets a persistent source override, and 
 </Project>
 ```
 
-A source build compiles the engine clone's own projects in `Release` whatever configuration the game builds in; `CapsuleSourceConfiguration` overrides that.
-
 ### The API reference
 
-Capsule's XML comments are its API reference. A package consumer reads them beside the assemblies at `%USERPROFILE%\.nuget\packages\jag.capsule\<version>\lib\net10.0\`. A source build stages the same files at `artifacts/capsule-api/` under the repository root, written before each project compiles so the reference is current even on a build that fails against a changed engine API. `CapsuleApiReferenceDirectory` stages them elsewhere; the directory is derived and build-owned.
+Capsule's XML comments are its API reference. A package consumer reads them beside the assemblies in the NuGet cache (`jag.capsule/<version>/lib/net10.0/`); a source build stages them at `artifacts/capsule-api/` under the repository root before each project compiles, so the reference is current even on a build that fails against a changed engine API.
 
 ## Publishing
 
@@ -191,26 +180,15 @@ Games ship under NativeAOT. No project file sets `PublishAot`; pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-The publish directory carries the host's native libraries beside the executable, one for the window and input and one for sound — `SDL2.dll` and `openal.dll` on Windows. The window's is required; sound is not, so a machine with no audio library or output device plays the run silently and says so once on the log. Sound follows the operating system's default output: when the default moves — a headset connecting or disconnecting — every playing voice moves with it. The rule the publish gates is in [`architecture.md`](architecture.md#nativeaot-floor).
+The publish directory carries the host's native libraries beside the executable — `SDL2.dll` for the window and input, `openal.dll` for sound, on Windows. The window's is required; without the sound library or an output device the run plays silently and says so once on the log, and sound follows the operating system's default output as it moves. What the publish gates is the [NativeAOT floor](architecture.md#nativeaot-floor).
 
 ## Development builds
 
-`CapsuleShipping` is the one axis: a publish sets it to `true`, and an ordinary build — Debug or
-Release — defaults it to `false`. Set it on an ordinary build to verify what a publish will hold
-without running one. It moves three things together, and `Capsule.Diagnostics.Development` states
-the contract between them; [`debugging.md`](debugging.md) is what the plane exists for:
-
-- The runtime feature switch `Capsule.Development` is set to `false`, so a trimmed or NativeAOT
-  publish removes the engine's development code and an untrimmed publish carries it disabled.
-- The compile symbol `CAPSULE_DEVELOPMENT` (`Development.Symbol`) is left undefined, where every
-  other build of a project Capsule's targets reach defines it.
-- Every development-only directory leaves the compile and the asset plane.
+`CapsuleShipping` is the one axis: a publish sets it to `true`, an ordinary build — Debug or Release — defaults it to `false`, and setting it on an ordinary build verifies what a publish will hold. It moves three things together — the runtime switch `Capsule.Development` to `false`, so a trimmed publish removes the engine's development code and an untrimmed one carries it disabled; the compile symbol `CAPSULE_DEVELOPMENT` to undefined, where every other build defines it; and every development-only directory out of the compile and the asset plane. `Capsule.Diagnostics.Development` is the contract between them; [`debugging.md`](debugging.md) is what the plane is for.
 
 ### Development-only directories
 
-A directory holding a file named `.capsuleignore` is development-only. Everything under it,
-recursively, is part of every ordinary build and part of no publish. Input drivers are the case it
-exists for: they live in the logic project because they read the scene, and they must not ship.
+A directory holding a file named `.capsuleignore` is development-only: everything under it, recursively, is part of every ordinary build and of no publish. Input drivers live in one.
 
 ```text
 src/MyGame.Game/
@@ -219,42 +197,23 @@ src/MyGame.Game/
     Walkthrough.cs
 ```
 
-The marker means the same thing in both planes. Sources under a marked directory leave the compile before the generators read it, so a shipped build's scene, entity and driver registries hold nothing declared there. Authoring sources under a marked directory leave the asset plane, so nothing under it reaches `assets/`, is loaded, or is declared in `CapsuleAssets` — shipped code naming a development-only asset therefore fails to compile in a publish. A directory is marked by where it is rather than by how a project spelled the path; the marker file's contents are not read.
+Sources under a marked directory leave the compile before the generators read it, so a shipped build's registries hold nothing declared there; authoring sources under one leave the asset plane, so nothing there reaches `assets/` or `CapsuleAssets`, and shipped code naming a development-only asset fails to compile in a publish. A directory is marked by where it is, not by how a project spelled the path; the marker's contents are not read.
 
 ## Named assets
 
 Assets are authored under `Assets/<Domain>/` in the logic project and ship under `assets/<domain>/` at their key.
 
-A key is the authored path below the domain root, forward slashes and no extension, with every directory segment and the file stem normalized to the kebab form of the identifier it names. Capsule dictates no spelling below a domain root: `Enemies/Bat.png`, `enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`, one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`. `Stage1`, `stage1` and `stage-1` are likewise one segment, `stage-1`. Every key a game or an authoring module hands the build is normalized this way — a document's key, a scene or sheet handle, an asset's path — so the runtime only ever sees keys. A segment that is no C# identifier fails the build naming the file, and two sources that key the same fail it naming both.
+A key is the authored path below the domain root, forward slashes and no extension, every directory segment and the file stem normalized to the kebab form of the identifier it names: `Enemies/Bat.png`, `enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`, one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`; `Stage1`, `stage1` and `stage-1` are one segment, `stage-1`. Every key a game or an authoring module hands the build is normalized this way, so the runtime only ever sees keys; a document names an asset by key and extension, `"enemies/bat.png"`, spelt however the author likes. A segment that is no C# identifier, two sources keying the same, and C# identifier collisions fail the build naming the files.
 
-A scene or sheet document names an asset by its key and extension, `"enemies/bat.png"`, spelled however the author likes.
-
-Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it, such as `CapsuleAssets.Textures.Enemies.All`. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites`; [`sprite-animation.md`](sprite-animation.md) defines that format. C# identifier collisions fail the build.
-
-`Audio/` takes `.wav` and `.ogg` and generates `CapsuleAssets.Audio` clips, each carrying the duration the build measured from its source. Author short, repeated sounds as `.wav` and long ones — music, ambience — as `.ogg`; Capsule reads no MP3. A source Capsule cannot measure fails the build naming the file and what is wrong with it.
-
-A loop region is authored either inside the audio file, which the build reads — a WAV's first `smpl` sample loop, or an Ogg Vorbis file's `LOOPSTART` and `LOOPLENGTH` comments in samples — or in game code on `AudioClip.LoopRegion`. `LOOPSTART` with `LOOPEND` is read the same way, and `LOOPSTART` alone loops the rest of the file. A file tagging neither has no region. A region has to fit its clip: the build fails a file whose region does not, naming the file and the samples it claimed.
-
-Which assets a scene preloads, and when they load and are released, is documented on `Scene.CollectAssets` and `AssetCollection`; the cross-cutting rule is in [`architecture.md`](architecture.md#rendering-and-media).
+Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites` ([`sprite-animation.md`](sprite-animation.md)); fonts compile from `Fonts/` ([`text.md`](text.md)); `Audio/` takes `.wav` and `.ogg` — no MP3 — into `CapsuleAssets.Audio` clips carrying the duration the build measured and the loop region it read (`AudioClip` documents both, and how the host plays each format), and a source it cannot measure or whose region does not fit fails the build naming the file. What a scene preloads and when it is released is on `Scene.CollectAssets` and `AssetCollection`.
 
 ## Seeing your game's output
 
-Game logic cannot reach `System.Console`, so it writes through `Capsule.Diagnostics.Log`. The shell's console sink writes every level to standard output in order, each line prefixed with the simulation tick:
-
-```text
-[   boot] info  main menu started
-[     30] warn  no spawn point on this map
-```
-
-`WithLogSink(sink)` replaces the host sink and `WithoutLogging()` silences it; a headless test installs `CollectingLogSink` and asserts its entries.
-
-## Controllers
-
-All SDL controller backends enumerate at boot; on Windows, set `SDL_DIRECTINPUT_ENABLED=0` to isolate DirectInput's startup cost.
+Game logic cannot reach `System.Console`, so it writes through `Capsule.Diagnostics.Log`; the shell's console sink, `EngineBuilder.WithLogSink` and `WithoutLogging` document where it lands, and a headless test installs `CollectingLogSink`. On Windows, `SDL_DIRECTINPUT_ENABLED=0` in the environment isolates DirectInput's controller-enumeration cost at boot.
 
 ## Build configuration reference
 
-Capsule is configured with ordinary MSBuild properties. Put a value in the narrowest project that owns it. Paths may be absolute or relative to the project whose build imports Capsule unless a row says otherwise.
+Ordinary MSBuild properties, each in the narrowest project that owns it; paths are absolute or relative to the importing project unless a row says otherwise.
 
 ### Project roles
 
@@ -295,9 +254,7 @@ A shell with no icon configuration receives Capsule's executable and window icon
 </ItemGroup>
 ```
 
-Defining only one half is allowed, but the build warns because the other half retains Capsule branding.
-
-Two traps in the alpha byte: a bitmap whose alpha is entirely zero reads as fully opaque rather than fully invisible, and `BI_RGB` formally declares the byte unused, so most viewers discard it and draw the file on black. A transparent `Icon.bmp` therefore looks black-backed in almost any viewer; flattening it to agree puts a real background back on the window.
+Defining only one half is allowed; the build warns because the other half keeps Capsule branding. An `Icon.bmp` whose alpha is entirely zero reads as fully opaque, and most viewers draw a `BI_RGB` alpha bitmap on black, so a transparent one looks black-backed outside the window.
 
 ### Package and source properties
 

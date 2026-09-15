@@ -9,12 +9,10 @@ using Capsule.Scenes;
 
 namespace Capsule.Runtime.DevTools;
 
-// When the menu is shown and what the game sees while it is: the toggle, the quarantine, the hold,
-// and the debug scene the overlay steps and draws. Owns every data source and every action the
-// menu offers; the scene knows nothing of the scheduler, the run, the registry or the debug draw
-// buffer. Debug draws and the frame pane are drawn whenever the overlay is wired, whatever its
-// state; the menu only while it is open.
-internal sealed class DebugOverlay : IDisposable
+// Hosts the overlay scene beside the game — the toggle, the input quarantine, the hold, and
+// the stepping and drawing of that scene — and owns every data source and action its menu offers;
+// nothing of how the menu looks, which is OverlayScene's.
+internal sealed class OverlayHost : IDisposable
 {
     private readonly FixedStepScheduler _scheduler;
     private readonly ISimulation _simulation;
@@ -30,10 +28,10 @@ internal sealed class DebugOverlay : IDisposable
 
     // One submenu for the run, filled on first open and refilled only when a channel has arrived
     // or a toggle flipped, so its focus and identity survive.
-    private DebugMenu? _debugDrawMenu;
+    private Menu? _debugDrawMenu;
 
-    // The Inspect menus over the held scene; none without a run of scenes to inspect.
-    private readonly DebugInspection? _inspection;
+    // The scene page and entity panels over the held scene; none without a run of scenes.
+    private readonly PanelMenus? _panels;
 
     // The toggle first, then every button the menu binds; each is stripped from the game's
     // snapshot while the overlay is open and, once it is not, until the button is released.
@@ -68,7 +66,7 @@ internal sealed class DebugOverlay : IDisposable
     private bool _exited;
     private bool _disposed;
 
-    internal DebugOverlay(
+    internal OverlayHost(
         InputButton button,
         FixedStepScheduler scheduler,
         ISimulation simulation,
@@ -85,17 +83,17 @@ internal sealed class DebugOverlay : IDisposable
         _timestamp = timestamp ?? Stopwatch.GetTimestamp;
         Registrations = registry is { } registered ? registered.Registrations : [];
 
-        Scene = new DebugScene(DebugInput.KeyName(button));
+        Scene = new OverlayScene(OverlayActions.KeyName(button));
         _draws = new DebugDrawRenderer(_buffer, _enabledChannels);
         Scene.Add(new DebugDrawEntity(_draws));
-        _inspection = scenes is { } held ? new DebugInspection(Scene, held) : null;
+        _panels = scenes is { } held ? new PanelMenus(Scene, held, activate => Tick("Command", activate)) : null;
 
         // Withdrawn before the host builds the first frame, which is what is drawn until a Step
         // rewrites it.
-        Scene.Push(DebugMenu.Default(this));
+        Scene.Push(Menu.Default(this));
         Scene.ShowMenu(false);
 
-        _bindings = DebugInput.Bindings();
+        _bindings = OverlayActions.Bindings();
         _host = new SimulationHost(
             Scene,
             new InputState(_bindings),
@@ -107,7 +105,7 @@ internal sealed class DebugOverlay : IDisposable
             });
 
         List<InputButton> quarantine = [button];
-        foreach (InputAction action in DebugInput.Actions)
+        foreach (InputAction action in OverlayActions.Actions)
         {
             quarantine.AddRange(_bindings.ButtonsFor(action));
         }
@@ -125,7 +123,7 @@ internal sealed class DebugOverlay : IDisposable
         Hidden,
     }
 
-    internal DebugScene Scene { get; }
+    internal OverlayScene Scene { get; }
 
     internal SimulationHost Host => _host;
 
@@ -138,6 +136,10 @@ internal sealed class DebugOverlay : IDisposable
     internal bool IsHidden => _state == OverlayState.Hidden;
 
     internal bool IsFramePaneOn => _framePaneOn;
+
+    // Raised on each edge of the hold — true as the overlay takes it, false as it lets go — for
+    // whatever host presentation follows the simulation's standstill.
+    internal Action<bool>? HoldChanged { get; set; }
 
     // The last game frame's cost as the renderer measured it, read from the renderer by Step; set
     // directly where there is no renderer to read.
@@ -171,7 +173,7 @@ internal sealed class DebugOverlay : IDisposable
     internal bool IsChannelEnabled(string channel) => _enabledChannels.Contains(channel);
 
     // The one Debug Draw submenu, or null before any channel has emitted.
-    internal DebugMenu? DebugDrawMenu => _debugDrawMenu;
+    internal Menu? DebugDrawMenu => _debugDrawMenu;
 
     // Flips a channel for the rest of the play session. Draws follow on the overlay's next frame,
     // whether or not the game steps; the submenu's row follows at once, keeping its focus.
@@ -197,13 +199,13 @@ internal sealed class DebugOverlay : IDisposable
             return;
         }
 
-        _debugDrawMenu ??= DebugMenu.DebugDraw(this);
+        _debugDrawMenu ??= Menu.DebugDraw(this);
         Scene.Push(_debugDrawMenu);
     }
 
-    // Pushes the type list of the held scene's entities, or says the scene is empty.
-    internal void OpenInspect() =>
-        (_inspection ?? throw new InvalidOperationException("The debug menu's Inspect needs a run of scenes.")).Open();
+    // Pushes the held scene's page.
+    internal void OpenScenePage() =>
+        (_panels ?? throw new InvalidOperationException("The debug menu's Scene needs a run of scenes.")).Open();
 
     private void RefillDebugDrawMenu()
     {
@@ -213,7 +215,7 @@ internal sealed class DebugOverlay : IDisposable
         }
 
         menu.FillDebugDraw(this);
-        if (ReferenceEquals(Scene.Menu, menu))
+        if (ReferenceEquals(Scene.Current, menu))
         {
             Scene.Replace(menu);
         }
@@ -263,11 +265,16 @@ internal sealed class DebugOverlay : IDisposable
             // built. Hidden to open needs nothing, since the game was held throughout.
             if (_state == OverlayState.Closed)
             {
-                _inspection?.Invalidate();
+                _panels?.Invalidate();
             }
 
             _state = wasOpen ? OverlayState.Closed : OverlayState.Open;
-            _scheduler.Held = _state != OverlayState.Closed;
+            bool held = _state != OverlayState.Closed;
+            if (held != _scheduler.Held)
+            {
+                _scheduler.Held = held;
+                HoldChanged?.Invoke(held);
+            }
         }
 
         _toggleDown = toggleDown;
@@ -275,7 +282,7 @@ internal sealed class DebugOverlay : IDisposable
 
         // Hide: the scene is not stepped while hidden, so the edge that shows it again is read here,
         // and that press is withheld from the menu until released.
-        bool hideDown = _bindings.IsAnyDown(DebugInput.Hide, snapshot);
+        bool hideDown = _bindings.IsAnyDown(OverlayActions.Hide, snapshot);
         if (hideDown && !_hideDown && _state == OverlayState.Hidden)
         {
             _state = OverlayState.Open;
@@ -286,7 +293,7 @@ internal sealed class DebugOverlay : IDisposable
         _hidePressConsumed &= hideDown;
         if (_hidePressConsumed)
         {
-            foreach (InputButton hide in _bindings.ButtonsFor(DebugInput.Hide))
+            foreach (InputButton hide in _bindings.ButtonsFor(OverlayActions.Hide))
             {
                 sampled = sampled.Without(hide);
             }
@@ -374,13 +381,16 @@ internal sealed class DebugOverlay : IDisposable
 
             RefreshReadout();
 
-            // An Inspect menu that became current since the last stepped tick is rebuilt before
-            // the menu reads this frame's input.
-            _inspection?.Refresh();
+            // A page that became current since the last stepped tick is rebuilt before the menu
+            // reads this frame's input, and again after it: a Back inside the step can expose a
+            // page beneath that a command, step or load left stale, and the frame that exposed
+            // it shows it rebuilt or popped rather than as it was.
+            _panels?.Refresh();
             _host.Step(in _sampled);
+            bool exposed = _panels?.Refresh() ?? false;
 
             // Hidden from inside the step: the menu leaves before this frame draws.
-            if (_state != OverlayState.Open && Scene.ShowMenu(false))
+            if ((_state != OverlayState.Open && Scene.ShowMenu(false)) || exposed)
             {
                 _host.Simulation.RewriteView();
             }
@@ -455,18 +465,23 @@ internal sealed class DebugOverlay : IDisposable
     internal static int ScaleFor(int height) => height < 1080 ? 1 : height < 2160 ? 2 : 3;
 
     // A stepped tick is an ordinary tick: a game that throws inside one crashes as it always did.
-    // The readout and the Inspect menus are refreshed inside the menu's own step, so the frame
-    // that stepped shows the result; an exit tore the scene down, so nothing is read from it.
-    internal void StepGame()
+    // The readout and the pages are refreshed inside the menu's own step, so the frame that
+    // stepped shows the result; an exit tore the scene down, so nothing is read from it.
+    internal void StepGame() => StepGame(null);
+
+    // `before` is a host act that is part of the tick: it runs inside the step, once the step has
+    // begun and ahead of the scene's own work, so what it changes and the sounds it asks for are
+    // this step's.
+    private void StepGame(Action? before)
     {
-        _exited = _scheduler.StepOnce(in _stripped, _simulation);
+        _exited = _scheduler.StepOnce(in _stripped, _simulation, before);
         _steppedTicks += _scheduler.StepsThisFrame;
         SettleDraws();
         RefreshReadout();
-        if (!_exited && _inspection is { } inspection)
+        if (!_exited && _panels is { } panels)
         {
-            inspection.Invalidate();
-            inspection.Refresh();
+            panels.Invalidate();
+            panels.Refresh();
         }
     }
 
@@ -496,8 +511,10 @@ internal sealed class DebugOverlay : IDisposable
         _host.Dispose();
     }
 
-    private Run GameRun =>
-        _scenes?.Run ?? throw new InvalidOperationException("The debug menu's scene actions need a run of scenes.");
+    private SceneHost GameHost =>
+        _scenes ?? throw new InvalidOperationException("The debug menu's scene actions need a run of scenes.");
+
+    private Run GameRun => GameHost.Run;
 
     // A request the run declines — a transition already pending, one a scene asked for in its own
     // start — is shown on the status line and not stepped, or the pending one would be stepped in
@@ -514,14 +531,44 @@ internal sealed class DebugOverlay : IDisposable
 
                 return;
             }
-
-            StepGame();
         }
         catch (Exception failure)
         {
-            Log.Error($"{action} from the debug menu failed: {failure}");
-            Scene.SetStatus($"{action} failed: {failure.GetType().Name}: {failure.Message}");
+            Report(action, failure);
+
+            return;
         }
+
+        Tick(action, null);
+    }
+
+    // The one stepped tick a host act is followed by — a menu load or restart, a command or
+    // toggle from a panel — which consumes whatever transition the act requested. An incoming
+    // scene that fails to come up is shown on the status line and logged in full, the run held
+    // on the scene it was on, and the pages are rebuilt over what the act changed all the same;
+    // the tick's own failure — the scene's step, a callback, a contact — propagates as it does
+    // from the Step row, since the simulation is not continued after it.
+    private void Tick(string action, Action? before)
+    {
+        try
+        {
+            StepGame(before);
+        }
+        catch (Exception failure) when (GameHost.TransitionFailed)
+        {
+            Report(action, failure);
+            if (_panels is { } panels)
+            {
+                panels.Invalidate();
+                panels.Refresh();
+            }
+        }
+    }
+
+    private void Report(string action, Exception failure)
+    {
+        Log.Error($"{action} from the debug menu failed: {failure}");
+        Scene.SetStatus($"{action} failed: {failure.GetType().Name}: {failure.Message}");
     }
 
     private void RefreshReadout() =>

@@ -147,7 +147,7 @@ public sealed class LetterboxTests
 
         Assert.Equal(
             (320, 180),
-            FrameRenderer.SurfaceSize((320, 180), Canvas, camera.ResolveSpan(window), windowWidth, windowHeight));
+            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(window), windowWidth, windowHeight));
     }
 
     // Subtracting the resolved rect's edges reconstructs 320.001953125 this far out, whose scale
@@ -164,7 +164,7 @@ public sealed class LetterboxTests
 
         Vector2 span = camera.ResolveSpan(window);
 
-        Assert.Equal((320, 180), FrameRenderer.SurfaceSize((320, 180), Canvas, span, 1280, 720));
+        Assert.Equal((320, 180), FrameRenderer.SurfaceSize((320, 180), camera, span, 1280, 720));
         Assert.Equal(4f, Letterbox.Fit(span.X, span.Y, 1280, 720).Scale);
         Assert.NotEqual(4f, Letterbox.Fit(world.Right - world.Left, world.Bottom - world.Top, 1280, 720).Scale);
     }
@@ -178,7 +178,7 @@ public sealed class LetterboxTests
 
         Assert.Equal(
             (430, 180),
-            FrameRenderer.SurfaceSize((320, 180), Canvas, camera.ResolveSpan(new Vector2(3440, 1440)), 3440, 1440));
+            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(3440, 1440)), 3440, 1440));
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class LetterboxTests
         // more than 1200 pixels of; the 12-pixel height still gets the whole canvas.
         Assert.Equal(
             (1200, 180),
-            FrameRenderer.SurfaceSize((320, 180), Canvas, camera.ResolveSpan(new Vector2(1200, 12)), 1200, 12));
+            FrameRenderer.SurfaceSize((320, 180), camera, camera.ResolveSpan(new Vector2(1200, 12)), 1200, 12));
     }
 
     [Fact]

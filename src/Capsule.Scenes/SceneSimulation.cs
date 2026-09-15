@@ -107,6 +107,34 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         RewriteView();
     }
 
+    // Step with the host's before-step act inside it, run once the mixer's step has opened so the
+    // sounds it plays and stops are this step's commands, and before the scene's own step so its
+    // mutations are what the step then reads. The same step as Step, spelt out again rather than
+    // shared, so the ordinary step carries no branch for an act it never has.
+    void ISimulation.Step(in StepContext context, Action before)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        Run.Audio.BeginStep(in context);
+
+        before();
+
+        Scene.BeginStep();
+        Scene.RunStep(in context);
+        Scene.StepEntities(in context);
+        Scene.SettleContacts();
+        Scene.LateStepEntities(in context);
+        Scene.RunLateStep(in context);
+        Scene.EndStep();
+
+        if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
+        {
+            Scene.RunDebugDraw();
+        }
+
+        RewriteView();
+    }
+
     // Takes the run's pending frame capture request, clearing it. Not step-bound: the host calls it
     // from the frame that will serve it. Readable without taking as Run.FrameCaptureRequested.
     internal bool TryTakeFrameCapture(out string path) => Run.TryTakeFrameCapture(out path);

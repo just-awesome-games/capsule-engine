@@ -9,7 +9,12 @@ namespace Capsule.Audio;
 /// dot and contains no other dot or separator.
 /// </summary>
 /// <param name="Name">The source's path under the audio root.</param>
-/// <param name="Extension">The source's extension, leading dot included.</param>
+/// <param name="Extension">
+/// The source's extension, leading dot included: <c>.wav</c> or <c>.ogg</c>. The host holds a
+/// <c>.wav</c> clip resident for every scene that uses it and never a <c>.ogg</c> clip, which
+/// decodes on the host's one background worker as it plays; a looping voice whose clip carries a
+/// <see cref="LoopRegion"/> streams that way whatever its format.
+/// </param>
 /// <param name="DurationSeconds">
 /// Seconds the clip runs at unit pitch, measured at build time. Playback state is derived from it
 /// rather than read back from the device, so a clip whose duration is zero ends on the step it

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -109,4 +110,14 @@ public sealed class Focusable(Vector2 size) : Component
     }
 
     internal void Press() => Pressed?.Invoke();
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.Field("IsFocused", IsFocused);
+        panel.Field("Size", Size);
+        panel.Field("Offset", Offset);
+    }
 }

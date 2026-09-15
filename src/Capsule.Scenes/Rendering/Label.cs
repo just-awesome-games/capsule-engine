@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -163,4 +165,23 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             VerticalAlignment = VerticalAlignment,
             VisibleCharacters = VisibleCharacters,
         };
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        base.OnDebugPanel(panel);
+        panel.Field("Text", Text);
+        panel.Field("Font", string.Create(CultureInfo.InvariantCulture, $"{Font.LineHeight}px line"));
+        panel.Field("Pivot", new Vector2(Pivot.X, Pivot.Y));
+        panel.Field("Offset", Offset);
+        panel.Field("Size", Size);
+        panel.Field("Scale", Scale);
+        panel.Field("Color", Color);
+        panel.Field("Wrap", Wrap);
+        panel.Field("HorizontalAlignment", HorizontalAlignment);
+        panel.Field("VerticalAlignment", VerticalAlignment);
+        panel.Field("VisibleCharacters", VisibleCharacters?.ToString(CultureInfo.InvariantCulture));
+    }
 }

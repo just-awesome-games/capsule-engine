@@ -80,7 +80,14 @@ public readonly record struct CameraView(
     /// either axis falls back to <see cref="ViewportFit.Letterbox"/>, which needs none.
     /// </param>
     /// <returns>The visible world rect, empty when <see cref="Size"/> is not positive on both axes.</returns>
-    public Rect Resolve(float alpha, Vector2 outputSize)
+    public Rect Resolve(float alpha, Vector2 outputSize) => Place(alpha, ResolveSpan(outputSize));
+
+    // The world rect this view shows when it spans exactly span world units: the centre
+    // interpolated by alpha and the rect confined to Bounds as Resolve confines it. The renderer
+    // places the view here on ResolveSpan's span quantised down to its surface's whole pixels, so
+    // what it draws and this rect agree exactly, and the placed span never exceeds the one
+    // SweptBounds covers.
+    internal Rect Place(float alpha, Vector2 span)
     {
         // Negated so a NaN span is rejected alongside the non-positive ones.
         if (!(Size.X > 0f) || !(Size.Y > 0f))
@@ -88,7 +95,6 @@ public readonly record struct CameraView(
             return default;
         }
 
-        Vector2 span = ResolveSpan(outputSize);
         Vector2 center = StepInterpolation.Interpolate(PreviousCenter, Center, alpha);
 
         Vector2 half = span / 2f;
@@ -106,9 +112,10 @@ public readonly record struct CameraView(
 
     /// <summary>
     /// The world units this view spans on an output of <paramref name="outputSize"/> pixels, per
-    /// <see cref="Fit"/>. This is the exact span <see cref="Resolve"/> places, so a caller that
-    /// needs both takes the span from here rather than subtracting the resolved rect's edges, which
-    /// loses precision far from the origin.
+    /// <see cref="Fit"/>: the aspect the output asks for, which a renderer then quantises down to
+    /// its surface's whole pixels on the grown axis. This is the exact span <see cref="Resolve"/>
+    /// places, so a caller that needs both takes the span from here rather than subtracting the
+    /// resolved rect's edges, which loses precision far from the origin.
     /// </summary>
     /// <param name="outputSize">
     /// The output's extent in pixels. Only its aspect ratio is read, and an extent with no area on

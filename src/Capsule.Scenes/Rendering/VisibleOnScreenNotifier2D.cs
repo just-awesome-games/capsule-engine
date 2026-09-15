@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -126,5 +127,15 @@ public sealed class VisibleOnScreenNotifier2D : Component
         }
 
         return size;
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.Field("IsOnScreen", IsOnScreen);
+        panel.Field("Size", Size);
+        panel.Field("Offset", Offset);
     }
 }

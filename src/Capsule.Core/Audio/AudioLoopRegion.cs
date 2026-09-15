@@ -4,17 +4,18 @@ namespace Capsule.Audio;
 /// The stretch of a clip a looping voice repeats, in seconds from the clip's start, half-open:
 /// <c>[StartSeconds, EndSeconds)</c>. <see cref="None"/> is no region at all.
 /// <para>
-/// A region reaches Capsule two ways. The build reads one authored in the audio file — a WAV
-/// <c>smpl</c> chunk's first sample loop, or the Ogg Vorbis comments <c>LOOPSTART</c> and
-/// <c>LOOPLENGTH</c> — into the generated clip, whose bounds are then a whole sample count over the
-/// file's rate, so the host recovers the exact sample the file names. A game sets one on the clip
-/// instead with a <c>with</c> expression:
+/// A region reaches Capsule two ways. The build reads one authored in the audio file into the
+/// generated clip, whose bounds are then a whole sample count over the file's rate, so the host
+/// recovers the exact sample the file names: a WAV's first <c>smpl</c> sample loop; or an Ogg
+/// Vorbis file's comments, whose names are case-insensitive and whose values are whole sample
+/// counts — <c>LOOPSTART</c> with <c>LOOPLENGTH</c> is <c>[start, start + length)</c>,
+/// <c>LOOPSTART</c> with <c>LOOPEND</c> is <c>[start, end)</c> (a <c>LOOPLENGTH</c> present wins
+/// over <c>LOOPEND</c>), and <c>LOOPSTART</c> alone loops to the end of the file; a
+/// <c>LOOPLENGTH</c> or <c>LOOPEND</c> without <c>LOOPSTART</c> is no region, as is a file tagging
+/// none. The build fails a tag that is not a whole number and a region that starts before zero,
+/// ends at or before its start, or ends past the clip. A game sets one on the clip instead with a
+/// <c>with</c> expression:
 /// <c>CapsuleAssets.Audio.Music.Theme with { LoopRegion = new AudioLoopRegion(43.316, 76.164) }</c>.
-/// </para>
-/// <para>
-/// The same two sources are Godot's, which takes a stream's region from the import or from code on
-/// the stream, as in <c>AudioStreamOggVorbis.loop_offset</c>; the file authoring is the RPG Maker
-/// <c>LOOPSTART</c>/<c>LOOPLENGTH</c> tag pair.
 /// </para>
 /// </summary>
 /// <param name="StartSeconds">Where a repeat resumes from; at or after zero.</param>

@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -91,5 +93,20 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             FlipX,
             FlipY,
             Color);
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        base.OnDebugPanel(panel);
+        TextureRegion region = Sprite.Region;
+        panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));
+        panel.Field("Offset", Offset);
+        panel.Field("Scale", Scale);
+        panel.Field("Color", Color);
+        panel.Toggle("FlipX", FlipX, on => FlipX = on);
+        panel.Toggle("FlipY", FlipY, on => FlipY = on);
     }
 }

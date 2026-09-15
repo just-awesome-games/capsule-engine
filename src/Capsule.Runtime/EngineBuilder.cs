@@ -196,7 +196,13 @@ public sealed class EngineBuilder
         return this;
     }
 
-    /// <summary>Sends <see cref="Log"/> output to <paramref name="sink"/> rather than the console.</summary>
+    /// <summary>
+    /// Sends <see cref="Log"/> output to <paramref name="sink"/> rather than the console. The
+    /// console sink installed otherwise writes every level to standard output in write order,
+    /// each line prefixed with the simulation tick it was written on — <c>[     30] warn  …</c> —
+    /// or <c>boot</c> before the host's clock exists, and a shell launched with its standard
+    /// output closed still runs.
+    /// </summary>
     /// <exception cref="ArgumentNullException">The sink is null.</exception>
     public EngineBuilder WithLogSink(ILogSink sink)
     {

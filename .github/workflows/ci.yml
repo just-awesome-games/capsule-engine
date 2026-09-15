@@ -204,20 +204,26 @@ jobs:
           -p:IlcGenerateMapFile=true
           --output artifacts/aot-smoke
 
-      - name: Assert shipping AOT maps omit development diagnostics
+      - name: Assert shipping AOT maps omit the development overlay and its seams
         shell: bash
         run: |
+          # The overlay's namespace, the audio suspension only its hold reaches, and the panel
+          # sink whose calls a shipping game compiles out.
+          pattern='Capsule([._])Runtime([._])DevTools|AudioPlayer([._])+(Suspend|Resume)|Capsule([._])Diagnostics([._])DebugPanel'
+
           smoke_map_path="$(find tests/Capsule.AotSmoke/obj -type f -name '*.map.xml' -print -quit)"
           test -n "$smoke_map_path"
-          if grep -Eq 'Capsule([._])Runtime([._])Diagnostics' "$smoke_map_path"; then
-            echo "Capsule.Runtime.Diagnostics reached the AOT smoke publish: $smoke_map_path"
+          if grep -Eq "$pattern" "$smoke_map_path"; then
+            echo "Development-only code reached the AOT smoke publish: $smoke_map_path"
+            grep -E "$pattern" "$smoke_map_path" | head
             exit 1
           fi
 
           sample_map_path="$(find samples/MinimalGame/src/MinimalGame.Shell/obj -type f -name '*.map.xml' -print -quit)"
           test -n "$sample_map_path"
-          if grep -Eq 'Capsule([._])Runtime([._])Diagnostics' "$sample_map_path"; then
-            echo "Capsule.Runtime.Diagnostics reached the sample shell publish: $sample_map_path"
+          if grep -Eq "$pattern" "$sample_map_path"; then
+            echo "Development-only code reached the sample shell publish: $sample_map_path"
+            grep -E "$pattern" "$sample_map_path" | head
             exit 1
           fi
 

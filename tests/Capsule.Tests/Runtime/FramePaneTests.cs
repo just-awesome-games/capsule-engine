@@ -30,7 +30,7 @@ public sealed class FramePaneTests
     public void TheToggle_LastsThePlaySessionAcrossCloseHideAndRestore()
     {
         using Rig rig = new();
-        DebugOverlay overlay = rig.Overlay;
+        OverlayHost overlay = rig.Overlay;
 
         rig.Open();
         rig.Press(Key.F);
@@ -57,7 +57,7 @@ public sealed class FramePaneTests
 
         rig.Press(Key.Down);
         rig.Press(Key.Down);
-        Assert.Equal("Frame Pane", overlay.Scene.Menu.Items[overlay.Scene.FocusedIndex].Label);
+        Assert.Equal("Frame Pane", overlay.Scene.Current.Items[overlay.Scene.FocusedIndex].Label);
 
         for (int frame = 0; frame < 70; frame++)
         {
@@ -79,8 +79,8 @@ public sealed class FramePaneTests
     public void AWithdrawnMenu_LeavesOnlyThePaneInTheViewAndComesBackAtItsDepthAndFocus()
     {
         using Rig rig = new();
-        DebugOverlay overlay = rig.Overlay;
-        DebugScene scene = overlay.Scene;
+        OverlayHost overlay = rig.Overlay;
+        OverlayScene scene = overlay.Scene;
 
         rig.Open();
         rig.Press(Key.Grave);
@@ -112,7 +112,7 @@ public sealed class FramePaneTests
         Assert.DoesNotContain(sprites, static sprite => sprite.Color == Highlight);
         foreach (Entity entity in scene.Entities)
         {
-            Assert.IsNotType<DebugMenuRow>(entity);
+            Assert.IsNotType<MenuRow>(entity);
         }
 
         rig.Open();
@@ -211,9 +211,9 @@ public sealed class FramePaneTests
         private long _ticks;
         private long _frameStart;
 
-        internal Rig() => Overlay = new DebugOverlay(Key.Grave, _scheduler, Simulation, timestamp: () => _ticks);
+        internal Rig() => Overlay = new OverlayHost(Key.Grave, _scheduler, Simulation, timestamp: () => _ticks);
 
-        internal DebugOverlay Overlay { get; }
+        internal OverlayHost Overlay { get; }
 
         internal IdleSimulation Simulation { get; } = new();
 

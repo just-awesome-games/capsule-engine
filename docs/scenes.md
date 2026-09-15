@@ -1,6 +1,6 @@
 # Scenes
 
-A scene is one world: its ordered contents and a camera. A `*.scene.json` **scene document** is its serialized form — a scene's data, carrying no behaviour. Tile maps are one engine-native entry type, not a requirement or a separate kind of scene.
+A scene is one world: its ordered contents and a camera. A `*.scene.json` scene document is its serialized form — data, carrying no behaviour. Tile maps are one engine-native entry type, not a separate kind of scene.
 
 ## Authoring model
 
@@ -9,20 +9,10 @@ Data and behaviour are separate halves, and a game takes either or both:
 | Combination | What the game writes | How it boots |
 | --- | --- | --- |
 | Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `RunScene("test")` composes a plain `Scene` from it |
-| Document and class | that document, plus `class Test : Scene` whose constructor is `public Test(SceneContent content) : base(content)` | `RunScene<Test>()` or `RunScene("test")` — either loads the document, then constructs `Test` |
+| Document and class | that document, plus `class Test : Scene` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene<Test>()` or `RunScene("test")` — either loads the document, then constructs `Test` |
 | Class only | `class Test : Scene` with a public parameterless constructor | `RunScene<Test>()` runs the scene as it builds itself |
 
-The `SceneContent` constructor is the opt-in: taking one and handing it to `base` is what claims a document, and the document claimed is the key the class's namespace names — the rule is under [Entries and composition](#entries-and-composition) — unless `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error.
-
-```csharp
-[SceneDocument("room-01")]
-public sealed class OpeningRoom(SceneContent content) : Scene(content)
-{
-    protected override void OnStart() => Camera = new FollowCamera();
-}
-```
-
-A composed scene's assets are collected before `OnStart`; the contract is on `Scene.CollectAssets` and `AssetCollection`.
+The `SceneContent` constructor is the opt-in: taking one and handing it to `base` claims a document, the one keyed as the class's namespace names ([Entries and composition](#entries-and-composition)) unless `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A composed scene's assets are collected before `OnStart` (`Scene.CollectAssets`, `AssetCollection`).
 
 ## Format
 
@@ -60,49 +50,45 @@ A composed scene's assets are collected before `OnStart`; the contract is on `Sc
 ```
 
 - `formatVersion` is required and must be supported.
-- Every entry carries `id`, `type`, `x` and `y` in that order — all four are required; `scale`, `zIndex` and then `properties` follow where the entry carries them.
-- `scale` is `[x, y]`, both components finite and greater than zero; absent is identity. It is the raw authored factor, and what it scales is the entity's constructor's decision; a `scale` on the `tile-map` entry is rejected.
-- `zIndex` is the entry's draw band, applied to the spawned entity's `ZIndex` after construction; it is an ordering key, not a coordinate. What draws later is the higher sum of an entry's band and the renderer's own offset within it, with ties broken by file order and then attachment order. Absent leaves the band the entity class gave itself, and an authored `0` is a value that overrides it — the writer emits the field only where the entry authors one.
-- IDs are unique, positive, and lower than `nextEntityId`, across every entry. Deleted IDs are not reused.
-- `entities` may be empty: that is a valid empty scene.
-- A `source` block records tool, relative source path, and SHA-256 of the source closure. Its presence marks a derived file, so an authoring source omits it.
-
-`properties` is a contract per entry type, consumed by whatever constructs that entry — never a reflective set-by-name bag. Exactly one type declares one today: the engine's own `tile-map`. Its properties are `tileSize`, `width`, `height`, `texture`, `columns`, `tileTypes`, and `tiles`; palette index 0 is `empty`, and `tiles` contains exactly `width * height` palette indices. Properties on any other type are rejected at parse.
-
-A palette entry may also carry `cell`, `layer` and `collidableFaces`: what a tile of that type draws, and what it collides as. Face names are grid directions in a Y-down world, so `top` is the tile's -Y side.
-
-| Field | Meaning |
-| --- | --- |
-| `texture` | The key under the textures root, extension included, of the texture every drawn tile is cut from — `"terrain.png"` is authored at `Assets/Textures/terrain.png`, `"terrain/cave.png"` at `Assets/Textures/terrain/cave.png`, and each loads from `assets/textures/` at that key. Forward slashes only, with no empty, `.` or `..` segment; any spelling of the key is accepted and the derived document carries the key, per [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets). Which extensions the domain admits is the build's to decide. Absent on a grid that draws nothing. |
-| `columns` | How many cells wide that texture is. Required with `texture` and at least 1; absent without one. |
-| `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` and then down from cell 0, square at `tileSize`. Absent is a semantic tile: it is queryable, it may collide, and it draws nothing. |
-| `layer` | The collision layer every tile of this type is on, as one name. Absent is decoration: the tile collides as nothing. The name is the game's own — the engine reserves none — and a query or a mover meets the tile when its own filter names that layer. The tile type is identity and is never a layer, so several types may share one. |
-| `collidableFaces` | Which sides collide, as an array of `"left"`, `"right"`, `"top"` or `"bottom"`. Absent is all four: the whole tile, with sides shared with an adjacent four-sided tile generating no contact, so a flat run of them is one surface with no seams to catch on. A smaller set is that many one-directional edges — each stops only what crosses it into the tile, never motion along it and never something that started on the far side. |
-
-Texture and cell are strict in both directions: a `cell` on a grid naming no `texture` fails the document, and so does a `texture` no palette entry draws a cell of. Any other face name fails the document, as does `collidableFaces` on a tile with no `layer`, an empty `collidableFaces`, and the `collision` field the two of them replaced. The reserved `empty` entry carries neither a cell nor a layer. A tile map whose palette collides with nothing registers no collider at all.
+- Every entry carries `id`, `type`, `x` and `y` in that order, all required; `scale`, `zIndex` and then `properties` follow where the entry carries them.
+- `scale` is `[x, y]`, both finite and greater than zero; absent is identity. It is the raw authored factor and what it scales is the entity's constructor's decision; a `scale` on a `tile-map` entry is rejected.
+- `zIndex` is the entry's draw band, applied to the spawned entity's `ZIndex` after construction. What draws later is the higher sum of the band and the renderer's own offset within it, ties broken by file order and then attachment order. Absent leaves the band the entity class gave itself; an authored `0` overrides it, and the writer emits the field only where the entry authors one.
+- IDs are unique, positive and lower than `nextEntityId`; deleted IDs are not reused. `entities` may be empty.
+- A `source` block records tool, relative source path and SHA-256 of the source closure; its presence marks a derived file, so an authoring source omits it.
+- `properties` is a contract per entry type, consumed by whatever constructs that entry, never a reflective set-by-name bag. Only the engine's `tile-map` declares one; properties on any other type are rejected at parse.
 
 Invalid documents throw `SceneDocumentFormatException`.
 
+### The tile map entry
+
+`tile-map` is reserved by the engine; a document may carry any number, interleaved with game entities, all anchored at the world origin and drawn by their `zIndex` bands. Its properties are `tileSize`, `width`, `height`, `texture`, `columns`, `tileTypes` and `tiles`; palette index 0 is `empty`, which carries neither cell nor layer, and `tiles` holds exactly `width × height` palette indices. Each other palette entry carries a `type` name and may carry:
+
+| Field | Meaning |
+| --- | --- |
+| `texture` | The key under the textures root, extension included, of the texture every drawn tile is cut from, spelt any way ([`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets)); forward slashes, no empty, `.` or `..` segment. Absent on a grid that draws nothing. |
+| `columns` | How many cells wide that texture is; required with `texture`, at least 1, absent without one. |
+| `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent is a semantic tile: queryable, may collide, draws nothing. |
+| `layer` | The collision layer every tile of this type is on, as one name the game owns; a query or mover meets the tile when its own filter names that layer. Absent is decoration. Several types may share a layer. |
+| `collidableFaces` | Which sides collide, an array of `"left"`, `"right"`, `"top"` or `"bottom"` (grid directions in a Y-down world). Absent is all four: a whole tile, with sides shared with an adjacent four-sided tile generating no contact. A smaller set is that many one-directional edges, each stopping only what crosses it into the tile. |
+
+A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, an unknown face name, `collidableFaces` on a tile with no `layer`, and an empty `collidableFaces` all fail the document. A tile map whose palette collides with nothing registers no collider.
+
 ### Entries and composition
 
-`tile-map` is reserved by the engine, so no game class may claim it as a spawn type. A document may carry zero or more tile maps, interleaved with game entities; all are anchored at the world origin, and draw order is the sum of each entry's `zIndex` and the drawing component's own offset, over file order where those sums are equal. This permits background and foreground layers without making tile maps mandatory. Every other `type` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and `[SpawnType("key")]` names another whole key. Scenes and entities claim keys by one rule: the type's namespace under the assembly's root namespace, minus a leading `Scenes` or `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`. A type outside the root namespace claims its kebab-cased name alone. A spawn type no class claims fails the scene at load.
+Every `type` other than `tile-map` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and `[SpawnType("key")]` names another whole key. The one rule for scenes and entities: the type's namespace under the assembly's root namespace, minus a leading `Scenes` or `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`; a type outside the root namespace claims its kebab-cased name alone. A spawn type no class claims fails the scene at load.
 
 ## From source to game
 
-Games author scene documents under the logic project's `Assets/Scenes/`, and the build validates each one, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, normalized as [`consuming-capsule.md` § Named assets](consuming-capsule.md#named-assets) defines, so `Scenes/Stage1/Room01.scene.json` and `Scenes/stage-1/room-01.scene.json` are both keyed `stage-1/room-01`; the class that composes it is the one whose own key matches. Two sources sharing a key fail the build, and derived documents are never committed.
-
-The logic role imports scenes on its own; any other project that needs them opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match. Both are project properties named in [`consuming-capsule.md`](consuming-capsule.md#build-configuration-reference).
+Documents are authored under the logic project's `Assets/Scenes/`; the build validates each, re-emits it canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the executable. A document's key is its path under the scenes root without either extension, normalized as [Named assets](consuming-capsule.md#named-assets) defines, and the class that composes it is the one whose own key matches. Two sources sharing a key fail the build; derived documents are never committed. The logic role imports scenes on its own; any other project opts in with `<CapsuleImportScenes>`, and `<CapsuleTileSize>` declares the one tile size every scene must match ([`consuming-capsule.md`](consuming-capsule.md#build-configuration-reference)).
 
 ## Authoring tools
 
-The engine's build wires one format per document kind — `*.scene.json` here; a sheet enters on its own contract, under [`sprite-animation.md` § Authoring tools](sprite-animation.md#authoring-tools). An editor's own format enters through an authoring module: a package whose `buildTransitive` targets derive a document per source into their own `obj/` space and add each derived document to the `CapsuleSceneDocument` item from a target that runs `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine then validates, canonicalizes, and ships those documents exactly as hand-authored ones, preserving the module's `source` block so the shipped document names the file a person edited.
+An editor's own format enters through an authoring module: a package whose `buildTransitive` targets derive a document per source into their own `obj/` space and add each to the `CapsuleSceneDocument` item from a target running `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine validates, canonicalizes and ships those documents exactly as hand-authored ones, preserving the module's `source` block. A module states each document's key as `%(CapsuleDocumentKey)` — the root-relative path, forward slashes, `/`-joined segments of ASCII letters, digits, hyphens and underscores, none a reserved Windows device name, no extension; a document naming none is keyed by its stem at the root — and the engine normalizes it, so a module implements no part of the key rule.
 
-A module states the key each document claims as `%(CapsuleDocumentKey)` on the item — the root-relative path, forward slashes, one or more `/`-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (`nul`, `con`, …), carrying no extension. A document that names none is keyed by its stem at the root. The engine normalizes what a module states, so a module spells a key however its own authoring tree does and implements no part of the rule.
+Three rules hold a module's targets:
 
-A module globbing its own sources inside a target cannot read `%(RecursiveDir)` on the glob's own `Include`: metadata there batches over the target and comes back empty. Collect the glob first, then set the key in a second item group that names the metadata qualified — `%(MyModuleSource.RecursiveDir)`, the module's own item — before stamping `CapsuleDocumentKey`. The engine's own globs run at evaluation time, which is why the targets here use the bare form.
-
-A module may read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize`, and `CapsuleDotNetHost`, and reads them only inside its targets: NuGet imports package targets in no promised order, so a property a role derives is final at execution time, not at evaluation.
-
-Every authoring glob a module declares carries `Exclude="@(_CapsuleDevelopmentOnly)"`, the item Capsule fills with everything under a development-only directory (see [`consuming-capsule.md`](consuming-capsule.md#development-only-directories)). Without it the marker's guarantee does not hold for the module's format, and a directory a game marked still ships. The item is populated at evaluation time under `CapsuleShipping`, so it is final inside any target, whatever order the module's targets and Capsule's were imported in.
+- Read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize` and `CapsuleDotNetHost` only inside targets: NuGet imports package targets in no promised order, so a property a role derives is final at execution time, not at evaluation.
+- Collect a glob first and set its key in a second item group naming the metadata qualified — `%(MyModuleSource.RecursiveDir)` — since `%(RecursiveDir)` on a glob's own `Include` inside a target batches over the target and comes back empty.
+- Carry `Exclude="@(_CapsuleDevelopmentOnly)"` on every authoring glob, or a directory a game marked development-only still ships through the module's format ([`consuming-capsule.md`](consuming-capsule.md#development-only-directories)).
 
 JAG Studios publishes the Tiled module as `JAG.Capsule.Tiled` from [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

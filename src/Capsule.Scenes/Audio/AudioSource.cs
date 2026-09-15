@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Audio;
@@ -219,4 +220,25 @@ public sealed class AudioSource(AudioClip clip) : Component
     private AudioMixer Mixer() =>
         Entity?.Scene?.RunOrNull?.Audio
         ?? throw new InvalidOperationException($"{nameof(AudioSource)} is on no entity in a scene, so {Scene.NoRunYet}");
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.Field("Clip", Clip.Name + Clip.Extension);
+        panel.Field("Bus", Bus.Name);
+        panel.Field("Volume", Volume);
+        panel.Field("Pitch", Pitch);
+        panel.Field("Pan", Pan);
+        panel.Field("Time", Time);
+        panel.Field("IsPlaying", IsPlaying);
+        panel.Field("IsPaused", IsPaused);
+        panel.Toggle("Loop", Loop, on => Loop = on);
+        panel.Toggle("PlayOnStart", PlayOnStart, on => PlayOnStart = on);
+        panel.Command("Play", Play);
+        panel.Command("Stop", Stop);
+        panel.Command("Pause", Pause);
+        panel.Command("Resume", Resume);
+    }
 }

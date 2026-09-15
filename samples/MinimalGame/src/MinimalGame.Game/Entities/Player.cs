@@ -184,6 +184,11 @@ public sealed class Player : Entity
         }
     }
 
+    protected override void OnDebugPanel(DebugPanel panel)
+    {
+        panel.Command("Heal", () => Health++);
+    }
+
     // Named methods rather than lambdas: a handler with a name is one a subclass or a reader can
     // find, and it can be detached by the same method group that subscribed it.
     private void OnHurtboxEntered(ColliderContact2D contact)

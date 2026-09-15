@@ -22,7 +22,7 @@ public sealed class DebugDrawTests
     {
         using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 1));
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
         Open(overlay, scheduler, host);
@@ -77,14 +77,14 @@ public sealed class DebugDrawTests
 
         // Leaving and re-entering finds the same menu, and a channel that first emits while the
         // submenu is open — the scene emits on "extra" from its second step — gains a row in place.
-        DebugMenu menu = overlay.Scene.Menu;
+        Menu menu = overlay.Scene.Current;
         Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.Same(menu, overlay.Scene.Menu);
+        Assert.Same(menu, overlay.Scene.Current);
 
         Press(overlay, scheduler, host, Key.Right);
 
-        Assert.Same(menu, overlay.Scene.Menu);
+        Assert.Same(menu, overlay.Scene.Current);
         Assert.Equal(["[ ] extra", "[ ] hitboxes", "[x] labels"], MenuLabels(overlay.Scene));
         Assert.Equal(2, overlay.Scene.Depth);
     }
@@ -96,7 +96,7 @@ public sealed class DebugDrawTests
     {
         using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 1));
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.Right);
@@ -124,7 +124,7 @@ public sealed class DebugDrawTests
     {
         using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 2));
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
         Open(overlay, scheduler, host);
@@ -158,7 +158,7 @@ public sealed class DebugDrawTests
     {
         using SceneHost host = CreateHost(new DrawingScene(emitOnTick: null, steps: 1));
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
         Open(overlay, scheduler, host);
@@ -183,7 +183,7 @@ public sealed class DebugDrawTests
     {
         using SceneHost host = CreateHost(new ShapesScene());
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
         Open(overlay, scheduler, host);
@@ -244,14 +244,14 @@ public sealed class DebugDrawTests
 
         Assert.Equal(before, after);
 
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), new EmptySimulation());
+        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), new EmptySimulation());
 
         Assert.Empty(overlay.Channels);
     }
 
-    private static string[] MenuLabels(DebugScene scene)
+    private static string[] MenuLabels(OverlayScene scene)
     {
-        IReadOnlyList<DebugMenuItem> items = scene.Menu.Items;
+        IReadOnlyList<MenuItem> items = scene.Current.Items;
         string[] labels = new string[items.Count];
         for (int index = 0; index < items.Count; index++)
         {
@@ -261,7 +261,7 @@ public sealed class DebugDrawTests
         return labels;
     }
 
-    private static void Open(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation)
+    private static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
     {
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
@@ -269,13 +269,13 @@ public sealed class DebugDrawTests
         Assert.True(overlay.IsOpen);
     }
 
-    private static void Press(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
+    private static void Press(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
     {
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
     }
 
-    private static void Frame(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation, DeviceSnapshot sampled)
+    private static void Frame(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, DeviceSnapshot sampled)
     {
         DeviceSnapshot stripped = overlay.Observe(sampled);
         scheduler.Advance(StepSeconds, stripped, simulation);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
@@ -339,6 +340,17 @@ public class Scene
     }
 
     /// <summary>
+    /// Fills the scene's own section of the development overlay's scene page — the one headed
+    /// <c>Scene</c> — as <see cref="Component.OnDebugPanel"/> describes; nothing by default. The
+    /// run's <c>Seed</c>, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Sampling"/> and
+    /// the camera's centre are written into that section before this is called, so an override
+    /// cannot lose them, and the scene's entities are listed after it.
+    /// </summary>
+    protected virtual void OnDebugPanel(DebugPanel panel)
+    {
+    }
+
+    /// <summary>
     /// Appends assets this scene declares beyond those owned by its entities and components.
     /// Collection may happen before <see cref="OnStart"/>, so declarations use construction-time
     /// state only. Override only to append declarations to <paramref name="assets"/>.
@@ -600,6 +612,23 @@ public class Scene
         foreach (Entity entity in Entities)
         {
             entity.RunDebugDraw();
+        }
+    }
+
+    // The scene page's own section: the run's innate row first, then the hook, bound by the rule
+    // the step hooks are — a scene that has not started has not begun.
+    internal void RunDebugPanel(DebugPanel panel)
+    {
+        panel.Section("Scene");
+        panel.Field("Seed", Run.Random.Seed.ToString(CultureInfo.InvariantCulture));
+        panel.Field("Size", Size);
+        panel.Field("ClearColor", ClearColor);
+        panel.Field("Sampling", Sampling);
+        panel.Field("Camera", Camera.Center);
+
+        if (_started)
+        {
+            OnDebugPanel(panel);
         }
     }
 

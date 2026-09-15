@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -685,5 +686,14 @@ public sealed class FocusNavigator : Component
         Down,
         Left,
         Right,
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        panel.Field("Items", Items.Length);
+        panel.Field("Focused", Focused?.Entity?.GetType().Name);
     }
 }

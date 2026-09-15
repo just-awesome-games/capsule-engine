@@ -13,6 +13,50 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
 {
     private readonly Entry[] _slots = new Entry[AudioMixer.MaxVoices];
 
+    // The host's suspension, a layer over each voice's own pause: while on, every voice is held
+    // whatever the game asked, and what the game asks meanwhile is remembered, not applied, so a
+    // resume restores exactly the voices the game has playing.
+    private bool _suspended;
+
+    // Holds every voice, including one the game paused, whose pause outlives the suspension. A
+    // voice played while suspended starts held and begins on Resume.
+    internal void Suspend()
+    {
+        if (_suspended)
+        {
+            return;
+        }
+
+        _suspended = true;
+        Span<Entry> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].Voice is { } voice && !slots[i].Paused)
+            {
+                voice.Pause();
+            }
+        }
+    }
+
+    // Lets every voice the game has playing sound again; one the game paused stays paused.
+    internal void Resume()
+    {
+        if (!_suspended)
+        {
+            return;
+        }
+
+        _suspended = false;
+        Span<Entry> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].Voice is { } voice && !slots[i].Paused)
+            {
+                voice.Resume();
+            }
+        }
+    }
+
     // Applied after every step rather than once a frame: the mixer rewrites its commands each step
     // and a frame may run several.
     internal void Apply(ReadOnlySpan<AudioCommand> commands)
@@ -33,15 +77,18 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
                 // nothing, so the slot may still hold a voice the device has already finished.
                 Retire(slot);
 
-                _slots[slot] = new Entry(
-                    command.Voice.Generation,
-                    sounds.Play(
-                        command.Clip,
-                        command.Gain,
-                        command.Pitch,
-                        command.Pan,
-                        command.Loop,
-                        command.StartSeconds));
+                IAudioVoice started = sounds.Play(
+                    command.Clip,
+                    command.Gain,
+                    command.Pitch,
+                    command.Pan,
+                    command.Loop,
+                    command.StartSeconds);
+                _slots[slot] = new Entry(command.Voice.Generation, started);
+                if (_suspended)
+                {
+                    started.Pause();
+                }
 
                 continue;
             }
@@ -59,11 +106,17 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
                     break;
 
                 case AudioCommandKind.Pause:
+                    entry.Paused = true;
                     voice.Pause();
                     break;
 
                 case AudioCommandKind.Resume:
-                    voice.Resume();
+                    entry.Paused = false;
+                    if (!_suspended)
+                    {
+                        voice.Resume();
+                    }
+
                     break;
 
                 case AudioCommandKind.SetGain:
@@ -133,5 +186,8 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         internal int Generation = generation;
 
         internal IAudioVoice? Voice = voice;
+
+        // Whether the game itself paused this voice; the host's suspension is layered over it.
+        internal bool Paused;
     }
 }

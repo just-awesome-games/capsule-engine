@@ -7,16 +7,10 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// How a menu looks and navigates: one top-left panel holding the readout, the current menu's
-// title, a row per item, a status line and the legend, and one top-right frame pane. Menus nest
-// on a stack; the scene renders the one on top, reads the default menu's hotkeys at any depth, and
-// every action it raises is one it was handed. The panel and its rows leave the scene while the
-// menu is withdrawn and the stack stays as it was; the pane comes and goes on its own switch.
-// A menu longer than MaxRows shows a window of itself: every row is in the scene and every
-// interactive row in the navigator, so the focus moves, repeats and wraps through the whole list
-// as it would on a short one, and the rows outside the window are hidden; the window follows the
-// focus, and the wheel scrolls it without moving the focus.
-internal sealed class DebugScene : Scene
+// The scene that is the overlay: one panel of menu rows over a stack of menus, a status line, a
+// legend and the frame pane, with how the rows navigate, window and scroll; nothing of what any
+// action does, which is handed in.
+internal sealed class OverlayScene : Scene
 {
     private const int Padding = 4;
 
@@ -29,6 +23,9 @@ internal sealed class DebugScene : Scene
     // Spaces between the widest label of a menu and the hotkey column.
     private const int HotkeyGap = 2;
 
+    // The scrollbar's width in panel pixels, set inside the right padding.
+    private const int ScrollbarWidth = 2;
+
     // Overlay frames a held repeating hotkey, or a held direction, waits before repeating, and the
     // frames between repeats.
     internal const int RepeatDelayFrames = 60;
@@ -39,6 +36,8 @@ internal sealed class DebugScene : Scene
     private const int RowsBelowItems = 3;
 
     private static readonly BitmapFont Font = BitmapFont.Default;
+    private static readonly ColorRgba TrackColor = ColorRgba.White with { A = 48 };
+    private static readonly ColorRgba ThumbColor = ColorRgba.White with { A = 160 };
 
     private readonly ScreenEntity _panel;
     private readonly ColorRect _backdrop;
@@ -46,16 +45,18 @@ internal sealed class DebugScene : Scene
     private readonly Label _title;
     private readonly Label _status;
     private readonly Label _legend;
+    private readonly ColorRect _track;
+    private readonly ColorRect _thumb;
 
     // The open menus, default first; the top is rendered.
-    private readonly List<DebugMenu> _stack = [];
-    private readonly FocusNavigator _navigator = new(DebugInput.MenuFocus)
+    private readonly List<Menu> _stack = [];
+    private readonly FocusNavigator _navigator = new(OverlayActions.MenuFocus)
     {
         RepeatDelay = RepeatDelayFrames,
         RepeatInterval = RepeatIntervalFrames,
     };
 
-    private DebugMenuRow[] _rows = [];
+    private MenuRow[] _rows = [];
 
     private string? _readoutScene;
     private long _readoutTick;
@@ -67,7 +68,7 @@ internal sealed class DebugScene : Scene
     private bool _menuShown = true;
     private bool _paneShown;
 
-    internal DebugScene(string toggleName)
+    internal OverlayScene(string toggleName)
     {
         ArgumentNullException.ThrowIfNull(toggleName);
 
@@ -79,12 +80,16 @@ internal sealed class DebugScene : Scene
         _title = new Label(Font);
         _status = new Label(Font);
         _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
+        _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
+        _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };
 
         panel.Add(_backdrop);
         panel.Add(_readout);
         panel.Add(_title);
         panel.Add(_status);
         panel.Add(_legend);
+        panel.Add(_track);
+        panel.Add(_thumb);
         panel.Add(_navigator);
         _panel = panel;
         Add(panel);
@@ -94,18 +99,18 @@ internal sealed class DebugScene : Scene
 
     internal FramePane Pane { get; } = new();
 
-    internal DebugMenu Menu => _stack[^1];
+    internal Menu Current => _stack[^1];
 
     internal int Depth => _stack.Count;
 
     // Whether menu is open at any depth, current or beneath.
-    internal bool Contains(DebugMenu menu) => _stack.Contains(menu);
+    internal bool Contains(Menu menu) => _stack.Contains(menu);
 
-    internal int FocusedIndex => Menu.Focus;
+    internal int FocusedIndex => Current.Focus;
 
     internal int RowCount => _rows.Length;
 
-    internal int First => Menu.First;
+    internal int First => Current.First;
 
     internal bool IsRowShown(int index) => _rows[index].Shown;
 
@@ -118,6 +123,11 @@ internal sealed class DebugScene : Scene
     internal string Status => _status.Text;
 
     internal string RowText(int index) => _rows[index].Text;
+
+    // The scrollbar's track and thumb as drawn; each empty while the menu fits its window.
+    internal Rect ScrollTrack => _track.Bounds;
+
+    internal Rect ScrollThumb => _thumb.Bounds;
 
     // Withdraws the panel and its rows from the scene, or brings them back showing the current
     // menu; the stack and every menu's remembered focus are untouched either way. Returns whether
@@ -135,7 +145,7 @@ internal sealed class DebugScene : Scene
             Add(_panel);
             if (_stack.Count > 0)
             {
-                Show(Menu);
+                Show(Current);
             }
         }
         else
@@ -168,11 +178,11 @@ internal sealed class DebugScene : Scene
 
     // Makes menu current, focused where it remembers; the menu already shown stays as it is, so a
     // hotkey pressed inside its own submenu does not stack it twice.
-    internal void Push(DebugMenu menu)
+    internal void Push(Menu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
 
-        if (_stack.Count > 0 && ReferenceEquals(Menu, menu))
+        if (_stack.Count > 0 && ReferenceEquals(Current, menu))
         {
             return;
         }
@@ -183,12 +193,12 @@ internal sealed class DebugScene : Scene
 
     // Swaps the current menu for one rebuilt in place — its rows changed under it — keeping the
     // depth, the focus and the window.
-    internal void Replace(DebugMenu menu)
+    internal void Replace(Menu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
 
-        menu.Focus = Interactive(menu, Math.Min(Menu.Focus, menu.Items.Count - 1));
-        menu.First = Menu.First;
+        menu.Focus = Interactive(menu, Math.Min(Current.Focus, menu.Items.Count - 1));
+        menu.First = Current.First;
         _stack[^1] = menu;
         Show(menu);
     }
@@ -202,7 +212,7 @@ internal sealed class DebugScene : Scene
         }
 
         _stack.RemoveAt(_stack.Count - 1);
-        Show(Menu);
+        Show(Current);
     }
 
     internal void SetReadout(string sceneName, long tick)
@@ -241,23 +251,23 @@ internal sealed class DebugScene : Scene
     {
         InputState input = context.Input;
 
-        if (input.WasPressed(DebugInput.Back))
+        if (input.WasPressed(OverlayActions.Back))
         {
             Pop();
         }
 
-        Scroll(input.Axis(DebugInput.Scroll));
+        Scroll(input.Axis(OverlayActions.Scroll));
 
         // The default menu's hotkeys work at any depth. A press activates at once; a repeating item
         // held past the delay activates again every interval. One counter serves them all,
         // advanced once per step: it runs while any repeating hotkey is held and restarts on any
         // press edge.
-        IReadOnlyList<DebugMenuItem> items = _stack[0].Items;
+        IReadOnlyList<MenuItem> items = _stack[0].Items;
         bool anyPressed = false;
         bool anyHeld = false;
         for (int index = 0; index < items.Count; index++)
         {
-            DebugMenuItem item = items[index];
+            MenuItem item = items[index];
             if (item.Hotkey is { } hotkey)
             {
                 anyPressed |= input.WasPressed(hotkey);
@@ -271,7 +281,7 @@ internal sealed class DebugScene : Scene
 
         for (int index = 0; index < items.Count; index++)
         {
-            DebugMenuItem item = items[index];
+            MenuItem item = items[index];
             if (item.Hotkey is { } hotkey
                 && (input.WasPressed(hotkey) || (repeat && item.Repeats && input.IsHeld(hotkey))))
             {
@@ -280,7 +290,7 @@ internal sealed class DebugScene : Scene
         }
     }
 
-    private void Activate(DebugMenuItem item)
+    private void Activate(MenuItem item)
     {
         SetStatus(string.Empty);
         item.Activate?.Invoke();
@@ -300,7 +310,7 @@ internal sealed class DebugScene : Scene
         int rows = (int)MathF.Truncate(_scrollRemainder);
         _scrollRemainder -= rows;
 
-        DebugMenu menu = Menu;
+        Menu menu = Current;
         int first = Math.Clamp(menu.First + rows, 0, _rows.Length - MaxRows);
         if (first != menu.First)
         {
@@ -311,9 +321,9 @@ internal sealed class DebugScene : Scene
 
     // The interactive item nearest index, searched outward by distance and, at a tie, the earlier
     // one: the reader came from above. Index itself where the menu has no interactive item.
-    private static int Interactive(DebugMenu menu, int index)
+    private static int Interactive(Menu menu, int index)
     {
-        IReadOnlyList<DebugMenuItem> items = menu.Items;
+        IReadOnlyList<MenuItem> items = menu.Items;
         for (int distance = 0; distance < items.Count; distance++)
         {
             int before = index - distance;
@@ -336,7 +346,11 @@ internal sealed class DebugScene : Scene
     // remembers. A hotkeyed row is its label padded to a shared column, then the key's name; the
     // font is monospace. A row with no action is drawn and never focused: it is not the
     // navigator's. Nothing while the menu is withdrawn: the rows are built when it is shown.
-    private void Show(DebugMenu menu)
+    // Every row of a menu longer than MaxRows is still built and every interactive one is still
+    // the navigator's, so the focus moves, repeats and wraps through the whole list as on a short
+    // one; Layout hides the rows outside the window, the window follows the focus, and the wheel
+    // scrolls it without moving the focus.
+    private void Show(Menu menu)
     {
         if (!_menuShown)
         {
@@ -345,7 +359,7 @@ internal sealed class DebugScene : Scene
 
         RemoveRows();
 
-        IReadOnlyList<DebugMenuItem> items = menu.Items;
+        IReadOnlyList<MenuItem> items = menu.Items;
         int column = 0;
         for (int index = 0; index < items.Count; index++)
         {
@@ -354,12 +368,12 @@ internal sealed class DebugScene : Scene
 
         column += HotkeyGap;
 
-        DebugMenuRow[] rows = new DebugMenuRow[items.Count];
+        MenuRow[] rows = new MenuRow[items.Count];
         for (int index = 0; index < items.Count; index++)
         {
-            DebugMenuItem item = items[index];
-            string text = item.Hotkey is { } hotkey ? item.Label.PadRight(column) + DebugInput.KeyName(hotkey) : item.Label;
-            DebugMenuRow row = new(text, Padding);
+            MenuItem item = items[index];
+            string text = item.Hotkey is { } hotkey ? item.Label.PadRight(column) + OverlayActions.KeyName(hotkey) : item.Label;
+            MenuRow row = new(text, Padding);
             rows[index] = row;
             Add(row);
             if (item.Activate is not null)
@@ -383,11 +397,14 @@ internal sealed class DebugScene : Scene
     }
 
     // Moves the window the least that brings the focused item inside it, and pulls a window that
-    // reads past the end back.
-    private static void Follow(DebugMenu menu)
+    // reads past the end back. A menu with nothing to focus has no item to follow, so its window
+    // stays where the wheel left it.
+    private static void Follow(Menu menu)
     {
         int first = Math.Clamp(menu.First, 0, Math.Max(0, menu.Items.Count - MaxRows));
-        menu.First = Math.Clamp(first, menu.Focus - MaxRows + 1, menu.Focus);
+        menu.First = menu.Items[menu.Focus].Activate is null
+            ? first
+            : Math.Clamp(first, menu.Focus - MaxRows + 1, menu.Focus);
     }
 
     // Out of the scene before out of the navigator, so the focus is released once rather than
@@ -395,14 +412,14 @@ internal sealed class DebugScene : Scene
     // remembered against the menu being shown.
     private void RemoveRows()
     {
-        DebugMenuRow[] leaving = _rows;
+        MenuRow[] leaving = _rows;
         _rows = [];
-        foreach (DebugMenuRow row in leaving)
+        foreach (MenuRow row in leaving)
         {
             Remove(row);
         }
 
-        foreach (DebugMenuRow row in leaving)
+        foreach (MenuRow row in leaving)
         {
             _navigator.Remove(row.Focusable);
         }
@@ -416,7 +433,7 @@ internal sealed class DebugScene : Scene
         {
             if (ReferenceEquals(_rows[index].Focusable, focused))
             {
-                DebugMenu menu = Menu;
+                Menu menu = Current;
                 menu.Focus = index;
                 int first = menu.First;
                 Follow(menu);
@@ -439,12 +456,12 @@ internal sealed class DebugScene : Scene
         width = MathF.Max(width, Font.Measure(_title.Text).X);
         width = MathF.Max(width, Font.Measure(_status.Text).X);
         width = MathF.Max(width, Font.Measure(_legend.Text).X);
-        foreach (DebugMenuRow row in _rows)
+        foreach (MenuRow row in _rows)
         {
             width = MathF.Max(width, Font.Measure(row.Text).X);
         }
 
-        int first = _stack.Count > 0 ? Menu.First : 0;
+        int first = _stack.Count > 0 ? Current.First : 0;
         int shown = Math.Min(_rows.Length, MaxRows);
         int panelWidth = (int)width + (Padding * 2);
         int rowCount = RowsAboveItems + shown + RowsBelowItems;
@@ -463,9 +480,29 @@ internal sealed class DebugScene : Scene
         int statusRow = RowsAboveItems + shown + 1;
         _status.Offset = new Vector2(Padding, RowTop(statusRow));
         _legend.Offset = new Vector2(Padding, RowTop(statusRow + 1));
+
+        // The scrollbar spans the row window; the thumb is the window's share of the list, at
+        // least a row tall so it never vanishes, and sits where First is along the list.
+        if (_rows.Length > MaxRows)
+        {
+            float top = RowTop(RowsAboveItems);
+            float height = MaxRows * Font.LineHeight;
+            float thumb = MathF.Max(Font.LineHeight, height * MaxRows / _rows.Length);
+            float travel = (height - thumb) * first / (_rows.Length - MaxRows);
+            float left = panelWidth - Padding + ((Padding - ScrollbarWidth) / 2f);
+            _track.Offset = new Vector2(left, top);
+            _track.Size = new Vector2(ScrollbarWidth, height);
+            _thumb.Offset = new Vector2(left, top + travel);
+            _thumb.Size = new Vector2(ScrollbarWidth, thumb);
+        }
+        else
+        {
+            _track.Size = Vector2.Zero;
+            _thumb.Size = Vector2.Zero;
+        }
     }
 
-    private int RowsAboveItems => _stack.Count > 0 && Menu.Title is not null ? 3 : 2;
+    private int RowsAboveItems => _stack.Count > 0 && Current.Title is not null ? 3 : 2;
 
     private static float RowTop(int row) => Padding + (row * Font.LineHeight);
 }

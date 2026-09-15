@@ -114,11 +114,11 @@ internal sealed class FrameRenderer : IDisposable
         int outputHeight = backBuffer.BackBufferHeight;
 
         ScreenLayout layout = Layout(_canvas, view, outputWidth, outputHeight);
-        Rect world = view.Camera.Resolve(alpha, new Vector2(outputWidth, outputHeight));
+        Rect world = view.Camera.Place(alpha, layout.Span);
 
         if (_canvas is null)
         {
-            DrawWorld(view, alpha, world, layout.Span, outputWidth, outputHeight, ScreenPlacement.Identity);
+            DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
             DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling);
         }
         else
@@ -126,7 +126,7 @@ internal sealed class FrameRenderer : IDisposable
             RenderTarget2D target = Surface(layout.Surface);
 
             _device.SetRenderTarget(target);
-            DrawWorld(view, alpha, world, layout.Span, target.Width, target.Height, layout.Present);
+            DrawWorld(view, alpha, world, layout.Span, layout.World, target.Width, target.Height, layout.Present);
 
             // Over the world's own bars: the viewport is the whole surface again and the canvas sits
             // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
@@ -216,14 +216,14 @@ internal sealed class FrameRenderer : IDisposable
         Texture2D? texture = null;
         foreach (ref readonly SpriteIntent sprite in view.Sprites)
         {
-            DrawSprite(sprite, alpha: 1f, snap: true, pixelsPerUnit, ref resolved, ref texture);
+            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, pixelsPerUnit, ref resolved, ref texture);
         }
 
         foreach (ref readonly LineIntent line in view.Lines)
         {
-            // Snapped on the game surface's grid, the one its sprites were quantised to, so a line
-            // lands on the sprite it outlines rather than gliding between its steps.
-            DrawLine(line, pixelsPerUnit, world.Snap, world.Fit.Scale);
+            // Snapped on the game surface's grid from the same corner its sprites were quantised
+            // from, so a line lands on the sprite it outlines rather than gliding between its steps.
+            DrawLine(line, pixelsPerUnit, world.Snap, world.TopLeft, world.Fit.Scale);
         }
 
         _batch.End();
@@ -267,22 +267,130 @@ internal sealed class FrameRenderer : IDisposable
         {
             ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
 
-            return new ScreenLayout(span, (outputWidth, outputHeight), windowed, default, windowed);
+            return new ScreenLayout(
+                span,
+                (outputWidth, outputHeight),
+                Letterbox.Fit(span.X, span.Y, outputWidth, outputHeight),
+                windowed,
+                default,
+                windowed);
         }
 
-        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera.Size, span, outputWidth, outputHeight);
+        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera, span, outputWidth, outputHeight);
+        float pixelsPerUnit = PixelsPerUnit(resolution, view.Camera);
+        span = QuantisedSpan(view.Camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
+        Letterbox world = WorldFit(view.Camera, span, pixelsPerUnit, surface);
         Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
         ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
 
         return new ScreenLayout(
             span,
             surface,
+            world,
             new ScreenPlacement(slack, 1f),
             presented,
             presented.Scale > 0f
                 ? new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale)
                 : default);
     }
+
+    // The span the world is placed on. Under Letterbox the declared span, as ever. Under Expand or
+    // FixedHeight the axis the fit grew is quantised down to whole surface pixels at the declared
+    // scale, and to what the surface holds, while the binding axis stays the camera's own: so the
+    // placed span never exceeds the one the fit resolved — which is what the camera culled against —
+    // and a surface the canvas clamp left larger gets bars around it.
+    internal static Vector2 QuantisedSpan(
+        in CameraView camera,
+        (int Width, int Height) canvas,
+        Vector2 span,
+        float pixelsPerUnit,
+        (int Width, int Height) surface,
+        int outputWidth,
+        int outputHeight)
+    {
+        if (camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f))
+        {
+            return span;
+        }
+
+        (int? grownX, int? grownY) = GrownPixels(camera, canvas, span, pixelsPerUnit, outputWidth, outputHeight);
+
+        return new Vector2(
+            grownX is { } x ? Math.Min(x, surface.Width) / pixelsPerUnit : camera.Size.X,
+            grownY is { } y ? Math.Min(y, surface.Height) / pixelsPerUnit : camera.Size.Y);
+    }
+
+    // The whole surface pixels the fit's grown axis covers, null on an axis it did not grow — the
+    // one count the grown axis's surface extent and its quantised span are both taken from, so the
+    // two cannot disagree. Where the scale is what the other axis implies, the camera's size
+    // cancels and the count is the binding canvas extent times the output's ratio, taken exactly
+    // in integers; where the canvas holds the grown axis tighter than the other, it is the floor
+    // of the true fraction evaluated once in double from the source quantities, never of a float
+    // product that may already have rounded up past it. Never a pixel up either way, so the
+    // placed span never exceeds the one the fit resolved.
+    internal static (int? X, int? Y) GrownPixels(
+        in CameraView camera,
+        (int Width, int Height) canvas,
+        Vector2 span,
+        float pixelsPerUnit,
+        int outputWidth,
+        int outputHeight)
+    {
+        if (camera.Fit == ViewportFit.Letterbox || outputWidth <= 0 || outputHeight <= 0)
+        {
+            return (null, null);
+        }
+
+        Vector2 size = camera.Size;
+        bool heightBinds = camera.Fit == ViewportFit.FixedHeight || canvas.Height / size.Y <= canvas.Width / size.X;
+        bool widthBinds = camera.Fit == ViewportFit.Expand && canvas.Width / size.X <= canvas.Height / size.Y;
+
+        if (camera.Fit == ViewportFit.FixedHeight || span.X > size.X)
+        {
+            int count = heightBinds
+                ? (int)((long)canvas.Height * outputWidth / outputHeight)
+                : FloorExact((double)size.Y * canvas.Width * outputWidth / ((double)size.X * outputHeight));
+
+            return (count, null);
+        }
+
+        if (span.Y > size.Y)
+        {
+            int count = widthBinds
+                ? (int)((long)canvas.Width * outputHeight / outputWidth)
+                : FloorExact((double)size.X * canvas.Height * outputHeight / ((double)size.Y * outputWidth));
+
+            return (null, count);
+        }
+
+        return (null, null);
+    }
+
+    // The floor of a pixel count computed in double, guarded only against double's own rounding:
+    // the quotient is four operations, each within half an ulp, so a count that is truly a whole
+    // number can land at most a few ulps under it, and lifting the value by four ulps recovers
+    // exactly that and nothing else — a relative or absolute epsilon, however small, is wider
+    // than some genuinely fractional gap a window's integers and a camera's size can produce, and
+    // would round that count up past the resolved span.
+    private static int FloorExact(double pixels)
+    {
+        for (int ulp = 0; ulp < 4; ulp++)
+        {
+            pixels = Math.BitIncrement(pixels);
+        }
+
+        return (int)Math.Floor(pixels);
+    }
+
+    // Where the world lands on the render surface. Under Letterbox the declared span is fitted
+    // into the surface at whatever scale it allows and the slack is bars, as ever. Under Expand or
+    // FixedHeight the quantised span is a whole number of surface pixels at exactly the declared
+    // pixels per unit, so it is placed at that stated scale — never one recomputed from a division
+    // that can land an ulp off — centred, with bars where the surface is larger than it.
+    internal static Letterbox WorldFit(in CameraView camera, Vector2 span, float pixelsPerUnit, (int Width, int Height) surface) =>
+        camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f)
+            ? Letterbox.Fit(span.X, span.Y, surface.Width, surface.Height)
+            : Letterbox.FitAt(span.X, span.Y, surface.Width, surface.Height, pixelsPerUnit);
 
     // Half of what the surface has over the canvas, in whole surface pixels: under Expand or
     // FixedHeight the surface grows past the canvas to reveal more world, and the screen layer stays
@@ -345,32 +453,54 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // The surface a declared canvas draws on for a resolved world rect. Pixels per world unit are
-    // whatever the canvas and the camera's declared span give, so the fit changes how much world is
-    // on the surface and never how large a world unit is on it. Under Letterbox the resolved rect
-    // is that declared span, so the surface is the canvas exactly. It never shrinks below the
-    // canvas, and never exceeds the back buffer on an axis: past that the present can only scale
-    // the extra pixels back down, so they buy nothing and cost the whole surface every frame.
+    // whatever the canvas gives the camera's declared span on the fit's binding axis, so the fit
+    // changes how much world is on the surface and never how large a world unit is on it. Under
+    // Letterbox the resolved rect is that declared span, so the surface is the canvas exactly. It
+    // never shrinks below the canvas, and never exceeds the back buffer on an axis: past that the
+    // present can only scale the extra pixels back down, so they buy nothing and cost the whole
+    // surface every frame.
     internal static (int Width, int Height) SurfaceSize(
         (int Width, int Height) canvas,
-        Vector2 declaredSpan,
+        in CameraView camera,
         Vector2 resolvedSpan,
         int outputWidth,
         int outputHeight)
     {
-        if (!(declaredSpan.X > 0f) || !(declaredSpan.Y > 0f) || !(resolvedSpan.X > 0f) || !(resolvedSpan.Y > 0f))
+        float pixelsPerUnit = PixelsPerUnit(canvas, camera);
+        if (!(pixelsPerUnit > 0f) || !(resolvedSpan.X > 0f) || !(resolvedSpan.Y > 0f))
         {
             return canvas;
         }
 
-        float pixelsPerUnit = MathF.Min(canvas.Width / declaredSpan.X, canvas.Height / declaredSpan.Y);
+        (int? grownX, int? grownY) = GrownPixels(camera, canvas, resolvedSpan, pixelsPerUnit, outputWidth, outputHeight);
 
         return (
-            Extent(resolvedSpan.X, pixelsPerUnit, canvas.Width, outputWidth),
-            Extent(resolvedSpan.Y, pixelsPerUnit, canvas.Height, outputHeight));
+            Extent(grownX ?? (int)MathF.Floor(resolvedSpan.X * pixelsPerUnit), canvas.Width, outputWidth),
+            Extent(grownY ?? (int)MathF.Floor(resolvedSpan.Y * pixelsPerUnit), canvas.Height, outputHeight));
     }
 
-    private static int Extent(float span, float pixelsPerUnit, int canvas, int output) =>
-        Math.Clamp((int)MathF.Round(span * pixelsPerUnit), canvas, Math.Max(canvas, output));
+    // Surface pixels per world unit: what the canvas gives the camera's declared span on the axis
+    // its fit binds — the height under FixedHeight, whose height is exact; whichever axis the canvas
+    // holds tighter otherwise, the scale Letterbox draws at and Expand keeps. Zero for a span with
+    // no area.
+    internal static float PixelsPerUnit((int Width, int Height) canvas, in CameraView camera)
+    {
+        Vector2 size = camera.Size;
+        if (!(size.X > 0f) || !(size.Y > 0f))
+        {
+            return 0f;
+        }
+
+        return camera.Fit == ViewportFit.FixedHeight
+            ? canvas.Height / size.Y
+            : MathF.Min(canvas.Width / size.X, canvas.Height / size.Y);
+    }
+
+    // GrownPixels' count on an axis the fit grew, so the surface is exactly the quantised span
+    // there, never a pixel more that would show as a one-pixel bar; the clamp's floor absorbs a
+    // binding axis whose float product lands under the canvas it equals.
+    private static int Extent(int pixels, int canvas, int output) =>
+        Math.Clamp(pixels, canvas, Math.Max(canvas, output));
 
     // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
     // presents nothing and leaves no frame to save — including behind a render target, which is
@@ -495,6 +625,7 @@ internal sealed class FrameRenderer : IDisposable
         float alpha,
         in Rect world,
         Vector2 span,
+        in Letterbox fit,
         int surfaceWidth,
         int surfaceHeight,
         in ScreenPlacement present)
@@ -511,13 +642,7 @@ internal sealed class FrameRenderer : IDisposable
         _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
         _device.Clear(BarColor);
 
-        if (world.IsEmpty)
-        {
-            return;
-        }
-
-        Letterbox fit = Letterbox.Fit(span.X, span.Y, surfaceWidth, surfaceHeight);
-        if (fit.IsEmpty)
+        if (world.IsEmpty || fit.IsEmpty)
         {
             return;
         }
@@ -525,16 +650,12 @@ internal sealed class FrameRenderer : IDisposable
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
         // The camera interpolated on the same clock as what it looks at; snapping it to the step's
-        // end instead would slide the whole world back once per step.
+        // end instead would slide the whole world back once per step. The corner itself is not
+        // snapped: each sprite snaps to the grid anchored here, so a sprite is a whole number of
+        // pixels from the corner wherever the corner sits, and a followed sprite never crawls
+        // between two roundings. The simulation keeps its fractional positions.
         Vector2 topLeft = new(world.Left, world.Top);
-
-        // Camera and sprites quantise to the same grid, so the two never disagree by a pixel. The
-        // simulation keeps its fractional positions.
         bool snap = view.Sampling == TextureSampling.Point;
-        if (snap)
-        {
-            topLeft = PixelGrid.Snap(topLeft, fit.Scale);
-        }
 
         if (present.Scale > 0f)
         {
@@ -566,12 +687,12 @@ internal sealed class FrameRenderer : IDisposable
 
         foreach (ref readonly SpriteIntent sprite in view.Sprites)
         {
-            DrawSprite(sprite, alpha, snap, fit.Scale, ref resolved, ref texture);
+            DrawSprite(sprite, alpha, snap, topLeft, fit.Scale, ref resolved, ref texture);
         }
 
         foreach (ref readonly LineIntent line in view.Lines)
         {
-            DrawLine(line, fit.Scale, snap, fit.Scale);
+            DrawLine(line, fit.Scale, snap, topLeft, fit.Scale);
         }
 
         _batch.End();
@@ -608,12 +729,12 @@ internal sealed class FrameRenderer : IDisposable
 
         foreach (ref readonly SpriteIntent sprite in sprites)
         {
-            DrawSprite(sprite, alpha, snap, placement.Scale, ref resolved, ref texture);
+            DrawSprite(sprite, alpha, snap, Vector2.Zero, placement.Scale, ref resolved, ref texture);
         }
 
         foreach (ref readonly LineIntent line in lines)
         {
-            DrawLine(line, placement.Scale, snap, placement.Scale);
+            DrawLine(line, placement.Scale, snap, Vector2.Zero, placement.Scale);
         }
 
         _batch.End();
@@ -625,16 +746,17 @@ internal sealed class FrameRenderer : IDisposable
     // on the overlay path, the render surface's where one is declared, since a quad thinner than
     // that surface's pixel would miss its pixel centres and not rasterise at all.
     //
-    // snap quantises both ends to the grid of snapScale pixels per unit — the grid the frame's
-    // sprites were snapped to — before the segment is measured, as DrawSprite does its position.
-    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, float snapScale)
+    // snap quantises both ends to the grid of snapScale pixels per unit anchored at snapOrigin —
+    // the grid the frame's sprites were snapped to — before the segment is measured, as DrawSprite
+    // does its position, so a line lands on the sprite it outlines.
+    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, Vector2 snapOrigin, float snapScale)
     {
         Vector2 a = line.A;
         Vector2 b = line.B;
         if (snap)
         {
-            a = PixelGrid.Snap(a, snapScale);
-            b = PixelGrid.Snap(b, snapScale);
+            a = PixelGrid.SnapFrom(snapOrigin, a, snapScale);
+            b = PixelGrid.SnapFrom(snapOrigin, b, snapScale);
         }
 
         Vector2 delta = b - a;
@@ -655,10 +777,13 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // resolved is the handle texture was fetched for; both are carried across the whole stream.
+    // snapOrigin anchors the pixel grid: the camera's corner on a world pass, the canvas's on a
+    // screen pass.
     private void DrawSprite(
         in SpriteIntent sprite,
         float alpha,
         bool snap,
+        Vector2 snapOrigin,
         float surfaceScale,
         ref TextureHandle resolved,
         ref Texture2D? texture)
@@ -673,7 +798,7 @@ internal sealed class FrameRenderer : IDisposable
         Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha);
         if (snap)
         {
-            position = PixelGrid.Snap(position, surfaceScale);
+            position = PixelGrid.SnapFrom(snapOrigin, position, surfaceScale);
         }
 
         TextureRegion region = sprite.Sprite.Region;
@@ -757,9 +882,9 @@ internal sealed class FrameRenderer : IDisposable
     private static Color ToBackendColor(ColorRgba color) =>
         Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
 
-    // TopLeft is the world rect's snapped corner, Fit where that rect landed on the surface,
-    // Present where the surface landed in the back buffer, and Snap whether the frame quantised to
-    // the surface's pixel grid.
+    // TopLeft is the world rect's corner, which the frame's pixel grid is anchored at, Fit where
+    // that rect landed on the surface, Present where the surface landed in the back buffer, and
+    // Snap whether the frame quantised to the surface's pixel grid.
     private readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap)
     {
         internal float PixelsPerUnit => Fit.Scale * Present.Scale;

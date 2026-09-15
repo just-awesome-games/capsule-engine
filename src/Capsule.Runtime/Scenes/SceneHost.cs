@@ -39,9 +39,17 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // Null until the device is ready. Later transitions prepare their incoming scene through it.
     internal Action<AssetCollection>? PrepareAssets { get; set; }
 
+    // Whether the last step's transition failed to bring its incoming scene up — resolving,
+    // preparing or starting it threw — which leaves the run on the scene it was on, stepped as
+    // before. The exception propagated all the same; this says where it came from, as a step's
+    // own failure, after which the simulation is not continued, is never reported this way.
+    internal bool TransitionFailed { get; private set; }
+
     public void Step(in StepContext context)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        TransitionFailed = false;
 
         // The exit already tore the current scene down; there is nothing left to step.
         if (ExitRequested)
@@ -67,6 +75,55 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 {
                     ReleaseAssets();
                 }
+                break;
+
+            case SceneTransitionKind.Restart:
+                Replace(transition.HasPayload ? _target.WithPayload(transition.Payload) : _target);
+                break;
+
+            case SceneTransitionKind.Scene:
+            case SceneTransitionKind.Named:
+                Replace(transition);
+                break;
+
+            default:
+                throw new InvalidOperationException($"Unknown scene transition kind '{transition.Kind}'.");
+        }
+    }
+
+    // Step with the host's before-step act inside the current scene's own step, so a scene the
+    // act asks for is the transition this step then consumes. Spelt out again rather than shared
+    // with Step, so the ordinary step carries no branch for an act it never has.
+    void ISimulation.Step(in StepContext context, Action before)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        TransitionFailed = false;
+
+        if (ExitRequested)
+        {
+            return;
+        }
+
+        ((ISimulation)_current).Step(context, before);
+        if (!_current.TryTakeTransition(out SceneTransition transition))
+        {
+            return;
+        }
+
+        switch (transition.Kind)
+        {
+            case SceneTransitionKind.Exit:
+                ExitRequested = true;
+                try
+                {
+                    _current.Dispose();
+                }
+                finally
+                {
+                    ReleaseAssets();
+                }
+
                 break;
 
             case SceneTransitionKind.Restart:
@@ -116,12 +173,51 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     private void Replace(in SceneTransition target)
     {
+        SceneSimulation incoming;
+        try
+        {
+            incoming = Bring(in target);
+        }
+        catch
+        {
+            TransitionFailed = true;
+            throw;
+        }
+
+        try
+        {
+            _current.Dispose();
+        }
+        catch (Exception disposeFailure)
+        {
+            try
+            {
+                incoming.Dispose();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    $"Stopping {_current.Scene.GetType().Name} and then releasing {incoming.Scene.GetType().Name} both failed.",
+                    disposeFailure,
+                    cleanupFailure);
+            }
+
+            throw;
+        }
+
+        _current = incoming;
+        _target = target;
+    }
+
+    // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown, so
+    // whatever fails here leaves the run on the scene it was on; a scene that fails to start was
+    // stopped by its simulation.
+    private SceneSimulation Bring(in SceneTransition target)
+    {
         Scene next = _resolve(target);
 
         try
         {
-            // Before the outgoing scene is torn down: a preload that fails must leave the run on
-            // the scene it was on.
             PrepareAssets?.Invoke(next.CollectAssetPreloads());
         }
         catch (Exception preparationFailure)
@@ -141,33 +237,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
             throw;
         }
 
-        // The incoming scene starts before the outgoing one is torn down, so a start that fails
-        // leaves the run on the scene it was on; the failed scene was stopped by its simulation.
-        SceneSimulation incoming = new(next, target.Payload, _run);
-
-        try
-        {
-            _current.Dispose();
-        }
-        catch (Exception disposeFailure)
-        {
-            try
-            {
-                incoming.Dispose();
-            }
-            catch (Exception cleanupFailure)
-            {
-                throw new AggregateException(
-                    $"Stopping {_current.Scene.GetType().Name} and then releasing {next.GetType().Name} both failed.",
-                    disposeFailure,
-                    cleanupFailure);
-            }
-
-            throw;
-        }
-
-        _current = incoming;
-        _target = target;
+        return new SceneSimulation(next, target.Payload, _run);
     }
 
     private void ReleaseAssets()

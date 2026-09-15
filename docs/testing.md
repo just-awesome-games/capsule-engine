@@ -1,20 +1,12 @@
 # Testing a game
 
-Capsule's deterministic simulation runs in an ordinary test project without a window or graphics
-device. Games choose their own test framework, assertions and fixtures. XML comments define each
-API's behavior; this page helps choose the appropriate boundary.
+Capsule's deterministic simulation runs in an ordinary test project without a window or graphics device; a game chooses its own test framework. Pick the boundary by what the test is about:
 
 | Test subject | Entry point |
 | --- | --- |
-| Scene behavior over time | `SimulationHost`, which owns ticks, input state and simulation teardown. |
+| Scene behaviour over time | `SimulationHost`, which owns ticks, input state and teardown. |
 | A deliberately constructed step context | `SceneSimulation`. |
 | Scene transitions, boot configuration or exit results | `CapsuleEngine.RunHeadless`, from `JAG.Capsule.Runtime`. |
 | Geometry independent of scenes | `CollisionWorld2D`. |
 
-Supply input as `DeviceSnapshot` values, script a sequence with `InputScript`, or implement an
-`IInputDriver` that observes the scene. See [headless-play.md](headless-play.md) for driver discovery
-and command-line execution. [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the worked example: the sample's own room under `SimulationHost`, and the whole game under `RunHeadless`.
-
-Audio mixing is pure simulation state and can be asserted through `Run.Audio` without playback.
-Use a seeded `RandomSource` for repeatable runs; the cross-cutting guarantees are in
-[architecture.md](architecture.md#determinism-contract).
+Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that reads the scene ([`headless-play.md`](headless-play.md)). Audio mixing is simulation state, asserted through `Run.Audio` without playback; a seeded `RandomSource` makes a run repeatable under the [determinism contract](architecture.md#determinism-contract). [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the worked example at both boundaries.

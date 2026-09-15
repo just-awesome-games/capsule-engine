@@ -286,11 +286,13 @@ public class Entity
     }
 
     /// <summary>
-    /// Reports this entity's own state, as <see cref="Component.OnInspect"/> describes; nothing by
-    /// default. <see cref="Position"/> and <see cref="ZIndex"/> are written before this is called,
-    /// so an override cannot lose them, and each component reports under its own heading after it.
+    /// Fills this entity's own section of its panel — the one headed <c>Entity</c> — as
+    /// <see cref="Component.OnDebugPanel"/> describes; nothing by default. <see cref="Position"/>
+    /// and <see cref="ZIndex"/>, and a <c>Remove</c> command that takes the entity out of its
+    /// scene, are written into that section before this is called, so an override cannot lose
+    /// them, and each component fills its own section under its heading after it.
     /// </summary>
-    protected internal virtual void OnInspect(Inspector inspector)
+    protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
     }
 
@@ -464,20 +466,22 @@ public class Entity
     // The innate rows are the engine's, written before any hook so no override can lose them;
     // the hooks are bound by the rule RunStep is. Every component gets its heading whether or not
     // it has started, so the panel still shows what the entity is made of.
-    internal void RunInspect(Inspector inspector)
+    internal void RunDebugPanel(DebugPanel panel)
     {
-        inspector.Field("Position", Position);
-        inspector.Field("ZIndex", ZIndex);
+        panel.Section("Entity");
+        panel.Field("Position", Position);
+        panel.Field("ZIndex", ZIndex);
+        panel.Command("Remove", () => Scene?.Remove(this));
 
         if (_started)
         {
-            OnInspect(inspector);
+            OnDebugPanel(panel);
         }
 
         foreach (Component component in LiveComponents)
         {
-            inspector.Section(component.GetType().Name);
-            component.RunInspect(inspector);
+            panel.Section(component.GetType().Name);
+            component.RunDebugPanel(panel);
         }
     }
 

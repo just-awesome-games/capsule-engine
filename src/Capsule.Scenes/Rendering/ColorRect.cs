@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -45,5 +46,16 @@ public sealed class ColorRect(Vector2 size) : Renderer
             FlipX: false,
             FlipY: false,
             Color));
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        ArgumentNullException.ThrowIfNull(panel);
+
+        base.OnDebugPanel(panel);
+        panel.Field("Size", Size);
+        panel.Field("Offset", Offset);
+        panel.Field("Color", Color);
     }
 }

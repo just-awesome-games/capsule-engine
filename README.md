@@ -22,38 +22,32 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
-[`docs/workflow.md`](docs/workflow.md) lists the everyday commands: run, test, format, the gate, and ship.
-
-Press `` ` `` (grave) in any windowed run for the development overlay: pause, single-step, restart, load a
-scene, toggle debug drawing — colliders, entity origins, camera bounds, and your own — and a
-frame stats pane. A shipping publish turns it off. [`docs/debugging.md`](docs/debugging.md) covers it.
-
-The shell's entry point is handwritten against the generated `CapsuleBoot` builder:
+A shell's whole hand-written code is its entry point, against the generated `CapsuleBoot` builder:
 
 ```csharp
 return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
 ```
 
-## Documentation
+Press `` ` `` in any windowed run for the development overlay; a trimmed publish removes it and an untrimmed one carries it disabled ([`docs/debugging.md`](docs/debugging.md)).
 
-Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); see [`PACKAGE.md`](PACKAGE.md) for their contents.
+## Where to go next
 
-- [`docs/architecture.md`](docs/architecture.md) — module charters, the game-logic boundary, the determinism contract, and the NativeAOT floor.
-- [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, and every build property.
-- [`docs/workflow.md`](docs/workflow.md) — the everyday commands of a game built on Capsule, and their Unity and Godot equivalents.
-- [`docs/debugging.md`](docs/debugging.md) — the development overlay, debug drawing, and what leaves a shipping build.
+Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); [`PACKAGE.md`](PACKAGE.md) lists their contents. Every public member's contract is its XML documentation, shipped beside the assemblies; the markdown below holds only what spans many types.
+
+- [`docs/architecture.md`](docs/architecture.md) — the module boundaries, the logic boundary, the determinism contract, and the NativeAOT floor.
+- [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, publishing, and the build properties.
+- [`docs/workflow.md`](docs/workflow.md) — the everyday commands of a game built on Capsule.
+- [`docs/debugging.md`](docs/debugging.md) — the development plane: the overlay and what a shipping publish drops.
 - [`docs/project-layout.md`](docs/project-layout.md) — the directory convention inside a game's logic project.
 - [`docs/scenes.md`](docs/scenes.md) — the scene authoring model and the `*.scene.json` format.
 - [`docs/sprite-animation.md`](docs/sprite-animation.md) — the `*.sheet.json` sprite sheet format.
 - [`docs/text.md`](docs/text.md) — bitmap fonts.
 - [`docs/headless-play.md`](docs/headless-play.md) — input drivers and the standard command line.
-- [`docs/testing.md`](docs/testing.md) — what Capsule ships for testing a game, and which to reach for.
-
-Public APIs are documented in their XML comments and ship beside the assemblies for editor IntelliSense; [`docs/consuming-capsule.md`](docs/consuming-capsule.md#the-api-reference) locates them in package and source modes.
+- [`docs/testing.md`](docs/testing.md) — which boundary to test a game at.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the build and test gates, [`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and the gate, [`AGENTS.md`](AGENTS.md) for the rules no compiler enforces, [`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations.
 
 Capsule is licensed under the [MIT License](LICENSE).
 The runtime's embedded font is covered by the [third-party notices](THIRD-PARTY-NOTICES.md).

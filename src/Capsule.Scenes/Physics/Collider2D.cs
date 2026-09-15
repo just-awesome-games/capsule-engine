@@ -13,7 +13,7 @@ namespace Capsule.Physics;
 /// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
 /// It draws itself on the <c>Colliders</c> debug channel from <see cref="Component.OnDebugDraw"/>,
 /// dimmed while disabled, and reports <see cref="Enabled"/>, <see cref="Offset"/>,
-/// <see cref="Layer"/> and its shape from <see cref="Component.OnInspect"/>.
+/// <see cref="Layer"/> and its shape from <see cref="Component.OnDebugPanel"/>.
 /// <para>
 /// While this collider is dispatching its own contact handlers, what they are being told about is
 /// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
@@ -466,13 +466,15 @@ public abstract class Collider2D : Component
 
     // What every collider reports; a subclass adds its shape after calling this.
     /// <inheritdoc/>
-    protected internal override void OnInspect(Inspector inspector)
+    protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(inspector);
+        ArgumentNullException.ThrowIfNull(panel);
 
-        inspector.Field("Enabled", _enabled);
-        inspector.Field("Offset", _offset);
-        inspector.Field("Layer", _layer);
+        panel.Field("Offset", _offset);
+        panel.Field("Layer", _layer);
+        panel.Field("Touching", Touching.Length);
+        panel.Toggle("Enabled", _enabled, on => Enabled = on);
+        panel.Toggle("ReportsContacts", ReportsContacts, on => ReportsContacts = on);
     }
 
     /// <inheritdoc/>

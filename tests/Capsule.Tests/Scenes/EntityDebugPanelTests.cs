@@ -7,7 +7,7 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Scenes;
 
-public sealed class EntityInspectTests
+public sealed class EntityDebugPanelTests
 {
     private static readonly SpriteClip Walk = new(
         [SceneFixtures.Frame(8, 8), SceneFixtures.Frame(8, 16), SceneFixtures.Frame(8, 24)],
@@ -15,7 +15,7 @@ public sealed class EntityInspectTests
         loop: true);
 
     [Fact]
-    public void TheWalk_WritesPositionAndZIndexBeforeTheHookThenEachComponentUnderItsHeadingInAttachmentOrder()
+    public void TheWalk_OpensTheEntitySectionWithPositionAndZIndexThenTheHookThenEachComponentUnderItsHeading()
     {
         Scene scene = new();
         Reporter entity = new(new Vector2(3f, 4f)) { ZIndex = 7 };
@@ -24,14 +24,16 @@ public sealed class EntityInspectTests
         entity.Add(new ReportingComponent("Fourth"));
         scene.Add(entity);
         using SimulationHost host = new(scene);
-        Inspector inspector = new();
+        DebugPanel panel = new();
 
-        entity.RunInspect(inspector);
+        entity.RunDebugPanel(panel);
 
         Assert.Equal(
             [
+                ("[Entity]", null),
                 ("Position", "(3, 4)"),
                 ("ZIndex", "7"),
+                ("Remove", null),
                 ("Health", "12"),
                 ("[ReportingComponent]", null),
                 ("Name", "Second"),
@@ -39,7 +41,7 @@ public sealed class EntityInspectTests
                 ("[ReportingComponent]", null),
                 ("Name", "Fourth"),
             ],
-            Rows(inspector));
+            Rows(panel));
     }
 
     // Time has not begun for an entity in a scene that has not started, so neither hook runs; the
@@ -51,44 +53,65 @@ public sealed class EntityInspectTests
         Reporter entity = new(Vector2.Zero);
         entity.Add(new ReportingComponent("Never"));
         scene.Add(entity);
-        Inspector inspector = new();
+        DebugPanel panel = new();
 
-        entity.RunInspect(inspector);
+        entity.RunDebugPanel(panel);
 
         Assert.Equal(
             [
+                ("[Entity]", null),
                 ("Position", "(0, 0)"),
                 ("ZIndex", "0"),
+                ("Remove", null),
                 ("[ReportingComponent]", null),
             ],
-            Rows(inspector));
+            Rows(panel));
     }
 
     // The entity has no override of its own, and the innate rows are still there ahead of the
-    // collider's.
+    // collider's; the collider's Enabled is a toggle that round-trips through the collider.
     [Fact]
-    public void ABoxCollider_ReportsItsSharedFieldsThenItsSize()
+    public void ABoxCollider_ReportsItsSharedFieldsThenItsSizeAndItsEnabledToggleRoundTrips()
     {
         Scene scene = new();
         Entity entity = new SceneFixtures.Drifter(new Vector2(9f, 9f));
-        entity.Add(new BoxCollider2D(new Vector2(8f, 16f)) { Offset = new Vector2(1f, 2f), Layer = "solid", Enabled = false });
+        BoxCollider2D collider = new(new Vector2(8f, 16f)) { Offset = new Vector2(1f, 2f), Layer = "solid", Enabled = false };
+        entity.Add(collider);
         scene.Add(entity);
         using SimulationHost host = new(scene);
-        Inspector inspector = new();
+        DebugPanel panel = new();
 
-        entity.RunInspect(inspector);
+        entity.RunDebugPanel(panel);
 
         Assert.Equal(
             [
+                ("[Entity]", null),
                 ("Position", "(9, 9)"),
                 ("ZIndex", "0"),
+                ("Remove", null),
                 ("[BoxCollider2D]", null),
-                ("Enabled", "False"),
                 ("Offset", "(1, 2)"),
                 ("Layer", "solid"),
+                ("Touching", "0"),
+                ("Enabled", null),
+                ("ReportsContacts", null),
                 ("Size", "(8, 16)"),
             ],
-            Rows(inspector));
+            Rows(panel));
+
+        DebugPanelRow enabled = panel.Rows[8];
+        Assert.Equal(DebugPanelRowKind.Toggle, enabled.Kind);
+        Assert.False(enabled.On);
+
+        enabled.Activate!();
+        Assert.True(collider.Enabled);
+
+        panel.Clear();
+        entity.RunDebugPanel(panel);
+        Assert.True(panel.Rows[8].On);
+
+        panel.Rows[8].Activate!();
+        Assert.False(collider.Enabled);
     }
 
     [Fact]
@@ -99,11 +122,11 @@ public sealed class EntityInspectTests
         scene.Add(body);
         using SimulationHost host = new(scene);
         body.Mover.Move(new Vector2(0f, 60f));
-        Inspector inspector = new();
+        DebugPanel panel = new();
 
-        body.RunInspect(inspector);
+        body.RunDebugPanel(panel);
 
-        (string Label, string? Value)[] rows = Rows(inspector);
+        (string Label, string? Value)[] rows = Rows(panel);
         int heading = Array.FindIndex(rows, static row => row.Label == "[KinematicBody2D]");
         Assert.True(heading >= 0);
         Assert.Equal(
@@ -113,6 +136,7 @@ public sealed class EntityInspectTests
                 ("IsOnCeiling", "False"),
                 ("FloorNormal", "(0, -1)"),
                 ("WallNormal", "(0, 0)"),
+                ("MoveContacts", "1"),
             ],
             rows[(heading + 1)..]);
     }
@@ -128,32 +152,34 @@ public sealed class EntityInspectTests
         using SimulationHost host = new(scene);
         animator.Play(Walk);
         host.Step(3);
-        Inspector inspector = new();
+        DebugPanel panel = new();
 
-        entity.RunInspect(inspector);
+        entity.RunDebugPanel(panel);
 
-        (string Label, string? Value)[] rows = Rows(inspector);
+        (string Label, string? Value)[] rows = Rows(panel);
         int heading = Array.FindIndex(rows, static row => row.Label == "[SpriteAnimator]");
         Assert.True(heading >= 0);
         Assert.Equal(1, animator.FrameIndex);
         Assert.Equal(
             [
                 ("Playing", "True"),
+                ("Clip", "3 frames, (0, 0) to (0, 0)"),
                 ("Frame", "1 of 3"),
                 ("Tick", animator.Tick.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("Loop", "True"),
                 ("IsFinished", "False"),
+                ("Restart", null),
             ],
             rows[(heading + 1)..]);
     }
 
-    private static (string Label, string? Value)[] Rows(Inspector inspector)
+    private static (string Label, string? Value)[] Rows(DebugPanel panel)
     {
-        ReadOnlySpan<InspectorRow> rows = inspector.Rows;
+        ReadOnlySpan<DebugPanelRow> rows = panel.Rows;
         (string, string?)[] pairs = new (string, string?)[rows.Length];
         for (int index = 0; index < rows.Length; index++)
         {
-            InspectorRow row = rows[index];
+            DebugPanelRow row = rows[index];
             pairs[index] = row.IsHeading ? ($"[{row.Label}]", null) : (row.Label, row.Value);
         }
 
@@ -162,12 +188,12 @@ public sealed class EntityInspectTests
 
     private sealed class Reporter(Vector2 position) : Entity(position)
     {
-        protected internal override void OnInspect(Inspector inspector) => inspector.Field("Health", 12);
+        protected internal override void OnDebugPanel(DebugPanel panel) => panel.Field("Health", 12);
     }
 
     private sealed class ReportingComponent(string name) : Component
     {
-        protected internal override void OnInspect(Inspector inspector) => inspector.Field("Name", name);
+        protected internal override void OnDebugPanel(DebugPanel panel) => panel.Field("Name", name);
     }
 
     private sealed class SilentComponent : Component;

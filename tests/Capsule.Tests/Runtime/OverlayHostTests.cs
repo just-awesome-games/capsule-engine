@@ -12,7 +12,7 @@ namespace Capsule.Tests.Runtime;
 
 // A failed menu action logs, and the sink is one process-wide slot.
 [Collection(LogSinkCollection.Name)]
-public sealed class DebugOverlayTests
+public sealed class OverlayHostTests
 {
     private const double StepSeconds = 0.1;
     private const string NamedDocument = "levels/named";
@@ -24,7 +24,7 @@ public sealed class DebugOverlayTests
     public void LeadingEdgeTogglesAndQuarantinesTheBoundButtonUntilRelease()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(Key.Grave, scheduler, new RecordingSimulation());
+        OverlayHost overlay = new(Key.Grave, scheduler, new RecordingSimulation());
 
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Grave, Key.Space);
         snapshot = overlay.Observe(snapshot);
@@ -60,7 +60,7 @@ public sealed class DebugOverlayTests
             StepSeconds,
             5,
             new ActionBindings().Bind(SharedAction, Key.Grave));
-        DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
+        OverlayHost overlay = new(Key.Grave, scheduler, simulation);
 
         DeviceSnapshot opening = DeviceSnapshot.Of(Key.Grave);
         opening = overlay.Observe(opening);
@@ -83,7 +83,7 @@ public sealed class DebugOverlayTests
     public void ReboundPadButtonOpensAndIsQuarantined()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new((InputButton)PadButton.South, scheduler, new RecordingSimulation());
+        OverlayHost overlay = new((InputButton)PadButton.South, scheduler, new RecordingSimulation());
         DeviceSnapshot snapshot = DeviceSnapshot.Empty.With(PadButton.South).With(Key.Space);
 
         snapshot = overlay.Observe(snapshot);
@@ -98,7 +98,7 @@ public sealed class DebugOverlayTests
     public void NoneNeverOpensOrChangesTheSnapshot()
     {
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(InputButton.None, scheduler, new RecordingSimulation());
+        OverlayHost overlay = new(InputButton.None, scheduler, new RecordingSimulation());
         DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Grave);
 
         snapshot = overlay.Observe(snapshot);
@@ -111,7 +111,7 @@ public sealed class DebugOverlayTests
     [Fact]
     public void ClosedOverlay_DoesNotStepItsHost()
     {
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), new RecordingSimulation());
+        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), new RecordingSimulation());
 
         overlay.Step();
 
@@ -124,7 +124,7 @@ public sealed class DebugOverlayTests
     {
         Run gameRun = new() { Canvas = new System.Numerics.Vector2(100f, 50f) };
         using SceneHost game = CreateHost(gameRun);
-        using DebugOverlay overlay = new(Key.Grave, CreateScheduler(), game, game);
+        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), game, game);
 
         overlay.Refit((640, 720));
 
@@ -143,7 +143,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         DeviceSnapshot opening = DeviceSnapshot.Of(Key.Grave);
         opening = overlay.Observe(opening);
@@ -167,19 +167,19 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
-        DebugScene scene = overlay.Scene;
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        OverlayScene scene = overlay.Scene;
 
         Open(overlay, scheduler, host);
 
-        Assert.Equal(["Step", "Restart", "Load Scene", "Debug Draw", "Frame Pane", "Inspect", "Hide", "Exit"], Labels(scene));
+        Assert.Equal(["Scene", "Step", "Debug Draw", "Restart", "Load Scene", "Frame Pane", "Hide", "Exit"], Labels(scene));
         Assert.Equal(0, scene.FocusedIndex);
-        Assert.Equal("Step        Right", scene.RowText(0));
-        Assert.Equal("Restart     R", scene.RowText(1));
-        Assert.Equal("Load Scene  L", scene.RowText(2));
-        Assert.Equal("Debug Draw  D", scene.RowText(3));
-        Assert.Equal("Frame Pane  F", scene.RowText(4));
-        Assert.Equal("Inspect     I", scene.RowText(5));
+        Assert.Equal("Scene       S", scene.RowText(0));
+        Assert.Equal("Step        Right", scene.RowText(1));
+        Assert.Equal("Debug Draw  D", scene.RowText(2));
+        Assert.Equal("Restart     R", scene.RowText(3));
+        Assert.Equal("Load Scene  L", scene.RowText(4));
+        Assert.Equal("Frame Pane  F", scene.RowText(5));
         Assert.Equal("Hide        H", scene.RowText(6));
         Assert.Equal("Exit        E", scene.RowText(7));
     }
@@ -189,7 +189,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.L);
@@ -216,7 +216,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Assert.Equal(0, overlay.Scene.FocusedIndex);
@@ -241,7 +241,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         ScreenPlacement gameLayer = new(new System.Numerics.Vector2(100f, 20f), 3f);
         const int overlayScale = 2;
 
@@ -263,7 +263,7 @@ public sealed class DebugOverlayTests
 
         Assert.Equal(gamePoint, game.Pointer);
         Assert.Equal(1, overlay.Scene.FocusedIndex);
-        Assert.Equal("Restart", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
+        Assert.Equal("Step", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         Scene before = host.Scene;
 
         Open(overlay, scheduler, host);
@@ -290,9 +290,11 @@ public sealed class DebugOverlayTests
         List<SceneTransition> resolved = [];
         using SceneHost host = CreateHost(resolved: resolved);
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
 
         Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
@@ -331,10 +333,12 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
-        DebugScene scene = overlay.Scene;
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        OverlayScene scene = overlay.Scene;
 
         Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
@@ -355,18 +359,52 @@ public sealed class DebugOverlayTests
         Assert.Equal(0, scheduler.Tick);
     }
 
+    // The hold's edges are the host's to hear: taken on open, kept through hide and either way
+    // back from it, let go on close.
+    [Fact]
+    public void TheHold_ReportsItsEdgesOnOpenAndCloseAndNotOnHideOrTheReturnFromIt()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        List<bool> edges = [];
+        overlay.HoldChanged = edges.Add;
+
+        Open(overlay, scheduler, host);
+        Assert.Equal([true], edges);
+
+        Press(overlay, scheduler, host, Key.H);
+        Assert.True(overlay.IsHidden);
+        Assert.Equal([true], edges);
+
+        Press(overlay, scheduler, host, Key.Grave);
+        Assert.True(overlay.IsOpen);
+        Assert.True(scheduler.Held);
+        Assert.Equal([true], edges);
+
+        Press(overlay, scheduler, host, Key.H);
+        Assert.True(overlay.IsHidden);
+        Press(overlay, scheduler, host, Key.H);
+        Assert.True(overlay.IsOpen);
+        Assert.Equal([true], edges);
+
+        Press(overlay, scheduler, host, Key.Grave);
+
+        Assert.False(overlay.IsOpen);
+        Assert.False(scheduler.Held);
+        Assert.Equal([true, false], edges);
+    }
+
     [Fact]
     public void ALoadWhoseStartFails_ShowsTheFailureKeepsTheSceneAndStillSteps()
     {
         Log.UseSink(null);
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
         ReadoutScene before = Assert.IsType<ReadoutScene>(host.Scene);
 
         Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.Up);
-        Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Up);
@@ -397,7 +435,7 @@ public sealed class DebugOverlayTests
             StepSeconds,
             5,
             new ActionBindings().Bind(SpaceAction, Key.Space).Bind(RightAction, Key.Right));
-        using DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
+        using OverlayHost overlay = new(Key.Grave, scheduler, simulation);
 
         Open(overlay, scheduler, simulation);
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right, Key.Space));
@@ -411,7 +449,7 @@ public sealed class DebugOverlayTests
         Assert.Equal(0, scheduler.AccumulatorSeconds);
         Assert.True(scheduler.Held);
 
-        for (int frame = 0; frame < DebugScene.RepeatDelayFrames - 1; frame++)
+        for (int frame = 0; frame < OverlayScene.RepeatDelayFrames - 1; frame++)
         {
             Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
         }
@@ -421,7 +459,7 @@ public sealed class DebugOverlayTests
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
         Assert.Equal(2, simulation.Steps.Count);
 
-        for (int frame = 0; frame < DebugScene.RepeatIntervalFrames - 1; frame++)
+        for (int frame = 0; frame < OverlayScene.RepeatIntervalFrames - 1; frame++)
         {
             Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Right));
         }
@@ -438,7 +476,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
@@ -473,7 +511,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.Up);
@@ -487,13 +525,13 @@ public sealed class DebugOverlayTests
 
         Assert.True(overlay.IsOpen);
         Assert.False(game.IsDown(Key.H));
-        Assert.False(overlay.Host.Input.IsHeld(DebugInput.Hide));
+        Assert.False(overlay.Host.Input.IsHeld(OverlayActions.Hide));
 
         game = Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
 
         Assert.True(overlay.IsOpen);
         Assert.False(game.IsDown(Key.H));
-        Assert.False(overlay.Host.Input.IsHeld(DebugInput.Hide));
+        Assert.False(overlay.Host.Input.IsHeld(OverlayActions.Hide));
         Assert.True(scheduler.Held);
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
@@ -507,7 +545,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.H));
@@ -536,7 +574,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Up));
@@ -560,7 +598,7 @@ public sealed class DebugOverlayTests
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings(), new EmptyDriver(), host);
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
@@ -577,7 +615,7 @@ public sealed class DebugOverlayTests
     {
         RecordingSimulation simulation = new();
         FixedStepScheduler enterScheduler = CreateScheduler();
-        using DebugOverlay enterOverlay = new(Key.Enter, enterScheduler, simulation);
+        using OverlayHost enterOverlay = new(Key.Enter, enterScheduler, simulation);
 
         Frame(enterOverlay, enterScheduler, simulation, DeviceSnapshot.Of(Key.Enter));
 
@@ -586,7 +624,7 @@ public sealed class DebugOverlayTests
 
         using SceneHost host = CreateHost();
         FixedStepScheduler rightScheduler = CreateScheduler();
-        using DebugOverlay rightOverlay = new(Key.Right, rightScheduler, host, host);
+        using OverlayHost rightOverlay = new(Key.Right, rightScheduler, host, host);
 
         Frame(rightOverlay, rightScheduler, host, DeviceSnapshot.Of(Key.Right));
         Frame(rightOverlay, rightScheduler, host, DeviceSnapshot.Of(Key.Right));
@@ -604,7 +642,7 @@ public sealed class DebugOverlayTests
             static (in SceneTransition _) => new ExitOnStartScene(),
             new Run());
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Open(overlay, scheduler, host);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.R));
@@ -625,7 +663,7 @@ public sealed class DebugOverlayTests
                 : new PlainScene(),
             new Run());
         FixedStepScheduler scheduler = CreateScheduler();
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         Scene before = host.Scene;
 
         Open(overlay, scheduler, host);
@@ -645,7 +683,7 @@ public sealed class DebugOverlayTests
             StepSeconds,
             5,
             new ActionBindings().Bind(SharedAction, Key.Enter));
-        using DebugOverlay overlay = new(Key.Grave, scheduler, simulation);
+        using OverlayHost overlay = new(Key.Grave, scheduler, simulation);
 
         Open(overlay, scheduler, simulation);
         Assert.Equal("Step", Labels(overlay.Scene)[overlay.Scene.FocusedIndex]);
@@ -671,9 +709,9 @@ public sealed class DebugOverlayTests
         Assert.True(simulation.Steps[^1].Pressed);
     }
 
-    private static string[] Labels(DebugScene scene)
+    private static string[] Labels(OverlayScene scene)
     {
-        IReadOnlyList<DebugMenuItem> items = scene.Menu.Items;
+        IReadOnlyList<MenuItem> items = scene.Current.Items;
         string[] labels = new string[items.Count];
         for (int index = 0; index < items.Count; index++)
         {
@@ -685,7 +723,7 @@ public sealed class DebugOverlayTests
 
     // Opens the overlay on the toggle's edge and releases it, so the next frame's keys are the
     // menu's.
-    private static void Open(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation)
+    private static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
     {
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
@@ -694,7 +732,7 @@ public sealed class DebugOverlayTests
     }
 
     // One press: the key's frame and the release after it.
-    private static void Press(DebugOverlay overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
+    private static void Press(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
     {
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
@@ -702,7 +740,7 @@ public sealed class DebugOverlayTests
 
     // One host frame: observe, advance the game, step the overlay. Returns what the game saw.
     private static DeviceSnapshot Frame(
-        DebugOverlay overlay,
+        OverlayHost overlay,
         FixedStepScheduler scheduler,
         ISimulation simulation,
         DeviceSnapshot sampled)

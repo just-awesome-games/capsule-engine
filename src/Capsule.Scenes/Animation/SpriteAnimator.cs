@@ -166,21 +166,30 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
-    // A clip has no name, so the frame's place in it is what identifies where playback is.
+    // A clip has no name, so its frames' span of the sheet and the frame's place in it are what
+    // identify where playback is.
     /// <inheritdoc/>
-    protected internal override void OnInspect(Inspector inspector)
+    protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        ArgumentNullException.ThrowIfNull(inspector);
+        ArgumentNullException.ThrowIfNull(panel);
 
-        inspector.Field("Playing", Clip is not null);
+        panel.Field("Playing", Clip is not null);
         if (Clip is not { } clip)
         {
             return;
         }
 
-        inspector.Field("Frame", string.Create(CultureInfo.InvariantCulture, $"{FrameIndex} of {clip.Frames.Length}"));
-        inspector.Field("Tick", Tick);
-        inspector.Field("Loop", clip.Loop);
-        inspector.Field("IsFinished", IsFinished);
+        TextureRegion first = clip.Frames[0].Region;
+        TextureRegion last = clip.Frames[^1].Region;
+        panel.Field(
+            "Clip",
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{clip.Frames.Length} frames, ({first.X}, {first.Y}) to ({last.X}, {last.Y})"));
+        panel.Field("Frame", string.Create(CultureInfo.InvariantCulture, $"{FrameIndex} of {clip.Frames.Length}"));
+        panel.Field("Tick", Tick);
+        panel.Field("Loop", clip.Loop);
+        panel.Field("IsFinished", IsFinished);
+        panel.Command("Restart", () => Play(clip, restart: true));
     }
 }

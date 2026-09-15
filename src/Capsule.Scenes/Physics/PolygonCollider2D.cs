@@ -39,10 +39,10 @@ public sealed class PolygonCollider2D : Collider2D
     }
 
     /// <inheritdoc/>
-    protected internal override void OnInspect(Inspector inspector)
+    protected internal override void OnDebugPanel(DebugPanel panel)
     {
-        base.OnInspect(inspector);
-        inspector.Field("Points", Shape.PointCount);
-        inspector.Field("Radius", Radius);
+        base.OnDebugPanel(panel);
+        panel.Field("Points", Shape.PointCount);
+        panel.Field("Radius", Radius);
     }
 }

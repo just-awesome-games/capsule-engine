@@ -5,12 +5,9 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// One row of the debug panel: its text, the highlight bar it shows while focused, and the box the
-// navigator focuses. It says it was pressed, never what pressing it means. The scene places it,
-// sets its width, and hides it while it lies outside the menu's window: a hidden row draws nothing
-// and has no extent, so the pointer never finds it, while its position still serves the
-// navigator's direction geometry.
-internal sealed class DebugMenuRow : ScreenEntity
+// The screen entity drawing one menu item — its text, the highlight it shows while focused and
+// the box the navigator focuses — which says it was pressed and never what pressing means.
+internal sealed class MenuRow : ScreenEntity
 {
     private static readonly ColorRgba HighlightColor = ColorRgba.White with { A = 64 };
 
@@ -21,7 +18,7 @@ internal sealed class DebugMenuRow : ScreenEntity
     private float _width;
     private bool _shown = true;
 
-    internal DebugMenuRow(string text, float inset)
+    internal MenuRow(string text, float inset)
         : base(Anchor.TopLeft, Vector2.Zero)
     {
         _text = text;
@@ -65,7 +62,8 @@ internal sealed class DebugMenuRow : ScreenEntity
     }
 
     // Whether the row is in the menu's window. Hidden, the label is blank and the box and the
-    // highlight have no extent; shown again, all three come back, the highlight only if focused.
+    // highlight have no extent, so the pointer never finds it; shown again, all three come back,
+    // the highlight only if focused. Its position still serves the navigator's direction geometry.
     internal bool Shown
     {
         get => _shown;

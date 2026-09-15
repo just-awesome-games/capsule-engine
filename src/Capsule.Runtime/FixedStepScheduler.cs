@@ -171,7 +171,9 @@ internal sealed class FixedStepScheduler
     // snapshot is latched and consumed, or the driver is asked for the step's snapshot. The
     // accumulator is untouched, so a held run stays drawn at the settled step. Returns whether the
     // simulation has requested exit.
-    internal bool StepOnce(in DeviceSnapshot snapshot, ISimulation simulation)
+    // `before` runs inside the step, once it has begun and before the simulation's own work: a
+    // host act that is part of the tick it forces.
+    internal bool StepOnce(in DeviceSnapshot snapshot, ISimulation simulation, Action? before = null)
     {
         if (!_held)
         {
@@ -197,7 +199,16 @@ internal sealed class FixedStepScheduler
         }
 
         _input.Advance(stepped);
-        simulation.Step(new StepContext(_stepSeconds, _input, Tick));
+        StepContext context = new(_stepSeconds, _input, Tick);
+        if (before is null)
+        {
+            simulation.Step(in context);
+        }
+        else
+        {
+            simulation.Step(in context, before);
+        }
+
         StepCompleted?.Invoke();
 
         Tick++;

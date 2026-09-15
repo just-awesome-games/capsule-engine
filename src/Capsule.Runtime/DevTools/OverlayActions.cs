@@ -3,9 +3,9 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// The overlay's actions and the one place its devices are named. The keyboard key is bound first
-// on every action, so KeyName reads the keyboard name of an action.
-internal static class DebugInput
+// The overlay's input actions and their bindings, the one place its devices are named; no
+// behaviour.
+internal static class OverlayActions
 {
     internal static readonly InputAction MenuUp = new("debug-menu.up");
     internal static readonly InputAction MenuDown = new("debug-menu.down");
@@ -17,7 +17,7 @@ internal static class DebugInput
     internal static readonly InputAction LoadScene = new("debug-menu.load-scene");
     internal static readonly InputAction DebugDraw = new("debug-menu.debug-draw");
     internal static readonly InputAction FramePane = new("debug-menu.frame-pane");
-    internal static readonly InputAction Inspect = new("debug-menu.inspect");
+    internal static readonly InputAction ScenePage = new("debug-menu.scene");
     internal static readonly InputAction Exit = new("debug-menu.exit");
     internal static readonly InputAction Click = new("debug-menu.click");
     internal static readonly AxisAction Scroll = new("debug-menu.scroll");
@@ -29,10 +29,12 @@ internal static class DebugInput
     internal static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, None, None, Confirm, Click);
 
     internal static readonly InputAction[] Actions =
-        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, Inspect, Exit, Click];
+        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, ScenePage, Exit, Click];
 
     private static readonly ActionBindings Named = Bindings();
 
+    // The keyboard key is bound first on every action: KeyName reads an action's first button as
+    // its keyboard name.
     internal static ActionBindings Bindings() =>
         new ActionBindings()
             .Bind(MenuUp, Key.Up, PadButton.DPadUp)
@@ -45,7 +47,7 @@ internal static class DebugInput
             .Bind(LoadScene, Key.L)
             .Bind(DebugDraw, Key.D)
             .Bind(FramePane, Key.F)
-            .Bind(Inspect, Key.I)
+            .Bind(ScenePage, Key.S)
             .Bind(Exit, Key.E)
             .Bind(Click, MouseButton.Left)
             .BindAxis(Scroll, MouseAxis.ScrollY);

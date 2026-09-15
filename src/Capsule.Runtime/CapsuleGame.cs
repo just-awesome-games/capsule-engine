@@ -31,10 +31,11 @@ internal sealed class CapsuleGame : Game
     private readonly FrameDiagnostics? _diagnostics;
 
     // Direct call sites would keep diagnostics methods reachable under the switch, so the host reaches them only through delegates created in the guarded block.
-    private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _observeDebugOverlay;
-    private readonly Action<FrameRenderer>? _stepDebugOverlay;
-    private readonly Action<FrameRenderer>? _drawDebugOverlay;
-    private readonly IDisposable? _debugOverlay;
+    private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _observeOverlay;
+    private readonly Action<FrameRenderer>? _stepOverlay;
+    private readonly Action<FrameRenderer>? _drawOverlay;
+    private readonly Action<AudioPlayer>? _followOverlayHold;
+    private readonly IDisposable? _overlayHost;
 
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
@@ -67,11 +68,24 @@ internal sealed class CapsuleGame : Game
 
         if (Development.IsSupported)
         {
-            DebugOverlay overlay = new(options.Input.DebugMenuButton, _scheduler, simulation, scenes, options.Scenes);
-            _debugOverlay = overlay;
-            _observeDebugOverlay = overlay.Observe;
-            _stepDebugOverlay = overlay.Step;
-            _drawDebugOverlay = overlay.Draw;
+            OverlayHost overlay = new(options.Input.DebugMenuButton, _scheduler, simulation, scenes, options.Scenes);
+            _overlayHost = overlay;
+            _observeOverlay = overlay.Observe;
+            _stepOverlay = overlay.Step;
+            _drawOverlay = overlay.Draw;
+            // The whole subscription is built here so the audio player's suspension is reachable
+            // only through this block: a shipping publish trims it with the overlay.
+            _followOverlayHold = audio => overlay.HoldChanged = held =>
+            {
+                if (held)
+                {
+                    audio.Suspend();
+                }
+                else
+                {
+                    audio.Resume();
+                }
+            };
         }
 
         _graphics = new GraphicsDeviceManager(this)
@@ -120,6 +134,9 @@ internal sealed class CapsuleGame : Game
 
             if (_audio is { } audio)
             {
+                // The overlay's hold is a standstill the ear should hear as one.
+                _followOverlayHold?.Invoke(audio);
+
                 // Per step, not per frame: the mixer rewrites its commands every step and a frame
                 // may run several.
                 _scheduler.StepCompleted = () => audio.Apply(scenes.Run.Audio.Commands);
@@ -164,14 +181,14 @@ internal sealed class CapsuleGame : Game
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
         }
 
-        if (_observeDebugOverlay is { } observe)
+        if (_observeOverlay is { } observe)
         {
             sampled = observe(sampled, _renderer);
         }
 
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
-        _stepDebugOverlay?.Invoke(_renderer);
+        _stepOverlay?.Invoke(_renderer);
 
         // Every frame, including one that drained no step: the device follows the system's default
         // output, a streamed voice hands the device its next buffers, and base.Update is what
@@ -226,7 +243,7 @@ internal sealed class CapsuleGame : Game
             _renderer.SaveSurface(capturePath);
         }
 
-        _drawDebugOverlay?.Invoke(_renderer);
+        _drawOverlay?.Invoke(_renderer);
 
         base.Draw(gameTime);
 
@@ -242,7 +259,7 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
-            _debugOverlay?.Dispose();
+            _overlayHost?.Dispose();
 
             // Ahead of the renderer: the watch draws through it.
             SdlPlatform.StopWatchingWindowRedraw();
@@ -304,7 +321,7 @@ internal sealed class CapsuleGame : Game
 
             _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
-            _drawDebugOverlay?.Invoke(_renderer);
+            _drawOverlay?.Invoke(_renderer);
 
             GraphicsDevice.Present();
         }

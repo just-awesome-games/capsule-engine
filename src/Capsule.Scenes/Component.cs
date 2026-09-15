@@ -68,14 +68,19 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Reports this component's state through <paramref name="inspector"/>, one
-    /// <see cref="Inspector.Field(string, string?)"/> per value. Called only while the development
-    /// overlay is showing this component's entity, never in a shipping build's runtime, and never
-    /// before <see cref="OnStart"/>. Report only: state changed here makes a run that was inspected
-    /// differ from one that was not. The calls inside are compiled out of a shipping build, so the
-    /// override costs it nothing.
+    /// Fills this component's section of the development overlay's panel through
+    /// <paramref name="panel"/>: a <see cref="DebugPanel.Field(string, string?)"/> per value worth
+    /// reading, a <see cref="DebugPanel.Command"/> or <see cref="DebugPanel.Toggle"/> per thing
+    /// worth doing to it. The section is headed by the component's type name and shows its fields
+    /// first, then its commands and toggles under a <c>Commands</c> sub-heading, in write order
+    /// within each group; a command or toggle runs inside the one stepped tick that follows it,
+    /// ahead of the scene's own step. Called only while the overlay is showing this component's entity, never in a
+    /// shipping build's runtime, and never before <see cref="OnStart"/>. Write only: state
+    /// changed here, outside a command, makes a run whose panel was opened differ from one whose
+    /// was not. The calls inside are compiled out of a shipping build, so the override costs it
+    /// nothing.
     /// </summary>
-    protected internal virtual void OnInspect(Inspector inspector)
+    protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
     }
 
@@ -192,11 +197,11 @@ public abstract class Component
         }
     }
 
-    internal void RunInspect(Inspector inspector)
+    internal void RunDebugPanel(DebugPanel panel)
     {
         if (_started)
         {
-            OnInspect(inspector);
+            OnDebugPanel(panel);
         }
     }
 

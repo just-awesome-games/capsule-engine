@@ -57,9 +57,11 @@ public sealed class InputConfiguration
     /// quarantined from the simulation and wins over a game binding of the same button; it is
     /// inert in a shipping publish. A button may be a key, pad button, mouse button or stick
     /// direction, and <see cref="InputButton.None"/> leaves the menu unreachable. While the menu
-    /// is open its own navigation keys are withheld from the simulation too, and the menu
-    /// displays its key legend; a toggle that is also one of the menu's own keys withholds that
-    /// key from the menu.
+    /// is open or hidden the simulation is held on the settled step and every playing voice is
+    /// suspended, its own navigation keys are withheld from the simulation, and the menu displays
+    /// its key legend; closing it resumes the simulation and the voices, one the game itself
+    /// paused staying paused. A toggle that is also one of the menu's own keys withholds that key
+    /// from the menu.
     /// </summary>
     /// <param name="button">The single button that toggles the menu on its leading edge.</param>
     /// <returns>This configuration.</returns>

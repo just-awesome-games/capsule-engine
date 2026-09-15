@@ -154,7 +154,7 @@ public sealed class ScreenPlacementTests
     // that grows the surface past the declared resolution on a window of another aspect.
     [Theory]
     [InlineData(ViewportFit.Letterbox, 320, 180, 3f, 0f, 1f)]
-    [InlineData(ViewportFit.Expand, 320, 181, 2f, 160f, 90f)]
+    [InlineData(ViewportFit.Expand, 320, 180, 3f, 0f, 1f)]
     [InlineData(ViewportFit.FixedHeight, 320, 180, 3f, 0f, 1f)]
     public void TheLayer_FollowsTheSurfaceTheCamerasFitAsksFor(
         ViewportFit fit,
@@ -164,8 +164,9 @@ public sealed class ScreenPlacementTests
         float originX,
         float originY)
     {
-        // 960 by 542 is a hair narrower than the canvas: Expand grows the surface by the one row that
-        // covers it, which costs the whole present a scale.
+        // 960 by 542 is a hair narrower than the canvas: the two thirds of a row Expand would reveal
+        // round down to none, so the surface stays the canvas and the present keeps its whole scale
+        // with a one-pixel bar, rather than growing by a row that would cost the present a scale.
         ScreenLayout layout = FrameRenderer.Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);

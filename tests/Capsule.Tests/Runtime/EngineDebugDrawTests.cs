@@ -27,7 +27,7 @@ public sealed class EngineDebugDrawTests
         Physical scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
@@ -107,7 +107,7 @@ public sealed class EngineDebugDrawTests
         Physical scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
         overlay.ToggleChannel("Colliders");
 
@@ -138,7 +138,7 @@ public sealed class EngineDebugDrawTests
         Scene scene = new HookScene(log);
         using SceneHost host = new(SceneTransition.ToScene(typeof(HookScene), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
         Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
@@ -164,7 +164,7 @@ public sealed class EngineDebugDrawTests
         Scene scene = new SilentScene();
         using SceneHost host = new(SceneTransition.ToScene(typeof(SilentScene), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = new(StepSeconds, 5, new ActionBindings());
-        using DebugOverlay overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         FrameView view = overlay.Host.Simulation.View;
         overlay.ToggleChannel("Origins");
         overlay.ToggleChannel("Own");
@@ -182,7 +182,7 @@ public sealed class EngineDebugDrawTests
     }
 
     private static void Frame(
-        DebugOverlay overlay,
+        OverlayHost overlay,
         FixedStepScheduler scheduler,
         ISimulation simulation,
         DeviceSnapshot sampled,
