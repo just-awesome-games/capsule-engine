@@ -14,6 +14,12 @@ namespace Capsule.Runtime.DevTools;
 // nothing of how the menu looks, which is OverlayScene's.
 internal sealed class OverlayHost : IDisposable
 {
+    // The host paces the Time Scale submenu offers, slowest first, each with the label its row
+    // carries. 4x is the top: the default frame budget is eight steps a frame, and past it a frame
+    // drops the backlog it cannot run rather than running faster.
+    internal static readonly (double Scale, string Label)[] TimeScales =
+        [(0.25, "0.25x"), (0.5, "0.5x"), (1, "1x"), (2, "2x"), (4, "4x")];
+
     private readonly FixedStepScheduler _scheduler;
     private readonly ISimulation _simulation;
     private readonly SceneHost? _scenes;
@@ -29,6 +35,10 @@ internal sealed class OverlayHost : IDisposable
     // One submenu for the run, filled on first open and refilled only when a channel has arrived
     // or a toggle flipped, so its focus and identity survive.
     private Menu? _debugDrawMenu;
+
+    // One submenu for the run, filled on first open and refilled when a pace is chosen, so its
+    // focus and identity survive.
+    private Menu? _timeScaleMenu;
 
     // The scene page and entity panels over the held scene; none without a run of scenes.
     private readonly PanelMenus? _panels;
@@ -215,6 +225,67 @@ internal sealed class OverlayHost : IDisposable
         }
 
         menu.FillDebugDraw(this);
+        if (ReferenceEquals(Scene.Current, menu))
+        {
+            Scene.Replace(menu);
+        }
+    }
+
+    // The host pace, which is the game's on a run of scenes — a value a game set marks its ladder
+    // row, and a ladder pick is visible to the game — and the scheduler's own where there is no run
+    // to hold it. Written, the applied value follows at once rather than waiting for the host's
+    // next copy of the run's.
+    private double Pace
+    {
+        get => _scenes is { } scenes ? scenes.Run.TimeScale : _scheduler.TimeScale;
+        set
+        {
+            if (_scenes is { } scenes)
+            {
+                scenes.Run.TimeScale = value;
+            }
+
+            _scheduler.TimeScale = value;
+        }
+    }
+
+    // Whether scale is the pace in force. A pace a game set off the ladder matches no row.
+    internal bool IsTimeScale(double scale) => Pace == scale;
+
+    // Sets the pace for the rest of the run — the overlay never resets it, and nothing of the
+    // simulation changes — so the submenu's marks follow at once, keeping their focus, and no tick
+    // is stepped.
+    internal void SetTimeScale(double scale)
+    {
+        Pace = scale;
+        RefillTimeScaleMenu();
+    }
+
+    // Pushes the submenu, built the first time and filled on every open: the game may have moved
+    // the run's pace since it was last filled. The ladder is fixed, so there is never nothing to
+    // list.
+    internal void OpenTimeScale()
+    {
+        if (_timeScaleMenu is null)
+        {
+            _timeScaleMenu = Menu.TimeScale(this);
+        }
+        else
+        {
+            RefillTimeScaleMenu();
+        }
+
+        Scene.Push(_timeScaleMenu);
+    }
+
+    private void RefillTimeScaleMenu()
+    {
+        if (_timeScaleMenu is not { } menu)
+        {
+            return;
+        }
+
+        menu.FillTimeScale(this);
         if (ReferenceEquals(Scene.Current, menu))
         {
             Scene.Replace(menu);

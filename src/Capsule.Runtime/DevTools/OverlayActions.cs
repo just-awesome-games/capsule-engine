@@ -16,6 +16,7 @@ internal static class OverlayActions
     internal static readonly InputAction Restart = new("debug-menu.restart");
     internal static readonly InputAction LoadScene = new("debug-menu.load-scene");
     internal static readonly InputAction DebugDraw = new("debug-menu.debug-draw");
+    internal static readonly InputAction TimeScale = new("debug-menu.time-scale");
     internal static readonly InputAction FramePane = new("debug-menu.frame-pane");
     internal static readonly InputAction ScenePage = new("debug-menu.scene");
     internal static readonly InputAction Exit = new("debug-menu.exit");
@@ -29,7 +30,7 @@ internal static class OverlayActions
     internal static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, None, None, Confirm, Click);
 
     internal static readonly InputAction[] Actions =
-        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, FramePane, ScenePage, Exit, Click];
+        [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, Exit, Click];
 
     private static readonly ActionBindings Named = Bindings();
 
@@ -46,6 +47,7 @@ internal static class OverlayActions
             .Bind(Restart, Key.R)
             .Bind(LoadScene, Key.L)
             .Bind(DebugDraw, Key.D)
+            .Bind(TimeScale, Key.T)
             .Bind(FramePane, Key.F)
             .Bind(ScenePage, Key.S)
             .Bind(Exit, Key.E)

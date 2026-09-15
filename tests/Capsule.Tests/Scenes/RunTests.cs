@@ -27,6 +27,27 @@ public sealed class RunTests
     }
 
     [Fact]
+    public void TheDefaultTimeScale_IsOne()
+    {
+        Run run = new();
+
+        Assert.Equal(1, run.TimeScale);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void ATimeScaleThatIsNotPositiveAndFinite_IsRefusedAndLeavesThePaceAsItWas(double scale)
+    {
+        Run run = new() { TimeScale = 2 };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => run.TimeScale = scale);
+        Assert.Equal(2, run.TimeScale);
+    }
+
+    [Fact]
     public void Exit_ReplacesAPendingTransitionAndRejectsLaterRequests()
     {
         Run run = new();

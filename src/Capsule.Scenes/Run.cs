@@ -113,6 +113,41 @@ public sealed class Run
     public AudioMixer Audio { get; }
 
     /// <summary>
+    /// Host pace: the simulation seconds a wall second is worth. One by default. The run steps
+    /// fewer or more times per wall second and nothing the simulation is handed changes — the fixed
+    /// step, each step's tick and each step's time are the same at any pace — so a run at 0.25x is
+    /// the same run as at 1x, played slower. It is the run's and persists across transitions: a
+    /// game sets it once, from its boot scene's start or from a settings screen, and every scene
+    /// after that runs at what was set.
+    /// <para>
+    /// It is never simulation input. A simulation that branches on it is no longer a function of
+    /// its snapshots, and a driven run of it diverges; read it only from host-facing code. A
+    /// headless run ignores it, being counted in steps rather than wall time.
+    /// </para>
+    /// <para>
+    /// The per-frame step bound is unchanged, so a pace that asks for more steps than a frame may
+    /// run leaves that frame at its bound and drops the backlog rather than running faster.
+    /// </para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value is not greater than zero, or is not finite.
+    /// </exception>
+    public double TimeScale
+    {
+        get;
+
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero.");
+            }
+
+            field = value;
+        }
+    } = 1;
+
+    /// <summary>
     /// Asks the host to replace the current scene with <typeparamref name="TScene"/> after the
     /// current step.
     /// </summary>

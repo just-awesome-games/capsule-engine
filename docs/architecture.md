@@ -34,6 +34,7 @@ Given the same initial state, fixed-step duration and sequence of `DeviceSnapsho
 - Entities update in insertion order. Rendering is ordered by `ZIndex`, stable over insertion order. Collision queries and contact delivery order as their public methods document.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`, which persists across scene transitions.
 - A frame runs at most the configured number of fixed steps; reaching the limit drops the remaining accumulated wall-clock time and alters no step that runs.
+- `Run.TimeScale` is host pace: it moves how much wall time a frame is worth in simulation seconds, and alters no step that runs, so a simulation never reads it.
 
 ## Rendering and media
 

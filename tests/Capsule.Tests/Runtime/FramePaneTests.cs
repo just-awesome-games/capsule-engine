@@ -57,6 +57,7 @@ public sealed class FramePaneTests
 
         rig.Press(Key.Down);
         rig.Press(Key.Down);
+        rig.Press(Key.Down);
         Assert.Equal("Frame Pane", overlay.Scene.Current.Items[overlay.Scene.FocusedIndex].Label);
 
         for (int frame = 0; frame < 70; frame++)
@@ -91,7 +92,7 @@ public sealed class FramePaneTests
         rig.Press(Key.Up);
         rig.Press(Key.F);
         Assert.Equal(1, scene.Depth);
-        Assert.Equal(2, scene.FocusedIndex);
+        Assert.Equal(3, scene.FocusedIndex);
 
         rig.Press(Key.Grave);
         Assert.False(overlay.IsOpen);
@@ -118,8 +119,8 @@ public sealed class FramePaneTests
         rig.Open();
 
         Assert.Equal(1, scene.Depth);
-        Assert.Equal(2, scene.FocusedIndex);
-        Assert.Equal("Frame Pane  F", scene.RowText(2));
+        Assert.Equal(3, scene.FocusedIndex);
+        Assert.Equal("Frame Pane  F", scene.RowText(3));
         Assert.Contains(overlay.Host.Simulation.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
     }
 

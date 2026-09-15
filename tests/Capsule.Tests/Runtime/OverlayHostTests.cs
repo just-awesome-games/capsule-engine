@@ -172,16 +172,19 @@ public sealed class OverlayHostTests
 
         Open(overlay, scheduler, host);
 
-        Assert.Equal(["Scene", "Step", "Debug Draw", "Restart", "Load Scene", "Frame Pane", "Hide", "Exit"], Labels(scene));
+        Assert.Equal(
+            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Frame Pane", "Hide", "Exit"],
+            Labels(scene));
         Assert.Equal(0, scene.FocusedIndex);
         Assert.Equal("Scene       S", scene.RowText(0));
         Assert.Equal("Step        Right", scene.RowText(1));
         Assert.Equal("Debug Draw  D", scene.RowText(2));
-        Assert.Equal("Restart     R", scene.RowText(3));
-        Assert.Equal("Load Scene  L", scene.RowText(4));
-        Assert.Equal("Frame Pane  F", scene.RowText(5));
-        Assert.Equal("Hide        H", scene.RowText(6));
-        Assert.Equal("Exit        E", scene.RowText(7));
+        Assert.Equal("Time Scale  T", scene.RowText(3));
+        Assert.Equal("Restart     R", scene.RowText(4));
+        Assert.Equal("Load Scene  L", scene.RowText(5));
+        Assert.Equal("Frame Pane  F", scene.RowText(6));
+        Assert.Equal("Hide        H", scene.RowText(7));
+        Assert.Equal("Exit        E", scene.RowText(8));
     }
 
     [Fact]
@@ -297,6 +300,7 @@ public sealed class OverlayHostTests
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal(["NamedScene", "PayloadScene", "PlainScene"], Labels(overlay.Scene));
@@ -337,6 +341,7 @@ public sealed class OverlayHostTests
         OverlayScene scene = overlay.Scene;
 
         Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
@@ -705,6 +710,121 @@ public sealed class OverlayHostTests
 
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Enter));
+
+        Assert.True(simulation.Steps[^1].Pressed);
+    }
+
+    [Fact]
+    public void TimeScaleSubmenu_MarksThePaceInForceSetsItWithoutATickAndKeepsItForThePlaySession()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.T);
+
+        Assert.Equal("Time Scale", overlay.Scene.Title);
+        Assert.Equal(2, overlay.Scene.Depth);
+        Assert.Equal(["( ) 0.25x", "( ) 0.5x", "(x) 1x", "( ) 2x", "( ) 4x"], Labels(overlay.Scene));
+
+        Press(overlay, scheduler, host, Key.T);
+        Assert.Equal(2, overlay.Scene.Depth);
+
+        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Enter);
+
+        // The pick lands on the run, where the game reads it, and on the applied value; the marks
+        // follow at once, the focus and depth stay, and no tick is stepped for it.
+        Assert.Equal(0.5, host.Run.TimeScale);
+        Assert.Equal(0.5, scheduler.TimeScale);
+        Assert.Equal(["( ) 0.25x", "(x) 0.5x", "( ) 1x", "( ) 2x", "( ) 4x"], Labels(overlay.Scene));
+        Assert.Equal(1, overlay.Scene.FocusedIndex);
+        Assert.Equal(2, overlay.Scene.Depth);
+        Assert.Equal(0, scheduler.Tick);
+
+        // Closed, the game runs at the chosen pace: a frame worth one step buys half of one.
+        Press(overlay, scheduler, host, Key.Backspace);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
+
+        Assert.False(overlay.IsOpen);
+        Assert.Equal(0, scheduler.Tick);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+
+        Assert.Equal(1, scheduler.Tick);
+
+        // Reopened, hidden, shown again and across a Restart, the overlay never resets it.
+        Press(overlay, scheduler, host, Key.Grave);
+        Assert.True(overlay.IsOpen);
+        Press(overlay, scheduler, host, Key.H);
+        Assert.True(overlay.IsHidden);
+        Press(overlay, scheduler, host, Key.H);
+        Assert.True(overlay.IsOpen);
+        Press(overlay, scheduler, host, Key.R);
+        Assert.IsType<ReadoutScene>(host.Scene);
+
+        Press(overlay, scheduler, host, Key.T);
+
+        Assert.Equal(0.5, host.Run.TimeScale);
+        Assert.Equal(["( ) 0.25x", "(x) 0.5x", "( ) 1x", "( ) 2x", "( ) 4x"], Labels(overlay.Scene));
+    }
+
+    // The run holds the pace, so the ladder shows what the game set — and marks nothing when the
+    // game set a pace the ladder does not offer.
+    [Fact]
+    public void TimeScaleSubmenu_MarksThePaceTheGameSetAndNoRowForOneOffTheLadder()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+
+        host.Run.TimeScale = 2;
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.T);
+
+        Assert.Equal(["( ) 0.25x", "( ) 0.5x", "( ) 1x", "(x) 2x", "( ) 4x"], Labels(overlay.Scene));
+
+        // Set off the ladder while the submenu is open: the marks follow it the next time it opens.
+        host.Run.TimeScale = 1.5;
+        Press(overlay, scheduler, host, Key.Backspace);
+        Press(overlay, scheduler, host, Key.T);
+
+        Assert.Equal(["( ) 0.25x", "( ) 0.5x", "( ) 1x", "( ) 2x", "( ) 4x"], Labels(overlay.Scene));
+
+        Press(overlay, scheduler, host, Key.Enter);
+
+        Assert.Equal(0.25, host.Run.TimeScale);
+        Assert.Equal(["(x) 0.25x", "( ) 0.5x", "( ) 1x", "( ) 2x", "( ) 4x"], Labels(overlay.Scene));
+    }
+
+    [Fact]
+    public void TheTimeScaleHotkey_IsWithheldFromTheGameWhileTheOverlayIsOpen()
+    {
+        RecordingSimulation simulation = new();
+        FixedStepScheduler scheduler = new(
+            StepSeconds,
+            5,
+            new ActionBindings().Bind(SharedAction, Key.T));
+        using OverlayHost overlay = new(Key.Grave, scheduler, simulation);
+
+        Open(overlay, scheduler, simulation);
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.T));
+
+        Assert.Equal("Time Scale", overlay.Scene.Title);
+        Assert.Empty(simulation.Steps);
+
+        // Withheld from the step the close resumes, and read again once released.
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.T, Key.Grave));
+
+        Assert.False(overlay.IsOpen);
+        RecordedStep resumed = Assert.Single(simulation.Steps);
+        Assert.False(resumed.Pressed);
+        Assert.False(resumed.Held);
+
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
+        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.T));
 
         Assert.True(simulation.Steps[^1].Pressed);
     }

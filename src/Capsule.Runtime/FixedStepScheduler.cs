@@ -18,6 +18,7 @@ internal sealed class FixedStepScheduler
     private readonly SceneHost? _scenes;
 
     private double _accumulatorSeconds;
+    private double _timeScale = 1;
     private bool _driverFinished;
     private bool _held;
 
@@ -72,6 +73,26 @@ internal sealed class FixedStepScheduler
 
     internal int StepsThisFrame { get; private set; }
 
+    // Host pace: the simulation seconds a wall second is worth, greater than zero and finite.
+    // It changes only how many steps a frame's elapsed time buys. The step length, the tick and
+    // the time a step is handed are untouched, so a run at 0.25x is the same run as at 1x — one
+    // played slower — and nothing of the simulation can read or record it. A single step is one
+    // step at any scale, and the frame's step bound still binds, so past it a frame drops its
+    // backlog rather than running faster.
+    internal double TimeScale
+    {
+        get => _timeScale;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero.");
+            }
+
+            _timeScale = value;
+        }
+    }
+
     // Raised after each step completes, before the next one is scheduled. A frame may run several
     // steps and a step rewrites what the host has to act on, so once a frame would lose all but the
     // last. Null unless the host set one.
@@ -110,7 +131,7 @@ internal sealed class FixedStepScheduler
             return true;
         }
 
-        _accumulatorSeconds += elapsedSeconds;
+        _accumulatorSeconds += elapsedSeconds * _timeScale;
 
         double stepEpsilon = _stepSeconds * 1e-12;
         int stepsRun = 0;

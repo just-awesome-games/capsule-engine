@@ -186,6 +186,13 @@ internal sealed class CapsuleGame : Game
             sampled = observe(sampled, _renderer);
         }
 
+        // The run owns the pace and the scheduler holds what is applied, so it is copied before the
+        // frame's elapsed time is spent — after the overlay's observe, which may have moved it.
+        if (_scenes is { } paced)
+        {
+            _scheduler.TimeScale = paced.Run.TimeScale;
+        }
+
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
         _stepOverlay?.Invoke(_renderer);

@@ -41,6 +41,7 @@ internal sealed class Menu
 
         items.Add(new MenuItem("Step", overlay.StepGame, OverlayActions.Step, Repeats: true));
         items.Add(new MenuItem("Debug Draw", overlay.OpenDebugDraw, OverlayActions.DebugDraw));
+        items.Add(new MenuItem("Time Scale", overlay.OpenTimeScale, OverlayActions.TimeScale));
 
         if (overlay.HasScenes)
         {
@@ -106,6 +107,31 @@ internal sealed class Menu
         {
             string label = (overlay.IsChannelEnabled(channel) ? "[x] " : "[ ] ") + channel;
             items.Add(new MenuItem(label, () => overlay.ToggleChannel(channel)));
+        }
+
+        Items = Require(items);
+    }
+
+    // The Time Scale submenu, one row per host pace on the ladder.
+    internal static Menu TimeScale(OverlayHost overlay)
+    {
+        Menu menu = new("Time Scale");
+        menu.FillTimeScale(overlay);
+
+        return menu;
+    }
+
+    // Refills this menu with a row per pace, marked where it is the one in force; exactly one is.
+    internal void FillTimeScale(OverlayHost overlay)
+    {
+        ArgumentNullException.ThrowIfNull(overlay);
+
+        (double Scale, string Label)[] paces = OverlayHost.TimeScales;
+        List<MenuItem> items = new(paces.Length);
+        foreach ((double scale, string label) in paces)
+        {
+            string row = (overlay.IsTimeScale(scale) ? "(x) " : "( ) ") + label;
+            items.Add(new MenuItem(row, () => overlay.SetTimeScale(scale)));
         }
 
         Items = Require(items);
