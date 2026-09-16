@@ -21,7 +21,7 @@ public sealed class Hazard : Entity
     private static readonly Sprite Field = new(CapsuleAssets.Textures.Hazard, new TextureRegion(0, 0, 16, 24));
 
     public Hazard(EntitySpawn spawn)
-        : base(spawn.Position)
+        : base(spawn)
     {
         Add(new SpriteRenderer(Field));
         Add(new BoxCollider2D(Body) { Layer = CollisionLayers.Hazard });

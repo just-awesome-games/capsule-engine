@@ -24,7 +24,7 @@ public sealed class RegistryKeyTests
 
             namespace {{space}};
 
-            public sealed class {{type}}(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class {{type}}(EntitySpawn spawn) : Entity(spawn);
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
@@ -65,7 +65,7 @@ public sealed class RegistryKeyTests
 
             namespace Vendor.Enemies;
 
-            public sealed class Bat(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Bat(EntitySpawn spawn) : Entity(spawn);
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
@@ -86,7 +86,7 @@ public sealed class RegistryKeyTests
             namespace Game.Entities.Enemies;
 
             [SpawnType("bosses/wyrm")]
-            public sealed class Bat(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Bat(EntitySpawn spawn) : Entity(spawn);
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
@@ -115,7 +115,7 @@ public sealed class RegistryKeyTests
             namespace Game.Entities;
 
             [SpawnType("{{spawnType}}")]
-            public sealed class Wyrm(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Wyrm(EntitySpawn spawn) : Entity(spawn);
             """).Diagnostics;
 
         Assert.Equal("CAP019", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
@@ -150,12 +150,12 @@ public sealed class RegistryKeyTests
 
             namespace Game.Entities.Enemies
             {
-                public sealed class Bat(EntitySpawn spawn) : Entity(spawn.Position);
+                public sealed class Bat(EntitySpawn spawn) : Entity(spawn);
             }
 
             namespace Game.Entities.Bosses
             {
-                public sealed class Bat(EntitySpawn spawn) : Entity(spawn.Position);
+                public sealed class Bat(EntitySpawn spawn) : Entity(spawn);
             }
             """);
 

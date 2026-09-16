@@ -83,7 +83,7 @@ public sealed class Player : Entity
     private Vector2 _velocity;
 
     public Player(EntitySpawn spawn)
-        : base(spawn.Position)
+        : base(spawn)
     {
         Health = _tuning.MaxHealth;
 

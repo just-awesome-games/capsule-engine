@@ -11,13 +11,13 @@ public sealed class EntityGeneratorTests
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Player(EntitySpawn spawn) : Entity(spawn);
 
-            public sealed class HealthPickup(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class HealthPickup(EntitySpawn spawn) : Entity(spawn);
 
-            public sealed class HTTPProbe(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class HTTPProbe(EntitySpawn spawn) : Entity(spawn);
 
-            public sealed class Enemy2(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Enemy2(EntitySpawn spawn) : Entity(spawn);
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
@@ -33,7 +33,7 @@ public sealed class EntityGeneratorTests
     [Theory]
     [InlineData("public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }")]
     [InlineData("public sealed class Player : Entity { public Player(Vector2 at, int hp) : base(at) { } }")]
-    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn.Position) { } }")]
+    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }")]
     [InlineData("public sealed class Marker { public Marker(EntitySpawn spawn) { } }")]
     public void AClassOfAnotherShape_IsPassedOverInSilence(string declaration)
     {
@@ -55,7 +55,7 @@ public sealed class EntityGeneratorTests
             {{GeneratorHarness.Preamble}}
 
             [SpawnType("player-spawn")]
-            public sealed class Protagonist(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Protagonist(EntitySpawn spawn) : Entity(spawn);
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
@@ -75,10 +75,10 @@ public sealed class EntityGeneratorTests
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class Chest(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Chest(EntitySpawn spawn) : Entity(spawn);
 
             [SpawnType("chest")]
-            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn);
             """).Diagnostics;
 
         Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
@@ -91,7 +91,7 @@ public sealed class EntityGeneratorTests
     }
 
     [Theory]
-    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn.Position) { } }")]
+    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }")]
     [InlineData("public sealed class Marker { public Marker(EntitySpawn spawn) { } }")]
     public void AClaimedTypeOnSomethingThatIsNotAConcreteEntity_FailsTheBuild(string declaration)
     {
@@ -130,7 +130,7 @@ public sealed class EntityGeneratorTests
             {{GeneratorHarness.Preamble}}
 
             [SpawnType("  ")]
-            public sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Player(EntitySpawn spawn) : Entity(spawn);
             """).Diagnostics;
 
         Assert.Equal("CAP004", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
@@ -144,11 +144,85 @@ public sealed class EntityGeneratorTests
 
             public static class Entities
             {
-                private sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+                private sealed class Player(EntitySpawn spawn) : Entity(spawn);
             }
             """).Diagnostics;
 
         Assert.Equal("CAP008", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    // A public constructor taking a Vector2, for placement from code, is not a spawn constructor:
+    // the one taking a spawn claims alone and the pair is no ambiguity.
+    [Fact]
+    public void ASpawnConstructorBesideACodePlacementConstructor_ClaimsOnce()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Player : Entity
+            {
+                public Player(EntitySpawn spawn) : base(spawn) { }
+                public Player(Vector2 at) : base(at) { }
+            }
+            """);
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Contains("\"player\"", Emitted(compiled), StringComparison.Ordinal);
+    }
+
+    // The spawn carries the authored band and factor, so a claiming constructor that does not hand
+    // it on to a base constructor taking one drops them; the build says so at that constructor.
+    [Fact]
+    public void ASpawnConstructorThatDropsItsSpawn_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Player : Entity
+            {
+                public Player(EntitySpawn spawn) : base(spawn.Position) { }
+            }
+            """).Diagnostics;
+
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP026", error.Id);
+        Assert.Contains("'Game.Player'", error.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("public Player(EntitySpawn spawn)", error.Location.SourceTree!.GetText().Lines[error.Location.GetLineSpan().StartLinePosition.Line].ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("public sealed class Player(EntitySpawn spawn) : Entity(spawn);")]
+    [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : base(spawn) { } }")]
+    [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : base(spawn with { Position = spawn.Position + Vector2.One }) { } }")]
+    [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : this(spawn, 3) { } private Player(EntitySpawn spawn, int hp) : base(spawn) { } }")]
+    [InlineData("public abstract class Actor : Entity { protected Actor(EntitySpawn spawn) : base(spawn) { } } public sealed class Player : Actor { public Player(EntitySpawn spawn) : base(spawn) { } }")]
+    public void ASpawnConstructorThatHandsItsSpawnOn_Claims(string source)
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            {{source}}
+            """);
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Contains("\"player\"", Emitted(compiled), StringComparison.Ordinal);
+    }
+
+    // An entity claiming nothing is held to nothing.
+    [Fact]
+    public void ANonClaimingEntityThatDropsASpawn_IsNotReported()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Prop : Entity
+            {
+                public Prop(Vector2 at) : base(at) { }
+                internal Prop(EntitySpawn spawn) : base(spawn.Position) { }
+            }
+            """).Diagnostics;
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
     }
 
     [Fact]
@@ -159,8 +233,8 @@ public sealed class EntityGeneratorTests
 
             public sealed class Player : Entity
             {
-                public Player(EntitySpawn spawn) : base(spawn.Position) { }
-                public Player(in EntitySpawn spawn) : base(spawn.Position) { }
+                public Player(EntitySpawn spawn) : base(spawn) { }
+                public Player(in EntitySpawn spawn) : base(spawn) { }
             }
             """).Diagnostics;
 

@@ -272,6 +272,8 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1], Order(second));
     }
 
+    // The engine-built tile map takes its band as composed; a game entity takes it through its
+    // spawn.
     [Fact]
     public void AnAuthoredBand_LandsOnEveryComposedEntity()
     {
@@ -282,30 +284,36 @@ public sealed class SceneDrawOrderTests
                     new EntityPlacement(1, "prop", 0f, 0f, ZIndex: 7),
                 ],
                 SceneFixtures.TerrainId + 1),
-            SceneFixtures.Registry(("prop", Spawns(1))));
+            SceneFixtures.Registry(("prop", spawn => new SceneFixtures.Placed(spawn))));
 
         Assert.Equal(-20, Assert.IsType<TileMap>(scene.Entities[0]).ZIndex);
         Assert.Equal(7, scene.Entities[1].ZIndex);
     }
 
-    // The class owns the default: a placement authoring no band leaves the one the constructor
-    // chose, and an authored band — 0 like any other — is what overrides it.
+    // The document supplies a default and the class is the authority: a constructor that sets
+    // nothing takes the authored band — 0 like any other — and one that sets its own keeps it,
+    // whether or not the placement authors one.
     [Theory]
-    [InlineData(null, Banded.Band)]
-    [InlineData(0, 0)]
-    [InlineData(-4, -4)]
-    public void AnAuthoredBand_OverridesTheClasssOwnOnlyWhenPresent(int? authored, int expected)
+    [InlineData(null, 0, Banded.Band)]
+    [InlineData(0, 0, Banded.Band)]
+    [InlineData(-4, -4, Banded.Band)]
+    public void AnAuthoredBand_IsTheConstructorsToKeepOrOverride(int? authored, int taken, int kept)
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "banded", 0f, 0f, ZIndex: authored)),
-            SceneFixtures.Registry(("banded", _ => new Banded())));
+            SceneFixtures.RoomWithoutTerrain(
+                new EntityPlacement(1, "placed", 0f, 0f, ZIndex: authored),
+                new EntityPlacement(2, "banded", 0f, 0f, ZIndex: authored)),
+            SceneFixtures.Registry(
+                ("placed", spawn => new SceneFixtures.Placed(spawn)),
+                ("banded", spawn => new Banded(spawn))));
 
-        Assert.Equal(expected, scene.Entities[0].ZIndex);
+        Assert.Equal(taken, scene.Entities[0].ZIndex);
+        Assert.Equal(kept, scene.Entities[1].ZIndex);
     }
 
-    private static EntitySpawner Spawns(int tag) => _ =>
+    private static EntitySpawner Spawns(int tag) => spawn =>
     {
-        Layered marker = new();
+        Layered marker = new(spawn);
         marker.Add(Tag(tag));
 
         return marker;
@@ -328,7 +336,18 @@ public sealed class SceneDrawOrderTests
         return tags;
     }
 
-    private sealed class Layered() : Entity(Vector2.Zero);
+    private sealed class Layered : Entity
+    {
+        internal Layered()
+            : base(Vector2.Zero)
+        {
+        }
+
+        internal Layered(EntitySpawn spawn)
+            : base(spawn)
+        {
+        }
+    }
 
     private static void Emit(FrameView view, int tag)
     {
@@ -367,12 +386,12 @@ public sealed class SceneDrawOrderTests
         }
     }
 
-    /// <summary>An entity that bands itself, so a placement has a default to leave or to override.</summary>
+    /// <summary>An entity that bands itself over whatever its placement authored.</summary>
     private sealed class Banded : Entity
     {
         internal const int Band = 12;
 
-        internal Banded()
-            : base(Vector2.Zero) => ZIndex = Band;
+        internal Banded(EntitySpawn spawn)
+            : base(spawn) => ZIndex = Band;
     }
 }

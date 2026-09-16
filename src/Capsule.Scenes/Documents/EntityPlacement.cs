@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
@@ -11,9 +13,14 @@ namespace Capsule.Scenes.Documents;
 /// <param name="ScaleX">The authored X scale factor; 1 is the authored size unscaled.</param>
 /// <param name="ScaleY">The authored Y scale factor; 1 is the authored size unscaled.</param>
 /// <param name="ZIndex">
-/// The authored draw band, or null where the placement authors none. A value — 0 included —
-/// overwrites the spawned entity's <see cref="Entity.ZIndex"/> after it is constructed; null
-/// leaves whatever band the class gave itself.
+/// The authored draw band, or null where the placement authors none. Carried to the entity's
+/// constructor as <see cref="Spawning.EntitySpawn.ZIndex"/>, which applies it before the
+/// constructor's own body runs.
+/// </param>
+/// <param name="ScrollFactor">
+/// The authored scroll factor, or null where the placement authors none. Carried to the entity's
+/// constructor as <see cref="Spawning.EntitySpawn.ScrollFactor"/>, which applies it before the
+/// constructor's own body runs.
 /// </param>
 public readonly record struct EntityPlacement(
     int Id,
@@ -22,4 +29,5 @@ public readonly record struct EntityPlacement(
     float Y,
     float ScaleX = 1f,
     float ScaleY = 1f,
-    int? ZIndex = null);
+    int? ZIndex = null,
+    Vector2? ScrollFactor = null);

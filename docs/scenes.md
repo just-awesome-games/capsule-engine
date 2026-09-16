@@ -21,6 +21,7 @@ The `SceneContent` constructor is the opt-in: taking one and handing it to `base
 ```json
 {
   "formatVersion": 5,
+  "scrollOrigin": [0, 192],
   "entities": [
     {
       "id": 1,
@@ -43,16 +44,19 @@ The `SceneContent` constructor is the opt-in: taking one and handing it to `base
       "zIndex": -10
     },
     { "id": 2, "type": "coin", "x": 8, "y": 0 },
-    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3], "zIndex": 10 }
+    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3], "zIndex": 10 },
+    { "id": 4, "type": "hills", "x": 0, "y": 100, "zIndex": -20, "scrollFactor": [0.5, 1] }
   ],
-  "nextEntityId": 4
+  "nextEntityId": 5
 }
 ```
 
 - `formatVersion` is required and must be supported.
-- Every entry carries `id`, `type`, `x` and `y` in that order, all required; `scale`, `zIndex` and then `properties` follow where the entry carries them.
+- `scrollOrigin` is `[x, y]`, both finite, following `formatVersion` where the document carries it: the camera's `ScrollOrigin`, the camera corner at which every layer sits as authored, written to every camera the composed scene installs. Absent leaves each camera its own, zero unless it set one.
+- Every entry carries `id`, `type`, `x` and `y` in that order, all required; `scale`, `zIndex`, `scrollFactor` and then `properties` follow where the entry carries them.
 - `scale` is `[x, y]`, both finite and greater than zero; absent is identity. It is the raw authored factor and what it scales is the entity's constructor's decision; a `scale` on a `tile-map` entry is rejected.
-- `zIndex` is the entry's draw band, applied to the spawned entity's `ZIndex` after construction. What draws later is the higher sum of the band and the renderer's own offset within it, ties broken by file order and then attachment order. Absent leaves the band the entity class gave itself; an authored `0` overrides it, and the writer emits the field only where the entry authors one.
+- `zIndex` is the entry's draw band. What draws later is the higher sum of the band and the renderer's own offset within it, ties broken by file order and then attachment order. The spawn carries the authored band to the entity's constructor, which applies it before its own body runs and may override it; absent carries none, and the writer emits the field only where the entry authors one. On a `tile-map` entry it is applied to the composed map.
+- `scrollFactor` is `[x, y]`, both finite. The spawn carries the authored factor to the entity's constructor, which applies it before its own body runs and may override it; absent carries none, and the writer emits the field only where the entry authors one. On a `tile-map` entry it is applied to the composed map, and one whose palette names a collision layer is rejected with it.
 - IDs are unique, positive and lower than `nextEntityId`; deleted IDs are not reused. `entities` may be empty.
 - A `source` block records tool, relative source path and SHA-256 of the source closure; its presence marks a derived file, so an authoring source omits it.
 - `properties` is a contract per entry type, consumed by whatever constructs that entry, never a reflective set-by-name bag. Only the engine's `tile-map` declares one; properties on any other type are rejected at parse.
@@ -75,7 +79,7 @@ A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, an
 
 ### Entries and composition
 
-Every `type` other than `tile-map` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and `[SpawnType("key")]` names another whole key. The one rule for scenes and entities: the type's namespace under the assembly's root namespace, minus a leading `Scenes` or `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`; a type outside the root namespace claims its kebab-cased name alone. A spawn type no class claims fails the scene at load.
+Every `type` other than `tile-map` names an entity class in the game's own logic assembly, claimed the way a scene claims a document: a concrete `Entity` with one public constructor taking an `EntitySpawn` (beside any other constructor) claims the key its namespace names, and `[SpawnType("key")]` names another whole key. The one rule for scenes and entities: the type's namespace under the assembly's root namespace, minus a leading `Scenes` or `Entities` segment and minus a trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name — `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`, `MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`; a type outside the root namespace claims its kebab-cased name alone. A spawn type no class claims fails the scene at load. A claiming constructor that does not pass its spawn to a base constructor taking one is `CAP026` at that constructor.
 
 ## From source to game
 

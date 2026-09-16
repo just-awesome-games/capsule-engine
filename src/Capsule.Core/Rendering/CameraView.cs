@@ -12,12 +12,18 @@ namespace Capsule.Rendering;
 /// <param name="Size">World units the viewport spans, read per <see cref="Fit"/>.</param>
 /// <param name="Fit">How <see cref="Size"/> answers an output of a different aspect ratio.</param>
 /// <param name="Bounds">The world rect the visible region is confined to, or null to leave it free.</param>
+/// <param name="ScrollOrigin">
+/// The top-left corner at which a scroll factor moves nothing: an entity with a factor of <c>f</c>
+/// is drawn as if by this view with its corner at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>,
+/// where the corner is that of the world rect the frame places.
+/// </param>
 public readonly record struct CameraView(
     Vector2 PreviousCenter,
     Vector2 Center,
     Vector2 Size,
     ViewportFit Fit = ViewportFit.Letterbox,
-    Rect? Bounds = null)
+    Rect? Bounds = null,
+    Vector2 ScrollOrigin = default)
 {
     // How far from square an output may be before a fit that follows its aspect can reveal world
     // this view culled. Culling has no window to measure — the output never reaches the simulation —
@@ -142,6 +148,37 @@ public readonly record struct CameraView(
             ? new Vector2(Size.Y * aspect, Size.Y)
             : new Vector2(Size.X, Size.X / aspect);
     }
+
+    // The view an entity with scroll factor factor is drawn by, shaped so that its SweptBounds
+    // cover every rect the frame can draw that entity's layer at. A frame places the real view at a
+    // span s' between Size and the cull span s, with its centre within (s - s') / 2 of the endpoints
+    // confined at s, so the placed rect's corner K lies in [Kmin, Kmax - s'] where [Kmin, Kmax] is
+    // SweptBounds; the layer's rect is [O + (K - O) f, O + (K - O) f + s']. For f >= 0 that lies
+    // within the map of [Kmin, Kmax - t s] widened by s on the far side, exactly so at t = min(1, 1/f);
+    // a negative f reverses the map, so t = 0 and the far-side widening grows to (1 - f) s. The
+    // widening is the largest any axis needs, since the cull span scales with the size as a whole.
+    internal CameraView ScrolledBy(Vector2 factor)
+    {
+        Rect swept = SweptBounds;
+        Vector2 span = CullSpan();
+        Vector2 near = new(swept.Left, swept.Top);
+        Vector2 far = new(swept.Right - (Reach(factor.X) * span.X), swept.Bottom - (Reach(factor.Y) * span.Y));
+
+        float widen = MathF.Max(1f, MathF.Max(1f - factor.X, 1f - factor.Y));
+        Vector2 half = span * widen / 2f;
+
+        return new CameraView(
+            ScrollOrigin + ((near - ScrollOrigin) * factor) + half,
+            ScrollOrigin + ((far - ScrollOrigin) * factor) + half,
+            Size * widen,
+            Fit,
+            Bounds: null,
+            ScrollOrigin);
+    }
+
+    // How much of the cull span the far endpoint's corner is pulled back by before the map: the
+    // whole of it up to a factor of one, and a factor's worth past that.
+    private static float Reach(float factor) => factor >= 0f ? MathF.Min(1f, 1f / factor) : 0f;
 
     private Vector2 CullSpan() => Fit switch
     {

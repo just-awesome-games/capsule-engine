@@ -1,6 +1,7 @@
 {
   "formatVersion": 5,
   "entities": [
+    { "id": 3, "type": "sky", "x": 0, "y": 0 },
     {
       "id": 1,
       "type": "tile-map",
@@ -21,5 +22,5 @@
     },
     { "id": 2, "type": "player", "x": 16, "y": 8 }
   ],
-  "nextEntityId": 3
+  "nextEntityId": 4
 }

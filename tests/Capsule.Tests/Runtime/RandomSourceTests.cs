@@ -502,7 +502,7 @@ public sealed class RandomSourceTests
     private sealed class SpawnedProber : Entity
     {
         internal SpawnedProber(EntitySpawn spawn)
-            : base(spawn.Position)
+            : base(spawn)
         {
         }
 

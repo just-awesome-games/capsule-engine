@@ -38,7 +38,7 @@ internal static class EntityRegistrySource
                     ? EntityFault.None
                     : EntityFault.InaccessibleType;
 
-            return Model(type, declaration, null, discoveredFault);
+            return SpawnChecked(type, declaration, null, discoveredFault, compilation);
         }
 
         // The attribute has one form; any other call is the compiler's error to report, not this.
@@ -71,7 +71,31 @@ internal static class EntityRegistrySource
             fault = EntityFault.InaccessibleType;
         }
 
-        return Model(type, declaration, spawnType!, fault);
+        return SpawnChecked(type, declaration, spawnType!, fault, compilation);
+    }
+
+    // A sound claim is held to one more shape: the spawn constructor hands its spawn on, or the
+    // authored band and factor the spawn carries never reach the entity. Reported at that
+    // constructor rather than the type.
+    private static EntityModel SpawnChecked(
+        INamedTypeSymbol type,
+        TypeDeclarationSyntax declaration,
+        string? declared,
+        EntityFault fault,
+        Compilation compilation)
+    {
+        if (fault != EntityFault.None)
+        {
+            return Model(type, declaration, declared, fault);
+        }
+
+        IMethodSymbol? spawnConstructor = Symbols.SpawnConstructor(type, compilation);
+        if (spawnConstructor is null || Symbols.PassesSpawnOn(spawnConstructor, compilation, out Location? at))
+        {
+            return Model(type, declaration, declared, fault);
+        }
+
+        return Model(type, declaration, declared, EntityFault.SpawnNotPassedToBase, at);
     }
 
     internal static void Emit(
@@ -119,6 +143,7 @@ internal static class EntityRegistrySource
         EntityFault.BlankSpawnType => RegistryDiagnostics.BlankSpawnType,
         EntityFault.InaccessibleType => RegistryDiagnostics.InaccessibleRegisteredType,
         EntityFault.AmbiguousSpawnConstructors => RegistryDiagnostics.AmbiguousEntityConstructors,
+        EntityFault.SpawnNotPassedToBase => RegistryDiagnostics.SpawnNotPassedToBase,
         _ => null,
     };
 
@@ -144,7 +169,12 @@ internal static class EntityRegistrySource
             RegistryDiagnostics.UnsafeSpawnType, model.Location, model.DisplayName, spawnType));
     }
 
-    private static EntityModel Model(INamedTypeSymbol type, TypeDeclarationSyntax declaration, string? declared, EntityFault fault) =>
+    private static EntityModel Model(
+        INamedTypeSymbol type,
+        TypeDeclarationSyntax declaration,
+        string? declared,
+        EntityFault fault,
+        Location? at = null) =>
         new(
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             type.ToDisplayString(),
@@ -152,7 +182,7 @@ internal static class EntityRegistrySource
             type.Name,
             declared,
             fault,
-            declaration.Identifier.GetLocation());
+            at ?? declaration.Identifier.GetLocation());
 
     private static string Render(List<Registration> registered)
     {

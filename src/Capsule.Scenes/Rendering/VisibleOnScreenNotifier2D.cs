@@ -17,7 +17,8 @@ namespace Capsule.Rendering;
 /// <see cref="IsOnScreen"/> and the events describe the frame last drawn, including the frame its
 /// own spawn step drew. Sharing an edge with the visible region is not being on it, and a region
 /// spanning nothing puts everything off screen. A notifier added to a scene from inside another
-/// notifier's handler first settles on the next step.
+/// notifier's handler first settles on the next step. The rect is in authored space, so an entity
+/// whose <see cref="Entity.ScrollFactor"/> is not one refuses one.
 /// </para>
 /// </summary>
 public sealed class VisibleOnScreenNotifier2D : Component
@@ -72,6 +73,8 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// settle and while outside a scene.
     /// </summary>
     public bool IsOnScreen { get; private set; }
+
+    internal override bool AnswersInAuthoredSpace => true;
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()

@@ -635,7 +635,7 @@ public sealed class SceneStepTests
         return new SceneSimulation(scene);
     }
 
-    private sealed class Seeker(EntitySpawn spawn, List<string> found) : Entity(spawn.Position)
+    private sealed class Seeker(EntitySpawn spawn, List<string> found) : Entity(spawn)
     {
         protected internal override void OnStart() =>
             found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type);

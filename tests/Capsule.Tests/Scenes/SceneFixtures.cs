@@ -212,7 +212,7 @@ internal static class SceneFixtures
         protected internal override void OnStep(in StepContext context) => observe(Scene!);
     }
 
-    internal sealed class Placed(EntitySpawn spawn) : Entity(spawn.Position)
+    internal sealed class Placed(EntitySpawn spawn) : Entity(spawn)
     {
         internal EntitySpawn Spawn { get; } = spawn;
     }

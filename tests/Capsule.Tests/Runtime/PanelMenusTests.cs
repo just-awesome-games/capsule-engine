@@ -58,11 +58,11 @@ public sealed class PanelMenusTests
         Assert.Equal("Lone", scene.Title);
         Assert.Equal(3, scene.Depth);
         Assert.Equal(
-            ["[Entity]", "Position", "ZIndex", "Name", "  (Commands)", "  Remove", "", "[Tag]", "Label"],
+            ["[Entity]", "Position", "ZIndex", "ScrollFactor", "Name", "  (Commands)", "  Remove", "", "[Tag]", "Label"],
             Rows(scene));
 
         Press(overlay, scheduler, host, Key.Down);
-        Assert.Equal(5, scene.FocusedIndex);
+        Assert.Equal(6, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.Up);
@@ -70,7 +70,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Walker (1)", scene.Title);
         Assert.Equal(3, scene.Depth);
-        Assert.Equal("Position  (20, 0)", scene.RowText(1));
+        Assert.Equal("Position      (20, 0)", scene.RowText(1));
     }
 
     // A command or toggle runs between ticks and is followed by exactly one stepped tick, after
@@ -119,13 +119,13 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal("Nudger", scene.Title);
-        Assert.Equal(["[Entity]", "Position", "ZIndex", "  (Commands)", "  Remove", "  Nudge"], Rows(scene));
-        Assert.Equal(4, scene.FocusedIndex);
+        Assert.Equal(["[Entity]", "Position", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "  Nudge"], Rows(scene));
+        Assert.Equal(5, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal("Position  (2, 2)", scene.RowText(1));
+        Assert.Equal("Position      (2, 2)", scene.RowText(1));
         Assert.Equal(3, scene.Depth);
         Assert.Equal(4, scheduler.Tick);
 
@@ -185,14 +185,14 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Position  (20, 0)", scene.RowText(1));
+        Assert.Equal("Position      (20, 0)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Right);
 
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal("Walker (1)", scene.Title);
         Assert.Equal(3, scene.Depth);
-        Assert.Equal("Position  (21, 0)", scene.RowText(1));
+        Assert.Equal("Position      (21, 0)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Backspace);
 
@@ -417,7 +417,7 @@ public sealed class PanelMenusTests
 
         Press(overlay, scheduler, host, Key.Right);
 
-        Assert.Equal("Position  (11, 0)", scene.RowText(1));
+        Assert.Equal("Position      (11, 0)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.L);
         Assert.Equal("Load Scene", scene.Title);
@@ -450,7 +450,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Position  (10, 0)", scene.RowText(1));
+        Assert.Equal("Position      (10, 0)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Grave);
         Assert.False(overlay.IsOpen);
@@ -463,7 +463,7 @@ public sealed class PanelMenusTests
 
         Assert.True(overlay.IsOpen);
         Assert.Equal("Walker", scene.Title);
-        Assert.Equal($"Position  ({10 + ran}, 0)", scene.RowText(1));
+        Assert.Equal($"Position      ({10 + ran}, 0)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Grave);
         host.Run.RequestScene<OtherScene>();
@@ -495,7 +495,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Vanisher", scene.Title);
         Assert.Equal(
-            ["[Entity]", "Position", "ZIndex", "  (Commands)", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
+            ["[Entity]", "Position", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
             Rows(scene));
     }
 

@@ -215,14 +215,14 @@ internal sealed class FrameRenderer : IDisposable
         Texture2D? texture = null;
         foreach (ref readonly SpriteIntent sprite in view.Sprites)
         {
-            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, pixelsPerUnit, ref resolved, ref texture);
+            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, world.TopLeft, pixelsPerUnit, ref resolved, ref texture);
         }
 
         foreach (ref readonly LineIntent line in view.Lines)
         {
             // Snapped on the game surface's grid from the same corner its sprites were quantised
             // from, so a line lands on the sprite it outlines rather than gliding between its steps.
-            DrawLine(line, pixelsPerUnit, world.Snap, world.TopLeft, world.Fit.Scale);
+            DrawLine(line, pixelsPerUnit, world.Snap, world.TopLeft, world.TopLeft, world.Fit.Scale);
         }
 
         _batch.End();
@@ -338,14 +338,39 @@ internal sealed class FrameRenderer : IDisposable
         TextureHandle resolved = default;
         Texture2D? texture = null;
 
-        foreach (ref readonly SpriteIntent sprite in view.Sprites)
+        // Each scrolled run is drawn from its own layer's corner, formed once as the run opens;
+        // the runs are in list order, so one cursor walks them beside the sprites and again
+        // beside the lines.
+        ReadOnlySpan<ParallaxLayer> layers = view.ParallaxLayers;
+        Vector2 origin = view.Camera.ScrollOrigin;
+        Vector2 corner = topLeft;
+        int next = 0;
+
+        ReadOnlySpan<SpriteIntent> sprites = view.Sprites;
+        for (int index = 0; index < sprites.Length; index++)
         {
-            DrawSprite(sprite, alpha, snap, topLeft, fit.Scale, ref resolved, ref texture);
+            while (next < layers.Length && layers[next].FirstSprite <= index)
+            {
+                corner = ScrollLayout.Corner(topLeft, origin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            DrawSprite(sprites[index], alpha, snap, corner, topLeft, fit.Scale, ref resolved, ref texture);
         }
 
-        foreach (ref readonly LineIntent line in view.Lines)
+        corner = topLeft;
+        next = 0;
+
+        ReadOnlySpan<LineIntent> lines = view.Lines;
+        for (int index = 0; index < lines.Length; index++)
         {
-            DrawLine(line, fit.Scale, snap, topLeft, fit.Scale);
+            while (next < layers.Length && layers[next].FirstLine <= index)
+            {
+                corner = ScrollLayout.Corner(topLeft, origin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            DrawLine(lines[index], fit.Scale, snap, corner, topLeft, fit.Scale);
         }
 
         _batch.End();
@@ -382,12 +407,12 @@ internal sealed class FrameRenderer : IDisposable
 
         foreach (ref readonly SpriteIntent sprite in sprites)
         {
-            DrawSprite(sprite, alpha, snap, Vector2.Zero, placement.Scale, ref resolved, ref texture);
+            DrawSprite(sprite, alpha, snap, Vector2.Zero, Vector2.Zero, placement.Scale, ref resolved, ref texture);
         }
 
         foreach (ref readonly LineIntent line in lines)
         {
-            DrawLine(line, placement.Scale, snap, Vector2.Zero, placement.Scale);
+            DrawLine(line, placement.Scale, snap, Vector2.Zero, Vector2.Zero, placement.Scale);
         }
 
         _batch.End();
@@ -399,18 +424,14 @@ internal sealed class FrameRenderer : IDisposable
     // on the overlay path, the render surface's where one is declared, since a quad thinner than
     // that surface's pixel would miss its pixel centres and not rasterise at all.
     //
-    // snap quantises both ends to the grid of snapScale pixels per unit anchored at snapOrigin —
-    // the grid the frame's sprites were snapped to — before the segment is measured, as DrawSprite
-    // does its position, so a line lands on the sprite it outlines.
-    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, Vector2 snapOrigin, float snapScale)
+    // Both ends are placed from layerCorner into the frame at frameCorner as DrawSprite places its
+    // position, snap quantising them to the grid of snapScale pixels per unit — the grid the
+    // frame's sprites were snapped to — before the segment is measured, so a line lands on the
+    // sprite it outlines.
+    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, Vector2 layerCorner, Vector2 frameCorner, float snapScale)
     {
-        Vector2 a = line.A;
-        Vector2 b = line.B;
-        if (snap)
-        {
-            a = PixelGrid.SnapFrom(snapOrigin, a, snapScale);
-            b = PixelGrid.SnapFrom(snapOrigin, b, snapScale);
-        }
+        Vector2 a = ScrollLayout.Place(line.A, layerCorner, frameCorner, snap, snapScale);
+        Vector2 b = ScrollLayout.Place(line.B, layerCorner, frameCorner, snap, snapScale);
 
         Vector2 delta = b - a;
         float length = delta.Length();
@@ -430,13 +451,15 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // resolved is the handle texture was fetched for; both are carried across the whole stream.
-    // snapOrigin anchors the pixel grid: the camera's corner on a world pass, the canvas's on a
-    // screen pass.
+    // layerCorner is the corner of the camera this sprite's layer is drawn by and frameCorner the
+    // corner of the rect the frame draws — the same point on a world pass outside a scrolled run,
+    // and the canvas's origin on a screen pass — and the pixel grid is anchored at the frame's.
     private void DrawSprite(
         in SpriteIntent sprite,
         float alpha,
         bool snap,
-        Vector2 snapOrigin,
+        Vector2 layerCorner,
+        Vector2 frameCorner,
         float surfaceScale,
         ref TextureHandle resolved,
         ref Texture2D? texture)
@@ -448,11 +471,12 @@ internal sealed class FrameRenderer : IDisposable
             texture = resolved.IsEngineOwned ? EngineTexture(resolved) : _textures.Get(resolved);
         }
 
-        Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha);
-        if (snap)
-        {
-            position = PixelGrid.SnapFrom(snapOrigin, position, surfaceScale);
-        }
+        Vector2 position = ScrollLayout.Place(
+            StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha),
+            layerCorner,
+            frameCorner,
+            snap,
+            surfaceScale);
 
         TextureRegion region = sprite.Sprite.Region;
         Vector2 origin = sprite.DrawOrigin;

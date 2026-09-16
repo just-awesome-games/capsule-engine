@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
@@ -77,7 +78,7 @@ public static class SceneDocumentFile
                         $"the '{SceneDocument.TileMapType}' entry declares a scale; terrain is anchored and unscaled, and a tile's size is its grid's tileSize.");
                 }
 
-                documentEntries[i] = ReadTileMap(entry, x, y);
+                documentEntries[i] = ReadTileMap(entry, x, y, i);
                 continue;
             }
 
@@ -88,10 +89,15 @@ public static class SceneDocumentFile
             }
 
             Scale(entry, i, out float scaleX, out float scaleY);
-            documentEntries[i] = new EntityPlacement(entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex);
+            documentEntries[i] = new EntityPlacement(
+                entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex, Pair(entry.ScrollFactor, $"entities[{i}]", "scrollFactor"));
         }
 
-        return new SceneDocument(documentEntries, file.NextEntityId, ToSource(file.Source));
+        return new SceneDocument(
+            documentEntries,
+            file.NextEntityId,
+            ToSource(file.Source),
+            Pair(file.ScrollOrigin, "the scene document", "scrollOrigin"));
     }
 
     /// <summary>The canonical text of <paramref name="document"/>.</summary>
@@ -116,6 +122,7 @@ public static class SceneDocumentFile
                     X = entry.X,
                     Y = entry.Y,
                     ZIndex = tileMap.ZIndex,
+                    ScrollFactor = Pair(tileMap.ScrollFactor),
                     Properties = JsonSerializer.SerializeToElement(
                         ToJson(tileMap.Grid),
                         SceneDocumentJsonContext.Default.TileGridJson),
@@ -136,6 +143,7 @@ public static class SceneDocumentFile
                         ? null
                         : [placed.ScaleX, placed.ScaleY],
                     ZIndex = placed.ZIndex,
+                    ScrollFactor = Pair(placed.ScrollFactor),
                 };
             }
             else
@@ -147,6 +155,7 @@ public static class SceneDocumentFile
         SceneDocumentJson file = new()
         {
             FormatVersion = FormatVersion,
+            ScrollOrigin = Pair(document.ScrollOrigin),
             Entities = entries,
             NextEntityId = document.NextEntityId,
             Source = document.Source is { } source
@@ -216,7 +225,27 @@ public static class SceneDocumentFile
         y = scale[1];
     }
 
-    private static TileMapPlacement ReadTileMap(SceneEntryJson entry, float x, float y)
+    // An absent pair is null, which the writer leaves out. Only the arity is decided here; whether
+    // the components are finite is the document's own invariant.
+    private static Vector2? Pair(float[]? pair, string owner, string field)
+    {
+        if (pair is null)
+        {
+            return null;
+        }
+
+        if (pair.Length != 2)
+        {
+            throw new SceneDocumentFormatException(
+                $"{owner} has a {field} of {pair.Length} components; it is written [x, y], and one that authors none leaves it out.");
+        }
+
+        return new Vector2(pair[0], pair[1]);
+    }
+
+    private static float[]? Pair(Vector2? pair) => pair is { } value ? [value.X, value.Y] : null;
+
+    private static TileMapPlacement ReadTileMap(SceneEntryJson entry, float x, float y, int index)
     {
         // Terrain is drawn in world coordinates, so a position here would be ignored.
         if (x != 0f || y != 0f)
@@ -232,7 +261,11 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry declares no properties; its grid — tileSize, width, height, tileTypes, tiles, and the texture and columns a drawn grid adds — is written there.");
         }
 
-        return new TileMapPlacement(entry.Id ?? 0, Grid(DeserializeGrid(properties)), entry.ZIndex);
+        return new TileMapPlacement(
+            entry.Id ?? 0,
+            Grid(DeserializeGrid(properties)),
+            entry.ZIndex,
+            Pair(entry.ScrollFactor, $"entities[{index}]", "scrollFactor"));
     }
 
     private static TileGridJson DeserializeGrid(JsonElement properties)

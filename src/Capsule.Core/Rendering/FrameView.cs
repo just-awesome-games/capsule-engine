@@ -10,7 +10,9 @@ namespace Capsule.Rendering;
 /// whole world list. Text and nine-sliced panels are on those lists too — a <see cref="TextIntent"/>
 /// becomes one sprite per glyph and a <see cref="NineSliceIntent"/> one per slice — so
 /// <see cref="Metrics"/> counts a run of text once per glyph. Each layer also carries an ordered
-/// list of lines, drawn over that layer's sprites and counted as sprites are.
+/// list of lines, drawn over that layer's sprites and counted as sprites are. World intent is at
+/// authored positions whatever scroll factor its entity carries; <see cref="ParallaxLayers"/> says
+/// which runs of it a renderer moves by a factor.
 /// </summary>
 public sealed class FrameView
 {
@@ -18,10 +20,13 @@ public sealed class FrameView
     private readonly List<SpriteIntent> _screen = [];
     private readonly List<LineIntent> _lines = [];
     private readonly List<LineIntent> _screenLines = [];
+    private readonly List<ParallaxLayer> _layers = [];
 
     private int _submitted;
 
     private CameraView _camera;
+    private CameraView _layerCamera;
+    private Vector2 _scrollFactor = Vector2.One;
     private Rect _cullBounds;
     private bool _hasCullBounds;
 
@@ -31,18 +36,42 @@ public sealed class FrameView
 
     private TextureSampling _sampling = TextureSampling.Linear;
 
-    /// <summary>The world region on screen. A non-positive <see cref="CameraView.Size"/> draws nothing.</summary>
+    /// <summary>
+    /// The world region on screen. A non-positive <see cref="CameraView.Size"/> draws nothing.
+    /// <para>
+    /// Inside a renderer on an entity whose scroll factor is not one, this is the view that entity
+    /// is drawn by: the corners of the swept region moved by the factor about the camera's scroll
+    /// origin, already confined to its bounds, with the span widened where a factor lets the layer
+    /// outrun the frame. Its <see cref="CameraView.SweptBounds"/> cover everything the frame can
+    /// draw of that entity, so a renderer culling against them needs no knowledge of the factor.
+    /// </para>
+    /// </summary>
     public CameraView Camera
     {
-        get => _camera;
+        get => _scrollFactor == Vector2.One ? _camera : _layerCamera;
         internal set
         {
             _camera = value;
-            _cullBounds = value.SweptBounds;
+            Recull();
+        }
+    }
 
-            // A camera that spans nothing has swept bounds only where it also moved, and a
-            // sliver of a rect is not a region anything should be culled against.
-            _hasCullBounds = value.Size.X > 0f && value.Size.Y > 0f && !_cullBounds.IsEmpty;
+    // The scroll factor of the entity whose renderer is running, which the scene sets before each
+    // Draw; one outside a renderer. Every change opens a run in ParallaxLayers and reculls, so an
+    // unchanged factor between two entities costs a comparison.
+    internal Vector2 ScrollFactor
+    {
+        get => _scrollFactor;
+        set
+        {
+            if (value == _scrollFactor)
+            {
+                return;
+            }
+
+            _scrollFactor = value;
+            _layers.Add(new ParallaxLayer(_sprites.Count, _lines.Count, value));
+            Recull();
         }
     }
 
@@ -107,6 +136,14 @@ public sealed class FrameView
     /// </summary>
     public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(_screenLines);
 
+    /// <summary>
+    /// The runs of <see cref="Sprites"/> and <see cref="Lines"/> whose entity carries a scroll
+    /// factor, in list order and back-to-back: each opens where the factor changed and closes where
+    /// the next opens, and intent before the first is drawn with the world. Empty where no entity
+    /// carries one. Invalidated by the next mutation.
+    /// </summary>
+    public ReadOnlySpan<ParallaxLayer> ParallaxLayers => CollectionsMarshal.AsSpan(_layers);
+
     /// <summary>Submission counts from the current rewrite, across both layers, lines included.</summary>
     public RenderMetrics Metrics => new(_submitted, _sprites.Count + _screen.Count + _lines.Count + _screenLines.Count);
 
@@ -117,8 +154,26 @@ public sealed class FrameView
         _screen.Clear();
         _lines.Clear();
         _screenLines.Clear();
+        _layers.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
+        _scrollFactor = Vector2.One;
+        Recull();
+    }
+
+    // The region world intent is culled against: the camera's swept bounds, or the layer's where
+    // the running entity carries a scroll factor. A camera that spans nothing has swept bounds only
+    // where it also moved, and a sliver of a rect is not a region anything should be culled against.
+    private void Recull()
+    {
+        if (_scrollFactor != Vector2.One)
+        {
+            _layerCamera = _camera.ScrolledBy(_scrollFactor);
+        }
+
+        CameraView camera = Camera;
+        _cullBounds = camera.SweptBounds;
+        _hasCullBounds = camera.Size.X > 0f && camera.Size.Y > 0f && !_cullBounds.IsEmpty;
     }
 
     /// <summary>
@@ -144,6 +199,85 @@ public sealed class FrameView
         }
 
         (screen ? _screen : _sprites).Add(sprite);
+    }
+
+    /// <summary>
+    /// Adds <paramref name="sprite"/> repeated across <paramref name="tiling"/>, one sprite per copy
+    /// culled and counted on its own, to the layer the running renderer's entity lives in. On each
+    /// axis the period is the sprite's drawn <see cref="SpriteIntent.Size"/>: zero draws the frame
+    /// once; a finite extent covers that many units from the frame's low edge towards +X or +Y,
+    /// cropping the copy at the far edge; <see cref="float.PositiveInfinity"/> repeats without bound
+    /// on both sides of the frame, which with culling disabled draws the frame once. A negative or
+    /// NaN extent draws nothing.
+    /// </summary>
+    public void Add(in SpriteIntent sprite, Vector2 tiling) => Add(in sprite, tiling, Space);
+
+    /// <summary>Adds <paramref name="sprite"/> repeated across <paramref name="tiling"/> onto <paramref name="space"/>'s list.</summary>
+    public void Add(in SpriteIntent sprite, Vector2 tiling, RenderSpace space)
+    {
+        if (tiling == Vector2.Zero)
+        {
+            Add(in sprite, space);
+            return;
+        }
+
+        // Negated so a NaN extent is refused alongside the negative ones, as a scale is.
+        if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) || !sprite.TryGetSweptBounds(out Rect swept))
+        {
+            _submitted++;
+            return;
+        }
+
+        bool screen = space == RenderSpace.Screen;
+        bool culled = screen ? _hasCanvasBounds : _hasCullBounds;
+        Rect against = screen ? _canvasBounds : _cullBounds;
+
+        TextureRegion region = sprite.Sprite.Region;
+        Vector2 texelSize = new(sprite.Size.X / region.Width, sprite.Size.Y / region.Height);
+
+        // The drawn rect's corner, which every copy is placed from, at both ends of the step.
+        Vector2 corner = sprite.Position - (sprite.DrawOrigin * texelSize);
+        Vector2 travel = sprite.PreviousPosition - sprite.Position;
+
+        TileRange columns = TileRange.Along(tiling.X, sprite.Size.X, swept.Left, swept.Right, culled, against.Left, against.Right);
+        TileRange rows = TileRange.Along(tiling.Y, sprite.Size.Y, swept.Top, swept.Bottom, culled, against.Top, against.Bottom);
+
+        for (int row = rows.First; row <= rows.Last; row++)
+        {
+            (int sourceY, int sourceHeight) = rows.Crop(row, region.Y, region.Height, texelSize.Y, sprite.FlipY);
+            if (sourceHeight <= 0)
+            {
+                continue;
+            }
+
+            for (int column = columns.First; column <= columns.Last; column++)
+            {
+                (int sourceX, int sourceWidth) = columns.Crop(column, region.X, region.Width, texelSize.X, sprite.FlipX);
+                if (sourceWidth <= 0)
+                {
+                    continue;
+                }
+
+                // Anchored at the drawn rect's corner whichever way the frame faces, so a copy lands
+                // where its index says rather than swinging across the position on a flipped axis.
+                Vector2 at = corner + new Vector2(column * sprite.Size.X, row * sprite.Size.Y);
+                Sprite copy = new(
+                    sprite.Sprite.Texture,
+                    new TextureRegion(sourceX, sourceY, sourceWidth, sourceHeight),
+                    new Vector2(sprite.FlipX ? sourceWidth : 0, sprite.FlipY ? sourceHeight : 0));
+
+                Add(
+                    new SpriteIntent(
+                        copy,
+                        at + travel,
+                        at,
+                        new Vector2(sourceWidth * texelSize.X, sourceHeight * texelSize.Y),
+                        sprite.FlipX,
+                        sprite.FlipY,
+                        sprite.Color),
+                    space);
+            }
+        }
     }
 
     /// <summary>

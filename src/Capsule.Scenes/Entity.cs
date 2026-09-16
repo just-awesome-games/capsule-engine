@@ -5,6 +5,7 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes.Lifecycle;
+using Capsule.Scenes.Spawning;
 using Capsule.UI;
 
 namespace Capsule.Scenes;
@@ -36,6 +37,32 @@ public class Entity
     {
         Position = position;
         PreviousPosition = position;
+    }
+
+    /// <summary>
+    /// Starts from a document placement: <see cref="EntitySpawn.Position"/> as
+    /// <see cref="Entity(Vector2)"/> takes it, then <see cref="ZIndex"/> and
+    /// <see cref="ScrollFactor"/> where the spawn carries them, all before the derived constructor's
+    /// body runs, so whatever that body writes wins over the document. <see cref="EntitySpawn.Scale"/>
+    /// is left to that body. An entity whose own anchor is not the authored coordinate passes
+    /// <c>spawn with { Position = spawn.Position + anchor }</c>. A class may hold this constructor
+    /// beside a public one taking a <see cref="Vector2"/> for placement from code; only the one
+    /// taking a spawn claims the document's spawn type.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The position or the scroll factor is not finite.</exception>
+    /// <exception cref="InvalidOperationException">The scroll factor is not one on an entity that refuses one.</exception>
+    protected Entity(EntitySpawn spawn)
+        : this(spawn.Position)
+    {
+        if (spawn.ZIndex is { } band)
+        {
+            ZIndex = band;
+        }
+
+        if (spawn.ScrollFactor is { } factor)
+        {
+            ScrollFactor = factor;
+        }
     }
 
     /// <summary>
@@ -114,6 +141,57 @@ public class Entity
         }
     }
 
+    /// <summary>
+    /// How far this entity's renderers move with the camera, per axis: one, the default, is the
+    /// world; zero is fixed to the screen; less than one is further away; more than one is nearer.
+    /// Presentation only, applied by the renderer to every renderer this entity holds and read by
+    /// nothing else: <see cref="Position"/>, colliders, contacts, <see cref="Rendering.Renderer.Bounds"/>
+    /// and <see cref="OnDebugDraw"/> geometry stay in authored space. The camera corner at which
+    /// every layer sits exactly where authored is its <see cref="Camera.ScrollOrigin"/>.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">A component of the factor is not finite.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The factor is not one on both axes and this entity is on the screen layer, collides, or holds
+    /// a <see cref="Rendering.VisibleOnScreenNotifier2D"/>: each answers in authored space, where a
+    /// scrolled entity is not drawn.
+    /// </exception>
+    public Vector2 ScrollFactor
+    {
+        get;
+
+        set
+        {
+            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "A scroll factor must be finite on both axes.");
+            }
+
+            if (value != Vector2.One)
+            {
+                if (Space == RenderSpace.Screen)
+                {
+                    throw new InvalidOperationException(
+                        $"A {GetType().Name} is on the screen layer, which no camera moves, so it cannot carry a scroll factor.");
+                }
+
+                if (Collides)
+                {
+                    throw Unscrollable("its grid");
+                }
+
+                foreach (Component component in Components)
+                {
+                    if (component.AnswersInAuthoredSpace)
+                    {
+                        throw Unscrollable($"a {component.GetType().Name}");
+                    }
+                }
+            }
+
+            field = value;
+        }
+    } = Vector2.One;
+
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
 
@@ -148,6 +226,10 @@ public class Entity
     // rather than a move.
     internal bool Anchored { get; init; }
 
+    // Whether this entity registers a shape of its own with the collision world, beside any
+    // collider component it holds: a tile map's grid.
+    internal virtual bool Collides => false;
+
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
     // Every walk of the component list goes through this. A hook may detach the component being
@@ -170,7 +252,9 @@ public class Entity
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
     /// <exception cref="InvalidOperationException">
     /// The component is already attached to an entity, or it refuses this entity — a
-    /// <see cref="Physics.KinematicBody2D"/> offered to one that already holds a body.
+    /// <see cref="Physics.KinematicBody2D"/> offered to one that already holds a body, or a
+    /// collider, body or <see cref="Rendering.VisibleOnScreenNotifier2D"/> offered to one whose
+    /// <see cref="ScrollFactor"/> is not one.
     /// </exception>
     /// <exception cref="ArgumentNullException">The component is null.</exception>
     public void Add(Component component)
@@ -181,6 +265,11 @@ public class Entity
         {
             throw new InvalidOperationException(
                 $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity at a time.");
+        }
+
+        if (component.AnswersInAuthoredSpace && ScrollFactor != Vector2.One)
+        {
+            throw Unscrollable($"a {component.GetType().Name}");
         }
 
         component.Entity = this;
@@ -468,6 +557,7 @@ public class Entity
         panel.Section("Entity");
         panel.Field("Position", Position);
         panel.Field("ZIndex", ZIndex);
+        panel.Field("ScrollFactor", ScrollFactor);
         panel.Command("Remove", () => Scene?.Remove(this));
 
         if (_started)
@@ -490,6 +580,9 @@ public class Entity
         DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(OriginArm, 0f), Position + new Vector2(OriginArm, 0f), null, motion);
         DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(0f, OriginArm), Position + new Vector2(0f, OriginArm), null, motion);
     }
+
+    private InvalidOperationException Unscrollable(string what) =>
+        new($"A {GetType().Name} cannot carry a scroll factor other than one with {what}, which answers at the authored position a scrolled entity is not drawn at.");
 
     private static void RequireFinite(Vector2 position)
     {

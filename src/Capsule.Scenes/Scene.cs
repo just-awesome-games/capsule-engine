@@ -49,6 +49,10 @@ public class Scene
     private Camera _camera = new();
     private Run? _run;
 
+    // The document's authored scroll origin, written to each camera as it is installed, so the
+    // camera a scene installs over the default takes it too.
+    private readonly Vector2? _scrollOrigin;
+
     private bool _stepping;
     private bool _starting;
     private bool _started;
@@ -83,32 +87,35 @@ public class Scene
                     tiles.ZIndex = band;
                 }
 
+                if (tileMap.ScrollFactor is { } factor)
+                {
+                    tiles.ScrollFactor = factor;
+                }
+
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
             }
             else if (entry.Entity is { } placed)
             {
-                Entity spawned = content.Entities.Create(new EntitySpawn(
+                // The band and the factor travel in the spawn: the class applies them ahead of its
+                // own body, and whatever it writes there wins.
+                Add(content.Entities.Create(new EntitySpawn(
                     placed.Id,
                     placed.Type,
                     new Vector2(placed.X, placed.Y),
-                    new Vector2(placed.ScaleX, placed.ScaleY)));
-
-                // Only where the placement authors one, and after construction: the class owns the
-                // default, and an authored band — 0 included — is what overrides it.
-                if (placed.ZIndex is { } band)
-                {
-                    spawned.ZIndex = band;
-                }
-
-                Add(spawned);
+                    new Vector2(placed.ScaleX, placed.ScaleY),
+                    placed.ZIndex,
+                    placed.ScrollFactor)));
             }
         }
+
+        _scrollOrigin = content.Document.ScrollOrigin;
     }
 
     /// <summary>
     /// The camera, always present; it opens spanning nothing unless the scene or the camera sets a
-    /// span. Installing one cuts to it rather than sweeping from the previous centre.
+    /// span. Installing one cuts to it rather than sweeping from the previous centre, and in a
+    /// scene composed from a document that authors a scroll origin writes that origin to it.
     /// <para>
     /// Installed in a scene that has opened its camera, the incoming camera is notified at once —
     /// <see cref="Scenes.Camera.OnAddedToScene"/> then <see cref="Scenes.Camera.OnStart"/>, after
@@ -782,6 +789,11 @@ public class Scene
     private void Install(Camera camera)
     {
         RequireUnowned(camera);
+
+        if (_scrollOrigin is { } origin)
+        {
+            camera.ScrollOrigin = origin;
+        }
 
         // Set before the hook: a camera whose OnAddedToScene throws has entered the scene, and
         // Stop must still release it.

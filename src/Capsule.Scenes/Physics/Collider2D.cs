@@ -430,6 +430,8 @@ public abstract class Collider2D : Component
         Resync();
     }
 
+    internal sealed override bool AnswersInAuthoredSpace => true;
+
     // Re-attaching mid-dispatch would put the collider back in the world, where whether it settles
     // again this step depends on where the next reporting collider sits in the scene's list.
     internal override void OnAttachedTo(Entity entity)

@@ -31,6 +31,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// </summary>
     public Vector2 Scale { get; set; } = Vector2.One;
 
+    /// <summary>
+    /// How far the frame repeats, per axis, in the entity's own units; zero, the default, draws it
+    /// once. A finite extent covers that much from the frame's low edge towards +X or +Y at a period
+    /// of the frame's drawn extent, cropping the copy at the far edge; <see cref="float.PositiveInfinity"/>
+    /// repeats without bound on both sides of the frame, and draws it once where nothing culls. A
+    /// component that is negative or NaN draws nothing, as a scale that is not positive does.
+    /// </summary>
+    public Vector2 Tiling { get; set; }
+
     /// <summary>Whether the frame is mirrored horizontally about its pivot.</summary>
     public bool FlipX { get; set; }
 
@@ -42,14 +51,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     /// <summary>
     /// The rect the frame covers: its region at <see cref="Scale"/>, placed by the pivot a flip has
-    /// mirrored, in the space and on the terms <see cref="Renderer.Bounds"/> states. Empty where the
-    /// frame draws nothing — a region with no texels, or a scale that is not positive and finite.
+    /// mirrored, and extended to a finite <see cref="Tiling"/> — an unbounded axis reports the frame's
+    /// own extent — in the space and on the terms <see cref="Renderer.Bounds"/> states. Empty where
+    /// the frame draws nothing — a region with no texels, or a scale or tiling that is not a scale
+    /// or tiling.
     /// </summary>
     public override Rect Bounds
     {
         get
         {
-            if (Entity is null)
+            if (Entity is null || !(Tiling.X >= 0f) || !(Tiling.Y >= 0f))
             {
                 return default;
             }
@@ -57,7 +68,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             // The rect at rest, not the one it swept: bounds answer for the entity's current position.
             Vector2 position = RenderPosition + Offset;
 
-            return Intent(position, position).TryGetSweptBounds(out Rect bounds) ? bounds : default;
+            if (!Intent(position, position).TryGetSweptBounds(out Rect frame))
+            {
+                return default;
+            }
+
+            return new Rect(
+                frame.Left,
+                frame.Top,
+                Tiling.X > 0f && float.IsFinite(Tiling.X) ? frame.Left + Tiling.X : frame.Right,
+                Tiling.Y > 0f && float.IsFinite(Tiling.Y) ? frame.Top + Tiling.Y : frame.Bottom);
         }
     }
 
@@ -78,7 +98,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         ArgumentNullException.ThrowIfNull(view);
 
-        view.Add(Intent(PreviousRenderPosition + Offset, RenderPosition + Offset));
+        view.Add(Intent(PreviousRenderPosition + Offset, RenderPosition + Offset), Tiling);
     }
 
     private SpriteIntent Intent(Vector2 previousPosition, Vector2 position)
@@ -103,6 +123,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));
         panel.Field("Offset", Offset);
         panel.Field("Scale", Scale);
+        panel.Field("Tiling", Tiling);
         panel.Field("Color", Color);
         panel.Toggle("FlipX", FlipX, on => FlipX = on);
         panel.Toggle("FlipY", FlipY, on => FlipY = on);

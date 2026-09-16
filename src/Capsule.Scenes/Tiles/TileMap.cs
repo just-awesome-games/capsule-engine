@@ -13,7 +13,8 @@ namespace Capsule.Tiles;
 /// of the grid's texture and, where any tile type collides, registers one
 /// <see cref="GridCollider2D"/> with the scene's world. Every tile draws in the map's own
 /// <see cref="Entity.ZIndex"/> band, so that one value is what puts a grid behind or in front of
-/// what shares the scene with it.
+/// what shares the scene with it, and follows the map's <see cref="Entity.ScrollFactor"/>, which a
+/// grid whose palette collides refuses.
 /// </summary>
 public sealed class TileMap : Entity
 {
@@ -46,6 +47,8 @@ public sealed class TileMap : Entity
 
     /// <summary>World units the grid spans, from the world origin.</summary>
     public Vector2 Size { get; }
+
+    internal override bool Collides => _grid.Collides;
 
     /// <summary>
     /// This grid's collider in the scene's world, or null when it is in no scene or no tile type

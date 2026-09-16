@@ -72,7 +72,7 @@ public sealed class CapsuleBootGeneratorTests
 
             namespace Actors;
 
-            internal sealed class Player(EntitySpawn spawn) : Entity(spawn.Position);
+            internal sealed class Player(EntitySpawn spawn) : Entity(spawn);
             """;
         const string rooms = """
             using Capsule.Scenes;
@@ -158,14 +158,14 @@ public sealed class CapsuleBootGeneratorTests
             using Capsule.Scenes;
             using Capsule.Scenes.Spawning;
             namespace First;
-            public sealed class Chest(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class Chest(EntitySpawn spawn) : Entity(spawn);
             """;
         const string second = """
             using Capsule.Scenes;
             using Capsule.Scenes.Spawning;
             namespace Second;
             [SpawnType("chest")]
-            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn.Position);
+            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn);
             """;
 
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(

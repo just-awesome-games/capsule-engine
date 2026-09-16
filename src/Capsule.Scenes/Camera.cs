@@ -44,6 +44,29 @@ public class Camera
     public Rect? Bounds { get; set; }
 
     /// <summary>
+    /// The camera's top-left corner at which every entity sits exactly where it was authored
+    /// whatever its <see cref="Entity.ScrollFactor"/>. An entity with a factor of <c>f</c> is drawn
+    /// as if by a camera whose corner is at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, the
+    /// corner being that of the world rect the frame places. Zero, the default, is a room whose
+    /// first screen is at the world origin; set it for a room elsewhere in the world.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">A component is not finite.</exception>
+    public Vector2 ScrollOrigin
+    {
+        get;
+
+        set
+        {
+            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "A scroll origin must be finite on both axes.");
+            }
+
+            field = value;
+        }
+    }
+
+    /// <summary>
     /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/>
     /// and confined to <see cref="Bounds"/> — clamped inside them on each axis, or centred on them
     /// along an axis the viewport is larger than. Engine-owned, and settled once a step immediately

@@ -40,7 +40,7 @@ internal static class NativeSceneImporter
             documentPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(sourceBytes)));
 
-        return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source);
+        return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source, authored.ScrollOrigin);
     }
 
     // However a document spelled a texture, a texture is reached by its key, so what is re-emitted
@@ -52,7 +52,7 @@ internal static class NativeSceneImporter
         for (int i = 0; i < entries.Length; i++)
         {
             keyed[i] = entries[i].TileMap is { Grid: { Texture: { } texture } grid } map
-                ? new TileMapPlacement(map.Id, Regrid(grid, Keyed(texture)), map.ZIndex)
+                ? new TileMapPlacement(map.Id, Regrid(grid, Keyed(texture)), map.ZIndex, map.ScrollFactor)
                 : entries[i];
         }
 

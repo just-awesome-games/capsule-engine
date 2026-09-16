@@ -103,6 +103,89 @@ internal static class Symbols
         return count;
     }
 
+    // The one public constructor taking an EntitySpawn, or null where there is none or more than one.
+    internal static IMethodSymbol? SpawnConstructor(INamedTypeSymbol type, Compilation compilation)
+    {
+        INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(EntitySpawn);
+        IMethodSymbol? found = null;
+
+        foreach (IMethodSymbol constructor in type.InstanceConstructors)
+        {
+            if (constructor.DeclaredAccessibility == Accessibility.Public
+                && constructor.Parameters.Length == 1
+                && SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, parameterType))
+            {
+                if (found is not null)
+                {
+                    return null;
+                }
+
+                found = constructor;
+            }
+        }
+
+        return found;
+    }
+
+    // Whether the constructor's own initializer hands an EntitySpawn on: a base(...) or this(...)
+    // argument of that type — the spawn itself, or one rewritten with { } — or a primary
+    // constructor's base argument list carrying one. A this(...) target is trusted, and a constructor
+    // with no syntax here is too. Where it does not, at is the constructor that drops it.
+    internal static bool PassesSpawnOn(IMethodSymbol constructor, Compilation compilation, out Location? at)
+    {
+        at = null;
+        if (constructor.DeclaringSyntaxReferences.Length == 0)
+        {
+            return true;
+        }
+
+        SyntaxNode syntax = constructor.DeclaringSyntaxReferences[0].GetSyntax();
+        ArgumentListSyntax? arguments;
+        Location location;
+
+        if (syntax is ConstructorDeclarationSyntax declared)
+        {
+            location = declared.Identifier.GetLocation();
+            arguments = declared.Initializer?.ArgumentList;
+        }
+        else if (syntax is TypeDeclarationSyntax primary)
+        {
+            location = primary.ParameterList?.GetLocation() ?? primary.Identifier.GetLocation();
+            arguments = null;
+            if (primary.BaseList is not null)
+            {
+                foreach (BaseTypeSyntax candidate in primary.BaseList.Types)
+                {
+                    if (candidate is PrimaryConstructorBaseTypeSyntax withArguments)
+                    {
+                        arguments = withArguments.ArgumentList;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            return true;
+        }
+
+        if (arguments is not null)
+        {
+            INamedTypeSymbol? spawnType = compilation.GetTypeByMetadataName(EntitySpawn);
+            SemanticModel model = compilation.GetSemanticModel(syntax.SyntaxTree);
+            foreach (ArgumentSyntax argument in arguments.Arguments)
+            {
+                if (SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(argument.Expression).Type, spawnType))
+                {
+                    return true;
+                }
+            }
+        }
+
+        at = location;
+        return false;
+    }
+
     internal static bool HasPublicParameterlessConstructor(INamedTypeSymbol type)
     {
         foreach (IMethodSymbol constructor in type.InstanceConstructors)

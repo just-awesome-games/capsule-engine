@@ -14,18 +14,24 @@ internal sealed class SceneDocumentJson
     [JsonPropertyOrder(0)]
     public int? FormatVersion { get; set; }
 
+    // Absent where the document authors no origin; WhenWritingNull keeps it out. Nullable so a
+    // wrong arity is the reader's error to name.
+    [JsonPropertyName("scrollOrigin")]
+    [JsonPropertyOrder(1)]
+    public float[]? ScrollOrigin { get; set; }
+
     // Nullable so an absent list is distinct from an empty scene, and so is a null where an entry
     // belongs: an initializer here would answer for JSON the format has not accepted.
     [JsonPropertyName("entities")]
-    [JsonPropertyOrder(1)]
+    [JsonPropertyOrder(2)]
     public SceneEntryJson?[]? Entities { get; set; }
 
     [JsonPropertyName("nextEntityId")]
-    [JsonPropertyOrder(2)]
+    [JsonPropertyOrder(3)]
     public int NextEntityId { get; set; }
 
     [JsonPropertyName("source")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(4)]
     public SceneDocumentSourceJson? Source { get; set; }
 }
 
@@ -78,10 +84,16 @@ internal sealed class SceneEntryJson
     [JsonPropertyOrder(5)]
     public int? ZIndex { get; set; }
 
+    // Absent where the entry authors no factor; WhenWritingNull keeps it out. Nullable so a wrong
+    // arity is the reader's error to name.
+    [JsonPropertyName("scrollFactor")]
+    [JsonPropertyOrder(6)]
+    public float[]? ScrollFactor { get; set; }
+
     // Raw JSON, not a member of this shape: properties are a contract per entry type. The reader
     // deserializes the tile-map's against TileGridJson and rejects properties on any other type.
     [JsonPropertyName("properties")]
-    [JsonPropertyOrder(6)]
+    [JsonPropertyOrder(7)]
     public JsonElement? Properties { get; set; }
 }
 

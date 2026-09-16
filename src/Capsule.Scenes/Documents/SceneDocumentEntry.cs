@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
@@ -20,6 +21,7 @@ public readonly record struct SceneDocumentEntry
         _scaleX = entity.ScaleX;
         _scaleY = entity.ScaleY;
         ZIndex = entity.ZIndex;
+        ScrollFactor = entity.ScrollFactor;
         _type = entity.Type;
         _grid = null;
     }
@@ -35,6 +37,7 @@ public readonly record struct SceneDocumentEntry
         _scaleX = 1f;
         _scaleY = 1f;
         ZIndex = tileMap.ZIndex;
+        ScrollFactor = tileMap.ScrollFactor;
         _type = null;
         _grid = tileMap.Grid;
     }
@@ -51,13 +54,16 @@ public readonly record struct SceneDocumentEntry
     /// <summary>The entry's authored draw band, or null where it authors none.</summary>
     public int? ZIndex { get; }
 
+    /// <summary>The entry's authored scroll factor, or null where it authors none.</summary>
+    public Vector2? ScrollFactor { get; }
+
     /// <summary>The game-defined entity placement, or null when this is a tile map.</summary>
     public EntityPlacement? Entity =>
-        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY, ZIndex) : null;
+        _kind == EntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY, ZIndex, ScrollFactor) : null;
 
     /// <summary>The engine-native tile-map placement, or null when this is a game entity.</summary>
     public TileMapPlacement? TileMap =>
-        _kind == EntryKind.TileMap ? new TileMapPlacement(Id, _grid!, ZIndex) : null;
+        _kind == EntryKind.TileMap ? new TileMapPlacement(Id, _grid!, ZIndex, ScrollFactor) : null;
 
     /// <summary>Wraps a game-defined entity placement as an ordered document entry.</summary>
     public static implicit operator SceneDocumentEntry(EntityPlacement entity) => new(entity);

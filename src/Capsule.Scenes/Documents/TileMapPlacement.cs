@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
@@ -10,4 +11,8 @@ namespace Capsule.Scenes.Documents;
 /// overwrites the composed <see cref="Tiles.TileMap"/>'s <see cref="Entity.ZIndex"/>; null leaves
 /// the band the class gave itself.
 /// </param>
-public readonly record struct TileMapPlacement(int Id, TileGrid Grid, int? ZIndex = null);
+/// <param name="ScrollFactor">
+/// The authored scroll factor, or null where the placement authors none. A value overwrites the
+/// composed map's <see cref="Entity.ScrollFactor"/>, which a grid whose palette collides refuses.
+/// </param>
+public readonly record struct TileMapPlacement(int Id, TileGrid Grid, int? ZIndex = null, Vector2? ScrollFactor = null);

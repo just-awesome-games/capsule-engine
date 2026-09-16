@@ -133,6 +133,11 @@ internal static class RegistryDiagnostics
         "'{0}' {1}",
         CapsuleDocs.Sheets);
 
+    internal static readonly DiagnosticDescriptor SpawnNotPassedToBase = Scene(
+        "CAP026",
+        "An entity must pass its spawn to its base constructor",
+        "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, so the authored zIndex and scrollFactor are dropped; pass the spawn to base");
+
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";
 

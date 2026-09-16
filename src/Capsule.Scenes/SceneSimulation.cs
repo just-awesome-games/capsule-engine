@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 
@@ -152,7 +153,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             Scene.Camera.Center,
             Scene.Camera.ViewportSize,
             Scene.Camera.Fit,
-            Scene.Camera.Bounds);
+            Scene.Camera.Bounds,
+            Scene.Camera.ScrollOrigin);
         _view.Canvas = Run.Canvas;
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
@@ -172,8 +174,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 Renderer renderer = renderers[index];
                 if (Scene.Draws(renderer))
                 {
-                    // The one place a space is chosen: a renderer follows its entity.
-                    _view.Space = renderer.Entity!.Space;
+                    // The one place a space and a scroll factor are chosen: a renderer follows its
+                    // entity.
+                    Entity entity = renderer.Entity!;
+                    _view.Space = entity.Space;
+                    _view.ScrollFactor = entity.ScrollFactor;
                     renderer.Draw(_view);
                 }
             }
@@ -181,6 +186,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         finally
         {
             _view.Space = RenderSpace.World;
+            _view.ScrollFactor = Vector2.One;
             Scene.EndDraw();
         }
     }

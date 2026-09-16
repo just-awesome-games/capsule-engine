@@ -2,6 +2,22 @@
   "formatVersion": 5,
   "entities": [
     {
+      "id": 4,
+      "type": "sky",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": 5,
+      "type": "hills",
+      "x": 0,
+      "y": 112,
+      "scrollFactor": [
+        0.5,
+        1
+      ]
+    },
+    {
       "id": 3,
       "type": "tile-map",
       "x": 0,
@@ -287,5 +303,5 @@
       "y": 152
     }
   ],
-  "nextEntityId": 4
+  "nextEntityId": 6
 }

@@ -216,6 +216,8 @@ public sealed class KinematicBody2D : Component
                 "A KinematicBody2D needs its collider enabled and registered in a scene before it can sweep.");
     }
 
+    internal override bool AnswersInAuthoredSpace => true;
+
     // The body holds the entity's one write on its position, so a second one is a mistake the
     // attach refuses.
     internal override void OnAttachedTo(Entity entity)

@@ -10,6 +10,7 @@ internal enum EntityFault
     BlankSpawnType,
     InaccessibleType,
     AmbiguousSpawnConstructors,
+    SpawnNotPassedToBase,
 }
 
 internal readonly struct EntityModel : IEquatable<EntityModel>

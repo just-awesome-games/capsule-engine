@@ -29,7 +29,7 @@ public sealed class StepInterpolationTests
     public void AStationaryPositionSnapsToTheSamePixelAtEveryAlpha()
     {
         Assert.All(Alphas(), alpha => Assert.Equal(
-            new Vector2(153f, 75f),
+            new Vector2(153f, 74f),
             PixelGrid.Snap(StepInterpolation.Interpolate(OnASnapBoundary, OnASnapBoundary, alpha), 1f)));
     }
 

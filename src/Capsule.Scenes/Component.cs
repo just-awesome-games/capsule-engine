@@ -124,6 +124,11 @@ public abstract class Component
         ArgumentNullException.ThrowIfNull(assets);
     }
 
+    // Whether this component reads or reports its entity's authored position as where it is on
+    // screen — a collider, a body, a screen notifier — and so refuses an entity a scroll factor
+    // draws elsewhere.
+    internal virtual bool AnswersInAuthoredSpace => false;
+
     // Whatever the component registers with its entity — an interest in its movement, say — is
     // registered here.
     internal virtual void OnAttachedTo(Entity entity)

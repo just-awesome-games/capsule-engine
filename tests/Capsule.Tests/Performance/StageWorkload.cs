@@ -112,7 +112,7 @@ internal static class StageWorkload
     internal sealed class Hero : Entity
     {
         internal Hero(EntitySpawn spawn)
-            : base(spawn.Position) =>
+            : base(spawn) =>
             Add(new SpriteRenderer(HeroFrame));
 
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
@@ -123,7 +123,7 @@ internal static class StageWorkload
         private readonly Vector2 _drift;
 
         internal Actor(EntitySpawn spawn)
-            : base(spawn.Position)
+            : base(spawn)
         {
             _drift = new Vector2(((spawn.Id % 5) - 2) * 0.25f, 0f);
 

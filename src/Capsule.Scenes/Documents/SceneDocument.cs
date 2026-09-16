@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 
 namespace Capsule.Scenes.Documents;
 
@@ -18,17 +19,20 @@ public sealed class SceneDocument
     /// <param name="entries">Every tile map and entity placement, in composition order.</param>
     /// <param name="nextEntityId">The next id to hand out; at least 1 and above every entry's id.</param>
     /// <param name="source">Provenance when the document is derived, null when it is authored.</param>
+    /// <param name="scrollOrigin">The camera's authored <see cref="Camera.ScrollOrigin"/>, or null where the document authors none.</param>
     /// <exception cref="SceneDocumentFormatException">Some invariant of the document format is broken.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="entries"/> is null.</exception>
     public SceneDocument(
         IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,
-        SceneDocumentSource? source = null)
+        SceneDocumentSource? source = null,
+        Vector2? scrollOrigin = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
         NextEntityId = nextEntityId;
         Source = source;
+        ScrollOrigin = scrollOrigin;
         _entries = [.. entries];
 
         Validate();
@@ -46,11 +50,25 @@ public sealed class SceneDocument
     /// <summary>The authoring source this document was derived from, or null when it is hand-authored.</summary>
     public SceneDocumentSource? Source { get; }
 
+    /// <summary>
+    /// The <see cref="Camera.ScrollOrigin"/> written to every camera installed in the composed
+    /// scene — the camera corner at which every layer sits as authored — or null where the
+    /// document authors none and each camera keeps its own.
+    /// </summary>
+    public Vector2? ScrollOrigin { get; }
+
     private void Validate()
     {
         if (NextEntityId < 1)
         {
             throw Malformed($"nextEntityId must be at least 1, not {NextEntityId}.");
+        }
+
+        if (ScrollOrigin is { } origin && (!float.IsFinite(origin.X) || !float.IsFinite(origin.Y)))
+        {
+            throw Malformed(string.Create(
+                CultureInfo.InvariantCulture,
+                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position; both components are finite."));
         }
 
         ValidateEntries();
@@ -110,6 +128,20 @@ public sealed class SceneDocument
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
                     $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale; both factors are finite and greater than zero."));
+            }
+
+            if (entry.ScrollFactor is { } factor && (!float.IsFinite(factor.X) || !float.IsFinite(factor.Y)))
+            {
+                throw Malformed(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"entity id {entry.Id} has scroll factor ({factor.X}, {factor.Y}), which is not a scroll factor; both components are finite."));
+            }
+
+            // A grid answers queries at its authored cells, where a scrolled grid is not drawn.
+            if (tileMap is { Grid.Collides: true, ScrollFactor: not null })
+            {
+                throw Malformed(
+                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a palette that collides; a grid that scrolls names no layer.");
             }
 
             if (entry.Id >= NextEntityId)
