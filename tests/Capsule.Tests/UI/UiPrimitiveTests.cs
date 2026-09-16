@@ -152,6 +152,8 @@ public sealed class UiPrimitiveTests
                 Sprite.White,
                 Previous,
                 Current,
+                PreviousRotation: 0f,
+                Rotation: 0f,
                 new Vector2(2f, 2f),
                 FlipX: false,
                 FlipY: false,

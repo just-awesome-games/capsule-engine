@@ -4,7 +4,7 @@ Rules no compiler enforces; module direction, role purity, public XML documentat
 
 ## Building a game
 
-- Consuming is [`docs/consuming-capsule.md`](docs/consuming-capsule.md); [`samples/MinimalGame/`](samples/MinimalGame/) is frozen — it changes only to migrate a break an engine change caused in it, or when the Creative Director asks, never to demonstrate a feature.
+- Consuming is [`docs/consuming-capsule.md`](docs/consuming-capsule.md); [`samples/MinimalGame/`](samples/MinimalGame/) is the engine's review surface — an engine change may land with the sample call site that lets it be playtested and its client integration reviewed, and migrates any break it causes there; no change is obliged to touch the sample, and the sample stays a small game, never a feature gallery.
 - A run is driven by an input driver ([`docs/headless-play.md`](docs/headless-play.md)), never by asking a person to play it.
 - The standard command line is Capsule's: a game opts in with `WithCommandLine(args)` and never re-implements a flag the engine declares.
 

@@ -159,5 +159,14 @@ public sealed class TilingTests
     }
 
     private static SpriteIntent At(Vector2 corner) =>
-        new(Frame, corner, corner, new Vector2(16, 8), FlipX: false, FlipY: false, ColorRgba.White);
+        new(
+            Frame,
+            corner,
+            corner,
+            PreviousRotation: 0f,
+            Rotation: 0f,
+            new Vector2(16, 8),
+            FlipX: false,
+            FlipY: false,
+            ColorRgba.White);
 }

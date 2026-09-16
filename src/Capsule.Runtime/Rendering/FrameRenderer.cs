@@ -486,7 +486,7 @@ internal sealed class FrameRenderer : IDisposable
             new XnaVector2(position.X, position.Y),
             new Rectangle(region.X, region.Y, region.Width, region.Height),
             ToBackendColor(sprite.Color),
-            rotation: 0f,
+            rotation: StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, alpha),
             origin: new XnaVector2(origin.X, origin.Y),
             scale: new XnaVector2(sprite.Size.X / region.Width, sprite.Size.Y / region.Height),
             effects: Mirroring(sprite),

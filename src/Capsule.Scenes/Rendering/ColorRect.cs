@@ -42,6 +42,8 @@ public sealed class ColorRect(Vector2 size) : Renderer
             Sprite.White,
             PreviousRenderPosition + Offset,
             RenderPosition + Offset,
+            PreviousRotation: 0f,
+            Rotation: 0f,
             Size,
             FlipX: false,
             FlipY: false,

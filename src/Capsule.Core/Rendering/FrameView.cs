@@ -208,7 +208,9 @@ public sealed class FrameView
     /// once; a finite extent covers that many units from the frame's low edge towards +X or +Y,
     /// cropping the copy at the far edge; <see cref="float.PositiveInfinity"/> repeats without bound
     /// on both sides of the frame, which with culling disabled draws the frame once. A negative or
-    /// NaN extent draws nothing.
+    /// NaN extent draws nothing, and so does a non-zero tiling of a sprite with a non-zero
+    /// <see cref="SpriteIntent.Rotation"/> or <see cref="SpriteIntent.PreviousRotation"/>: a tiled
+    /// sprite does not turn.
     /// </summary>
     public void Add(in SpriteIntent sprite, Vector2 tiling) => Add(in sprite, tiling, Space);
 
@@ -221,8 +223,11 @@ public sealed class FrameView
             return;
         }
 
-        // Negated so a NaN extent is refused alongside the negative ones, as a scale is.
-        if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) || !sprite.TryGetSweptBounds(out Rect swept))
+        // Negated so a NaN extent is refused alongside the negative ones, as a scale is. A turned
+        // sprite is refused whole rather than turning each copy about its own pivot.
+        if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) ||
+            sprite.PreviousRotation != 0f || sprite.Rotation != 0f ||
+            !sprite.TryGetSweptBounds(out Rect swept))
         {
             _submitted++;
             return;
@@ -271,6 +276,8 @@ public sealed class FrameView
                         copy,
                         at + travel,
                         at,
+                        PreviousRotation: 0f,
+                        Rotation: 0f,
                         new Vector2(sourceWidth * texelSize.X, sourceHeight * texelSize.Y),
                         sprite.FlipX,
                         sprite.FlipY,
@@ -350,6 +357,8 @@ public sealed class FrameView
                     new Sprite(pages[glyph.Page], glyph.Region),
                     origin + travel,
                     origin,
+                    PreviousRotation: 0f,
+                    Rotation: 0f,
                     new Vector2(glyph.Region.Width, glyph.Region.Height) * text.Scale,
                     FlipX: false,
                     FlipY: false,
@@ -412,6 +421,8 @@ public sealed class FrameView
                                 vertical.SourceExtent)),
                         corner + travel,
                         corner,
+                        PreviousRotation: 0f,
+                        Rotation: 0f,
                         new Vector2(horizontal.TargetExtent, vertical.TargetExtent),
                         FlipX: false,
                         FlipY: false,

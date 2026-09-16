@@ -145,6 +145,13 @@ public abstract class Component
     {
     }
 
+    // Runs at the top of every step, as the scene retains its entities' previous positions: a
+    // component with interpolated state of its own retains its previous value here, so the frame
+    // after this step interpolates from what the step began with.
+    internal virtual void Retain()
+    {
+    }
+
     // Idempotent on both sides: an entity notifies its components when it joins a scene, and
     // Entity.Add notifies one attached to an entity that is already in one. Without the flag a
     // component attached from inside another's OnAddedToScene would be notified twice.

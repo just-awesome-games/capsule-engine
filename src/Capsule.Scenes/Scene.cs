@@ -510,6 +510,11 @@ public class Scene
         foreach (Entity entity in Entities)
         {
             entity.PreviousPosition = entity.Position;
+
+            foreach (Component component in entity.Components)
+            {
+                component.Retain();
+            }
         }
     }
 

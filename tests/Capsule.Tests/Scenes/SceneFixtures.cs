@@ -254,6 +254,8 @@ internal static class SceneFixtures
                 Frame(1, 64),
                 entity.PreviousPosition,
                 entity.Position,
+                PreviousRotation: 0f,
+                Rotation: 0f,
                 new Vector2(1f, 64f),
                 FlipX: false,
                 FlipY: false,

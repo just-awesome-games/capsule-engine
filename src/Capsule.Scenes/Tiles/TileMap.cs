@@ -135,7 +135,15 @@ public sealed class TileMap : Entity
                     // own corner, so the cell's corner is both endpoints of the interpolation.
                     Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
                     view.Add(new SpriteIntent(
-                        sprite, corner, corner, size, FlipX: false, FlipY: false, ColorRgba.White));
+                        sprite,
+                        corner,
+                        corner,
+                        PreviousRotation: 0f,
+                        Rotation: 0f,
+                        size,
+                        FlipX: false,
+                        FlipY: false,
+                        ColorRgba.White));
                 }
             }
         }

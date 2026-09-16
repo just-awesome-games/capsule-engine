@@ -356,6 +356,8 @@ public sealed class SceneDrawOrderTests
             SceneFixtures.Frame(1, 1),
             at,
             at,
+            PreviousRotation: 0f,
+            Rotation: 0f,
             new Vector2(1f, 1f),
             FlipX: false,
             FlipY: false,
