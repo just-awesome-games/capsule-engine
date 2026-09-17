@@ -58,7 +58,7 @@ public sealed class PanelMenusTests
         Assert.Equal("Lone", scene.Title);
         Assert.Equal(3, scene.Depth);
         Assert.Equal(
-            ["[Entity]", "Position", "ZIndex", "ScrollFactor", "Name", "  (Commands)", "  Remove", "", "[Tag]", "Label"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Name", "  (Commands)", "  Remove", "", "[Tag]", "Label"],
             Rows(scene));
 
         Press(overlay, scheduler, host, Key.Down);
@@ -70,7 +70,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Walker (1)", scene.Title);
         Assert.Equal(3, scene.Depth);
-        Assert.Equal("Position      (20, 0)", scene.RowText(1));
+        Assert.Equal("Transform     (20, 0) r 0 s (1, 1)", scene.RowText(1));
     }
 
     // A command or toggle runs between ticks and is followed by exactly one stepped tick, after
@@ -119,13 +119,13 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal("Nudger", scene.Title);
-        Assert.Equal(["[Entity]", "Position", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "  Nudge"], Rows(scene));
+        Assert.Equal(["[Entity]", "Transform", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "  Nudge"], Rows(scene));
         Assert.Equal(5, scene.FocusedIndex);
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
-        Assert.Equal("Position      (2, 2)", scene.RowText(1));
+        Assert.Equal("Transform     (2, 2) r 0 s (1, 1)", scene.RowText(1));
         Assert.Equal(3, scene.Depth);
         Assert.Equal(4, scheduler.Tick);
 
@@ -185,14 +185,14 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Position      (20, 0)", scene.RowText(1));
+        Assert.Equal("Transform     (20, 0) r 0 s (1, 1)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Right);
 
         Assert.Equal(1, scheduler.Tick);
         Assert.Equal("Walker (1)", scene.Title);
         Assert.Equal(3, scene.Depth);
-        Assert.Equal("Position      (21, 0)", scene.RowText(1));
+        Assert.Equal("Transform     (21, 0) r 0 s (1, 1)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Backspace);
 
@@ -227,6 +227,60 @@ public sealed class PanelMenusTests
         Assert.Contains("Vanisher", scene.Status, StringComparison.Ordinal);
         Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Rows(scene));
         Assert.Equal(FirstEntity + 2, scene.FocusedIndex);
+    }
+
+    // The page lists in tree order, indented by depth, each entity named by its Name or type and
+    // suffixed among its siblings alone; a child's panel heads the Entity section with a Parent
+    // row naming the parent as the page does, and choosing it opens the parent's panel without a
+    // tick. Every panel on the stack is tracked: backed out to after a step, the child's is
+    // rebuilt as the page would be.
+    [Fact]
+    public void AChildsPanel_IsNamedAmongItsSiblingsAndOffersItsParentAsARowThatOpensWithoutATick()
+    {
+        using SceneHost host = CreateHost(new Nested());
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        OverlayScene scene = overlay.Scene;
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.S);
+        Assert.Equal([.. Head, "Lone", "Walker", "  Spark", "    Entity", "    Entity (1)", "  Entity", "  Spark (1)"], Rows(scene));
+
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Enter);
+
+        Assert.Equal("Spark (1)", scene.Title);
+        Assert.Equal(
+            [
+                "[Entity]", "Parent", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove",
+            ],
+            Rows(scene));
+        Assert.Equal("Parent           Walker", scene.RowText(1));
+        Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", scene.RowText(4));
+        Assert.Equal(1, scene.FocusedIndex);
+
+        Press(overlay, scheduler, host, Key.Enter);
+
+        Assert.Equal("Walker", scene.Title);
+        Assert.Equal(4, scene.Depth);
+        Assert.Equal(0, scheduler.Tick);
+        Assert.Equal("Transform     (10, 0) r 0 s (1, 1)", scene.RowText(1));
+
+        Press(overlay, scheduler, host, Key.Right);
+        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal("Transform     (11, 0) r 0 s (1, 1)", scene.RowText(1));
+
+        Press(overlay, scheduler, host, Key.Backspace);
+        Assert.Equal("Spark (1)", scene.Title);
+        Assert.Equal("World Transform  (15, 0) r 0 s (1, 1)", scene.RowText(4));
+
+        // The count is the layer's: the second Entity under Spark, not the third in the scene.
+        Press(overlay, scheduler, host, Key.Backspace);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Up);
+        Press(overlay, scheduler, host, Key.Enter);
+        Assert.Equal("Entity (1)", scene.Title);
+        Assert.Equal("Parent           Spark", scene.RowText(1));
     }
 
     // The suffix is a place in scene order, so a panel's title drops one when an earlier entity
@@ -417,7 +471,7 @@ public sealed class PanelMenusTests
 
         Press(overlay, scheduler, host, Key.Right);
 
-        Assert.Equal("Position      (11, 0)", scene.RowText(1));
+        Assert.Equal("Transform     (11, 0) r 0 s (1, 1)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.L);
         Assert.Equal("Load Scene", scene.Title);
@@ -450,7 +504,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Position      (10, 0)", scene.RowText(1));
+        Assert.Equal("Transform     (10, 0) r 0 s (1, 1)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Grave);
         Assert.False(overlay.IsOpen);
@@ -463,7 +517,7 @@ public sealed class PanelMenusTests
 
         Assert.True(overlay.IsOpen);
         Assert.Equal("Walker", scene.Title);
-        Assert.Equal($"Position      ({10 + ran}, 0)", scene.RowText(1));
+        Assert.Equal($"Transform     ({10 + ran}, 0) r 0 s (1, 1)", scene.RowText(1));
 
         Press(overlay, scheduler, host, Key.Grave);
         host.Run.RequestScene<OtherScene>();
@@ -495,7 +549,7 @@ public sealed class PanelMenusTests
 
         Assert.Equal("Vanisher", scene.Title);
         Assert.Equal(
-            ["[Entity]", "Position", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
             Rows(scene));
     }
 
@@ -547,6 +601,23 @@ public sealed class PanelMenusTests
             Add(new Walker(new Vector2(10f, 0f)));
             Add(new Vanisher(Vector2.Zero));
             Add(new Walker(new Vector2(20f, 0f)));
+        }
+    }
+
+    // A Lone, then a Walker placing a named child with two children of its own, an unnamed child
+    // and a second child named the same as the first.
+    private sealed class Nested : Scene
+    {
+        internal Nested()
+        {
+            Add(new Lone(new Vector2(5f, 6f)));
+            Walker root = new(new Vector2(10f, 0f));
+            Entity spark = new(root, new Vector2(1f, 2f)) { Name = "Spark" };
+            _ = new Entity(spark, new Vector2(0f, 0f));
+            _ = new Entity(spark, new Vector2(1f, 1f));
+            _ = new Entity(root, new Vector2(3f, 3f));
+            _ = new Entity(root, new Vector2(4f, 0f)) { Name = "Spark" };
+            Add(root);
         }
     }
 

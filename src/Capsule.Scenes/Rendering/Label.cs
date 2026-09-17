@@ -8,8 +8,8 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// Draws its entity as one run of text inside a box, one font pixel per unit of the entity's space
-/// until <see cref="Scale"/> says otherwise. Y-down, in world units on a world entity and canvas
-/// pixels on a screen one.
+/// times the scale of the entity's <see cref="Entity.WorldTransform"/>. Y-down, in world units under a world root
+/// and canvas pixels under a screen one.
 /// <para>
 /// The entity's position plus <see cref="Offset"/> is where the box's <see cref="Pivot"/> sits,
 /// its top-left corner by default. <see cref="HorizontalAlignment"/> and
@@ -116,12 +116,6 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </summary>
     public int? VisibleCharacters { get; set; }
 
-    /// <summary>
-    /// Multiplies font pixels into the entity's units per axis; <see cref="Vector2.One"/>, one font
-    /// pixel per unit, by default. A component that is not positive and finite draws nothing.
-    /// </summary>
-    public Vector2 Scale { get; set; } = Vector2.One;
-
     /// <summary>Multiplied into every texel; white, which draws the pages as they are, by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
@@ -149,22 +143,23 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         view.Add(Intent());
     }
 
-    private TextIntent Intent() =>
-        new(
-            Font,
-            _memory,
-            PreviousRenderPosition + Offset,
-            RenderPosition + Offset,
-            Scale,
-            Color)
+    internal override TransformSupport Supports => TransformSupport.Scale;
+
+    private TextIntent Intent()
+    {
+        Transform2D previous = PreviousRenderTransform;
+        Transform2D current = RenderTransform;
+
+        return new TextIntent(Font, _memory, previous.Apply(Offset), current.Apply(Offset), current.Scale, Color)
         {
-            Size = Size,
+            Size = Size * current.Scale,
             Pivot = Pivot,
             Wrap = Wrap,
             HorizontalAlignment = HorizontalAlignment,
             VerticalAlignment = VerticalAlignment,
             VisibleCharacters = VisibleCharacters,
         };
+    }
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
@@ -175,7 +170,6 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         panel.Field("Pivot", new Vector2(Pivot.X, Pivot.Y));
         panel.Field("Offset", Offset);
         panel.Field("Size", Size);
-        panel.Field("Scale", Scale);
         panel.Field("Color", Color);
         panel.Field("Wrap", Wrap);
         panel.Field("HorizontalAlignment", HorizontalAlignment);

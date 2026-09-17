@@ -5,8 +5,10 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// A slot of behaviour or appearance on one <see cref="Scenes.Entity"/> — a renderer, a collider,
-/// an animator, or a game's own. It owns no place of its own: it reads its entity's position and
-/// the scene through it. Stepped after its entity, in attachment order. Override
+/// an animator, or a game's own: a capability things share, engine-provided, or game-authored the
+/// moment two entities share it. The test: would another entity type attach this unchanged? It
+/// owns no place of its own: it reads its entity's position and the scene through it. Stepped
+/// after its entity, in attachment order. Override
 /// <see cref="OnStart"/> to find what it needs, <see cref="OnStep"/> to advance it,
 /// <see cref="OnDebugPanel"/> to expose it to the overlay, and <see cref="CollectAssets"/> to
 /// declare what it loads.
@@ -124,10 +126,11 @@ public abstract class Component
         ArgumentNullException.ThrowIfNull(assets);
     }
 
-    // Whether this component reads or reports its entity's authored position as where it is on
-    // screen — a collider, a body, a screen notifier — and so refuses an entity a scroll factor
-    // draws elsewhere.
-    internal virtual bool AnswersInAuthoredSpace => false;
+    // What of its entity's transform this component honours: Position alone follows world
+    // position and answers in authored space, so it refuses a scroll factor and any turn or scale
+    // up the ancestry; Scale sizes but cannot turn; Full takes everything. The entity refuses the
+    // value or the attach, whichever comes second.
+    internal virtual TransformSupport Supports => TransformSupport.Full;
 
     // Whatever the component registers with its entity — an interest in its movement, say — is
     // registered here.
@@ -227,4 +230,15 @@ public abstract class Component
         InScene = false;
         OnRemovedFromScene();
     }
+}
+
+// The parts of an entity's transform a component can sit under; Position is what every component
+// follows.
+[Flags]
+internal enum TransformSupport
+{
+    Position = 0,
+    Scale = 1,
+    Rotation = 2,
+    Full = Scale | Rotation,
 }

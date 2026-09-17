@@ -9,8 +9,12 @@ namespace Capsule.Rendering;
 /// <summary>
 /// Draws its entity as one nine-sliced panel: a frame cut into corners, edges and a middle by
 /// <see cref="Insets"/>, laid over <see cref="Size"/> with the corners at their own texel size and
-/// everything between them stretched. The panel's top-left corner lands on the entity's position plus
-/// <see cref="Offset"/>. Y-down, in world units on a world entity and canvas pixels on a screen one.
+/// everything between them stretched. The panel's top-left corner lands on <see cref="Offset"/>
+/// placed by the entity's <see cref="Entity.WorldTransform"/> and it spans <see cref="Size"/> times
+/// its scale; the corners stay at their own texel size whatever the scale, and a negative or zero
+/// axis of the product draws nothing. A panel cannot turn: an entity turned anywhere up its
+/// ancestry refuses it, and it refuses such a turn. Y-down, in
+/// world units under a world root and canvas pixels under a screen one.
 /// </summary>
 /// <param name="sprite">The frame cut into slices; its pivot is not read.</param>
 /// <param name="insets">Where the cuts fall inside the frame's region, in texels.</param>
@@ -30,8 +34,8 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     public Vector2 Size { get; set; } = size;
 
     /// <summary>
-    /// Added to the entity's position to give the panel's top-left corner. In the entity's own units;
-    /// zero by default.
+    /// The point in the entity's own space the panel's top-left corner lands on, placed by the
+    /// entity's world transform; zero by default, which is the entity itself.
     /// </summary>
     public Vector2 Offset { get; set; }
 
@@ -61,13 +65,14 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
         view.Add(Intent());
     }
 
-    private NineSliceIntent Intent() => new(
-        Sprite,
-        Insets,
-        PreviousRenderPosition + Offset,
-        RenderPosition + Offset,
-        Size,
-        Color);
+    internal override TransformSupport Supports => TransformSupport.Scale;
+
+    private NineSliceIntent Intent()
+    {
+        Transform2D current = RenderTransform;
+
+        return new NineSliceIntent(Sprite, Insets, PreviousRenderTransform.Apply(Offset), current.Apply(Offset), Size * current.Scale, Color);
+    }
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)

@@ -139,14 +139,14 @@ public sealed class UiPrimitiveTests
 
         internal Vector2 Previous { get; private set; }
 
-        public override Rect Bounds => new(RenderPosition, new Vector2(2f, 2f));
+        public override Rect Bounds => new(RenderTransform.Position, new Vector2(2f, 2f));
 
         public override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 
-            Current = RenderPosition;
-            Previous = PreviousRenderPosition;
+            Current = RenderTransform.Position;
+            Previous = PreviousRenderTransform.Position;
 
             view.Add(new SpriteIntent(
                 Sprite.White,

@@ -7,7 +7,7 @@ namespace Capsule.Rendering;
 internal sealed class SceneRenderIndex
 {
     private readonly List<Renderer> _renderers = [];
-    private long[] _rendererKeys = [];
+    private readonly List<DrawKey> _keys = [];
     private bool _renderersStale = true;
     private bool _rebuildDeferred;
 
@@ -46,19 +46,24 @@ internal sealed class SceneRenderIndex
         _rebuildDeferred = false;
     }
 
+    // The walk is tree order, so each entity's band — its ZIndex summed up the ancestry — is
+    // the parent's already summed plus its own.
     private void RebuildRenderers(ReadOnlySpan<Entity> entities)
     {
         _renderers.Clear();
+        _keys.Clear();
 
         bool banded = false;
         foreach (Entity entity in entities)
         {
-            long band = entity.ZIndex;
+            long band = entity.DrawBand = (entity.Parent?.DrawBand ?? 0) + entity.ZIndex;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)
                 {
-                    banded |= band + renderer.ZIndex != 0;
+                    long key = band + renderer.ZIndex;
+                    banded |= key != 0;
+                    _keys.Add(new DrawKey(key, _renderers.Count));
                     _renderers.Add(renderer);
                 }
             }
@@ -70,35 +75,19 @@ internal sealed class SceneRenderIndex
         // key keeps, so a scene that bands nothing is already in draw order.
         if (banded)
         {
-            SortRenderers();
+            CollectionsMarshal.AsSpan(_keys).Sort(CollectionsMarshal.AsSpan(_renderers));
         }
     }
 
-    // Each key carries its renderer's walk position in its low bits, so no two keys are equal and
-    // the runtime's unstable sort lands where a stable one would. The widened sum of two ints
-    // spans exactly 33 signed bits, which leaves 31 for the position: a scene of 2^31 or more
-    // renderers would collide two of them and lose the tie-break.
-    private void SortRenderers()
+    // Each key carries its renderer's walk position beside the band, so no two keys are equal and
+    // the runtime's unstable sort lands where a stable one would.
+    private readonly record struct DrawKey(long Band, int Position) : IComparable<DrawKey>
     {
-        int count = _renderers.Count;
-        if (_rendererKeys.Length < count)
+        public int CompareTo(DrawKey other)
         {
-            Array.Resize(ref _rendererKeys, Math.Max(count, _rendererKeys.Length * 2));
-        }
+            int band = Band.CompareTo(other.Band);
 
-        Span<Renderer> renderers = CollectionsMarshal.AsSpan(_renderers);
-        Span<long> keys = _rendererKeys.AsSpan(0, count);
-        for (int index = 0; index < count; index++)
-        {
-            Renderer renderer = renderers[index];
-            keys[index] = (EffectiveKey(renderer) << 31) | (long)index;
+            return band != 0 ? band : Position.CompareTo(other.Position);
         }
-
-        keys.Sort(renderers);
     }
-
-    // Widened before the addition: two ints at the far end of their range sum past what an int
-    // holds, and a wrapped key would sort a foreground band under a background one.
-    private static long EffectiveKey(Renderer renderer) =>
-        (long)renderer.Entity!.ZIndex + renderer.ZIndex;
 }

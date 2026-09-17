@@ -42,15 +42,22 @@ internal sealed class DebugDrawBuffer
     // Every channel that has emitted since the buffer was created, in no order.
     internal IReadOnlyCollection<string> Channels => _channels;
 
+    // The tick the most recent draw was stamped against — the step it was emitted during — or
+    // long.MinValue while nothing has emitted. What tells a host whether the settled frame's step
+    // already drew into this buffer.
+    internal long EmittedTick { get; private set; } = long.MinValue;
+
     internal void Segment(string channel, Vector2 a, Vector2 b, ColorRgba? color, int steps, Vector2 motion)
     {
         _channels.Add(channel);
+        EmittedTick = _tick;
         _segments.Add(new DebugDrawSegment(channel, a, b, color, ExpiryFor(steps), motion));
     }
 
     internal void Label(string channel, Vector2 position, string text, ColorRgba? color, int steps, Vector2 motion)
     {
         _channels.Add(channel);
+        EmittedTick = _tick;
         _labels.Add(new DebugDrawLabel(channel, position, text, color, ExpiryFor(steps), motion));
     }
 

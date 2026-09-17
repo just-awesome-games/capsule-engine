@@ -26,17 +26,22 @@ public sealed class Focusable(Vector2 size) : Component
     public Vector2 Size { get; set; } = size;
 
     /// <summary>
-    /// Added to the entity's position to give the hit box's top-left corner. In the entity's own
-    /// units; zero by default, which puts the corner on the entity.
+    /// The point in the entity's own space the hit box's top-left corner lands on, placed by the
+    /// entity's world transform; zero by default, which puts the corner on the entity.
     /// </summary>
     public Vector2 Offset { get; set; }
 
     /// <summary>
-    /// The hit box in the space the entity draws in — world units on a world entity, canvas pixels
-    /// with the <see cref="ScreenEntity.Anchor"/> resolved on a screen one. Read from the entity's
-    /// current position; <c>default</c> while attached to no entity.
+    /// The hit box in the space the entity draws in — world units under a world root, canvas pixels
+    /// with the <see cref="ScreenEntity.Anchor"/> resolved under a screen one: the corner placed by
+    /// the entity's <see cref="Entity.WorldTransform"/> and <see cref="Size"/> times its scale. A hit
+    /// box cannot turn: an entity turned anywhere up its ancestry refuses this component, and it
+    /// refuses such a turn. Read from the entity's current transform;
+    /// <c>default</c> while attached to no entity.
     /// </summary>
-    public Rect Bounds => Entity is { } entity ? new Rect(entity.Position + entity.SpaceOrigin + Offset, Size) : default;
+    public Rect Bounds => Entity is { } entity
+        ? new Rect(entity.World.Apply(Offset) + entity.SpaceOrigin, Size * entity.World.Scale)
+        : default;
 
     /// <summary>
     /// The item a navigator's up direction moves to from this one, read before the geometry. Null —
@@ -60,6 +65,8 @@ public sealed class Focusable(Vector2 size) : Component
     /// which is when its starting item takes the focus.
     /// </summary>
     public bool IsFocused { get; private set; }
+
+    internal override TransformSupport Supports => TransformSupport.Scale;
 
     /// <summary>
     /// Raised as the focus lands on this item, with <see cref="IsFocused"/> already true and before

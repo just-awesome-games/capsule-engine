@@ -107,14 +107,23 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.EndStep();
 
         // Everything the step left is settled here, and nothing the pass reads can change before
-        // the frame is drawn. Skipped outright while nothing listens, and on a run a host owns for
-        // its own overlay: the walk costs the same whether or not anything hears it.
+        // the frame is drawn.
+        EmitDebugDraws();
+
+        RewriteView();
+    }
+
+    // The debug pass over the scene as it stands: run by every step once it has settled, and by a
+    // host that wants the settled state drawn without stepping — held, with a listener newly
+    // attached. Read-only by the hooks' contract, so an out-of-step pass changes nothing and
+    // advances no tick. Skipped outright while nothing listens, and on a run a host owns for its
+    // own overlay: the walk costs the same whether or not anything hears it.
+    internal void EmitDebugDraws()
+    {
         if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
         {
             Scene.RunDebugDraw();
         }
-
-        RewriteView();
     }
 
     // Takes the run's pending frame capture request, clearing it. Not step-bound: the host calls it

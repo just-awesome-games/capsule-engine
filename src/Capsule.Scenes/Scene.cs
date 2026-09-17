@@ -200,50 +200,52 @@ public class Scene
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
 
-    /// <summary>The entities held, in the order they were added. Invalidated by the next mutation.</summary>
+    /// <summary>
+    /// Every entity held, in step order: each root in the order it was added, followed by its
+    /// whole subtree in tree order — a parent, then each of its <see cref="Entity.Children"/> with
+    /// its own subtree, in the order they were parented. Invalidated by the next mutation.
+    /// </summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
     /// <summary>
-    /// Adds an unowned entity, deferred to the end of the current step when necessary. Outside a
-    /// step it is attached at once, so the next view rewrite draws it.
+    /// Adds an unowned root entity and its whole subtree, deferred to the end of the current step
+    /// when necessary. Outside a step it is attached at once, so the next view rewrite draws it.
+    /// A child joins through its parent — parenting an entity under one this scene holds adds it
+    /// the same way — so an entity with a <see cref="Entity.Parent"/> is refused here.
     /// <para>
     /// A component may refuse the scene from its entry hook. The entity is then left in the scene
-    /// with the components ahead of the refusal registered and the rest not; added during a step,
+    /// with the components ahead of the refusal registered and the rest not, and the entities of
+    /// its subtree ahead of it in tree order in the scene and the rest not; added during a step,
     /// the refusal surfaces where the queue is drained rather than from this call.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentNullException">The entity is null.</exception>
     /// <exception cref="InvalidOperationException">
-    /// The scene has stopped, the entity is already in a scene or queued, or, when the add is not
-    /// deferred, a component refused the scene.
+    /// The scene has stopped, the entity is already in a scene or queued, the entity has a parent,
+    /// or, when the add is not deferred, a component refused the scene.
     /// </exception>
     public void Add(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
-        ThrowIfStopped();
 
-        if (entity.Scene is not null || _pendingAddSet.Contains(entity))
+        if (entity.Parent is { } parent)
         {
             throw new InvalidOperationException(
-                $"A {entity.GetType().Name} is already in a scene; an entity belongs to one at a time.");
+                $"A {entity.GetType().Name} under a {parent.GetType().Name} joins a scene through its parent; add the root.");
         }
 
-        if (_stepping)
-        {
-            _pendingAdds.Add(entity);
-            _pendingAddSet.Add(entity);
-            return;
-        }
-
-        Attach(entity);
+        Enqueue(entity);
     }
 
     /// <summary>
-    /// Removes an entity, deferred and idempotent within the current step. One queued to join this
-    /// step is accepted too: it attaches and detaches in the same drain, with symmetric hooks.
-    /// All removal hooks run even if one throws; failures propagate after detachment, aggregated
-    /// when more than one hook fails. Deferred removals report failures from the step. Outside a
-    /// step it is detached at once, so the next view rewrite leaves it out.
+    /// Removes an entity and its whole subtree, deferred and idempotent within the current step.
+    /// One queued to join this step is accepted too: it attaches and detaches in the same drain,
+    /// with symmetric hooks. A subtree leaves children first, deepest and last-parented first, and
+    /// the entity named last; a child removed on its own also lets go of its
+    /// <see cref="Entity.Parent"/>, and is a root thereafter. All removal hooks run even if one
+    /// throws; failures propagate after detachment, aggregated when more than one hook fails.
+    /// Deferred removals report failures from the step. Outside a step it is detached at once, so
+    /// the next view rewrite leaves it out.
     /// </summary>
     /// <exception cref="ArgumentNullException">The entity is null.</exception>
     /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is neither in it nor queued to join it.</exception>
@@ -509,7 +511,7 @@ public class Scene
 
         foreach (Entity entity in Entities)
         {
-            entity.PreviousPosition = entity.Position;
+            entity.Retain();
 
             foreach (Component component in entity.Components)
             {
@@ -713,12 +715,35 @@ public class Scene
         }
     }
 
+    // Add's terms; a child parented under an entity this scene holds joins through here directly.
+    internal void Enqueue(Entity entity)
+    {
+        ThrowIfStopped();
+
+        if (entity.Scene is not null || _pendingAddSet.Contains(entity))
+        {
+            throw new InvalidOperationException(
+                $"A {entity.GetType().Name} is already in a scene; an entity belongs to one at a time.");
+        }
+
+        if (_stepping)
+        {
+            _pendingAdds.Add(entity);
+            _pendingAddSet.Add(entity);
+            entity.PendingScene = this;
+            return;
+        }
+
+        Attach(entity);
+    }
+
     // Drops the processed prefix from a queue and from the set that mirrors it.
     private static void Forget(List<Entity> queue, HashSet<Entity> membership, int processed)
     {
         for (int index = 0; index < processed; index++)
         {
             membership.Remove(queue[index]);
+            queue[index].PendingScene = null;
         }
 
         queue.RemoveRange(0, processed);
@@ -732,9 +757,30 @@ public class Scene
             return;
         }
 
-        _entities.Add(entity);
+        AttachTree(entity);
+
+        // Attached outside a step and outside a drain, this subtree arrived alone, so its moment
+        // to start is now — once the whole of it is held, so a parent starting can find its
+        // children. During a step or a drain, EndStep starts the whole batch at once.
+        if (_started && !_stepping)
+        {
+            StartPending();
+        }
+    }
+
+    // The entity, then each child's subtree in tree order. Each lands directly after what its
+    // parent already holds, so the list stays in step order however the subtree arrived — with its
+    // root, or parented under an entity already here, or from a hook of one attaching now.
+    private void AttachTree(Entity entity)
+    {
+        int index = entity.Parent is { } parent && ReferenceEquals(parent.Scene, this)
+            ? ReferenceList.IndexOf(_entities, parent) + HeldCount(parent)
+            : _entities.Count;
+
+        _entities.Insert(index, entity);
         _renderIndex.Invalidate(_drawing);
         entity.Scene = this;
+        entity.PendingScene = null;
 
         // Components before the entity's own hook: one attached from inside OnAddedToScene is
         // notified by Entity.Add instead, so nothing is reached twice and nothing is missed.
@@ -743,12 +789,32 @@ public class Scene
 
         _pendingStarts.Add(entity);
 
-        // Attached outside a step and outside a drain, this entity arrived alone, so its moment
-        // to start is now. During a step or a drain, EndStep starts the whole batch at once.
-        if (_started && !_stepping)
+        // Re-read per child: a hook above may have parented another under this entity, which
+        // attached itself on the way.
+        for (int child = 0; child < entity.Children.Length; child++)
         {
-            StartPending();
+            Entity next = entity.Children[child];
+            if (next.Scene is null)
+            {
+                AttachTree(next);
+            }
         }
+    }
+
+    // How many entities of a subtree this scene holds: the entity and every held descendant, which
+    // sit together in the list directly after it.
+    private int HeldCount(Entity entity)
+    {
+        int count = 1;
+        foreach (Entity child in entity.Children)
+        {
+            if (ReferenceEquals(child.Scene, this))
+            {
+                count += HeldCount(child);
+            }
+        }
+
+        return count;
     }
 
     // Re-entrant by design: an OnStart may attach another entity, whose own Attach reaches here
@@ -824,8 +890,26 @@ public class Scene
         }
     }
 
+    // The root of a removal: its subtree leaves, then it lets go of its own parent, so a child
+    // removed on its own is free to be parented again or added as a root.
     private void Detach(Entity entity)
     {
+        DetachTree(entity);
+        entity.Orphan();
+    }
+
+    // Children first, last-parented first, each with its own subtree, then the entity itself:
+    // the reverse of the order they arrived in. Re-read per child, as the attach walk is.
+    private void DetachTree(Entity entity)
+    {
+        for (int child = entity.Children.Length - 1; child >= 0; child--)
+        {
+            if (child < entity.Children.Length)
+            {
+                DetachTree(entity.Children[child]);
+            }
+        }
+
         int held = ReferenceList.IndexOf(_entities, entity);
         if (held >= 0)
         {

@@ -12,6 +12,7 @@ internal sealed class PanelMenus
 {
     private const string EntitiesHeading = "[Entities]";
     private const string EmptySection = "<Nothing to show>";
+    private const string ParentLabel = "Parent";
 
     // The sub-heading over a section's commands and toggles, and the indent that sets it and
     // them under the section's heading.
@@ -31,10 +32,11 @@ internal sealed class PanelMenus
 
     private Menu? _page;
     private int _pageGeneration;
-    private Menu? _entityPanel;
-    private Entity? _subject;
-    private string _subjectTitle = string.Empty;
-    private int _entityPanelGeneration;
+
+    // Every entity panel on the stack, bottom first: one per entity opened from the page, and one
+    // more for each parent crawled up to from a child's panel. Whichever is current is the one a
+    // refresh rebuilds; those backed out of are dropped at the next refresh.
+    private readonly List<OpenedPanel> _entityPanels = [];
 
     // `tick` runs one stepped tick with the command or toggle inside it and rebuilds the pages.
     internal PanelMenus(OverlayScene scene, SceneHost scenes, Action<Action> tick)
@@ -93,21 +95,25 @@ internal sealed class PanelMenus
         while (true)
         {
             Menu current = _scene.Current;
-
-            if (ReferenceEquals(current, _entityPanel) && _entityPanelGeneration != _generation)
+            int open = _entityPanels.Count - 1;
+            while (open >= 0 && !_scene.Contains(_entityPanels[open].Menu))
             {
-                if (PanelMenu(_subject!) is { } panel)
+                _entityPanels.RemoveAt(open--);
+            }
+
+            if (open >= 0 && _entityPanels[open] is { } top && ReferenceEquals(current, top.Menu) && top.Generation != _generation)
+            {
+                if (PanelMenu(top.Subject) is { } panel)
                 {
-                    _entityPanel = panel;
-                    _entityPanelGeneration = _generation;
+                    _entityPanels[open] = new OpenedPanel(panel, top.Subject, _generation);
                     _scene.Replace(panel);
 
                     return true;
                 }
 
-                _entityPanel = null;
+                _entityPanels.RemoveAt(open);
                 _scene.Pop();
-                note ??= $"{_subjectTitle} left the scene";
+                note ??= $"{top.Menu.Title} left the scene";
                 changed = true;
             }
             else if (ReferenceEquals(current, _page) && _pageGeneration != _generation)
@@ -132,14 +138,14 @@ internal sealed class PanelMenus
 
     private void OpenPanel(Entity entity)
     {
-        _subject = entity;
-        _entityPanel = PanelMenu(entity)!;
-        _entityPanelGeneration = _generation;
-        _scene.Push(_entityPanel);
+        Menu panel = PanelMenu(entity)!;
+        _entityPanels.Add(new OpenedPanel(panel, entity, _generation));
+        _scene.Push(panel);
     }
 
     // The scene's walk as rows, a blank row, the Entities heading, then a row per entity in scene
-    // order, each named as Label names it — or the note where the scene holds none.
+    // order — tree order, each indented by its depth so a subtree reads under its root — each
+    // named as Label names it, or the note where the scene holds none.
     private Menu PageMenu()
     {
         Scene scene = _scenes.Scene;
@@ -157,29 +163,52 @@ internal sealed class PanelMenus
             items.Add(new MenuItem(EmptySection, null));
         }
 
-        Dictionary<Type, int> seen = [];
         foreach (Entity entity in entities)
         {
-            items.Add(new MenuItem(Label(entity, seen), () => OpenPanel(entity)));
+            string label = Label(entity);
+            for (Entity? above = entity.Parent; above is not null; above = above.Parent)
+            {
+                label = Indent + label;
+            }
+
+            items.Add(new MenuItem(label, () => OpenPanel(entity)));
         }
 
         return new Menu(scene.GetType().Name, items);
     }
 
-    // The entity's type name, suffixed by how many of its type came before it in scene order
-    // when any did — Enemy, Enemy (1), Enemy (2); `seen` carries that count from one entity of the
-    // walk to the next.
-    private static string Label(Entity entity, Dictionary<Type, int> seen)
+    // The entity's Name, or its type name where it has none, suffixed by how many of its siblings
+    // reading the same came before it when any did — Enemy, Enemy (1), Enemy (2): roots count
+    // among the scene's roots in scene order, children among their parent's children, so each
+    // layer of the tree reads on its own.
+    private static string Label(Entity entity)
     {
-        Type type = entity.GetType();
-        int before = seen.TryGetValue(type, out int count) ? count : 0;
-        seen[type] = before + 1;
+        string name = NameOf(entity);
+        int before = 0;
+        ReadOnlySpan<Entity> peers = entity.Parent is { } parent ? parent.Children : entity.Scene!.Entities;
+        foreach (Entity peer in peers)
+        {
+            if (ReferenceEquals(peer, entity))
+            {
+                break;
+            }
 
-        return before == 0 ? type.Name : string.Create(CultureInfo.InvariantCulture, $"{type.Name} ({before})");
+            if (ReferenceEquals(peer.Parent, entity.Parent) && NameOf(peer) == name)
+            {
+                before++;
+            }
+        }
+
+        return before == 0 ? name : string.Create(CultureInfo.InvariantCulture, $"{name} ({before})");
     }
+
+    private static string NameOf(Entity entity) => entity.Name ?? entity.GetType().Name;
 
     // The entity's walk as rows. Null once the entity is no longer in the held scene. The title
     // is the entity's label as the page beneath now names it, so it follows a sibling's leaving.
+    // Under a parent, a Parent row heads the Entity section: focusable, and chosen it pushes the
+    // parent's own panel — navigation over the tree, which steps nothing — labelled as the page
+    // names the parent. The overlay's row, over Entity.Parent, and no hook of the engine's.
     private Menu? PanelMenu(Entity entity)
     {
         Scene scene = _scenes.Scene;
@@ -188,32 +217,23 @@ internal sealed class PanelMenus
             return null;
         }
 
-        Dictionary<Type, int> seen = [];
-        foreach (Entity candidate in scene.Entities)
-        {
-            string label = Label(candidate, seen);
-            if (ReferenceEquals(candidate, entity))
-            {
-                _subjectTitle = label;
-                break;
-            }
-        }
-
         _panel.Clear();
         entity.RunDebugPanel(_panel);
 
-        List<MenuItem> items = new(_panel.Rows.Length);
+        List<MenuItem> items = new(_panel.Rows.Length + 1);
         AddRows(items, _panel.Rows);
 
-        return new Menu(_subjectTitle, items);
+        if (entity.Parent is { } parent)
+        {
+            // Under the Entity heading, ahead of the fields, in the fields' own column.
+            items.Insert(1, new MenuItem(ParentLabel.PadRight(ColumnOf(_panel.Rows)) + Label(parent), () => OpenPanel(parent)));
+        }
+
+        return new Menu(Label(entity), items);
     }
 
-    // A panel's rows as items, section by section: the heading in brackets, the section's fields
-    // as label padded to a shared column then value, then — only where the section wrote any —
-    // the Commands sub-heading and its commands and toggles in write order, a toggle as its
-    // state then its label. Only a command or toggle is focused; the rest are read. A blank row
-    // before each section but the first, and the note in a section with nothing at all.
-    private void AddRows(List<MenuItem> items, ReadOnlySpan<DebugPanelRow> rows)
+    // The widest field label of a page plus the gap, which is where every value starts.
+    private static int ColumnOf(ReadOnlySpan<DebugPanelRow> rows)
     {
         int column = 0;
         foreach (DebugPanelRow row in rows)
@@ -224,7 +244,17 @@ internal sealed class PanelMenus
             }
         }
 
-        column += ValueGap;
+        return column + ValueGap;
+    }
+
+    // A panel's rows as items, section by section: the heading in brackets, the section's fields
+    // as label padded to a shared column then value, then — only where the section wrote any —
+    // the Commands sub-heading and its commands and toggles in write order, a toggle as its
+    // state then its label. Only a command or toggle is focused; the rest are read. A blank row
+    // before each section but the first, and the note in a section with nothing at all.
+    private void AddRows(List<MenuItem> items, ReadOnlySpan<DebugPanelRow> rows)
+    {
+        int column = ColumnOf(rows);
 
         int index = 0;
         bool first = true;
@@ -252,6 +282,10 @@ internal sealed class PanelMenus
             index = end;
         }
     }
+
+    // One entity panel on the stack: the menu as last built, whose it is, and the tick count it
+    // was built under.
+    private readonly record struct OpenedPanel(Menu Menu, Entity Subject, int Generation);
 
     private void AddSection(List<MenuItem> items, ReadOnlySpan<DebugPanelRow> rows, int column)
     {

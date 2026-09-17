@@ -8,7 +8,9 @@ namespace Capsule.UI;
 /// An entity on the frame's screen layer: <see cref="Entity.Position"/> is canvas pixels from the
 /// point <see cref="Anchor"/> names, Y-down, and every renderer it holds draws over the whole world
 /// layer however the two layers are banded. This is what an interface is built from — a menu item, a
-/// bar, a panel — and a plain <see cref="Entity"/> is what the world is built from.
+/// bar, a panel — and a plain <see cref="Entity"/> is what the world is built from. Only ever a
+/// root: it refuses a <see cref="Entity.Parent"/>, and a plain entity parented under it is a
+/// group member that draws on the screen layer in canvas pixels from this entity's anchored point.
 /// <para>
 /// The canvas is a run constant (<see cref="Run.Canvas"/>), so a corner-anchored element keeps its
 /// distance from that corner at every window size. Subclass it for behaviour and attach
@@ -50,8 +52,8 @@ public class ScreenEntity : Entity
         }
     }
 
-    internal sealed override RenderSpace Space => RenderSpace.Screen;
+    internal sealed override RenderSpace OwnSpace => RenderSpace.Screen;
 
     // Zero before this entity is in a scene, which is where the run's canvas is reached.
-    internal sealed override Vector2 SpaceOrigin => Anchor.On(Scene?.RunOrNull?.Canvas ?? Vector2.Zero);
+    internal sealed override Vector2 OwnSpaceOrigin => Anchor.On(Scene?.RunOrNull?.Canvas ?? Vector2.Zero);
 }

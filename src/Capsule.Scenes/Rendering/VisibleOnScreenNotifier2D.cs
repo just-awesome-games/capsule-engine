@@ -74,7 +74,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// </summary>
     public bool IsOnScreen { get; private set; }
 
-    internal override bool AnswersInAuthoredSpace => true;
+    internal override TransformSupport Supports => TransformSupport.Position;
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
@@ -103,7 +103,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     internal void SettleVisibility(in Rect region)
     {
         bool onScreen = !region.IsEmpty &&
-            region.Intersects(new Rect(Entity!.Position + _offset, _size));
+            region.Intersects(new Rect(Entity!.WorldPosition + _offset, _size));
 
         if (onScreen == IsOnScreen)
         {

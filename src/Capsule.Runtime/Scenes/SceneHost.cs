@@ -117,6 +117,16 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
+    // Runs the current scene's debug pass outside a step, on SceneSimulation.EmitDebugDraws's
+    // terms; nothing after an exit, which has nothing left to draw.
+    internal void EmitDebugDraws()
+    {
+        if (!ExitRequested)
+        {
+            _current.EmitDebugDraws();
+        }
+    }
+
     // Takes the run's pending frame capture request. A transition builds a new scene without
     // discarding it; an exit leaves nothing to serve.
     internal bool TryTakeFrameCapture(out string path)

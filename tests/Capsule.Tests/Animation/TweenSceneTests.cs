@@ -117,7 +117,8 @@ public sealed class TweenSceneTests
         internal Flasher()
             : base(Vector2.Zero)
         {
-            SpriteRenderer renderer = new(Sprite.White) { Scale = new Vector2(8f, 8f) };
+            Scale = new Vector2(8f, 8f);
+            SpriteRenderer renderer = new(Sprite.White);
 
             Add(renderer);
             Add(new Tint(renderer, ColorRgba.Red, ColorRgba.White, Ticks));

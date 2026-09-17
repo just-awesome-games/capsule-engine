@@ -34,7 +34,7 @@ public sealed class SceneCompositionTests
             Assert.IsType<SceneFixtures.Placed>(entities[2]).Spawn);
 
         // A spawn opens where it was placed rather than sliding in from the render origin.
-        Assert.Equal(entities[1].Position, entities[1].PreviousPosition);
+        Assert.Equal(entities[1].Position, entities[1].PreviousTransform.Position);
     }
 
     [Fact]

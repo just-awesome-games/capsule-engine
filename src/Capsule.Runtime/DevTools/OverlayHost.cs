@@ -181,7 +181,9 @@ internal sealed class OverlayHost : IDisposable
     internal bool IsChannelEnabled(string channel) => _enabledChannels.Contains(channel);
 
     // Flips a channel for the rest of the play session. Draws follow on the overlay's next frame,
-    // whether or not the game steps; the submenu's row follows at once, keeping its focus.
+    // whether or not the game steps: the scene is asked to emit as it stands and the buffer is
+    // settled at the held tick, so a run held on its settled step shows the toggle at once. The
+    // submenu's row follows at once, keeping its focus.
     internal void ToggleChannel(string channel)
     {
         ArgumentNullException.ThrowIfNull(channel);
@@ -192,13 +194,17 @@ internal sealed class OverlayHost : IDisposable
         }
 
         AttachBuffer();
+        EmitDraws();
         Refill(_debugDrawMenu, DebugDrawRows());
     }
 
-    // Pushes the submenu, filling it the first time. With no channel emitted yet there is nothing
-    // to list, so the status line says so instead.
+    // Pushes the submenu, filling it the first time. The scene is asked to emit first, so a run
+    // held before its first step still lists its channels; only a scene that emits on none leaves
+    // nothing to list, and the status line says so instead.
     internal void OpenDebugDraw()
     {
+        EmitDraws();
+
         if (_buffer.Channels.Count == 0)
         {
             Scene.SetStatus("No debug draw channel has emitted yet");
@@ -207,6 +213,24 @@ internal sealed class OverlayHost : IDisposable
 
         _debugDrawMenu ??= new Menu("Debug Draw", DebugDrawRows());
         Scene.Push(_debugDrawMenu);
+    }
+
+    // The held scene's debug pass into the buffer, where the buffer is attached, there is a run of
+    // scenes to ask, and the step the settled frame shows did not already draw into it — it ran
+    // with the buffer detached, or has not run at all. Settled first at that step's own tick, so
+    // the pass stamps as the step's would have and expires with the next step rather than
+    // doubling this one's draws.
+    private void EmitDraws()
+    {
+        long tick = _scheduler.Tick;
+        if (!DebugDraw.IsAttached || _scenes is not { } scenes || _buffer.EmittedTick >= tick - 1)
+        {
+            return;
+        }
+
+        _buffer.Settle(tick - 1);
+        scenes.EmitDebugDraws();
+        SettleDraws();
     }
 
     // Pushes the held scene's page.

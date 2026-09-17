@@ -1,5 +1,8 @@
+using System.Numerics;
+using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
 
@@ -95,6 +98,73 @@ public sealed class RoomTests
         Assert.Equal(startHealth - 1, player.Health);
     }
 
+    // The spark is placed by the entity tree — a pivot child turning under the hazard, the spark
+    // under that at its orbit radius — so the drawn frame sits one radius from the hazard's centre
+    // and moves round it step by step, headless exactly as windowed.
+    [Fact]
+    public void TheHazardsSpark_OrbitsTheHazardInTheDrawnFrame()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Hazard hazard = room.Scene.FindSingle<Hazard>();
+        Vector2 centre = hazard.Position + new Vector2(8f, 12f);
+
+        room.Step();
+        Vector2 first = Spark(room).Position;
+        room.Step(30);
+        Vector2 later = Spark(room).Position;
+
+        Assert.Equal(20f, Vector2.Distance(centre, first), Tolerance);
+        Assert.Equal(20f, Vector2.Distance(centre, later), Tolerance);
+        Assert.True(Vector2.Distance(first, later) > 1f, "the spark never moved round the hazard");
+    }
+
+    // The player faces by the scale of the pivot its sprite hangs on, so the frame the room draws
+    // is mirrored while walking left and upright again walking right; the body under it is
+    // neither turned nor scaled.
+    [Fact]
+    public void WalkingLeft_MirrorsThePlayersFrameAboutItsPivotAndLeavesTheBodyUpright()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+
+        room.Step(DeviceSnapshot.Of(Key.A));
+        SpriteIntent facingLeft = PlayerFrame(room);
+        room.Step(DeviceSnapshot.Of(Key.D));
+        SpriteIntent facingRight = PlayerFrame(room);
+
+        Assert.True(facingLeft.FlipX, "walking left did not mirror the frame");
+        Assert.False(facingRight.FlipX, "walking right did not restore the frame");
+        Assert.True(facingLeft.Size.X > 0f && facingRight.Size.X > 0f, "a mirrored frame lost its extent");
+        Assert.Equal(Vector2.One, player.WorldTransform.Scale);
+        Assert.Equal(0f, player.WorldTransform.Rotation);
+    }
+
+    // The take-off stretch is the visual's reaction to the fact the root published this step: the
+    // frame drawn after the jump step is the frame's texels at the tuning's stretch, and the body
+    // beneath it is no taller.
+    [Fact]
+    public void Jumping_StretchesTheDrawnFrameByTheTuningAndLeavesTheBodyAlone()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+
+        room.Step(2);
+        room.Step(DeviceSnapshot.Of(Key.Space));
+        SpriteIntent stretched = PlayerFrame(room);
+
+        Assert.True(player.JumpedThisStep, "the tap did not take off");
+        Assert.Equal(stretched.Sprite.Region.Width * player.Tuning.JumpStretch.X, stretched.Size.X, Tolerance);
+        Assert.Equal(stretched.Sprite.Region.Height * player.Tuning.JumpStretch.Y, stretched.Size.Y, Tolerance);
+        Assert.Equal(Vector2.One, player.WorldTransform.Scale);
+    }
+
     // Position is the body's top-left corner; the feet are its bottom edge.
     private static float PlayerFeet(Player player) => player.Position.Y + 8f;
+
+    private static SpriteIntent Spark(SimulationHost room) =>
+        Assert.Single(room.Simulation.View.Sprites.ToArray(), sprite => sprite.Size == new Vector2(4f, 4f));
+
+    // The one frame drawn from the player's sheet.
+    private static SpriteIntent PlayerFrame(SimulationHost room) =>
+        Assert.Single(room.Simulation.View.Sprites.ToArray(), sprite => sprite.Sprite.Texture == CapsuleAssets.Textures.Actors.Player);
 }

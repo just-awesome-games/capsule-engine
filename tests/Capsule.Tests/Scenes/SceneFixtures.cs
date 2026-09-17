@@ -252,7 +252,7 @@ internal static class SceneFixtures
             Entity entity = Entity!;
             view.Add(new SpriteIntent(
                 Frame(1, 64),
-                entity.PreviousPosition,
+                entity.PreviousTransform.Position,
                 entity.Position,
                 PreviousRotation: 0f,
                 Rotation: 0f,
@@ -265,12 +265,10 @@ internal static class SceneFixtures
 
     internal sealed class Twin(string name, List<string> log) : Entity(Vector2.Zero)
     {
-        internal string Name { get; } = name;
-
         public override bool Equals(object? obj) => obj is Twin;
 
         public override int GetHashCode() => 0;
 
-        protected internal override void OnRemovedFromScene() => log.Add($"{Name}-");
+        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
     }
 }

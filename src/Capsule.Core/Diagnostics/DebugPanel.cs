@@ -67,6 +67,10 @@ public sealed class DebugPanel
     [Conditional(Development.Symbol)]
     public void Field(string label, Vector2 value) => Write(label, Format(value));
 
+    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/> as <see cref="Transform2D.ToString"/> spells it.</summary>
+    [Conditional(Development.Symbol)]
+    public void Field(string label, Transform2D value) => Write(label, value.ToString());
+
     /// <summary>Writes <paramref name="value"/> under <paramref name="label"/> as <c>#rrggbbaa</c>.</summary>
     [Conditional(Development.Symbol)]
     public void Field(string label, ColorRgba value) =>

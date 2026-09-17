@@ -7,9 +7,10 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// A component that draws. A scene walks its renderers by draw key — its entity's
-/// <see cref="Entity.ZIndex"/> plus this renderer's <see cref="ZIndex"/>, lowest first — and an
-/// equal key keeps entity order and, within an entity, attachment order, so what draws later
-/// covers what drew earlier.
+/// <see cref="Entity.ZIndex"/> summed up the ancestry plus this renderer's <see cref="ZIndex"/>,
+/// lowest first — and an equal key keeps entity order and, within an entity, attachment order, so
+/// what draws later covers what drew earlier. A renderer is placed by its entity's
+/// <see cref="RenderTransform"/> and carries no turn or size of its own.
 /// </summary>
 public abstract class Renderer : Component
 {
@@ -38,9 +39,10 @@ public abstract class Renderer : Component
     }
 
     /// <summary>
-    /// The rect this renderer covers, in its entity's space — world units on a world entity, canvas
-    /// pixels with the anchor resolved on a screen one. Read from the entity's current position, so a
-    /// moving entity reports where the next frame places it rather than where the last one drew it.
+    /// The rect this renderer covers, in the space it draws in — world units under a world root,
+    /// canvas pixels with the anchor resolved under a screen one. Read from the entity's current
+    /// world transform, so a moving entity reports where the next frame places it rather than where
+    /// the last one drew it.
     /// <para>
     /// The box the renderer reports, not the texels it happens to draw: a sized label whose text is
     /// hidden still reports its box. Empty while attached to no entity, and empty by default, which is
@@ -51,20 +53,24 @@ public abstract class Renderer : Component
     public virtual Rect Bounds => default;
 
     /// <summary>
-    /// Where this renderer's entity sits in the space this renderer draws in: the entity's
-    /// <see cref="Entity.Position"/> in world units on a world entity, and canvas pixels with the
-    /// <see cref="ScreenEntity.Anchor"/> already resolved on a screen one. This is what an intent's
-    /// position and <see cref="Bounds"/> are measured from, so a renderer of the game's own places
-    /// itself the same way on either layer. Zero while attached to no entity.
+    /// The transform this renderer draws by: its entity's <see cref="Entity.WorldTransform"/>, in
+    /// world units under a world root and in canvas pixels with the <see cref="ScreenEntity.Anchor"/>
+    /// resolved under a screen one. An intent's position is a point in the entity's own space placed
+    /// through it — <c>RenderTransform.Apply(Offset)</c> — its rotation is the transform's, and its
+    /// extent is its texels or size times the transform's scale, so a renderer of the game's own
+    /// places itself the same way on either layer. <see cref="Transform2D.Identity"/> while
+    /// attached to no entity.
     /// </summary>
-    protected Vector2 RenderPosition => Entity is { } entity ? entity.Position + entity.SpaceOrigin : Vector2.Zero;
+    protected Transform2D RenderTransform => Entity is { } entity ? Placed(entity.World, entity) : Transform2D.Identity;
 
     /// <summary>
-    /// <see cref="RenderPosition"/> as of the previous step, which is what an intent interpolates from.
-    /// Zero while attached to no entity.
+    /// <see cref="RenderTransform"/> as of the previous step, which is what an intent interpolates
+    /// from. <see cref="Transform2D.Identity"/> while attached to no entity.
     /// </summary>
-    protected Vector2 PreviousRenderPosition =>
-        Entity is { } entity ? entity.PreviousPosition + entity.SpaceOrigin : Vector2.Zero;
+    protected Transform2D PreviousRenderTransform => Entity is { } entity ? Placed(entity.PreviousWorld, entity) : Transform2D.Identity;
+
+    private static Transform2D Placed(in Transform2D world, Entity entity) =>
+        world.With(world.Position + entity.SpaceOrigin, world.Scale);
 
     /// <summary>
     /// Writes this renderer's intent onto the frame under construction — already cleared, with

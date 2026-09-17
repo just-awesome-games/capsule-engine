@@ -99,6 +99,40 @@ public sealed class EngineDebugDrawTests
         Assert.Equal((origin - new Vector2(0f, 1.5f), origin + new Vector2(0f, 1.5f)), (lines[1].A, lines[1].B));
     }
 
+    // Held before its first step, the run has drawn nothing into the buffer; opening Debug Draw
+    // asks the scene to emit as it stands, so the channels list without a tick, and a toggle shows
+    // its draws on the very next frame — stamped as the settled step's pass, so the step that
+    // follows replaces them rather than doubling them.
+    [Fact]
+    public void AHeldRun_ListsItsChannelsAndDrawsAToggleWithoutAStep()
+    {
+        Physical scene = new();
+        using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        FrameView view = overlay.Host.Simulation.View;
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.D);
+
+        Assert.Equal("Debug Draw", overlay.Scene.Title);
+        Assert.Equal(["Camera", "Colliders", "Origins"], overlay.Channels);
+        Assert.Equal(0, scheduler.Tick);
+
+        overlay.ToggleChannel("Colliders");
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+
+        // The shapes, but none of the grid's faces: the camera's visible region is empty until its
+        // first late step, so the map has nothing in view to outline yet.
+        Assert.Equal(0, scheduler.Tick);
+        Assert.Equal(61, view.Lines.Length);
+
+        Press(overlay, scheduler, host, Key.Right);
+
+        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(68, view.Lines.Length);
+    }
+
     // The box walks two units a step. Held, the frame is settled and its collider sits where the
     // step left it; with the run going and half a step accumulated, the frame is drawn halfway and
     // so is the collider, on the sprite it follows.
@@ -116,7 +150,7 @@ public sealed class EngineDebugDrawTests
         Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
 
-        Vector2 motion = scene.Box.Position - scene.Box.PreviousPosition;
+        Vector2 motion = scene.Box.Position - scene.Box.PreviousTransform.Position;
         Assert.Equal(new Vector2(2f, 0f), motion);
         Assert.Equal(scene.Box.Collider.Bounds.Min, view.Lines[0].A);
 

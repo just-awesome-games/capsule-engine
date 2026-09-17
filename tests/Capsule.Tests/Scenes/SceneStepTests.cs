@@ -18,12 +18,12 @@ public sealed class SceneStepTests
 
         run.Step();
 
-        Assert.Equal(new Vector2(5, 5), drifter.PreviousPosition);
+        Assert.Equal(new Vector2(5, 5), drifter.PreviousTransform.Position);
         Assert.Equal(new Vector2(6, 5), drifter.Position);
 
         run.Step();
 
-        Assert.Equal(new Vector2(6, 5), drifter.PreviousPosition);
+        Assert.Equal(new Vector2(6, 5), drifter.PreviousTransform.Position);
         Assert.Equal(new Vector2(7, 5), drifter.Position);
     }
 
@@ -372,7 +372,7 @@ public sealed class SceneStepTests
             for (int i = 0; i < entities1.Length; i++)
             {
                 Assert.Equal(entities1[i].Position, entities2[i].Position);
-                Assert.Equal(entities1[i].PreviousPosition, entities2[i].PreviousPosition);
+                Assert.Equal(entities1[i].PreviousTransform.Position, entities2[i].PreviousTransform.Position);
             }
 
             ReadOnlySpan<SpriteIntent> sprites1 = first.View.Sprites;

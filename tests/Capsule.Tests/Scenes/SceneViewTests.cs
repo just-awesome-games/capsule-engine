@@ -101,11 +101,8 @@ public sealed class SceneViewTests
     [Fact]
     public void AScaledSprite_KeepsItsPivotOnTheEntitysPosition()
     {
-        SceneFixtures.Drifter drifter = new(new Vector2(50, 50));
-        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8) with { Pivot = new Vector2(4, 4) })
-        {
-            Scale = new Vector2(2, 2),
-        });
+        SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(2, 2) };
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8) with { Pivot = new Vector2(4, 4) }));
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
         scene.Add(drifter);
@@ -132,29 +129,25 @@ public sealed class SceneViewTests
         SpriteRenderer sprite = new(SceneFixtures.Frame(8, 4) with { Pivot = new Vector2(2, 4) })
         {
             Offset = new Vector2(1, 0),
-            Scale = new Vector2(2, 3),
             FlipX = true,
         };
 
         Assert.True(sprite.Bounds.IsEmpty);
 
         // Pivot (6, 4) once mirrored, so two region columns and four rows of the frame hang past the
-        // position it is drawn at, each at its own axis's scale.
-        new SceneFixtures.Drifter(new Vector2(50, 50)).Add(sprite);
+        // position it is drawn at, each at its own axis's scale; the offset is scaled with them.
+        new SceneFixtures.Drifter(new Vector2(50, 50)) { Scale = new Vector2(2, 3) }.Add(sprite);
 
-        Assert.Equal(new Rect(39f, 38f, 55f, 50f), sprite.Bounds);
+        Assert.Equal(new Rect(40f, 38f, 56f, 50f), sprite.Bounds);
     }
 
-    // No validation on the setter: a scale that is not a size makes an extent the frame view
-    // already refuses, so the sprite is culled rather than drawn inside out.
-    [Theory]
-    [InlineData(0f, 1f)]
-    [InlineData(-1f, 1f)]
-    [InlineData(1f, float.NaN)]
-    public void ASpriteScaledToNothing_DrawsNothing(float x, float y)
+    // A zero axis of the entity's scale makes an extent the frame view already refuses, so the
+    // sprite is culled rather than drawn inside out.
+    [Fact]
+    public void ASpriteScaledToNothing_DrawsNothing()
     {
-        SceneFixtures.Drifter drifter = new(new Vector2(50, 50));
-        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)) { Scale = new Vector2(x, y) });
+        SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(0f, 1f) };
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)));
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
         scene.Add(drifter);
@@ -163,6 +156,25 @@ public sealed class SceneViewTests
         simulation.Step(SceneFixtures.Step());
 
         Assert.Empty(simulation.View.Sprites.ToArray());
+    }
+
+    // A negative axis is a mirror about the pivot, exactly what a flip is, so it folds into the
+    // flip and the frame keeps its extent.
+    [Fact]
+    public void ANegativeEntityScale_MirrorsTheFrameAboutItsPivot()
+    {
+        SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(-1f, 1f) };
+        drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)) { FlipX = true });
+
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
+        scene.Add(drifter);
+        SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+
+        SpriteIntent sprite = Assert.Single(simulation.View.Sprites.ToArray());
+        Assert.Equal(new Vector2(8f, 8f), sprite.Size);
+        Assert.False(sprite.FlipX);
     }
 
     // Draws nothing itself; takes the renderer it was given off its entity as it goes.

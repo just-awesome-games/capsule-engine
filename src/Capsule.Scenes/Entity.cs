@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
@@ -12,31 +13,85 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// One thing in a scene, in world units, Y-down; what <see cref="Position"/> anchors — a corner, a
-/// centre, a pair of feet — is the subclass's own convention. Subclass it for behaviour and attach
-/// <see cref="Component"/>s for what composes.
+/// centre, a pair of feet — is the subclass's own convention. An entity is what a thing is:
+/// behaviour that is its identity — its state machine, its phases, its spin — lives on the
+/// subclass, and its step is one ordered method; a capability things share is a
+/// <see cref="Component"/> attached to it. The test for the subclass: is this what the entity is?
+/// A bare entity constructed under a <see cref="Parent"/> is a marker or a pivot with a place and
+/// no behaviour.
 /// <para>
-/// <see cref="ScreenEntity"/> is the interface counterpart, on the frame's screen layer.
+/// Under a parent, <see cref="Position"/>, <see cref="Rotation"/> and <see cref="Scale"/> are local
+/// to it and <see cref="WorldTransform"/> is what the scene sees. Only presentation honours a turn
+/// or a scale; anything that collides follows position alone. <see cref="ScreenEntity"/> is the
+/// interface counterpart, on the frame's screen layer.
 /// </para>
 /// </summary>
-public class Entity
+public partial class Entity
 {
     // The half-length of the origin cross's arms, in world units.
     private const float OriginArm = 1.5f;
 
     private readonly List<Component> _components = [];
 
+    // Allocated by the first child: most entities have none.
+    private List<Entity>? _children;
+    private Entity? _parent;
+
+    // The top of this entity's chain, itself for a root: what the layer, its origin and the scroll
+    // factor are read from, rewritten down the subtree where a parent is set or let go.
+    private Entity _root;
+
+    // Colliders in this entity's subtree, its own included: a write walks down to re-place them
+    // and skips a branch holding none.
     private int _movementTrackers;
     private bool _started;
+    private Vector2 _scrollFactor = Vector2.One;
+
+    /// <summary>
+    /// A marker or pivot under <paramref name="parent"/>, at its origin: it has a place in the
+    /// world and no behaviour of its own. Joins the parent's scene as <see cref="Parent"/>
+    /// describes.
+    /// </summary>
+    /// <param name="parent">The entity this one is placed by.</param>
+    /// <exception cref="ArgumentNullException">The parent is null.</exception>
+    /// <exception cref="InvalidOperationException">The parent refuses this entity, on <see cref="Parent"/>'s terms.</exception>
+    public Entity(Entity parent)
+        : this(parent, Vector2.Zero)
+    {
+    }
+
+    /// <summary>
+    /// A marker or pivot under <paramref name="parent"/>, at <paramref name="position"/> in the
+    /// parent's own space, as <see cref="Entity(Entity)"/> otherwise describes. A child with
+    /// components or behaviour of its own is a nested subclass on its parent, taking its parent as
+    /// the narrowest type it needs — <see cref="Entity"/> when it only rides, the concrete type
+    /// when it observes — and what it needs through its constructor, never the outer class's
+    /// state; a bare point is an <see cref="Entity"/> with a <see cref="Name"/>.
+    /// </summary>
+    /// <param name="parent">The entity this one is placed by.</param>
+    /// <param name="position">Where the entity starts, local to the parent.</param>
+    /// <exception cref="ArgumentNullException">The parent is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
+    /// <exception cref="InvalidOperationException">The parent refuses this entity, on <see cref="Parent"/>'s terms.</exception>
+    public Entity(Entity parent, Vector2 position)
+        : this(position)
+    {
+        ArgumentNullException.ThrowIfNull(parent);
+
+        Parent = parent;
+    }
 
     /// <param name="position">
-    /// Where the entity starts. <see cref="PreviousPosition"/> starts equal to it, so a spawn does
+    /// Where the entity starts. <see cref="PreviousTransform"/> starts equal to it, so a spawn does
     /// not slide in from wherever the renderer would otherwise interpolate from.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     protected Entity(Vector2 position)
     {
+        _root = this;
         Position = position;
-        PreviousPosition = position;
+        _previousLocal = _local;
+        _previousWorld = _local;
     }
 
     /// <summary>
@@ -66,62 +121,75 @@ public class Entity
     }
 
     /// <summary>
-    /// Where the entity is now, in its own units: world units, and canvas pixels from the anchor on a
-    /// <see cref="ScreenEntity"/>. Always finite: a NaN or infinite position is refused rather than
-    /// stored.
+    /// The entity this one is placed by, or null for a root. Setting it keeps <see cref="Position"/>,
+    /// <see cref="Rotation"/> and <see cref="Scale"/> as they are, now local to the parent. Set
+    /// under a parent a scene holds, the entity joins that scene as <see cref="Scene.Add"/> would;
+    /// it leaves with the parent, and <see cref="Scene.Remove"/> on the entity alone clears this.
+    /// Only an entity in no scene and queued for none may take a parent.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
-    /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
-    /// <exception cref="InvalidOperationException">The entity is anchored to the world origin.</exception>
-    public Vector2 Position
+    /// <exception cref="InvalidOperationException">
+    /// This entity is in a scene or queued to join one; the parent is this entity or one of its
+    /// descendants; this entity is a <see cref="ScreenEntity"/>, a <see cref="Tiles.TileMap"/> or
+    /// carries a <see cref="ScrollFactor"/> other than one; the parent's scroll factor is not one
+    /// over a subtree that collides or watches the screen; or an entity from the parent up is
+    /// turned or scaled over a subtree holding a component that refuses it, on
+    /// <see cref="Rotation"/>'s and <see cref="Scale"/>'s terms.
+    /// </exception>
+    public Entity? Parent
     {
-        get;
+        get => _parent;
 
         set
         {
-            if (Anchored)
-            {
-                throw new InvalidOperationException(
-                    $"A {GetType().Name} is anchored at the world origin and cannot be moved.");
-            }
-
-            RequireFinite(value);
-
-            Vector2 previous = field;
-            field = value;
-
-            if (_movementTrackers == 0)
+            if (ReferenceEquals(value, _parent))
             {
                 return;
             }
 
-            // A collider may refuse the placement (its shape overflows there). Every collider is
-            // then returned to the old position, which each already held, so nothing is left stale.
-            try
+            if (Scene is not null || PendingScene is not null)
             {
-                NotifyMoved();
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} in a scene keeps its parent; remove it from the scene before parenting it elsewhere.");
             }
-            catch
+
+            if (value is not null)
             {
-                field = previous;
-                NotifyMoved();
-                throw;
+                RequireParentable(value);
             }
+
+            Unlink();
+            _parent = value;
+
+            if (value is not null)
+            {
+                (value._children ??= []).Add(this);
+                value.TrackMovement(_movementTrackers);
+            }
+
+            Invalidate(previous: true);
+            value?.Scene?.Enqueue(this);
         }
     }
 
     /// <summary>
-    /// <see cref="Position"/> as of the previous step. Engine-managed: the scene retains it at
-    /// the top of every step, and the renderer interpolates the pair by the frame alpha.
+    /// The entities this one places, in the order they were parented. Invalidated by the next
+    /// change to what this entity holds.
     /// </summary>
-    public Vector2 PreviousPosition { get; internal set; }
+    public ReadOnlySpan<Entity> Children => _children is null ? default : CollectionsMarshal.AsSpan(_children);
+
+    /// <summary>
+    /// A label for the developer's eyes: what the overlay shows in place of the type name. Null by
+    /// default, read by nothing but diagnostics, and need not be unique.
+    /// </summary>
+    public string? Name { get; set; }
 
     /// <summary>
     /// The band this entity draws in: an ordering key, never a coordinate, and nothing else reads
-    /// it. Each attached <see cref="Rendering.Renderer"/> draws at this plus its own
-    /// <see cref="Rendering.Renderer.ZIndex"/>, summed as a <see cref="long"/> with neither side
-    /// clamped, and the higher sum draws later. Renderers whose sums are equal keep entity
-    /// insertion order and then attachment order. Zero by default. Written from inside a
+    /// it. Relative to the <see cref="Parent"/>'s: each attached <see cref="Rendering.Renderer"/>
+    /// draws at the sum of this band up the ancestry plus its own
+    /// <see cref="Rendering.Renderer.ZIndex"/>, as a <see cref="long"/> with nothing clamped, and
+    /// the higher sum draws later. Renderers whose sums are equal keep the scene's entity order —
+    /// tree order — and then attachment order. Zero by default. Written from inside a
     /// <see cref="Rendering.Renderer.Draw"/> — like any change to what the scene holds — it orders
     /// the next step's frame rather than the one being drawn.
     /// </summary>
@@ -144,20 +212,22 @@ public class Entity
     /// <summary>
     /// How far this entity's renderers move with the camera, per axis: one, the default, is the
     /// world; zero is fixed to the screen; less than one is further away; more than one is nearer.
-    /// Presentation only, applied by the renderer to every renderer this entity holds and read by
-    /// nothing else: <see cref="Position"/>, colliders, contacts, <see cref="Rendering.Renderer.Bounds"/>
-    /// and <see cref="OnDebugDraw"/> geometry stay in authored space. The camera corner at which
-    /// every layer sits exactly where authored is its <see cref="Camera.ScrollOrigin"/>.
+    /// The root's alone: a child reads its root's factor, and writing one other than one on a child
+    /// is refused. Presentation only, applied by the renderer to every renderer this entity and its
+    /// descendants hold and read by nothing else: <see cref="Position"/>, colliders, contacts,
+    /// <see cref="Rendering.Renderer.Bounds"/> and <see cref="OnDebugDraw"/> geometry stay in
+    /// authored space. The camera corner at which every layer sits exactly where authored is its
+    /// <see cref="Camera.ScrollOrigin"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">A component of the factor is not finite.</exception>
     /// <exception cref="InvalidOperationException">
-    /// The factor is not one on both axes and this entity is on the screen layer, collides, or holds
-    /// a <see cref="Rendering.VisibleOnScreenNotifier2D"/>: each answers in authored space, where a
-    /// scrolled entity is not drawn.
+    /// The factor is not one on both axes and this entity has a parent, is on the screen layer, or
+    /// collides or holds a <see cref="Rendering.VisibleOnScreenNotifier2D"/> anywhere in its subtree:
+    /// each answers in authored space, where a scrolled entity is not drawn.
     /// </exception>
     public Vector2 ScrollFactor
     {
-        get;
+        get => _root._scrollFactor;
 
         set
         {
@@ -168,29 +238,24 @@ public class Entity
 
             if (value != Vector2.One)
             {
+                if (_parent is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"A {GetType().Name} under a parent scrolls with its root; set the scroll factor on the root.");
+                }
+
                 if (Space == RenderSpace.Screen)
                 {
                     throw new InvalidOperationException(
                         $"A {GetType().Name} is on the screen layer, which no camera moves, so it cannot carry a scroll factor.");
                 }
 
-                if (Collides)
-                {
-                    throw Unscrollable("its grid");
-                }
-
-                foreach (Component component in Components)
-                {
-                    if (component.AnswersInAuthoredSpace)
-                    {
-                        throw Unscrollable($"a {component.GetType().Name}");
-                    }
-                }
+                RequireScrollable();
             }
 
-            field = value;
+            _scrollFactor = value;
         }
-    } = Vector2.One;
+    }
 
     /// <summary>The scene holding this entity; null before it is added and after it is removed.</summary>
     public Scene? Scene { get; internal set; }
@@ -214,13 +279,22 @@ public class Entity
     /// </exception>
     public RandomSource Random => Run.Random;
 
-    // Which of a frame's two layers this entity's renderers draw on. The type is what routes them:
-    // every renderer follows its entity, with no flag of its own.
-    internal virtual RenderSpace Space => RenderSpace.World;
+    // The scene this entity is queued to join, between the deferred add and the drain that lands
+    // it; null otherwise. Held so a parent is refused while the add is in flight.
+    internal Scene? PendingScene { get; set; }
 
-    // What a renderer adds to a position to reach the space it draws in: nothing at all in world
-    // space, and the anchor's point on the run's canvas for a screen entity.
-    internal virtual Vector2 SpaceOrigin => Vector2.Zero;
+    // Which of a frame's two layers this entity's renderers draw on: the root's, so a group under a
+    // screen entity draws on the screen with it.
+    internal RenderSpace Space => _root.OwnSpace;
+
+    // What a renderer adds to a composed position to reach the space it draws in: nothing in world
+    // space, and the anchor's point on the run's canvas under a screen entity root.
+    internal Vector2 SpaceOrigin => _root.OwnSpaceOrigin;
+
+    // The layer this entity would draw on as a root; ScreenEntity says the screen.
+    internal virtual RenderSpace OwnSpace => RenderSpace.World;
+
+    internal virtual Vector2 OwnSpaceOrigin => Vector2.Zero;
 
     // Set by a subclass whose contents are world coordinates, so a position write is a mistake
     // rather than a move.
@@ -232,29 +306,24 @@ public class Entity
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
+    // ZIndex summed up the ancestry, written by the render index as it walks the scene in tree
+    // order, so each parent's is summed before its children read it.
+    internal long DrawBand { get; set; }
+
     // Every walk of the component list goes through this. A hook may detach the component being
     // visited or one before it, which shifts the rest left; the cursor holds its index when the
     // occupant changed, so the component shifted into it is visited rather than skipped.
     private ComponentWalk LiveComponents => new(_components);
 
-    /// <summary>Moves immediately, with no interpolation from the old position.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
-    /// <exception cref="ArgumentException">A tracked collider cannot be placed there; nothing moves.</exception>
-    /// <exception cref="InvalidOperationException">The entity is anchored to the world origin.</exception>
-    public void Teleport(Vector2 position)
-    {
-        // Position validates first, so a rejected teleport leaves both values as they were rather
-        // than collapsing the interpolation pair onto a position the entity never reached.
-        Position = position;
-        PreviousPosition = position;
-    }
 
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
     /// <exception cref="InvalidOperationException">
     /// The component is already attached to an entity, or it refuses this entity — a
-    /// <see cref="Physics.KinematicBody2D"/> offered to one that already holds a body, or a
+    /// <see cref="Physics.KinematicBody2D"/> offered to one that already holds a body; a
     /// collider, body or <see cref="Rendering.VisibleOnScreenNotifier2D"/> offered to one whose
-    /// <see cref="ScrollFactor"/> is not one.
+    /// <see cref="ScrollFactor"/> is not one or that is scaled anywhere up its ancestry; or a
+    /// component that cannot turn offered to one turned anywhere up its ancestry, the message
+    /// naming the entity carrying the value.
     /// </exception>
     /// <exception cref="ArgumentNullException">The component is null.</exception>
     public void Add(Component component)
@@ -267,9 +336,23 @@ public class Entity
                 $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}; a component belongs to one entity at a time.");
         }
 
-        if (component.AnswersInAuthoredSpace && ScrollFactor != Vector2.One)
+        TransformSupport supports = component.Supports;
+        if (supports == TransformSupport.Position && ScrollFactor != Vector2.One)
         {
             throw Unscrollable($"a {component.GetType().Name}");
+        }
+
+        for (Entity? above = this; above is not null; above = above._parent)
+        {
+            if ((supports & TransformSupport.Rotation) == 0 && above._local.Rotation != 0f)
+            {
+                throw Turned(component, this, above, above._local.Rotation);
+            }
+
+            if ((supports & TransformSupport.Scale) == 0 && above._local.Scale != Vector2.One)
+            {
+                throw Scaled(component, this, above, above._local.Scale);
+            }
         }
 
         component.Entity = this;
@@ -344,9 +427,11 @@ public class Entity
                 $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
 
     /// <summary>
-    /// Advances this entity by one fixed step, before its components step. Never reached before
-    /// <see cref="OnStart"/>: an entity the scene holds but has not started takes no step, and
-    /// neither do the components it holds.
+    /// Advances this entity by one fixed step, before its components step and before its
+    /// <see cref="Children"/> step: the scene steps in tree order, so a child reads the world
+    /// position its parent moved to this step. Never reached before <see cref="OnStart"/>: an
+    /// entity the scene holds but has not started takes no step, and neither do the components it
+    /// holds.
     /// </summary>
     protected internal virtual void OnStep(in StepContext context)
     {
@@ -365,8 +450,8 @@ public class Entity
 
     /// <summary>
     /// Draws this entity's debug geometry, as <see cref="Component.OnDebugDraw"/> describes;
-    /// nothing by default. A world entity's origin cross is drawn before this is called and
-    /// whatever this draws, so an override cannot lose it.
+    /// nothing by default. A world entity's origin cross is drawn at its <see cref="WorldPosition"/>
+    /// before this is called and whatever this draws, so an override cannot lose it.
     /// </summary>
     protected internal virtual void OnDebugDraw()
     {
@@ -374,10 +459,12 @@ public class Entity
 
     /// <summary>
     /// Fills this entity's own section of its panel — the one headed <c>Entity</c> — as
-    /// <see cref="Component.OnDebugPanel"/> describes; nothing by default. <see cref="Position"/>
-    /// and <see cref="ZIndex"/>, and a <c>Remove</c> command that takes the entity out of its
-    /// scene, are written into that section before this is called, so an override cannot lose
-    /// them, and each component fills its own section under its heading after it.
+    /// <see cref="Component.OnDebugPanel"/> describes; nothing by default. <see cref="Name"/> where
+    /// set, <see cref="Transform"/> — beside <see cref="WorldTransform"/> where the entity has a
+    /// <see cref="Parent"/> — <see cref="ZIndex"/> and <see cref="ScrollFactor"/>, and a
+    /// <c>Remove</c> command that takes the entity out of its scene, are written into that section
+    /// before this is called, so an override cannot lose them, and each component fills its own
+    /// section under its heading after it.
     /// </summary>
     protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -386,7 +473,8 @@ public class Entity
     /// <summary>
     /// Runs once for this entity's lifetime — not again when it is added to a scene a second time —
     /// before its first step and after everything added alongside it, so the scene may be searched
-    /// from here. Runs before the components held at that moment start; an entity that leaves the
+    /// from here; a parent starts before its children, and a subtree added together starts as one
+    /// batch. Runs before the components held at that moment start; an entity that leaves the
     /// scene from here never steps, and so starts none of them.
     /// </summary>
     protected internal virtual void OnStart()
@@ -394,9 +482,9 @@ public class Entity
     }
 
     /// <summary>
-    /// Runs once the scene holds this entity, with <see cref="Scene"/> set. Peers added alongside
-    /// it may not exist yet: register with the scene here and discover it in
-    /// <see cref="OnStart"/>.
+    /// Runs once the scene holds this entity, with <see cref="Scene"/> set, and before its
+    /// <see cref="Children"/> join. Peers added alongside it may not exist yet: register with the
+    /// scene here and discover it in <see cref="OnStart"/>.
     /// </summary>
     protected internal virtual void OnAddedToScene()
     {
@@ -404,7 +492,8 @@ public class Entity
 
     /// <summary>
     /// Runs once the scene has let go of this entity, with <see cref="Scene"/> cleared — when the
-    /// entity is removed, and when the scene stops. Anything <see cref="OnAddedToScene"/>
+    /// entity is removed, and when the scene stops — and after every descendant has left: a
+    /// subtree leaves children first, deepest first. Anything <see cref="OnAddedToScene"/>
     /// registered is released here.
     /// </summary>
     protected internal virtual void OnRemovedFromScene()
@@ -433,7 +522,24 @@ public class Entity
         }
     }
 
-    internal void TrackMovement(int delta) => _movementTrackers += delta;
+    // Counted on this entity and every ancestor, so a position write above knows whether any
+    // branch below needs re-placing.
+    internal void TrackMovement(int delta)
+    {
+        for (Entity? entity = this; entity is not null; entity = entity._parent)
+        {
+            entity._movementTrackers += delta;
+        }
+    }
+
+    // Severs this entity from its parent as it leaves a scene on its own: the checks a parent
+    // write runs do not apply to letting go.
+    internal void Orphan()
+    {
+        Unlink();
+        _parent = null;
+        Invalidate(previous: true);
+    }
 
     // The entity's own start is once for its lifetime; the component sweep is not. An entity
     // removed and added again reaches this holding components that never started.
@@ -555,7 +661,17 @@ public class Entity
     internal void RunDebugPanel(DebugPanel panel)
     {
         panel.Section("Entity");
-        panel.Field("Position", Position);
+        if (Name is { } name)
+        {
+            panel.Field("Name", name);
+        }
+
+        panel.Field("Transform", _local);
+        if (_parent is not null)
+        {
+            panel.Field("World Transform", World);
+        }
+
         panel.Field("ZIndex", ZIndex);
         panel.Field("ScrollFactor", ScrollFactor);
         panel.Command("Remove", () => Scene?.Remove(this));
@@ -572,35 +688,80 @@ public class Entity
         }
     }
 
-    // The Origins channel: a cross at the entity's position, carrying the step's motion. Engine-owned,
-    // drawn from the driver so no override can lose it.
-    private void DrawOrigin()
+    // Everything a parent write refuses, checked before anything is linked.
+    private void RequireParentable(Entity parent)
     {
-        Vector2 motion = Position - PreviousPosition;
-        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(OriginArm, 0f), Position + new Vector2(OriginArm, 0f), null, motion);
-        DebugDraw.Line(DebugDraw.Origins, Position - new Vector2(0f, OriginArm), Position + new Vector2(0f, OriginArm), null, motion);
+        if (Anchored)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} is anchored at the world origin and cannot be placed by a parent.");
+        }
+
+        if (OwnSpace == RenderSpace.Screen)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} is on the screen layer and is only ever a root; a plain entity under a screen entity draws on the screen with it.");
+        }
+
+        if (_scrollFactor != Vector2.One)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} carrying a scroll factor cannot be placed by a parent; the factor is the root's, so set it there.");
+        }
+
+        if (parent.ScrollFactor != Vector2.One)
+        {
+            RequireScrollable();
+        }
+
+        for (Entity? above = parent; above is not null; above = above._parent)
+        {
+            if (ReferenceEquals(above, this))
+            {
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} cannot be placed by itself or by one of its own descendants.");
+            }
+
+            RequireTurnable(above, above._local.Rotation);
+            RequireScalable(above, above._local.Scale);
+        }
+    }
+
+    // Refuses a scroll factor other than one over this subtree.
+    private void RequireScrollable()
+    {
+        if (Collides)
+        {
+            throw Unscrollable("its grid");
+        }
+
+        if (FirstRefuser(TransformSupport.Scale) is var (component, _))
+        {
+            throw Unscrollable($"a {component.GetType().Name}");
+        }
+    }
+
+    // Takes this entity out of its parent's children, on the parent's side alone.
+    private void Unlink()
+    {
+        if (_parent is { } parent)
+        {
+            parent._children!.RemoveAt(ReferenceList.IndexOf(parent._children, this));
+            parent.TrackMovement(-_movementTrackers);
+        }
     }
 
     private InvalidOperationException Unscrollable(string what) =>
         new($"A {GetType().Name} cannot carry a scroll factor other than one with {what}, which answers at the authored position a scrolled entity is not drawn at.");
 
-    private static void RequireFinite(Vector2 position)
+    // The Origins channel: a cross at the entity's world position, carrying the step's motion.
+    // Engine-owned, drawn from the driver so no override can lose it.
+    private void DrawOrigin()
     {
-        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(position),
-                position,
-                "An entity's position must be finite; a NaN or infinite one spreads to everything that reads it, from render interpolation to the collision broadphase.");
-        }
-    }
-
-    private void NotifyMoved()
-    {
-        foreach (Component component in LiveComponents)
-        {
-            component.OnEntityMoved();
-        }
+        Vector2 position = World.Position;
+        Vector2 motion = position - _previousWorld.Position;
+        DebugDraw.Line(DebugDraw.Origins, position - new Vector2(OriginArm, 0f), position + new Vector2(OriginArm, 0f), null, motion);
+        DebugDraw.Line(DebugDraw.Origins, position - new Vector2(0f, OriginArm), position + new Vector2(0f, OriginArm), null, motion);
     }
 
     private struct ComponentWalk(List<Component> components)

@@ -111,14 +111,13 @@ public sealed class SpriteAnimatorTests
         Assert.Equal(0, animator.FrameIndex);
     }
 
-    // Offset, scale, flips and colour are the renderer's own, and an animator that reset them would
-    // undo a squash-and-stretch every time it swapped a frame.
+    // Offset, flips and colour are the renderer's own, and an animator that reset them would undo
+    // a facing every time it swapped a frame.
     [Fact]
     public void TheAnimatorWritesTheFrameAndNothingElseOnTheRenderer()
     {
         (SpriteRenderer renderer, SpriteAnimator animator, SimulationHost run) = Animating();
         renderer.Offset = new Vector2(4, 8);
-        renderer.Scale = new Vector2(1.4f, 0.6f);
         renderer.FlipX = true;
         renderer.Color = ColorRgba.Black;
 
@@ -126,7 +125,6 @@ public sealed class SpriteAnimatorTests
         run.Step(3);
 
         Assert.Equal(new Vector2(4, 8), renderer.Offset);
-        Assert.Equal(new Vector2(1.4f, 0.6f), renderer.Scale);
         Assert.True(renderer.FlipX);
         Assert.Equal(ColorRgba.Black, renderer.Color);
     }

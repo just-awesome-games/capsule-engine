@@ -31,7 +31,7 @@ public sealed class EntityDebugPanelTests
         Assert.Equal(
             [
                 ("[Entity]", null),
-                ("Position", "(3, 4)"),
+                ("Transform", "(3, 4) r 0 s (1, 1)"),
                 ("ZIndex", "7"),
                 ("ScrollFactor", "(1, 1)"),
                 ("Remove", null),
@@ -61,7 +61,7 @@ public sealed class EntityDebugPanelTests
         Assert.Equal(
             [
                 ("[Entity]", null),
-                ("Position", "(0, 0)"),
+                ("Transform", "(0, 0) r 0 s (1, 1)"),
                 ("ZIndex", "0"),
                 ("ScrollFactor", "(1, 1)"),
                 ("Remove", null),
@@ -88,7 +88,7 @@ public sealed class EntityDebugPanelTests
         Assert.Equal(
             [
                 ("[Entity]", null),
-                ("Position", "(9, 9)"),
+                ("Transform", "(9, 9) r 0 s (1, 1)"),
                 ("ZIndex", "0"),
                 ("ScrollFactor", "(1, 1)"),
                 ("Remove", null),

@@ -14,7 +14,7 @@ namespace Capsule.Scenes.Spawning;
 /// <param name="Position">The raw authored coordinate.</param>
 /// <param name="Scale">
 /// The raw authored scale factors, positive and finite on both axes. What they mean is the
-/// entity's constructor's decision — a <see cref="Capsule.Rendering.SpriteRenderer.Scale"/>, a collider
+/// entity's constructor's decision — the entity's own <see cref="Entity.Scale"/>, a collider
 /// shape run through <see cref="Capsule.Physics.Shape2D.Scaled"/>, or nothing at all.
 /// </param>
 /// <param name="ZIndex">The authored draw band, or null where the placement authors none.</param>

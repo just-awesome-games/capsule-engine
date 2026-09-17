@@ -16,7 +16,7 @@ public sealed class EntityTests
         entity.Teleport(new Vector2(40, 50));
 
         Assert.Equal(new Vector2(40, 50), entity.Position);
-        Assert.Equal(entity.Position, entity.PreviousPosition);
+        Assert.Equal(entity.Position, entity.PreviousTransform.Position);
     }
 
     // Everything downstream reads this position — render interpolation and, through a collider,
@@ -32,7 +32,7 @@ public sealed class EntityTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new TestEntity(new Vector2(float.NaN, 0f)));
 
         Assert.Equal(new Vector2(4, 6), entity.Position);
-        Assert.Equal(new Vector2(4, 6), entity.PreviousPosition);
+        Assert.Equal(new Vector2(4, 6), entity.PreviousTransform.Position);
     }
 
     [Fact]

@@ -9,8 +9,11 @@ namespace Capsule.Physics;
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. It registers when
 /// its entity joins a scene and unregisters when it leaves, and follows the entity's
-/// <see cref="Scenes.Entity.Position"/> — direct writes and teleports included — so a query never
-/// sees a stale one. The shape, and where it sits relative to the position, belong to the subclass.
+/// <see cref="Scenes.Entity.WorldPosition"/> — direct writes, teleports and an ancestor's moves
+/// included — so a query never sees a stale one. It follows position alone: an entity turned or
+/// scaled anywhere up its ancestry refuses a collider, and an entity refuses a turn or a scale
+/// while a collider sits anywhere beneath it. The shape, and where it sits relative to the position, belong to the
+/// subclass.
 /// It draws itself on the <c>Colliders</c> debug channel, dimmed while disabled, and reports its
 /// configuration and its shape to the debug panel.
 /// <para>
@@ -90,13 +93,13 @@ public abstract class Collider2D : Component
 
     // The shape exactly as the world holds it: the local shape translated by the entity's settled
     // position, the world's own two translations in its order.
-    private protected Shape2D WorldShape => _local.Translated(Entity!.Position);
+    private protected Shape2D WorldShape => _local.Translated(Entity!.WorldPosition);
 
     // The channel's colour, or, while disabled, that colour at half alpha, so a collider that is
     // not working is still seen.
     private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
 
-    private protected Vector2 Motion => Entity!.Position - Entity.PreviousPosition;
+    private protected Vector2 Motion => Entity!.WorldPosition - Entity.PreviousWorld.Position;
 
     private protected static Rect Edges(in Aabb2D box) => new(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y);
 
@@ -250,7 +253,7 @@ public abstract class Collider2D : Component
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
     public Aabb2D Bounds =>
         Entity is { } entity
-            ? _local.Translated(entity.Position).Bounds
+            ? _local.Translated(entity.WorldPosition).Bounds
             : throw new InvalidOperationException("A Collider2D that is attached to no entity has no place in the world.");
 
     /// <summary>
@@ -410,7 +413,7 @@ public abstract class Collider2D : Component
     /// </summary>
     /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
-        RequireWorld().ShapeCast(_local, Entity!.Position, translation, filter, out hit, _handle);
+        RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
 
     /// <summary>
     /// Takes <paramref name="shape"/> as the collider's shape and resyncs whatever world holds it,
@@ -430,7 +433,7 @@ public abstract class Collider2D : Component
         Resync();
     }
 
-    internal sealed override bool AnswersInAuthoredSpace => true;
+    internal sealed override TransformSupport Supports => TransformSupport.Position;
 
     // Re-attaching mid-dispatch would put the collider back in the world, where whether it settles
     // again this step depends on where the next reporting collider sits in the scene's list.
@@ -482,7 +485,7 @@ public abstract class Collider2D : Component
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
         CollisionFilter filter = ResolveFilter(world, _detects);
-        ColliderHandle handle = world.Add(_local, Entity!.Position, world.Layer(_layer), filter, this);
+        ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, world.Layer(_layer), filter, this);
 
         _world = world;
         Filter = filter;
@@ -538,7 +541,7 @@ public abstract class Collider2D : Component
         }
     }
 
-    internal override void OnEntityMoved() => _world?.SetPosition(_handle, Entity!.Position);
+    internal override void OnEntityMoved() => _world?.SetPosition(_handle, Entity!.WorldPosition);
 
     internal void SettleContacts()
     {
@@ -668,7 +671,7 @@ public abstract class Collider2D : Component
 
         if (Entity is { } entity)
         {
-            _ = local.Translated(entity.Position);
+            _ = local.Translated(entity.WorldPosition);
         }
     }
 
@@ -760,7 +763,7 @@ public abstract class Collider2D : Component
         if (_world is { } world)
         {
             world.SetShape(_handle, _local);
-            world.SetPosition(_handle, Entity!.Position);
+            world.SetPosition(_handle, Entity!.WorldPosition);
         }
     }
 

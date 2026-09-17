@@ -4,7 +4,7 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Scenes;
 
-public sealed class SpriteRotationRetentionTests
+public sealed class EntityRotationRetentionTests
 {
     // Written during step N, the frame after step N interpolates from what the step began with;
     // the frame after step N+1, with nothing written, has both ends at the value.
@@ -82,7 +82,7 @@ public sealed class SpriteRotationRetentionTests
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step(0));
 
-        spinner.Renderer.Rotation = -2f;
+        spinner.Rotation = -2f;
         simulation.RewriteView();
 
         SpriteIntent rewritten = Assert.Single(simulation.View.Sprites.ToArray());
@@ -93,7 +93,7 @@ public sealed class SpriteRotationRetentionTests
     // The bounds a turned frame reports are its circle's box: an 8x8 frame about its centre reaches
     // its half-diagonal on every side, which is wider than the rect it draws at rest.
     [Fact]
-    public void ATurnedSprite_ReportsItsCirclesBox()
+    public void ASpriteOnATurnedEntity_ReportsItsCirclesBox()
     {
         Spinner spinner = new(onStart: 1f);
         SceneFixtures.HookScene scene = new();
@@ -128,7 +128,7 @@ public sealed class SpriteRotationRetentionTests
         {
             if (_onStart != 0f)
             {
-                Renderer.Rotation = _onStart;
+                Rotation = _onStart;
             }
         }
 
@@ -136,7 +136,7 @@ public sealed class SpriteRotationRetentionTests
         {
             if (_pending is { } rotation)
             {
-                Renderer.Rotation = rotation;
+                Rotation = rotation;
                 _pending = null;
             }
         }

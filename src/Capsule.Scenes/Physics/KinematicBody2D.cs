@@ -155,7 +155,7 @@ public sealed class KinematicBody2D : Component
         // touched on the way is not this query's answer.
         MoveResult2D result = world.Move(
             world.ShapeOf(_collider.Handle),
-            entity.Position + from,
+            entity.WorldPosition + from,
             translation,
             Filter,
             default,
@@ -169,9 +169,10 @@ public sealed class KinematicBody2D : Component
         CollisionWorld2D world = RequireSweepable(out Entity entity);
         Shape2D shape = world.ShapeOf(_collider.Handle);
 
+        Vector2 origin = entity.WorldPosition;
         MoveResult2D result = world.Move(
             shape,
-            entity.Position,
+            origin,
             translation,
             blocking,
             _found,
@@ -182,13 +183,14 @@ public sealed class KinematicBody2D : Component
             Array.Resize(ref _found, _found.Length * 2);
             result = world.Move(
                 shape,
-                entity.Position,
+                origin,
                 translation,
                 blocking,
                 _found,
                 _collider.Handle);
         }
 
+        // A world translation is a local one: nothing above a body is turned or scaled.
         entity.Position += result.Translation;
         _moveContactCount = Collider2D.Describe(
             world,
@@ -216,7 +218,8 @@ public sealed class KinematicBody2D : Component
                 "A KinematicBody2D needs its collider enabled and registered in a scene before it can sweep.");
     }
 
-    internal override bool AnswersInAuthoredSpace => true;
+    // The sweep moves the entity along its world axes.
+    internal override TransformSupport Supports => TransformSupport.Position;
 
     // The body holds the entity's one write on its position, so a second one is a mistake the
     // attach refuses.
