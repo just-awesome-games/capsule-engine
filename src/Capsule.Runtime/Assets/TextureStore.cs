@@ -3,22 +3,30 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Assets;
 
+// A resolved handle: the texture to sample and where the handle's texel (0, 0) is on it. Zero
+// offsets for a texture served from its own file; a page's offset for one the build packed.
+internal readonly record struct TextureSlice(Texture2D Texture, int OffsetX, int OffsetY);
+
 // The textures owned by the current scene, preloaded where declared and otherwise loaded on first
-// draw.
+// draw. Residency is per file: a packed handle's file is its page, so a page loads once for any
+// member and stays while any member of the incoming scene wants it.
 internal sealed class TextureStore : IDisposable
 {
     private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
 
+    private readonly AtlasMap _atlases;
+
     internal TextureStore(GraphicsDevice device)
     {
+        _atlases = AtlasMap.Load(AppContext.BaseDirectory);
         _textures = new(Load);
 
         Texture2D Load(TextureHandle handle)
         {
             string path = TextureFiles.Locate(AppContext.BaseDirectory, handle);
 
-            // The batch blends premultiplied, so a straight-alpha atlas would fringe dark along
-            // every soft edge.
+            // The batch blends premultiplied, so a straight-alpha texture would fringe dark along
+            // every soft edge — a packed page included, which ships straight like any other file.
             using FileStream file = File.OpenRead(path);
             return Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
         }
@@ -26,10 +34,13 @@ internal sealed class TextureStore : IDisposable
 
     // Missing preloads are decoded before the prior scene's textures are released.
     internal void ChangeScene(AssetCollection preloads, Action prepareRemainingAssets) =>
-        _textures.ChangeScene(preloads.Textures, prepareRemainingAssets);
+        _textures.ChangeScene(_atlases.Residency(preloads.Textures), prepareRemainingAssets);
 
     // Loads on first use when the scene did not preload the handle.
-    internal Texture2D Get(in TextureHandle handle) => _textures.Get(handle);
+    internal TextureSlice Get(in TextureHandle handle) =>
+        _atlases.TryGet(handle, out AtlasSlot slot)
+            ? new TextureSlice(_textures.Get(slot.Page), slot.X, slot.Y)
+            : new TextureSlice(_textures.Get(handle), 0, 0);
 
     public void Dispose() => _textures.Dispose();
 }

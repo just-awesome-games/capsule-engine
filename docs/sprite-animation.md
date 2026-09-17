@@ -1,6 +1,6 @@
 # Sprite animation
 
-A frame of animation is a `Sprite` — a texel region of a texture with its own pivot — and a clip is an ordered run of frames, each held for a whole number of fixed steps: animation is simulation state and advances on ticks, never on the render clock. A `*.sheet.json` sprite sheet document is the authored form. Capsule never packs an atlas; packing is authoring, done by an editor's export, a packer, or a script that writes this document.
+A frame of animation is a `Sprite` — a texel region of a texture with its own pivot — and a clip is an ordered run of frames, each held for a whole number of fixed steps: animation is simulation state and advances on ticks, never on the render clock. A `*.sheet.json` sprite sheet document is the authored form. A sheet's regions are in the texture it names, however that texture ships: the build's [atlas packing](atlases.md) moves texels between files, never regions.
 
 A sheet names one texture, the frames it cuts from it, any clips played over those frames, and any sockets its frames set; frames carry their own regions, pivots and socket points, so a packed atlas of trimmed, mixed-size frames is the model and a uniform grid one way to author it. The sheet is not read at run time: the build turns it into game code under `CapsuleAssets.Sprites`, so a misspelt frame, clip or socket is a compile error and no sheet ships. Playback is documented on `SpriteAnimator`, `SpriteClip` and `AnimationPlayback`.
 

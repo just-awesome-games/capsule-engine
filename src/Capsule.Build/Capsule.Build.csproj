@@ -7,7 +7,7 @@
     <RootNamespace>Capsule.Build</RootNamespace>
     <AssemblyName>Capsule.Build</AssemblyName>
     <PackageId>JAG.Capsule.Build</PackageId>
-    <Description>Build integration, source generators, analyzers, and scene-document tooling for Capsule games.</Description>
+    <Description>Build integration, source generators, analyzers, atlas packing, and scene-document tooling for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
@@ -33,12 +33,20 @@
     <Compile Include="../Capsule.Generators/RegistryTree.cs" Link="RegistryTree.cs" />
   </ItemGroup>
 
+  <!-- Atlas packing decodes and encodes PNGs here and nowhere else: both are pure managed, so the
+       tool stays a plain framework-dependent process on every build host. -->
+  <ItemGroup>
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
     <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
     <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
     <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />

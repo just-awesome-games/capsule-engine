@@ -108,6 +108,13 @@
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
 
+    <!-- Not a CapsuleAsset: a manifest ships nowhere itself. %(Filename) leaves one extension on a
+         '*.atlas.json', so both come off here. -->
+    <CapsuleAtlasManifest Include="$(CapsuleAssetSourcesDir)/Atlases/**/*.atlas.json"
+                          Exclude="@(_CapsuleDevelopmentOnly)">
+      <CapsuleAssetPath>%(RecursiveDir)$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</CapsuleAssetPath>
+    </CapsuleAtlasManifest>
+
     <!-- Reject unsupported files inside known asset domains. -->
     <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/Textures/**/*;$(CapsuleAssetSourcesDir)/Audio/**/*;$(CapsuleAssetSourcesDir)/Fonts/**/*"
                         Exclude="@(_CapsuleDevelopmentOnly);$(CapsuleAssetSourcesDir)/**/.capsuleignore" />
@@ -190,6 +197,16 @@
       <!-- The audio sources on their own: the run opens each to measure it, so each is an input. -->
       <_CapsuleAudioSource Include="@(CapsuleAsset)"
                            Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'audio'" />
+
+      <_CapsuleAtlasRequest Include="@(CapsuleAtlasManifest)"
+                            Condition="'@(CapsuleAtlasManifest)' != ''">
+        <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleAtlasManifest.FullPath)))</Relative>
+      </_CapsuleAtlasRequest>
+
+      <!-- Inputs only while an atlas exists to pack them: the run opens a texture for nothing else,
+           and adding or removing the last manifest rewrites the request file. -->
+      <_CapsuleTextureSource Include="@(CapsuleAsset)"
+                             Condition="'@(CapsuleAtlasManifest)' != '' and '%(CapsuleAsset.CapsuleAssetDomain)' == 'textures'" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
@@ -216,7 +233,7 @@
 
     <!-- Rewritten only when the authored set or an option changes, so it is the incremental input. -->
     <WriteLinesToFile File="$(CapsuleBuildRequestFile)"
-                      Lines="$(_CapsuleTileSizeOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)')"
+                      Lines="$(_CapsuleTileSizeOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)');@(_CapsuleAtlasRequest->'atlases|%(CapsuleAssetPath)||%(Relative)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
   </Target>
@@ -227,7 +244,7 @@
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleBuildRequests;ResolveProjectReferences"
-          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleAudioSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleAudioSource);@(_CapsuleAtlasRequest);@(_CapsuleTextureSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
           Outputs="$(CapsuleBuildStampFile)">
 
     <Error Condition="!Exists('@(_CapsuleBuildTool)')"
@@ -294,6 +311,7 @@
       <FileWrites Include="$(CapsuleBuildStampFile);$(CapsuleObjDir)/shipped-assets.txt;$(CapsuleObjDir)/scene-content.txt" />
       <FileWrites Include="$(CapsuleAudioRegistryFile)" Condition="Exists('$(CapsuleAudioRegistryFile)')" />
       <FileWrites Include="@(_CapsuleDerivedScene)" />
+      <FileWrites Include="$(CapsuleObjDir)/atlases/**/*" />
     </ItemGroup>
   </Target>
 

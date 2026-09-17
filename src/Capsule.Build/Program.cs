@@ -8,8 +8,9 @@ internal static class Program
           Runs one build pass over <requests.txt> — option lines, then one
           'group|path|extension|source' request per line, the source relative to the working
           directory. Every authored path is keyed, every keyed scene is derived canonically under
-          <dir>/scenes/, every keyed clip is measured into <dir>/CapsuleAssets.Audio.g.cs, and the
-          manifests the build hooks read their items back from are written under <dir>.
+          <dir>/scenes/, every keyed clip is measured into <dir>/CapsuleAssets.Audio.g.cs, every
+          keyed atlas is packed under <dir>/atlases/, and the manifests the build hooks read their
+          items back from are written under <dir>.
 
           'tile-size|<px>' is the tile size the game declares, and a scene whose grid differs fails.
 

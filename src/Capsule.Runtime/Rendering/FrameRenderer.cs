@@ -220,10 +220,10 @@ internal sealed class FrameRenderer : IDisposable
         _batch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldToBackBuffer);
 
         TextureHandle resolved = default;
-        Texture2D? texture = null;
+        TextureSlice slice = default;
         foreach (ref readonly SpriteIntent sprite in view.Sprites)
         {
-            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, world.TopLeft, pixelsPerUnit, ref resolved, ref texture);
+            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, world.TopLeft, pixelsPerUnit, ref resolved, ref slice);
         }
 
         foreach (ref readonly LineIntent line in view.Lines)
@@ -344,7 +344,7 @@ internal sealed class FrameRenderer : IDisposable
         // Compared before the dictionary is asked, so the lookup is once per texture change
         // rather than once per sprite.
         TextureHandle resolved = default;
-        Texture2D? texture = null;
+        TextureSlice slice = default;
 
         // Each scrolled run is drawn from its own layer's corner, formed once as the run opens;
         // the runs are in list order, so one cursor walks them beside the sprites and again
@@ -363,7 +363,7 @@ internal sealed class FrameRenderer : IDisposable
                 next++;
             }
 
-            DrawSprite(sprites[index], alpha, snap, corner, topLeft, fit.Scale, ref resolved, ref texture);
+            DrawSprite(sprites[index], alpha, snap, corner, topLeft, fit.Scale, ref resolved, ref slice);
         }
 
         corner = topLeft;
@@ -411,11 +411,11 @@ internal sealed class FrameRenderer : IDisposable
 
         bool snap = sampling == TextureSampling.Point;
         TextureHandle resolved = default;
-        Texture2D? texture = null;
+        TextureSlice slice = default;
 
         foreach (ref readonly SpriteIntent sprite in sprites)
         {
-            DrawSprite(sprite, alpha, snap, Vector2.Zero, Vector2.Zero, placement.Scale, ref resolved, ref texture);
+            DrawSprite(sprite, alpha, snap, Vector2.Zero, Vector2.Zero, placement.Scale, ref resolved, ref slice);
         }
 
         foreach (ref readonly LineIntent line in lines)
@@ -458,7 +458,9 @@ internal sealed class FrameRenderer : IDisposable
             layerDepth: 0f);
     }
 
-    // resolved is the handle texture was fetched for; both are carried across the whole stream.
+    // resolved is the handle slice was fetched for; both are carried across the whole stream, so a
+    // run of sprites on one texture resolves it once, and the slice's offset moves the region onto
+    // a packed handle's page.
     // layerCorner is the corner of the camera this sprite's layer is drawn by and frameCorner the
     // corner of the rect the frame draws — the same point on a world pass outside a scrolled run,
     // and the canvas's origin on a screen pass — and the pixel grid is anchored at the frame's.
@@ -470,13 +472,13 @@ internal sealed class FrameRenderer : IDisposable
         Vector2 frameCorner,
         float surfaceScale,
         ref TextureHandle resolved,
-        ref Texture2D? texture)
+        ref TextureSlice slice)
     {
-        if (texture is null || sprite.Sprite.Texture != resolved)
+        if (slice.Texture is null || sprite.Sprite.Texture != resolved)
         {
             resolved = sprite.Sprite.Texture;
 
-            texture = resolved.IsEngineOwned ? EngineTexture(resolved) : _textures.Get(resolved);
+            slice = resolved.IsEngineOwned ? new TextureSlice(EngineTexture(resolved), 0, 0) : _textures.Get(resolved);
         }
 
         Vector2 position = ScrollLayout.Place(
@@ -490,9 +492,9 @@ internal sealed class FrameRenderer : IDisposable
         Vector2 origin = sprite.DrawOrigin;
 
         _batch.Draw(
-            texture,
+            slice.Texture,
             new XnaVector2(position.X, position.Y),
-            new Rectangle(region.X, region.Y, region.Width, region.Height),
+            new Rectangle(region.X + slice.OffsetX, region.Y + slice.OffsetY, region.Width, region.Height),
             ToBackendColor(sprite.Color),
             rotation: StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, alpha),
             origin: new XnaVector2(origin.X, origin.Y),

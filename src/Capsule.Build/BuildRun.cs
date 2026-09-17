@@ -1,3 +1,4 @@
+using Capsule.Build.Atlases;
 using Capsule.Build.Audio;
 using Capsule.Build.Keys;
 using Capsule.Build.Scenes;
@@ -6,9 +7,9 @@ namespace Capsule.Build;
 
 /// <summary>
 /// One run over one request manifest: key every authored path, derive every keyed scene, measure
-/// the whole clip set, and write the manifests the targets read their items back from. The scene
-/// and audio steps are independent, so one run reports every defect in the authoring plane rather
-/// than the first kind of defect it met.
+/// the whole clip set, pack every atlas, and write the manifests the targets read their items back
+/// from. The scene, audio and atlas steps are independent, so one run reports every defect in the
+/// authoring plane rather than the first kind of defect it met.
 /// </summary>
 internal static class BuildRun
 {
@@ -17,6 +18,9 @@ internal static class BuildRun
 
     /// <summary>The whole clip set rendered as the one C# file a game compiles against.</summary>
     private const string AudioRegistryFile = "CapsuleAssets.Audio.g.cs";
+
+    /// <summary>Where atlas pages, stamps and the map are written, below the output directory.</summary>
+    private const string AtlasesDirectory = "atlases";
 
     /// <summary>
     /// Empty, and written last: it is the run's single MSBuild output, so a run that failed part
@@ -73,9 +77,22 @@ internal static class BuildRun
             failed += AudioTool.Emit(clips, Path.Combine(outputDirectory, AudioRegistryFile), output, error);
         }
 
+        HashSet<string> packedTextures = new(StringComparer.Ordinal);
+        List<string> atlasLines = [];
         try
         {
-            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory);
+            failed += AtlasTool.Pack(keyed, Path.Combine(outputDirectory, AtlasesDirectory), output, error, packedTextures, atlasLines);
+        }
+        catch (Exception ex) when (IsReportable(ex))
+        {
+            error.WriteLine($"{outputDirectory}: atlases cannot be written — {ex.Message}");
+
+            return 1;
+        }
+
+        try
+        {
+            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory, packedTextures, atlasLines);
 
             if (failed == 0)
             {

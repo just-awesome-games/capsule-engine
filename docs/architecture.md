@@ -11,7 +11,7 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
 | `Capsule.Runtime` | Window, device, clock, input sampling, rendering, sound playback, scene hosting and crash reporting. | the pure modules |
 | `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
-| `Capsule.Build` | Build-time validation and canonicalization of scene documents, the asset key pass, and measurement of audio sources. | unconstrained |
+| `Capsule.Build` | Build-time validation and canonicalization of scene documents, the asset key pass, atlas packing, and measurement of audio sources. | unconstrained |
 
 The pure modules perform no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime` alone, for project-reference and package consumers alike.
 
@@ -53,7 +53,7 @@ A sound is an `AudioSource` component playing an `AudioClip` on a named `AudioBu
 
 The screen layer is `ScreenEntity` placed by an `Anchor` — a fraction of the canvas on each axis — so an interface element keeps its distance from the edge it was anchored to whatever the canvas is. A menu is `Focusable` components under one `FocusNavigator`, which owns which item has focus and moves it from the game's own focus actions, pointer included.
 
-At a scene boundary the runtime synchronously preloads the media the composed scene, its entities and their components collect; a resource not collected there loads on first rendered or audible use and is cached for the rest of that scene, and the outgoing scene's resources are released at transition or exit except where the incoming preload also uses them. `Run` owns one mixer, so a voice survives a scene transition. Headless simulation loads no media.
+At a scene boundary the runtime synchronously preloads the media the composed scene, its entities and their components collect; a resource not collected there loads on first rendered or audible use and is cached for the rest of that scene, and the outgoing scene's resources are released at transition or exit except where the incoming preload also uses them. A texture packed onto an atlas page is resident as that page ([`atlases.md`](atlases.md)). `Run` owns one mixer, so a voice survives a scene transition. Headless simulation loads no media.
 
 ## NativeAOT floor
 

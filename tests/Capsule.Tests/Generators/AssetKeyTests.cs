@@ -100,7 +100,7 @@ public sealed class AssetKeyTests
             return 1;
         }
 
-        KeyTool.WriteManifests(keyed, workspace.Root, "derived/");
+        KeyTool.WriteManifests(keyed, workspace.Root, "derived/", [], []);
 
         return 0;
     }

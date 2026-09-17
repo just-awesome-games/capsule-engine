@@ -84,10 +84,14 @@ internal static class KeyTool
     /// <param name="keyed">Everything this run keyed.</param>
     /// <param name="outputDirectory">Where the manifests are written.</param>
     /// <param name="derivedScenesDirectory">Where the scene importer writes its documents.</param>
+    /// <param name="packedTextures">The texture keys an atlas packed, which ship nowhere on their own.</param>
+    /// <param name="atlasLines">The shipped-asset lines for every atlas page and map.</param>
     internal static void WriteManifests(
         IReadOnlyList<KeyedAsset> keyed,
         string outputDirectory,
-        string derivedScenesDirectory)
+        string derivedScenesDirectory,
+        HashSet<string> packedTextures,
+        List<string> atlasLines)
     {
         ArgumentNullException.ThrowIfNull(keyed);
         ArgumentNullException.ThrowIfNull(derivedScenesDirectory);
@@ -107,12 +111,14 @@ internal static class KeyTool
                 sceneContent.Add(
                     $"assets/scenes/{entry.Key}{Document}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
             }
-            else
+            else if (entry.Group != "atlases" && !(entry.Group == "textures" && packedTextures.Contains(entry.Key)))
             {
                 shipped.Add(
                     $"assets/{entry.Group}/{entry.Key}{entry.Extension}{BuildRequests.Separator}{entry.Source}");
             }
         }
+
+        shipped.AddRange(atlasLines);
 
         Write(outputDirectory, "shipped-assets.txt", shipped);
         Write(outputDirectory, "scene-content.txt", sceneContent);

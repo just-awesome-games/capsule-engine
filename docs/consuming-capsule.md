@@ -13,6 +13,7 @@ my-game/
         Scenes/
         Sprites/
         Textures/
+        Atlases/
         Audio/
         Fonts/
     MyGame.Shell/
@@ -210,7 +211,7 @@ Assets are authored under `Assets/<Domain>/` in the logic project and ship under
 
 A key is the authored path below the domain root, forward slashes and no extension, every directory segment and the file stem normalized to the kebab form of the identifier it names: `Enemies/Bat.png`, `enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`, one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`; `Stage1`, `stage1` and `stage-1` are one segment, `stage-1`. Every key a game or an authoring module hands the build is normalized this way, so the runtime only ever sees keys; a document names an asset by key and extension, `"enemies/bat.png"`, spelt however the author likes. A segment that is no C# identifier, two sources keying the same, and C# identifier collisions fail the build naming the files.
 
-Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites` ([`sprite-animation.md`](sprite-animation.md)); fonts compile from `Fonts/` ([`text.md`](text.md)); `Audio/` takes `.wav` and `.ogg` — no MP3 — into `CapsuleAssets.Audio` clips carrying the duration the build measured and the loop region it read (`AudioClip` documents both, and how the host plays each format), and a source it cannot measure or whose region does not fit fails the build naming the file. What a scene preloads and when it is released is on `Scene.CollectAssets` and `AssetCollection`.
+Each generated domain and directory class exposes an allocation-free `All` span over the handles beneath it. Sprite sheets generate typed frames and clips under `CapsuleAssets.Sprites` ([`sprite-animation.md`](sprite-animation.md)); `Atlases/` packs textures onto shared pages without changing any handle or region ([`atlases.md`](atlases.md)); fonts compile from `Fonts/` ([`text.md`](text.md)); `Audio/` takes `.wav` and `.ogg` — no MP3 — into `CapsuleAssets.Audio` clips carrying the duration the build measured and the loop region it read (`AudioClip` documents both, and how the host plays each format), and a source it cannot measure or whose region does not fit fails the build naming the file. What a scene preloads and when it is released is on `Scene.CollectAssets` and `AssetCollection`.
 
 ## Seeing your game's output
 

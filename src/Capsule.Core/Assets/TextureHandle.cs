@@ -10,6 +10,10 @@ namespace Capsule.Assets;
 /// extension. <c>Extension</c> begins with one dot and contains no other dot or separator. Runtime
 /// loading rejects a handle that does not meet this contract before accessing the file system. Two
 /// handles of one name resolving under different roots are two textures.
+/// <para>
+/// A handle the build packed onto an atlas page is served from that page, and a region cut against
+/// it keeps its meaning.
+/// </para>
 /// </summary>
 public readonly record struct TextureHandle(string Name, string Extension)
 {

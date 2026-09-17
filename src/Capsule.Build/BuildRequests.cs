@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Capsule.Build;
 
 /// <summary>One authored source the targets ask the build pass about.</summary>
-/// <param name="Group">The domain root it was authored under: textures, fonts, audio or scenes.</param>
+/// <param name="Group">The domain root it was authored under: textures, fonts, audio, scenes or atlases.</param>
 /// <param name="Path">Its path below that root as the platform spelled it; the key pass normalizes it.</param>
 /// <param name="Extension">The extension the shipped file carries, empty for a document.</param>
 /// <param name="Source">Where the source is, relative to the working directory.</param>
@@ -24,7 +24,7 @@ internal readonly record struct BuildRequests(int? TileSize, IReadOnlyList<Asset
     private const string TileSizeOption = "tile-size";
 
     /// <summary>Every group the targets ask about, in the order they are written.</summary>
-    private static readonly string[] Groups = ["textures", "fonts", "audio", "scenes"];
+    private static readonly string[] Groups = ["textures", "fonts", "audio", "scenes", "atlases"];
 
     /// <summary>Reads the manifest at <paramref name="path"/>, ignoring a line it does not name.</summary>
     /// <exception cref="FormatException">An option line states a value that is no value.</exception>
