@@ -16,6 +16,9 @@ public static class GameInput
     /// <summary>Leaves the floor.</summary>
     public static readonly InputAction Jump = new("jump");
 
+    /// <summary>Fires a bolt from the muzzle, in the direction the player faces.</summary>
+    public static readonly InputAction Shoot = new("shoot");
+
     /// <summary>Moves the menu focus to the item above.</summary>
     public static readonly InputAction MenuUp = new("menu-up");
 
@@ -59,6 +62,9 @@ public static class GameInput
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
         bindings.Bind(Jump, Key.Space, PadButton.South);
+
+        // The mouse button Click takes: the room reads Shoot and the menu reads Click, never both.
+        bindings.Bind(Shoot, MouseButton.Left, PadButton.West);
         bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
         bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 

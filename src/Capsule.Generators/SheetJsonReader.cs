@@ -6,7 +6,7 @@ namespace Capsule.Generators;
 
 // One frame as the sheet declares it, in plain numbers: the generator runs in the analyzer process
 // and names no Capsule.Core type, so the region and pivot are carried apart and become literals.
-internal sealed class SheetFrame(string name, int x, int y, int width, int height, float pivotX, float pivotY)
+internal sealed class SheetFrame(string name, int x, int y, int width, int height, float pivotX, float pivotY, SheetSocket[] sockets)
 {
     internal readonly string Name = name;
     internal readonly int X = x;
@@ -15,6 +15,15 @@ internal sealed class SheetFrame(string name, int x, int y, int width, int heigh
     internal readonly int Height = height;
     internal readonly float PivotX = pivotX;
     internal readonly float PivotY = pivotY;
+    internal readonly SheetSocket[] Sockets = sockets;
+}
+
+// One socket a frame sets, in the pivot's texel space.
+internal sealed class SheetSocket(string name, float x, float y)
+{
+    internal readonly string Name = name;
+    internal readonly float X = x;
+    internal readonly float Y = y;
 }
 
 internal sealed class SheetClipFrame(string frame, int ticks)
@@ -31,11 +40,12 @@ internal sealed class SheetClip(string name, bool loop, SheetClipFrame[] frames)
 }
 
 // One sprite sheet the generator read: the texture every frame cuts from, as the key and extension
-// the build ships it at, and the frames and clips declared over it.
-internal sealed class SheetDocument(string textureKey, string textureExtension, SheetFrame[] frames, SheetClip[] clips)
+// the build ships it at, the sockets it names, and the frames and clips declared over it.
+internal sealed class SheetDocument(string textureKey, string textureExtension, string[] sockets, SheetFrame[] frames, SheetClip[] clips)
 {
     internal readonly string TextureKey = textureKey;
     internal readonly string TextureExtension = textureExtension;
+    internal readonly string[] Sockets = sockets;
     internal readonly SheetFrame[] Frames = frames;
     internal readonly SheetClip[] Clips = clips;
 
@@ -110,9 +120,43 @@ internal static class SheetJsonReader
         }
 
         (string key, string extension) = Texture(raw);
-        SheetFrame[] frames = Frames(raw);
+        RawSocket[] sockets = Sockets(raw);
+        SheetFrame[] frames = Frames(raw, sockets);
 
-        return new SheetDocument(key, extension, frames, Clips(raw, frames));
+        return new SheetDocument(key, extension, SocketNames(sockets), frames, Clips(raw, frames));
+    }
+
+    // The declarations alone; whether each is set by a frame is known only once the frames are read.
+    private static RawSocket[] Sockets(RawSheet raw)
+    {
+        if (raw.Sockets is not { Count: > 0 } entries)
+        {
+            return [];
+        }
+
+        // Its own name space: a socket may share a name with a frame or a clip.
+        Names named = new(SpriteRegistrySource.SocketsClass);
+        RawSocket[] sockets = new RawSocket[entries.Count];
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            RawSocket entry = entries[i];
+            named.Read(entry.Name.Value, $"sockets[{i}]", entry.Name.Index, entry.Index);
+            sockets[i] = entry;
+        }
+
+        return sockets;
+    }
+
+    private static string[] SocketNames(RawSocket[] sockets)
+    {
+        string[] names = new string[sockets.Length];
+        for (int i = 0; i < sockets.Length; i++)
+        {
+            names[i] = sockets[i].Name.Value!;
+        }
+
+        return names;
     }
 
     private static (string Key, string Extension) Texture(RawSheet raw)
@@ -140,7 +184,7 @@ internal static class SheetJsonReader
                 raw.Texture.Index);
     }
 
-    private static SheetFrame[] Frames(RawSheet raw)
+    private static SheetFrame[] Frames(RawSheet raw, RawSocket[] sockets)
     {
         if (raw.Frames.Value is not { } entries)
         {
@@ -158,6 +202,9 @@ internal static class SheetJsonReader
 
         SheetFrame[] frames = new SheetFrame[entries.Count];
         Names named = new(SpriteRegistrySource.FramesClass);
+
+        // Which declared sockets some frame set, by declaration index.
+        bool[] set = new bool[sockets.Length];
 
         for (int i = 0; i < entries.Count; i++)
         {
@@ -186,10 +233,87 @@ internal static class SheetJsonReader
             }
 
             (float pivotX, float pivotY) = Pivot(entry, name);
-            frames[i] = new SheetFrame(name, x, y, width, height, pivotX, pivotY);
+            frames[i] = new SheetFrame(name, x, y, width, height, pivotX, pivotY, FrameSockets(entry, name, sockets, set));
+        }
+
+        for (int i = 0; i < sockets.Length; i++)
+        {
+            if (!set[i])
+            {
+                throw new SheetFormatException(
+                    $"declares socket \"{sockets[i].Name.Value}\", which no frame sets; a socket is a point on the frames that carry it, so at least one sets it or the declaration goes.",
+                    sockets[i].Index);
+            }
         }
 
         return frames;
+    }
+
+    // A frame's sockets, each a declared name with a finite point in the pivot's texel space. Sparse
+    // is the model: a frame sets the sockets it has a point for and leaves the rest out.
+    private static SheetSocket[] FrameSockets(RawFrame entry, string frame, RawSocket[] declared, bool[] set)
+    {
+        if (entry.Sockets.Value is not { Count: > 0 } entries)
+        {
+            return [];
+        }
+
+        SheetSocket[] sockets = new SheetSocket[entries.Count];
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            RawFrameSocket socket = entries[i];
+            int index = IndexOf(declared, socket.Name);
+
+            if (index < 0)
+            {
+                throw new SheetFormatException(
+                    $"has frame \"{frame}\" setting socket \"{socket.Name}\", which the sheet does not declare; every socket a frame sets is named in the sheet's sockets list.",
+                    socket.Index);
+            }
+
+            for (int j = 0; j < i; j++)
+            {
+                if (string.Equals(sockets[j].Name, socket.Name, StringComparison.Ordinal))
+                {
+                    throw new SheetFormatException(
+                        $"has frame \"{frame}\" setting socket \"{socket.Name}\" twice; a frame sets each socket once.",
+                        socket.Index);
+                }
+            }
+
+            if (socket.Point.Count != 2)
+            {
+                throw new SheetFormatException(
+                    Invariant($"has frame \"{frame}\" setting socket \"{socket.Name}\" with {socket.Point.Count} components; a socket is written [x, y] in texels of the frame from its top-left corner, as a pivot is."),
+                    socket.Index);
+            }
+
+            if (!IsFinite(socket.Point[0]) || !IsFinite(socket.Point[1]))
+            {
+                throw new SheetFormatException(
+                    $"has frame \"{frame}\" setting socket \"{socket.Name}\" to a point that is not finite; a socket is a pair of texel offsets.",
+                    socket.Index);
+            }
+
+            set[index] = true;
+            sockets[i] = new SheetSocket(declared[index].Name.Value!, socket.Point[0], socket.Point[1]);
+        }
+
+        return sockets;
+    }
+
+    private static int IndexOf(RawSocket[] declared, string name)
+    {
+        for (int i = 0; i < declared.Length; i++)
+        {
+            if (string.Equals(declared[i].Name.Value, name, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static SheetClip[] Clips(RawSheet raw, SheetFrame[] frames)
@@ -296,7 +420,7 @@ internal static class SheetJsonReader
         {
             if (authored is not { Length: > 0 } name)
             {
-                throw new SheetFormatException($"has {position} with no name; every frame and clip is named.", index);
+                throw new SheetFormatException($"has {position} with no name; every frame, clip and socket is named.", index);
             }
 
             if (!_byName.Add(name))
@@ -349,8 +473,15 @@ internal static class SheetJsonReader
         internal int Index;
         internal Member<int?> FormatVersion;
         internal Member<string?> Texture;
+        internal List<RawSocket>? Sockets;
         internal Member<List<RawFrame>?> Frames;
         internal List<RawClip>? Clips;
+    }
+
+    private sealed class RawSocket
+    {
+        internal int Index;
+        internal Member<string?> Name;
     }
 
     private sealed class RawFrame
@@ -362,6 +493,15 @@ internal static class SheetJsonReader
         internal int? Width;
         internal int? Height;
         internal Member<List<float>?> Pivot;
+        internal Member<List<RawFrameSocket>?> Sockets;
+    }
+
+    // One entry of a frame's sockets object: the key and the point it maps to.
+    private sealed class RawFrameSocket(int index, string name, List<float> point)
+    {
+        internal readonly int Index = index;
+        internal readonly string Name = name;
+        internal readonly List<float> Point = point;
     }
 
     private sealed class RawClip
@@ -413,6 +553,10 @@ internal static class SheetJsonReader
                         sheet.Texture = new(_index, ReadString());
                         break;
 
+                    case "sockets":
+                        sheet.Sockets = TryNull() ? null : ReadArray(ReadSocket);
+                        break;
+
                     case "frames":
                         sheet.Frames = new(_index, ReadArray(ReadFrame));
                         break;
@@ -456,6 +600,23 @@ internal static class SheetJsonReader
             return sheet;
         }
 
+        private RawSocket ReadSocket()
+        {
+            RawSocket socket = new() { Index = _index };
+
+            ReadObject(name =>
+            {
+                if (name is not "name")
+                {
+                    throw Unknown(name, "a socket");
+                }
+
+                socket.Name = new(_index, ReadString());
+            });
+
+            return socket;
+        }
+
         private RawFrame ReadFrame()
         {
             RawFrame frame = new() { Index = _index };
@@ -485,12 +646,26 @@ internal static class SheetJsonReader
                         frame.Pivot = new(_index, TryNull() ? null : ReadArray(ReadFloat));
                         break;
 
+                    case "sockets":
+                        frame.Sockets = new(_index, TryNull() ? null : ReadFrameSockets());
+                        break;
+
                     default:
                         throw Unknown(name, "a frame");
                 }
             });
 
             return frame;
+        }
+
+        // An object keyed by socket name, each value a point; the key is the entry's anchor.
+        private List<RawFrameSocket> ReadFrameSockets()
+        {
+            List<RawFrameSocket> sockets = [];
+
+            ReadObject(name => sockets.Add(new RawFrameSocket(_index, name, ReadArray(ReadFloat))));
+
+            return sockets;
         }
 
         private RawClip ReadClip()

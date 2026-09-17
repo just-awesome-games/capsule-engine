@@ -28,6 +28,16 @@ public sealed class SpriteGeneratorTests
           "frames": [ { "name": "a", "x": 1, "y": 2, "width": 3, "height": 4 } ] }
         """;
 
+    // A socket every frame need not set: the walk's second frame bobs it, the third leaves it out.
+    private const string Armed = """
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" }, { "name": "off-hand" } ],
+          "frames": [
+            { "name": "walk-0", "x": 0, "y": 0, "width": 8, "height": 8, "pivot": [4, 8], "sockets": { "muzzle": [8, 4], "off-hand": [0, 5.5] } },
+            { "name": "walk-1", "x": 8, "y": 0, "width": 8, "height": 8, "pivot": [4, 8], "sockets": { "muzzle": [8, 3] } },
+            { "name": "walk-2", "x": 16, "y": 0, "width": 8, "height": 8, "pivot": [4, 8] } ] }
+        """;
+
     // The two characters a raw string literal would spell as an escape rather than carry: the tab is
     // inside the string it breaks, and the no-break space sits between two members.
     private const string RawTabInName =
@@ -87,15 +97,110 @@ public sealed class SpriteGeneratorTests
         Assert.True((bool)Read(game, "OneInstance"));
     }
 
-    // No empty class on a sheet of frames only: a consumer naming Clips is then a compile error
-    // rather than a member that never resolves.
+    // No empty class on a sheet of frames only: a consumer naming Clips or Sockets is then a compile
+    // error rather than a member that never resolves.
     [Fact]
-    public void ASheetOfFramesOnly_DeclaresNoClipsClass()
+    public void ASheetOfFramesOnly_DeclaresNoClipsOrSocketsClass()
     {
         Type sheet = Sheet(Compiled(("sprites/prop.sheet.json", Prop), ("textures/p.png", null)), "Prop");
 
         Assert.NotNull(sheet.GetNestedType("Frames"));
         Assert.Null(sheet.GetNestedType("Clips"));
+        Assert.Null(sheet.GetNestedType("Sockets"));
+    }
+
+    // A socket is a name constant the game binds by and a point each frame carries or leaves out;
+    // two reads of one frame read one table, so they are equal and neither allocates a new one.
+    [Fact]
+    public void ASocket_CompilesIntoANameConstantAndThePointsOfTheFramesThatSetIt()
+    {
+        Assembly game = Probed(
+            """
+            public static string Muzzle => CapsuleAssets.Sprites.Armed.Sockets.Muzzle;
+            public static string OffHand => CapsuleAssets.Sprites.Armed.Sockets.OffHand;
+            public static Capsule.Rendering.Sprite Walk0 => CapsuleAssets.Sprites.Armed.Frames.Walk0;
+            public static Capsule.Rendering.Sprite Walk1 => CapsuleAssets.Sprites.Armed.Frames.Walk1;
+            public static Capsule.Rendering.Sprite Walk2 => CapsuleAssets.Sprites.Armed.Frames.Walk2;
+            public static bool OneTable =>
+                CapsuleAssets.Sprites.Armed.Frames.Walk0 == CapsuleAssets.Sprites.Armed.Frames.Walk0;
+            """,
+            ("sprites/armed.sheet.json", Armed),
+            ("textures/p.png", null));
+
+        Assert.Equal("muzzle", Read(game, "Muzzle"));
+        Assert.Equal("off-hand", Read(game, "OffHand"));
+
+        Assert.Equal(
+            [new SpriteSocket("muzzle", new Vector2(8, 4)), new SpriteSocket("off-hand", new Vector2(0, 5.5f))],
+            Sprite(game, "Walk0").Sockets.ToArray());
+        Assert.Equal([new SpriteSocket("muzzle", new Vector2(8, 3))], Sprite(game, "Walk1").Sockets.ToArray());
+        Assert.True(Sprite(game, "Walk2").Sockets.IsEmpty);
+        Assert.True((bool)Read(game, "OneTable"));
+    }
+
+    // Each socket defect is anchored to the entry that carries it: the frame's entry for a name the
+    // sheet does not declare, the declaration for a socket no frame sets.
+    [Theory]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" } ],
+          "frames": [
+            { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1,
+              "sockets": { "muzle": [1, 1] } } ] }
+        """, "does not declare", 4)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [
+            { "name": "muzzle" },
+            { "name": "hand" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1, 1] } } ] }
+        """, "no frame sets", 3)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" },
+                       { "name": "muzzle" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1, 1] } } ] }
+        """, "second \"muzzle\"", 2)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle tip" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle tip": [1, 1] } } ] }
+        """, "no C# name", 1)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "sockets" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "sockets": [1, 1] } } ] }
+        """, "'Sockets' class", 1)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1,
+                        "sockets": { "muzzle": [1e400, 1] } } ] }
+        """, "not finite", 3)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1,
+                        "sockets": { "muzzle": [1] } } ] }
+        """, "1 components", 3)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1,
+                        "sockets": { "muzzle": [1, 1], "muzzle": [2, 2] } } ] }
+        """, "twice", 3)]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "sockets": [ { "name": "muzzle", "x": 1 } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1, 1] } } ] }
+        """, "malformed", 1)]
+    public void ASocketDefect_FailsTheBuildAtItsLine(string json, string defect, int line)
+    {
+        Diagnostic refused = Assert.Single(Refused(("sprites/prop.sheet.json", json), ("textures/p.png", null)));
+
+        Assert.Equal("CAP024", refused.Id);
+        Assert.Contains(defect, refused.GetMessage(), StringComparison.Ordinal);
+        Assert.Equal(line, refused.Location.GetLineSpan().StartLinePosition.Line);
     }
 
     [Fact]
@@ -144,6 +249,7 @@ public sealed class SpriteGeneratorTests
     [Theory]
     [InlineData("sprites/frames.sheet.json", "CAP018")]
     [InlineData("sprites/clips.sheet.json", "CAP018")]
+    [InlineData("sprites/sockets.sheet.json", "CAP018")]
     [InlineData("sprites/sprites.sheet.json", "CAP018")]
     [InlineData("sprites/01-prop.sheet.json", "CAP017")]
     public void AKeyTheGeneratedClassesCannotDeclare_FailsTheBuild(string sheet, string diagnostic) =>

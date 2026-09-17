@@ -1,6 +1,11 @@
 {
   "formatVersion": 1,
   "texture": "actors/player.png",
+  "sockets": [
+    {
+      "name": "muzzle"
+    }
+  ],
   "frames": [
     {
       "name": "idle-0",
@@ -11,7 +16,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          4
+        ]
+      }
     },
     {
       "name": "idle-1",
@@ -22,7 +33,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          4
+        ]
+      }
     },
     {
       "name": "walk-0",
@@ -33,7 +50,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          4
+        ]
+      }
     },
     {
       "name": "walk-1",
@@ -44,7 +67,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          3
+        ]
+      }
     },
     {
       "name": "walk-2",
@@ -55,7 +84,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          4
+        ]
+      }
     },
     {
       "name": "walk-3",
@@ -66,7 +101,13 @@
       "pivot": [
         4,
         8
-      ]
+      ],
+      "sockets": {
+        "muzzle": [
+          8,
+          5
+        ]
+      }
     }
   ],
   "clips": [

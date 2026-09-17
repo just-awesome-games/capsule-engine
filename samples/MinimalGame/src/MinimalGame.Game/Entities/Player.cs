@@ -16,7 +16,9 @@ namespace MinimalGame.Game.Entities;
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body. The body collider is what
 /// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
 /// reports <c>hazard</c> contacts alone. Everything visual hangs on the nested <see cref="Visual"/>
-/// child, which reads the facts this root publishes. Its levers live in <see cref="PlayerTuning"/>.
+/// child, which reads the facts this root publishes; a shot leaves from the muzzle socket of the
+/// frame that child draws, so the root fires in its late step, once the frame has settled. Its
+/// levers live in <see cref="PlayerTuning"/>, the bolt's in <see cref="BoltTuning"/>.
 /// </summary>
 public sealed class Player : Entity
 {
@@ -35,6 +37,15 @@ public sealed class Player : Entity
     /// <summary>Whether the last step landed on a floor; cleared as each step begins.</summary>
     public bool LandedThisStep { get; private set; }
 
+    /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
+    public bool ShotThisStep { get; private set; }
+
+    /// <summary>
+    /// The muzzle: the child the sprite's <c>muzzle</c> socket places, on whichever frame is drawn.
+    /// Its <see cref="Entity.WorldPosition"/> is where a bolt leaves from.
+    /// </summary>
+    public Entity Muzzle => _visual.Muzzle;
+
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
@@ -45,10 +56,12 @@ public sealed class Player : Entity
     private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.Player.Frames.Idle0.Pivot;
 
     // Entity-specific components
+    private readonly Visual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
     private readonly PlayerTuning _tuning = PlayerTuning.Default;
+    private readonly BoltTuning _bolt = BoltTuning.Default;
 
     private Vector2 _velocity;
 
@@ -57,7 +70,7 @@ public sealed class Player : Entity
     {
         Health = _tuning.MaxHealth;
 
-        _ = new Visual(this, FramePivot, _tuning);
+        _visual = new Visual(this, FramePivot, _tuning);
 
         BoxCollider2D bodyCollider = new(Body);
         Add(bodyCollider);
@@ -89,6 +102,7 @@ public sealed class Player : Entity
         // The edges are this step's facts: the visual, stepping after this root, reads them once.
         JumpedThisStep = false;
         LandedThisStep = false;
+        ShotThisStep = context.Input.WasPressed(GameInput.Shoot);
 
         // The body applies no forces: velocity is the game's, every step.
         _velocity.X = context.Input.Axis(GameInput.Move) * _tuning.WalkSpeed;
@@ -122,6 +136,20 @@ public sealed class Player : Entity
         }
     }
 
+    // The muzzle is a point on the frame drawn, and the frame is the visual's, stepped after this
+    // root: the bolt leaves in the late step, from the socket of the frame this step settled on.
+    /// <inheritdoc/>
+    protected override void OnLateStep(in StepContext context)
+    {
+        if (!ShotThisStep)
+        {
+            return;
+        }
+
+        Scene!.Add(new Bolt(Muzzle.WorldPosition, _visual.Facing, _bolt));
+        Log.Info("shot");
+    }
+
     protected override void OnDebugPanel(DebugPanel panel)
     {
         panel.Field("Current Health", Health);
@@ -142,7 +170,8 @@ public sealed class Player : Entity
     /// <summary>
     /// Everything the player looks like: the sprite, its animator, facing and squash-and-stretch,
     /// composed into this child's <see cref="Entity.Scale"/>. It reads what the root publishes and
-    /// reacts; a child steps after its parent, so it reads this step's facts.
+    /// reacts; a child steps after its parent, so it reads this step's facts. The muzzle socket is
+    /// placed under this child, so the facing scale mirrors it with the frame.
     /// </summary>
     private sealed class Visual : Entity
     {
@@ -161,10 +190,17 @@ public sealed class Player : Entity
 
             SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0);
             Add(sprite);
+            Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.Player.Sockets.Muzzle);
 
             _animator = new SpriteAnimator(sprite);
             Add(_animator);
         }
+
+        /// <summary>The child the sprite places at its <c>muzzle</c> socket.</summary>
+        internal Entity Muzzle { get; }
+
+        /// <summary>The sign of the X the player faces along; the scale the frame is mirrored by.</summary>
+        internal float Facing => _facing;
 
         /// <inheritdoc/>
         protected override void OnStep(in StepContext context)

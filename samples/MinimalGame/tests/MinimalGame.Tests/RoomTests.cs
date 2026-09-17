@@ -158,6 +158,36 @@ public sealed class RoomTests
         Assert.Equal(Vector2.One, player.WorldTransform.Scale);
     }
 
+    // The bolt leaves from the muzzle socket of the frame drawn — the right edge of the 8x8 body at
+    // mid-height on the idle frame — placed by the entity tree, and the socket is a point on the
+    // frame: the walk's bob shows in the muzzle's height on the frame that carries it.
+    [Fact]
+    public void PressingShoot_FiresABoltFromTheMuzzleSocketOfTheFrameDrawn()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+
+        // The landing squash on the first step has recovered by here; the frame is still idle-0.
+        room.Step(20);
+        room.Step(DeviceSnapshot.Empty.With(MouseButton.Left));
+        Bolt bolt = room.Scene.FindSingle<Bolt>();
+
+        Assert.True(player.ShotThisStep, "the press did not fire");
+        Assert.Equal(player.Position + new Vector2(8f, 4f), bolt.Position);
+        Assert.Equal(player.Muzzle.WorldPosition, bolt.Position);
+
+        // Walking left mirrors the muzzle with the frame: the second frame of the walk (walk-1) sets
+        // it a texel higher, and the facing scale carries it to the body's left edge.
+        room.Step(7, DeviceSnapshot.Of(Key.A));
+        Assert.Equal(player.Position + new Vector2(0f, 3f), player.Muzzle.WorldPosition);
+
+        room.Step(DeviceSnapshot.Empty.With(MouseButton.Left).With(Key.A));
+        Bolt second = room.Scene.Entities.ToArray().OfType<Bolt>().Last();
+
+        Assert.NotSame(bolt, second);
+        Assert.Equal(player.Muzzle.WorldPosition, second.Position);
+    }
+
     // Position is the body's top-left corner; the feet are its bottom edge.
     private static float PlayerFeet(Player player) => player.Position.Y + 8f;
 

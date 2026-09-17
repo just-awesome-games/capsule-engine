@@ -11,19 +11,49 @@ namespace Capsule.Rendering;
 /// lands on <see cref="Offset"/> placed by the entity's world transform, and the frame turns about
 /// that point and is sized by the transform, a negative axis of whose scale mirrors the frame about
 /// the pivot as a flip would. Y-down, in world units under a world root and canvas pixels under a
-/// screen one.
+/// screen one. A frame's sockets are placed the same way, as child entities bound through
+/// <see cref="Socket"/>.
 /// </summary>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer
 {
-    /// <summary>The frame drawn; swapped to animate, or to change a static frame.</summary>
-    public Sprite Sprite { get; set; } = sprite;
+    private Sprite _sprite = sprite;
+    private Vector2 _offset;
+    private bool _flipX;
+    private bool _flipY;
+
+    // Allocated by the first Socket call: most renderers bind none.
+    private List<SocketBinding>? _sockets;
+
+    /// <summary>
+    /// The frame drawn; swapped to animate, or to change a static frame. Writing it places every
+    /// bound socket the frame carries, on <see cref="Socket"/>'s terms, before returning.
+    /// </summary>
+    public Sprite Sprite
+    {
+        get => _sprite;
+
+        set
+        {
+            _sprite = value;
+            Rebind();
+        }
+    }
 
     /// <summary>
     /// The point in the entity's own space the frame's pivot lands on, placed by the entity's world
-    /// transform; zero by default, which is the entity itself.
+    /// transform; zero by default, which is the entity itself. Bound sockets follow it.
     /// </summary>
-    public Vector2 Offset { get; set; }
+    public Vector2 Offset
+    {
+        get => _offset;
+
+        set
+        {
+            _offset = value;
+            Place();
+        }
+    }
 
     /// <summary>
     /// How far the frame repeats, per axis, in the entity's own units; zero, the default, draws it
@@ -36,11 +66,29 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// </summary>
     public Vector2 Tiling { get; set; }
 
-    /// <summary>Whether the frame is mirrored horizontally about its pivot.</summary>
-    public bool FlipX { get; set; }
+    /// <summary>Whether the frame is mirrored horizontally about its pivot. Bound sockets mirror with it.</summary>
+    public bool FlipX
+    {
+        get => _flipX;
 
-    /// <summary>Whether the frame is mirrored vertically about its pivot.</summary>
-    public bool FlipY { get; set; }
+        set
+        {
+            _flipX = value;
+            Place();
+        }
+    }
+
+    /// <summary>Whether the frame is mirrored vertically about its pivot. Bound sockets mirror with it.</summary>
+    public bool FlipY
+    {
+        get => _flipY;
+
+        set
+        {
+            _flipY = value;
+            Place();
+        }
+    }
 
     /// <summary>Multiplied into every texel; white, which draws the texture as it is, by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
@@ -76,6 +124,55 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                 Tiling.X > 0f && float.IsFinite(Tiling.X) ? frame.Left + Tiling.X : frame.Right,
                 Tiling.Y > 0f && float.IsFinite(Tiling.Y) ? frame.Top + Tiling.Y : frame.Bottom);
         }
+    }
+
+    /// <summary>
+    /// The child entity that sits on the socket named <paramref name="name"/>: created under this
+    /// renderer's entity on the first call, the same instance on every later one. The renderer
+    /// owns it — a game reads its <see cref="Entity.WorldPosition"/> or parents its own entities
+    /// under it, and neither removes nor reparents it; it leaves the scene with the entity it is
+    /// under.
+    /// <para>
+    /// Its local position is <see cref="Offset"/> plus the socket's point taken from the frame's
+    /// pivot, mirrored about that pivot by <see cref="FlipX"/> and <see cref="FlipY"/> exactly as
+    /// the drawn frame is, so the entity's turn and scale place it as they place the frame.
+    /// Rewritten on every write to <see cref="Sprite"/>, <see cref="Offset"/>, <see cref="FlipX"/>
+    /// or <see cref="FlipY"/> as a teleport: a point is a property of a discrete frame and snaps as
+    /// the frame does, never interpolating between two frames' points. A frame that does not carry
+    /// the socket leaves the child where the last frame carrying it put it, and a later offset or
+    /// flip re-places it from that frame's point; until any frame carries it, the child sits at the
+    /// entity's origin. The frame it is read from is the one written this step, so a late step or a
+    /// component attached after the animator reads the socket of the frame drawn.
+    /// </para>
+    /// </summary>
+    /// <param name="name">The socket's name, as the sheet declared it; <c>CapsuleAssets.Sprites.&lt;Sheet&gt;.Sockets</c> spells each.</param>
+    /// <exception cref="ArgumentException">The name is null or empty.</exception>
+    /// <exception cref="InvalidOperationException">The renderer is attached to no entity; attach it first.</exception>
+    public Entity Socket(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        if (Entity is not { } entity)
+        {
+            throw new InvalidOperationException(
+                "A socket is a child of the renderer's entity; add the renderer to an entity before binding one.");
+        }
+
+        _sockets ??= [];
+
+        foreach (SocketBinding bound in _sockets)
+        {
+            if (bound.Name == name)
+            {
+                return bound.Child;
+            }
+        }
+
+        SocketBinding binding = new(name, new Entity(entity) { Name = name });
+        _sockets.Add(binding);
+        Bind(binding);
+
+        return binding.Child;
     }
 
     /// <inheritdoc/>
@@ -117,6 +214,74 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             Color);
     }
 
+    // Every binding re-reads its point from the frame, then is placed. Called on a frame write.
+    private void Rebind()
+    {
+        if (_sockets is null)
+        {
+            return;
+        }
+
+        foreach (SocketBinding binding in _sockets)
+        {
+            Bind(binding);
+        }
+    }
+
+    // One scan of the frame's sockets: names are interned literals in a generated sheet, so the
+    // comparison short-circuits on reference before it reads a character.
+    private void Bind(SocketBinding binding)
+    {
+        ReadOnlySpan<SpriteSocket> carried = _sprite.Sockets.Span;
+        binding.Carried = false;
+
+        foreach (ref readonly SpriteSocket socket in carried)
+        {
+            if (socket.Name == binding.Name)
+            {
+                binding.Point = socket.Point;
+                binding.Pivot = _sprite.Pivot;
+                binding.Carried = true;
+                binding.Placed = true;
+                break;
+            }
+        }
+
+        Place(binding);
+    }
+
+    // Every binding re-placed from the point it holds. Called on an offset or flip write.
+    private void Place()
+    {
+        if (_sockets is null)
+        {
+            return;
+        }
+
+        foreach (SocketBinding binding in _sockets)
+        {
+            Place(binding);
+        }
+    }
+
+    // The mirror is about the pivot, as the drawn frame's is; the parent's scale and turn are the
+    // tree's to compose, so a facing written as a negative scale is never folded in twice.
+    private void Place(SocketBinding binding)
+    {
+        if (!binding.Placed)
+        {
+            return;
+        }
+
+        Vector2 fromPivot = binding.Point - binding.Pivot;
+        Vector2 local = _offset + new Vector2(_flipX ? -fromPivot.X : fromPivot.X, _flipY ? -fromPivot.Y : fromPivot.Y);
+
+        if (local != binding.Child.Position)
+        {
+            binding.Child.Teleport(local);
+        }
+    }
+
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
@@ -128,5 +293,30 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         panel.Field("Color", Color);
         panel.Toggle("FlipX", FlipX, on => FlipX = on);
         panel.Toggle("FlipY", FlipY, on => FlipY = on);
+
+        if (_sockets is null)
+        {
+            return;
+        }
+
+        foreach (SocketBinding binding in _sockets)
+        {
+            panel.Field(
+                "Socket " + binding.Name,
+                DebugPanel.Format(binding.Child.Position)
+                    + (binding.Carried ? " on this frame" : binding.Placed ? " held from an earlier frame" : " on no frame yet"));
+        }
+    }
+
+    // One bound socket: the child it places and the last point a frame carried for it, kept so an
+    // offset or flip written on a frame without the socket re-places the child from that point.
+    private sealed class SocketBinding(string name, Entity child)
+    {
+        internal readonly string Name = name;
+        internal readonly Entity Child = child;
+        internal Vector2 Point;
+        internal Vector2 Pivot;
+        internal bool Placed;
+        internal bool Carried;
     }
 }

@@ -5,8 +5,9 @@ namespace MinimalGame.Game.Drivers;
 
 /// <summary>
 /// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard
-/// and under the first ledge, jumps up through it and lands on top, walks on a little, then
-/// presses Quit so the run ends by the game's own exit route. Every count is in fixed steps.
+/// and under the first ledge, jumps up through it and lands on top, walks on a little, fires a
+/// bolt, then presses Quit so the run ends by the game's own exit route. Every count is in fixed
+/// steps.
 /// <para>
 /// Run it windowed with <c>--scene Room --driver Walkthrough</c> and without a window by adding
 /// <c>--headless</c>; either way the run plays the same steps and closes itself. It lives under a
@@ -33,6 +34,9 @@ public sealed class Walkthrough : IInputDriver
 
         // A short walk along the ledge, then a pause to show the landing.
         script.Down(Key.D).Wait(24).Up(Key.D).Wait(30);
+
+        // One bolt from the muzzle, given long enough to cross the frame.
+        script.Tap(MouseButton.Left).Wait(60);
 
         script.Tap(Key.Escape);
 
