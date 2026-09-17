@@ -128,10 +128,18 @@ internal sealed class FrameRenderer : IDisposable
 
             // Over the world's own bars: the viewport is the whole surface again and the canvas sits
             // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
-            DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling);
+            if (layout.ScreenOnSurface)
+            {
+                DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling);
+            }
 
             _device.SetRenderTarget(null);
             Present(target, view.Sampling, layout.Present);
+
+            if (!layout.ScreenOnSurface)
+            {
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling);
+            }
         }
 
         if (layout.Layer.Scale > 0f)

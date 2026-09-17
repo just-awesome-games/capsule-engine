@@ -50,16 +50,10 @@ internal sealed class PanelMenus
         _tick = tick;
     }
 
-    // Pushes the scene page. The hotkey fires at any depth: while the page is already open —
-    // current, or beneath a panel or another submenu — it does nothing, so the one tracked page
-    // is never orphaned under a second.
+    // Pushes the scene page, built afresh: it is only ever opened from the root menu, so no page
+    // is on the stack to orphan under it.
     internal void Open()
     {
-        if (_page is { } open && _scene.Contains(open))
-        {
-            return;
-        }
-
         _page = PageMenu();
         _pageGeneration = _generation;
         _scene.Push(_page);

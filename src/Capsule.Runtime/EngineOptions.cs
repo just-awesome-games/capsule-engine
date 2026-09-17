@@ -11,6 +11,7 @@ internal sealed record EngineOptions(
     bool Resizable,
     bool Fullscreen,
     (int Width, int Height)? RenderResolution,
+    (int Width, int Height)? Canvas,
     double StepSeconds,
     int MaxStepsPerFrame,
     InputConfiguration Input,
@@ -19,7 +20,12 @@ internal sealed record EngineOptions(
     // The registered scenes, which the development overlay lists.
     SceneRegistry Scenes)
 {
-    // The canvas rule: the declared render resolution, and the configured window where there is none.
-    internal static (int Width, int Height) CanvasOf((int Width, int Height)? renderResolution, int windowWidth, int windowHeight) =>
-        renderResolution ?? (windowWidth, windowHeight);
+    // The canvas rule: the declared canvas; else the declared render resolution; else the window
+    // the run was configured to open at.
+    internal static (int Width, int Height) CanvasOf(
+        (int Width, int Height)? canvas,
+        (int Width, int Height)? renderResolution,
+        int windowWidth,
+        int windowHeight) =>
+        canvas ?? renderResolution ?? (windowWidth, windowHeight);
 }

@@ -179,8 +179,11 @@ public sealed class OverlayHostTests
         Assert.Equal(0, scene.FocusedIndex);
     }
 
+    // An opener's hotkey is the root menu's alone: inside a submenu it changes nothing, not even
+    // the status line Debug Draw would otherwise write about a scene that has emitted nothing.
+    // Exit acts on the run from any depth.
     [Fact]
-    public void TheHotkeys_OpenLoadSceneAndDebugDrawFromAnyDepthWithoutStackingAndExitThroughTheRun()
+    public void TheHotkeys_OpenMenusOnlyFromTheRootAndExitThroughTheRunAtAnyDepth()
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
@@ -193,12 +196,12 @@ public sealed class OverlayHostTests
         Assert.Equal(2, overlay.Scene.Depth);
 
         Press(overlay, scheduler, host, Key.L);
-        Assert.Equal(2, overlay.Scene.Depth);
-
         Press(overlay, scheduler, host, Key.D);
+        Press(overlay, scheduler, host, Key.T);
 
-        Assert.NotEmpty(overlay.Scene.Status);
+        Assert.Equal("Load Scene", overlay.Scene.Title);
         Assert.Equal(2, overlay.Scene.Depth);
+        Assert.Equal(string.Empty, overlay.Scene.Status);
 
         Press(overlay, scheduler, host, Key.E);
 

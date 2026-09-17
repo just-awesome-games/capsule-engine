@@ -2,6 +2,31 @@
 
   <Import Project="build/Capsule.Architecture.targets" />
 
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CapsulePinPackageReadme</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <!-- The repository PACKAGE.md links to main; the copy every package carries links to the tag
+       it was packed at, so a consumer reading a version's README reads that version's docs. A pack
+       at the placeholder version has no tag to point at and keeps main. -->
+  <Target Name="CapsulePinPackageReadme">
+    <PropertyGroup>
+      <_CapsuleReadme>$(IntermediateOutputPath)PACKAGE.md</_CapsuleReadme>
+      <_CapsuleBlobRoot>$(RepositoryUrl)/blob/</_CapsuleBlobRoot>
+      <_CapsuleRawRoot>https://raw.githubusercontent.com/just-awesome-games/capsule-engine/</_CapsuleRawRoot>
+      <_CapsuleReadmeText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)PACKAGE.md'))</_CapsuleReadmeText>
+      <_CapsuleReadmeText Condition="'$(Version)' != '$(VersionPrefix)'">$(_CapsuleReadmeText.Replace('$(_CapsuleBlobRoot)main/', '$(_CapsuleBlobRoot)v$(Version)/').Replace('$(_CapsuleRawRoot)main/', '$(_CapsuleRawRoot)v$(Version)/'))</_CapsuleReadmeText>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_CapsuleReadme)"
+                      Lines="$([MSBuild]::Escape($(_CapsuleReadmeText)))"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <FileWrites Include="$(_CapsuleReadme)" />
+      <TfmSpecificPackageFile Include="$(_CapsuleReadme)" PackagePath="/" />
+    </ItemGroup>
+  </Target>
+
   <UsingTask TaskName="CapsuleTrimGeneratedDocumentation"
              TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">

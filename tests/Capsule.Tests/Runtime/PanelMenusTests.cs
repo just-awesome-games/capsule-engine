@@ -324,6 +324,7 @@ public sealed class PanelMenusTests
         Press(overlay, scheduler, host, Key.S);
         Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Rows(scene));
 
+        Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.L);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
@@ -332,16 +333,19 @@ public sealed class PanelMenusTests
         Assert.Equal("Load Scene", scene.Title);
 
         Press(overlay, scheduler, host, Key.Backspace);
+        Press(overlay, scheduler, host, Key.S);
 
         Assert.Equal("OtherScene", scene.Title);
         Assert.Equal([.. Head, "Lone"], Rows(scene));
 
+        Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.L);
         Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
         Assert.IsType<EmptyScene>(host.Scene);
 
         Press(overlay, scheduler, host, Key.Backspace);
+        Press(overlay, scheduler, host, Key.S);
 
         Assert.Equal("EmptyScene", scene.Title);
         Assert.Equal(2, scene.Depth);
@@ -371,33 +375,40 @@ public sealed class PanelMenusTests
         Assert.Equal([.. Head, "Lone"], Rows(scene));
     }
 
-    // A load from its submenu leaves the panel beneath stale; the frame whose Back exposes it
-    // shows the page it pops to, never the departed entity's panel.
+    // A step from its parent's panel takes the child out and leaves the child's panel beneath
+    // stale; the frame whose Back exposes it shows the page it pops to, never the departed
+    // entity's panel.
     [Fact]
     public void ABackThatExposesAStalePanel_PopsItOnTheSameFrame()
     {
-        using SceneHost host = CreateHost();
+        using SceneHost host = CreateHost(new Parented());
         FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
         OverlayScene scene = overlay.Scene;
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Lone", scene.Title);
+        Assert.Equal([.. Head, "Walker", "  Vanisher"], Rows(scene));
 
-        Press(overlay, scheduler, host, Key.L);
-        Press(overlay, scheduler, host, Key.Down);
+        Press(overlay, scheduler, host, Key.Up);
         Press(overlay, scheduler, host, Key.Enter);
-        Assert.IsType<OtherScene>(host.Scene);
-        Assert.Equal("Load Scene", scene.Title);
+        Assert.Equal("Vanisher", scene.Title);
+
+        Press(overlay, scheduler, host, Key.Enter);
+        Assert.Equal("Walker", scene.Title);
+        Assert.Equal(4, scene.Depth);
+
+        Press(overlay, scheduler, host, Key.Right);
+        Press(overlay, scheduler, host, Key.Right);
+        Assert.Equal(2, scheduler.Tick);
+        Assert.Equal("Walker", scene.Title);
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Backspace));
 
-        Assert.Equal("OtherScene", scene.Title);
+        Assert.Equal("Parented", scene.Title);
         Assert.Equal(2, scene.Depth);
-        Assert.Contains("Lone", scene.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone"], Rows(scene));
+        Assert.Contains("Vanisher", scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Walker"], Rows(scene));
     }
 
     // The engine's own Remove command on an entity: the tick after it takes the entity out, and
@@ -447,10 +458,10 @@ public sealed class PanelMenusTests
         Assert.Equal(string.Empty, scene.Status);
     }
 
-    // The root hotkey fires at any depth: with the page already stacked it neither stacks a
-    // second nor replaces the one that later steps refresh.
+    // Watching an entity page while stepping is the inspector's use: Step fires there, and an
+    // opener pressed there stacks nothing over the page, so one Backspace is the page beneath.
     [Fact]
-    public void TheSceneKey_WithThePageAlreadyStacked_DoesNothing()
+    public void OnAnEntityPage_StepAdvancesTheRunAndTheOpenerKeysDoNothing()
     {
         using SceneHost host = CreateHost();
         FixedStepScheduler scheduler = CreateScheduler();
@@ -465,24 +476,17 @@ public sealed class PanelMenusTests
         Assert.Equal(3, scene.Depth);
 
         Press(overlay, scheduler, host, Key.S);
+        Press(overlay, scheduler, host, Key.L);
 
         Assert.Equal("Walker", scene.Title);
         Assert.Equal(3, scene.Depth);
+        Assert.Equal(string.Empty, scene.Status);
 
         Press(overlay, scheduler, host, Key.Right);
 
+        Assert.Equal(1, scheduler.Tick);
         Assert.Equal("Transform     (11, 0) r 0 s (1, 1)", scene.RowText(1));
 
-        Press(overlay, scheduler, host, Key.L);
-        Assert.Equal("Load Scene", scene.Title);
-        Assert.Equal(4, scene.Depth);
-
-        Press(overlay, scheduler, host, Key.S);
-
-        Assert.Equal("Load Scene", scene.Title);
-        Assert.Equal(4, scene.Depth);
-
-        Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.Backspace);
 
         Assert.Equal("Populated", scene.Title);
@@ -621,6 +625,17 @@ public sealed class PanelMenusTests
         }
     }
 
+    // A Walker whose only child leaves on the first step.
+    private sealed class Parented : Scene
+    {
+        internal Parented()
+        {
+            Walker root = new(new Vector2(10f, 0f));
+            _ = new Vanisher(root);
+            Add(root);
+        }
+    }
+
     // Two Vanishers around a Lone; only the first leaves.
     private sealed class Departing : Scene
     {
@@ -734,6 +749,12 @@ public sealed class PanelMenusTests
             _leavesOn = leavesOn;
             Add(new Tag("v"));
             Add(new Mute());
+        }
+
+        internal Vanisher(Entity parent)
+            : base(parent)
+        {
+            _leavesOn = 1;
         }
 
         protected internal override void OnStep(in StepContext context)

@@ -63,6 +63,21 @@ public sealed class ScreenSpaceTests
         Assert.Equal(new Vector2(left, top), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
+    // A UI-scale option moves the run's canvas mid-run; nothing caches the old one, so the next step
+    // anchors every screen entity against the new extent.
+    [Fact]
+    public void ACanvasSetDuringTheRun_IsWhatAScreenEntityAnchorsAgainstOnTheNextStep()
+    {
+        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
+        run.Step();
+        Assert.Equal(new Vector2(90f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+
+        run.Simulation.Run.Canvas = new Vector2(200f, 100f);
+        run.Step();
+
+        Assert.Equal(new Vector2(190f, 80f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+    }
+
     [Fact]
     public void AScreenEntity_InterpolatesItsPositionAsAWorldOneDoes()
     {

@@ -156,6 +156,22 @@ public sealed class ScreenPlacementTests
         Assert.Equal(new Vector2(originX, originY), layout.Layer.Origin);
     }
 
+    // A canvas declared apart from the render resolution is not in the surface's pixels: an HD
+    // interface over a low-resolution world, or the reverse, takes the canvas's own fit of the
+    // window over the presented surface, and the pointer reads through that same placement.
+    [Fact]
+    public void ACanvasApartFromTheResolution_TakesItsOwnFitOfTheWindowOverThePresentedSurface()
+    {
+        ScreenLayout layout = FrameLayout.Layout((320, 180), View(new Vector2(1280f, 720f), Canvas), 1920, 1080);
+
+        Assert.False(layout.ScreenOnSurface);
+        Assert.Equal((320, 180), layout.Surface);
+        Assert.Equal(6f, layout.Present.Scale);
+        Assert.Equal(1.5f, layout.Layer.Scale);
+        Assert.Equal(Vector2.Zero, layout.Layer.Origin);
+        Assert.Equal(new Vector2(640f, 360f), layout.Layer.ToCanvas(new Vector2(960f, 540f)));
+    }
+
     [Fact]
     public void OnASurfaceTheFitGrew_TheLayerSitsAtItsSlackInsideThePresentedSurface()
     {

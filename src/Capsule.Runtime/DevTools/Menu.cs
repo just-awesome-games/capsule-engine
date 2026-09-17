@@ -29,12 +29,12 @@ internal sealed class Menu
 
         if (overlay.HasScenes)
         {
-            items.Add(new MenuItem("Scene", overlay.OpenScenePage, OverlayActions.ScenePage));
+            items.Add(new MenuItem("Scene", overlay.OpenScenePage, OverlayActions.ScenePage, OpensMenu: true));
         }
 
         items.Add(new MenuItem("Step", overlay.StepGame, OverlayActions.Step, Repeats: true));
-        items.Add(new MenuItem("Debug Draw", overlay.OpenDebugDraw, OverlayActions.DebugDraw));
-        items.Add(new MenuItem("Time Scale", overlay.OpenTimeScale, OverlayActions.TimeScale));
+        items.Add(new MenuItem("Debug Draw", overlay.OpenDebugDraw, OverlayActions.DebugDraw, OpensMenu: true));
+        items.Add(new MenuItem("Time Scale", overlay.OpenTimeScale, OverlayActions.TimeScale, OpensMenu: true));
 
         if (overlay.HasScenes)
         {
@@ -44,7 +44,7 @@ internal sealed class Menu
             if (overlay.Registrations.Count > 0)
             {
                 Menu sceneMenu = LoadScene(overlay);
-                items.Add(new MenuItem("Load Scene", () => overlay.Scene.Push(sceneMenu), OverlayActions.LoadScene));
+                items.Add(new MenuItem("Load Scene", () => overlay.Scene.Push(sceneMenu), OverlayActions.LoadScene, OpensMenu: true));
             }
         }
 

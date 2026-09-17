@@ -38,15 +38,27 @@ internal static class FrameLayout
                 Letterbox.Fit(span.X, span.Y, outputWidth, outputHeight),
                 windowed,
                 default,
-                windowed);
+                windowed,
+                ScreenOnSurface: true);
         }
 
         (int Width, int Height) surface = SurfaceSize(resolution, view.Camera, span, outputWidth, outputHeight);
         float pixelsPerUnit = PixelsPerUnit(resolution, view.Camera);
         span = QuantisedSpan(view.Camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
         Letterbox world = WorldFit(view.Camera, span, pixelsPerUnit, surface);
-        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
         ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
+
+        // A canvas declared apart from the resolution is not in the surface's pixels: drawn on the
+        // surface it would be cropped or left unscaled, so it takes its own centred fit of the
+        // window over the presented surface, as it does with no surface at all.
+        if (view.Canvas != new Vector2(resolution.Width, resolution.Height))
+        {
+            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+
+            return new ScreenLayout(span, surface, world, default, presented, windowed, ScreenOnSurface: false);
+        }
+
+        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
 
         return new ScreenLayout(
             span,
@@ -56,7 +68,8 @@ internal static class FrameLayout
             presented,
             presented.Scale > 0f
                 ? new ScreenPlacement(presented.Origin + (slack * presented.Scale), presented.Scale)
-                : default);
+                : default,
+            ScreenOnSurface: true);
     }
 
     // The span the world is placed on. Under Letterbox the declared span, as ever. Under Expand or

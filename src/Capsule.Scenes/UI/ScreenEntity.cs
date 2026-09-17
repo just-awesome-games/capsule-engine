@@ -12,8 +12,8 @@ namespace Capsule.UI;
 /// root: it refuses a <see cref="Entity.Parent"/>, and a plain entity parented under it is a
 /// group member that draws on the screen layer in canvas pixels from this entity's anchored point.
 /// <para>
-/// The canvas is a run constant (<see cref="Run.Canvas"/>), so a corner-anchored element keeps its
-/// distance from that corner at every window size. Subclass it for behaviour and attach
+/// The canvas is the run's (<see cref="Run.Canvas"/>), never the window's, so a corner-anchored
+/// element keeps its distance from that corner at every window size. Subclass it for behaviour and attach
 /// <see cref="Component"/>s for what composes, exactly as with an entity in the world.
 /// </para>
 /// </summary>

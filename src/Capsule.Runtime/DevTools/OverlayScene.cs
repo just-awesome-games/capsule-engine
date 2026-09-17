@@ -181,16 +181,10 @@ internal sealed class OverlayScene : Scene
         }
     }
 
-    // Makes menu current, focused where it remembers; the menu already shown stays as it is, so a
-    // hotkey pressed inside its own submenu does not stack it twice.
+    // Makes menu current, focused where it remembers.
     internal void Push(Menu menu)
     {
         ArgumentNullException.ThrowIfNull(menu);
-
-        if (_stack.Count > 0 && ReferenceEquals(Current, menu))
-        {
-            return;
-        }
 
         _stack.Add(menu);
         Show(menu);
@@ -263,17 +257,18 @@ internal sealed class OverlayScene : Scene
 
         Scroll(input.Axis(OverlayActions.Scroll));
 
-        // The default menu's hotkeys work at any depth. A press activates at once; a repeating item
-        // held past the delay activates again every interval. One counter serves them all,
-        // advanced once per step: it runs while any repeating hotkey is held and restarts on any
-        // press edge.
+        // The default menu's hotkeys: an opener's only while the default menu is current, the rest
+        // at any depth. A press activates at once; a repeating item held past the delay activates
+        // again every interval. One counter serves them all, advanced once per step: it runs while
+        // any repeating hotkey is held and restarts on any press edge.
         IReadOnlyList<MenuItem> items = _stack[0].Items;
+        bool atRoot = _stack.Count == 1;
         bool anyPressed = false;
         bool anyHeld = false;
         for (int index = 0; index < items.Count; index++)
         {
             MenuItem item = items[index];
-            if (item.Hotkey is { } hotkey)
+            if (item.Hotkey is { } hotkey && (atRoot || !item.OpensMenu))
             {
                 anyPressed |= input.WasPressed(hotkey);
                 anyHeld |= item.Repeats && input.IsHeld(hotkey);
@@ -288,6 +283,7 @@ internal sealed class OverlayScene : Scene
         {
             MenuItem item = items[index];
             if (item.Hotkey is { } hotkey
+                && (atRoot || !item.OpensMenu)
                 && (input.WasPressed(hotkey) || (repeat && item.Repeats && input.IsHeld(hotkey))))
             {
                 Activate(item);

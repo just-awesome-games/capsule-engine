@@ -55,13 +55,16 @@ public sealed class Run
 
     /// <summary>
     /// The screen layer's extent in canvas pixels, whose origin is its top-left corner and whose Y
-    /// runs down. In a windowed run it is the declared render resolution, or the window size the
-    /// run was configured to open at, so it never follows a window the player resizes. A
-    /// <see cref="ScreenEntity"/> is anchored and hit-tested against it, and a camera fit that
+    /// runs down. In a windowed run it is the canvas the game declared at boot; else the declared
+    /// render resolution; else the window size the run was configured to open at. It never follows
+    /// a window the player resizes: the canvas is scaled to fit whatever the frame is presented on.
+    /// A <see cref="ScreenEntity"/> is anchored and hit-tested against it, and a camera fit that
     /// reveals more world than the canvas holds leaves the screen layer this extent, centred in
-    /// what the world was drawn on. The value is shared by every scene the run opens. The game
-    /// fixes it for its run; the host may refit it only on a run the host itself owns, such as the
-    /// development debug overlay, never on the game's run.
+    /// what the world was drawn on. The value is shared by every scene the run opens. The game may
+    /// set it during the run — a larger canvas is a smaller interface, which is what a UI-scale
+    /// option moves — and every screen entity is laid out against the new value from the next
+    /// step. A host refits only a run it owns itself, such as the development debug overlay's,
+    /// never the game's.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Either component is not greater than zero or is NaN.
@@ -70,7 +73,7 @@ public sealed class Run
     {
         get;
 
-        internal set
+        set
         {
             if (value.X <= 0f || float.IsNaN(value.X) || value.Y <= 0f || float.IsNaN(value.Y))
             {

@@ -21,12 +21,6 @@
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
   </ItemGroup>
 
-  <!-- The prose documentation ships in the package a game references, so a consumer who never
-       clones the repository has it. -->
-  <ItemGroup>
-    <None Include="../../docs/*.md" Pack="true" PackagePath="docs/" Visible="false" />
-  </ItemGroup>
-
   <!-- Derived from the reference list rather than restated, so a module joins the package by
        being admitted above and nowhere else. -->
   <Target Name="_CapsuleCollectPureModuleAssets">

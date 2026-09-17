@@ -37,10 +37,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)PACKAGE.md"
-          Pack="true"
-          PackagePath="/"
-          Visible="false" />
     <None Include="$(MSBuildThisFileDirectory)docs/assets/capsule-package-icon.png"
           Pack="true"
           PackagePath="/"

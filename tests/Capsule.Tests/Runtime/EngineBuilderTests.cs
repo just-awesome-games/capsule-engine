@@ -1,4 +1,6 @@
+using System.Numerics;
 using Capsule.Assets;
+using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -23,6 +25,8 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithFixedStep(0))];
         yield return [new Action<EngineBuilder>(b => b.WithRenderResolution(0, 180))];
         yield return [new Action<EngineBuilder>(b => b.WithRenderResolution(320, 0))];
+        yield return [new Action<EngineBuilder>(b => b.WithCanvas(0, 360))];
+        yield return [new Action<EngineBuilder>(b => b.WithCanvas(640, 0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithInput(i => i.GamepadDeadzones(float.NaN, 0.12f)))];
@@ -52,6 +56,33 @@ public sealed class EngineBuilderTests
     public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string appName)
     {
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithCrashLog(appName));
+    }
+
+    // The canvas a run's screen layer is laid out in: declared, it is what the game said; otherwise
+    // the render resolution stands in, and with neither the window the run opens at.
+    [Fact]
+    public void TheCanvas_IsTheDeclaredOneElseTheRenderResolutionElseTheWindow()
+    {
+        Assert.Equal(new Vector2(640f, 360f), CanvasOf(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180).WithCanvas(640, 360)));
+        Assert.Equal(new Vector2(320f, 180f), CanvasOf(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180)));
+        Assert.Equal(new Vector2(1280f, 720f), CanvasOf(b => b.WithWindow(1280, 720)));
+    }
+
+    // The canvas the run opened with, read by the scene as it starts on a one-step headless run.
+    private static Vector2 CanvasOf(Func<EngineBuilder, EngineBuilder> configure)
+    {
+        Vector2 seen = Vector2.Zero;
+        EngineBuilder builder = CapsuleEngine.Configure(
+                GameName,
+                new SceneRegistry(
+                    new EntityRegistry([]),
+                    [SceneRegistration.Plain(typeof(Reader), () => new Reader(canvas => seen = canvas))]))
+            .WithoutCrashLog()
+            .WithoutLogging();
+
+        configure(builder).RunHeadless<Reader>(new InputScript().Wait(1).Build());
+
+        return seen;
     }
 
     [Fact]
@@ -98,6 +129,11 @@ public sealed class EngineBuilderTests
         SceneRegistration.Plain(typeof(Menu), static () => new Menu());
 
     private sealed class Menu : Scene;
+
+    private sealed class Reader(Action<Vector2> read) : Scene
+    {
+        protected override void OnStart() => read(Run.Canvas);
+    }
 
     private sealed class Room01(SceneContent content) : Scene(content);
 }

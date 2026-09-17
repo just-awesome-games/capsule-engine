@@ -37,6 +37,7 @@ public sealed class EngineBuilder
     private bool _resizable = true;
     private bool _fullscreen;
     private (int Width, int Height)? _renderResolution;
+    private (int Width, int Height)? _canvas;
     private double _stepSeconds = 1.0 / StepContext.DefaultStepHertz;
     private int _maxStepsPerFrame = DefaultMaxStepsPerFrame;
     private string? _crashLogAppName;
@@ -74,7 +75,7 @@ public sealed class EngineBuilder
     {
         get
         {
-            (int width, int height) = EngineOptions.CanvasOf(_renderResolution, _windowWidth, _windowHeight);
+            (int width, int height) = EngineOptions.CanvasOf(_canvas, _renderResolution, _windowWidth, _windowHeight);
 
             return new Vector2(width, height);
         }
@@ -116,7 +117,8 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// A fixed render surface, letterboxed into the window; independent of the camera's
-    /// world-unit viewport.
+    /// world-unit viewport. Unless <see cref="WithCanvas"/> is called, it is also the canvas the
+    /// screen layer is laid out in, so pixel art draws its interface in the same pixels as its world.
     /// </summary>
     /// <param name="width">Render-target width in pixels.</param>
     /// <param name="height">Render-target height in pixels.</param>
@@ -126,6 +128,29 @@ public sealed class EngineBuilder
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         _renderResolution = (width, height);
+        return this;
+    }
+
+    /// <summary>
+    /// The screen layer's extent in canvas pixels: the base size a
+    /// <see cref="Capsule.UI.ScreenEntity"/> is anchored and laid out in, scaled to fit whatever
+    /// the frame is presented on. The run's <see cref="Run.Canvas"/> is this; else the render
+    /// resolution (<see cref="WithRenderResolution"/>); else the window size
+    /// <see cref="WithWindow"/> declared. So a pixel-art game declares only its render resolution
+    /// and its interface shares those pixels; an HD game declares neither, renders at native size
+    /// and lays its interface out in the window it asked for; and a game that wants a fixed
+    /// low-resolution world surface under a high-resolution interface, or the reverse, declares
+    /// both. The game may move the canvas during the run through <see cref="Run.Canvas"/>: a
+    /// larger canvas is a smaller interface.
+    /// </summary>
+    /// <param name="width">Canvas width in canvas pixels.</param>
+    /// <param name="height">Canvas height in canvas pixels.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
+    public EngineBuilder WithCanvas(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        _canvas = (width, height);
         return this;
     }
 
@@ -419,6 +444,7 @@ public sealed class EngineBuilder
             _resizable,
             _fullscreen,
             _renderResolution,
+            _canvas,
             _stepSeconds,
             _maxStepsPerFrame,
             _input,
