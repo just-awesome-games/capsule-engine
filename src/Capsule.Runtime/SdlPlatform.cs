@@ -11,6 +11,7 @@ internal static class SdlPlatform
 {
     private const string LibraryName = "SDL2";
 
+    private const uint InputFocusFlag = 0x00000200;
     private const uint WindowEventType = 0x200;
     private const byte WindowExposed = 3;
     private const byte WindowSizeChanged = 6;
@@ -34,6 +35,11 @@ internal static class SdlPlatform
     // activation only to a process that already holds it, so a launch from a busy terminal can
     // still leave the window behind that terminal.
     internal static void RaiseWindow(nint window) => SDL_RaiseWindow(window);
+
+    // SDL's own keyboard-focus flag, false from creation until the OS grants focus. The backend's
+    // IsActive reports true from construction until the first focus event, so a window that never
+    // gained focus would read the global mouse as its own and play at full volume.
+    internal static bool HasInputFocus(nint window) => (SDL_GetWindowFlags(window) & InputFocusFlag) != 0;
 
     // The operating system's own handle for the window — an HWND on Windows — or zero when SDL
     // will not report one. A backend window handle is SDL's own opaque pointer, not this.
@@ -150,6 +156,9 @@ internal static class SdlPlatform
 #pragma warning disable SYSLIB1054
     [DllImport(LibraryName, EntryPoint = "SDL_RaiseWindow")]
     private static extern void SDL_RaiseWindow(nint window);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowFlags")]
+    private static extern uint SDL_GetWindowFlags(nint window);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowSize")]
     private static extern void SDL_GetWindowSize(nint window, out int width, out int height);
