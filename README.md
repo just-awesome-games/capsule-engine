@@ -25,14 +25,14 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 A shell's whole hand-written code is its entry point, against the generated `CapsuleBoot` builder:
 
 ```csharp
-return CapsuleBoot.Configure("My Game").WithCommandLine(args).RunScene<MainMenu>();
+return CapsuleBoot.Configure("My Game", new DesktopPlatform()).WithCommandLine(args).RunScene<MainMenu>();
 ```
 
 Press `` ` `` in any windowed run for the development overlay; a trimmed publish removes it and an untrimmed one carries it disabled ([`docs/debugging.md`](docs/debugging.md)).
 
 ## Where to go next
 
-Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell host), and `JAG.Capsule.Build` (build tooling); [`PACKAGE.md`](PACKAGE.md) lists their contents. Every public member's contract is its XML documentation, shipped beside the assemblies; the markdown below holds only what spans many types.
+Four packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (the neutral host), `JAG.Capsule.Runtime.Desktop` (the desktop platform module a shell references), and `JAG.Capsule.Build` (build tooling); [`PACKAGE.md`](PACKAGE.md) lists their contents. Every public member's contract is its XML documentation, shipped beside the assemblies; the markdown below holds only what spans many types.
 
 - [`docs/architecture.md`](docs/architecture.md) — the module boundaries, the logic boundary, the determinism contract, and the NativeAOT floor.
 - [`docs/consuming-capsule.md`](docs/consuming-capsule.md) — repository shape, project wiring, publishing, and the build properties.
@@ -44,6 +44,7 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 - [`docs/text.md`](docs/text.md) — bitmap fonts.
 - [`docs/headless-play.md`](docs/headless-play.md) — input drivers and the standard command line.
 - [`docs/persistence.md`](docs/persistence.md) — save documents, the file format, and where they go.
+- [`docs/platforms.md`](docs/platforms.md) — host families, the platform module, and the re-targeting path.
 - [`docs/testing.md`](docs/testing.md) — which boundary to test a game at.
 
 ## Contributing

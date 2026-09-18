@@ -105,23 +105,23 @@ The logic role — source generation, purity analysis, the authoring tree, and s
 </Project>
 ```
 
-Tests reference the logic project and take no role; one that drives `CapsuleEngine.RunHeadless` also references the runtime, switched between package and source as the shell's is:
+Tests reference the logic project and take no role; one that drives `CapsuleEngine.RunHeadless` also references the platform module, switched between package and source as the shell's is:
 
 ```xml
 <ItemGroup>
   <ProjectReference Include="../../src/MyGame.Game/MyGame.Game.csproj" />
 </ItemGroup>
 <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-  <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+  <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
 </ItemGroup>
 <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-  <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
+  <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
 </ItemGroup>
 ```
 
 ## Shell project
 
-A shell is one host family: the desktop shell publishes for Windows, Linux and macOS from one project by runtime identifier.
+A shell is one host family: the desktop shell publishes for Windows, Linux and macOS from one project by runtime identifier, and references that family's platform module ([`platforms.md`](platforms.md)).
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -138,10 +138,10 @@ A shell is one host family: the desktop shell publishes for Windows, Linux and m
     <ProjectReference Include="../MyGame.Game/MyGame.Game.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
   </ItemGroup>
 </Project>
 ```
@@ -149,10 +149,11 @@ A shell is one host family: the desktop shell publishes for Windows, Linux and m
 The shell role generates `CapsuleBoot` and supplies default application icons; its entry point is the whole of its hand-written code:
 
 ```csharp
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Generated;
 using MyGame.Game;
 
-return CapsuleBoot.Configure("My Game")
+return CapsuleBoot.Configure("My Game", new DesktopPlatform())
     .WithCommandLine(args)
     .WithInput(GameInput.Configure)
     .RunScene<MainMenu>();

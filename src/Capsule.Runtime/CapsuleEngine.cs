@@ -12,8 +12,12 @@ public static class CapsuleEngine
     /// project or a CI harness — passing the generated registry itself.
     /// </summary>
     /// <param name="gameName">
-    /// The game's display name: the window's title, and the per-user local folder — the crash log and
-    /// the saves — as a slug of it.
+    /// The game's display name: the window's title, and the local folder name the platform opens
+    /// saves and the crash log under, as a slug of it.
+    /// </param>
+    /// <param name="platform">
+    /// The host family the run is on: where content, saves and the crash log are, and the window
+    /// policy. A headless run reads scene documents through it too.
     /// </param>
     /// <param name="scenes">
     /// Every scene the game declares, plain and document-backed alike, so the host can resolve a
@@ -25,7 +29,7 @@ public static class CapsuleEngine
     /// its own.
     /// </param>
     /// <exception cref="ArgumentException">The name is blank, or slugs to no safe directory name.</exception>
-    /// <exception cref="ArgumentNullException">The scene registry is null.</exception>
-    public static EngineBuilder Configure(string gameName, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
-        new(gameName, scenes, drivers ?? InputDriverRegistry.Empty);
+    /// <exception cref="ArgumentNullException">The platform or the scene registry is null.</exception>
+    public static EngineBuilder Configure(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
+        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty);
 }

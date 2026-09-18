@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 
 namespace Capsule.Tests.Packaging;
@@ -16,7 +17,8 @@ public sealed class ApiReferenceTests
         typeof(AssetCollection).Assembly.GetName().Name!,
         typeof(Aabb2D).Assembly.GetName().Name!,
         typeof(Scene).Assembly.GetName().Name!,
-        typeof(CapsuleEngine).Assembly.GetName().Name!);
+        typeof(CapsuleEngine).Assembly.GetName().Name!,
+        typeof(DesktopPlatform).Assembly.GetName().Name!);
 
     [Theory]
     [MemberData(nameof(ShippedAssemblies))]

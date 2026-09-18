@@ -1,5 +1,6 @@
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -61,6 +62,7 @@ public sealed class FrameCaptureTests : IDisposable
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Capture Game",
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(BoundCaptureScene), static () => new BoundCaptureScene())]))
@@ -87,6 +89,7 @@ public sealed class FrameCaptureTests : IDisposable
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Capture Game",
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(BoundCaptureScene), () => scene = new BoundCaptureScene())]))

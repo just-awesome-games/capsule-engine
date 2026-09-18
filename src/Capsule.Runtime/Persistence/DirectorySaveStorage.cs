@@ -7,7 +7,7 @@ using Capsule.Persistence;
 namespace Capsule.Runtime.Persistence;
 
 /// <summary>
-/// The desktop medium: <c>&lt;name&gt;.save.json</c> per document under one directory, created on
+/// The directory medium: <c>&lt;name&gt;.save.json</c> per document under one directory, created on
 /// the first persist. Each write is staged as <c>.save.json.tmp</c> and swapped in, keeping the
 /// previous file as <c>.save.json.bak</c>; a file that does not parse at restore is set aside as
 /// <c>.save.json.corrupt</c> and its backup restored in its place, with a warning either way. A file the process cannot read
@@ -42,10 +42,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
 
     /// <summary>The directory documents are stored in, as a full path.</summary>
     public string Directory { get; }
-
-    // The default medium: the saves subfolder of the game's per-user local folder.
-    internal static DirectorySaveStorage InLocalFolder(string folderName) =>
-        new(Path.Combine(LocalFolder.Resolve(folderName), LocalFolder.SavesSubfolder));
 
     /// <inheritdoc/>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>

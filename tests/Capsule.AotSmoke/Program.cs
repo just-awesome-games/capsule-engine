@@ -5,6 +5,7 @@ using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
 
@@ -77,7 +78,7 @@ internal static class Program
     }
 
     private static HeadlessRunResult Play(string[] args) =>
-        CapsuleEngine.Configure("Capsule AOT Smoke", CapsuleScenes.Registry)
+        CapsuleEngine.Configure("Capsule AOT Smoke", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithCommandLine(args)
             .WithInput(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)

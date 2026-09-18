@@ -48,6 +48,9 @@ internal sealed class CapsuleGame : Game
 
     private float _lastOutputGain = -1f;
 
+    // Null until the renderer exists, and null for a platform with no redraw watch.
+    private IDisposable? _redrawWatch;
+
     private bool _windowRaised;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
@@ -118,9 +121,9 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        _textures = new TextureStore(GraphicsDevice);
+        _textures = new TextureStore(GraphicsDevice, _options.Platform);
 
-        if (SoundDevice.TryOpen() is { } device)
+        if (SoundDevice.TryOpen(_options.Platform) is { } device)
         {
             _device = device;
             _sounds = new SoundStore(device);
@@ -166,7 +169,7 @@ internal sealed class CapsuleGame : Game
         _renderer.ResolveScreenLayer(_simulation.View);
 
         // Installed once the renderer exists, since the watch can fire before the next frame does.
-        SdlPlatform.WatchWindowRedraw(RedrawWindow);
+        _redrawWatch = _options.Platform.WatchWindowRedraw(Window.Handle, RedrawWindow);
 
         base.LoadContent();
     }
@@ -179,7 +182,7 @@ internal sealed class CapsuleGame : Game
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
         // placement, so it is a canvas position before it ever reaches the simulation.
         // Not IsActive: it is true before any focus was ever granted.
-        bool active = SdlPlatform.HasInputFocus(Window.Handle);
+        bool active = _options.Platform.HasInputFocus(Window.Handle);
         DeviceSnapshot sampled = _mouse.SampleOnto(
             GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
             _renderer.ScreenLayer,
@@ -242,11 +245,7 @@ internal sealed class CapsuleGame : Game
         if (!_windowRaised)
         {
             _windowRaised = true;
-            SdlPlatform.RaiseWindow(Window.Handle);
-
-            // A launch through the dotnet muxer breaks the foreground permission chain, so Windows
-            // refuses the raise on its own.
-            WindowsForeground.Claim(SdlPlatform.NativeWindowHandle(Window.Handle));
+            _options.Platform.RaiseWindow(Window.Handle);
         }
 
         _diagnostics?.BeginDraw();
@@ -282,7 +281,8 @@ internal sealed class CapsuleGame : Game
             _overlayHost?.Dispose();
 
             // Ahead of the renderer: the watch draws through it.
-            SdlPlatform.StopWatchingWindowRedraw();
+            _redrawWatch?.Dispose();
+            _redrawWatch = null;
 
             // The scheduler outlives this, and the mixer it fed commands from is the run's.
             _scheduler.StepCompleted = null;
@@ -310,11 +310,12 @@ internal sealed class CapsuleGame : Game
     // handling. Windows blocks the game loop for the whole of a window drag, so this is the only
     // point the view can refit while the edge is moving. No step runs and no capture is taken: a
     // drag advances no simulation time and produces no frame the game asked for.
-    private void RedrawWindow()
+    private void RedrawWindow(int width, int height)
     {
         // The device is only the frame loop's between frames, and applying the new extent raises
-        // the very window events this is watching for. The extent is read fresh below rather than
-        // carried on the event, so an event this guard drops costs a frame and not the fit.
+        // the very window events this is watching for. The platform reads the extent at the call
+        // rather than carrying it on the event, so an event this guard drops costs a frame and not
+        // the fit.
         if (_deviceHeld || !_windowRaised)
         {
             return;
@@ -324,8 +325,6 @@ internal sealed class CapsuleGame : Game
 
         try
         {
-            SdlPlatform.WindowSize(Window.Handle, out int width, out int height);
-
             // The preferred extent is the windowed one, and fullscreen is the desktop's: writing
             // the monitor's extent into it would make that the window Alt+Enter returns to. A
             // fullscreen transition changes the fit, so the frame is still redrawn.

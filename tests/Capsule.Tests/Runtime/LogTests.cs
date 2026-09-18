@@ -2,6 +2,7 @@ using System.Globalization;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 
@@ -128,6 +129,7 @@ public sealed class LogTests : IDisposable
         {
             CapsuleEngine.Configure(
                     "Logging Game",
+                    new DesktopPlatform(),
                     new SceneRegistry(
                         new EntityRegistry([]),
                         [SceneRegistration.Plain(typeof(Announcing), static () => new Announcing())]))

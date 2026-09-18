@@ -29,6 +29,7 @@ public sealed class EngineBuilder
     // The boot trace's first stage after process start, so it is taken before any configuration.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly InputConfiguration _input = new();
+    private readonly HostPlatform _platform;
     private readonly SceneRegistry _scenes;
     private readonly InputDriverRegistry _drivers;
     private readonly string _gameName;
@@ -56,12 +57,14 @@ public sealed class EngineBuilder
     private IInputDriver? _driver;
     private CommandLine _commandLine = CommandLine.None;
 
-    internal EngineBuilder(string gameName, SceneRegistry scenes, InputDriverRegistry drivers)
+    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
+        ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(scenes);
         ArgumentNullException.ThrowIfNull(drivers);
 
+        _platform = platform;
         _scenes = scenes;
         _drivers = drivers;
         _gameName = gameName;
@@ -184,9 +187,10 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// The game's per-user local folder, holding <c>crash.log</c> and the <c>saves</c> subfolder
-    /// (<c>docs/persistence.md</c> lists the per-OS paths); replaces the folder slugged from the
-    /// game's name, so a game renamed after release keeps its players' saves.
+    /// The game's local folder name, which the platform's save storage and crash report are opened
+    /// under (on desktop, the per-user folder holding <c>crash.log</c> and the <c>saves</c>
+    /// subfolder; <c>docs/persistence.md</c> lists the per-OS paths); replaces the folder slugged
+    /// from the game's name, so a game renamed after release keeps its players' saves.
     /// </summary>
     /// <param name="folderName">Used verbatim as one directory name, so it must be exactly that.</param>
     /// <exception cref="ArgumentException">It is not a single safe directory name.</exception>
@@ -205,7 +209,7 @@ public sealed class EngineBuilder
         return this;
     }
 
-    /// <summary>Disables crash-log writes for escaping exceptions.</summary>
+    /// <summary>Stops an escaping exception being reported to the platform's crash log.</summary>
     public EngineBuilder WithoutCrashLog()
     {
         _writesCrashLog = false;
@@ -214,7 +218,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// Keeps save documents under <paramref name="path"/>, the saves directory itself, instead of
-    /// the local folder's <c>saves</c>; what <c>--saves &lt;dir&gt;</c> sets, and the one way a
+    /// the platform's own medium; what <c>--saves &lt;dir&gt;</c> sets, and the one way a
     /// headless run persists anything.
     /// </summary>
     /// <param name="path">Created on the first persist; a relative path resolves against the working directory.</param>
@@ -228,7 +232,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// Replaces the medium save documents are kept on, windowed and headless alike, over
-    /// <see cref="WithSaveDirectory"/> and the local folder.
+    /// <see cref="WithSaveDirectory"/> and the platform's own.
     /// </summary>
     /// <exception cref="ArgumentNullException">The storage is null.</exception>
     public EngineBuilder WithSaveStorage(ISaveStorage storage)
@@ -501,7 +505,8 @@ public sealed class EngineBuilder
             _maxStepsPerFrame,
             _input,
             _driver,
-            _scenes);
+            _scenes,
+            _platform);
 
         try
         {
@@ -511,7 +516,7 @@ public sealed class EngineBuilder
         {
             // A windowed build has no console, so an escaping exception would otherwise vanish.
             // Rethrown to preserve the exit code and the debugger break.
-            CrashLog.TryWrite(_localFolderName, exception);
+            _platform.ReportCrash(_localFolderName, exception);
             throw;
         }
     }
@@ -571,10 +576,10 @@ public sealed class EngineBuilder
         // Before composing, not inside Run: a scene's OnStart logs while the host is built here.
         InstallLogging();
 
-        SceneComposer composer = new(_scenes);
+        SceneComposer composer = new(_scenes, _platform);
 
         ISaveStorage storage = _saveStorage
-            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : DirectorySaveStorage.InLocalFolder(_localFolderName));
+            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : _platform.OpenSaveStorage(_localFolderName));
 
         using SceneHost host = new(
             target,
@@ -594,7 +599,7 @@ public sealed class EngineBuilder
 
         InstallLogging();
 
-        SceneComposer composer = new(_scenes);
+        SceneComposer composer = new(_scenes, _platform);
 
         // No medium unless one was named: persisted state is initial state, never a developer's
         // own local folder.

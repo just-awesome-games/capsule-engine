@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 
-namespace Capsule.Runtime;
+namespace Capsule.Runtime.Desktop;
 
 // The SDL calls the host makes for itself. The graphics backend keeps its own binding internal and
 // initialises a fixed set of subsystems, so both of these have to be made here; the library is the

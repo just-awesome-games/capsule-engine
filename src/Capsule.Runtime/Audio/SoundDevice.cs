@@ -5,27 +5,26 @@ using NVorbis;
 
 namespace Capsule.Runtime.Audio;
 
-// The OpenAL-backed sound device: clips decoded whole, clips decoded as they play, the worker that
+// The backend's sound device: clips decoded whole, clips decoded as they play, the worker that
 // reads the latter ahead, and the watch that keeps the output on the system's default device.
 internal sealed class SoundDevice : IAudioBackend
 {
     private readonly AudioStreamer _streamer = new((rate, channels) => new DynamicPcmQueue(rate, channels));
+    private readonly HostPlatform _platform;
 
-    // Both null when the library offers no way to follow the default output, which leaves sound on
-    // the device the run opened.
-    private OpenAlOutput? _output;
+    // Both null when the platform offers no way to follow the default output, which leaves sound
+    // on the device the run opened.
+    private AudioOutput? _output;
     private OutputFollower? _follower;
 
     // Whether the last reopen failed, so a streak of retries warns once rather than every frame.
     private bool _reopenFailed;
 
-    private SoundDevice()
-    {
-    }
+    private SoundDevice(HostPlatform platform) => _platform = platform;
 
     // Opens the device, or answers null having said why. A machine with no sound card, no output
-    // device or no OpenAL runtime is a machine the game still runs on, silently.
-    internal static SoundDevice? TryOpen()
+    // device or no audio runtime is a machine the game still runs on, silently.
+    internal static SoundDevice? TryOpen(HostPlatform platform)
     {
         try
         {
@@ -40,7 +39,7 @@ internal sealed class SoundDevice : IAudioBackend
             return Silent(failure);
         }
 
-        SoundDevice device = new();
+        SoundDevice device = new(platform);
         device.FollowDefaultOutput();
 
         Log.Info(device._output is { } output ? $"audio device opened on '{output.Name}'" : "audio device opened");
@@ -58,17 +57,14 @@ internal sealed class SoundDevice : IAudioBackend
 
     public IResidentSound Load(in AudioClip clip)
     {
-        string path = AudioFiles.Locate(AppContext.BaseDirectory, clip);
+        using Stream file = AudioFiles.Open(_platform, clip);
 
-        using FileStream file = File.OpenRead(path);
-
-        return new ResidentSoundEffect(SoundEffect.FromStream(file), clip, _streamer);
+        return new ResidentSoundEffect(SoundEffect.FromStream(file), clip, _streamer, _platform);
     }
 
     public IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds)
     {
-        string path = AudioFiles.Locate(AppContext.BaseDirectory, clip);
-        VorbisReader reader = new(File.OpenRead(path), closeOnDispose: true);
+        VorbisReader reader = new(AudioFiles.Open(_platform, clip), closeOnDispose: true);
 
         // The device takes mono and stereo; anything wider would have to be downmixed, and no
         // shipped clip is.
@@ -103,11 +99,11 @@ internal sealed class SoundDevice : IAudioBackend
     private void FollowDefaultOutput()
     {
         OutputFollower follower = new(Reopen, () => _output is { Connected: true });
-        _output = OpenAlOutput.TryAttach(follower.DefaultChanged);
+        _output = _platform.WatchDefaultAudioOutput(follower.DefaultChanged);
 
         if (_output is null)
         {
-            Log.Debug("audio output cannot follow the default device: the OpenAL library lacks the extensions");
+            Log.Debug("audio output cannot follow the default device: the platform offers no watch over it");
 
             return;
         }
@@ -122,7 +118,7 @@ internal sealed class SoundDevice : IAudioBackend
             return true;
         }
 
-        if (output.TryReopen(out int error))
+        if (output.TryReopen(out string? reason))
         {
             Log.Info($"audio output moved to '{output.Name}'");
             _reopenFailed = false;
@@ -132,7 +128,7 @@ internal sealed class SoundDevice : IAudioBackend
 
         if (!_reopenFailed)
         {
-            Log.Warning($"audio output could not move to the default device (OpenAL error 0x{error:X}); retrying");
+            Log.Warning($"audio output could not move to the default device ({reason}); retrying");
             _reopenFailed = true;
         }
 

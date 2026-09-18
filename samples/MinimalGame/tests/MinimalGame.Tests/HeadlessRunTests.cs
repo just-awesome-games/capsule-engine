@@ -1,5 +1,6 @@
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Scenes.Generated;
 using MinimalGame.Game;
@@ -19,7 +20,7 @@ public sealed class HeadlessRunTests
     {
         StartThenQuit driver = new();
 
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithInput(GameInput.Configure)
             .WithoutLogging()
             .RunHeadless<MainMenu>(driver);
@@ -35,7 +36,7 @@ public sealed class HeadlessRunTests
     [Fact]
     public void Walkthrough_PlaysTheRoomHeadlessAndEndsOnQuit()
     {
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithInput(GameInput.Configure)
             .WithoutLogging()
             .RunHeadless<Room>(new Walkthrough());

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Capsule.Runtime;
+namespace Capsule.Runtime.Desktop;
 
 // Takes the Windows foreground for a window the OS will not hand it to. Windows grants foreground
 // activation only along a permission chain — the process that already holds the foreground, one it

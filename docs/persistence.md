@@ -24,6 +24,6 @@ The desktop medium keeps `<name>.save.json` per document, UTF-8 without a byte-o
 1. The local folder's `saves` subfolder, the folder slugged from the game's name: `%LOCALAPPDATA%\my-game\saves` on Windows, `$XDG_DATA_HOME/my-game/saves` (else `~/.local/share/my-game/saves`) on Linux, `~/Library/Application Support/my-game/saves` on macOS; `crash.log` sits beside `saves`.
 2. `EngineBuilder.WithLocalFolder(name)` renames the folder, so a game renamed after release keeps its saves.
 3. `EngineBuilder.WithSaveDirectory(path)`, or `--saves <dir>`, moves the saves directory itself: a portable build, a fresh-install playtest.
-4. `EngineBuilder.WithSaveStorage(ISaveStorage)` replaces the medium, for a platform that mounts a container rather than a folder.
+4. `EngineBuilder.WithSaveStorage(ISaveStorage)` replaces the medium for one shell. The medium itself is the platform module's `OpenSaveStorage` ([`platforms.md`](platforms.md)): the desktop module's is the folder above, and a platform that mounts a container rather than a folder answers with its own.
 
 A headless run persists nothing unless lever 3 or 4 names a medium: persisted state is initial state, never a developer's own folder. The cloud story is a synchronized folder — Steam Auto-Cloud pointed at the saves directory.

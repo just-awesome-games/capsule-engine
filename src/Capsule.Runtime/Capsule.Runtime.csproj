@@ -4,7 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
-    <Description>The Capsule host a game's shell boots: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, save storage, and the crash log. The only module that links the graphics backend.</Description>
+    <Description>The platform-neutral Capsule host: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, sound playback, scene hosting and the HostPlatform contract a platform module fills in. The only module that links the graphics backend.</Description>
+    <!-- The substrate is one property pair, so a private platform module retargets an unmodified
+         source checkout without editing it. -->
+    <CapsuleSubstratePackage Condition="'$(CapsuleSubstratePackage)' == ''">MonoGame.Framework.DesktopGL</CapsuleSubstratePackage>
+    <CapsuleSubstrateVersion Condition="'$(CapsuleSubstrateVersion)' == ''">3.8.5.1</CapsuleSubstrateVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +22,7 @@
 
     <!-- "compile" in PrivateAssets is load-bearing: without it MonoGame's reference assemblies
          flow to consumers and a game can write a Microsoft.Xna.Framework using. -->
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1">
+    <PackageReference Include="$(CapsuleSubstratePackage)" Version="$(CapsuleSubstrateVersion)">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
 
@@ -27,6 +31,15 @@
     <PackageReference Include="NVorbis" Version="0.10.4">
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
+
+    <!-- The neutral host holds no implicit location and no native binding; BannedSymbols.txt is
+         the list, each entry with its reason. A site that seems to need one belongs in a platform
+         module, never under a suppression. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, not one by one: referencing them directly
@@ -34,18 +47,6 @@
   <ItemGroup>
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
-
-  <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
-       release are a matched set. The Error is the tripwire for NuGet's item going away rather than
-       this silently reverting to the open range. -->
-  <Target Name="CapsulePinPureModuleDependency" AfterTargets="_GetProjectReferenceVersions">
-    <Error Condition="'@(_ProjectReferencesWithVersions)' == ''"
-           Text="Capsule.Runtime could not pin its JAG.Capsule dependency: NuGet no longer exposes _ProjectReferencesWithVersions." />
-    <ItemGroup>
-      <_ProjectReferencesWithVersions Condition="'%(Filename)' == 'Capsule'"
-                                      ProjectVersion="[$(PackageVersion)]" />
-    </ItemGroup>
-  </Target>
 
   <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>

@@ -3,6 +3,7 @@ using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 
@@ -74,6 +75,7 @@ public sealed class EngineBuilderTests
         Vector2 seen = Vector2.Zero;
         EngineBuilder builder = CapsuleEngine.Configure(
                 GameName,
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Reader), () => new Reader(canvas => seen = canvas))]))
@@ -109,7 +111,7 @@ public sealed class EngineBuilderTests
     }
 
     private static EngineBuilder SceneBuilder(string gameName = GameName) =>
-        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
+        CapsuleEngine.Configure(gameName, new DesktopPlatform(), new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
     // Every setter a game reaches for, so a rejection above is the run's and not a half-built
     // builder's; silent logging is where a headless run starts.

@@ -7,7 +7,7 @@ namespace Capsule.Runtime.Audio;
 // player holds, pooled as one object: a clip that is only ever heard one at a time allocates exactly
 // one for the life of the scene, a second appears only when a second voice wants it at the same
 // moment, and a play the pool can serve allocates nothing.
-internal sealed class ResidentSoundEffect(SoundEffect effect, AudioClip clip, AudioStreamer streamer) : IResidentSound
+internal sealed class ResidentSoundEffect(SoundEffect effect, AudioClip clip, AudioStreamer streamer, HostPlatform platform) : IResidentSound
 {
     private readonly Stack<PooledVoice> _idle = new();
 
@@ -31,7 +31,7 @@ internal sealed class ResidentSoundEffect(SoundEffect effect, AudioClip clip, Au
     // any other of that format — reuses them and allocates nothing.
     public IAudioVoice Stream(float gain, float pitch, float pan, bool loop, double startSeconds, Action retired)
     {
-        _samples ??= PcmAudio.FromWav(AudioFiles.Locate(AppContext.BaseDirectory, clip), clip.Name);
+        _samples ??= PcmAudio.FromWav(AudioFiles.Open(platform, clip), clip.Name);
 
         return streamer.Play(_samples, clip, gain, pitch, pan, loop, startSeconds, retired);
     }

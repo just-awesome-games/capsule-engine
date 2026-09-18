@@ -1,6 +1,6 @@
-using Capsule.Runtime.Persistence;
+using Capsule.Runtime.Desktop.Persistence;
 
-namespace Capsule.Runtime;
+namespace Capsule.Runtime.Desktop;
 
 internal static class CrashLog
 {

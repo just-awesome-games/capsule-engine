@@ -19,6 +19,10 @@
       <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
           Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Physics.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />
     </ItemGroup>
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Runtime'">
+      <_CapsuleForbiddenInternalsGrant Include="@(InternalsVisibleTo)"
+          Condition="'%(Identity)' == 'Capsule.Runtime.Desktop'" />
+    </ItemGroup>
 
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(ProjectReference)' != ''"
            Text="Capsule.Core must not reference another project." />
@@ -36,6 +40,8 @@
            Text="JAG.Capsule must not reference a package." />
     <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleForbiddenProjectReference)' != ''"
            Text="JAG.Capsule admits Capsule.Core, Capsule.Physics and Capsule.Scenes only; found @(_CapsuleForbiddenProjectReference)." />
+    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Runtime' and '@(_CapsuleForbiddenInternalsGrant)' != ''"
+           Text="Capsule.Runtime grants Capsule.Runtime.Desktop no internals: the platform module is written against the public contract." />
   </Target>
 
 </Project>

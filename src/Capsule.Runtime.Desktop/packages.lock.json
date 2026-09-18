@@ -2,15 +2,8 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
-        "type": "Direct",
-        "requested": "[3.3.4, )",
-        "resolved": "3.3.4",
-        "contentHash": "0k2Jwpc8eq0hjOtX6TxRkHm9clkJ2PAQ3heEHgqIJZcsfdFosC/iyz18nsgTVDDWpID80rC7aiYK7ripx+Qndg=="
-      },
       "MonoGame.Framework.DesktopGL": {
-        "type": "Direct",
-        "requested": "[3.8.5.1, )",
+        "type": "Transitive",
         "resolved": "3.8.5.1",
         "contentHash": "za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
         "dependencies": {
@@ -18,12 +11,6 @@
           "MonoGame.Library.SDL": "2.32.10.2",
           "NVorbis": "0.10.4"
         }
-      },
-      "NVorbis": {
-        "type": "Direct",
-        "requested": "[0.10.4, )",
-        "resolved": "0.10.4",
-        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
       "MonoGame.Library.OpenAL": {
         "type": "Transitive",
@@ -34,6 +21,11 @@
         "type": "Transitive",
         "resolved": "2.32.10.2",
         "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
+      },
+      "NVorbis": {
+        "type": "Transitive",
+        "resolved": "0.10.4",
+        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
       "capsule.core": {
         "type": "Project"
@@ -57,6 +49,14 @@
           "Capsule.Core": "[0.0.0, )",
           "Capsule.Physics": "[0.0.0, )",
           "Capsule.Scenes": "[0.0.0, )"
+        }
+      },
+      "JAG.Capsule.Runtime": {
+        "type": "Project",
+        "dependencies": {
+          "JAG.Capsule": "[0.0.0, )",
+          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
+          "NVorbis": "[0.10.4, )"
         }
       }
     }

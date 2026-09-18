@@ -20,7 +20,14 @@ public sealed class CapsuleBootGeneratorTests
 
         public static class Program
         {
-            public static void Boot() => CapsuleBoot.Configure("Spec Game").WithWindow(320, 180);
+            public static void Boot() => CapsuleBoot.Configure("Spec Game", new SpecPlatform()).WithWindow(320, 180);
+        }
+
+        public sealed class SpecPlatform : Capsule.Runtime.HostPlatform
+        {
+            public override System.IO.Stream OpenContent(string relativePath) => throw new System.NotSupportedException();
+
+            public override Capsule.Persistence.ISaveStorage OpenSaveStorage(string localFolderName) => throw new System.NotSupportedException();
         }
         """;
 
@@ -34,6 +41,10 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Runtime.Generated.CapsuleBoot"));
+
+        // The platform is a required argument of the entry point, never a lever the shell may omit.
+        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
+        Assert.Contains("Configure(string gameName, global::Capsule.Runtime.HostPlatform platform)", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,7 +146,7 @@ public sealed class CapsuleBootGeneratorTests
 
             public static class Program
             {
-                public static void Boot() => CapsuleBoot.Configure("Spec Game").WithWindow(320, 180);
+                public static void Boot() => CapsuleBoot.Configure("Spec Game", null!).WithWindow(320, 180);
             }
             """;
 

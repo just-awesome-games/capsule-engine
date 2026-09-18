@@ -2,6 +2,7 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -39,6 +40,7 @@ public sealed class SavePersistenceTests : IDisposable
         {
             HeadlessRunResult result = CapsuleEngine.Configure(
                     "Save Game",
+                    new DesktopPlatform(),
                     new SceneRegistry(
                         new EntityRegistry([]),
                         [SceneRegistration.Plain(typeof(Counting), () => new Counting(seen.Add))]))

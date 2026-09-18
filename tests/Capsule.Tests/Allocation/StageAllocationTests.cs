@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
@@ -120,7 +121,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         {
             SceneDocumentFile.Save(StageWorkload.Build(), path);
 
-            SceneComposer composer = new(StageWorkload.Scenes());
+            SceneComposer composer = new(StageWorkload.Scenes(), new DesktopPlatform());
             using SceneHost host = new(
                 SceneTransition.ToName(StageWorkload.DocumentName, null),
                 composer.Resolve,

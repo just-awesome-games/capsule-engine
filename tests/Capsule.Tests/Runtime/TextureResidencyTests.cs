@@ -4,7 +4,7 @@ using Capsule.Runtime.Assets;
 namespace Capsule.Tests.Runtime;
 
 // Where a handle's file has to be, and how scene-owned assets load and leave memory. Texture decode
-// needs a graphics device; neither the path contract nor generic ownership does.
+// needs a graphics device; neither the content-path contract nor generic ownership does.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
@@ -14,7 +14,7 @@ public sealed class TextureResidencyTests
     // A handle's name is the source's path under its own root, so a nested asset resolves to a
     // nested file — with the format's separator, whatever the platform's is — and a bitmap font's
     // pages ship under the fonts root beside the font they were cut for. What the handle names is
-    // what Locate finds once the file ships there.
+    // what Open reads once the file ships there.
     [Theory]
     [InlineData("hero", false, "assets/textures/hero.png")]
     [InlineData("enemies/bat", false, "assets/textures/enemies/bat.png")]
@@ -25,7 +25,8 @@ public sealed class TextureResidencyTests
         using Shipped shipped = new(handle);
 
         Assert.Equal(expected, TextureFiles.RelativePathOf(handle));
-        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), TextureFiles.Locate(shipped.BaseDirectory, handle));
+        using Stream opened = TextureFiles.Open(shipped.Platform, handle);
+        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), Assert.IsType<FileStream>(opened).Name);
     }
 
     // One name under two roots is two files and therefore two textures, which the store has to keep
@@ -41,19 +42,19 @@ public sealed class TextureResidencyTests
     }
 
     [Fact]
-    public void Locate_FailsNamingTheHandleAndThePathItLookedIn()
+    public void Open_FailsNamingTheHandleAndThePathItLookedIn()
     {
         using Shipped shipped = new();
 
         FileNotFoundException error = Assert.Throws<FileNotFoundException>(
-            () => TextureFiles.Locate(shipped.BaseDirectory, Hero));
+            () => TextureFiles.Open(shipped.Platform, Hero));
 
         Assert.Contains("'hero'", error.Message, StringComparison.Ordinal);
         Assert.Contains("assets/textures/hero.png", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Locate_RejectsAHandleThatWouldResolveOutsideTheTexturesRoot()
+    public void Open_RejectsAHandleThatWouldResolveOutsideTheTexturesRoot()
     {
         using Shipped shipped = new();
         string outside = System.IO.Path.Combine(shipped.BaseDirectory, "assets", "outside.png");
@@ -61,15 +62,15 @@ public sealed class TextureResidencyTests
         File.WriteAllBytes(outside, []);
         TextureHandle escaping = new("../outside", ".png");
 
-        Assert.Throws<ArgumentException>(() => TextureFiles.Locate(shipped.BaseDirectory, escaping));
+        Assert.Throws<ArgumentException>(() => TextureFiles.Open(shipped.Platform, escaping));
     }
 
     [Fact]
-    public void Locate_RejectsTheDefaultHandleBeforeLookingForAFile()
+    public void Open_RejectsTheDefaultHandleBeforeLookingForAFile()
     {
         using Shipped shipped = new();
 
-        Assert.Throws<ArgumentException>(() => TextureFiles.Locate(shipped.BaseDirectory, default));
+        Assert.Throws<ArgumentException>(() => TextureFiles.Open(shipped.Platform, default));
     }
 
     [Fact]
@@ -211,6 +212,8 @@ public sealed class TextureResidencyTests
         }
 
         internal string BaseDirectory => _workspace.Root;
+
+        internal ContentPlatform Platform => new(_workspace.Root);
 
         /// <summary>The last file shipped, which is the only one the single-handle specs ship.</summary>
         internal string Path { get; private set; } = string.Empty;

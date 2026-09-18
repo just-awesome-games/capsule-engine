@@ -16,18 +16,16 @@ internal sealed class TextureStore : IDisposable
 
     private readonly AtlasMap _atlases;
 
-    internal TextureStore(GraphicsDevice device)
+    internal TextureStore(GraphicsDevice device, HostPlatform platform)
     {
-        _atlases = AtlasMap.Load(AppContext.BaseDirectory);
+        _atlases = AtlasMap.Load(platform);
         _textures = new(Load);
 
         Texture2D Load(TextureHandle handle)
         {
-            string path = TextureFiles.Locate(AppContext.BaseDirectory, handle);
-
             // The batch blends premultiplied, so a straight-alpha texture would fringe dark along
             // every soft edge — a packed page included, which ships straight like any other file.
-            using FileStream file = File.OpenRead(path);
+            using Stream file = TextureFiles.Open(platform, handle);
             return Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
         }
     }

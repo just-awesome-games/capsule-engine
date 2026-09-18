@@ -1,6 +1,7 @@
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Persistence;
@@ -167,6 +168,7 @@ public sealed class CommandLineTests : IDisposable
     private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Command Line Game",
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [

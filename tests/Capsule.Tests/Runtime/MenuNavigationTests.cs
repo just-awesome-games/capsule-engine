@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Rendering;
@@ -48,6 +49,7 @@ public sealed class MenuNavigationTests
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Menu Game",
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Menu), () => played = new Menu())]))

@@ -6,6 +6,7 @@
     <Project Path="src/Capsule.Core/Capsule.Core.csproj" />
     <Project Path="src/Capsule.Generators/Capsule.Generators.csproj" />
     <Project Path="src/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <Project Path="src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
     <Project Path="src/Capsule.Scenes/Capsule.Scenes.csproj" />
   </Folder>
   <Folder Name="/samples/">

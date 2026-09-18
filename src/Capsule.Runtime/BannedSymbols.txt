@@ -1,0 +1,11 @@
+P:System.AppContext.BaseDirectory;An implicit content location.
+M:System.Environment.GetFolderPath(System.Environment.SpecialFolder);An implicit per-user location.
+M:System.Environment.GetFolderPath(System.Environment.SpecialFolder,System.Environment.SpecialFolderOption);An implicit per-user location.
+T:System.Environment.SpecialFolder;An implicit per-user location.
+M:System.Environment.GetEnvironmentVariable(System.String);An implicit location read from the environment.
+M:System.Environment.GetEnvironmentVariable(System.String,System.EnvironmentVariableTarget);An implicit location read from the environment.
+T:System.Runtime.InteropServices.DllImportAttribute;A native binding.
+T:System.Runtime.InteropServices.LibraryImportAttribute;A native binding.
+T:System.Runtime.InteropServices.NativeLibrary;A native binding.
+T:System.OperatingSystem;A platform branch.
+T:System.Runtime.InteropServices.RuntimeInformation;A platform branch.

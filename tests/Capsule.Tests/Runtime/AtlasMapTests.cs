@@ -71,7 +71,7 @@ public sealed class AtlasMapTests
     {
         using TempWorkspace workspace = new("capsule-atlas-");
 
-        Assert.Same(AtlasMap.Empty, AtlasMap.Load(workspace.Root));
+        Assert.Same(AtlasMap.Empty, AtlasMap.Load(new ContentPlatform(workspace.Root)));
     }
 
     [Theory]

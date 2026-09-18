@@ -27,6 +27,19 @@
     </ItemGroup>
   </Target>
 
+  <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
+       release are a matched set. The Error is the tripwire for NuGet's item going away rather than
+       this silently reverting to the open range. -->
+  <Target Name="CapsulePinProjectReferenceDependencies"
+          AfterTargets="_GetProjectReferenceVersions"
+          Condition="'$(IsPackable)' != 'false' and '@(ProjectReference)' != ''">
+    <Error Condition="'@(_ProjectReferencesWithVersions)' == ''"
+           Text="$(PackageId) could not pin its project-reference dependencies: NuGet no longer exposes _ProjectReferencesWithVersions." />
+    <ItemGroup>
+      <_ProjectReferencesWithVersions ProjectVersion="[$(PackageVersion)]" />
+    </ItemGroup>
+  </Target>
+
   <UsingTask TaskName="CapsuleTrimGeneratedDocumentation"
              TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">

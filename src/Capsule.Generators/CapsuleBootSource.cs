@@ -259,8 +259,9 @@ internal static class CapsuleBootSource
         source.AppendLine();
         source.AppendLine("        /// <summary>The engine, configured with every registry this game generates.</summary>");
         source.AppendLine("        /// <param name=\"gameName\">The game's display name: its window title, and its local folder for the crash log and the saves as a slug.</param>");
-        source.AppendLine("        public static global::Capsule.Runtime.EngineBuilder Configure(string gameName) =>");
-        source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes, Drivers);");
+        source.AppendLine("        /// <param name=\"platform\">The platform module for the host family this shell is.</param>");
+        source.AppendLine("        public static global::Capsule.Runtime.EngineBuilder Configure(string gameName, global::Capsule.Runtime.HostPlatform platform) =>");
+        source.AppendLine("            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers);");
         source.AppendLine();
         source.AppendLine("        private static global::Capsule.Scenes.SceneRegistry CreateScenes()");
         source.AppendLine("        {");

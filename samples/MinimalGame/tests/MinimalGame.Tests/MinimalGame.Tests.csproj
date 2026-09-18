@@ -12,11 +12,11 @@
   <!-- Scene behavior is tested through the logic project alone; the runtime is referenced for
        CapsuleEngine.RunHeadless, which drives transitions and exit the way the shell does. -->
   <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>

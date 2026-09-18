@@ -128,7 +128,7 @@ public sealed class LoopedPcmReaderTests
         using SceneDocumentFixtures.Workspace workspace = new();
         File.WriteAllBytes("clip.wav", Wav(tag, bits));
 
-        PcmAudio samples = PcmAudio.FromWav("clip.wav", "clip");
+        PcmAudio samples = PcmAudio.FromWav(File.OpenRead("clip.wav"), "clip");
         float[] read = new float[3];
         float[] expected = [0f, 0.5f, -0.5f];
 
@@ -145,7 +145,7 @@ public sealed class LoopedPcmReaderTests
         File.WriteAllBytes("clip.wav", Wav(1, 16, channels: 6));
 
         NotSupportedException refused =
-            Assert.Throws<NotSupportedException>(() => PcmAudio.FromWav("clip.wav", "surround"));
+            Assert.Throws<NotSupportedException>(() => PcmAudio.FromWav(File.OpenRead("clip.wav"), "surround"));
 
         Assert.Contains("surround", refused.Message, StringComparison.Ordinal);
     }

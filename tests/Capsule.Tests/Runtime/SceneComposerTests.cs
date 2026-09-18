@@ -1,3 +1,4 @@
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
@@ -24,7 +25,7 @@ public sealed class SceneComposerTests : IDisposable
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
         Write(SceneFixtures.Room(new EntityPlacement(1, "chest", 48f, 16f)));
-        SceneComposer composer = new(Registry());
+        SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
 
@@ -39,7 +40,7 @@ public sealed class SceneComposerTests : IDisposable
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
         Write(SceneFixtures.Room(new EntityPlacement(1, "wyvern", 0f, 0f)));
-        SceneComposer composer = new(Registry());
+        SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         SpawnException failure = Assert.Throws<SpawnException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));

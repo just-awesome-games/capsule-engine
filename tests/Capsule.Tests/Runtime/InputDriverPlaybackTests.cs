@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -120,6 +121,7 @@ public sealed class InputDriverPlaybackTests
     private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Driven Game",
+                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [

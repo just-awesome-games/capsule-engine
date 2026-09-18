@@ -1,4 +1,4 @@
-namespace Capsule.Runtime.Persistence;
+namespace Capsule.Runtime.Desktop.Persistence;
 
 // The per-user local folder a game's crash log and saves share; LocalApplicationData alone maps
 // macOS away from its convention.

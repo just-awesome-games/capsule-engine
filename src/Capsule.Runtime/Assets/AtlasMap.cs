@@ -14,22 +14,29 @@ internal sealed class AtlasMap
 {
     internal static readonly AtlasMap Empty = new([]);
 
+    private const string MapPath = "assets/textures/atlases.json";
+
     private readonly Dictionary<TextureHandle, AtlasSlot> _slots;
 
     private AtlasMap(Dictionary<TextureHandle, AtlasSlot> slots) => _slots = slots;
 
-    // The map shipped under the textures root beside baseDirectory, or Empty when none shipped.
-    internal static AtlasMap Load(string baseDirectory)
+    // The map shipped under the textures root, or Empty when none shipped.
+    internal static AtlasMap Load(HostPlatform platform)
     {
-        string path = Path.Combine(baseDirectory, "assets", "textures", "atlases.json");
-        if (!File.Exists(path))
+        Stream file;
+        try
+        {
+            file = platform.OpenContent(MapPath);
+        }
+        catch (IOException missing) when (missing is FileNotFoundException or DirectoryNotFoundException)
         {
             return Empty;
         }
 
-        using FileStream file = File.OpenRead(path);
-
-        return Parse(file, path);
+        using (file)
+        {
+            return Parse(file, MapPath);
+        }
     }
 
     // Throws InvalidDataException when the map is not the build's: a shipped map is derived, so a

@@ -18,7 +18,8 @@ internal sealed record EngineOptions(
     // Null unless the run is driven in code instead of sampling the devices.
     IInputDriver? Driver,
     // The registered scenes, which the development overlay lists.
-    SceneRegistry Scenes)
+    SceneRegistry Scenes,
+    HostPlatform Platform)
 {
     // The canvas rule: the declared canvas; else the declared render resolution; else the window
     // the run was configured to open at.

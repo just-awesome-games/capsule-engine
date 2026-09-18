@@ -15,8 +15,8 @@ internal static class TextureFiles
     internal static string RelativePathOf(in TextureHandle handle) =>
         Files(handle).RelativePathOf(handle.Name, handle.Extension);
 
-    internal static string Locate(string baseDirectory, in TextureHandle handle) =>
-        Files(handle).Locate(baseDirectory, handle.Name, handle.Extension);
+    internal static Stream Open(HostPlatform platform, in TextureHandle handle) =>
+        Files(handle).Open(platform, handle.Name, handle.Extension);
 
     private static AssetFiles Files(in TextureHandle handle) =>
         handle.Domain == TextureDomain.Fonts ? Fonts : Textures;

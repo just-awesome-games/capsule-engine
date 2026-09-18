@@ -1,13 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using Capsule.Runtime.Audio;
 
-namespace Capsule.Runtime.Audio;
+namespace Capsule.Runtime.Desktop.Audio;
 
 // The OpenAL device the backend opened, reached through the context it left current, and the two
 // OpenAL Soft extensions that let sound follow the operating system's default output: system events,
 // which announce that the default moved, and reopen, which moves the device's sources and buffers
 // to the new default with everything still playing. Attaches to nothing when either is missing, in
 // which case sound stays on the output the run opened.
-internal sealed class OpenAlOutput : IDisposable
+internal sealed class OpenAlOutput : AudioOutput
 {
     private const string LibraryName = "openal";
 
@@ -49,9 +51,7 @@ internal sealed class OpenAlOutput : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate byte ReopenDevice(nint device, nint deviceName, nint attribs);
 
-    // Whether the output is still attached to a system device. A device the system pulled — a
-    // headset switched off — plays into nothing until reopened.
-    internal bool Connected
+    public override bool Connected
     {
         get
         {
@@ -61,8 +61,7 @@ internal sealed class OpenAlOutput : IDisposable
         }
     }
 
-    // The system's name for the output the device is on.
-    internal string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
+    public override string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
 
     // Subscribes defaultChanged to the system's default playback device changing, or answers null
     // when the device or the extensions are not there. defaultChanged runs on a thread of the
@@ -107,24 +106,22 @@ internal sealed class OpenAlOutput : IDisposable
         return output;
     }
 
-    // Moves the device to whatever the system's default output now is, keeping every source and
-    // buffer, and restores a disconnected device to a connected one. On failure the device stays
-    // where it was and the library's error for it is reported and cleared.
-    internal bool TryReopen(out int error)
+    // On failure the library's error for the device is reported and cleared.
+    public override bool TryReopen([NotNullWhen(false)] out string? reason)
     {
         if (_reopen(_device, nint.Zero, nint.Zero) == AlcTrue)
         {
-            error = 0;
+            reason = null;
 
             return true;
         }
 
-        error = alcGetError(_device);
+        reason = $"OpenAL error 0x{alcGetError(_device):X}";
 
         return false;
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         _control(1, EventDefaultDeviceChanged, AlcFalse);
         _subscribe(nint.Zero, nint.Zero);

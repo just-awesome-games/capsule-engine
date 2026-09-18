@@ -3,6 +3,7 @@ using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Scenes;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Generated;
 
 namespace Capsule.Bench;
@@ -18,7 +19,7 @@ internal static class Program
             return Suite.Run(args[1..]);
         }
 
-        EngineBuilder engine = CapsuleBoot.Configure("Capsule Bench")
+        EngineBuilder engine = CapsuleBoot.Configure("Capsule Bench", new DesktopPlatform())
             .WithCommandLine(args)
             .WithoutCrashLog();
 

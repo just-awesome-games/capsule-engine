@@ -9,17 +9,18 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 | `Capsule.Core`       | Fixed-step, input, rendering, audio mixing, persistence, asset and diagnostic contracts.                                            | nothing          |
 | `Capsule.Physics`    | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver.                                                  | Core             |
 | `Capsule.Scenes`     | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation.                                | Core, Physics    |
-| `Capsule.Runtime`    | Window, device, clock, input sampling, rendering, sound playback, scene hosting, crash reporting and save storage.                  | the pure modules |
+| `Capsule.Runtime`    | The platform-neutral host: window, device, clock, input sampling, rendering, sound playback, scene hosting, and the `HostPlatform` contract. | the pure modules |
+| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime          |
 | `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary.                                                          | unconstrained    |
 | `Capsule.Build`      | Build-time validation and canonicalization of scene documents, the asset key pass, atlas packing, and measurement of audio sources. | unconstrained    |
 
 The pure modules perform no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime` alone, for project-reference and package consumers alike.
 
-Inside `Capsule.Runtime`, platform-neutral hosting carries no operating-system, file-system, window or MonoGame-platform assumption; those live in the desktop files [`AGENTS.md`](../AGENTS.md#boundaries) names.
+`Capsule.Runtime` holds no implicit location and no native binding — a banned-API list refuses them at compile time — and consults its `HostPlatform` for every one; platform code lives in a platform module, which the runtime grants no internals ([`platforms.md`](platforms.md)).
 
 ## Placement
 
-Assemblies follow layers, so the compiler enforces reference direction; namespaces and folders follow domains, so a subsystem is reached with one `using`. A type's assembly is decided by what it depends on — a contract or data plane with no scene dependency in `Capsule.Core`, the collision server in `Capsule.Physics`, anything referencing `Scene`, `Entity` or `Component` in `Capsule.Scenes`, anything touching a device, window, file or MonoGame in `Capsule.Runtime` — and its namespace is its domain's whichever assembly it lives in: `Capsule` (step, run, randomness, timing, deterministic math), `Capsule.Scenes`, `Capsule.Physics`, `Capsule.Rendering`, `Capsule.Audio`, `Capsule.Animation`, `Capsule.Input`, `Capsule.UI`, `Capsule.Tiles`, `Capsule.Assets`, `Capsule.Persistence`, `Capsule.Diagnostics`, and the runtime's own `Capsule.Runtime.*` mirrors, with the development overlay under `Capsule.Runtime.DevTools`. A new domain adds a namespace; a new assembly is created only when the compiler must enforce a reference direction.
+Assemblies follow layers, so the compiler enforces reference direction; namespaces and folders follow domains, so a subsystem is reached with one `using`. A type's assembly is decided by what it depends on — a contract or data plane with no scene dependency in `Capsule.Core`, the collision server in `Capsule.Physics`, anything referencing `Scene`, `Entity` or `Component` in `Capsule.Scenes`, anything touching a device, window, file or MonoGame in `Capsule.Runtime`, anything knowing an operating system's locations or linking a native library in a platform module — and its namespace is its domain's whichever assembly it lives in: `Capsule` (step, run, randomness, timing, deterministic math), `Capsule.Scenes`, `Capsule.Physics`, `Capsule.Rendering`, `Capsule.Audio`, `Capsule.Animation`, `Capsule.Input`, `Capsule.UI`, `Capsule.Tiles`, `Capsule.Assets`, `Capsule.Persistence`, `Capsule.Diagnostics`, and the runtime's own `Capsule.Runtime.*` mirrors, with the development overlay under `Capsule.Runtime.DevTools`. A new domain adds a namespace; a new assembly is created only when the compiler must enforce a reference direction.
 
 ## Logic boundary
 
@@ -61,4 +62,4 @@ At a scene boundary the runtime synchronously preloads the media the composed sc
 
 ## NativeAOT floor
 
-Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation, `dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes a package-consuming game and the source-backed headless smoke with NativeAOT on Windows and Linux and runs the result.
+Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation, `dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes a package-consuming game and the source-backed headless smoke with NativeAOT on Windows and Linux and runs the result; the floor is also what a console platform module builds on ([`platforms.md`](platforms.md)).

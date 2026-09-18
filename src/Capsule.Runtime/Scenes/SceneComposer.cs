@@ -6,7 +6,7 @@ using Capsule.Scenes.Spawning;
 namespace Capsule.Runtime.Scenes;
 
 // Holds only the current parsed document so restarts do not touch disk.
-internal sealed class SceneComposer(SceneRegistry scenes)
+internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
     // Where the scene-document build hook lands its output in a shell's content, and the extension
     // it writes; a document name resolves against exactly that.
@@ -30,6 +30,25 @@ internal sealed class SceneComposer(SceneRegistry scenes)
     // A scene document's name is its key: the path the build shipped it at under assets/scenes.
     // Judged by the build's own key grammar, so a name that is no key is refused here rather than
     // reaching the file system.
+    // What SceneDocumentFile.Load does for a path, over the platform's content instead.
+    private SceneDocument Load(string path)
+    {
+        string json;
+        using (StreamReader reader = new(platform.OpenContent(path)))
+        {
+            json = reader.ReadToEnd();
+        }
+
+        try
+        {
+            return SceneDocumentFile.Parse(json);
+        }
+        catch (SceneDocumentFormatException exception)
+        {
+            throw new SceneDocumentFormatException($"{path}: {exception.Message}", exception);
+        }
+    }
+
     private static string DocumentFileName(string name) =>
         AssetPaths.IsKey(name)
             ? name + DocumentExtension
@@ -39,7 +58,7 @@ internal sealed class SceneComposer(SceneRegistry scenes)
 
     private Scene ComposeDocument(string name)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, DocumentDirectory, DocumentFileName(name));
+        string path = DocumentDirectory + "/" + DocumentFileName(name);
         SceneDocument document = Hold(name, path);
 
         try
@@ -62,7 +81,7 @@ internal sealed class SceneComposer(SceneRegistry scenes)
             return held;
         }
 
-        SceneDocument document = SceneDocumentFile.Load(path);
+        SceneDocument document = Load(path);
         _heldName = name;
         _held = document;
 

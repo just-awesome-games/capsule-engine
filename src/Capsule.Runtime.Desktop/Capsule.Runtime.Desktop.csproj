@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Capsule.Runtime.Desktop</RootNamespace>
+    <PackageId>JAG.Capsule.Runtime.Desktop</PackageId>
+    <Description>The desktop platform module a game's shell hands the Capsule host: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound that follows the default output. Publishes Windows, Linux and macOS from one shell.</Description>
+  </PropertyGroup>
+
+  <!-- The neutral host's public surface is the whole of what this sees: it is granted no
+       internals, so it proves the contract a private platform module is written against. -->
+  <ItemGroup>
+    <ProjectReference Include="../Capsule.Runtime/Capsule.Runtime.csproj" />
+  </ItemGroup>
+
+  <!-- Test access; see AGENTS.md section Public surface. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
+</Project>

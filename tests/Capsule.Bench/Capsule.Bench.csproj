@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
-    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime/Capsule.Runtime.csproj" />
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
     <ProjectReference Include="../Capsule.Bench.Logic/Capsule.Bench.Logic.csproj" />
   </ItemGroup>
 

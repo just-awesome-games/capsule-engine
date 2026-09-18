@@ -193,6 +193,12 @@
           "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
           "NVorbis": "[0.10.4, )"
         }
+      },
+      "JAG.Capsule.Runtime.Desktop": {
+        "type": "Project",
+        "dependencies": {
+          "JAG.Capsule.Runtime": "[0.0.0, )"
+        }
       }
     }
   }
