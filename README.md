@@ -6,7 +6,7 @@
 
 <p align="center">A deterministic, code-first 2D game engine for C#.</p>
 
-Capsule owns the game loop, fixed-step clock, input, rendering, scenes, entities, and build pipeline. Games are authored in C# and in plain scene documents; there is no editor, project wizard, or serialized scene graph. MonoGame is an internal host dependency and is unavailable to game logic.
+Capsule owns the game loop, fixed-step clock, input, rendering, scenes, entities, saves, and build pipeline. Games are authored in C# and in plain scene documents; there is no editor, project wizard, or serialized scene graph. MonoGame is an internal host dependency and is unavailable to game logic.
 
 Capsule is a good fit for a 2D game that values headless-testable gameplay, explicit code, deterministic stepping, and a small engine surface. It is not a fit for teams that need an integrated editor, 3D, a large plugin ecosystem, or a stable 1.0 API.
 
@@ -43,6 +43,7 @@ Three packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (shell hos
 - [`docs/sprite-animation.md`](docs/sprite-animation.md) — the `*.sheet.json` sprite sheet format.
 - [`docs/text.md`](docs/text.md) — bitmap fonts.
 - [`docs/headless-play.md`](docs/headless-play.md) — input drivers and the standard command line.
+- [`docs/persistence.md`](docs/persistence.md) — save documents, the file format, and where they go.
 - [`docs/testing.md`](docs/testing.md) — which boundary to test a game at.
 
 ## Contributing

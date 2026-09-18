@@ -1,4 +1,5 @@
 using System.Globalization;
+using Capsule.Diagnostics;
 
 namespace Capsule.Runtime;
 
@@ -14,11 +15,18 @@ internal sealed class CommandLine
     // A builder that was never given a command line: nothing asked for and nothing rejected.
     internal static readonly CommandLine None = new();
 
-    private const string StandardFlags = """
+    // The development flags exist only where the development plane is on; a shipping build
+    // refuses them as it does any option it never declared, so a player cannot drive or probe it.
+    private const string DevelopmentFlags = """
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, which needs a driver
           --scene <Name>             boot the registered scene of that class name
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
+
+        """;
+
+    private const string ShippingFlags = """
+          --saves <dir>              keep save documents under that directory
           --help                     print this and exit
         """;
 
@@ -42,8 +50,13 @@ internal sealed class CommandLine
 
     internal double? FramesSeconds { get; private set; }
 
-    internal static string UsageFor(string gameName) =>
-        $"usage: {gameName} [options]{Environment.NewLine}{StandardFlags}";
+    // The saves directory, null unless --saves was given.
+    internal string? SavesPath { get; private set; }
+
+    internal static string UsageFor(string gameName) => UsageFor(gameName, Development.IsSupported);
+
+    internal static string UsageFor(string gameName, bool development) =>
+        $"usage: {gameName} [options]{Environment.NewLine}{(development ? DevelopmentFlags : "")}{ShippingFlags}";
 
     // Writes message and the usage block to standard error and answers the process's exit code.
     internal static int Reject(string gameName, string message)
@@ -54,7 +67,11 @@ internal sealed class CommandLine
         return BadArgumentExitCode;
     }
 
-    internal static CommandLine Parse(string[] args)
+    internal static CommandLine Parse(string[] args) => Parse(args, Development.IsSupported);
+
+    // `development` is the process's Development.IsSupported, a parameter so a test can parse as a
+    // shipping build would.
+    internal static CommandLine Parse(string[] args, bool development)
     {
         CommandLine parsed = new();
         HashSet<string> given = new(StringComparer.Ordinal);
@@ -74,7 +91,7 @@ internal sealed class CommandLine
                     parsed.HelpRequested = true;
                     break;
 
-                case "--driver":
+                case "--driver" when development:
                     if (!TryValue(args, ref index, out string driver))
                     {
                         return parsed.Refuse("--driver needs a driver name.");
@@ -83,11 +100,11 @@ internal sealed class CommandLine
                     parsed.DriverName = driver;
                     break;
 
-                case "--headless":
+                case "--headless" when development:
                     parsed.Headless = true;
                     break;
 
-                case "--scene":
+                case "--scene" when development:
                     if (!TryValue(args, ref index, out string scene))
                     {
                         return parsed.Refuse("--scene needs a scene class name.");
@@ -96,7 +113,7 @@ internal sealed class CommandLine
                     parsed.SceneName = scene;
                     break;
 
-                case "--frames":
+                case "--frames" when development:
                     if (!TryValue(args, ref index, out string frames))
                     {
                         return parsed.Refuse("--frames needs a path.");
@@ -109,6 +126,15 @@ internal sealed class CommandLine
 
                     parsed.FramesPath = frames;
                     parsed.FramesSeconds = seconds;
+                    break;
+
+                case "--saves":
+                    if (!TryValue(args, ref index, out string saves))
+                    {
+                        return parsed.Refuse("--saves needs a directory.");
+                    }
+
+                    parsed.SavesPath = saves;
                     break;
 
                 default:

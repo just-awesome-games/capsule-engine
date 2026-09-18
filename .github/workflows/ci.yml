@@ -139,4 +139,4 @@ jobs:
           --output artifacts/aot-smoke
 
       - name: Run the published smoke binary
-        run: ${{ matrix.smoke-binary }}
+        run: ${{ matrix.smoke-binary }} --saves ${{ runner.temp }}/capsule-smoke-saves

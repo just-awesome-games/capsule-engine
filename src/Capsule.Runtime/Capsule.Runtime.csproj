@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
-    <Description>The Capsule host a game's shell boots: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, and the crash log. The only module that links the graphics backend.</Description>
+    <Description>The Capsule host a game's shell boots: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, save storage, and the crash log. The only module that links the graphics backend.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -56,6 +56,7 @@
     <!-- The serializer generator documents every member of the context it emits; the shipped
          reference lists only the public surface. -->
     <CapsuleGeneratedInternalType Include="Capsule.Runtime.Assets.AtlasMapJsonContext" />
+    <CapsuleGeneratedInternalType Include="Capsule.Runtime.Persistence.SaveFileJsonContext" />
   </ItemGroup>
 
 </Project>

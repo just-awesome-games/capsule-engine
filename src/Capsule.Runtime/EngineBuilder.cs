@@ -4,7 +4,9 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Persistence;
 using Capsule.Rendering;
+using Capsule.Runtime.Persistence;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
@@ -40,7 +42,10 @@ public sealed class EngineBuilder
     private (int Width, int Height)? _canvas;
     private double _stepSeconds = 1.0 / StepContext.DefaultStepHertz;
     private int _maxStepsPerFrame = DefaultMaxStepsPerFrame;
-    private string? _crashLogAppName;
+    private string _localFolderName;
+    private bool _writesCrashLog = true;
+    private string? _saveDirectory;
+    private ISaveStorage? _saveStorage;
     private ILogSink? _logSink;
     private ConsoleLogSink? _consoleSink;
     private bool _loggingSilenced;
@@ -61,9 +66,9 @@ public sealed class EngineBuilder
         _drivers = drivers;
         _gameName = gameName;
         _windowTitle = gameName;
-        _crashLogAppName = SafeName.Slug(gameName)
+        _localFolderName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
-                $"A game name must slug to one safe directory name for its crash log, and '{gameName}' does not: "
+                $"A game name must slug to one safe directory name for its local folder, and '{gameName}' does not: "
                 + "it holds no letter or digit, or what remains is a reserved device name.",
                 nameof(gameName));
     }
@@ -179,30 +184,57 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Writes an escaping exception to <c>crash.log</c> under the OS-local application data folder
-    /// for <paramref name="appName"/>, replacing the folder slugged from the game's name.
+    /// The game's per-user local folder, holding <c>crash.log</c> and the <c>saves</c> subfolder
+    /// (<c>docs/persistence.md</c> lists the per-OS paths); replaces the folder slugged from the
+    /// game's name, so a game renamed after release keeps its players' saves.
     /// </summary>
-    /// <param name="appName">Used verbatim as one directory name, so it must be exactly that.</param>
+    /// <param name="folderName">Used verbatim as one directory name, so it must be exactly that.</param>
     /// <exception cref="ArgumentException">It is not a single safe directory name.</exception>
-    public EngineBuilder WithCrashLog(string appName)
+    public EngineBuilder WithLocalFolder(string folderName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
 
-        if (!SafeName.IsOneSafeDirectoryName(appName))
+        if (!SafeName.IsOneSafeDirectoryName(folderName))
         {
             throw new ArgumentException(
-                "A crash-log application name must be a single directory name: no separators, no relative segment, no reserved device name, and no trailing dot or space.",
-                nameof(appName));
+                "A local folder name must be a single directory name: no separators, no relative segment, no reserved device name, and no trailing dot or space.",
+                nameof(folderName));
         }
 
-        _crashLogAppName = appName;
+        _localFolderName = folderName;
         return this;
     }
 
     /// <summary>Disables crash-log writes for escaping exceptions.</summary>
     public EngineBuilder WithoutCrashLog()
     {
-        _crashLogAppName = null;
+        _writesCrashLog = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Keeps save documents under <paramref name="path"/>, the saves directory itself, instead of
+    /// the local folder's <c>saves</c>; what <c>--saves &lt;dir&gt;</c> sets, and the one way a
+    /// headless run persists anything.
+    /// </summary>
+    /// <param name="path">Created on the first persist; a relative path resolves against the working directory.</param>
+    /// <exception cref="ArgumentException">The path is null or blank.</exception>
+    public EngineBuilder WithSaveDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _saveDirectory = path;
+        return this;
+    }
+
+    /// <summary>
+    /// Replaces the medium save documents are kept on, windowed and headless alike, over
+    /// <see cref="WithSaveDirectory"/> and the local folder.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">The storage is null.</exception>
+    public EngineBuilder WithSaveStorage(ISaveStorage storage)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        _saveStorage = storage;
         return this;
     }
 
@@ -323,7 +355,9 @@ public sealed class EngineBuilder
     /// <summary>
     /// Applies Capsule's standard command line — the flags <c>--help</c> prints — so a game gets
     /// driven play, headless play and frame timing without writing a parser. Nothing is read
-    /// ambiently: a shell that never passes its <c>args</c> has no command line at all.
+    /// ambiently: a shell that never passes its <c>args</c> has no command line at all. A shipping
+    /// build (<see cref="Development.IsSupported"/> false) keeps only <c>--saves</c> and
+    /// <c>--help</c> and refuses the development flags as unknown options.
     /// </summary>
     /// <param name="args">
     /// The process arguments, holding standard flags only: a game with flags of its own removes
@@ -348,6 +382,11 @@ public sealed class EngineBuilder
             WithFrameDiagnostics(frames, _commandLine.FramesSeconds);
         }
 
+        if (_commandLine.SavesPath is { } saves)
+        {
+            WithSaveDirectory(saves);
+        }
+
         return this;
     }
 
@@ -369,8 +408,9 @@ public sealed class EngineBuilder
     /// <see cref="WithInputDriver"/> set.
     /// </summary>
     /// <remarks>
-    /// A headless run writes no crash log whatever <see cref="WithCrashLog"/> configured: an
-    /// exception escaping the scene propagates to the caller, which is a test or a CI job.
+    /// A headless run writes no crash log — an escaping exception propagates to the caller — and
+    /// persists nothing unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/>
+    /// named a medium, so persisted state is initial state and never a developer's own.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
@@ -467,11 +507,11 @@ public sealed class EngineBuilder
         {
             Host(options, simulation, scenes);
         }
-        catch (Exception exception) when (_crashLogAppName is not null)
+        catch (Exception exception) when (_writesCrashLog)
         {
             // A windowed build has no console, so an escaping exception would otherwise vanish.
             // Rethrown to preserve the exit code and the debugger break.
-            CrashLog.TryWrite(_crashLogAppName, exception);
+            CrashLog.TryWrite(_localFolderName, exception);
             throw;
         }
     }
@@ -533,10 +573,14 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
+        ISaveStorage storage = _saveStorage
+            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : DirectorySaveStorage.InLocalFolder(_localFolderName));
+
         using SceneHost host = new(
             target,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling });
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling },
+            storage);
         Run(host, host);
 
         return 0;
@@ -552,10 +596,16 @@ public sealed class EngineBuilder
 
         SceneComposer composer = new(_scenes);
 
+        // No medium unless one was named: persisted state is initial state, never a developer's
+        // own local folder.
+        ISaveStorage? storage = _saveStorage
+            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
+
         using SceneHost host = new(
             initialTarget,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling });
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = _sampling },
+            storage);
 
         FixedStepScheduler scheduler = new(_stepSeconds, _maxStepsPerFrame, _input.Bindings, driver, host);
 
@@ -575,11 +625,13 @@ public sealed class EngineBuilder
                 // No surface is ever drawn here, so a capture request is taken and dropped rather than
                 // standing for a frame that never comes.
                 host.TryTakeFrameCapture(out _);
+                host.FlushSaves();
             }
 
-            // The advance that ends the run may have executed a step of its own, whose request the loop
-            // body never reaches.
+            // The advance that ends the run may have executed a step of its own, whose request and
+            // writes the loop body never reaches.
             host.TryTakeFrameCapture(out _);
+            host.FlushSaves();
 
             return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
         }

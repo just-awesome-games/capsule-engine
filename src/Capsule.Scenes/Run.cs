@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Audio;
+using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.UI;
@@ -9,10 +10,11 @@ namespace Capsule;
 /// <summary>
 /// A run is one launch of the game from boot to exit as the simulation sees it. It owns the state
 /// and requests shared by that run. One instance is installed on every scene before that scene
-/// starts and shared by every scene the run opens, so bus volumes, the random sequence and a
-/// pending frame capture persist across transitions. Everything on it is either fixed before the
-/// run starts or set by game code; the host takes the requests game code raises and writes nothing
-/// of its own into the game's run. The one exception is the development debug overlay, which
+/// starts and shared by every scene the run opens, so bus volumes, the random sequence, the save
+/// documents and a pending frame capture persist across transitions. Everything on it is either
+/// fixed before the run starts or set by game code; the host takes the requests game code raises
+/// and writes nothing of its own into the game's run beyond the save stamps it restores and sets.
+/// The other exception is the development debug overlay, which
 /// raises scene-flow requests on a developer's behalf through these same members.
 /// <para>
 /// At most one transition is pending. The first transition request wins within a step, while an
@@ -47,6 +49,7 @@ public sealed class Run
 
         Random = random;
         Audio = new AudioMixer();
+        Saves = new SaveStore();
     }
 
     // Whether the scenes of this run draw the engine's debug channels. On for the game's run; a
@@ -110,6 +113,12 @@ public sealed class Run
     /// cannot level a bus.
     /// </summary>
     public AudioMixer Audio { get; }
+
+    /// <summary>
+    /// The run's save documents, one store shared by every scene it opens, restored by the host
+    /// before the first scene composes so a scene's start can read its settings.
+    /// </summary>
+    public SaveStore Saves { get; }
 
     /// <summary>
     /// Host pace: the simulation seconds a wall second is worth. One by default. The run steps

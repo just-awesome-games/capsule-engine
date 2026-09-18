@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -13,11 +14,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private readonly SceneResolver _resolve;
     private readonly Run _run;
 
+    // Null for a run with no medium behind its saves, which keeps them in memory and flushes nothing.
+    private readonly ISaveStorage? _saveStorage;
+
     private SceneTransition _target;
     private SceneSimulation _current;
     private bool _disposed;
 
-    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, Run run)
+    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, Run run, ISaveStorage? saveStorage = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
         ArgumentNullException.ThrowIfNull(run);
@@ -25,6 +29,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _resolve = resolve;
         _run = run;
         _target = initialTarget;
+
+        // Restored ahead of the first scene, whose start may read its settings.
+        _saveStorage = saveStorage;
+        if (saveStorage is not null)
+        {
+            run.Saves.Restore(saveStorage);
+        }
+
         _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, _run);
     }
 
@@ -140,6 +152,17 @@ internal sealed class SceneHost : ISimulation, IDisposable
         return _current.TryTakeFrameCapture(out path);
     }
 
+    // After each step, so a document written in the step that requests exit is persisted, and once
+    // more at disposal for what a scene's stop wrote on a window closed from outside the run. The
+    // clock is read here: the store, in Core, never reads one.
+    internal void FlushSaves()
+    {
+        if (_saveStorage is { } storage)
+        {
+            _run.Saves.Flush(storage, DateTimeOffset.Now);
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -154,7 +177,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
         finally
         {
-            ReleaseAssets();
+            try
+            {
+                ReleaseAssets();
+            }
+            finally
+            {
+                FlushSaves();
+            }
         }
     }
 

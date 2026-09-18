@@ -158,7 +158,7 @@ return CapsuleBoot.Configure("My Game")
     .RunScene<MainMenu>();
 ```
 
-`WithInput` installs the game's action bindings; a game that omits it reads every action unbound.
+`WithInput` installs the game's action bindings; a game that omits it reads every action unbound. Every other boot lever is `EngineBuilder`'s and documents its default; where saves go is [`persistence.md`](persistence.md).
 
 A role-free project that needs derived content opts into `<CapsuleImportScenes>`, `<CapsuleShipAssets>` and `<CapsuleImportAudio>` independently.
 

@@ -137,15 +137,24 @@ internal sealed class CapsuleGame : Game
                 // The overlay's hold is a standstill the ear should hear as one.
                 _followOverlayHold?.Invoke(audio);
 
-                // Per step, not per frame: the mixer rewrites its commands every step and a frame
-                // may run several.
-                _scheduler.StepCompleted = () => audio.Apply(scenes.Run.Audio.Commands);
+                // Per step, not per frame: the mixer rewrites its commands every step, a frame
+                // may run several, and a document written in the step that requests exit is
+                // persisted by the flush that follows it.
+                _scheduler.StepCompleted = () =>
+                {
+                    audio.Apply(scenes.Run.Audio.Commands);
+                    scenes.FlushSaves();
+                };
 
                 // The initial scene started before the device existed, so what its start raised is
                 // still on the mixer; the first step's BeginStep would clear it unheard. A later
                 // scene starts inside the step that asked for it, so its start is delivered with
                 // that step's commands.
                 audio.Apply(scenes.Run.Audio.Commands);
+            }
+            else
+            {
+                _scheduler.StepCompleted = scenes.FlushSaves;
             }
         }
 
@@ -169,10 +178,12 @@ internal sealed class CapsuleGame : Game
         // Sampled every frame including one that drains no step; the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
         // placement, so it is a canvas position before it ever reaches the simulation.
+        // Not IsActive: it is true before any focus was ever granted.
+        bool active = SdlPlatform.HasInputFocus(Window.Handle);
         DeviceSnapshot sampled = _mouse.SampleOnto(
             GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
             _renderer.ScreenLayer,
-            IsActive);
+            active);
 
         // Alt+Enter is the host's, never a bindable action. Withheld for the whole gesture, or a
         // game that binds Enter reads a press out of it.
@@ -204,7 +215,7 @@ internal sealed class CapsuleGame : Game
 
         if (_device is { } device && _scenes is { } scenes)
         {
-            float gain = IsActive ? 1f : scenes.Run.Audio.UnfocusedVolume;
+            float gain = active ? 1f : scenes.Run.Audio.UnfocusedVolume;
             if (gain != _lastOutputGain)
             {
                 device.SetOutputGain(gain);

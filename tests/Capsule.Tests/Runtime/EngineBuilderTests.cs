@@ -39,7 +39,7 @@ public sealed class EngineBuilderTests
     [InlineData("")]
     [InlineData("!!!")]
     [InlineData("nul")]
-    public void Configure_RejectsAGameNameThatNoSafeCrashLogFolderSlugsOutOf(string gameName)
+    public void Configure_RejectsAGameNameThatNoSafeLocalFolderSlugsOutOf(string gameName)
     {
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder(gameName));
     }
@@ -53,9 +53,9 @@ public sealed class EngineBuilderTests
     [InlineData("AUX.log")]
     // The top of the control range: the row an off-by-one in the unsafe-character set lets through.
     [InlineData("Game\u001FName")]
-    public void WithCrashLog_RejectsAnythingThatIsNotOneSafeDirectoryName(string appName)
+    public void WithLocalFolder_RejectsAnythingThatIsNotOneSafeDirectoryName(string folderName)
     {
-        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithCrashLog(appName));
+        Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithLocalFolder(folderName));
     }
 
     // The canvas a run's screen layer is laid out in: declared, it is what the game said; otherwise

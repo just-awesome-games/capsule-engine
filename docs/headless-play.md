@@ -12,10 +12,10 @@ The build registers a driver with a public parameterless constructor under its c
 
 ## Running it
 
-`WithCommandLine(args)` gives the shell Capsule's standard command line — `--driver`, `--headless`, `--scene`, `--frames`, `--help`, as `--help` prints and `EngineBuilder.WithCommandLine` documents — so a game never writes a parser for them:
+`WithCommandLine(args)` gives the shell Capsule's standard command line — `--driver`, `--headless`, `--scene`, `--frames`, `--saves`, `--help`, as `--help` prints and `EngineBuilder.WithCommandLine` documents, of which a shipping build keeps only `--saves` and `--help` — so a game never writes a parser for them:
 
 ```text
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
 ```
 
-From a test, the same driver plays under `SimulationHost` or `CapsuleEngine.RunHeadless`; [`testing.md`](testing.md) says which to reach for. A screenshot is an intent `Run.CaptureFrame` raises and the host fulfils on its next drawn frame; a headless run has no surface and writes nothing.
+From a test, the same driver plays under `SimulationHost` or `CapsuleEngine.RunHeadless`; [`testing.md`](testing.md) says which to reach for. A screenshot is an intent `Run.CaptureFrame` raises and the host fulfils on its next drawn frame; a headless run has no surface and writes nothing. Saves are persisted only where `--saves <dir>` names ([`persistence.md`](persistence.md)).

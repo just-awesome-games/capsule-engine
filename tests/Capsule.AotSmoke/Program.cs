@@ -24,11 +24,11 @@ internal static class Program
 
     private const int MinimumVisible = DocumentSprites + FixtureLabel.Glyphs;
 
-    public static int Main()
+    public static int Main(string[] args)
     {
         try
         {
-            return Run();
+            return Run(args);
         }
         catch (Exception exception)
         {
@@ -37,46 +37,53 @@ internal static class Program
         }
     }
 
-    private static int Run()
+    private static int Run(string[] args)
     {
         // A NativeAOT binary is the publish, where the switch must be present and off; an ordinary
         // source-mode run has no shipping runtimeconfig at all.
         bool published = !RuntimeFeature.IsDynamicCodeSupported;
         bool developmentDisabled = AppContext.TryGetSwitch("Capsule.Development", out bool on) && !on;
 
-        IInputDriver driver = new InputScript()
-            .Wait(IdleSteps)
-            .Tap(Key.Escape)
-            .Build();
-
-        HeadlessRunResult result = CapsuleEngine.Configure("Capsule AOT Smoke", CapsuleScenes.Registry)
-            .WithInput(FixtureInput.Configure)
-            .WithSampling(TextureSampling.Point)
-            .WithoutCrashLog()
-            .WithoutLogging()
-            .RunHeadless<FixtureScene>(driver);
+        // Twice in one process: each run builds a fresh store, so the second read comes back from
+        // the file the first run wrote.
+        HeadlessRunResult result = Play(args);
+        int? firstRead = FixtureScene.RunsRead;
+        HeadlessRunResult second = Play(args);
+        int? secondRead = FixtureScene.RunsRead;
 
         bool contentShipped = ContentShipped();
         bool booted =
             result.Steps == DrivenSteps &&
             result.ExitRequested &&
             result.Metrics.Visible >= MinimumVisible &&
+            second.Steps == DrivenSteps &&
             contentShipped &&
+            firstRead == 0 &&
+            secondRead == 1 &&
             (!published || developmentDisabled);
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}, development disabled {developmentDisabled}."));
+                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}, runs read {firstRead} then {secondRead} (expected 0 then 1), development disabled {developmentDisabled}."));
             return 1;
         }
 
         Console.WriteLine(
             FormattableString.Invariant(
-                $"AOT smoke passed: {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped."));
+                $"AOT smoke passed: {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped, runs read {firstRead} then {secondRead}."));
         return 0;
     }
+
+    private static HeadlessRunResult Play(string[] args) =>
+        CapsuleEngine.Configure("Capsule AOT Smoke", CapsuleScenes.Registry)
+            .WithCommandLine(args)
+            .WithInput(FixtureInput.Configure)
+            .WithSampling(TextureSampling.Point)
+            .WithoutCrashLog()
+            .WithoutLogging()
+            .RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
 
     private static SceneDocument Document(string path) =>
         SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));

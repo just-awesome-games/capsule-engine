@@ -12,7 +12,8 @@ public static class CapsuleEngine
     /// project or a CI harness — passing the generated registry itself.
     /// </summary>
     /// <param name="gameName">
-    /// The game's display name: the window's title, and the crash log's folder as a slug of it.
+    /// The game's display name: the window's title, and the per-user local folder — the crash log and
+    /// the saves — as a slug of it.
     /// </param>
     /// <param name="scenes">
     /// Every scene the game declares, plain and document-backed alike, so the host can resolve a

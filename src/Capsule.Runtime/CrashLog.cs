@@ -1,15 +1,16 @@
+using Capsule.Runtime.Persistence;
+
 namespace Capsule.Runtime;
 
 internal static class CrashLog
 {
-    internal static void TryWrite(string appName, Exception exception)
+    internal static void TryWrite(string folderName, Exception exception)
     {
         try
         {
-            // Local app data, not BaseDirectory: install locations are often read-only.
+            // The per-user local folder, not BaseDirectory: install locations are often read-only.
             // Overwrite keeps the file bounded; the latest crash is the one that matters.
-            string directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), appName);
+            string directory = LocalFolder.Resolve(folderName);
             Directory.CreateDirectory(directory);
             File.WriteAllText(
                 Path.Combine(directory, "crash.log"),

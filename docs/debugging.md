@@ -4,7 +4,7 @@ Capsule has no editor; the development plane is the debugging surface of every w
 
 ## The overlay
 
-Press `` ` `` in any windowed run (`InputConfiguration.DebugMenu` rebinds or removes the toggle). Open or hidden, the overlay holds the simulation on the settled step and pauses every playing voice; closing it resumes both. Its rows, keys and legend are what it prints. The overlay draws over the presented frame, never into the game's frame or a frame capture, and its keys and wheel never reach the simulation. Its Time Scale submenu sets `Run.TimeScale`, the same property a game's settings screen sets: the host's pace for the rest of the run — more or fewer steps a wall second — leaving the run itself unchanged, the same steps at the same fixed step length, played faster or slower.
+Press `` ` `` in any windowed run (`InputConfiguration.DebugMenu` rebinds or removes the toggle). Open or hidden, the overlay holds the simulation on the settled step and pauses every playing voice; closing it resumes both, and the first live frame back-steps visually by up to one step. Its rows, keys and legend are what it prints. The overlay draws over the presented frame, never into the game's frame or a frame capture, and its keys and wheel never reach the simulation. Its Time Scale submenu sets `Run.TimeScale`, the same property a game's settings screen sets: the host's pace for the rest of the run — more or fewer steps a wall second — leaving the run itself unchanged, the same steps at the same fixed step length, played faster or slower.
 
 The pages it opens are built from three seams a game also writes to:
 

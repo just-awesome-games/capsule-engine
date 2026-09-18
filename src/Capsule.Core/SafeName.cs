@@ -2,10 +2,11 @@ using System.Buffers;
 using System.Text;
 using Capsule.Assets;
 
-namespace Capsule.Runtime;
+namespace Capsule;
 
-// Whether a name that will become a directory is portable, which the crash log's folder is the one
-// caller of.
+// Whether a name that will become a file or directory is portable. The runtime's local folder and
+// every save document's name pass through here, so a name is refused identically on a headless run
+// with no file system behind it and on the player's machine.
 internal static class SafeName
 {
     // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
@@ -15,7 +16,7 @@ internal static class SafeName
 
     internal static bool IsOneSafeDirectoryName(string name)
     {
-        if (name.AsSpan().IndexOfAny(UnsafeNameChars) >= 0)
+        if (string.IsNullOrWhiteSpace(name) || name.AsSpan().IndexOfAny(UnsafeNameChars) >= 0)
         {
             return false;
         }

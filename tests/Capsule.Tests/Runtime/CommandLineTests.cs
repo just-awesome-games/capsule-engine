@@ -1,7 +1,9 @@
 using Capsule.Input;
+using Capsule.Persistence;
 using Capsule.Runtime;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Persistence;
 
 namespace Capsule.Tests.Runtime;
 
@@ -88,6 +90,18 @@ public sealed class CommandLineTests : IDisposable
 
         Assert.Equal(0, Builder().WithCommandLine(["--help"]).RunScene<Idle>());
         Assert.Contains("--headless", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Contains("--saves <dir>", stdout.ToString(), StringComparison.Ordinal);
+    }
+
+    // The flag is applied as eagerly as --frames, so the headless run persists into the directory
+    // it names: the document the scene wrote on its way out is there when the run returns.
+    [Fact]
+    public void Saves_IsHonouredByAHeadlessRun()
+    {
+        string saves = Path.Combine(_workspace.Root, "saves");
+
+        Assert.Equal(0, Builder().WithCommandLine(["--saves", saves, "--headless", "--driver", "Idler", "--scene", "Saver"]).RunScene<Idle>());
+        Assert.True(File.Exists(Path.Combine(saves, "visits.save.json")));
     }
 
     [Theory]
@@ -112,9 +126,41 @@ public sealed class CommandLineTests : IDisposable
         ["--frames", "frames.csv", "Infinity"],
         ["--scene"],
         ["--scene", "--headless"],
+        ["--saves"],
+        ["--saves", "--headless"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
     ];
+
+    // A shipping build declares no development flag, so a player cannot drive, probe or reroute the
+    // game from its command line; the portable-saves lever and help stay.
+    [Theory]
+    [InlineData("--scene", "Selected")]
+    [InlineData("--driver", "Idler")]
+    [InlineData("--headless")]
+    [InlineData("--frames", "frames.csv")]
+    public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
+    {
+        Assert.Contains("unknown option", CommandLine.Parse(args, development: false).Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AShippingBuild_KeepsSavesAndHelp()
+    {
+        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--help"], development: false);
+
+        Assert.Null(parsed.Error);
+        Assert.Equal("portable", parsed.SavesPath);
+        Assert.True(parsed.HelpRequested);
+
+        string usage = CommandLine.UsageFor("Game", development: false);
+        Assert.Contains("--saves <dir>", usage, StringComparison.Ordinal);
+        Assert.Contains("--help", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
+    }
 
     private string Captured() => _captured.ToString();
 
@@ -127,6 +173,7 @@ public sealed class CommandLineTests : IDisposable
                         SceneRegistration.Plain(typeof(Idle), static () => new Idle()),
                         SceneRegistration.Plain(typeof(Exiting), static () => new Exiting()),
                         SceneRegistration.Plain(typeof(Selected), static () => new Selected()),
+                        SceneRegistration.Plain(typeof(Saver), static () => new Saver()),
                     ]),
                 new InputDriverRegistry(
                     [
@@ -142,6 +189,17 @@ public sealed class CommandLineTests : IDisposable
     private sealed class Exiting : Scene
     {
         protected override void OnStep(in StepContext context) => Run.RequestExit();
+    }
+
+    private sealed class Saver : Scene
+    {
+        private static readonly SaveKey<int> Visits = new("visits", SaveTestJsonContext.Default.Int32, 0);
+
+        protected override void OnStep(in StepContext context)
+        {
+            Run.Saves.Write(Visits, Run.Saves.Read(Visits) + 1);
+            Run.RequestExit();
+        }
     }
 
     // Registered but never named by a RunScene call, so only --scene can open it.
