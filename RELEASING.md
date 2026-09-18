@@ -19,14 +19,16 @@ If CI on `HEAD` is red or still running, stop: a tag publishes whatever it point
 ## 2. Run the gates locally
 
 The pre-commit hook runs the first four. The last one boots the NativeAOT smoke, which the build
-compiles but does not run; CI runs it published, and a release is worth the local check too.
+compiles but does not run; CI runs it published, and a release is worth the local check too. The
+smoke plays twice and expects the second run to read the first's save, so it needs a saves
+directory: a headless run persists nothing unless one is named.
 
 ```bash
 dotnet restore --locked-mode
 dotnet build --no-restore
 dotnet format --verify-no-changes --no-restore
 dotnet test --no-build
-dotnet run --no-build --project tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
+dotnet run --no-build --project tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj -- --saves "$(mktemp -d)"
 ```
 
 Every command must exit 0. Do not run `dotnet test --no-build` after a failed build: it runs the
