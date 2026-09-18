@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-09-18T00:44:45Z",
-  "label": "simplified",
-  "commit": "d8d0782",
+  "timestamp": "2026-09-18T00:58:29Z",
+  "label": "baseline",
+  "commit": "459b656",
   "configuration": "Release",
   "os": "Microsoft Windows 10.0.26200",
   "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
   "gpu": "AMD Radeon RX 9070 XT",
-  "engineVersion": "0.0.0+d8d0782940968cd7c329ff55f21e088f16f1a773",
+  "engineVersion": "0.0.0+459b6561d1f7d391820452f656f8e72a05eb9484",
   "workloads": [
     {
       "name": "Churn2k",
@@ -17,7 +17,7 @@
       "drawMs": null,
       "stepMs": {
         "median": 0.09,
-        "p95": 0.096
+        "p95": 0.137
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -28,17 +28,17 @@
       "mode": "windowed",
       "surface": "1920x1080-linear",
       "steps": null,
-      "frames": 927,
+      "frames": 865,
       "drawMs": {
         "median": 0.079,
-        "p95": 0.104,
-        "max": 0.174
+        "p95": 0.116,
+        "max": 0.217
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.063,
-        "p95": 6.199,
-        "max": 11.268
+        "median": 6.064,
+        "p95": 6.189,
+        "max": 6.422
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -48,17 +48,17 @@
       "mode": "windowed",
       "surface": "1920x1080-linear",
       "steps": null,
-      "frames": 865,
+      "frames": 807,
       "drawMs": {
-        "median": 0.032,
+        "median": 0.031,
         "p95": 0.06,
-        "max": 158.195
+        "max": 155.995
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.062,
-        "p95": 6.212,
-        "max": 164.879
+        "median": 6.065,
+        "p95": 6.21,
+        "max": 161.662
       },
       "gen0Collections": 3,
       "captureSha256": null
@@ -71,8 +71,8 @@
       "frames": null,
       "drawMs": null,
       "stepMs": {
-        "median": 0.648,
-        "p95": 0.816
+        "median": 0.641,
+        "p95": 0.663
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -83,17 +83,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 926,
+      "frames": 867,
       "drawMs": {
-        "median": 0.478,
-        "p95": 0.802,
-        "max": 0.945
+        "median": 0.474,
+        "p95": 0.809,
+        "max": 0.968
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.061,
-        "p95": 6.193,
-        "max": 10.751
+        "median": 6.064,
+        "p95": 6.191,
+        "max": 6.496
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -103,17 +103,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 927,
+      "frames": 866,
       "drawMs": {
-        "median": 0.592,
-        "p95": 0.915,
-        "max": 1.064
+        "median": 0.593,
+        "p95": 0.891,
+        "max": 1.07
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.062,
-        "p95": 6.191,
-        "max": 10.906
+        "median": 6.066,
+        "p95": 6.192,
+        "max": 6.408
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -123,17 +123,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 925,
+      "frames": 865,
       "drawMs": {
-        "median": 1.329,
-        "p95": 1.67,
-        "max": 2.315
+        "median": 1.312,
+        "p95": 1.645,
+        "max": 1.961
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.06,
-        "p95": 6.209,
-        "max": 11.104
+        "median": 6.065,
+        "p95": 6.202,
+        "max": 6.476
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -143,17 +143,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 926,
+      "frames": 866,
       "drawMs": {
-        "median": 0.174,
+        "median": 0.173,
         "p95": 0.34,
-        "max": 0.452
+        "max": 0.382
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.065,
-        "p95": 6.19,
-        "max": 10.857
+        "median": 6.062,
+        "p95": 6.21,
+        "max": 6.453
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -163,17 +163,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 927,
+      "frames": 866,
       "drawMs": {
-        "median": 0.263,
-        "p95": 0.508,
-        "max": 0.615
+        "median": 0.262,
+        "p95": 0.488,
+        "max": 0.57
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.063,
-        "p95": 6.196,
-        "max": 10.656
+        "median": 6.062,
+        "p95": 6.204,
+        "max": 6.43
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -183,17 +183,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 924,
+      "frames": 864,
       "drawMs": {
-        "median": 2.425,
-        "p95": 2.67,
-        "max": 4.259
+        "median": 2.424,
+        "p95": 2.709,
+        "max": 3.741
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.06,
-        "p95": 6.203,
-        "max": 10.744
+        "median": 6.062,
+        "p95": 6.195,
+        "max": 6.41
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -203,17 +203,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 926,
+      "frames": 866,
       "drawMs": {
-        "median": 0.046,
-        "p95": 0.088,
-        "max": 6.126
+        "median": 0.045,
+        "p95": 0.087,
+        "max": 6.058
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.063,
-        "p95": 6.206,
-        "max": 11.006
+        "median": 6.064,
+        "p95": 6.196,
+        "max": 7.033
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -226,8 +226,8 @@
       "frames": null,
       "drawMs": null,
       "stepMs": {
-        "median": 0.005,
-        "p95": 0.005
+        "median": 0.004,
+        "p95": 0.004
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -241,8 +241,8 @@
       "frames": null,
       "drawMs": null,
       "stepMs": {
-        "median": 0.595,
-        "p95": 0.62
+        "median": 0.593,
+        "p95": 0.636
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -253,17 +253,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 926,
+      "frames": 865,
       "drawMs": {
-        "median": 0.031,
-        "p95": 0.058,
-        "max": 0.154
+        "median": 0.029,
+        "p95": 0.057,
+        "max": 0.188
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.062,
-        "p95": 6.192,
-        "max": 10.555
+        "median": 6.061,
+        "p95": 6.197,
+        "max": 6.51
       },
       "gen0Collections": 0,
       "captureSha256": null
@@ -276,8 +276,8 @@
       "frames": null,
       "drawMs": null,
       "stepMs": {
-        "median": 0.14,
-        "p95": 0.142
+        "median": 0.147,
+        "p95": 0.155
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -291,8 +291,8 @@
       "frames": null,
       "drawMs": null,
       "stepMs": {
-        "median": 0.012,
-        "p95": 0.013
+        "median": 0.011,
+        "p95": 0.012
       },
       "intervalMs": null,
       "gen0Collections": 0,
@@ -303,17 +303,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 172,
+      "frames": 111,
       "drawMs": {
-        "median": 0.046,
-        "p95": 0.08,
-        "max": 0.091
+        "median": 0.047,
+        "p95": 0.087,
+        "max": 0.092
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.066,
-        "p95": 6.226,
-        "max": 29.272
+        "median": 6.062,
+        "p95": 6.183,
+        "max": 6.306
       },
       "gen0Collections": 0,
       "captureSha256": "3259dd6c2b3426e3282ac81f0780345bd3a34741e8af3490b6ac4ec112724927"
@@ -323,17 +323,17 @@
       "mode": "windowed",
       "surface": "640x360-point",
       "steps": null,
-      "frames": 928,
+      "frames": 868,
       "drawMs": {
-        "median": 0.05,
-        "p95": 0.112,
-        "max": 0.147
+        "median": 0.044,
+        "p95": 0.102,
+        "max": 0.135
       },
       "stepMs": null,
       "intervalMs": {
-        "median": 6.061,
-        "p95": 6.191,
-        "max": 10.726
+        "median": 6.063,
+        "p95": 6.206,
+        "max": 6.417
       },
       "gen0Collections": 0,
       "captureSha256": null
