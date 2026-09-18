@@ -4,14 +4,14 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Tests.Performance;
+using Capsule.Tests.Allocation;
 using Capsule.Tests.Scenes;
 using Capsule.UI;
 
 namespace Capsule.Tests.Runtime;
 
 // The whole managed heap is measured, so nothing else may allocate on another thread meanwhile.
-[Collection(StagePerformanceCollection.Name)]
+[Collection(StageAllocationCollection.Name)]
 public sealed class SceneTransitionRetentionTests
 {
     private const int WarmUpTransitions = 10;

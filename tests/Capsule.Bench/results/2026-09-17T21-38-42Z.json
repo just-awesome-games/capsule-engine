@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-09-17T21:38:42Z",
+  "label": "after-batcher",
+  "commit": "d8d0782-dirty",
+  "configuration": "Release",
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor           ",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0\u002Bd8d0782940968cd7c329ff55f21e088f16f1a773",
+  "workloads": [
+    {
+      "name": "Sprites5k",
+      "frames": 929,
+      "drawMs": {
+        "median": 0.197,
+        "p95": 0.338,
+        "max": 0.393
+      },
+      "updateMs": {
+        "median": 0.015,
+        "p95": 0.329
+      },
+      "intervalMs": {
+        "median": 6.063
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Sprites20k",
+      "frames": 926,
+      "drawMs": {
+        "median": 0.593,
+        "p95": 0.953,
+        "max": 1.065
+      },
+      "updateMs": {
+        "median": 0.015,
+        "p95": 0.99
+      },
+      "intervalMs": {
+        "median": 6.064
+      },
+      "gen0Collections": 2,
+      "captureSha256": null
+    },
+    {
+      "name": "Sprites50k",
+      "frames": 925,
+      "drawMs": {
+        "median": 1.294,
+        "p95": 1.631,
+        "max": 2.157
+      },
+      "updateMs": {
+        "median": 0.011,
+        "p95": 1.732
+      },
+      "intervalMs": {
+        "median": 6.062
+      },
+      "gen0Collections": 2,
+      "captureSha256": null
+    },
+    {
+      "name": "Switches50k",
+      "frames": 925,
+      "drawMs": {
+        "median": 2.459,
+        "p95": 2.772,
+        "max": 3.057
+      },
+      "updateMs": {
+        "median": 0.008,
+        "p95": 1.761
+      },
+      "intervalMs": {
+        "median": 6.064
+      },
+      "gen0Collections": 2,
+      "captureSha256": null
+    },
+    {
+      "name": "Still",
+      "frames": 171,
+      "drawMs": {
+        "median": 0.051,
+        "p95": 0.088,
+        "max": 30.116
+      },
+      "updateMs": {
+        "median": 0.014,
+        "p95": 0.04
+      },
+      "intervalMs": {
+        "median": 6.066
+      },
+      "gen0Collections": 0,
+      "captureSha256": "3259dd6c2b3426e3282ac81f0780345bd3a34741e8af3490b6ac4ec112724927"
+    }
+  ]
+}

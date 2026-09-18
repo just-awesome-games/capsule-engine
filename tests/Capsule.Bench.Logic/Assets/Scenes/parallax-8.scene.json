@@ -1,0 +1,14 @@
+{
+  "formatVersion": 5,
+  "entities": [
+    { "id": 1, "type": "layer", "x": 0, "y": 40, "zIndex": -80, "scrollFactor": [0.1, 0.1] },
+    { "id": 2, "type": "layer", "x": 0, "y": 76, "zIndex": -70, "scrollFactor": [0.2, 0.2] },
+    { "id": 3, "type": "layer", "x": 0, "y": 112, "zIndex": -60, "scrollFactor": [0.3, 0.3] },
+    { "id": 4, "type": "layer", "x": 0, "y": 148, "zIndex": -50, "scrollFactor": [0.4, 0.4] },
+    { "id": 5, "type": "layer", "x": 0, "y": 184, "zIndex": -40, "scrollFactor": [0.5, 0.5] },
+    { "id": 6, "type": "layer", "x": 0, "y": 220, "zIndex": -30, "scrollFactor": [0.6, 0.6] },
+    { "id": 7, "type": "layer", "x": 0, "y": 256, "zIndex": -20, "scrollFactor": [0.7, 0.7] },
+    { "id": 8, "type": "layer", "x": 0, "y": 292, "zIndex": -10, "scrollFactor": [0.8, 0.8] }
+  ],
+  "nextEntityId": 9
+}

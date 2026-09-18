@@ -4,7 +4,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
-using Capsule.Tests.Performance;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Scenes;
 

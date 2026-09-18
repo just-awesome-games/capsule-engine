@@ -16,6 +16,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj" />
     <Project Path="tests/Capsule.AotSmoke.Logic/Capsule.AotSmoke.Logic.csproj" />
+    <Project Path="tests/Capsule.Bench/Capsule.Bench.csproj" />
+    <Project Path="tests/Capsule.Bench.Logic/Capsule.Bench.Logic.csproj" />
     <Project Path="tests/Capsule.BuildProof/Capsule.BuildProof.csproj" />
     <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
   </Folder>

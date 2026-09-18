@@ -1,6 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
-using Capsule.Tests.Performance;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Physics;
 

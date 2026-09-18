@@ -6,7 +6,6 @@ using Capsule.Runtime.Assets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Vector2 = System.Numerics.Vector2;
-using XnaVector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace Capsule.Runtime.Rendering;
 
@@ -24,7 +23,7 @@ internal sealed class FrameRenderer : IDisposable
         ColorRgba.Black.A);
 
     private readonly GraphicsDevice _device;
-    private readonly SpriteBatch _batch;
+    private readonly SpriteBatcher _batcher;
     private readonly TextureStore _textures;
 
     // One white texel, tinted and stretched across the camera to draw the clear colour.
@@ -57,7 +56,7 @@ internal sealed class FrameRenderer : IDisposable
     internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
     {
         _device = device;
-        _batch = new SpriteBatch(device);
+        _batcher = new SpriteBatcher(device);
         _textures = textures;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
@@ -217,7 +216,7 @@ internal sealed class FrameRenderer : IDisposable
             Matrix.CreateTranslation(-world.TopLeft.X, -world.TopLeft.Y, 0f) *
             Matrix.CreateScale(pixelsPerUnit, pixelsPerUnit, 1f);
 
-        _batch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldToBackBuffer);
+        _batcher.Begin(in worldToBackBuffer, SamplerState.PointClamp);
 
         TextureHandle resolved = default;
         TextureSlice slice = default;
@@ -233,7 +232,7 @@ internal sealed class FrameRenderer : IDisposable
             DrawLine(line, pixelsPerUnit, world.Snap, world.TopLeft, world.TopLeft, world.Fit.Scale);
         }
 
-        _batch.End();
+        _batcher.End();
     }
 
     // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
@@ -327,19 +326,10 @@ internal sealed class FrameRenderer : IDisposable
             Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
             Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
 
-        _batch.Begin(samplerState: Sampler(view.Sampling), transformMatrix: worldToScreen);
+        _batcher.Begin(in worldToScreen, Sampler(view.Sampling));
 
         // Drawn through the narrowed world viewport, so presentation bars stay black.
-        _batch.Draw(
-            _white,
-            new XnaVector2(topLeft.X, topLeft.Y),
-            sourceRectangle: null,
-            ToBackendColor(view.ClearColor),
-            rotation: 0f,
-            origin: XnaVector2.Zero,
-            scale: new XnaVector2(span.X, span.Y),
-            effects: SpriteEffects.None,
-            layerDepth: 0f);
+        _batcher.DrawWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
         // Compared before the dictionary is asked, so the lookup is once per texture change
         // rather than once per sprite.
@@ -381,7 +371,7 @@ internal sealed class FrameRenderer : IDisposable
             DrawLine(lines[index], fit.Scale, snap, corner, topLeft, fit.Scale);
         }
 
-        _batch.End();
+        _batcher.End();
     }
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and over the
@@ -407,7 +397,7 @@ internal sealed class FrameRenderer : IDisposable
             Matrix.CreateScale(placement.Scale, placement.Scale, 1f) *
             Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
 
-        _batch.Begin(samplerState: Sampler(sampling), transformMatrix: canvasToSurface);
+        _batcher.Begin(in canvasToSurface, Sampler(sampling));
 
         bool snap = sampling == TextureSampling.Point;
         TextureHandle resolved = default;
@@ -423,7 +413,7 @@ internal sealed class FrameRenderer : IDisposable
             DrawLine(line, placement.Scale, snap, Vector2.Zero, Vector2.Zero, placement.Scale);
         }
 
-        _batch.End();
+        _batcher.End();
     }
 
     // The white texel stretched to the segment's length and thickness and turned along it, from
@@ -446,16 +436,13 @@ internal sealed class FrameRenderer : IDisposable
 
         float thickness = line.Thickness > 0f ? line.Thickness : 1f / surfaceScale;
 
-        _batch.Draw(
+        _batcher.DrawWhole(
             _white,
-            new XnaVector2(a.X, a.Y),
-            sourceRectangle: null,
-            ToBackendColor(line.Color),
-            rotation: MathF.Atan2(delta.Y, delta.X),
-            origin: new XnaVector2(0f, 0.5f),
-            scale: new XnaVector2(length, thickness),
-            effects: SpriteEffects.None,
-            layerDepth: 0f);
+            a,
+            new Vector2(0f, 0.5f),
+            new Vector2(length, thickness),
+            MathF.Atan2(delta.Y, delta.X),
+            line.Color);
     }
 
     // resolved is the handle slice was fetched for; both are carried across the whole stream, so a
@@ -489,25 +476,22 @@ internal sealed class FrameRenderer : IDisposable
             surfaceScale);
 
         TextureRegion region = sprite.Sprite.Region;
-        Vector2 origin = sprite.DrawOrigin;
 
-        _batch.Draw(
+        // The drawn rect is already placed by the mirrored origin; the flips only swap the texture
+        // coordinates that fill it.
+        _batcher.Draw(
             slice.Texture,
-            new XnaVector2(position.X, position.Y),
-            new Rectangle(region.X + slice.OffsetX, region.Y + slice.OffsetY, region.Width, region.Height),
-            ToBackendColor(sprite.Color),
-            rotation: StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, alpha),
-            origin: new XnaVector2(origin.X, origin.Y),
-            scale: new XnaVector2(sprite.Size.X / region.Width, sprite.Size.Y / region.Height),
-            effects: Mirroring(sprite),
-            layerDepth: 0f);
+            position,
+            sprite.DrawOrigin,
+            new Vector2(sprite.Size.X / region.Width, sprite.Size.Y / region.Height),
+            in region,
+            slice.OffsetX,
+            slice.OffsetY,
+            StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, alpha),
+            sprite.FlipX,
+            sprite.FlipY,
+            sprite.Color);
     }
-
-    // The drawn rect is already placed by the mirrored origin; these only swap the texture
-    // coordinates that fill it.
-    private static SpriteEffects Mirroring(in SpriteIntent sprite) =>
-        (sprite.FlipX ? SpriteEffects.FlipHorizontally : SpriteEffects.None)
-        | (sprite.FlipY ? SpriteEffects.FlipVertically : SpriteEffects.None);
 
     private Texture2D EngineTexture(in TextureHandle handle) =>
         _engineTextures.TryGetValue(handle, out Texture2D? texture)
@@ -531,18 +515,9 @@ internal sealed class FrameRenderer : IDisposable
             return;
         }
 
-        _batch.Begin(samplerState: Sampler(sampling));
-        _batch.Draw(
-            target,
-            new XnaVector2(placement.Origin.X, placement.Origin.Y),
-            sourceRectangle: null,
-            Color.White,
-            rotation: 0f,
-            origin: XnaVector2.Zero,
-            placement.Scale,
-            SpriteEffects.None,
-            layerDepth: 0f);
-        _batch.End();
+        _batcher.Begin(Matrix.Identity, Sampler(sampling));
+        _batcher.DrawWhole(target, placement.Origin, Vector2.Zero, new Vector2(placement.Scale), rotation: 0f, ColorRgba.White);
+        _batcher.End();
     }
 
     private static SamplerState Sampler(TextureSampling sampling) => sampling switch
@@ -551,10 +526,6 @@ internal sealed class FrameRenderer : IDisposable
         TextureSampling.Point => SamplerState.PointClamp,
         _ => throw new ArgumentOutOfRangeException(nameof(sampling), sampling, "Unknown texture sampling mode."),
     };
-
-    // ColorRgba is straight alpha and the backend blend convention is premultiplied.
-    private static Color ToBackendColor(ColorRgba color) =>
-        Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
 
     // TopLeft is the world rect's corner, which the frame's pixel grid is anchored at, Fit where
     // that rect landed on the surface, Present where the surface landed in the back buffer, and
@@ -566,7 +537,7 @@ internal sealed class FrameRenderer : IDisposable
 
     public void Dispose()
     {
-        _batch.Dispose();
+        _batcher.Dispose();
         foreach (Texture2D texture in _engineTextures.Values)
         {
             texture.Dispose();

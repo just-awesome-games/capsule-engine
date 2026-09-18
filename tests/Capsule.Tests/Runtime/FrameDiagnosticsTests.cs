@@ -18,7 +18,7 @@ public sealed class FrameDiagnosticsTests
         capture.Frame();
 
         string[] lines = capture.ReadLines();
-        int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs");
+        int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs,steps,gen0");
 
         Assert.InRange(header, 1, lines.Length - 1);
         Assert.All(lines[..header], line => Assert.StartsWith("# ", line, StringComparison.Ordinal));
@@ -42,17 +42,48 @@ public sealed class FrameDiagnosticsTests
         Assert.All(stages, stage => Assert.InRange(stage, 0d, TimeSpan.FromHours(1).TotalMilliseconds));
     }
 
-    // A capture shorter than the row buffer is the common one, and it must not be lost at exit.
+    // `--frames artifacts/run.csv` on a fresh clone names a directory nothing has made yet, as a
+    // frame capture's path may.
     [Fact]
-    public void Dispose_WritesTheFramesBufferedSinceTheLastFlush()
+    public void ACapture_CreatesTheDirectoryItsPathNames()
     {
-        using Capture capture = new();
-        for (int i = 0; i < 5; i++)
+        using TempWorkspace workspace = new("capsule-diagnostics-");
+        string path = Path.Combine(workspace.Root, "nested", "deeper", "frames.csv");
+
+        using (FrameDiagnostics diagnostics = new(path, Stopwatch.GetTimestamp(), exitAfterSeconds: null))
         {
-            capture.Frame();
+            diagnostics.BeginUpdate();
+            diagnostics.EndUpdate(steps: 1);
+            diagnostics.BeginDraw();
+            diagnostics.EndDraw();
         }
 
-        Assert.Equal(5, capture.ReadLines().Count(IsRow));
+        Assert.True(File.Exists(path));
+    }
+
+    // Full buffers are written by a thread the frame never waits on and the last, partial one at
+    // exit; every frame must come out, in frame order, with the steps it ran and the collection
+    // count so far, which never goes down.
+    [Fact]
+    public void Dispose_WritesEveryFrameInOrder()
+    {
+        const int frames = 650;
+
+        using Capture capture = new();
+        for (int i = 0; i < frames; i++)
+        {
+            capture.Frame(steps: i % 5);
+        }
+
+        string[] rows = capture.ReadLines().Where(IsRow).ToArray();
+
+        Assert.Equal(frames, rows.Length);
+        Assert.Equal(Enumerable.Range(0, frames).Select(i => i % 5), rows.Select(row => int.Parse(row.Split(',')[3], CultureInfo.InvariantCulture)));
+        Assert.All(rows, row => Assert.Equal(5, row.Split(',').Length));
+
+        int[] gen0 = rows.Select(row => int.Parse(row.Split(',')[4], CultureInfo.InvariantCulture)).ToArray();
+        Assert.Equal(gen0.Order(), gen0);
+        Assert.InRange(gen0[0], 0, int.MaxValue);
     }
 
     [Fact]
@@ -99,13 +130,13 @@ public sealed class FrameDiagnosticsTests
             _diagnostics.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         }
 
-        /// <summary>Runs one frame; returns whether the run's time budget is spent.</summary>
-        internal bool Frame()
+        /// <summary>Runs one frame that stepped <paramref name="steps"/> times; returns whether the run's time budget is spent.</summary>
+        internal bool Frame(int steps = 1)
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
 
             diagnostics.BeginUpdate();
-            diagnostics.EndUpdate();
+            diagnostics.EndUpdate(steps);
             diagnostics.BeginDraw();
 
             return diagnostics.EndDraw();

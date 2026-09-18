@@ -275,10 +275,12 @@ public sealed class EngineBuilder
     /// trace giving the milliseconds from process start to each of builder entry, host
     /// construction, device readiness, initial scene assets loaded, the first update and the first
     /// submitted frame, then one row per frame holding the interval since the previous frame began,
-    /// the time spent updating and the time spent submitting the draw, all in milliseconds. Present
-    /// is excluded: the backend waits for the display after the host's draw returns.
+    /// the time spent updating and the time spent submitting the draw, all in milliseconds, the
+    /// number of fixed steps the update ran, which is zero on a frame that had not accumulated one,
+    /// and the process's cumulative gen-0 garbage collection count as the frame ended. Present is
+    /// excluded: the backend waits for the display after the host's draw returns.
     /// </summary>
-    /// <param name="path">The CSV to write; an existing file is overwritten.</param>
+    /// <param name="path">The CSV to write; its directory is created and an existing file is overwritten.</param>
     /// <param name="exitAfterSeconds">
     /// Real seconds after the first submitted frame at which the run exits itself, for an
     /// unattended capture; null runs until the game exits.
@@ -348,6 +350,16 @@ public sealed class EngineBuilder
 
         return this;
     }
+
+    /// <summary>
+    /// The scene class name <c>--scene</c> named on the command line <see cref="WithCommandLine"/>
+    /// was given, or null: no command line was given, it named no scene, or it was rejected, in
+    /// which case <c>RunScene</c> reports the rejection and returns 2 as it would anyway. Set the
+    /// moment <see cref="WithCommandLine"/> returns, before anything is looked up, so a shell can
+    /// choose boot options — a render resolution, a sampling mode — for the scene it is about to
+    /// boot; whether a registered scene answers to the name is settled when the run starts.
+    /// </summary>
+    public string? SceneName => _commandLine.Error is null ? _commandLine.SceneName : null;
 
     /// <summary>
     /// Runs <typeparamref name="TScene"/> from <paramref name="driver"/> with no window, no

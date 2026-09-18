@@ -221,7 +221,7 @@ internal sealed class CapsuleGame : Game
 
         base.Update(gameTime);
 
-        _diagnostics?.EndUpdate();
+        _diagnostics?.EndUpdate(_scheduler.StepsThisFrame);
     }
 
     protected override void Draw(GameTime gameTime)
@@ -243,6 +243,10 @@ internal sealed class CapsuleGame : Game
         // alpha is in [0, 1) because Update drains the accumulator below one step.
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
+        // The diagnostics cover the game frame's submission alone: not the capture, the overlay or
+        // the present, whose vsync wait is in Game.Tick after this returns.
+        bool budgetSpent = _diagnostics?.EndDraw() ?? false;
+
         // While the surface still holds the frame, ahead of the present. The request is taken only
         // once a frame has drawn, so one raised while the window is minimised stands until one does.
         if (_scenes is { } scenes && _renderer.CanCaptureFrame && scenes.TryTakeFrameCapture(out string capturePath))
@@ -254,9 +258,7 @@ internal sealed class CapsuleGame : Game
 
         base.Draw(gameTime);
 
-        // Present is not inside the measured section: Game.Tick calls EndDraw after this returns,
-        // and the vsync wait lives there. The diagnostics cover render submission only.
-        if (_diagnostics is not null && _diagnostics.EndDraw())
+        if (budgetSpent)
         {
             Exit();
         }
