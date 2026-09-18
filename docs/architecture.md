@@ -4,14 +4,14 @@ Capsule keeps gameplay deterministic and headless-testable by separating pure si
 
 ## Modules
 
-| Module | Charter | May reference |
-| --- | --- | --- |
-| `Capsule.Core` | Fixed-step, input, rendering, audio mixing, persistence, asset and diagnostic contracts. | nothing |
-| `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver. | Core |
-| `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
-| `Capsule.Runtime` | Window, device, clock, input sampling, rendering, sound playback, scene hosting, crash reporting and save storage. | the pure modules |
-| `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
-| `Capsule.Build` | Build-time validation and canonicalization of scene documents, the asset key pass, atlas packing, and measurement of audio sources. | unconstrained |
+| Module               | Charter                                                                                                                             | May reference    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `Capsule.Core`       | Fixed-step, input, rendering, audio mixing, persistence, asset and diagnostic contracts.                                            | nothing          |
+| `Capsule.Physics`    | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver.                                                  | Core             |
+| `Capsule.Scenes`     | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation.                                | Core, Physics    |
+| `Capsule.Runtime`    | Window, device, clock, input sampling, rendering, sound playback, scene hosting, crash reporting and save storage.                  | the pure modules |
+| `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary.                                                          | unconstrained    |
+| `Capsule.Build`      | Build-time validation and canonicalization of scene documents, the asset key pass, atlas packing, and measurement of audio sources. | unconstrained    |
 
 The pure modules perform no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime` alone, for project-reference and package consumers alike.
 
@@ -41,7 +41,7 @@ Given the same initial state, fixed-step duration and sequence of `DeviceSnapsho
 
 Simulation emits backend-free `FrameView` state and rewrites a step's `AudioCommand` list the same way; the host draws at display rate, interpolating entities and camera with one shared fraction, and applies audio commands after every step. Neither rendering nor audio feeds state back into simulation.
 
-Every thread the engine runs is the host's and has one shape: a step emits an intent — an audio command, a frame capture, a save, a scene request — the host queues it, a worker fulfils it, and only the hand-off touches the device or the file system. The simulation never observes a thread or a completion, and a headless run runs no worker.
+Every thread the engine runs is the host's and has one shape: a step emits an intent — an audio command, a frame capture, a scene request — the host queues it, a worker fulfils it, and only the hand-off touches the device or the file system. The simulation never observes a thread or a completion, and a headless run runs no worker.
 
 A frame carries two ordered lists: the world, placed by the camera and culled against it, and a screen layer in canvas pixels, culled against `Run.Canvas`. Which layer an entity lives in is its type — a `ScreenEntity` is on the screen layer, anything else in the world — and every renderer it holds follows, so each layer bands on its own and the whole screen layer draws over the whole world.
 
