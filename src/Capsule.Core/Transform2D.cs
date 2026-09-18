@@ -98,8 +98,15 @@ public readonly record struct Transform2D
     /// own values are <paramref name="local"/>'s inside the space this one places, on the no-shear
     /// and mirror terms the type describes.
     /// </summary>
-    public Transform2D Then(Transform2D local) =>
-        new(Apply(local.Position), Rotation + (Mirrored ? -local.Rotation : local.Rotation), Scale * local.Scale);
+    public Transform2D Then(Transform2D local)
+    {
+        // A mirror conjugates the inner turn, so its sine flips with its rotation; its cosine is even.
+        float localSin = Mirrored ? -local._sin : local._sin;
+        float cos = (_cos * local._cos) - (_sin * localSin);
+        float sin = (_sin * local._cos) + (_cos * localSin);
+
+        return new(Apply(local.Position), Rotation + (Mirrored ? -local.Rotation : local.Rotation), Scale * local.Scale, cos, sin);
+    }
 
     // This transform at another place and size, keeping the turn it already evaluated.
     internal Transform2D With(Vector2 position, Vector2 scale) => new(position, Rotation, scale, _cos, _sin);

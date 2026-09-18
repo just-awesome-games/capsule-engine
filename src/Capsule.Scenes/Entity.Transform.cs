@@ -198,12 +198,16 @@ public partial class Entity
         bool turned = rotation != held.Rotation;
         bool scaled = scale != held.Scale;
 
-        if (turned)
+        // Only the first turn or the first scale walks the subtree: Add refuses a component that
+        // cannot turn or scale under a turned or scaled ancestor, and a parent write checks the
+        // new subtree against every ancestor, so an entity already turned or scaled holds a
+        // subtree with no refuser for it.
+        if (turned && held.Rotation == 0f)
         {
             RequireTurnable(this, rotation);
         }
 
-        if (scaled)
+        if (scaled && held.Scale == Vector2.One)
         {
             RequireScalable(this, scale);
         }

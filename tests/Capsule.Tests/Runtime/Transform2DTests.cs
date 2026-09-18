@@ -49,6 +49,7 @@ public sealed class Transform2DTests
         Assert.Equal(outer.Apply(inner.Position), composed.Position);
         Assert.Equal(0.75f, composed.Rotation);
         Assert.Equal(new Vector2(1f, 1.5f), composed.Scale);
+        AssertPlacesLike(new Transform2D(composed.Position, 0.75f, new Vector2(1f, 1.5f)), composed);
     }
 
     // A mirror conjugates a rotation: under a scale of negative determinant the inner turn runs
@@ -65,6 +66,20 @@ public sealed class Transform2DTests
         Assert.False(new Transform2D(Vector2.Zero, 0f, new Vector2(-1f, -1f)).Mirrored);
         Assert.Equal(0.7f - 0.25f, composed.Rotation);
         Assert.Equal(new Transform2D(new Vector2(30f, 40f), 0.7f).Apply(new Vector2(-10f, 0f)), composed.Position);
+        AssertPlacesLike(new Transform2D(composed.Position, 0.7f - 0.25f, new Vector2(-1f, 1f)), composed);
+    }
+
+    // The composed turn is carried as a sine and cosine derived from the parts' rather than
+    // evaluated from the summed angle; a transform built fresh from the composed values places a
+    // point the same way.
+    private static void AssertPlacesLike(Transform2D expected, Transform2D actual)
+    {
+        Vector2 point = new(7f, -3f);
+        Vector2 want = expected.Apply(point);
+        Vector2 got = actual.Apply(point);
+
+        Assert.Equal(want.X, got.X, Tolerance);
+        Assert.Equal(want.Y, got.Y, Tolerance);
     }
 
     [Fact]
