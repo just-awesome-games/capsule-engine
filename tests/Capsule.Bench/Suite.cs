@@ -17,7 +17,9 @@ internal static class Suite
 
     private const double SecondsPerWindowedWorkload = 6d;
 
-    private const int WarmUpFrames = 60;
+    // The window settles one late present within its first 80 frames on every run; 120 keeps it
+    // out of the measured window at 165 Hz and a fortiori at 60.
+    private const int WarmUpFrames = 120;
 
     internal static int Run(string[] args)
     {
