@@ -7,9 +7,9 @@ namespace Capsule.Runtime.Assets;
 // Where a packed texture's texels are: the page that holds it and the texel its (0, 0) landed on.
 internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y);
 
-// The map the build wrote beside the pages, if it wrote one: which texture handles are served from
-// a page rather than a file of their own. Read once at boot; a game with no atlas has no map and
-// every handle resolves to itself.
+// The map the build wrote beside the pages: which texture handles are served from a page instead of
+// a file of their own. Read once at boot. A game with no atlas has no map, and every handle resolves
+// to itself.
 internal sealed class AtlasMap
 {
     internal static readonly AtlasMap Empty = new([]);
@@ -39,8 +39,8 @@ internal sealed class AtlasMap
         }
     }
 
-    // Throws InvalidDataException when the map is not the build's: a shipped map is derived, so a
-    // defect in it is a build that went wrong, never something to draw around.
+    // Throws InvalidDataException when the map is malformed. A shipped map is derived, and a defect in
+    // it means the build went wrong.
     internal static AtlasMap Parse(Stream json, string path)
     {
         AtlasMapJson? raw;
@@ -74,8 +74,9 @@ internal sealed class AtlasMap
 
     internal bool TryGet(in TextureHandle handle, out AtlasSlot slot) => _slots.TryGetValue(handle, out slot);
 
-    // What the store must hold for these handles: each packed one becomes its page, the rest stay
-    // themselves. The list itself when nothing is packed, so a game with no atlas allocates nothing.
+    // What the store must hold for these handles: each packed handle becomes its page, and the rest
+    // stay themselves. Returns the list unchanged when nothing is packed, and a game with no atlas
+    // allocates nothing.
     internal IReadOnlyList<TextureHandle> Residency(IReadOnlyList<TextureHandle> handles)
     {
         if (_slots.Count == 0)
@@ -111,7 +112,6 @@ internal sealed class AtlasEntryJson
     public int Y { get; set; }
 }
 
-// Reflection-based serialization is off solution-wide, so this generated context is the only way
-// the map is read.
+// Reflection-based serialization is off solution-wide, so this generated context reads the map.
 [JsonSerializable(typeof(AtlasMapJson))]
 internal sealed partial class AtlasMapJsonContext : JsonSerializerContext;

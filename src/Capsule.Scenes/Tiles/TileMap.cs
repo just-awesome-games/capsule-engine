@@ -8,15 +8,14 @@ using Capsule.Scenes;
 namespace Capsule.Tiles;
 
 /// <summary>
-/// A tile grid anchored at the world origin — its cells are world coordinates, so its
-/// <see cref="Entity.Position"/>, <see cref="Entity.Rotation"/> and <see cref="Entity.Scale"/>
-/// cannot be written and it takes no <see cref="Entity.Parent"/>; it may place children of its
-/// own, whose local values are then world values. It draws every palette entry that names a cell
-/// of the grid's texture and, where any tile type collides, registers one
-/// <see cref="GridCollider2D"/> with the scene's world. Every tile draws in the map's own
-/// <see cref="Entity.ZIndex"/> band, so that one value is what puts a grid behind or in front of
-/// what shares the scene with it, and follows the map's <see cref="Entity.ScrollFactor"/>, which a
-/// grid whose palette collides refuses.
+/// A tile grid anchored at the world origin. Its cells are world coordinates, so writing
+/// <see cref="Entity.Position"/>, <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/> throws and
+/// it takes no <see cref="Entity.Parent"/>. It may still place children of its own, whose local values
+/// are world values. It draws every palette entry that names a cell of the grid's texture, and registers
+/// one <see cref="GridCollider2D"/> with the scene's world when any tile type collides. Every tile draws
+/// in the map's own <see cref="Entity.ZIndex"/> band, so one value puts every tile behind or in front
+/// of the rest of the scene. Tiles follow the map's <see cref="Entity.ScrollFactor"/>,
+/// which a grid with a colliding palette rejects.
 /// </summary>
 public sealed class TileMap : Entity
 {
@@ -24,8 +23,7 @@ public sealed class TileMap : Entity
 
     private CollisionWorld2D? _world;
 
-    /// <param name="grid">The grid to hold and to draw; its palette decides what a tile looks like.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is null.</exception>
+    /// <param name="grid">The grid to hold and draw. Its palette decides what each tile looks like.</param>
     public TileMap(TileGrid grid)
         : base(Vector2.Zero)
     {
@@ -38,7 +36,7 @@ public sealed class TileMap : Entity
         Add(new VisibleTiles(grid));
     }
 
-    /// <summary>The edge length of one tile, as <see cref="TileGrid.TileSize"/> gives it.</summary>
+    /// <summary>The edge length of one tile, taken from <see cref="TileGrid.TileSize"/>.</summary>
     public int TileSize => _grid.TileSize;
 
     /// <summary>Grid width in tiles.</summary>
@@ -47,24 +45,22 @@ public sealed class TileMap : Entity
     /// <summary>Grid height in tiles.</summary>
     public int Height => _grid.Height;
 
-    /// <summary>World units the grid spans, from the world origin.</summary>
+    /// <summary>How many world units the grid spans, measured from the world origin.</summary>
     public Vector2 Size { get; }
 
     internal override bool Collides => _grid.Collides;
 
     /// <summary>
-    /// This grid's collider in the scene's world, or null when it is in no scene or no tile type
-    /// in its palette collides. Its cells carry the collision layer their tile type was authored
-    /// on; a tile type name is identity, never a layer.
+    /// This grid's collider in the scene's world, or null when the map is in no scene or no tile type in
+    /// its palette collides. Each cell carries the collision layer its tile type was authored on. A tile
+    /// type name identifies the tile and does not name a layer.
     /// </summary>
     public GridCollider2D? Collision { get; private set; }
 
-    /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
+    /// <summary>Returns the palette index at a tile coordinate, and 0 where the grid is empty.</summary>
     public int TileAt(int x, int y) => _grid.TileAt(x, y);
 
-    /// <summary>The tile type name at a tile coordinate.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
+    /// <summary>Returns the tile type name at a tile coordinate.</summary>
     public string TileTypeAt(int x, int y) => _grid.TileTypeAt(x, y);
 
     /// <inheritdoc/>
@@ -86,7 +82,7 @@ public sealed class TileMap : Entity
             return;
         }
 
-        _world = Scene!.Collision;
+        _world = Scene.Collision;
 
         ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
         CellProfile2D[] profiles = new CellProfile2D[palette.Length];
@@ -133,8 +129,8 @@ public sealed class TileMap : Entity
                         continue;
                     }
 
-                    // Terrain never moves and never flips, and its frames are anchored at their
-                    // own corner, so the cell's corner is both endpoints of the interpolation.
+                    // Terrain never moves or flips, and its frames anchor at their own corner, so the
+                    // cell's corner serves as both ends of the interpolation.
                     Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
                     view.Add(new SpriteIntent(
                         sprite,
@@ -150,8 +146,8 @@ public sealed class TileMap : Entity
             }
         }
 
-        // The camera's swept bounds, not its settled region: the renderer interpolates the
-        // camera, so a tile the camera only reaches mid-step is still drawn on this frame.
+        // Uses the camera's swept bounds instead of its settled region, because the renderer interpolates
+        // the camera and a tile the camera only reaches mid-step must still be drawn this frame.
         private (int MinX, int MinY, int MaxX, int MaxY) VisibleBounds(CameraView camera)
         {
             Rect swept = camera.SweptBounds;
@@ -201,10 +197,10 @@ public sealed class TileMap : Entity
         }
     }
 
-    // The grid's faces on the Colliders channel — only the faces a query can meet, of the cells
-    // the camera's view reaches plus one cell around it, which is the one bound on what a large
-    // grid costs to draw. A solid run's shared faces are already culled in the derived state, so a
-    // wall reads as its outline. The map is anchored, so its faces carry no motion.
+    // Draws the grid's faces on the Colliders channel. It draws only the faces a query can meet, and only
+    // for the cells the camera's view reaches plus one cell of margin, which keeps a large grid cheap
+    // to draw. The derived state culls the shared faces inside a solid run, and a wall shows as its
+    // outline. The map is anchored, so its faces carry no motion.
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()
     {
@@ -228,17 +224,17 @@ public sealed class TileMap : Entity
         {
             for (int x = minX; x <= maxX; x++)
             {
-                CellState state = grid.StateAt(x, y);
-                DrawFace(grid, x, y, state, CellState.FaceMinX);
-                DrawFace(grid, x, y, state, CellState.FaceMaxX);
-                DrawFace(grid, x, y, state, CellState.FaceMinY);
-                DrawFace(grid, x, y, state, CellState.FaceMaxY);
+                CellState2D state = grid.StateAt(x, y);
+                DrawFace(grid, x, y, state, CellState2D.FaceMinX);
+                DrawFace(grid, x, y, state, CellState2D.FaceMaxX);
+                DrawFace(grid, x, y, state, CellState2D.FaceMinY);
+                DrawFace(grid, x, y, state, CellState2D.FaceMaxY);
             }
         }
     }
 
-    // The last cell a half-open rect's high edge reaches: the cell the edge lies in, or the one
-    // before it when the edge sits exactly on a cell boundary and so is outside the rect.
+    // Returns the last cell a half-open rect's high edge reaches. That is the cell the edge lies in, or
+    // the cell before it when the edge sits exactly on a boundary and so falls outside the rect.
     private static int LastCell(float edge, int cellSize)
     {
         int cell = GridCollider2D.FloorDiv(edge, cellSize);
@@ -246,7 +242,7 @@ public sealed class TileMap : Entity
         return cell * cellSize == edge ? cell - 1 : cell;
     }
 
-    private static void DrawFace(GridCollider2D grid, int x, int y, CellState state, CellState face)
+    private static void DrawFace(GridCollider2D grid, int x, int y, CellState2D state, CellState2D face)
     {
         if ((state & face) != 0)
         {

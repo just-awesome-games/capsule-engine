@@ -26,36 +26,23 @@ public enum AudioCommandKind : byte
 }
 
 /// <summary>
-/// One instruction from the pure mixer to whatever plays sound. Every field carries a settled value
-/// rather than a delta, so applying a step's commands in order leaves the device in the state the
-/// mixer holds. Fields the <see cref="Kind"/> does not name are unset.
+/// One instruction from the pure mixer to whatever plays sound. Every field carries a settled value,
+/// not a delta, so applying a step's commands in order leaves the device in the state the mixer holds.
+/// Fields the <see cref="Kind"/> does not name are unset.
 /// </summary>
 /// <param name="Kind">What to do.</param>
 /// <param name="Voice">The voice to do it to.</param>
-/// <param name="Clip">The clip to start; <see cref="AudioCommandKind.Play"/> only.</param>
+/// <param name="Clip">The clip to start. Set on <see cref="AudioCommandKind.Play"/> only.</param>
 /// <param name="Bus">
-/// The bus the started voice mixes and pauses through, <see cref="AudioBus.Master"/> where the
-/// playback named none; <see cref="AudioCommandKind.Play"/> only. <see cref="Gain"/> is already
-/// resolved against it, so nothing downstream resolves a bus: this names the group for a host that
-/// routes or meters by one.
+/// The bus the started voice mixes and pauses through. Set on <see cref="AudioCommandKind.Play"/>
+/// only. <see cref="Gain"/> is already resolved against it, so this names the group for a host that
+/// routes or meters by bus.
 /// </param>
-/// <param name="Gain">
-/// Linear amplitude in [0, 1]: master volume, bus volume and voice volume already multiplied
-/// together. Carried by <see cref="AudioCommandKind.Play"/> and <see cref="AudioCommandKind.SetGain"/>.
-/// </param>
-/// <param name="Pitch">
-/// Playback-rate multiplier. Carried by <see cref="AudioCommandKind.Play"/> and
-/// <see cref="AudioCommandKind.SetPitch"/>.
-/// </param>
-/// <param name="Pan">
-/// Stereo position in [-1, 1], -1 hard left. Carried by <see cref="AudioCommandKind.Play"/> and
-/// <see cref="AudioCommandKind.SetPan"/>.
-/// </param>
-/// <param name="Loop">Whether the voice repeats; <see cref="AudioCommandKind.Play"/> only.</param>
-/// <param name="StartSeconds">
-/// Clip time the voice begins at, in seconds from the clip's start; <see cref="AudioCommandKind.Play"/>
-/// only, and 0 for a voice that starts at the beginning.
-/// </param>
+/// <param name="Gain">Linear amplitude in [0, 1], with master, bus and voice volume already multiplied together.</param>
+/// <param name="Pitch">Playback-rate multiplier, on a play or a pitch change.</param>
+/// <param name="Pan">Stereo position in [-1, 1] with -1 hard left, on a play or a pan change.</param>
+/// <param name="Loop">Whether the voice repeats. Set on <see cref="AudioCommandKind.Play"/> only.</param>
+/// <param name="StartSeconds">Clip time the voice begins at. Set on <see cref="AudioCommandKind.Play"/> only.</param>
 public readonly record struct AudioCommand(
     AudioCommandKind Kind,
     Voice Voice,

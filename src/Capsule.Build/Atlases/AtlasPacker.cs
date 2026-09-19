@@ -1,13 +1,13 @@
 namespace Capsule.Build.Atlases;
 
-/// <summary>Where one cell landed: its page and the top-left texel of its cell on that page.</summary>
+/// <summary>Where one cell landed: its page and the top-left texel of its cell.</summary>
 internal readonly record struct Placement(string Key, int Page, int X, int Y);
 
 /// <summary>
-/// MaxRects, best short side fit, no rotation. The input is sorted by height, then width, then key,
-/// and every tie breaks on the first free rectangle found, so one input packs the same way on every
-/// machine. A cell that fits no open page opens the next; every open page is tried first, so a
-/// small cell late in the order fills a hole an earlier page left.
+/// MaxRects, best short side fit, no rotation. Input is sorted by height, then width, then key, and
+/// ties break on the first free rectangle found, so one input packs the same way on every machine.
+/// Every open page is tried before a new one opens. A small cell late in the order can fill a hole
+/// an earlier page left.
 /// </summary>
 internal static class AtlasPacker
 {
@@ -53,8 +53,8 @@ internal static class AtlasPacker
             {
                 if (page == pages.Count)
                 {
-                    // Spacing wider than the page on both axes: a cell then always carries its own
-                    // trailing gap, and the gap of the cell on the far edge falls off the page.
+                    // The page is Spacing wider on both axes so every cell carries its trailing
+                    // gap, and the gap of a cell on the far edge falls off the page.
                     pages.Add(new Bin(maxSize + Spacing, maxSize + Spacing));
                 }
 
@@ -69,7 +69,8 @@ internal static class AtlasPacker
             }
         }
 
-        // Never past maxSize: a cell ends at or before it and maxSize is itself a multiple.
+        // Rounding never passes maxSize, since a cell ends at or before it and maxSize is a
+        // multiple of the granularity.
         return (placements, [.. pages.Select(static page => (RoundUp(page.UsedWidth), RoundUp(page.UsedHeight)))]);
     }
 
@@ -143,8 +144,8 @@ internal static class AtlasPacker
             return true;
         }
 
-        // Every free rectangle the placement cuts is replaced by the up-to-four maximal rectangles
-        // left around it; then any free rectangle inside another is dropped.
+        // Each free rectangle the placement cuts is replaced by the up to four maximal rectangles
+        // around it. Then any free rectangle contained in another is dropped.
         private void Split(in Rect placed)
         {
             for (int i = _free.Count - 1; i >= 0; i--)

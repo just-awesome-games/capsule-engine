@@ -96,6 +96,17 @@ internal static class SceneFixtures
 
     internal static TileMap TerrainOf(Scene scene) => Assert.IsType<TileMap>(scene.Entities[0]);
 
+    /// <summary>A simulation of <paramref name="scene"/> with <paramref name="entities"/> already in it.</summary>
+    internal static SceneSimulation Simulation(Scene scene, params Entity[] entities)
+    {
+        foreach (Entity entity in entities)
+        {
+            scene.Add(entity);
+        }
+
+        return new SceneSimulation(scene);
+    }
+
     internal static StepContext Step(long tick = 0) =>
         new(1.0 / 60.0, new InputState(new ActionBindings()), tick);
 

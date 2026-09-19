@@ -4,8 +4,8 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Rendering;
 
-// Laid out exactly as MonoGame's VertexPositionColorTexture — 24 bytes, position, colour, texture
-// coordinate, with the same semantics — so the stock SpriteEffect binds it unchanged.
+// Laid out as MonoGame's VertexPositionColorTexture, 24 bytes of position, colour and texture
+// coordinate with the same semantics, so the stock SpriteEffect binds it unchanged.
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 internal struct SpriteVertex : IVertexType
 {

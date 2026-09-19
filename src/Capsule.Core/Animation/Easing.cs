@@ -1,14 +1,14 @@
 namespace Capsule.Animation;
 
 /// <summary>
-/// Evaluates the curves <see cref="Ease"/> names: pure arithmetic over one normalised progress,
-/// holding no state, allocating nothing and safe from any thread.
+/// Evaluates the curves <see cref="Ease"/> names. It is arithmetic over one normalised progress, so
+/// it holds no state, allocates nothing and is safe from any thread.
 /// </summary>
 public static class Easing
 {
-    // Robert Penner's constants as published on easings.net: 1.70158 overshoots back by about a
-    // tenth of the span and 1.525 scales that for the in-out form, the elastic periods are 2π/3 and
-    // 2π/4.5, and bounce's 7.5625 and 2.75 are the parabola gain and segment divisor of its four.
+    // Robert Penner's constants as published on easings.net. 1.70158 overshoots back by about a tenth of
+    // the span and 1.525 scales that for the in-out form. The elastic periods are 2π/3 and 2π/4.5.
+    // Bounce's 7.5625 and 2.75 are the parabola gain and the segment divisor of its four segments.
     private const float BackOvershoot = 1.70158f;
     private const float BackInOutOvershoot = BackOvershoot * 1.525f;
     private const float ElasticPeriod = 2f * MathF.PI / 3f;
@@ -17,23 +17,20 @@ public static class Easing
     private const float BounceSegment = 2.75f;
 
     /// <summary>
-    /// The eased position at normalised progress <paramref name="t"/>, which is clamped to
-    /// <c>[0, 1]</c> and read as 0 where it is not a number. Every curve returns the literal
-    /// <c>0</c> and <c>1</c> at the endpoints and only the overshooting ones leave that range
-    /// between them.
+    /// The eased position at normalised progress <paramref name="t"/>. Progress is clamped to <c>[0,
+    /// 1]</c> and NaN reads as 0. Every curve returns <c>0</c> and <c>1</c> at the endpoints, and only
+    /// the overshooting curves leave that range between them.
     /// </summary>
-    /// <param name="ease">The curve to evaluate.</param>
-    /// <param name="t">Progress from 0 to 1.</param>
     /// <exception cref="ArgumentOutOfRangeException">The curve is not a declared <see cref="Ease"/>.</exception>
     /// <remarks>
-    /// Every family is exact IEEE arithmetic, evaluated through <see cref="DeterministicMath"/>
-    /// rather than the platform's transcendental functions, so a curve answers a given progress with
-    /// the same bits on every operating system.
+    /// Every family uses IEEE arithmetic evaluated through <see cref="DeterministicMath"/> instead of
+    /// the platform's transcendental functions. A curve answers a given progress with the same bits on
+    /// every operating system.
     /// </remarks>
     public static float Apply(Ease ease, float t)
     {
-        // Ahead of the clamp, so an undeclared curve is refused at every progress rather than only
-        // between the endpoints. The members are contiguous from Linear.
+        // Checked ahead of the clamp. An undeclared curve is refused at every progress, endpoints
+        // included. The members are contiguous from Linear.
         if (ease is < Ease.Linear or > Ease.InOutBounce)
         {
             throw new ArgumentOutOfRangeException(nameof(ease), ease, "No such easing curve.");
@@ -95,8 +92,8 @@ public static class Easing
                 ? (1f - OutBounce(1f - t - t)) * 0.5f
                 : (1f + OutBounce(t + t - 1f)) * 0.5f,
 
-            // Unreachable: the range check above admits only the members the arms enumerate, and the
-            // compiler still wants the arm.
+            // Unreachable, because the range check admits only the members the arms enumerate. The
+            // compiler still requires this arm.
             _ => throw new ArgumentOutOfRangeException(nameof(ease), ease, "No such easing curve."),
         };
     }
@@ -117,7 +114,7 @@ public static class Easing
 
     private static float InBack(float t) => ((BackOvershoot + 1f) * t * t * t) - (BackOvershoot * t * t);
 
-    // Its own overshoot rather than the halved InBack curve, so each half pulls back as far as the
+    // Uses its own overshoot constant, not the halved InBack curve, so each half pulls back as far as the
     // one-sided curves do.
     private static float InOutBack(float t)
     {
@@ -132,8 +129,8 @@ public static class Easing
     private static float InElastic(float t) =>
         -DeterministicMath.Exp2((10f * t) - 10f) * DeterministicMath.Sin(((10f * t) - 10.75f) * ElasticPeriod);
 
-    // Its own period, so the two halves oscillate at the rate the one-sided curves do over half the
-    // span rather than at half of it.
+    // Uses its own period, so each half oscillates at the rate the one-sided curves do over half the
+    // span.
     private static float InOutElastic(float t)
     {
         float phase = DeterministicMath.Sin(((20f * t) - 11.125f) * ElasticInOutPeriod);
@@ -143,7 +140,7 @@ public static class Easing
             : (DeterministicMath.Exp2(10f - (20f * t)) * phase * 0.5f) + 1f;
     }
 
-    // Bounce is defined settling onto the end; the other two directions are reflections of it.
+    // Bounce is defined settling onto the end. The other two directions reflect this curve.
     private static float OutBounce(float t)
     {
         if (t < 1f / BounceSegment)

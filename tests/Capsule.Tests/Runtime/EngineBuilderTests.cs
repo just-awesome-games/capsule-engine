@@ -78,7 +78,7 @@ public sealed class EngineBuilderTests
                 new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(Reader), () => new Reader(canvas => seen = canvas))]))
+                    [SceneRegistration.Plain(typeof(Reader), _ => new Reader(canvas => seen = canvas))]))
             .WithoutCrashLog()
             .WithoutLogging();
 
@@ -128,7 +128,7 @@ public sealed class EngineBuilderTests
             .WithInput(static input => input.GamepadDeadzones(0.25f, 0.12f));
 
     private static SceneRegistration MenuRegistration =>
-        SceneRegistration.Plain(typeof(Menu), static () => new Menu());
+        SceneRegistration.Plain(typeof(Menu), static _ => new Menu());
 
     private sealed class Menu : Scene;
 

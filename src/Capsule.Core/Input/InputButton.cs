@@ -2,16 +2,17 @@ namespace Capsule.Input;
 
 /// <summary>
 /// One bindable digital input: a <see cref="Key"/>, a <see cref="PadButton"/>, a
-/// <see cref="MouseButton"/> or a <see cref="StickDirection"/>, converting implicitly from any of
+/// <see cref="MouseButton"/> or a <see cref="StickDirection"/>. It converts implicitly from any of
 /// them. The default is <see cref="None"/>, which no snapshot holds down.
 /// </summary>
 public readonly struct InputButton : IEquatable<InputButton>
 {
     /// <summary>
     /// How far a stick must be pushed, in [0, 1] along the direction's axis, for a
-    /// <see cref="StickDirection"/> to read as held. Unity's default press point; applied to the
-    /// axis position the snapshot carries, which is already past the run's stick deadzone.
+    /// <see cref="StickDirection"/> to read as held. It applies to the axis position the snapshot
+    /// carries, which is already past the run's stick deadzone.
     /// </summary>
+    // Unity's default press point.
     public const float StickPressPoint = 0.5f;
 
     private readonly Key _key;
@@ -27,7 +28,7 @@ public readonly struct InputButton : IEquatable<InputButton>
         _stickDirection = stickDirection;
     }
 
-    /// <summary>No button; equal to <c>default</c>. Binding rejects it.</summary>
+    /// <summary>No button, equal to <c>default</c>. Binding rejects it.</summary>
     public static InputButton None => default;
 
     /// <summary>Names <paramref name="key"/> as this button.</summary>
@@ -42,14 +43,21 @@ public readonly struct InputButton : IEquatable<InputButton>
     /// <summary>Names <paramref name="stickDirection"/> as this button.</summary>
     public static implicit operator InputButton(StickDirection stickDirection) => new(Key.None, PadButton.None, MouseButton.None, stickDirection);
 
-    /// <summary>Whether this names no button at all — the default, or a <c>None</c> device constant.</summary>
+    /// <summary>Whether this names no button, which covers the default and any <c>None</c> device constant.</summary>
     public bool IsNone =>
         _key == Key.None && _padButton == PadButton.None && _mouseButton == MouseButton.None &&
         _stickDirection == StickDirection.None;
 
+    // Whether a snapshot can hold this button. Binding checks it, and a read does not.
+    internal bool IsRepresentable =>
+        (uint)_key < DeviceSnapshot.Capacity &&
+        (uint)_padButton < DeviceSnapshot.PadCapacity &&
+        (uint)_mouseButton < DeviceSnapshot.MouseCapacity;
+
     /// <summary>
-    /// Whether <paramref name="snapshot"/> holds this button down; a stick direction is down while
-    /// its axis is at or past <see cref="StickPressPoint"/> that way. <see cref="None"/> never is.
+    /// Whether <paramref name="snapshot"/> holds this button down. A stick direction is down while its
+    /// axis is at or past <see cref="StickPressPoint"/> in that direction. <see cref="None"/> is never
+    /// down.
     /// </summary>
     public bool IsDown(in DeviceSnapshot snapshot) =>
         _key != Key.None ? snapshot.IsDown(_key)
@@ -68,7 +76,7 @@ public readonly struct InputButton : IEquatable<InputButton>
     /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(_key, _padButton, _mouseButton, _stickDirection);
 
-    /// <summary>The device constant's own name, or <c>None</c>.</summary>
+    /// <summary>The device constant's name, or <c>None</c>.</summary>
     public override string ToString() =>
         IsNone ? nameof(None)
         : _key != Key.None ? _key.ToString()

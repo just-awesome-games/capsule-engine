@@ -37,7 +37,7 @@ public sealed class DefaultBitmapFontTests
 
         Assert.Same(font, BitmapFont.Default);
         Assert.Equal(16, font.LineHeight);
-        Assert.Equal(12, font.Base);
+        Assert.Equal(12, font.Baseline);
 
         int index = 0;
         foreach (int codepoint in ExpectedCodepoints())

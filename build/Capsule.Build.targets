@@ -5,13 +5,13 @@
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
-  <!-- Source consumers use Release unless explicitly overridden; repository builds inherit. -->
+  <!-- Source consumers use Release unless overridden. Repository builds inherit. -->
   <PropertyGroup>
     <CapsuleSourceConfiguration Condition="'$(CapsuleSourceConfiguration)' == '' and '$(CapsuleSourceRoot)' != '' and '$(CapsuleEngineRepository)' != 'true'">Release</CapsuleSourceConfiguration>
     <CapsuleSourceModulesDirectory Condition="'$(CapsuleSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))</CapsuleSourceModulesDirectory>
   </PropertyGroup>
 
-  <!-- Imported after the SDK default; command-line overrides still win. -->
+  <!-- Imported after the SDK default. Command-line overrides still win. -->
   <PropertyGroup>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
@@ -23,7 +23,7 @@
     <CapsuleReadsAssetSources Condition="'$(CapsuleImportScenes)' == 'true' or '$(CapsuleShipAssets)' == 'true' or '$(CapsuleImportAudio)' == 'true' or '$(CapsuleGameLogic)' == 'true'">true</CapsuleReadsAssetSources>
   </PropertyGroup>
 
-  <!-- Every authored path is keyed by the tool, so reading asset sources at all needs it. -->
+  <!-- Reading asset sources needs the build tool, which keys every authored path. -->
   <PropertyGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
     <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
@@ -43,8 +43,8 @@
                       Private="false" />
   </ItemGroup>
 
-  <!-- Resolve before import-target Inputs are evaluated; match the ProjectReference configuration.
-       Configuration is settled only when this target runs. -->
+  <!-- Resolve before import-target Inputs are evaluated, and match the ProjectReference
+       configuration. Configuration is settled only when this target runs. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <PropertyGroup>
       <_CapsuleBuildToolConfiguration>$(CapsuleSourceConfiguration)</_CapsuleBuildToolConfiguration>
@@ -68,8 +68,8 @@
     </ItemGroup>
   </Target>
 
-  <!-- Resolved for every importing project, not only one that reads asset sources: an empty value
-       would leave the authoring globs rooted at the drive. -->
+  <!-- Resolved for every importing project, not only those that read asset sources. An empty value
+       would root the authoring globs at the drive. -->
   <PropertyGroup>
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/Assets</CapsuleAssetSourcesDir>
@@ -90,7 +90,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
 
-  <!-- The authored path as spelled, platform separator included: the key pass normalizes it. -->
+  <!-- The authored path as spelled, platform separator included. The key pass normalizes it. -->
   <ItemGroup Condition="'$(CapsuleReadsAssetSources)' == 'true'">
     <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/Textures/**/*.png"
                   Exclude="@(_CapsuleDevelopmentOnly)">
@@ -108,7 +108,7 @@
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
 
-    <!-- Not a CapsuleAsset: a manifest ships nowhere itself. %(Filename) leaves one extension on a
+    <!-- Not a CapsuleAsset, since a manifest does not ship. %(Filename) leaves one extension on a
          '*.atlas.json', so both come off here. -->
     <CapsuleAtlasManifest Include="$(CapsuleAssetSourcesDir)/Atlases/**/*.atlas.json"
                           Exclude="@(_CapsuleDevelopmentOnly)">
@@ -128,17 +128,17 @@
     </CapsuleNativeScene>
   </ItemGroup>
 
+  <!-- A sheet does not ship. The build tool compiles it into CapsuleAssets.Sprites. %(Filename)
+       leaves one extension on a '*.sheet.json', so both come off here. -->
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
+    <CapsuleNativeSheet Include="$(CapsuleAssetSourcesDir)/Sprites/**/*.sheet.json"
+                        Exclude="@(_CapsuleDevelopmentOnly)">
+      <CapsuleDocumentDir>%(RecursiveDir)</CapsuleDocumentDir>
+    </CapsuleNativeSheet>
+  </ItemGroup>
+
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
     <AdditionalFiles Include="@(CapsuleAsset)" />
-
-    <!-- No CapsuleAsset: a sheet is text in and C# out, so it is keyed by nothing and ships
-         nowhere. %(Filename) leaves one extension on a '*.sheet.json', so both come off here. -->
-    <AdditionalFiles Include="$(CapsuleAssetSourcesDir)/Sprites/**/*.sheet.json"
-                     Exclude="@(_CapsuleDevelopmentOnly)">
-      <CapsuleAssetDomain>sprites</CapsuleAssetDomain>
-      <CapsuleAssetPath>%(RecursiveDir)$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</CapsuleAssetPath>
-    </AdditionalFiles>
-
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetDomain" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetPath" />
   </ItemGroup>
@@ -150,7 +150,7 @@
           BeforeTargets="AssignTargetPaths">
 
     <Error Condition="'@(_CapsuleUnknownAsset)' != ''"
-           Text="Capsule: a file under an asset domain root has an extension that domain does not admit — Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .fnt and .png. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)': @(_CapsuleUnknownAsset, ' ')" />
+           Text="Capsule: @(_CapsuleUnknownAsset, ' ') has an extension its asset domain does not admit; Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .fnt and .png. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)'." />
   </Target>
 
   <!-- Authoring modules populate CapsuleSceneDocument before this collection target. -->
@@ -158,21 +158,18 @@
           Condition="'$(CapsuleImportScenes)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSceneDocumentsDependsOn)" />
 
-  <!-- Authoring modules populate AdditionalFiles with derived sheets before this collection target.
-       The metadata the generator reads is captured into the analyzer config by the SDK's
-       GenerateMSBuildEditorConfigFile, so a module ordered only ahead of the compile adds its items
-       after that capture and the generator sees a sheet with no domain. -->
+  <!-- The seam an authoring module hooks. Its derivation targets run here and add their derived
+       sheets to CapsuleSheetDocument with the key each claims in %(CapsuleDocumentKey). -->
   <Target Name="CapsuleCollectSheetDocuments"
           Condition="'$(CapsuleGameLogic)' == 'true'"
-          DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSheetDocumentsDependsOn)"
-          BeforeTargets="GenerateMSBuildEditorConfigFile;BeforeCompile;CoreCompile" />
+          DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSheetDocumentsDependsOn)" />
 
-  <!-- The whole authoring plane as one manifest. Keying is a C# rule shared with the generators, so
-       nothing here derives a key: authored paths go out to the build tool and every name the later
-       hooks need comes back in the manifests it writes. -->
+  <!-- The authoring plane as one manifest. Keying is a C# rule shared with the generators, so
+       nothing here derives a key. Authored paths go out to the build tool, and the names the later
+       hooks need come back in the manifests it writes. -->
   <Target Name="CapsuleBuildRequests"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
-          DependsOnTargets="CapsuleAssetsInit;CapsuleCollectSceneDocuments;CapsuleResolveBuildTool">
+          DependsOnTargets="CapsuleAssetsInit;CapsuleCollectSceneDocuments;CapsuleCollectSheetDocuments;CapsuleResolveBuildTool">
 
     <PropertyGroup>
       <CapsuleObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
@@ -180,21 +177,22 @@
       <CapsuleBuildStampFile>$(CapsuleObjDir)/build.stamp</CapsuleBuildStampFile>
       <CapsuleSceneDocumentsOutDir>$(CapsuleObjDir)/scenes</CapsuleSceneDocumentsOutDir>
       <CapsuleAudioRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Audio.g.cs</CapsuleAudioRegistryFile>
+      <CapsuleSpriteRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Sprites.g.cs</CapsuleSpriteRegistryFile>
       <CapsuleRequestProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleRequestProjectDir>
     </PropertyGroup>
 
     <Error Condition="'$(CapsuleReadsAssetSources)' == 'true' and '$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
            Text="Capsule: the build tool is unavailable, so no asset can be keyed. Reference the Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
 
-    <!-- Qualify metadata to avoid evaluating it on incompatible items. A font description is
-         compiled in by the generator from the same authored file: keyed by nothing, ships nowhere. -->
+    <!-- Qualify metadata to avoid evaluating it on incompatible items. The generator compiles a
+         font description in from the same authored file, so it is neither keyed nor shipped. -->
     <ItemGroup>
       <_CapsuleAssetRequest Include="@(CapsuleAsset)"
                             Condition="'@(CapsuleAsset)' != '' and '%(CapsuleAsset.Extension)' != '.fnt'">
         <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleAsset.FullPath)))</Relative>
       </_CapsuleAssetRequest>
 
-      <!-- The audio sources on their own: the run opens each to measure it, so each is an input. -->
+      <!-- The audio sources on their own. The run opens each to measure it, so each is an input. -->
       <_CapsuleAudioSource Include="@(CapsuleAsset)"
                            Condition="'%(CapsuleAsset.CapsuleAssetDomain)' == 'audio'" />
 
@@ -203,10 +201,27 @@
         <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleAtlasManifest.FullPath)))</Relative>
       </_CapsuleAtlasRequest>
 
-      <!-- Inputs only while an atlas exists to pack them: the run opens a texture for nothing else,
-           and adding or removing the last manifest rewrites the request file. -->
+      <!-- Inputs only while an atlas exists to pack them. The run opens a texture for nothing
+           else, and adding or removing the last manifest rewrites the request file. -->
       <_CapsuleTextureSource Include="@(CapsuleAsset)"
                              Condition="'@(CapsuleAtlasManifest)' != '' and '%(CapsuleAsset.CapsuleAssetDomain)' == 'textures'" />
+    </ItemGroup>
+
+    <!-- Keyed off the path under the sprites root, and a module states the key on its own
+         documents. Metadata is qualified because unqualified metadata that some items in a list do
+         not carry is an MSBuild error. -->
+    <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true'">
+      <_CapsuleSheetRequest Include="@(CapsuleNativeSheet)"
+                            Condition="'@(CapsuleNativeSheet)' != ''">
+        <RawKey>$([System.String]::Copy('%(CapsuleNativeSheet.CapsuleDocumentDir)').Replace('\', '/'))$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleNativeSheet.Filename)'))</RawKey>
+        <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleNativeSheet.FullPath)))</Relative>
+      </_CapsuleSheetRequest>
+      <_CapsuleSheetRequest Include="@(CapsuleSheetDocument)"
+                            Condition="'@(CapsuleSheetDocument)' != ''">
+        <RawKey Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' != ''">%(CapsuleSheetDocument.CapsuleDocumentKey)</RawKey>
+        <RawKey Condition="'%(CapsuleSheetDocument.CapsuleDocumentKey)' == ''">$([System.IO.Path]::GetFileNameWithoutExtension('%(CapsuleSheetDocument.Filename)'))</RawKey>
+        <Relative>$([MSBuild]::MakeRelative($(CapsuleRequestProjectDir), %(CapsuleSheetDocument.FullPath)))</Relative>
+      </_CapsuleSheetRequest>
     </ItemGroup>
 
     <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
@@ -231,20 +246,21 @@
       <_CapsuleTileSizeOption Condition="'$(CapsuleTileSize)' != ''">tile-size|$(CapsuleTileSize)</_CapsuleTileSizeOption>
     </PropertyGroup>
 
-    <!-- Rewritten only when the authored set or an option changes, so it is the incremental input. -->
+    <!-- Rewritten only when the authored set or an option changes. That makes it the incremental
+       input. -->
     <WriteLinesToFile File="$(CapsuleBuildRequestFile)"
-                      Lines="$(_CapsuleTileSizeOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)');@(_CapsuleAtlasRequest->'atlases|%(CapsuleAssetPath)||%(Relative)')"
+                      Lines="$(_CapsuleTileSizeOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)');@(_CapsuleSheetRequest->'sprites|%(RawKey)||%(Relative)');@(_CapsuleAtlasRequest->'atlases|%(CapsuleAssetPath)||%(Relative)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
   </Target>
 
-  <!-- One process per build. The manifest and the stamp make it all-or-nothing incremental: the
+  <!-- One process per build. The manifest and the stamp make it all-or-nothing incremental. The
        manifest changes whenever a source is added, renamed or removed or an option changes, and the
-       stamp is written last, so a run that failed leaves it stale. -->
+       stamp is written last, so a failed run leaves it stale. -->
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleBuildRequests;ResolveProjectReferences"
-          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleAudioSource);@(_CapsuleAtlasRequest);@(_CapsuleTextureSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleSheetRequest);@(_CapsuleAudioSource);@(_CapsuleAtlasRequest);@(_CapsuleTextureSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
           Outputs="$(CapsuleBuildStampFile)">
 
     <Error Condition="!Exists('@(_CapsuleBuildTool)')"
@@ -257,7 +273,8 @@
   </Target>
 
   <!-- Runs on up-to-date builds too: every hook below reads the manifests on disk, never a run that
-       skipped. BeforeCompile as well as AssignTargetPaths — a design-time build reaches no further. -->
+       skipped. BeforeCompile as well as AssignTargetPaths, because a design-time build reaches no
+       further. -->
   <Target Name="CapsuleReadBuildOutputs"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleRunBuildTool"
@@ -305,11 +322,16 @@
       <Compile Include="$(CapsuleAudioRegistryFile)" />
     </ItemGroup>
 
+    <ItemGroup Condition="'@(_CapsuleSheetRequest)' != '' and Exists('$(CapsuleSpriteRegistryFile)')">
+      <Compile Include="$(CapsuleSpriteRegistryFile)" />
+    </ItemGroup>
+
     <!-- The run's outputs go out together or not at all: a clean that took the registry but left the
          stamp would leave the next build skipping the tool and compiling without it. -->
     <ItemGroup>
       <FileWrites Include="$(CapsuleBuildStampFile);$(CapsuleObjDir)/shipped-assets.txt;$(CapsuleObjDir)/scene-content.txt" />
       <FileWrites Include="$(CapsuleAudioRegistryFile)" Condition="Exists('$(CapsuleAudioRegistryFile)')" />
+      <FileWrites Include="$(CapsuleSpriteRegistryFile)" Condition="Exists('$(CapsuleSpriteRegistryFile)')" />
       <FileWrites Include="@(_CapsuleDerivedScene)" />
       <FileWrites Include="$(CapsuleObjDir)/atlases/**/*" />
     </ItemGroup>

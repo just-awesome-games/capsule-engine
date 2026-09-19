@@ -7,7 +7,7 @@ namespace Capsule.Runtime;
 // prefixed with the simulation tick it was written on.
 internal sealed class ConsoleLogSink : ILogSink
 {
-    // Reads the current tick; null before the host's clock exists.
+    // Reads the current tick. Null before the host's clock exists.
     internal Func<long>? Tick { get; set; }
 
     public void Write(LogLevel level, string message)
@@ -24,7 +24,7 @@ internal sealed class ConsoleLogSink : ILogSink
         }
     }
 
-    // The tick column is the same width either way, so lines from before the clock line up.
+    // The tick column keeps one width, so lines written before the clock line up.
     internal static string Format(LogLevel level, long? tick, string message)
     {
         string label = level switch

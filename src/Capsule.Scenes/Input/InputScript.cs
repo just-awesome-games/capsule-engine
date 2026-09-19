@@ -4,17 +4,16 @@ using Capsule.Scenes;
 namespace Capsule.Input;
 
 /// <summary>
-/// Builds an <see cref="IInputDriver"/> of a fixed snapshot sequence the way a device produces one:
-/// a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/>, <see cref="Axis"/> and
-/// <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap(Key)"/> and
-/// <see cref="Scroll"/> emit steps of. Every duration is a count of fixed steps, never seconds.
+/// Builds an <see cref="IInputDriver"/> from a fixed snapshot sequence, the way a device produces one. It
+/// keeps a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/>, <see cref="Axis"/> and
+/// <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap(Key)"/> and <see cref="Scroll"/> emit
+/// steps of that state. Every duration counts fixed steps, never seconds.
 /// </summary>
 /// <remarks>
-/// Editing the held state emits no step of its own, so a chord is pressed by several
-/// <see cref="Down(Key)"/> calls before one <see cref="Wait"/>. The emitted sequence is cumulative,
-/// so a script may be built more than once and the new driver carries on from where the run stands:
-/// each build covers ticks 0 to n - 1 of everything scripted so far, including the ticks an earlier
-/// driver already served. A driver that must react to the scene is written as a class instead.
+/// Editing the held state emits no step, so press a chord with several <see cref="Down(Key)"/> calls
+/// followed by one <see cref="Wait"/>. The emitted sequence accumulates, and a script may be built more
+/// than once: each build covers ticks 0 to n - 1 of everything scripted so far, including ticks an
+/// earlier driver already served. Write a driver that must react to the scene as a class instead.
 /// </remarks>
 public sealed class InputScript
 {
@@ -23,7 +22,6 @@ public sealed class InputScript
     private DeviceSnapshot _held;
 
     /// <summary>Holds <paramref name="key"/> down from the next emitted step on.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
     public InputScript Down(Key key)
     {
         _held = _held.With(key);
@@ -31,7 +29,6 @@ public sealed class InputScript
     }
 
     /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public InputScript Down(PadButton button)
     {
         _held = _held.With(button);
@@ -39,31 +36,27 @@ public sealed class InputScript
     }
 
     /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     public InputScript Down(MouseButton button)
     {
         _held = _held.With(button);
         return this;
     }
 
-    /// <summary>Releases <paramref name="key"/>; releasing what is not held changes nothing.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
+    /// <summary>Releases <paramref name="key"/>. Releasing a key that is not held changes nothing.</summary>
     public InputScript Up(Key key)
     {
         _held = _held.Without(key);
         return this;
     }
 
-    /// <summary>Releases <paramref name="button"/>; releasing what is not held changes nothing.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    /// <summary>Releases <paramref name="button"/>. Releasing a button that is not held changes nothing.</summary>
     public InputScript Up(PadButton button)
     {
         _held = _held.Without(button);
         return this;
     }
 
-    /// <summary>Releases <paramref name="button"/>; releasing what is not held changes nothing.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
+    /// <summary>Releases <paramref name="button"/>. Releasing a button that is not held changes nothing.</summary>
     public InputScript Up(MouseButton button)
     {
         _held = _held.Without(button);
@@ -71,11 +64,10 @@ public sealed class InputScript
     }
 
     /// <summary>
-    /// Puts the pointer on <paramref name="position"/> from the next emitted step on, as a mouse that
-    /// was moved there would. Canvas pixels from the canvas's top-left corner, unclamped: a position
-    /// outside the canvas is a pointer outside it.
+    /// Puts the pointer at <paramref name="position"/> from the next emitted step on, the way a mouse moved
+    /// there would. The position is in canvas pixels from the canvas's top-left corner and is not
+    /// clamped, so the pointer can sit outside the canvas.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The position is not finite.</exception>
     public InputScript MoveTo(Vector2 position)
     {
         _held = _held.WithPointer(position);
@@ -83,9 +75,8 @@ public sealed class InputScript
     }
 
     /// <summary>Places <paramref name="axis"/> at <paramref name="value"/> from the next emitted step on.</summary>
-    /// <param name="axis">The axis to place; never <see cref="PadAxis.None"/>.</param>
-    /// <param name="value">In [-1, 1] for a stick, [0, 1] for a trigger.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The axis names none, or the value is outside its range.</exception>
+    /// <param name="axis">The axis to place. Not <see cref="PadAxis.None"/>.</param>
+    /// <param name="value">In [-1, 1] for a stick, or [0, 1] for a trigger.</param>
     public InputScript Axis(PadAxis axis, float value)
     {
         _held = _held.WithAxis(axis, value);
@@ -93,7 +84,6 @@ public sealed class InputScript
     }
 
     /// <summary>Emits one step with <paramref name="key"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is not representable.</exception>
     /// <exception cref="InvalidOperationException">The key is already held, so the tap would release it instead.</exception>
     public InputScript Tap(Key key)
     {
@@ -107,7 +97,6 @@ public sealed class InputScript
     }
 
     /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     /// <exception cref="InvalidOperationException">The button is already held, so the tap would release it instead.</exception>
     public InputScript Tap(PadButton button)
     {
@@ -121,7 +110,6 @@ public sealed class InputScript
     }
 
     /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is not representable.</exception>
     /// <exception cref="InvalidOperationException">The button is already held, so the tap would release it instead.</exception>
     public InputScript Tap(MouseButton button)
     {
@@ -135,11 +123,10 @@ public sealed class InputScript
     }
 
     /// <summary>
-    /// Emits one step with the wheel having turned <paramref name="notches"/> on top of the held
-    /// state, then stills it: a wheel is never held, so only that one step sees the notches.
+    /// Emits one step with the wheel turned <paramref name="notches"/> on top of the held state, then
+    /// stills the wheel. A wheel is never held, so only that one step sees the notches.
     /// </summary>
-    /// <param name="notches">Wheel notches: X positive scrolls right, Y positive scrolls away from the user. Unbounded.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The notches are not finite.</exception>
+    /// <param name="notches">Wheel notches. Positive X scrolls right and positive Y scrolls away from the user. Unbounded.</param>
     public InputScript Scroll(Vector2 notches)
     {
         _steps.Add(_held.WithScroll(notches));
@@ -148,8 +135,7 @@ public sealed class InputScript
     }
 
     /// <summary>Emits <paramref name="steps"/> steps of the current held state.</summary>
-    /// <param name="steps">Fixed steps, never seconds; 0 emits nothing.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The count is negative.</exception>
+    /// <param name="steps">A count of fixed steps, never seconds. Zero emits nothing.</param>
     public InputScript Wait(int steps)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(steps);
@@ -163,13 +149,12 @@ public sealed class InputScript
     }
 
     /// <summary>
-    /// A driver of every step emitted so far, served by the run's own tick: the step at tick
-    /// <c>t</c> is position <c>t</c> of the sequence, so a script of <c>n</c> steps drives ticks 0
-    /// to <c>n</c> - 1 and declines every tick at or past <c>n</c>. It is positional, never
-    /// relative to where it was built: handed a run already at tick 30, a script serves its
-    /// position 30, which exists only if it emitted more than 30 steps, so a shorter one declines
-    /// at once and ends the run without a step. A script that emitted nothing ends any run before
-    /// its first step.
+    /// Builds a driver over every step emitted so far, indexed by the run's own tick. The step at tick
+    /// <c>t</c> is position <c>t</c> of the sequence, so <c>n</c> steps drive ticks 0 to <c>n</c> - 1 and
+    /// every tick at or past <c>n</c> is declined. Positions are absolute, not relative to where the
+    /// driver was built. Given a run already at tick 30, the script serves its position 30, which exists
+    /// only when it emitted more than 30 steps. A shorter script declines at once and ends the run
+    /// without a step, and a script that emitted nothing ends any run before its first step.
     /// </summary>
     public IInputDriver Build() => new ScriptedInputDriver([.. _steps]);
 
@@ -178,12 +163,12 @@ public sealed class InputScript
         if (held)
         {
             throw new InvalidOperationException(
-                $"{name} is already held, so a tap of it would read as a release: hold it with Down and release it with Up, or drop the Down.");
+                $"{name} is already held, and a tap would read as a release. Release it with Up first, or drop the Down.");
         }
     }
 }
 
-// A fixed sequence, indifferent to the scene: what InputScript builds.
+// The driver InputScript builds: a fixed sequence that never reads the scene.
 internal sealed class ScriptedInputDriver(DeviceSnapshot[] steps) : IInputDriver
 {
     public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)

@@ -8,45 +8,44 @@ namespace Capsule.UI;
 /// <summary>
 /// Makes its entity an item a <see cref="FocusNavigator"/> can focus and press: a hit box, the
 /// focus state, and the three events a menu item, a tab or a dialogue choice reacts to. It draws
-/// nothing — what the focus looks like is whatever the entity does in <see cref="Focused"/> and
+/// nothing. The entity gives the focus its look in <see cref="Focused"/> and
 /// <see cref="Unfocused"/>.
 /// <para>
-/// Only a navigator holding this focusable raises its events, so one in no navigator is inert; the
-/// neighbours it names are data until a navigator reads them.
+/// Only a navigator holding this focusable raises its events, so one in no navigator is inert, and
+/// the neighbours it names are data until a navigator reads them.
 /// </para>
 /// </summary>
-/// <param name="size">The extent the hit box covers; see <see cref="Size"/>.</param>
+/// <param name="size">The extent the hit box covers. See <see cref="Size"/>.</param>
 public sealed class Focusable(Vector2 size) : Component
 {
     /// <summary>
-    /// The extent the hit box covers, in the entity's units — world units on a world entity and
-    /// canvas pixels on a screen one. A non-positive axis is never under the pointer, and is still
-    /// reached by the directional actions.
+    /// The extent the hit box covers, in the entity's units: world units on a world entity and canvas pixels
+    /// on a screen entity. A non-positive axis is never under the pointer, but the directional actions still
+    /// reach the item.
     /// </summary>
     public Vector2 Size { get; set; } = size;
 
     /// <summary>
     /// The point in the entity's own space the hit box's top-left corner lands on, placed by the
-    /// entity's world transform; zero by default, which puts the corner on the entity.
+    /// entity's world transform. Zero by default, which puts the corner on the entity.
     /// </summary>
     public Vector2 Offset { get; set; }
 
     /// <summary>
-    /// The hit box in the space the entity draws in — world units under a world root, canvas pixels
-    /// with the <see cref="ScreenEntity.Anchor"/> resolved under a screen one: the corner placed by
-    /// the entity's <see cref="Entity.WorldTransform"/> and <see cref="Size"/> times its scale. A hit
-    /// box cannot turn: an entity turned anywhere up its ancestry refuses this component, and it
-    /// refuses such a turn. Read from the entity's current transform;
-    /// <c>default</c> while attached to no entity.
+    /// The hit box in the space the entity draws in: world units under a world root, or canvas pixels
+    /// with the <see cref="ScreenEntity.Anchor"/> resolved under a screen one. The corner is placed by
+    /// the entity's <see cref="Entity.WorldTransform"/> and spans <see cref="Size"/> times its scale.
+    /// A hit box cannot turn. A rotation anywhere in the ancestry and this component refuse each
+    /// other. Read from the entity's current transform, and <c>default</c> while attached to no entity.
     /// </summary>
     public Rect Bounds => Entity is { } entity
-        ? new Rect(entity.World.Apply(Offset) + entity.SpaceOrigin, Size * entity.World.Scale)
+        ? new Rect(entity.World.TransformPoint(Offset) + entity.SpaceOrigin, Size * entity.World.Scale)
         : default;
 
     /// <summary>
-    /// The item a navigator's up direction moves to from this one, read before the geometry. Null —
-    /// the default — leaves that direction to the geometry and its wrap, and this item itself blocks
-    /// it, moving nothing; a named item that is not live hands the move on to its own
+    /// The item a navigator's up direction moves to from this one, read before the geometry. Null,
+    /// the default, leaves that direction to the geometry and its wrap. Naming this item blocks the
+    /// direction and moves nothing. A named item that is not live hands the move on to its own
     /// <see cref="Up"/>. See <see cref="FocusNavigator"/> for the chain and the geometry.
     /// </summary>
     public Focusable? Up { get; set; }
@@ -71,21 +70,20 @@ public sealed class Focusable(Vector2 size) : Component
     /// <summary>
     /// Raised as the focus lands on this item, with <see cref="IsFocused"/> already true and before
     /// the navigator's <see cref="FocusNavigator.FocusChanged"/>. Handlers run synchronously, in
-    /// subscription order; one that moves the focus on is queued, per
-    /// <see cref="FocusNavigator.Focus"/>.
+    /// subscription order, and one that moves the focus on is refused.
     /// </summary>
     public event Action? Focused;
 
     /// <summary>
     /// Raised as the focus leaves this item, with <see cref="IsFocused"/> already false and before
-    /// the item taking the focus is told it has it — or with no item taking it, where the navigator
+    /// the item taking the focus is told it has it, or with no item taking it where the navigator
     /// released this item because it is no longer live.
     /// </summary>
     public event Action? Unfocused;
 
     /// <summary>
-    /// Raised when this item is pressed, which reaches the focused item alone and comes after that
-    /// step's focus events. At most once per step however many of the step's actions asked for it.
+    /// Raised when this item is pressed. Only the focused item is pressed, and the press comes after
+    /// that step's focus events. At most once per step, however many actions asked for it.
     /// </summary>
     public event Action? Pressed;
 

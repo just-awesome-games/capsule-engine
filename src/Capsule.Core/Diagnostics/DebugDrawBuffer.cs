@@ -4,9 +4,9 @@ using Capsule.Rendering;
 
 namespace Capsule.Diagnostics;
 
-// One straight segment a DebugDraw call decomposed to. A null Color is the channel's, resolved
-// when drawn. Motion is how far what the draw follows moved this step, so the host can place it
-// where that thing is drawn between steps. Kept until the settled tick passes ExpiresAtTick.
+// One straight segment a DebugDraw call decomposed to. A null Color takes the channel's colour, resolved
+// when drawn. Motion is how far the followed thing moved this step, so the host can place the segment
+// where that thing is drawn between steps. A segment is kept until the settled tick passes ExpiresAtTick.
 internal readonly record struct DebugDrawSegment(
     string Channel,
     Vector2 A,
@@ -15,7 +15,7 @@ internal readonly record struct DebugDrawSegment(
     long ExpiresAtTick,
     Vector2 Motion);
 
-// One label, its top-left corner at Position; Color, Motion and expiry as a segment's.
+// One label with its top-left corner at Position. Color, Motion and expiry work as a segment's do.
 internal readonly record struct DebugDrawLabel(
     string Channel,
     Vector2 Position,
@@ -24,10 +24,10 @@ internal readonly record struct DebugDrawLabel(
     long ExpiresAtTick,
     Vector2 Motion);
 
-// Where DebugDraw calls land once a host attaches it: the live segments and labels, the channels
-// that have emitted so far, and the tick a new draw expires against. The host settles it once per
-// frame at the scheduler's tick, which prunes what has expired and stamps what the next step
-// emits. Single-threaded, like the simulation that writes it.
+// Where DebugDraw calls land once a host attaches it: the live segments and labels, the channels that
+// have emitted so far, and the tick a new draw expires against. The host settles it once per frame at the
+// scheduler's tick, which prunes what has expired and stamps what the next step emits. It is
+// single-threaded, like the simulation that writes it.
 internal sealed class DebugDrawBuffer
 {
     private readonly List<DebugDrawSegment> _segments = [];
@@ -42,8 +42,8 @@ internal sealed class DebugDrawBuffer
     // Every channel that has emitted since the buffer was created, in no order.
     internal IReadOnlyCollection<string> Channels => _channels;
 
-    // The tick the most recent draw was stamped against — the step it was emitted during — or
-    // long.MinValue while nothing has emitted. What tells a host whether the settled frame's step
+    // The tick the most recent draw was stamped against, which is the step it was emitted during, or
+    // long.MinValue while nothing has emitted. A host reads it to learn whether the settled frame's step
     // already drew into this buffer.
     internal long EmittedTick { get; private set; } = long.MinValue;
 
@@ -61,9 +61,9 @@ internal sealed class DebugDrawBuffer
         _labels.Add(new DebugDrawLabel(channel, position, text, color, ExpiryFor(steps), motion));
     }
 
-    // tick is the scheduler's settled tick: the one the next step will run. A draw emitted during
-    // step N for one step expires at N + 1, so it is shown on the frame settled after step N and
-    // gone once step N + 1 has run.
+    // tick is the scheduler's settled tick, which the next step will run. A draw emitted during step N
+    // for one step expires at N + 1, so it shows on the frame settled after step N and is gone once step
+    // N + 1 has run.
     internal void Settle(long tick)
     {
         _tick = tick;

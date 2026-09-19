@@ -29,7 +29,7 @@ public sealed class EngineDebugDrawTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.Host.Simulation.View;
+        FrameView view = overlay.View;
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
         Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
@@ -110,12 +110,12 @@ public sealed class EngineDebugDrawTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.Host.Simulation.View;
+        FrameView view = overlay.View;
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.D);
 
-        Assert.Equal("Debug Draw", overlay.Scene.Title);
+        Assert.Equal("Debug Draw", overlay.Title);
         Assert.Equal(["Camera", "Colliders", "Origins"], overlay.Channels);
         Assert.Equal(0, scheduler.Tick);
 
@@ -143,7 +143,7 @@ public sealed class EngineDebugDrawTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.Host.Simulation.View;
+        FrameView view = overlay.View;
         overlay.ToggleChannel("Colliders");
 
         Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
@@ -200,7 +200,7 @@ public sealed class EngineDebugDrawTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(SilentScene), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.Host.Simulation.View;
+        FrameView view = overlay.View;
         overlay.ToggleChannel("Origins");
         overlay.ToggleChannel("Own");
 

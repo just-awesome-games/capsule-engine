@@ -4,39 +4,20 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// One run of text as the simulation wants it drawn, laid out inside a box.
-/// <see cref="FrameView.Add(in TextIntent)"/> lays it out and adds one
-/// <see cref="SpriteIntent"/> per glyph to the list it is drawing into, so text interpolates, culls
-/// and counts exactly as sprites do.
-/// <para>
-/// <see cref="Pivot"/> places the box: the point it names on the box lands on
-/// <see cref="Position"/>, top-left by default. <see cref="HorizontalAlignment"/> and
-/// <see cref="VerticalAlignment"/> then move the text inside that box and never the box itself.
-/// </para>
+/// <see cref="FrameView.Add(in TextIntent)"/> adds one <see cref="SpriteIntent"/> per glyph, so text
+/// interpolates, culls and counts as sprites do. <see cref="Pivot"/> places the box, and the two
+/// alignments move the text inside it.
 /// </summary>
-/// <param name="Font">The font the run is laid out and drawn with; null draws nothing.</param>
+/// <param name="Font">The font the run is laid out and drawn with. Null draws nothing.</param>
 /// <param name="Text">
-/// The text drawn; empty draws nothing. Read while the intent is laid out and never after, so a
-/// caller may hand a buffer it rewrites next frame; the
-/// <see cref="TextIntent(BitmapFont, string, Vector2, Vector2, Vector2, ColorRgba)"/> overload
-/// takes a string. <c>\n</c> starts a new line one <see cref="BitmapFont.LineHeight"/> down,
-/// <c>\r</c> is ignored, and a codepoint the font carries no glyph for draws nothing and advances
-/// nothing.
+/// The text drawn, where empty draws nothing. It is read while the intent is laid out and not after,
+/// and a caller may hand over a buffer it rewrites next frame. <c>\n</c> starts a new line, <c>\r</c>
+/// is ignored, and a codepoint the font carries no glyph for draws and advances nothing.
 /// </param>
-/// <param name="PreviousPosition">
-/// Where the box's <see cref="Pivot"/> sat at the end of the previous step, in the drawn space's
-/// units.
-/// </param>
-/// <param name="Position">
-/// Where the box's <see cref="Pivot"/> sits now, in the drawn space's units.
-/// </param>
-/// <param name="Scale">
-/// Multiplies font pixels into the drawn space's units per axis. <see cref="Vector2.One"/> draws one
-/// font pixel per unit; a non-positive component draws nothing.
-/// </param>
-/// <param name="Color">
-/// Multiplied into every texel of every glyph; <see cref="ColorRgba.White"/> draws the pages as
-/// they are.
-/// </param>
+/// <param name="PreviousPosition">Where the box's <see cref="Pivot"/> sat at the end of the previous step.</param>
+/// <param name="Position">Where the box's <see cref="Pivot"/> sits now, in the drawn space's units.</param>
+/// <param name="Scale">Font pixels to the drawn space's units per axis. A non-positive component draws nothing.</param>
+/// <param name="Color">Multiplied into every texel of every glyph.</param>
 public readonly record struct TextIntent(
     BitmapFont? Font,
     ReadOnlyMemory<char> Text,
@@ -45,7 +26,7 @@ public readonly record struct TextIntent(
     Vector2 Scale,
     ColorRgba Color)
 {
-    /// <summary>The same run over a string, the common case; null or empty draws nothing.</summary>
+    /// <summary>The same run over a string, which is the common case. Null or empty draws nothing.</summary>
     public TextIntent(
         BitmapFont? font,
         string? text,
@@ -58,50 +39,39 @@ public readonly record struct TextIntent(
     }
 
     /// <summary>
-    /// The box the run is laid out in, in the drawn space's units. A non-positive component is the
-    /// measured run on that axis, which is the default on both: the box is then the text itself, so
-    /// <see cref="Pivot"/> alone decides where the run sits around <see cref="Position"/>.
+    /// The box the run is laid out in, in the drawn space's units. A non-positive component, which is
+    /// the default on both axes, takes the measured run on that axis, so the box becomes the text.
     /// </summary>
     public Vector2 Size { get; init; }
 
-    /// <summary>
-    /// The point on the box that sits on <see cref="Position"/>; <see cref="Pivot.TopLeft"/> by
-    /// default.
-    /// </summary>
+    /// <summary>The point on the box that sits on <see cref="Position"/>. Top-left by default.</summary>
     public Pivot Pivot { get; init; }
 
-    /// <summary>
-    /// Whether a line wider than <see cref="Size"/> breaks inside the box. Wrapping needs a positive
-    /// <see cref="Size"/> on X; without one there is no box to wrap in.
-    /// </summary>
+    /// <summary>Whether a line wider than <see cref="Size"/> breaks inside the box. Wrapping needs a positive <see cref="Size"/> on X.</summary>
     public TextWrap Wrap { get; init; }
 
-    /// <summary>
-    /// Where each line sits between the box's left and right edges; it never moves the box.
-    /// </summary>
+    /// <summary>Where each line sits between the box's left and right edges. It does not move the box.</summary>
     public HorizontalAlignment HorizontalAlignment { get; init; }
 
-    /// <summary>
-    /// Where the run sits between the box's top and bottom edges; it never moves the box.
-    /// </summary>
+    /// <summary>Where the run sits between the box's top and bottom edges. It does not move the box.</summary>
     public VerticalAlignment VerticalAlignment { get; init; }
 
     /// <summary>
-    /// How many of the text's leading codepoints are drawn, or null — the default — for all of them.
-    /// Zero draws nothing and a count past the end draws everything. Layout runs over the whole text
-    /// whatever this says, so revealing a run one codepoint at a time never reflows it; the count is
-    /// in codepoints of <see cref="Text"/>, so a line break and a codepoint the font has no glyph for
-    /// each spend one.
+    /// How many of the text's leading codepoints are drawn. Null, the default, draws all of them, zero
+    /// draws nothing, and a count past the end draws everything. Layout runs over the full text
+    /// whatever this says, so revealing a run one codepoint at a time does not reflow it. The count is
+    /// in codepoints of <see cref="Text"/>. A line break and a codepoint the font has no glyph for each
+    /// spend one.
     /// </summary>
     public int? VisibleCharacters { get; init; }
 
     /// <summary>
-    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>, in
-    /// the drawn space's units; empty with no font or no text. Reading it lays the run out.
+    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>. Empty
+    /// with no font or no text. Reading it lays the run out.
     /// </summary>
     public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
-    // The resolved layout, or false where the run draws nothing at all.
+    // The resolved layout, or false where the run draws nothing.
     internal bool TryPlace(out TextPlacement placement)
     {
         placement = default;
@@ -111,12 +81,12 @@ public readonly record struct TextIntent(
             return false;
         }
 
-        // Only a positive scale turns a box in space units back into the font pixels the layout
-        // wants; a degenerate one still submits its glyphs, which cull on their own extent.
+        // Only a positive scale converts a box in space units back into the font pixels layout wants. A
+        // degenerate scale still submits its glyphs, which cull on their own extent.
         static int WrapWidth(float extent, float scale) => scale > 0f && extent > 0f ? (int)(extent / scale) : 0;
 
-        // Laying the run out to measure it costs a pass over the text, so it is skipped where the
-        // box is given on both axes and the run sits at its top: nothing then reads the extent.
+        // Measuring the run costs a pass over the text, so it is skipped when the box is given on both
+        // axes and the run sits at its top. Nothing then reads the extent.
         float share = Share(VerticalAlignment);
         Vector2 measured = Size.X > 0f && Size.Y > 0f && share == 0f
             ? Vector2.Zero
@@ -147,8 +117,8 @@ public readonly record struct TextIntent(
     };
 }
 
-// A text intent's resolved box: where its first line's pen starts, the box around it, and what the
-// glyph walk still needs. Origin and Box are in the drawn space's units; BoxWidth is font pixels.
+// A text intent's resolved box: where its first line's pen starts, the box around it, and what the glyph
+// walk needs. Origin and Box are in the drawn space's units, and BoxWidth is in font pixels.
 internal readonly record struct TextPlacement(
     BitmapFont Font,
     Vector2 Origin,

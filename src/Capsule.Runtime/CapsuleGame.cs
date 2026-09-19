@@ -12,25 +12,27 @@ using Microsoft.Xna.Framework;
 namespace Capsule.Runtime;
 
 // The MonoGame host. Owns the window, the device and the clock, and drives the simulation on its
-// own fixed-step accumulator rather than MonoGame's, so a run reproduces frame for frame.
+// own fixed-step accumulator, which makes a run reproduce frame for frame.
 internal sealed class CapsuleGame : Game
 {
     private readonly GraphicsDeviceManager _graphics;
-    private readonly EngineOptions _options;
+    private readonly EngineBuilder _builder;
     private readonly ISimulation _simulation;
 
-    // Null when the simulation is not a run of scenes, which is the specs' case.
+    // Null when the simulation is not a run of scenes, as in the specs.
     private readonly SceneHost? _scenes;
 
     private readonly PadFilter _padFilter;
     private readonly MouseSampler _mouse = new();
+    private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
 
-    // Null unless the builder opted in, and owned by it: every use on the frame path is that
-    // null check.
+    // Null unless the builder opted in, and owned by the builder. The frame path guards every use
+    // with a null check.
     private readonly FrameDiagnostics? _diagnostics;
 
-    // Direct call sites would keep diagnostics methods reachable under the switch, so the host reaches them only through delegates created in the guarded block.
+    // The host reaches the overlay through delegates built in the guarded block, which lets a shipping
+    // publish trim the overlay's methods away.
     private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _observeOverlay;
     private readonly Action<FrameRenderer>? _stepOverlay;
     private readonly Action<FrameRenderer>? _drawOverlay;
@@ -40,8 +42,8 @@ internal sealed class CapsuleGame : Game
     private TextureStore _textures = null!;
     private FrameRenderer _renderer = null!;
 
-    // All null when the sound device would not open, which leaves every command and every preload
-    // a no-op rather than failing the run. The store owns the device's disposal.
+    // All null when the sound device would not open, which makes every command and preload a no-op
+    // instead of failing the run. The store disposes the device.
     private SoundDevice? _device;
     private SoundStore? _sounds;
     private AudioPlayer? _audio;
@@ -54,30 +56,33 @@ internal sealed class CapsuleGame : Game
     private bool _windowRaised;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
-    // window events that operation raises, so it stands off rather than reaching a device that is
-    // half-applied — and rather than recursing into itself.
+    // window events such an operation raises, so it stands off instead of reaching a half-applied
+    // device or recursing.
     private bool _deviceHeld;
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
-    internal CapsuleGame(EngineOptions options, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics)
+    internal CapsuleGame(EngineBuilder builder, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics)
     {
-        _options = options;
+        _builder = builder;
         _diagnostics = diagnostics;
         _simulation = simulation;
         _scenes = scenes;
-        _padFilter = new PadFilter(options.Input.StickDeadzone, options.Input.TriggerDeadzone);
-        _scheduler = new FixedStepScheduler(options.StepSeconds, options.MaxStepsPerFrame, options.Input.Bindings, options.Driver, scenes);
+        _padFilter = new PadFilter(builder.Input.StickDeadzone, builder.Input.TriggerDeadzone);
+        _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
 
         if (Development.IsSupported)
         {
-            OverlayHost overlay = new(options.Input.DebugMenuButton, _scheduler, simulation, scenes, options.Scenes);
+            OverlayHost overlay = new(builder.Input.DebugMenuButton, _scheduler, simulation, scenes, builder.Scenes);
             _overlayHost = overlay;
-            _observeOverlay = overlay.Observe;
-            _stepOverlay = overlay.Step;
+            _observeOverlay = (snapshot, renderer) => overlay.Observe(
+                snapshot,
+                renderer.ScreenLayer,
+                OverlayHost.ScaleFor(renderer.BackBufferSize.Height));
+            _stepOverlay = renderer => overlay.Step(renderer);
             _drawOverlay = overlay.Draw;
-            // The whole subscription is built here so the audio player's suspension is reachable
-            // only through this block: a shipping publish trims it with the overlay.
+            // The subscription is built here so the audio player's suspension is reachable only
+            // through this block, and a shipping publish trims it with the overlay.
             _followOverlayHold = audio => overlay.HoldChanged = held =>
             {
                 if (held)
@@ -93,18 +98,18 @@ internal sealed class CapsuleGame : Game
 
         _graphics = new GraphicsDeviceManager(this)
         {
-            PreferredBackBufferWidth = options.WindowWidth,
-            PreferredBackBufferHeight = options.WindowHeight,
-            // Borderless; the preferred size is ignored while fullscreen, so leaving fullscreen
-            // restores the configured window with no work here.
+            PreferredBackBufferWidth = builder.WindowWidth,
+            PreferredBackBufferHeight = builder.WindowHeight,
+            // Borderless. The preferred size is ignored while fullscreen, so leaving fullscreen
+            // restores the configured window.
             HardwareModeSwitch = false,
-            IsFullScreen = options.Fullscreen,
+            IsFullScreen = builder.Fullscreen,
         };
 
         IsFixedTimeStep = false;
         IsMouseVisible = true;
-        Window.Title = options.WindowTitle;
-        Window.AllowUserResizing = options.Resizable;
+        Window.Title = builder.WindowTitle;
+        Window.AllowUserResizing = builder.Resizable;
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
     }
@@ -113,7 +118,7 @@ internal sealed class CapsuleGame : Game
 
     protected override void Initialize()
     {
-        // The platform, the window and the device are up by here; base.Initialize loads content.
+        // The platform, the window and the device are up by here. base.Initialize loads content.
         _diagnostics?.Mark(FrameDiagnostics.Stage.DeviceReady);
 
         base.Initialize();
@@ -121,9 +126,9 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        _textures = new TextureStore(GraphicsDevice, _options.Platform);
+        _textures = new TextureStore(GraphicsDevice, _builder.Platform);
 
-        if (SoundDevice.TryOpen(_options.Platform) is { } device)
+        if (SoundDevice.TryOpen(_builder.Platform) is { } device)
         {
             _device = device;
             _sounds = new SoundStore(device);
@@ -137,12 +142,11 @@ internal sealed class CapsuleGame : Game
 
             if (_audio is { } audio)
             {
-                // The overlay's hold is a standstill the ear should hear as one.
+                // The overlay's hold is a standstill, and the ear should hear it as one.
                 _followOverlayHold?.Invoke(audio);
 
-                // Per step, not per frame: the mixer rewrites its commands every step, a frame
-                // may run several, and a document written in the step that requests exit is
-                // persisted by the flush that follows it.
+                // Per step, because the mixer rewrites its commands every step and a frame may run
+                // several. The flush after the step that requests exit persists that step's writes.
                 _scheduler.StepCompleted = () =>
                 {
                     audio.Apply(scenes.Run.Audio.Commands);
@@ -150,9 +154,9 @@ internal sealed class CapsuleGame : Game
                 };
 
                 // The initial scene started before the device existed, so what its start raised is
-                // still on the mixer; the first step's BeginStep would clear it unheard. A later
-                // scene starts inside the step that asked for it, so its start is delivered with
-                // that step's commands.
+                // still on the mixer and the first BeginStep would clear it unheard. A later scene
+                // starts inside the step that asked for it and is delivered with that step's
+                // commands.
                 audio.Apply(scenes.Run.Audio.Commands);
             }
             else
@@ -162,14 +166,14 @@ internal sealed class CapsuleGame : Game
         }
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
-        _renderer = new FrameRenderer(GraphicsDevice, _options.RenderResolution, _textures);
+        _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures);
 
         // Update samples the mouse before the first Draw places the layer, so the mapping is settled
-        // here: the pointer the first step reads is a canvas position like every later one.
+        // here and the first step reads a canvas position.
         _renderer.ResolveScreenLayer(_simulation.View);
 
         // Installed once the renderer exists, since the watch can fire before the next frame does.
-        _redrawWatch = _options.Platform.WatchWindowRedraw(Window.Handle, RedrawWindow);
+        _redrawWatch = _builder.Platform.WatchWindowRedraw(new WindowHandle(Window.Handle), RedrawWindow);
 
         base.LoadContent();
     }
@@ -178,18 +182,18 @@ internal sealed class CapsuleGame : Game
     {
         _diagnostics?.BeginUpdate();
 
-        // Sampled every frame including one that drains no step; the latch carries that frame's
+        // Sampled every frame, including one that drains no step, and the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
-        // placement, so it is a canvas position before it ever reaches the simulation.
-        // Not IsActive: it is true before any focus was ever granted.
-        bool active = _options.Platform.HasInputFocus(Window.Handle);
+        // placement, so it reaches the simulation as a canvas position. IsActive is unusable here
+        // because it reads true before focus is granted.
+        bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
         DeviceSnapshot sampled = _mouse.SampleOnto(
-            GamepadSampler.SampleOnto(KeyboardSampler.Sample(), _padFilter),
+            _pad.SampleOnto(KeyboardSampler.Sample(), _padFilter),
             _renderer.ScreenLayer,
             active);
 
-        // Alt+Enter is the host's, never a bindable action. Withheld for the whole gesture, or a
-        // game that binds Enter reads a press out of it.
+        // Alt+Enter belongs to the host and is not bindable. It is withheld for the whole gesture,
+        // or a game that binds Enter reads a press out of it.
         if (ConsumeFullscreenChord(sampled))
         {
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
@@ -200,8 +204,8 @@ internal sealed class CapsuleGame : Game
             sampled = observe(sampled, _renderer);
         }
 
-        // The run owns the pace and the scheduler holds what is applied, so it is copied before the
-        // frame's elapsed time is spent — after the overlay's observe, which may have moved it.
+        // The run owns the pace and the scheduler holds what is applied. Copied after the overlay's
+        // observe, which may move it, and before the frame's elapsed time is spent.
         if (_scenes is { } paced)
         {
             _scheduler.TimeScale = paced.Run.TimeScale;
@@ -211,9 +215,8 @@ internal sealed class CapsuleGame : Game
 
         _stepOverlay?.Invoke(_renderer);
 
-        // Every frame, including one that drained no step: the device follows the system's default
-        // output, a streamed voice hands the device its next buffers, and base.Update is what
-        // services them.
+        // Every frame, including one that drained no step. The device follows the system's default
+        // output, and a streamed voice hands it the next buffers.
         _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
 
         if (_device is { } device && _scenes is { } scenes)
@@ -240,12 +243,12 @@ internal sealed class CapsuleGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        // The first draw is the first tick after the backend shows the window, which is where a
-        // launch from a terminal would otherwise leave the game behind it and deaf to input.
+        // The first draw is the first tick after the backend shows the window. A launch from a
+        // terminal leaves the window behind the terminal and deaf to input until it is raised.
         if (!_windowRaised)
         {
             _windowRaised = true;
-            _options.Platform.RaiseWindow(Window.Handle);
+            _builder.Platform.RaiseWindow(new WindowHandle(Window.Handle));
         }
 
         _diagnostics?.BeginDraw();
@@ -253,12 +256,12 @@ internal sealed class CapsuleGame : Game
         // alpha is in [0, 1) because Update drains the accumulator below one step.
         _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
 
-        // The diagnostics cover the game frame's submission alone: not the capture, the overlay or
-        // the present, whose vsync wait is in Game.Tick after this returns.
+        // The diagnostics cover the game frame's submission. The capture, the overlay and the
+        // present are excluded, and the present's vsync wait runs in Game.Tick after this returns.
         bool budgetSpent = _diagnostics?.EndDraw() ?? false;
 
-        // While the surface still holds the frame, ahead of the present. The request is taken only
-        // once a frame has drawn, so one raised while the window is minimised stands until one does.
+        // Taken while the surface still holds the frame, ahead of the present. A request raised
+        // while the window is minimised stands until a frame draws.
         if (_scenes is { } scenes && _renderer.CanCaptureFrame && scenes.TryTakeFrameCapture(out string capturePath))
         {
             _renderer.SaveSurface(capturePath);
@@ -280,11 +283,11 @@ internal sealed class CapsuleGame : Game
         {
             _overlayHost?.Dispose();
 
-            // Ahead of the renderer: the watch draws through it.
+            // Disposed ahead of the renderer, which the watch draws through.
             _redrawWatch?.Dispose();
             _redrawWatch = null;
 
-            // The scheduler outlives this, and the mixer it fed commands from is the run's.
+            // The scheduler outlives this host, and the mixer it fed commands from is the run's.
             _scheduler.StepCompleted = null;
 
             // Voices before the sounds they play and the device that opened them.
@@ -299,23 +302,22 @@ internal sealed class CapsuleGame : Game
         base.Dispose(disposing);
     }
 
-    // The whole of what a scene boundary loads: every store is exchanged together, and one that
-    // fails leaves the run on the scene it was on.
+    // What a scene boundary loads. The stores are exchanged together, and a failure leaves the run
+    // on its current scene.
     private void PrepareAssets(AssetCollection preloads)
     {
         _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event
-    // handling. Windows blocks the game loop for the whole of a window drag, so this is the only
-    // point the view can refit while the edge is moving. No step runs and no capture is taken: a
-    // drag advances no simulation time and produces no frame the game asked for.
+    // handling. Windows blocks the game loop for the length of a window drag, so this is where the
+    // view refits while the edge moves. No step runs and no capture is taken, because a drag
+    // advances no simulation time.
     private void RedrawWindow(int width, int height)
     {
-        // The device is only the frame loop's between frames, and applying the new extent raises
-        // the very window events this is watching for. The platform reads the extent at the call
-        // rather than carrying it on the event, so an event this guard drops costs a frame and not
-        // the fit.
+        // The frame loop owns the device between frames, and applying the new extent raises the
+        // window events this watches for. The platform reads the extent at the call, and an event this
+        // guard drops costs a frame, not the fit.
         if (_deviceHeld || !_windowRaised)
         {
             return;
@@ -325,9 +327,9 @@ internal sealed class CapsuleGame : Game
 
         try
         {
-            // The preferred extent is the windowed one, and fullscreen is the desktop's: writing
-            // the monitor's extent into it would make that the window Alt+Enter returns to. A
-            // fullscreen transition changes the fit, so the frame is still redrawn.
+            // The preferred extent is the windowed one, while fullscreen uses the desktop's.
+            // Writing the monitor's extent here would make it the window Alt+Enter returns to. A
+            // fullscreen transition still changes the fit, so the frame is redrawn.
             if (!_graphics.IsFullScreen
                 && width > 0
                 && height > 0
@@ -350,12 +352,12 @@ internal sealed class CapsuleGame : Game
         }
     }
 
-    // Enters or leaves borderless fullscreen. The preferred back buffer is left alone throughout:
-    // it is the windowed extent, which is what leaving fullscreen restores.
+    // Enters or leaves borderless fullscreen. The preferred back buffer is left alone, since it
+    // holds the windowed extent that leaving fullscreen restores.
     private void ToggleFullscreen()
     {
-        // Held across the whole transition: it raises the window events the resize watch answers,
-        // and a redraw landing inside it would reach a half-applied device.
+        // Held across the transition, which raises the window events the resize watch answers. A
+        // redraw landing inside it would reach a half-applied device.
         _deviceHeld = true;
 
         try
@@ -369,7 +371,7 @@ internal sealed class CapsuleGame : Game
         }
     }
 
-    // Toggles the window on the chord's leading edge; returns whether Alt and Enter are still
+    // Toggles the window on the chord's leading edge. Returns whether Alt and Enter are still
     // quarantined from the simulation.
     private bool ConsumeFullscreenChord(in DeviceSnapshot snapshot)
     {
@@ -384,8 +386,8 @@ internal sealed class CapsuleGame : Game
 
         _fullscreenChordHeld = held;
 
-        // The quarantine outlives the chord, ending only once both keys are up: releasing one
-        // first would otherwise hand the other to the simulation as a fresh press.
+        // The quarantine ends once both keys are up. Releasing one first would hand the other to
+        // the simulation as a fresh press.
         _fullscreenChordQuarantined = held || (_fullscreenChordQuarantined && (alt || enter));
 
         return _fullscreenChordQuarantined;

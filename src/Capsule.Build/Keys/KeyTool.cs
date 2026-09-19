@@ -11,11 +11,11 @@ namespace Capsule.Build.Keys;
 internal readonly record struct KeyedAsset(string Group, string Key, string Extension, string Source);
 
 /// <summary>
-/// The key pass: the one place an authored path becomes the key everything downstream spells it by.
-/// MSBuild cannot derive a key — the rule is one C# function shared with the generators — so the
-/// targets hand this every authored path and read the derived names back out of the manifests it
-/// writes. Whatever the request spelled, the key, the shipped path and the generated identifier all
-/// come from here, so no engine rule dictates how a game spells a directory below a domain root.
+/// The key pass: the single place an authored path becomes the key everything downstream spells it by.
+/// The rule is a C# function shared with the generators, and MSBuild cannot call it, so the targets
+/// hand this every authored path and read the derived names back out of the manifests it writes. The
+/// key, the shipped path and the generated identifier all come from here, so no engine rule dictates
+/// how a game spells a directory below a domain root.
 /// </summary>
 internal static class KeyTool
 {
@@ -42,7 +42,7 @@ internal static class KeyTool
             if (TypeNaming.NormalizeKey(request.Path, out string? rejected) is not { } key)
             {
                 error.WriteLine(
-                    $"{request.Source}: is authored at \"{request.Path}\", whose \"{rejected}\" is no C# name; every segment of a path under a domain root is letters, digits, '-' and '_', and does not start with a digit.");
+                    $"{request.Source}: is authored at \"{request.Path}\", whose \"{rejected}\" is no C# name. Every segment of a path under a domain root is letters, digits, '-' and '_', and does not start with a digit.");
                 failures++;
                 continue;
             }
@@ -50,7 +50,7 @@ internal static class KeyTool
             if (!AssetPaths.IsKey(key))
             {
                 error.WriteLine(
-                    $"{request.Source}: is authored at \"{request.Path}\", which keys as \"{key}\"; a segment of a key is no reserved Windows device name (nul, con, ...).");
+                    $"{request.Source}: is authored at \"{request.Path}\", which keys as \"{key}\". No segment of a key may be a reserved Windows device name (nul, con, ...).");
                 failures++;
                 continue;
             }
@@ -59,7 +59,7 @@ internal static class KeyTool
             if (claimedBy.TryGetValue(claim, out string? claimant))
             {
                 error.WriteLine(
-                    $"{request.Source}: keys as \"{key}\", which '{claimant}' already claims; two sources that differ only in how their path is spelled are one asset, so rename one of them.");
+                    $"{request.Source}: keys as \"{key}\", which '{claimant}' already claims. Two sources whose paths differ only in spelling are one asset, so rename one.");
                 failures++;
                 continue;
             }
@@ -77,14 +77,14 @@ internal static class KeyTool
     }
 
     /// <summary>
-    /// Writes the manifests the targets read their items back from, each holding the exact strings
-    /// one hook needs so no target has to take a key apart again. Both are written whatever was
-    /// keyed, so a hook reading one never reads what a previous build left behind.
+    /// Writes the manifests the targets read their items back from, each holding the strings one
+    /// hook needs so no target has to take a key apart again. Both are written on every run, so a
+    /// hook never reads what a previous build left behind.
     /// </summary>
     /// <param name="keyed">Everything this run keyed.</param>
     /// <param name="outputDirectory">Where the manifests are written.</param>
     /// <param name="derivedScenesDirectory">Where the scene importer writes its documents.</param>
-    /// <param name="packedTextures">The texture keys an atlas packed, which ship nowhere on their own.</param>
+    /// <param name="packedTextures">The texture keys an atlas packed. Those textures do not ship on their own.</param>
     /// <param name="atlasLines">The shipped-asset lines for every atlas page and map.</param>
     internal static void WriteManifests(
         IReadOnlyList<KeyedAsset> keyed,
@@ -99,8 +99,8 @@ internal static class KeyTool
         List<string> shipped = [];
         List<string> sceneContent = [];
 
-        // One separator, whatever the platform spelled: a manifest line is read back by MSBuild,
-        // which takes either, and by a human comparing two builds' output.
+        // Forward slashes whatever the platform spelled. MSBuild takes either, and a human compares
+        // two builds' output.
         string derived = derivedScenesDirectory.Replace('\\', '/');
         derived = derived.EndsWith('/') ? derived : derived + "/";
 
@@ -111,7 +111,10 @@ internal static class KeyTool
                 sceneContent.Add(
                     $"assets/scenes/{entry.Key}{Document}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
             }
-            else if (entry.Group != "atlases" && !(entry.Group == "textures" && packedTextures.Contains(entry.Key)))
+            // An atlas manifest and a sprite sheet are compiled in, not shipped, and a texture an
+            // atlas packed ships as part of that atlas page.
+            else if (entry.Group is not ("atlases" or "sprites")
+                && !(entry.Group == "textures" && packedTextures.Contains(entry.Key)))
             {
                 shipped.Add(
                     $"assets/{entry.Group}/{entry.Key}{entry.Extension}{BuildRequests.Separator}{entry.Source}");

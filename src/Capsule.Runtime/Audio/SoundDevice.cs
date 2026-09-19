@@ -5,8 +5,8 @@ using NVorbis;
 
 namespace Capsule.Runtime.Audio;
 
-// The backend's sound device: clips decoded whole, clips decoded as they play, the worker that
-// reads the latter ahead, and the watch that keeps the output on the system's default device.
+// The backend's sound device: clips decoded whole, clips decoded as they play, the worker that reads
+// the latter ahead, and the watch that keeps the output on the system's default device.
 internal sealed class SoundDevice : IAudioBackend
 {
     private readonly AudioStreamer _streamer = new((rate, channels) => new DynamicPcmQueue(rate, channels));
@@ -17,13 +17,14 @@ internal sealed class SoundDevice : IAudioBackend
     private AudioOutput? _output;
     private OutputFollower? _follower;
 
-    // Whether the last reopen failed, so a streak of retries warns once rather than every frame.
+    // Whether the last reopen failed, which warns once over a streak of retries instead of every
+    // frame.
     private bool _reopenFailed;
 
     private SoundDevice(HostPlatform platform) => _platform = platform;
 
-    // Opens the device, or answers null having said why. A machine with no sound card, no output
-    // device or no audio runtime is a machine the game still runs on, silently.
+    // Opens the device, or logs why and returns null. The game still runs, silently, on a machine with
+    // no sound card, no output device or no audio runtime.
     internal static SoundDevice? TryOpen(HostPlatform platform)
     {
         try
@@ -47,12 +48,12 @@ internal sealed class SoundDevice : IAudioBackend
         return device;
     }
 
-    // Once a frame, on the game thread: moves the output to the system's default device when the
+    // Once a frame, on the game thread. Moves the output to the system's default device when the
     // default has changed or the device has been pulled.
     internal void Update(double elapsedSeconds) => _follower?.Update(elapsedSeconds);
 
     // MonoGame's master volume propagates to OpenAL gain for every resident and dynamic
-    // SoundEffectInstance, so the host can apply one gain to the whole output.
+    // SoundEffectInstance, so the host applies one gain across the output.
     internal void SetOutputGain(float gain) => SoundEffect.MasterVolume = gain;
 
     public IResidentSound Load(in AudioClip clip)
@@ -66,8 +67,7 @@ internal sealed class SoundDevice : IAudioBackend
     {
         VorbisReader reader = new(AudioFiles.Open(_platform, clip), closeOnDispose: true);
 
-        // The device takes mono and stereo; anything wider would have to be downmixed, and no
-        // shipped clip is.
+        // The device takes mono and stereo. Anything wider would need downmixing.
         if (reader.Channels is not (1 or 2))
         {
             int channels = reader.Channels;
@@ -80,7 +80,7 @@ internal sealed class SoundDevice : IAudioBackend
         return _streamer.Play(new VorbisPcmSource(reader), clip, gain, pitch, pan, loop, startSeconds);
     }
 
-    // The watch first, so no announcement lands while the voices it would move are being torn down.
+    // The watch goes first, so no announcement lands while the voices it would move are torn down.
     public void Dispose()
     {
         _output?.Dispose();
@@ -91,7 +91,7 @@ internal sealed class SoundDevice : IAudioBackend
 
     private static SoundDevice? Silent(Exception failure)
     {
-        Log.Warning($"audio device unavailable, so the game runs silent — {failure.Message}");
+        Log.Warning($"audio device unavailable and the game runs silent. {failure.Message}");
 
         return null;
     }
@@ -103,7 +103,7 @@ internal sealed class SoundDevice : IAudioBackend
 
         if (_output is null)
         {
-            Log.Debug("audio output cannot follow the default device: the platform offers no watch over it");
+            Log.Debug("audio output cannot follow the default device, because the platform offers no watch over it");
 
             return;
         }
@@ -128,7 +128,7 @@ internal sealed class SoundDevice : IAudioBackend
 
         if (!_reopenFailed)
         {
-            Log.Warning($"audio output could not move to the default device ({reason}); retrying");
+            Log.Warning($"audio output could not move to the default device ({reason}), retrying");
             _reopenFailed = true;
         }
 

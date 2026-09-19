@@ -12,7 +12,7 @@ public sealed class FollowCamera : Camera
 
     protected override void OnStart()
     {
-        _subject = Scene!.FindSingle<Hero>();
+        _subject = Scene.FindSingle<Hero>();
         Teleport(_subject.Position);
     }
 

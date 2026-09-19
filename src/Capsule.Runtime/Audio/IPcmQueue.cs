@@ -1,11 +1,11 @@
 namespace Capsule.Runtime.Audio;
 
-// The device queue a streamed voice hands PCM to: an OpenAL streaming source in a running game, and
-// a counter in the suite, so the decode, the loop wrap and the voice pool are exercised with no
-// device open. Submitting copies, so a buffer is the voice's again the moment it returns.
+// The device queue a streamed voice hands PCM to: an OpenAL streaming source in a running game, and a
+// counter in the suite, so the decode, the loop wrap and the voice pool are exercised with no device
+// open. Submitting copies, so a buffer is the voice's again the moment it returns.
 //
-// A queue outlives the voices played on it: it is pooled with the voice, and a stop leaves it
-// playable rather than spent.
+// A queue outlives the voices played on it. It is pooled with the voice, and a stop leaves it
+// playable.
 internal interface IPcmQueue : IDisposable
 {
     // Buffers submitted and not yet played out.
@@ -28,7 +28,7 @@ internal interface IPcmQueue : IDisposable
 
     void Resume();
 
-    // Ends the sound and drops everything queued: a queue handed to the next voice carries nothing
+    // Ends the sound and drops everything queued, so a queue handed to the next voice carries nothing
     // of the last one.
     void Stop();
 }

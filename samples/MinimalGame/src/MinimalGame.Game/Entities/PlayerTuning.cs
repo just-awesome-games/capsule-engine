@@ -13,7 +13,7 @@ namespace MinimalGame.Game.Entities;
 /// <param name="JumpSpeed">Upward speed at take-off, px/s; an apex of about 40px against the default
 /// <paramref name="Gravity"/>, clearing a two-tile ledge. Higher raises the ceiling.</param>
 /// <param name="JumpStretch">The scale the sprite snaps to on take-off: tall and thin, the classic
-/// platformer stretch. Tune the pair together — the product is what reads as volume, and nothing
+/// platformer stretch. Tune the pair together: the product is what reads as volume, and nothing
 /// enforces it.</param>
 /// <param name="LandSquash">The scale the sprite snaps to on landing: wide and flat, the stretch
 /// inverted.</param>

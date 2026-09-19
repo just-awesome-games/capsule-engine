@@ -7,8 +7,8 @@ namespace Capsule.Runtime.Scenes;
 
 internal delegate Scene SceneResolver(in SceneTransition target);
 
-// Keeps the runtime alive while scenes replace one another, resolving each requested target at the
-// host boundary so content never enters game logic as a file operation.
+// Keeps the runtime alive while scenes replace one another. Each requested target is resolved at the
+// host boundary, so content never enters game logic as a file operation.
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
@@ -51,10 +51,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // Null until the device is ready. Later transitions prepare their incoming scene through it.
     internal Action<AssetCollection>? PrepareAssets { get; set; }
 
-    // Whether the last step's transition failed to bring its incoming scene up — resolving,
-    // preparing or starting it threw — which leaves the run on the scene it was on, stepped as
-    // before. The exception propagated all the same; this says where it came from, as a step's
-    // own failure, after which the simulation is not continued, is never reported this way.
+    // Whether the last step's transition failed to bring its incoming scene up, because resolving,
+    // preparing or starting it threw. The run stays on the scene it was on and steps as before. The
+    // exception still propagated, and this reports where it came from. A step's own failure, after
+    // which the simulation does not continue, is not reported here.
     internal bool TransitionFailed { get; private set; }
 
     public void Step(in StepContext context)
@@ -68,8 +68,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Consume();
     }
 
-    // Step with the host's before-step act inside the current scene's own step, so a scene the act
-    // asks for is the transition this step then consumes.
+    // Step with the host's before-step act inside the current scene's step. A scene the act asks for
+    // becomes the transition this step consumes.
     void ISimulation.Step(in StepContext context, Action before)
     {
         if (!CanStep())
@@ -81,8 +81,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Consume();
     }
 
-    // Opens a step and answers whether there is one to run: the exit already tore the current
-    // scene down, and a disposed host is nobody's to step.
+    // Opens a step and returns whether there is one to run. An exit already tore the current scene
+    // down, and a disposed host cannot be stepped.
     private bool CanStep()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -129,8 +129,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
-    // Runs the current scene's debug pass outside a step, on SceneSimulation.EmitDebugDraws's
-    // terms; nothing after an exit, which has nothing left to draw.
+    // Runs the current scene's debug pass outside a step, as SceneSimulation.EmitDebugDraws defines
+    // it. Nothing runs after an exit, which has nothing left to draw.
     internal void EmitDebugDraws()
     {
         if (!ExitRequested)
@@ -140,7 +140,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     }
 
     // Takes the run's pending frame capture request. A transition builds a new scene without
-    // discarding it; an exit leaves nothing to serve.
+    // discarding the request, and an exit leaves nothing to serve.
     internal bool TryTakeFrameCapture(out string path)
     {
         if (ExitRequested)
@@ -152,9 +152,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
         return _current.TryTakeFrameCapture(out path);
     }
 
-    // After each step, so a document written in the step that requests exit is persisted, and once
-    // more at disposal for what a scene's stop wrote on a window closed from outside the run. The
-    // clock is read here: the store, in Core, never reads one.
+    // Called after each step, which persists a document written in the step that requests exit, and
+    // again at disposal for what a scene's stop wrote on a window closed from outside the run. The
+    // clock is read here, because the store in Core reads none.
     internal void FlushSaves()
     {
         if (_saveStorage is { } storage)
@@ -226,9 +226,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _target = target;
     }
 
-    // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown, so
-    // whatever fails here leaves the run on the scene it was on; a scene that fails to start was
-    // stopped by its simulation.
+    // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown, so a
+    // failure here leaves the run on the scene it was on. A scene that fails to start was stopped by
+    // its simulation.
     private SceneSimulation Bring(in SceneTransition target)
     {
         Scene next = _resolve(target);

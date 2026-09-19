@@ -4,22 +4,20 @@ using Capsule.Diagnostics;
 namespace Capsule.Runtime.Audio;
 
 // One streamed voice: a source read ahead of the device on the streaming worker, and a queue the
-// game thread hands to the backend. Whatever the source — an Ogg file, or a resident clip's samples
-// — this is the path a loop region is repeated on, because a region boundary falls inside a buffer
-// rather than at the end of one.
+// game thread hands to the backend. Every source takes this path, an Ogg file and a resident clip's
+// samples alike, because a loop region's boundary can fall inside a buffer.
 //
-// Everything a play needs belongs to the voice and outlives it: the device queue, the decode
-// scratch, the buffers handed to the device, the loop reader, and — for a resident clip — the cursor
-// over its samples. A retired voice goes back to the streamer's pool and is armed over the next
-// play's source in place, so a clip stopped and played over and over allocates them once and a warm
-// replay allocates nothing. Its format does not change with it — the buffer sizes and the queue are
-// fixed by the rate and channel count it was built for. Only a file-backed source is per play, since
-// it is a file handle.
+// Everything a play needs belongs to the voice and outlives the play: the device queue, the decode
+// scratch, the buffers handed to the device, the loop reader, and the cursor over a resident clip's
+// samples. A voice that has ended goes back to the streamer's pool and is armed over the next play's
+// source in place, so a warm replay allocates nothing. Its format is fixed by the rate and channel
+// count it was built for, since the buffer sizes and the queue are. A file-backed source is per play,
+// because it holds a file handle.
 //
-// The two threads meet at the ready and free queues alone. The source belongs to the worker for the
-// whole of a play — the game thread never touches it, and releases it by asking the worker to, which
-// is why disposing the voice does not free the file handle at once, and why the voice reaches the
-// pool only once the worker has let go of it.
+// The two threads meet at the ready and free queues. The source belongs to the worker for the length
+// of a play, and the game thread closes it by asking the worker to. Disposing the voice therefore
+// does not free the file handle at once, and the voice reaches the pool once the worker has let go
+// of it.
 internal sealed class StreamedVoice : IAudioVoice
 {
     // Enough queued for the device to survive a frame the worker loses to a long decode, and short
@@ -27,7 +25,7 @@ internal sealed class StreamedVoice : IAudioVoice
     private const double BufferSeconds = 0.25;
     private const int ReadyBuffers = 3;
 
-    // The backend asks for more below three queued, so three is what the game thread keeps it at.
+    // The backend asks for more below three queued, so the game thread keeps three.
     private const int QueuedBuffers = 3;
 
     private readonly Lock _gate = new();
@@ -42,26 +40,26 @@ internal sealed class StreamedVoice : IAudioVoice
     private readonly float[] _scratch;
     private readonly LoopedPcmReader _reader = new();
 
-    // Worker-owned for the whole of a play.
+    // Owned by the worker for the length of a play.
     private IPcmSource? _source;
 
-    // This voice's cursor over a resident clip's samples, built on its first play of one and pointed
-    // at another clip's samples on every play after it. Null for a voice that has only streamed files.
+    // This voice's cursor over a resident clip's samples, built on the first play of one and pointed
+    // at another clip's samples on later plays. Null for a voice that has only streamed files.
     private MemoryPcmSource? _cursor;
 
-    // Set for a voice streaming a resident clip's samples, which is counted against that clip's
-    // residency the way a pooled one is; a voice streaming its own file retains nothing. Non-null
-    // exactly while this voice is out on a play, which is what makes retiring idempotent.
-    private Action? _retired;
+    // Set for a voice streaming a resident clip's samples, counted against that clip's residency. A
+    // voice streaming its own file retains nothing. Non-null while this voice is out on a play, which
+    // makes retiring idempotent.
+    private Action? _ended;
 
     private string _clipName = "";
     private bool _endOfStream;
     private volatile bool _faulted;
-    private volatile bool _retiring;
+    private volatile bool _returning;
     private bool _paused;
     private bool _disposed;
 
-    // Silent and holding no source: what the streamer's pool hands out and what Start makes sound.
+    // Silent and holding no source. The streamer's pool hands one out, and Start makes it sound.
     internal StreamedVoice(AudioStreamer streamer, IPcmQueue queue, int sampleRate, int channels)
     {
         _streamer = streamer;
@@ -88,12 +86,12 @@ internal sealed class StreamedVoice : IAudioVoice
         }
     }
 
-    // What a pooled voice can be played again for: the queue and the buffers are sized for this
-    // alone.
+    // What a pooled voice can be played again for. The queue and the buffers are sized for this
+    // format.
     internal (int SampleRate, int Channels) Format => (_sampleRate, _channels);
 
-    // Whether the game thread has retired this voice and the worker may release its source.
-    internal bool Retiring => _retiring;
+    // Whether the game thread has ended this voice and the worker may release its source.
+    internal bool Returning => _returning;
 
     public void SetGain(float gain) => _queue.SetGain(gain);
 
@@ -122,8 +120,8 @@ internal sealed class StreamedVoice : IAudioVoice
 
         Submit();
 
-        // A frame the worker lost leaves the device starved, which stops it; it plays on from the
-        // buffers just submitted rather than staying silent for the rest of the clip.
+        // A frame the worker lost starves the device and stops it. Restarting here plays on from the
+        // buffers just submitted.
         if (!_paused && _queue.Pending > 0 && _queue.Stopped)
         {
             _queue.Play();
@@ -140,22 +138,22 @@ internal sealed class StreamedVoice : IAudioVoice
         _disposed = true;
         _queue.Stop();
 
-        // Taken and cleared before retirement is published: the callback holds the resident sound
-        // whose samples this voice streamed, and the worker pools the voice the moment it sees
-        // _retiring — a pooled voice still holding it would keep that sound decoded until shutdown.
-        // Clearing it here is also what makes a second Dispose report nothing.
-        Action? retired = _retired;
-        _retired = null;
+        // Taken and cleared before the end is published. The callback holds the resident sound whose
+        // samples this voice streamed, and the worker pools the voice as soon as it sees _returning,
+        // so a pooled voice still holding that sound would keep it decoded until shutdown. Clearing
+        // it here also makes a second Dispose report nothing.
+        Action? ended = _ended;
+        _ended = null;
 
-        // The source is the worker's; asking is the only safe way to free it from here. The queue and
-        // the buffers stay, which is what makes the next play of this format allocate nothing.
-        _retiring = true;
+        // The source is the worker's, so it is freed by asking the worker. The queue and the buffers
+        // stay, so the next play of this format allocates nothing.
+        _returning = true;
         _streamer.Wake();
-        retired?.Invoke();
+        ended?.Invoke();
     }
 
-    // Sounds this voice over a resident clip's samples: its own cursor is pointed at them, so a
-    // replay of a resident clip opens nothing.
+    // Sounds this voice over a resident clip's samples. Its own cursor is pointed at them, so a
+    // replay opens nothing.
     internal void Start(
         PcmAudio samples,
         in AudioClip clip,
@@ -164,17 +162,17 @@ internal sealed class StreamedVoice : IAudioVoice
         float pan,
         bool loop,
         double startSeconds,
-        Action? retired)
+        Action? ended)
     {
         _cursor ??= new MemoryPcmSource(samples);
         _cursor.Arm(samples);
 
-        Start(_cursor, clip, gain, pitch, pan, loop, startSeconds, retired);
+        Start(_cursor, clip, gain, pitch, pan, loop, startSeconds, ended);
     }
 
-    // Sounds this voice over source, whether it is fresh or has been played before. Called on the
-    // game thread while nothing else holds the voice: the streamer hands out a voice the worker has
-    // already released, and Add publishes it to the worker last.
+    // Sounds this voice over source, fresh or played before. Called on the game thread while nothing
+    // else holds the voice, since the streamer hands out a voice the worker has released and Add
+    // publishes it to the worker last.
     internal void Start(
         IPcmSource source,
         in AudioClip clip,
@@ -183,18 +181,18 @@ internal sealed class StreamedVoice : IAudioVoice
         float pan,
         bool loop,
         double startSeconds,
-        Action? retired)
+        Action? ended)
     {
         _source = source;
 
-        // Rounded to the frame the clip time names, as the loop region's bounds are.
+        // Rounded to the frame the clip time names, like the loop region's bounds.
         _reader.Arm(source, clip.LoopRegion, loop, (long)Math.Round(startSeconds * source.SampleRate));
         _clipName = clip.Name;
-        _retired = retired;
+        _ended = ended;
 
         _endOfStream = false;
         _faulted = false;
-        _retiring = false;
+        _returning = false;
         _paused = false;
         _disposed = false;
 
@@ -202,8 +200,8 @@ internal sealed class StreamedVoice : IAudioVoice
         _queue.SetPitch(pitch);
         _queue.SetPan(pan);
 
-        // The first buffer is decoded here rather than waited for: a quarter second costs about a
-        // millisecond, and starting the device with an empty queue would starve it on frame one.
+        // The first buffer is decoded here. A quarter second costs about a millisecond, and starting
+        // the device with an empty queue would starve it on frame one.
         Fill();
         Submit();
         _queue.Play();
@@ -211,8 +209,8 @@ internal sealed class StreamedVoice : IAudioVoice
         _streamer.Add(this);
     }
 
-    // Decodes one buffer ahead on the worker thread. Answers whether it did work, so an idle worker
-    // can wait rather than spin.
+    // Decodes one buffer ahead on the worker thread. Returns whether it did work, letting an idle
+    // worker wait instead of spin.
     internal bool Fill()
     {
         byte[]? buffer;
@@ -252,7 +250,7 @@ internal sealed class StreamedVoice : IAudioVoice
             return true;
         }
 
-        // Outside the lock: the game thread's submit must never wait on a conversion.
+        // Outside the lock, so the game thread's submit never waits on a conversion.
         Encode(_scratch.AsSpan(0, samples), buffer);
 
         lock (_gate)
@@ -263,19 +261,19 @@ internal sealed class StreamedVoice : IAudioVoice
         return true;
     }
 
-    // Called on the worker once this voice is retiring, and on the streamer's own teardown after the
-    // worker has been joined. The buffers are not freed with the source: they are the voice's, and a
-    // voice is played again. What was decoded and never submitted goes back to the free list, so the
-    // next play starts on an empty ready queue.
+    // Called on the worker once this voice is retiring, and on the streamer's teardown after the
+    // worker has been joined. The buffers belong to the voice and survive for its next play. What was
+    // decoded and never submitted goes back to the free list, so the next play starts on an empty
+    // ready queue.
     //
-    // The reader and the cursor are the voice's too, so they are emptied rather than dropped: what
-    // they hold of the play — the file handle, or the retired clip's samples — must not reach the
-    // pool, since a voice waiting there would keep that clip decoded until shutdown.
-    internal void ReleaseSource()
+    // The reader and the cursor belong to the voice too, so they are emptied and not dropped. What
+    // they hold of the play, a file handle or the ended clip's samples, must not reach the pool,
+    // where a waiting voice would keep that clip decoded until shutdown.
+    internal void CloseSource()
     {
         _source?.Dispose();
         _source = null;
-        _reader.Release();
+        _reader.Clear();
 
         lock (_gate)
         {
@@ -286,17 +284,17 @@ internal sealed class StreamedVoice : IAudioVoice
         }
     }
 
-    // Ends the queue itself, once the device it belongs to is going away.
-    internal void Release() => _queue.Dispose();
+    // Closes the device queue, once the device it belongs to is going away.
+    internal void CloseQueue() => _queue.Dispose();
 
     private void Fault(Exception failure)
     {
         _faulted = true;
-        Log.Warning($"audio: streaming '{_clipName}' failed, so it falls silent — {failure.Message}");
+        Log.Warning($"audio: streaming '{_clipName}' failed and it falls silent. {failure.Message}");
     }
 
-    // Rounded rather than truncated: a sample read back from a 16-bit source must encode to the
-    // value it was authored as, not one step below it.
+    // Rounded, not truncated. A sample read back from a 16-bit source must encode to the value it was
+    // authored as.
     private static void Encode(ReadOnlySpan<float> samples, Span<byte> target)
     {
         for (int i = 0; i < samples.Length; i++)

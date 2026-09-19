@@ -3,15 +3,17 @@ using System.Runtime.InteropServices;
 namespace Capsule.Runtime.Desktop;
 
 // Takes the Windows foreground for a window the OS will not hand it to. Windows grants foreground
-// activation only along a permission chain — the process that already holds the foreground, one it
-// started, or the one that received the last input event — and a launch through the dotnet muxer
-// is outside it, so SDL's raise leaves the window behind the terminal and deaf to the keyboard. A
+// activation only along a permission chain: the process that already holds the foreground, one it
+// started, or whichever received the last input event. A launch through the dotnet muxer is outside
+// that chain, so SDL's raise leaves the window behind the terminal and deaf to the keyboard. A
 // synthetic zero-motion mouse move sent from this thread makes this process the last-input process,
 // and SetForegroundWindow then takes the ordinary activation path, so the window's own queue becomes
-// the foreground queue. Attaching to the foreground thread's input queue is not used: it leaves the
-// window active in a queue the foreground state does not know, so the first click elsewhere never
-// deactivates it — keys stick, the global mouse reads as the game's, audio never ducks — until a
-// click into the window. A no-op off Windows.
+// the foreground queue.
+//
+// Attaching to the foreground thread's input queue is avoided. It leaves the window active in a queue
+// the foreground state does not know, so the first click elsewhere never deactivates it: keys stick,
+// the global mouse reads as the game's, and audio does not duck until a click lands in the window. A
+// no-op off Windows.
 internal static class WindowsForeground
 {
     private const uint InputMouse = 0;
@@ -36,8 +38,8 @@ internal static class WindowsForeground
         SetForegroundWindow(window);
     }
 
-    // DllImport for the same reason SdlPlatform gives: these marshal ahead of time, and
-    // LibraryImport's generated stubs would open the assembly to unsafe code for nothing.
+    // DllImport for the reason SdlPlatform gives: these marshal ahead of time, and LibraryImport's
+    // generated stubs would open the assembly to unsafe code for no gain.
 #pragma warning disable SYSLIB1054
     [DllImport("user32.dll")]
     private static extern nint GetForegroundWindow();

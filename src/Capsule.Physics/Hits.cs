@@ -22,7 +22,5 @@ public readonly record struct ShapeCastHit2D(CollisionTarget Target, Vector2 Poi
 /// <summary>Something a collider is touching.</summary>
 /// <param name="Target">What is being touched.</param>
 /// <param name="Point">A world-space point on the touched surface.</param>
-/// <param name="Normal">
-/// The unit surface normal at the contact, pointing from the target back towards the collider.
-/// </param>
+/// <param name="Normal">The unit surface normal at the contact, pointing from the target towards the collider.</param>
 public readonly record struct Contact2D(CollisionTarget Target, Vector2 Point, Vector2 Normal);

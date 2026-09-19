@@ -3,26 +3,26 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// The pass every declaration-backed registry runs: one model per declared type in a stable order,
-// faults reported against the declaration, then the keys they claim held to one claimant each.
+// The pass every declaration-backed registry runs. One model per declared type in a stable order,
+// faults reported against the declaration, then one claimant per claimed key.
 internal static class RegistryPass
 {
     /// <summary>
     /// Hands <paramref name="resolve"/> every sound model once, in declaration order, and reports
-    /// the diagnostic <paramref name="reported"/> names for the rest.
+    /// the diagnostic <paramref name="reported"/> names for the faulted ones.
     /// </summary>
     internal static void Sound<TModel>(
         SourceProductionContext context,
         ImmutableArray<TModel> models,
         Func<TModel, string> qualifiedName,
         Func<TModel, string> displayName,
-        Func<TModel, Location> location,
+        Func<TModel, DeclaredAt> at,
         Func<TModel, DiagnosticDescriptor?> reported,
         Action<TModel> resolve)
     {
         List<TModel> ordered = new(models);
         ordered.Sort((left, right) =>
-            DeclarationOrder.Compare(qualifiedName(left), location(left), qualifiedName(right), location(right)));
+            DeclarationOrder.Compare(qualifiedName(left), at(left), qualifiedName(right), at(right)));
 
         HashSet<string> described = new(StringComparer.Ordinal);
         foreach (TModel model in ordered)
@@ -35,7 +35,7 @@ internal static class RegistryPass
 
             if (reported(model) is { } descriptor)
             {
-                context.ReportDiagnostic(Diagnostic.Create(descriptor, location(model), displayName(model)));
+                context.ReportDiagnostic(Diagnostic.Create(descriptor, at(model).Location(), displayName(model)));
                 continue;
             }
 
@@ -44,9 +44,9 @@ internal static class RegistryPass
     }
 
     /// <summary>
-    /// Everything that claimed a key of its own, with a second claimant of one key refused against
-    /// the first. Sorted by the key first: the collected order is whichever syntax trees the
-    /// compiler handed over, and an entry claiming no key never collides.
+    /// Everything that claimed a key, with a second claimant of a key refused against the first.
+    /// Sorted by key, since the collected order follows the compiler's syntax trees. An entry that
+    /// claims no key never collides.
     /// </summary>
     internal static List<TEntry> Claimed<TEntry>(
         SourceProductionContext context,
@@ -54,7 +54,7 @@ internal static class RegistryPass
         Comparison<TEntry> order,
         Func<TEntry, string?> key,
         Func<TEntry, string> displayName,
-        Func<TEntry, Location> location,
+        Func<TEntry, DeclaredAt> at,
         DiagnosticDescriptor duplicate)
     {
         sound.Sort(order);
@@ -68,7 +68,7 @@ internal static class RegistryPass
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     duplicate,
-                    location(entry),
+                    at(entry).Location(),
                     displayName(registered[registered.Count - 1]),
                     displayName(entry),
                     claimed));

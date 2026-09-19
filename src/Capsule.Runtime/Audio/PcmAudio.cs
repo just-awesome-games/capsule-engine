@@ -2,27 +2,26 @@ using System.Buffers.Binary;
 
 namespace Capsule.Runtime.Audio;
 
-// One clip's samples decoded whole and shared by every voice that streams them: what a resident
-// clip loops a region from. Interleaved and normalised to [-1, 1], which is the shape the device
-// buffer is encoded from, so the widths a WAV may carry are converted once here rather than per read.
+// One clip's samples decoded whole and shared by every voice that streams them, and what a resident
+// clip loops a region from. Interleaved and normalised to [-1, 1], the shape the device buffer is
+// encoded from, so the widths a WAV may carry are converted once here instead of per read.
 //
 // The build's probe reads the same container to measure the clip, but it is a build-time tool the
-// runtime does not reference; this reads only what playback needs.
+// runtime does not reference. This reads what playback needs.
 internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
 {
-    // No samples at all: what a cursor holds once the clip it read has been let go of.
+    // No samples. A cursor holds this once the clip it read has been let go of.
     internal static PcmAudio None { get; } = new([], 1, 1);
 
     internal int Channels => channels;
 
     internal int SampleRate => sampleRate;
 
-    // Interleaved and normalised; read by a cursor over them and never copied.
+    // Interleaved and normalised. A cursor reads them in place and never copies.
     internal ReadOnlySpan<float> Samples => samples;
 
-    // 16-bit PCM is what a shipped WAV is; 8-bit unsigned, 24-bit PCM and 32-bit IEEE float are the
-    // other shapes SoundEffect accepts and the build's probe admits.
-    // Reads the whole of wav and disposes it.
+    // Reads all of wav and disposes it. A shipped WAV is usually 16-bit PCM. 8-bit unsigned, 24-bit PCM
+    // and 32-bit IEEE float are the other shapes SoundEffect accepts and the build's probe admits.
     internal static PcmAudio FromWav(Stream wav, string clipName)
     {
         byte[] file;

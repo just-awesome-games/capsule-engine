@@ -9,9 +9,8 @@ namespace Capsule.Persistence;
 
 /// <summary>
 /// A run's save documents, held in memory and reached through <c>Run.Saves</c>. Reads are
-/// synchronous; a write or delete is persisted by the host after the step that made it, the step
-/// that requests exit included, and at the run's teardown. Engine-owned: a run constructs it, and a
-/// run with no storage behind it persists and stamps nothing.
+/// synchronous, and a write or delete is persisted by the host after the step that made it and at
+/// the run's teardown. A run with no storage behind it persists and stamps nothing.
 /// </summary>
 public sealed class SaveStore
 {
@@ -21,7 +20,7 @@ public sealed class SaveStore
     private readonly List<string> _names = [];
     private readonly HashSet<string> _dirty = new(StringComparer.Ordinal);
 
-    // Created on the first write, so a run that never saves allocates no serializer state.
+    // Created on the first write. A run that never saves holds no serializer state.
     private ArrayBufferWriter<byte>? _buffer;
     private Utf8JsonWriter? _writer;
 
@@ -30,14 +29,14 @@ public sealed class SaveStore
     }
 
     /// <summary>
-    /// Every document present, sorted ordinally; kept sorted on write and delete, never rebuilt.
+    /// Every document present, sorted ordinally. Invalidated by the next write or delete, each of
+    /// which maintains the order in place.
     /// </summary>
-    public IReadOnlyList<string> Names => _names;
+    public ReadOnlySpan<string> Names => CollectionsMarshal.AsSpan(_names);
 
     /// <summary>Reads the document, deserialized afresh, or the key's fallback when absent.</summary>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
     /// <exception cref="KeyNotFoundException">The document is absent and the key declares no fallback.</exception>
-    /// <exception cref="JsonException">The document no longer deserializes as <typeparamref name="T"/>, or is JSON <c>null</c> read as a non-nullable value type.</exception>
+    /// <exception cref="JsonException">The document no longer deserializes as <typeparamref name="T"/>.</exception>
     public T Read<T>(SaveKey<T> key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -52,12 +51,9 @@ public sealed class SaveStore
             key.TypeInfo)!;
     }
 
-    /// <summary>
-    /// Reads the document when present, and reports absence rather than answering the fallback.
-    /// </summary>
+    /// <summary>Reads the document when present, reporting absence instead of using the key's fallback.</summary>
     /// <param name="key">The document to read.</param>
-    /// <param name="value">The document, deserialized afresh; default when absent.</param>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
+    /// <param name="value">The document, deserialized afresh, or default when absent.</param>
     /// <exception cref="JsonException">The document no longer deserializes as <typeparamref name="T"/>.</exception>
     public bool TryRead<T>(SaveKey<T> key, out T value)
     {
@@ -74,11 +70,10 @@ public sealed class SaveStore
     }
 
     /// <summary>
-    /// Replaces the document, serialized before this returns so a later mutation of
-    /// <paramref name="value"/> never reaches it. Accepted after <c>Run.RequestExit</c>.
+    /// Replaces the document. The value is serialized before this returns. A later mutation of
+    /// <paramref name="value"/> does not reach the store. Accepted after <c>Run.RequestExit</c>.
     /// </summary>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
-    /// <exception cref="JsonException">The value cannot be serialized; the store is unchanged.</exception>
+    /// <exception cref="JsonException">The value cannot be serialized. The store is unchanged.</exception>
     public void Write<T>(SaveKey<T> key, T value)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -97,7 +92,6 @@ public sealed class SaveStore
     }
 
     /// <summary>Whether the document is present.</summary>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
     public bool Exists(SaveKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -107,7 +101,6 @@ public sealed class SaveStore
 
     /// <summary>Removes the document. Accepted after <c>Run.RequestExit</c>.</summary>
     /// <returns>Whether it was present.</returns>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
     public bool Delete(SaveKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -123,12 +116,11 @@ public sealed class SaveStore
     }
 
     /// <summary>
-    /// When the host first and last persisted the document; null while absent or not yet
-    /// persisted. Host state, restored at boot and set at each flush: a document written this step
-    /// shows its stamp from the next, and a game reading it into gameplay has taken an input the
-    /// determinism contract does not cover.
+    /// When the host first and last persisted the document. Null while the document is absent or not
+    /// yet persisted. This is host state, restored at boot and set at each flush. A document
+    /// written this step shows its stamp from the next step. Reading it into gameplay takes an input
+    /// the determinism contract does not cover.
     /// </summary>
-    /// <exception cref="ArgumentNullException">The key is null.</exception>
     public SaveMetadata? Metadata(SaveKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -136,13 +128,13 @@ public sealed class SaveStore
         return _documents.TryGetValue(key.Name, out Entry entry) ? entry.Metadata : null;
     }
 
-    // The host seam. What the storage cannot restore at all propagates: a run booted over saves
-    // it cannot read would otherwise persist fresh documents over the player's.
+    // The host seam. A storage failure to restore propagates, because a run booted over saves it cannot
+    // read would otherwise persist fresh documents over the player's.
     internal void Restore(ISaveStorage storage) => storage.Restore(Restore);
 
-    // Persists every document written and removes every one deleted since the last flush, stamping
-    // what landed with `now`, the host's clock. A storage failure is one warning and the name is
-    // dropped until written again; nothing is thrown into the step loop.
+    // Persists every document written and removes every one deleted since the last flush, stamping what
+    // landed with `now` from the host's clock. A storage failure logs one warning and drops the name
+    // until it is written again. Nothing is thrown into the step loop.
     internal void Flush(ISaveStorage storage, DateTimeOffset now)
     {
         if (_dirty.Count == 0)
@@ -168,7 +160,7 @@ public sealed class SaveStore
             }
             catch (Exception failure)
             {
-                Log.Warning($"save '{name}' could not be persisted — {failure.Message}");
+                Log.Warning($"save '{name}' could not be persisted: {failure.Message}");
             }
         }
 
@@ -195,8 +187,8 @@ public sealed class SaveStore
         _buffer.ResetWrittenCount();
         _writer.Reset(_buffer);
 
-        // The store's writer, never the type info's options: a game context declaring the
-        // platform's newline would write CRLF on Windows.
+        // Serialized through the store's writer, not the type info's options. A game context declaring
+        // the platform's newline would write CRLF on Windows.
         JsonSerializer.Serialize(_writer, value, key.TypeInfo);
         _writer.Flush();
 

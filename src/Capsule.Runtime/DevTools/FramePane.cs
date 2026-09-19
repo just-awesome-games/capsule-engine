@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -7,12 +6,12 @@ using Capsule.UI;
 namespace Capsule.Runtime.DevTools;
 
 // One host frame as the overlay measured it: wall-clock milliseconds for the interval since the
-// previous frame, the update bracket and the last game frame's draw submission, and the fixed
-// steps the frame ran.
+// previous frame, the update bracket and the last game frame's draw submission, and the fixed steps the
+// frame ran.
 internal readonly record struct FrameSample(double IntervalMs, double UpdateMs, double DrawMs, int Steps);
 
-// One second's figures as the pane published them, which is what its lines are formatted from;
-// every field zero until a whole second has been pushed.
+// One second's figures as the pane published them, which its lines are formatted from. Every field is
+// zero until a whole second has been pushed.
 internal readonly record struct FrameFigures(
     double Fps,
     double FrameMs,
@@ -21,27 +20,23 @@ internal readonly record struct FrameFigures(
     double DrawMs,
     double StepsPerSecond);
 
-// The corner readout: a backdrop and one three-line label hanging from the canvas's top-right,
-// showing the last whole second and rewritten only when a second completes. Every figure sits in
-// a fixed-width field, so the pane keeps one width. Allocation-free once on: the text is formatted
-// into a buffer this pane owns and handed to the label as a span, since a pane that churned the GC
-// would distort the counts it shows. Each figure goes through its own type's TryFormat rather than
-// an interpolated handler, whose generic AppendFormatted boxes a double until the JIT has tiered it.
+// The corner readout: a backdrop and a three-line label hanging from the canvas's top-right, showing
+// the last whole second and rewritten when a second completes. Every figure sits in a fixed-width
+// field, so the pane keeps one width. Allocation-free once on, since a pane that churned the GC would
+// distort the counts it shows.
 internal sealed class FramePane : ScreenEntity
 {
     private const int Padding = 4;
     private const double SecondMs = 1000.0;
 
     private static readonly BitmapFont Font = BitmapFont.Default;
-    private static readonly CultureInfo Culture = CultureInfo.InvariantCulture;
 
     private readonly ColorRect _backdrop;
     private readonly Label _label;
 
-    // Sized past the widest layout the fields allow; a figure too wide for its field takes what it
-    // needs and the pane grows for that second, and one that would overflow the buffer is cut.
+    // Sized past the widest layout the fields allow. A figure too wide for its field takes what it
+    // needs and the pane grows for that second.
     private readonly char[] _text = new char[256];
-    private int _length;
 
     // The second in progress. Steps run and the update and draw brackets are summed alongside the
     // intervals, all published together when the intervals reach a second.
@@ -68,8 +63,8 @@ internal sealed class FramePane : ScreenEntity
 
     internal FrameFigures Figures { get; private set; }
 
-    // Drops the second in progress and shows zeros until a whole second has been pushed, so a
-    // pane switched back on never joins samples from before it was off.
+    // Drops the second in progress and shows zeros until a whole second has been pushed. A pane
+    // switched back on does not join samples from before it was off.
     internal void Reset()
     {
         _sumMs = 0;
@@ -105,38 +100,38 @@ internal sealed class FramePane : ScreenEntity
         _steps = 0;
     }
 
-    // Rewrites the label from one second's figures; the collection counts and the heap are read
-    // here, at the second's end.
+    // Rewrites the label from one second's figures. The collection counts and the heap are read here,
+    // at the second's end.
     private void Publish(double frameMs, double worstMs, double updateMs, double drawMs, double stepsPerSecond)
     {
         double fps = frameMs > 0 ? SecondMs / frameMs : 0;
         double heapMb = GC.GetTotalMemory(false) / (1024.0 * 1024.0);
         Figures = new FrameFigures(fps, frameMs, worstMs, updateMs, drawMs, stepsPerSecond);
 
-        _length = 0;
-        Write("fps ");
-        Write(fps, 6, "F1");
-        Write("   frame ");
-        Write(frameMs, 6, "F2");
-        Write(" ms  max ");
-        Write(worstMs, 6, "F2");
-        Write("\nupdate ");
-        Write(updateMs, 6, "F2");
-        Write(" ms   draw ");
-        Write(drawMs, 6, "F2");
-        Write(" ms\nsteps ");
-        Write(stepsPerSecond, 6, "F1");
-        Write("/s   gc ");
-        Write(GC.CollectionCount(0), 5);
-        Write("/");
-        Write(GC.CollectionCount(1), 3);
-        Write("/");
-        Write(GC.CollectionCount(2), 2);
-        Write("   heap ");
-        Write(heapMb, 7, "F2");
-        Write(" MB");
+        NumberText line = new(_text);
+        line.Add("fps ");
+        line.Add(fps, "F1", 6);
+        line.Add("   frame ");
+        line.Add(frameMs, "F2", 6);
+        line.Add(" ms  max ");
+        line.Add(worstMs, "F2", 6);
+        line.Add("\nupdate ");
+        line.Add(updateMs, "F2", 6);
+        line.Add(" ms   draw ");
+        line.Add(drawMs, "F2", 6);
+        line.Add(" ms\nsteps ");
+        line.Add(stepsPerSecond, "F1", 6);
+        line.Add("/s   gc ");
+        line.Add(GC.CollectionCount(0), 5);
+        line.Add("/");
+        line.Add(GC.CollectionCount(1), 3);
+        line.Add("/");
+        line.Add(GC.CollectionCount(2), 2);
+        line.Add("   heap ");
+        line.Add(heapMb, "F2", 7);
+        line.Add(" MB");
 
-        ReadOnlySpan<char> text = _text.AsSpan(0, _length);
+        ReadOnlySpan<char> text = line.Written;
         _label.SetText(text);
 
         Vector2 measured = Font.Measure(text);
@@ -146,40 +141,4 @@ internal sealed class FramePane : ScreenEntity
         _label.Offset = new Vector2(Padding - width, Padding);
     }
 
-    private void Write(ReadOnlySpan<char> text)
-    {
-        Span<char> free = _text.AsSpan(_length);
-        if (text.Length > free.Length)
-        {
-            text = text[..free.Length];
-        }
-
-        text.CopyTo(free);
-        _length += text.Length;
-    }
-
-    // Right-aligned in width columns.
-    private void Write(double value, int width, string format)
-    {
-        Span<char> digits = stackalloc char[32];
-        value.TryFormat(digits, out int written, format, Culture);
-        Write(digits[..written], width);
-    }
-
-    private void Write(int value, int width)
-    {
-        Span<char> digits = stackalloc char[16];
-        value.TryFormat(digits, out int written, default, Culture);
-        Write(digits[..written], width);
-    }
-
-    private void Write(ReadOnlySpan<char> figure, int width)
-    {
-        for (int pad = figure.Length; pad < width; pad++)
-        {
-            Write(" ");
-        }
-
-        Write(figure);
-    }
 }

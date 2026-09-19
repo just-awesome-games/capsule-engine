@@ -8,7 +8,7 @@
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <!-- Matches the engine's VersionPrefix rather than a release: package mode here always means
          the packages this tree just packed into artifacts/packages, never nuget.org. A copy of the
-         sample outside this repository must set a real pin; see docs/consuming-capsule.md. -->
+         sample outside this repository must set a real pin; see docs/build-and-publish.md. -->
     <CapsuleVersion>0.0.0</CapsuleVersion>
     <!-- Inside the engine repository the sample is the consumer proof, so it builds from engine
          source by default. CapsuleUsePackages forces the package lane. -->

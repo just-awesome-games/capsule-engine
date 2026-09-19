@@ -14,7 +14,7 @@ public sealed class RoomTests
 {
     // A blocked move comes to rest LinearSlop short of what stopped it, so standing on a surface is
     // only ever true to within that gap.
-    private const float RestTolerance = CollisionWorld2D.LinearSlop + 1e-3f;
+    private const float RestTolerance = CollisionTolerance.LinearSlop + 1e-3f;
 
     private const float Tolerance = 1e-3f;
 
@@ -98,8 +98,8 @@ public sealed class RoomTests
         Assert.Equal(startHealth - 1, player.Health);
     }
 
-    // The spark is placed by the entity tree — a pivot child turning under the hazard, the spark
-    // under that at its orbit radius — so the drawn frame sits one radius from the hazard's centre
+    // The spark is placed by the entity tree, a pivot child turning under the hazard with the spark
+    // under that at its orbit radius, so the drawn frame sits one radius from the hazard's centre
     // and moves round it step by step, headless exactly as windowed.
     [Fact]
     public void TheHazardsSpark_OrbitsTheHazardInTheDrawnFrame()
@@ -158,8 +158,8 @@ public sealed class RoomTests
         Assert.Equal(Vector2.One, player.WorldTransform.Scale);
     }
 
-    // The bolt leaves from the muzzle socket of the frame drawn — the right edge of the 8x8 body at
-    // mid-height on the idle frame — placed by the entity tree, and the socket is a point on the
+    // The bolt leaves from the muzzle socket of the frame drawn, the right edge of the 8x8 body at
+    // mid-height on the idle frame. The socket is a point on the
     // frame: the walk's bob shows in the muzzle's height on the frame that carries it.
     [Fact]
     public void PressingShoot_FiresABoltFromTheMuzzleSocketOfTheFrameDrawn()

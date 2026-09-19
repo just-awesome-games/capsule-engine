@@ -86,7 +86,7 @@ public sealed class ScrollLayoutTests
         Vector2 corner = new(10.3f, 20.7f);
         Vector2 position = new(15.5f, 25.1f);
 
-        Assert.Equal(PixelGrid.SnapFrom(corner, position, 3f), ScrollLayout.Place(position, corner, corner, snap: true, 3f));
+        Assert.Equal(corner + PixelGrid.SnapOffset(corner, position, 3f), ScrollLayout.Place(position, corner, corner, snap: true, 3f));
         Assert.Equal(position, ScrollLayout.Place(position, corner, corner, snap: false, 3f));
     }
 

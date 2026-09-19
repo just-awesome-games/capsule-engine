@@ -19,13 +19,21 @@ internal static class Program
             return Suite.Run(args[1..]);
         }
 
-        EngineBuilder engine = CapsuleBoot.Configure("Capsule Bench", new DesktopPlatform())
-            .WithCommandLine(args)
-            .WithoutCrashLog();
+        EngineBuilder engine;
+        try
+        {
+            engine = CapsuleBoot.Configure("Capsule Bench", new DesktopPlatform())
+                .WithCommandLine(args)
+                .WithoutCrashLog();
+        }
+        catch (CommandLineException failure)
+        {
+            return failure.Report();
+        }
 
         // The surface is a boot option, so it is the attribute's of whichever scene the command
         // line named; none, or one this assembly does not know, boots the default.
-        Type? scene = Workloads.All.FirstOrDefault(scene => scene.Name == engine.SceneName);
+        Type? scene = Workloads.All.FirstOrDefault(scene => scene.Name == engine.SceneOverride);
         Surface surface = scene?.GetCustomAttribute<WorkloadAttribute>()?.Surface ?? Surface.Canvas360;
 
         engine = surface == Surface.Hd1080

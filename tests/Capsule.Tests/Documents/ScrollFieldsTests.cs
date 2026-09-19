@@ -148,9 +148,9 @@ public sealed class ScrollFieldsTests
     [Fact]
     public void ANonFiniteFactorOrOrigin_FailsTheDocument()
     {
-        SceneDocumentFormatException factor = Assert.Throws<SceneDocumentFormatException>(
+        ArgumentException factor = Assert.Throws<ArgumentException>(
             () => new SceneDocument([new EntityPlacement(1, "coin", 0f, 0f, ScrollFactor: new Vector2(float.NaN, 1f))], 2));
-        SceneDocumentFormatException origin = Assert.Throws<SceneDocumentFormatException>(
+        ArgumentException origin = Assert.Throws<ArgumentException>(
             () => new SceneDocument([], 1, scrollOrigin: new Vector2(0f, float.PositiveInfinity)));
 
         Assert.Contains("not a scroll factor", factor.Message, StringComparison.Ordinal);
@@ -161,7 +161,7 @@ public sealed class ScrollFieldsTests
     [Fact]
     public void ACollidingTileMap_RefusesAScrollFactor()
     {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+        ArgumentException error = Assert.Throws<ArgumentException>(
             () => new SceneDocument(
                 [new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"), ScrollFactor: new Vector2(0.5f, 1f))],
                 2));

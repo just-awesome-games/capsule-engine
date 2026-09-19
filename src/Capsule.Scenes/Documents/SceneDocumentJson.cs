@@ -3,25 +3,25 @@ using System.Text.Json.Serialization;
 
 namespace Capsule.Scenes.Documents;
 
-// The file shape, one-to-one with the JSON. JsonPropertyOrder fixes field order, which the
-// canonical writer depends on: a reordered member here changes every scene document's bytes.
-// Unmapped members are rejected so a typo in a hand-authored document fails at load, not in play.
+// The file shape, mapped one to one onto the JSON. JsonPropertyOrder fixes field order, which the
+// canonical writer depends on, so reordering a member here changes every scene document's bytes.
+// Unmapped members are rejected. A typo in a hand-authored document fails at load instead of in play.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class SceneDocumentJson
 {
-    // Nullable so an omitted version is distinct from an unsupported numeric version.
+    // Nullable, to tell an omitted version from an unsupported numeric one.
     [JsonPropertyName("formatVersion")]
     [JsonPropertyOrder(0)]
     public int? FormatVersion { get; set; }
 
-    // Absent where the document authors no origin; WhenWritingNull keeps it out. Nullable so a
-    // wrong arity is the reader's error to name.
+    // Absent when the document authors no origin, and WhenWritingNull keeps it out. Nullable so the reader
+    // reports a wrong component count.
     [JsonPropertyName("scrollOrigin")]
     [JsonPropertyOrder(1)]
     public float[]? ScrollOrigin { get; set; }
 
-    // Nullable so an absent list is distinct from an empty scene, and so is a null where an entry
-    // belongs: an initializer here would answer for JSON the format has not accepted.
+    // Nullable, to tell an absent list from an empty scene and to let a null entry reach the reader. An
+    // initializer here would invent data the format never accepted.
     [JsonPropertyName("entities")]
     [JsonPropertyOrder(2)]
     public SceneEntryJson?[]? Entities { get; set; }
@@ -38,7 +38,7 @@ internal sealed class SceneDocumentJson
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class SceneEntryJson
 {
-    // Nullable so an omitted id fails as the format's missing-id error rather than reading as 0.
+    // Nullable, to make an omitted id raise the format's missing-id error instead of reading as 0.
     [JsonPropertyName("id")]
     [JsonPropertyOrder(0)]
     public int? Id { get; set; }
@@ -47,8 +47,8 @@ internal sealed class SceneEntryJson
     [JsonPropertyOrder(1)]
     public string? Type { get; set; }
 
-    // Nullable so an omitted coordinate fails as the format's missing-position error rather than
-    // reading as the origin, which is a position the terrain entry is required to be at.
+    // Nullable, to make an omitted coordinate raise the format's missing-position error instead of
+    // reading as the origin, which is where the terrain entry must sit.
     [JsonPropertyName("x")]
     [JsonPropertyOrder(2)]
     public float? X { get; set; }
@@ -59,8 +59,8 @@ internal sealed class SceneEntryJson
 
     private float[]? _scale;
 
-    // Absent on an entry at the authored size; WhenWritingNull keeps it out. Nullable so a wrong
-    // arity is the reader's error to name.
+    // Absent on an entry at the authored size, and WhenWritingNull keeps it out. Nullable so the reader
+    // reports a wrong component count.
     [JsonPropertyName("scale")]
     [JsonPropertyOrder(4)]
     public float[]? Scale
@@ -73,25 +73,26 @@ internal sealed class SceneEntryJson
         }
     }
 
-    // Whether the field was written at all: the deserializer calls the setter only for a field the
-    // document carries. The tile-map entry is refused a scale on presence, not value.
+    // Whether the document carried the field, since the deserializer calls the setter only for a field
+    // that is present. The tile-map entry rejects a scale on presence, not on value.
     [JsonIgnore]
     public bool HasScale { get; private set; }
 
-    // Absent where the entry authors no band; WhenWritingNull keeps it out. An authored 0 is a
-    // band like any other and is written back, so it stays distinct from an absent field.
+    // Absent when the entry authors no band, and WhenWritingNull keeps it out. An authored 0 is an ordinary
+    // band and is written back, so it stays distinct from an absent field.
     [JsonPropertyName("zIndex")]
     [JsonPropertyOrder(5)]
     public int? ZIndex { get; set; }
 
-    // Absent where the entry authors no factor; WhenWritingNull keeps it out. Nullable so a wrong
-    // arity is the reader's error to name.
+    // Absent when the entry authors no factor, and WhenWritingNull keeps it out. Nullable so the reader
+    // reports a wrong component count.
     [JsonPropertyName("scrollFactor")]
     [JsonPropertyOrder(6)]
     public float[]? ScrollFactor { get; set; }
 
-    // Raw JSON, not a member of this shape: properties are a contract per entry type. The reader
-    // deserializes the tile-map's against TileGridJson and rejects properties on any other type.
+    // Held as raw JSON, not a typed member, because each entry type defines its own properties
+    // contract. The reader deserializes the tile-map's against TileGridJson and rejects properties on any
+    // other type.
     [JsonPropertyName("properties")]
     [JsonPropertyOrder(7)]
     public JsonElement? Properties { get; set; }
@@ -112,9 +113,9 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(2)]
     public int Height { get; set; }
 
-    // One asset's path under assets/textures, extension included, forward slashes only. Absent on
-    // a grid that draws nothing; columns is nullable so a texture with no columns fails as the
-    // grid's error rather than reading as 0.
+    // One asset path under assets/textures, extension included and forward slashes only. Absent on a grid
+    // that draws nothing. Columns is nullable, to make a texture with no columns raise the grid's error
+    // instead of reading as 0.
     [JsonPropertyName("texture")]
     [JsonPropertyOrder(3)]
     public string? Texture { get; set; }
@@ -123,7 +124,7 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(4)]
     public int? Columns { get; set; }
 
-    // Nullable for the entry list's reason: an absent palette or map is the format's fault to name.
+    // Nullable for the same reason the entry list is, so the reader names an absent palette or map.
     [JsonPropertyName("tileTypes")]
     [JsonPropertyOrder(5)]
     public TileTypeJson?[]? TileTypes { get; set; }
@@ -140,13 +141,13 @@ internal sealed class TileTypeJson
     [JsonPropertyOrder(0)]
     public string? Type { get; set; }
 
-    // Absent for the reserved empty entry and for any tile type that draws nothing;
-    // WhenWritingNull keeps it out of those entries' written form.
+    // Absent for the reserved empty entry and for any tile type that draws nothing. WhenWritingNull keeps it
+    // out of those entries' written form.
     [JsonPropertyName("cell")]
     [JsonPropertyOrder(1)]
     public int? Cell { get; set; }
 
-    // Absent for every tile type that collides as nothing, which is the default.
+    // Absent for every tile type that does not collide, which is the default.
     [JsonPropertyName("layer")]
     [JsonPropertyOrder(2)]
     public string? Layer { get; set; }
@@ -156,8 +157,8 @@ internal sealed class TileTypeJson
     [JsonPropertyOrder(3)]
     public string?[]? CollidableFaces { get; set; }
 
-    // Mapped only so the reader can name what replaced it, as a raw element so presence rather
-    // than shape is the question. An absent field leaves ValueKind Undefined.
+    // Mapped only so the reader can point at what replaced it, and held as a raw element because presence is
+    // all that matters. An absent field leaves ValueKind Undefined.
     [JsonPropertyName("collision")]
     [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

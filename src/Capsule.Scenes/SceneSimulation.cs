@@ -14,11 +14,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
     /// <param name="run">
-    /// The run to install on the scene before it starts; omitted, a new run with default settings.
+    /// The run to install on the scene before it starts. Omit it for a new run with default settings.
     /// </param>
     /// <exception cref="InvalidOperationException">The scene has already been started.</exception>
-    /// <exception cref="ArgumentNullException"><paramref name="scene"/> is null.</exception>
-    /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too; both are inner exceptions.</exception>
+    /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too. Both are inner exceptions.</exception>
     public SceneSimulation(
         Scene scene,
         object? entryPayload = null,
@@ -58,32 +57,29 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>The run installed on <see cref="Scene"/>, shared for this simulation's lifetime.</summary>
     public Run Run { get; }
 
-    /// <summary>Whether the run has asked the host to shut down; never cleared.</summary>
+    /// <summary>Whether the run has asked the host to shut down. Once true, it stays true.</summary>
     public bool ExitRequested => Run.ExitRequested;
 
-    /// <summary>What to draw: one held instance, populated at construction and rewritten after each completed step.</summary>
+    /// <summary>What to draw. One instance, filled at construction and rewritten after each completed step.</summary>
     public FrameView View => _view;
 
     /// <summary>
-    /// Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>. Exceptions
-    /// from scene, entity, component, contact, camera or renderer callbacks propagate to the
-    /// caller. A step that throws may have changed simulation state; continuing that simulation is
-    /// not supported.
+    /// Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>. Exceptions from
+    /// scene, entity, component, contact, camera or renderer callbacks propagate to the caller. A step
+    /// that throws may have already changed simulation state, so do not continue that simulation.
     /// </summary>
-    /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
     public void Step(in StepContext context) => Step(in context, null);
 
-    // The host's before-step act runs once the mixer's step has opened, so the sounds it plays and
-    // stops are this step's commands, and before the scene's own step, so its mutations are what
-    // the step then reads.
+    // The host's before-step action runs after the mixer's step opens, so the sounds it plays and stops
+    // belong to this step, and before the scene's own step, so the step reads its changes.
     void ISimulation.Step(in StepContext context, Action before) => Step(in context, before);
 
     private void Step(in StepContext context, Action? before)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Ahead of everything the step runs: a sound played during it expires against this step's
-        // tick, and the commands it raises are this step's rather than the previous one's.
+        // Runs before everything else in the step. A sound played during it expires against this
+        // step's tick, and its commands belong to this step instead of the previous one.
         Run.Audio.BeginStep(in context);
 
         before?.Invoke();
@@ -92,32 +88,30 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.RunStep(in context);
         Scene.StepEntities(in context);
 
-        // Contacts settle where every position this step will produce has been produced, so an
-        // enter or exit is never raised against a position something is about to leave.
+        // Contacts settle after every position this step produces is final, so no enter or exit is raised
+        // against a position something is about to leave.
         Scene.SettleContacts();
 
-        // Then the late steps, in the order the step ran: everything an entity reads here — a
-        // position a sweep came to rest at, health a contact just spent — is what the frame about to
-        // be drawn will show.
+        // Then the late steps, in the order the step ran. The next frame shows whatever an entity
+        // reads here, such as a position a sweep came to rest at or health a contact just spent.
         Scene.LateStepEntities(in context);
 
-        // Ahead of EndStep, not after it: EndStep clears the deferral flag, so a late step run
-        // past it would reach the entity list directly instead of queueing like everything else.
+        // Runs before EndStep, because EndStep clears the deferral flag and a late step after it would
+        // reach the entity list directly instead of queueing like everything else.
         Scene.RunLateStep(in context);
         Scene.EndStep();
 
-        // Everything the step left is settled here, and nothing the pass reads can change before
-        // the frame is drawn.
+        // Everything the step produced is settled here, and nothing this pass reads changes before the
+        // frame is drawn.
         EmitDebugDraws();
 
         RewriteView();
     }
 
-    // The debug pass over the scene as it stands: run by every step once it has settled, and by a
-    // host that wants the settled state drawn without stepping — held, with a listener newly
-    // attached. Read-only by the hooks' contract, so an out-of-step pass changes nothing and
-    // advances no tick. Skipped outright while nothing listens, and on a run a host owns for its
-    // own overlay: the walk costs the same whether or not anything hears it.
+    // Runs the debug pass over the scene as it stands. Every step calls it once the step has settled, and
+    // a host calls it to redraw settled state while paused or after attaching a listener. The hooks are
+    // read-only by contract, and an out-of-step pass changes nothing and advances no tick. Skipped
+    // while nothing listens, and on a run a host owns for its own overlay.
     internal void EmitDebugDraws()
     {
         if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
@@ -126,12 +120,12 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
     }
 
-    // Takes the run's pending frame capture request, clearing it. Not step-bound: the host calls it
-    // from the frame that will serve it. Readable without taking as Run.FrameCaptureRequested.
+    // Takes the run's pending frame capture request and clears it. Not tied to a step. The host calls
+    // it from the frame that will serve the request. Run.FrameCaptureRequested reads it without taking
+    // it.
     internal bool TryTakeFrameCapture(out string path) => Run.TryTakeFrameCapture(out path);
 
-    /// <summary>Takes the deferred transition requested by the last step, if one was requested.</summary>
-    /// <exception cref="ObjectDisposedException">The instance has been disposed.</exception>
+    /// <summary>Takes the deferred transition the last step requested, when there is one.</summary>
     public bool TryTakeTransition(out SceneTransition transition)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -139,8 +133,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     }
 
     /// <summary>Stops the scene and releases every entity it holds.</summary>
-    /// <exception cref="Exception">One stop hook failed; teardown still completed for every entity.</exception>
-    /// <exception cref="AggregateException">More than one stop hook failed; each is an inner exception.</exception>
+    /// <exception cref="AggregateException">More than one stop hook failed. Each failure is an inner exception.</exception>
     public void Dispose()
     {
         if (_disposed)
@@ -152,8 +145,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.Stop();
     }
 
-    // Rebuilds View from the scene as it stands, without a step: what a step ends with, for a host
-    // whose renderers read something that changed between steps.
+    // Rebuilds View from the scene as it stands, without taking a step. A host calls it when its
+    // renderers read something that changed between steps.
     internal void RewriteView()
     {
         _view.Clear();
@@ -168,12 +161,12 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _view.ClearColor = Scene.ClearColor;
         _view.Sampling = Scene.Sampling;
 
-        // Drawing runs past EndStep, so a Draw that writes a key, detaches a renderer or removes an
-        // entity reaches the scene directly rather than queueing. The list is frozen for the length
-        // of the traversal and walked once by index: every renderer it holds is offered exactly
-        // once, in the order the frame opened with, and each is checked against the scene before it
-        // draws so one detached or removed by an earlier Draw is skipped. Whatever was invalidated
-        // rebuilds at EndDraw, which is why a renderer attached here first draws next step.
+        // Drawing runs after EndStep. A key written, a renderer detached or an entity removed from
+        // inside Draw reaches the scene directly instead of queueing. The list is frozen for the
+        // traversal and walked once by index, in the order the frame opened with. Each renderer is
+        // checked against the scene before it draws, so one detached or removed by an earlier Draw is
+        // skipped. Anything invalidated rebuilds at EndDraw, and a renderer attached here first draws
+        // next step.
         Scene.BeginDraw();
         try
         {
@@ -183,7 +176,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 Renderer renderer = renderers[index];
                 if (Scene.Draws(renderer))
                 {
-                    // The one place a space and a scroll factor are chosen: a renderer follows its
+                    // The only place the render space and scroll factor are chosen. A renderer follows its
                     // entity.
                     Entity entity = renderer.Entity!;
                     _view.Space = entity.Space;

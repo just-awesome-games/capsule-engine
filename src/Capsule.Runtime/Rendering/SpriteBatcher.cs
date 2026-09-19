@@ -7,24 +7,22 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace Capsule.Runtime.Rendering;
 
-// Draws quads in submission order through one vertex buffer, exactly as SpriteBatch would draw
-// them and faster: a sprite is written straight into a staging array as four vertices, a chunk of
-// staged sprites is uploaded once, and each run on one texture inside it goes to the device as one
-// indexed draw. Everything is allocated here; a frame at steady state allocates nothing.
+// Draws quads in submission order through one vertex buffer, matching SpriteBatch's output and
+// beating its speed. A sprite is written straight into a staging array as four vertices, a chunk of
+// staged sprites is uploaded once, and each run on a single texture goes to the device as one indexed
+// draw. Every buffer is allocated in the constructor, and a frame at steady state allocates nothing.
 internal sealed class SpriteBatcher : IDisposable
 {
-    // A chunk is one draw's worth of sprites; four vertices each stay under the 16-bit index
-    // ceiling.
+    // A chunk is one draw's worth of sprites. Four vertices each stay under the 16-bit index ceiling.
     private const int ChunkSprites = 8192;
 
     private const int ChunkVertices = ChunkSprites * 4;
 
     private const int IndicesPerSprite = 6;
 
-    // The vertex buffer is a ring of chunks appended with NoOverwrite, so a flush never writes over
-    // vertices a draw the driver has not finished may still be reading; at the end of the ring the
-    // cursor wraps and the write is Discard, which on GL orphans the store rather than stalling
-    // behind those draws.
+    // The vertex buffer is a ring of chunks appended with NoOverwrite, and a flush never writes over
+    // vertices an unfinished draw may still be reading. At the end of the ring the cursor wraps and
+    // the write is Discard, which on GL orphans the store instead of stalling behind those draws.
     private const int RingChunks = 4;
 
     private const int RingVertices = ChunkVertices * RingChunks;
@@ -38,9 +36,9 @@ internal sealed class SpriteBatcher : IDisposable
     private readonly IndexBuffer _indices;
     private readonly SpriteVertex[] _staging = new SpriteVertex[ChunkVertices];
 
-    // The texture runs inside the staged chunk, in order; a chunk of sprites on alternating
-    // textures is one upload and a draw per run, where an upload per run stalls the driver
-    // behind the draw before it.
+    // The texture runs inside the staged chunk, in order. A chunk of sprites on alternating textures
+    // costs one upload and a draw per run, where an upload per run would stall the driver behind the
+    // previous draw.
     private readonly TextureRun[] _runs = new TextureRun[ChunkSprites];
     private int _runCount;
 
@@ -50,13 +48,14 @@ internal sealed class SpriteBatcher : IDisposable
     // Sprites staged and not yet flushed.
     private int _count;
 
-    // The texture the open run draws with, and its texel size, which SpriteBatch reads from the
-    // texture's internal TexelWidth: the same float, cached once per run.
+    // The texture the open run draws with, and its texel size. SpriteBatch reads the same float from
+    // the texture's internal TexelWidth, cached here once per run.
     private Texture2D? _texture;
     private float _texelWidth;
     private float _texelHeight;
 
-    // The last colour converted and its packed form, so a run of one tint converts once.
+    // The last colour converted and its packed form. Premultiplying costs three divisions, and a run
+    // sharing one tint converts once.
     private ColorRgba _lastColor;
     private Color _lastPacked;
 
@@ -70,7 +69,7 @@ internal sealed class SpriteBatcher : IDisposable
         _indices.SetData(QuadIndices());
     }
 
-    // Two triangles per quad over vertices TL, TR, BL, BR, split as SpriteBatch splits them: the
+    // Two triangles per quad over vertices TL, TR, BL, BR, split as SpriteBatch splits them. The
     // diagonal runs TR to BL, and the other split rasterises the diagonal's pixels differently.
     private static ushort[] QuadIndices()
     {
@@ -90,9 +89,9 @@ internal sealed class SpriteBatcher : IDisposable
         return indices;
     }
 
-    // Opens a batch: sets the device states — SpriteBatch's defaults where none is given — and
-    // applies the effect once, so a caller-supplied effect owns every parameter of its own and
-    // the batcher's SpriteEffect maps transform then the viewport's projection.
+    // Opens a batch. Sets the device states, using SpriteBatch's defaults where none is given, and
+    // applies the effect once. A caller-supplied effect owns its own parameters, while the batcher's
+    // SpriteEffect maps transform then the viewport's projection.
     internal void Begin(
         in Matrix transform,
         SamplerState sampler,
@@ -119,7 +118,7 @@ internal sealed class SpriteBatcher : IDisposable
         _texture = null;
     }
 
-    // A region of texture, moved by sliceOffset onto the page it is resident on; the remaining
+    // A region of texture, moved by sliceOffset onto the page it is resident on. The remaining
     // parameters are SpriteQuad.Place's.
     internal void Draw(
         Texture2D texture,
@@ -134,7 +133,7 @@ internal sealed class SpriteBatcher : IDisposable
         bool flipY,
         ColorRgba color)
     {
-        Ready(texture);
+        OpenRun(texture);
 
         SpriteQuad quad = SpriteQuad.Place(
             position,
@@ -150,23 +149,24 @@ internal sealed class SpriteBatcher : IDisposable
             flipX,
             flipY);
 
-        Stage(in quad, Pack(color));
+        Stage(in quad, color);
     }
 
-    // The whole of texture, as SpriteBatch draws a null source rectangle.
+    // The entire texture, as SpriteBatch draws a null source rectangle.
     internal void DrawWhole(Texture2D texture, Vector2 position, Vector2 origin, Vector2 scale, float rotation, ColorRgba color)
     {
-        Ready(texture);
+        OpenRun(texture);
 
         SpriteQuad quad = SpriteQuad.PlaceWhole(position, origin, scale, texture.Width, texture.Height, rotation);
 
-        Stage(in quad, Pack(color));
+        Stage(in quad, color);
     }
 
     internal void End() => Flush();
 
-    // Flushes a full chunk; a texture change, which is a reference compare, closes the run.
-    private void Ready(Texture2D texture)
+    // Flushes the chunk if this sprite would not fit, then opens the texture's run or keeps the open
+    // one. A texture change, compared by reference, closes the run.
+    private void OpenRun(Texture2D texture)
     {
         if (_count == ChunkSprites)
         {
@@ -186,31 +186,34 @@ internal sealed class SpriteBatcher : IDisposable
         }
     }
 
-    // Written through one unchecked reference: an indexed write per vertex measures seven percent
-    // slower at 50 000 sprites, and a span five.
+    // The quad's four corners, in the order the index pattern reads them: top left, top right, bottom
+    // left, bottom right. Written field by field through one advancing unchecked reference. At 50 000
+    // sprites an indexed write per vertex measures seven percent slower, a span five, and staging a
+    // whole vertex at a time twenty.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void Stage(in SpriteQuad quad, Color color)
+    private void Stage(in SpriteQuad quad, ColorRgba color)
     {
+        Color packed = Pack(color);
         ref SpriteVertex vertex = ref MemoryMarshal.GetArrayDataReference(_staging);
         vertex = ref Unsafe.Add(ref vertex, _count * 4);
 
         vertex.Position = new Vector3(quad.TopLeft.X, quad.TopLeft.Y, 0f);
-        vertex.Color = color;
+        vertex.Color = packed;
         vertex.TextureCoordinate = new Microsoft.Xna.Framework.Vector2(quad.TexTopLeft.X, quad.TexTopLeft.Y);
 
         vertex = ref Unsafe.Add(ref vertex, 1);
         vertex.Position = new Vector3(quad.TopRight.X, quad.TopRight.Y, 0f);
-        vertex.Color = color;
+        vertex.Color = packed;
         vertex.TextureCoordinate = new Microsoft.Xna.Framework.Vector2(quad.TexBottomRight.X, quad.TexTopLeft.Y);
 
         vertex = ref Unsafe.Add(ref vertex, 1);
         vertex.Position = new Vector3(quad.BottomLeft.X, quad.BottomLeft.Y, 0f);
-        vertex.Color = color;
+        vertex.Color = packed;
         vertex.TextureCoordinate = new Microsoft.Xna.Framework.Vector2(quad.TexTopLeft.X, quad.TexBottomRight.Y);
 
         vertex = ref Unsafe.Add(ref vertex, 1);
         vertex.Position = new Vector3(quad.BottomRight.X, quad.BottomRight.Y, 0f);
-        vertex.Color = color;
+        vertex.Color = packed;
         vertex.TextureCoordinate = new Microsoft.Xna.Framework.Vector2(quad.TexBottomRight.X, quad.TexBottomRight.Y);
 
         _count++;
@@ -248,7 +251,7 @@ internal sealed class SpriteBatcher : IDisposable
         _device.SetVertexBuffer(_vertices);
         _device.Indices = _indices;
 
-        // The index pattern starts at vertex zero for every quad, so a run starting part-way into
+        // The index pattern starts at vertex zero for every quad, and a run starting part-way into
         // the chunk draws from its first vertex as the base.
         for (int i = 0; i < _runCount; i++)
         {
@@ -264,7 +267,7 @@ internal sealed class SpriteBatcher : IDisposable
         _runCount = 0;
     }
 
-    // First is the index of the run's first sprite in the staged chunk; it ends where the next
+    // First is the index of the run's first sprite in the staged chunk. The run ends where the next
     // run starts, or at the chunk's count.
     private readonly record struct TextureRun(Texture2D Texture, int First);
 

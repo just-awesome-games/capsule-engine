@@ -146,7 +146,7 @@ public sealed class Player : Entity
             return;
         }
 
-        Scene!.Add(new Bolt(Muzzle.WorldPosition, _visual.Facing, _bolt));
+        Scene.Add(new Bolt(Muzzle.WorldPosition, _visual.Facing, _bolt));
         Log.Info("shot");
     }
 
@@ -218,10 +218,7 @@ public sealed class Player : Entity
             }
 
             // Asked every step: the animator ignores the clip already playing, so the cycle runs
-            // instead of restarting on frame 0. Safe from this entity's own step only because it
-            // reads nothing back: the animator is a component, stepped after this method, so a
-            // choice made from its Clip, FrameIndex or Tick belongs in a component attached after
-            // it, as SpriteAnimator's remarks state.
+            // instead of restarting on frame 0.
             _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
 
             if (_player.JumpedThisStep)

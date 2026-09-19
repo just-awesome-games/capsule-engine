@@ -16,9 +16,8 @@ internal enum ParsedFault
 internal delegate T? ParseText<T>(string text, out string? error, out int line)
     where T : class;
 
-// One authored text asset as the generator read it. What was parsed is compared by reference: a
-// re-parse regenerates the registry whether or not the bytes changed, which is conservative, never
-// stale.
+// One authored text asset as the generator read it. The parsed value compares by reference, so a
+// re-parse regenerates the registry even when the bytes did not change. Conservative, never stale.
 internal readonly struct ParsedAsset<T>(
     string key,
     string display,
@@ -29,21 +28,21 @@ internal readonly struct ParsedAsset<T>(
     : IEquatable<ParsedAsset<T>>
     where T : class
 {
-    /// <summary>The source's key under its domain root, or its authored path when that is no key.</summary>
+    /// <summary>The source's key under its domain root, or its authored path when that is not a key.</summary>
     internal string Key { get; } = key;
 
-    /// <summary>What a diagnostic names the source by: its path under the source tree.</summary>
+    /// <summary>The source's path under the source tree, as a diagnostic names it.</summary>
     internal string Display { get; } = display;
 
     internal ParsedFault Fault { get; } = fault;
 
-    /// <summary>Why the source could not be read, when it could not.</summary>
+    /// <summary>Why the source could not be read. Null when it was read.</summary>
     internal string? Message { get; } = message;
 
-    /// <summary>What the source parsed to, null where it did not parse.</summary>
+    /// <summary>What the source parsed to. Null when it did not parse.</summary>
     internal T? Parsed { get; } = parsed;
 
-    /// <summary>The source itself, at the line the defect is on: what a build error navigates to.</summary>
+    /// <summary>The source file at the line the defect is on, where a build error navigates to.</summary>
     internal Location Location { get; } = location;
 
     public bool Equals(ParsedAsset<T> other) =>
@@ -65,8 +64,8 @@ internal static class ParsedAsset
     /// <summary>Reads one additional file of a text domain into the model its registry is built from.</summary>
     /// <param name="authored">The path the asset hook authored the file at, extension stripped.</param>
     /// <param name="domain">The domain root the file is authored under.</param>
-    /// <param name="extension">The extension the domain's sources carry, both halves of it.</param>
-    /// <param name="unreadable">Why a file the compiler cannot read as text is one it cannot read.</param>
+    /// <param name="extension">The extension the domain's sources carry.</param>
+    /// <param name="unreadable">The message reported when the compiler cannot read the file as text.</param>
     internal static ParsedAsset<T> Describe<T>(
         AdditionalText text,
         string authored,
@@ -91,7 +90,7 @@ internal static class ParsedAsset
                 key,
                 display,
                 ParsedFault.Unreadable,
-                $"keys as \"{key}\"; a segment of a key is no reserved Windows device name (nul, con, ...).",
+                $"keys as \"{key}\". No segment of a key may be a reserved Windows device name (nul, con, ...).",
                 null,
                 At(text.Path, content, 0));
         }
@@ -108,11 +107,10 @@ internal static class ParsedAsset
             : new ParsedAsset<T>(key, display, ParsedFault.None, null, parsed, At(text.Path, content, 0));
     }
 
-    /// <summary>The file itself as a location a build error navigates to, at its head.</summary>
+    /// <summary>The head of the file, as a location a build error navigates to.</summary>
     internal static Location At(string path) => At(path, null, 0);
 
-    // The compiler holds no syntax tree for an additional file, so the span is spelled out against
-    // the file itself.
+    // The compiler holds no syntax tree for an additional file, so the span is built by hand.
     internal static Location At(string path, SourceText? content, int line)
     {
         if (content is null || line >= content.Lines.Count)

@@ -33,7 +33,7 @@ public sealed class ColliderQueryTests
     }
 
     // The ray starts inside the caster's own shape, so a query that did not exclude it would answer
-    // with the caster at distance 0 — and win the tie, being the older slot.
+    // with the caster at distance 0, and win the tie by holding the older slot.
     [Fact]
     public void AColliderRay_PassesThroughTheColliderItStartsFrom()
     {

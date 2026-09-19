@@ -4,82 +4,70 @@ using Capsule.Runtime.Audio;
 namespace Capsule.Runtime;
 
 /// <summary>
-/// The host family a shell boots on: where shipped content is read from, where saves and the
-/// crash log land, and how the window and the audio output behave there. The neutral host holds
-/// none of this itself, so a shell hands one to <c>CapsuleBoot.Configure</c> beside the game's
-/// name; <c>Capsule.Runtime.Desktop</c> ships the one for Windows, Linux and macOS, and a private
-/// platform module subclasses this for any other host (<c>docs/platforms.md</c>). The two abstract
-/// members are the whole of what a headless run needs; every window member defaults to a host
-/// with no window policy of its own.
+/// Where a run reads its shipped content, keeps its saves and its crash log, and how the shipped
+/// backend treats its window and its audio output. A shell hands one to
+/// <c>CapsuleBoot.Configure</c> beside the game's name. <c>Capsule.Runtime.Desktop</c> implements it
+/// for Windows, Linux and macOS, and a private platform module subclasses this for another host
+/// (<c>docs/architecture.md</c>). A headless run needs only the two abstract members. Every window
+/// member defaults to doing nothing.
 /// </summary>
 public abstract class HostPlatform
 {
     /// <summary>
-    /// Opens shipped content for reading. Paths are the build's, relative to the publish root with
-    /// forward slashes and no leading separator — <c>assets/textures/hero.png</c>,
-    /// <c>assets/scenes/hall.scene.json</c> — and are validated before they arrive here, so an
-    /// implementation joins and opens. The caller disposes the stream.
+    /// Opens shipped content for reading. A path is the build's own, relative to the publish root
+    /// with forward slashes and no leading separator, and is validated before it arrives here. The
+    /// caller disposes the stream.
     /// </summary>
     /// <exception cref="FileNotFoundException">Nothing ships at that path.</exception>
-    /// <exception cref="DirectoryNotFoundException">Nothing ships under that path's directory; treated as <see cref="FileNotFoundException"/> is.</exception>
     public abstract Stream OpenContent(string relativePath);
 
     /// <summary>
     /// The medium save documents are kept on when the shell named neither a storage nor a
-    /// directory (<c>EngineBuilder.WithSaveStorage</c>, <c>WithSaveDirectory</c>). Called once per
-    /// windowed run; a headless run never asks.
+    /// directory. Called once per windowed run. A headless run never asks.
     /// </summary>
-    /// <param name="localFolderName">The game's local folder name: one safe directory name, the slug of its display name unless <c>EngineBuilder.WithLocalFolder</c> replaced it.</param>
+    /// <param name="localFolderName">The game's local folder name: one safe directory name.</param>
     public abstract ISaveStorage OpenSaveStorage(string localFolderName);
 
     /// <summary>
-    /// Records an exception escaping a windowed run, which the host rethrows afterwards whatever
-    /// this does. Must not throw. Does nothing unless overridden.
+    /// Records an exception escaping a windowed run. The host rethrows it afterwards whatever this
+    /// does. Must not throw.
     /// </summary>
-    /// <param name="localFolderName">The game's local folder name, as <see cref="OpenSaveStorage"/> receives it.</param>
-    /// <param name="exception">The escaping exception.</param>
     public virtual void ReportCrash(string localFolderName, Exception exception)
     {
     }
 
-    /// <summary>
-    /// Brings the window to the front once, on the first frame drawn after the backend shows it.
-    /// Does nothing unless overridden.
-    /// </summary>
-    /// <param name="window">The backend's window handle.</param>
-    public virtual void RaiseWindow(nint window)
+    /// <summary>Brings the window to the front once, on the first frame drawn after the backend shows it.</summary>
+    public virtual void RaiseWindow(WindowHandle window)
     {
     }
 
     /// <summary>
-    /// Whether the window holds keyboard focus, sampled every frame: an inactive window reads no
-    /// pointer as its own and ducks to the run's unfocused volume. True unless overridden.
+    /// Whether the window holds keyboard focus, sampled every frame. An inactive window claims no
+    /// pointer input and ducks to the run's unfocused volume.
     /// </summary>
-    /// <param name="window">The backend's window handle.</param>
-    public virtual bool HasInputFocus(nint window) => true;
+    public virtual bool HasInputFocus(WindowHandle window) => true;
 
     /// <summary>
-    /// Asks to have <paramref name="redraw"/> called whenever the window is resized or exposed
-    /// from inside the platform's own event handling — for a host whose modal resize blocks the
-    /// game loop — on the thread that installed it; the host guards against re-entry. Null unless
-    /// overridden, on which the window's contents stand while a resize is in progress. Disposing
-    /// the result stops the calls; the host disposes it ahead of the renderer.
+    /// Asks to have <paramref name="redraw"/> called whenever the window is resized or exposed from
+    /// inside the platform's own event handling, for a host whose modal resize blocks the game loop.
+    /// Called on the thread that installed it, and the host guards against re-entry. Null leaves the
+    /// window's contents standing while a resize is in progress. Disposing the result stops the
+    /// calls, and the host disposes it ahead of the renderer.
     /// </summary>
-    /// <param name="window">The backend's window handle.</param>
+    /// <param name="window">The window to watch.</param>
     /// <param name="redraw">
-    /// Draws the settled frame; receives the window's current client width and height in pixels,
-    /// read at the call ahead of any event announcing them.
+    /// Draws the settled frame. Receives the window's client width and height in pixels, read at
+    /// the call.
     /// </param>
-    public virtual IDisposable? WatchWindowRedraw(nint window, Action<int, int> redraw) => null;
+    public virtual IDisposable? WatchWindowRedraw(WindowHandle window, Action<int, int> redraw) => null;
 
     /// <summary>
-    /// Attaches to the output the sound device opened so it can follow the system's default
-    /// output as it moves. Called once after the device opens, on the game thread. Null unless
-    /// overridden, on which sound stays on the output the run opened.
+    /// Attaches to the output the sound device opened so it can follow the system's default output
+    /// as it moves. Called once after the device opens, on the game thread. Null leaves sound on
+    /// the output the run opened.
     /// </summary>
     /// <param name="defaultChanged">
-    /// To call when the default output changes; safe from any thread, and does nothing but note
-    /// the change.
+    /// Call when the default output changes. Safe from any thread, and only notes the change.
     /// </param>
     public virtual AudioOutput? WatchDefaultAudioOutput(Action defaultChanged) => null;
 }

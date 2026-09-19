@@ -5,11 +5,29 @@ using Capsule.Rendering;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// A scene's world-space viewport. Movement interpolates; deliberate cuts use
-/// <see cref="Teleport"/>. A non-positive <see cref="ViewportSize"/> draws nothing. A scene
-/// installs a subclass to give framing a home of its own: it finds its subject in
-/// <see cref="OnStart"/> and settles its framing in <see cref="OnLateStep"/>.
+/// A scene's world-space viewport. Movement interpolates, and <see cref="Teleport"/> cuts without
+/// interpolating. A non-positive <see cref="ViewportSize"/> draws nothing. A scene installs a subclass to
+/// keep framing in one place: the subclass finds its subject in <see cref="OnStart"/> and settles its
+/// framing in <see cref="OnLateStep"/>.
 /// </summary>
+/// <example>
+/// <code>
+/// public sealed class GameCamera : Camera
+/// {
+///     private Player _subject = null!;
+///
+///     public GameCamera() =&gt; ViewportSize = World.ViewportSize;
+///
+///     protected override void OnStart()
+///     {
+///         _subject = Scene.FindSingle&lt;Player&gt;();
+///         Teleport(_subject.Position);
+///     }
+///
+///     protected override void OnLateStep(in StepContext context) =&gt; Center = _subject.Position;
+/// }
+/// </code>
+/// </example>
 public class Camera
 {
     private bool _started;
@@ -19,75 +37,73 @@ public class Camera
     public Vector2 Center { get; set; }
 
     /// <summary>
-    /// <see cref="Center"/> at the previous fixed step, in world units; retained by the engine.
+    /// <see cref="Center"/> at the previous fixed step, in world units. The engine saves it.
     /// </summary>
     public Vector2 PreviousCenter { get; internal set; }
 
     /// <summary>
-    /// World units the viewport spans; zero until the scene or its camera sets it, and a
+    /// How many world units the viewport spans. Zero until the scene or its camera sets it, and a
     /// non-positive span draws nothing.
     /// </summary>
     public Vector2 ViewportSize { get; set; }
 
     /// <summary>
-    /// How <see cref="ViewportSize"/> answers an output whose aspect ratio differs from it.
-    /// Defaults to <see cref="ViewportFit.Letterbox"/>, which shows that span and nothing else.
+    /// How <see cref="ViewportSize"/> adapts to an output whose aspect ratio differs from it. Defaults to
+    /// <see cref="ViewportFit.Letterbox"/>, which shows that span and nothing else.
     /// </summary>
     public ViewportFit Fit { get; set; }
 
     /// <summary>
-    /// A world rect the visible region may never leave, applied after the fit resolves it: the
-    /// region is clamped inside these bounds on each axis, and centred on them along an axis it is
-    /// larger than. Null, the default, leaves the view free. <see cref="Center"/> is unaffected —
-    /// it stays the raw framing target, and the confinement lives only in what is drawn.
+    /// A world rect the visible region must stay inside, applied after the fit resolves. The region is
+    /// clamped inside these bounds on each axis, and centred on an axis where it is larger than the bounds.
+    /// Null, the default, leaves the view free. <see cref="Center"/> keeps the raw framing target, so the
+    /// clamping affects only what is drawn.
     /// </summary>
     public Rect? Bounds { get; set; }
 
     /// <summary>
-    /// The camera's top-left corner at which every entity sits exactly where it was authored
-    /// whatever its <see cref="Entity.ScrollFactor"/>. An entity with a factor of <c>f</c> is drawn
-    /// as if by a camera whose corner is at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, the
-    /// corner being that of the world rect the frame places. Zero, the default, is a room whose
-    /// first screen is at the world origin; set it for a room elsewhere in the world.
+    /// The camera corner at which every entity sits where it was authored, whatever its
+    /// <see cref="Entity.ScrollFactor"/>. An entity with factor <c>f</c> draws as if the camera's corner sat
+    /// at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, where Corner is the top-left of the world rect
+    /// the frame places. Zero, the default, suits a room whose first screen is at the world origin. Set it
+    /// for a room elsewhere in the world.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">A component is not finite.</exception>
     public Vector2 ScrollOrigin
     {
         get;
 
         set
         {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "A scroll origin must be finite on both axes.");
-            }
-
+            Guard.Finite(value, nameof(value));
             field = value;
         }
     }
 
     /// <summary>
-    /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/>
-    /// and confined to <see cref="Bounds"/> — clamped inside them on each axis, or centred on them
-    /// along an axis the viewport is larger than. Engine-owned, and settled once a step immediately
-    /// after <see cref="OnLateStep"/>, so an entity or component reading it during its own step
-    /// reads the region of the frame last drawn.
+    /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/> and
+    /// clamped to <see cref="Bounds"/>. The engine owns it and settles it once per step, right after
+    /// <see cref="OnLateStep"/>. An entity or component that reads it during its own step sees the
+    /// region of the frame last drawn. It reads empty before the first late step of the scene this camera
+    /// frames, and whenever <see cref="ViewportSize"/> is not positive on both axes.
     /// <para>
-    /// Empty before the first late step of the scene this camera frames — before the camera opens,
-    /// and whenever <see cref="ViewportSize"/> is not positive on both axes. This is the settled
-    /// framing; the renderer interpolates between the previous step's region and this one, and a
-    /// <see cref="Fit"/> other than <see cref="ViewportFit.Letterbox"/> can reveal world past it on
-    /// an output whose aspect asks for it, which no output reaches the simulation to say.
+    /// This is the settled framing. The renderer interpolates between the previous step's region and this
+    /// one, and a <see cref="Fit"/> other than <see cref="ViewportFit.Letterbox"/> can reveal world beyond
+    /// it on an output whose aspect ratio calls for that. The output's aspect ratio never reaches the
+    /// simulation.
     /// </para>
     /// </summary>
     public Rect VisibleRegion { get; private set; }
 
+    /// <summary>The scene this camera frames.</summary>
+    /// <exception cref="InvalidOperationException">This camera frames no scene.</exception>
+    public Scene Scene => _scene ?? throw new InvalidOperationException(
+        "This Camera frames no scene. Reach the scene from OnStart onward.");
+
     /// <summary>
-    /// The scene this camera frames; null before <see cref="OnAddedToScene"/> and after
-    /// <see cref="OnRemovedFromScene"/>. A camera installed in a scene that has not opened its
-    /// camera yet takes the handle when that scene does.
+    /// The scene this camera frames, or null while it frames none. A camera installed in a scene that
+    /// has not opened its camera yet takes the handle when that scene does.
     /// </summary>
-    public Scene? Scene
+    public Scene? SceneOrNull
     {
         get => _scene;
 
@@ -116,8 +132,18 @@ public class Camera
     {
     }
 
-    // Draws Bounds on the Camera channel while there are any; the visible region is the frame's
-    // own edges and so says nothing.
+    /// <summary>
+    /// Runs once for this camera's lifetime, before its first late step, and not again when the camera
+    /// is reinstalled. The scene and every entity it holds have started by then, so find the subject to
+    /// follow here. A camera installed in a scene that has already opened its camera runs this as it is
+    /// installed.
+    /// </summary>
+    protected internal virtual void OnStart()
+    {
+    }
+
+    // Draws Bounds on the Camera channel when the camera has any. The visible region is the frame's
+    // own edges and says nothing.
     internal void OnDebugDraw()
     {
         if (Bounds is { } bounds)
@@ -126,42 +152,14 @@ public class Camera
         }
     }
 
-    /// <summary>
-    /// Runs once for this camera's lifetime — not again when it is reinstalled — before its first
-    /// late step: the scene and every entity it holds have started, so the subject to follow is
-    /// found here. A camera installed in a scene that has already opened its camera runs it as it
-    /// is installed, unless its own <see cref="OnAddedToScene"/> installs another camera.
-    /// </summary>
-    protected internal virtual void OnStart()
-    {
-    }
+    internal void SavePrevious() => PreviousCenter = Center;
 
-    /// <summary>
-    /// Runs once this camera is the scene's, with <see cref="Scene"/> set — never before that
-    /// scene and every entity it holds have started, so the scene may be searched from here.
-    /// Registration belongs here: it pairs with <see cref="OnRemovedFromScene"/> and runs again on
-    /// every reinstall, where <see cref="OnStart"/> runs once for the camera's lifetime.
-    /// </summary>
-    protected internal virtual void OnAddedToScene()
-    {
-    }
-
-    /// <summary>
-    /// Runs once this camera is no longer the scene's, with <see cref="Scene"/> cleared — when
-    /// another camera is installed, and when the scene stops. Anything
-    /// <see cref="OnAddedToScene"/> registered is released here.
-    /// </summary>
-    protected internal virtual void OnRemovedFromScene()
-    {
-    }
-
-    internal void Retain() => PreviousCenter = Center;
+    // What the renderer draws this camera as, and what the simulation measures visibility against.
+    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize, Fit, Bounds, ScrollOrigin);
 
     // The drawing derivation itself, asked at the end of the step and with no output to measure, so
     // the span is the declared one and every fit resolves to it.
-    internal void SettleVisibleRegion() =>
-        VisibleRegion = new CameraView(PreviousCenter, Center, ViewportSize, Fit, Bounds)
-            .Resolve(1f, default);
+    internal void SettleVisibleRegion() => VisibleRegion = ToView().Resolve(1f, default);
 
     internal void RunStart()
     {

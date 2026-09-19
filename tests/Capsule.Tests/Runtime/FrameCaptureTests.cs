@@ -65,7 +65,7 @@ public sealed class FrameCaptureTests : IDisposable
                 new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(BoundCaptureScene), static () => new BoundCaptureScene())]))
+                    [SceneRegistration.Plain(typeof(BoundCaptureScene), static _ => new BoundCaptureScene())]))
             .WithFixedStep(10)
             .WithInput(static input => input.Bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()
@@ -92,7 +92,7 @@ public sealed class FrameCaptureTests : IDisposable
                 new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(BoundCaptureScene), () => scene = new BoundCaptureScene())]))
+                    [SceneRegistration.Plain(typeof(BoundCaptureScene), _ => scene = new BoundCaptureScene())]))
             .WithFixedStep(10)
             .WithInput(static input => input.Bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()

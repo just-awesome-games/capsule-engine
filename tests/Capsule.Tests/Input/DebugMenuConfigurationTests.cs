@@ -5,7 +5,7 @@ namespace Capsule.Tests.Input;
 public sealed class DebugMenuConfigurationTests
 {
     [Fact]
-    public void DefaultsToTheGraveKey()
+    public void TheDebugMenuToggle_DefaultsToTheGraveKey()
     {
         InputConfiguration configuration = new();
 

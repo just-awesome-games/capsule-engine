@@ -3,8 +3,8 @@ using Capsule.Physics;
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
-/// How a tile type's collidable sides are spelled in a scene document. Named by grid direction in a
-/// Y-down world, so <see cref="Top"/> is the side a falling body lands on; an absent list is all.
+/// The names a scene document uses for a tile type's collidable sides. They are named by grid direction in a
+/// Y-down world, so <see cref="Top"/> is the side a falling body lands on. An absent list means every side.
 /// </summary>
 public static class TileFaceNames
 {
@@ -20,10 +20,10 @@ public static class TileFaceNames
     /// <summary>The tile's +Y side.</summary>
     public const string Bottom = "bottom";
 
-    /// <summary>Every name the field accepts, in the order they are documented.</summary>
+    /// <summary>Every name the field accepts, in documented order.</summary>
     public static IReadOnlyList<string> All { get; } = [Left, Right, Top, Bottom];
 
-    /// <summary>The face <paramref name="name"/> spells, or false when it spells none of them.</summary>
+    /// <summary>Parses <paramref name="name"/> into a face, and returns false when it names no face.</summary>
     public static bool TryParse(string? name, out CellFaces2D face)
     {
         switch (name)
@@ -47,8 +47,8 @@ public static class TileFaceNames
     }
 
     /// <summary>
-    /// How <paramref name="faces"/> is written, in <see cref="All"/> order, or null for
-    /// <see cref="CellFaces2D.All"/>, which is the absent list.
+    /// Formats <paramref name="faces"/> in <see cref="All"/> order, or returns null for
+    /// <see cref="CellFaces2D.All"/>, which the document writes as an absent list.
     /// </summary>
     public static string[]? Format(CellFaces2D faces)
     {

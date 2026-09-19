@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using Capsule.Scenes;
 
 namespace Capsule.Input;
 
@@ -8,18 +9,16 @@ namespace Capsule.Input;
 public delegate IInputDriver InputDriverFactory();
 
 /// <summary>
-/// One input driver as an <see cref="InputDriverRegistry"/> entry: the name <c>--driver</c> takes,
-/// and what constructs it.
+/// One <see cref="InputDriverRegistry"/> entry: the name <c>--driver</c> accepts and the factory that
+/// constructs the driver.
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public readonly record struct InputDriverRegistration
 {
     private readonly InputDriverFactory? _factory;
 
-    /// <param name="name">The driver's simple class name, which is what names it on a command line.</param>
-    /// <param name="factory">What constructs it; called once, when the name is resolved.</param>
-    /// <exception cref="ArgumentException">The name is blank.</exception>
-    /// <exception cref="ArgumentNullException">The factory is null.</exception>
+    /// <param name="name">The driver's simple class name, which is how a command line names it.</param>
+    /// <param name="factory">The factory that constructs it, called once when the name is resolved.</param>
     public InputDriverRegistration(string name, InputDriverFactory factory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -29,16 +28,16 @@ public readonly record struct InputDriverRegistration
         _factory = factory;
     }
 
-    // The name this driver is registered under, read only by the registry that keys on it.
-    internal string Name { get; }
+    /// <summary>The name this driver is registered under, which is how a command line names it.</summary>
+    public string Name { get; }
 
-    // Reached only through InputDriverRegistry, which rejects a registration carrying no factory.
+    // Called only through InputDriverRegistry, which rejects a registration carrying no factory.
     internal IInputDriver Create() => _factory!();
 }
 
 /// <summary>
-/// The input drivers a game declares, keyed by class name, fixed once built. A game passes the
-/// registry its source generator emits; hand-building one is the test path.
+/// The input drivers a game declares, keyed by class name and fixed once built. A game passes the registry
+/// its source generator emits, and hand-building one is for tests.
 /// </summary>
 public sealed class InputDriverRegistry
 {
@@ -46,7 +45,6 @@ public sealed class InputDriverRegistry
 
     /// <param name="drivers">Every driver the game declares.</param>
     /// <exception cref="ArgumentException">A registration names nothing, or a name is registered twice.</exception>
-    /// <exception cref="ArgumentNullException">The sequence is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public InputDriverRegistry(IEnumerable<InputDriverRegistration> drivers)
     {
@@ -56,22 +54,22 @@ public sealed class InputDriverRegistry
         {
             if (string.IsNullOrWhiteSpace(registration.Name))
             {
-                throw new ArgumentException("An input driver registration must name the driver it registers.", nameof(drivers));
+                throw new ArgumentException("An input driver registration names no driver; set its Name.", nameof(drivers));
             }
 
             if (!_byName.TryAdd(registration.Name, registration))
             {
                 throw new ArgumentException(
-                    $"The input driver '{registration.Name}' is registered more than once; two drivers of one class name cannot both be named on a command line.",
+                    $"The input driver '{registration.Name}' is registered more than once; rename one, because a command line can name only one driver per class name.",
                     nameof(drivers));
             }
         }
     }
 
-    // A registry holding no driver, which is what a game declaring none configures with.
+    // An empty registry, used by a game that declares no drivers.
     internal static InputDriverRegistry Empty { get; } = new([]);
 
-    // Constructs the driver registered under name, or reports that none is.
+    // Constructs the driver registered under name, or returns false when none is registered.
     internal bool TryCreate(string name, [NotNullWhen(true)] out IInputDriver? driver)
     {
         if (!_byName.TryGetValue(name, out InputDriverRegistration registration))
@@ -86,18 +84,5 @@ public sealed class InputDriverRegistry
         return true;
     }
 
-    // Sorted so the message reads the same whatever order the registry was built in.
-    internal string RegisteredNames()
-    {
-        if (_byName.Count == 0)
-        {
-            return "nothing";
-        }
-
-        string[] names = new string[_byName.Count];
-        _byName.Keys.CopyTo(names, 0);
-        Array.Sort(names, StringComparer.Ordinal);
-
-        return string.Join(", ", names);
-    }
+    internal string RegisteredNames() => Registered.Names(_byName.Keys);
 }

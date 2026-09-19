@@ -20,20 +20,20 @@ internal readonly struct AssetModel(
     /// <summary>The source's key under its domain root, extension stripped, forward slashes only.</summary>
     internal string Path { get; } = path;
 
-    /// <summary>The path as the game spelled it, which is how a diagnostic finds the file again.</summary>
+    /// <summary>The path as the game spelled it. A diagnostic uses it to point back at the file.</summary>
     internal string Authored { get; } = authored;
 
     internal string Extension { get; } = extension;
 
-    /// <summary>The file on disk, which is what a build error navigates to.</summary>
+    /// <summary>The file on disk a build error navigates to.</summary>
     internal string Source { get; } = source;
 
     internal AssetFault Fault { get; } = fault;
 
-    /// <summary>What a diagnostic names the asset by: its path under the source tree.</summary>
+    /// <summary>The asset's path under the source tree, as a diagnostic names it.</summary>
     internal string Display => Domain + "/" + Authored + Extension;
 
-    /// <summary>Where the build ships the asset, which is its key under its domain root.</summary>
+    /// <summary>The path the build ships the asset to, keyed under its domain root.</summary>
     internal string Shipped => Domain + "/" + Path + Extension;
 
     public bool Equals(AssetModel other) =>

@@ -73,7 +73,7 @@ public sealed class SceneRegistryTests
         SceneRegistration hookSceneOnRoom01 = SceneRegistration.FromDocument(
             typeof(SceneFixtures.HookScene),
             "room-01",
-            static content => new SceneFixtures.Room01(content));
+            static content => new SceneFixtures.Room01(content!.Value));
 
         Assert.Throws<ArgumentException>(() => Registry(Room01, hookSceneOnRoom01));
     }
@@ -86,12 +86,12 @@ public sealed class SceneRegistryTests
 
     private static SceneRegistration Menu => SceneRegistration.Plain(
         typeof(SceneFixtures.HookScene),
-        static () => new SceneFixtures.HookScene());
+        static _ => new SceneFixtures.HookScene());
 
     private static SceneRegistration Room01 => SceneRegistration.FromDocument(
         typeof(SceneFixtures.Room01),
         "room-01",
-        static content => new SceneFixtures.Room01(content));
+        static content => new SceneFixtures.Room01(content!.Value));
 
     private static SceneRegistry Registry(params SceneRegistration[] scenes) => new(NoEntities, scenes);
 }

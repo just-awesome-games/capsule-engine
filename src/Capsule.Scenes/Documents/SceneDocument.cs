@@ -4,12 +4,13 @@ using System.Numerics;
 namespace Capsule.Scenes.Documents;
 
 /// <summary>
-/// A scene as data: one ordered list of engine-native tile maps and game-defined entity
-/// placements. File order is composition order.
+/// A scene as data, held as one ordered list of engine-native tile maps and game-defined entity
+/// placements. File order is composition order. The constructor enforces the format's invariants, so
+/// every document that exists is valid.
 /// </summary>
 public sealed class SceneDocument
 {
-    // The entry type the engine reserves for tile maps; any number may appear.
+    // The entry type the engine reserves for tile maps. A document may hold any number of them.
     internal const string TileMapType = "tile-map";
 
     private const int Sha256HexLength = 64;
@@ -17,11 +18,10 @@ public sealed class SceneDocument
     private readonly SceneDocumentEntry[] _entries;
 
     /// <param name="entries">Every tile map and entity placement, in composition order.</param>
-    /// <param name="nextEntityId">The next id to hand out; at least 1 and above every entry's id.</param>
-    /// <param name="source">Provenance when the document is derived, null when it is authored.</param>
-    /// <param name="scrollOrigin">The camera's authored <see cref="Camera.ScrollOrigin"/>, or null where the document authors none.</param>
-    /// <exception cref="SceneDocumentFormatException">Some invariant of the document format is broken.</exception>
-    /// <exception cref="ArgumentNullException"><paramref name="entries"/> is null.</exception>
+    /// <param name="nextEntityId">The next id to hand out. At least 1, and greater than every entry's id.</param>
+    /// <param name="source">Where a derived document came from, or null when it is hand-authored.</param>
+    /// <param name="scrollOrigin">The authored <see cref="Camera.ScrollOrigin"/>, or null when the document authors none.</param>
+    /// <exception cref="ArgumentException">The document is malformed. The message names the defect.</exception>
     public SceneDocument(
         IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,
@@ -42,8 +42,8 @@ public sealed class SceneDocument
     public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
     /// <summary>
-    /// The next id to hand out. Monotonic: ids are never reused and deleting an entry never
-    /// rewinds it, so every entry's id is below this.
+    /// The next id to hand out. It rises and never falls, ids are never reused, and deleting an entry
+    /// does not rewind it. Every entry's id is below this value.
     /// </summary>
     public int NextEntityId { get; }
 
@@ -51,9 +51,8 @@ public sealed class SceneDocument
     public SceneDocumentSource? Source { get; }
 
     /// <summary>
-    /// The <see cref="Camera.ScrollOrigin"/> written to every camera installed in the composed
-    /// scene — the camera corner at which every layer sits as authored — or null where the
-    /// document authors none and each camera keeps its own.
+    /// The <see cref="Camera.ScrollOrigin"/> written to every camera installed in the composed scene, or
+    /// null when the document authors none and each camera keeps its own.
     /// </summary>
     public Vector2? ScrollOrigin { get; }
 
@@ -61,14 +60,15 @@ public sealed class SceneDocument
     {
         if (NextEntityId < 1)
         {
-            throw Malformed($"nextEntityId must be at least 1, not {NextEntityId}.");
+            throw Malformed($"nextEntityId is {NextEntityId}. Set it to at least 1.", nameof(NextEntityId));
         }
 
         if (ScrollOrigin is { } origin && (!float.IsFinite(origin.X) || !float.IsFinite(origin.Y)))
         {
             throw Malformed(string.Create(
                 CultureInfo.InvariantCulture,
-                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position; both components are finite."));
+                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position. Make both components finite."),
+                nameof(ScrollOrigin));
         }
 
         ValidateEntries();
@@ -83,81 +83,75 @@ public sealed class SceneDocument
             SceneDocumentEntry entry = _entries[i];
             EntityPlacement? entity = entry.Entity;
             TileMapPlacement? tileMap = entry.TileMap;
-            if (entity is null && tileMap is null)
-            {
-                throw Malformed($"entries[{i}] has no entry type.");
-            }
 
-            // Identity is minted where the document is authored, never by the reader.
+            // The authoring tool mints ids. The reader never assigns one.
             if (entry.Id < 1)
             {
                 string identity = entity is { } unidentified
                     ? string.Create(CultureInfo.InvariantCulture, $"entity '{unidentified.Type}' at ({unidentified.X}, {unidentified.Y})")
                     : $"the '{TileMapType}' entry";
-                throw Malformed($"{identity} has no id — every entry takes one from nextEntityId when it is created.");
+                throw Malformed($"{identity} has no id; assign one from nextEntityId when the entry is created.");
             }
 
             if (tileMap is { Grid: null })
             {
-                throw Malformed($"the '{TileMapType}' entry carries no grid; its properties are the grid it draws.");
+                throw Malformed($"the '{TileMapType}' entry carries no grid. Write the grid it draws in its properties.");
             }
 
-            if (entity is { } placed
-                && string.Equals(placed.Type, TileMapType, StringComparison.Ordinal))
+            if (entity is { } placed && string.Equals(placed.Type, TileMapType, StringComparison.Ordinal))
             {
-                throw Malformed(
-                    $"the type '{TileMapType}' is reserved for {nameof(TileMapPlacement)} entries.");
+                throw Malformed($"the type '{TileMapType}' is reserved for {nameof(TileMapPlacement)} entries. Give this entity another type.");
             }
 
             if (entity is { } placedWithoutType && string.IsNullOrWhiteSpace(placedWithoutType.Type))
             {
-                throw Malformed($"entity id {placedWithoutType.Id} has no type.");
+                throw Malformed($"entity id {placedWithoutType.Id} has no type. Name the spawn type it composes.");
             }
 
-            // NaN and the infinities have no JSON number, so the document could not be written out.
+            // NaN and the infinities have no JSON number, so such a document could not be written out.
             if (!float.IsFinite(entry.X) || !float.IsFinite(entry.Y))
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position."));
+                    $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position. Make both coordinates finite."));
             }
 
-            // A scale of zero or less is no size, and a non-finite one has no JSON number.
+            // A scale of zero or less has no size, and a non-finite one has no JSON number.
             if (entity is { } sized && (!IsScale(sized.ScaleX) || !IsScale(sized.ScaleY)))
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale; both factors are finite and greater than zero."));
+                    $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale. Make both factors finite and greater than zero."));
             }
 
             if (entry.ScrollFactor is { } factor && (!float.IsFinite(factor.X) || !float.IsFinite(factor.Y)))
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} has scroll factor ({factor.X}, {factor.Y}), which is not a scroll factor; both components are finite."));
+                    $"entity id {entry.Id} has scroll factor ({factor.X}, {factor.Y}), which is not a scroll factor. Make both components finite."));
             }
 
-            // A grid answers queries at its authored cells, where a scrolled grid is not drawn.
+            // A grid answers queries at its authored cells, but a scrolled grid draws somewhere else.
             if (tileMap is { Grid.Collides: true, ScrollFactor: not null })
             {
                 throw Malformed(
-                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a palette that collides; a grid that scrolls names no layer.");
+                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a palette that collides. Drop the scrollFactor, or remove the layers from the palette.");
             }
 
             if (entry.Id >= NextEntityId)
             {
-                throw Malformed($"entity id {entry.Id} is not below nextEntityId {NextEntityId}.");
+                throw Malformed($"entity id {entry.Id} is not below nextEntityId {NextEntityId}. Raise nextEntityId above every id.");
             }
 
             if (!seen.Add(entry.Id))
             {
-                throw Malformed($"entity id {entry.Id} appears more than once.");
+                throw Malformed($"entity id {entry.Id} appears more than once. Give every entry a unique id.");
             }
         }
     }
 
-    // A half-filled block writes a source object Parse then rejects, so the document would not
-    // survive its own round trip. Path and hash shapes are enforced here for the same reason.
+    // A half-filled source block writes an object the reader would reject, so the document would not
+    // survive a round trip. The path and hash shapes are checked here for the same reason.
     private void ValidateSource()
     {
         if (Source is not { } source)
@@ -168,25 +162,24 @@ public sealed class SceneDocument
         if (string.IsNullOrWhiteSpace(source.Tool) || string.IsNullOrWhiteSpace(source.Path)
             || string.IsNullOrWhiteSpace(source.Hash))
         {
-            throw Malformed("source must carry a tool, a path and a hash.");
+            throw Malformed("source is incomplete. Give it a tool, a path and a hash.", nameof(Source));
         }
 
         if (!IsPortableRelativePath(source.Path))
         {
-            throw Malformed(
-                $"source.path '{source.Path}' must be relative and use forward slashes.");
+            throw Malformed($"source.path '{source.Path}' must be relative and use forward slashes.", nameof(Source));
         }
 
         if (!IsSha256Hex(source.Hash))
         {
-            throw Malformed($"source.hash must be 64 lowercase hex characters, not '{source.Hash}'.");
+            throw Malformed($"source.hash is '{source.Hash}'. Write 64 lowercase hex characters.", nameof(Source));
         }
     }
 
     private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
 
-    // Deliberately not Path.IsPathRooted: what counts as rooted differs between Windows and
-    // Linux, and a scene document must mean the same thing on both.
+    // Does not use Path.IsPathRooted, because what counts as rooted differs between Windows and Linux and
+    // a scene document must mean the same thing on both.
     private static bool IsPortableRelativePath(string path) =>
         !path.Contains('\\', StringComparison.Ordinal)
         && !path.StartsWith('/')
@@ -210,5 +203,6 @@ public sealed class SceneDocument
         return true;
     }
 
-    private static SceneDocumentFormatException Malformed(string message) => new(message);
+    private static ArgumentException Malformed(string message, string parameterName = "entries") =>
+        new(message, parameterName);
 }

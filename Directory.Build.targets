@@ -6,9 +6,9 @@
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CapsulePinPackageReadme</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
-  <!-- The repository PACKAGE.md links to main; the copy every package carries links to the tag
-       it was packed at, so a consumer reading a version's README reads that version's docs. A pack
-       at the placeholder version has no tag to point at and keeps main. -->
+  <!-- The repository PACKAGE.md links to main. The copy every package carries links to the tag it
+       was packed at, so a consumer reading a version's README reads that version's docs. A pack at
+       the placeholder version has no tag to point at and keeps main. -->
   <Target Name="CapsulePinPackageReadme">
     <PropertyGroup>
       <_CapsuleReadme>$(IntermediateOutputPath)PACKAGE.md</_CapsuleReadme>
@@ -28,8 +28,8 @@
   </Target>
 
   <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
-       release are a matched set. The Error is the tripwire for NuGet's item going away rather than
-       this silently reverting to the open range. -->
+       release are a matched set. The Error is the tripwire for NuGet's item going away, so this
+       does not silently revert to the open range. -->
   <Target Name="CapsulePinProjectReferenceDependencies"
           AfterTargets="_GetProjectReferenceVersions"
           Condition="'$(IsPackable)' != 'false' and '@(ProjectReference)' != ''">

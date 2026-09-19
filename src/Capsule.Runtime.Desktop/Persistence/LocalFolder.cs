@@ -1,6 +1,6 @@
 namespace Capsule.Runtime.Desktop.Persistence;
 
-// The per-user local folder a game's crash log and saves share; LocalApplicationData alone maps
+// The per-user local folder a game's crash log and saves share. LocalApplicationData on its own maps
 // macOS away from its convention.
 internal static class LocalFolder
 {
@@ -10,8 +10,9 @@ internal static class LocalFolder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
 
-        // The XDG spec ignores a relative XDG_DATA_HOME; an unset or empty HOME falls back to the
-        // runtime's answer, never the working directory. CI publishes no macOS leg: unproven there.
+        // The XDG spec ignores a relative XDG_DATA_HOME. An unset or empty HOME falls back to the
+        // runtime's answer, not the working directory. CI publishes no macOS leg, so that path is
+        // unproven.
         string? xdg = OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("XDG_DATA_HOME") : null;
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

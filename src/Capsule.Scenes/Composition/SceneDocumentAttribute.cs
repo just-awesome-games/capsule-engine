@@ -1,9 +1,9 @@
 namespace Capsule.Scenes;
 
 /// <summary>
-/// Overrides the document key a scene derives from where its class is declared. The value is a
-/// whole key — '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them
-/// a reserved Windows device name, no extension — unique across the game's logic assemblies.
+/// Overrides the document key a scene would otherwise derive from its namespace. The value is a complete key,
+/// unique across the game's logic assemblies: '/'-joined segments of ASCII letters, digits, hyphens and
+/// underscores, with no segment a reserved Windows device name and no file extension.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class SceneDocumentAttribute : Attribute

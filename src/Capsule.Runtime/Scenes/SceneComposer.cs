@@ -8,16 +8,16 @@ namespace Capsule.Runtime.Scenes;
 // Holds only the current parsed document so restarts do not touch disk.
 internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
-    // Where the scene-document build hook lands its output in a shell's content, and the extension
-    // it writes; a document name resolves against exactly that.
+    // Where the scene-document build hook lands its output in a shell's content, and the extension it
+    // writes. A document name resolves against these.
     private const string DocumentDirectory = "assets/scenes";
     private const string DocumentExtension = ".scene.json";
 
     private string? _heldName;
     private SceneDocument? _held;
 
-    // A class the registry backs with a document is composed from it; one it registers plainly is
-    // built as it is, and one it does not hold at all is named as missing by the registry.
+    // A class the registry backs with a document is composed from that document. One registered
+    // plainly is built as it is, and one the registry does not hold is reported missing by it.
     internal Scene Resolve(in SceneTransition target) => target.Kind switch
     {
         SceneTransitionKind.Scene => scenes.DocumentNameOf(target.SceneType!) is { } name
@@ -27,9 +27,6 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         _ => throw new InvalidOperationException($"'{target.Kind}' names no scene to compose."),
     };
 
-    // A scene document's name is its key: the path the build shipped it at under assets/scenes.
-    // Judged by the build's own key grammar, so a name that is no key is refused here rather than
-    // reaching the file system.
     // What SceneDocumentFile.Load does for a path, over the platform's content instead.
     private SceneDocument Load(string path)
     {
@@ -67,13 +64,13 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         }
         catch (SpawnException exception)
         {
-            // The scene layer is pure and knows no paths; naming the document is this layer's job.
+            // The scene layer is pure and knows no paths, so this layer names the document.
             throw new SpawnException($"{path}: {exception.Message}", exception);
         }
     }
 
-    // A SceneDocument is immutable and its grid hands out read-only spans, so every scene composed
-    // from one document may share it.
+    // A SceneDocument is immutable and its grid hands out read-only spans, so every scene composed from
+    // one document may share it.
     private SceneDocument Hold(string name, string path)
     {
         if (_held is { } held && string.Equals(_heldName, name, StringComparison.Ordinal))

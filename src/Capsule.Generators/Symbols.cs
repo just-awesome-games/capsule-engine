@@ -22,12 +22,12 @@ internal static class Symbols
     internal const string RegistryClaimAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute";
     internal const string TextureHandle = "Capsule.Assets.TextureHandle";
 
-    // MSBuild passes a boolean property through verbatim, compared case-insensitively.
+    // MSBuild passes a boolean property through verbatim, so compare it case-insensitively.
     internal static bool Declares(AnalyzerConfigOptions options, string key) =>
         options.TryGetValue(key, out string? value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
-    // Syntax only: this runs on every type declaration at every keystroke, so a semantic lookup
-    // here would be paid over and over.
+    // Syntax only. This runs on every type declaration at every keystroke, and a semantic lookup
+    // here would be paid each time.
     internal static bool MayBeRegistered(SyntaxNode node) =>
         node is TypeDeclarationSyntax declaration
         && (declaration.BaseList is not null || declaration.AttributeLists.Count > 0);
@@ -92,7 +92,7 @@ internal static class Symbols
 
             IParameterSymbol parameter = constructor.Parameters[0];
 
-            // The generated call site passes an lvalue, which binds to any of these.
+            // The generated call site passes an lvalue, which binds to any of these ref kinds.
             bool passable = parameter.RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter;
             if (passable && SymbolEqualityComparer.Default.Equals(parameter.Type, parameterType))
             {
@@ -103,7 +103,7 @@ internal static class Symbols
         return count;
     }
 
-    // The one public constructor taking an EntitySpawn, or null where there is none or more than one.
+    // The single public constructor taking an EntitySpawn, or null when there are none or several.
     internal static IMethodSymbol? SpawnConstructor(INamedTypeSymbol type, Compilation compilation)
     {
         INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(EntitySpawn);
@@ -127,11 +127,12 @@ internal static class Symbols
         return found;
     }
 
-    // Whether the constructor's own initializer hands an EntitySpawn on: a base(...) or this(...)
-    // argument of that type — the spawn itself, or one rewritten with { } — or a primary
-    // constructor's base argument list carrying one. A this(...) target is trusted, and a constructor
-    // with no syntax here is too. Where it does not, at is the constructor that drops it.
-    internal static bool PassesSpawnOn(IMethodSymbol constructor, Compilation compilation, out Location? at)
+    // Whether the constructor's initializer passes an EntitySpawn on: a base(...) or this(...)
+    // argument of that type, the spawn itself or one rewritten with { }, or a primary constructor's
+    // base argument list carrying one. A this(...) target is trusted, as is a constructor with no
+    // syntax here. Otherwise at is the constructor that drops the spawn.
+    /// <param name="declaring">The model the candidate arrived with, reused when it binds this tree.</param>
+    internal static bool PassesSpawnOn(IMethodSymbol constructor, SemanticModel declaring, out Location? at)
     {
         at = null;
         if (constructor.DeclaringSyntaxReferences.Length == 0)
@@ -171,8 +172,14 @@ internal static class Symbols
 
         if (arguments is not null)
         {
+            Compilation compilation = declaring.Compilation;
             INamedTypeSymbol? spawnType = compilation.GetTypeByMetadataName(EntitySpawn);
-            SemanticModel model = compilation.GetSemanticModel(syntax.SyntaxTree);
+
+            // Binding a fresh model per candidate would cost a game its edit loop, so reuse the
+            // candidate's model unless the constructor is declared in another tree.
+            SemanticModel model = declaring.SyntaxTree == syntax.SyntaxTree
+                ? declaring
+                : compilation.GetSemanticModel(syntax.SyntaxTree);
             foreach (ArgumentSyntax argument in arguments.Arguments)
             {
                 if (SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(argument.Expression).Type, spawnType))

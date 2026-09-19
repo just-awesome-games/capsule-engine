@@ -342,7 +342,7 @@ public sealed class ViewportFitTests
     private static float PixelY(Vector2 topLeft, Vector2 position) => Surface(topLeft, position).Y;
 
     private static Vector2 Surface(Vector2 topLeft, Vector2 position) =>
-        (PixelGrid.SnapFrom(topLeft, position, PixelsPerUnit) - topLeft) * PixelsPerUnit;
+        PixelGrid.SnapOffset(topLeft, position, PixelsPerUnit) * PixelsPerUnit;
 
     private static FrameView View(ViewportFit fit) => new()
     {

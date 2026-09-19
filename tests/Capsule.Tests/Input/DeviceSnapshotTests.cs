@@ -108,10 +108,11 @@ public sealed class DeviceSnapshotTests
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(axis, value));
     }
 
+    // A read is on the step path and answers rather than throws; only the write refuses the axis.
     [Fact]
-    public void TheNoneAxis_NamesNothingToReadOrWrite()
+    public void TheNoneAxis_ReadsAtRestAndCannotBeWritten()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.Axis(PadAxis.None));
+        Assert.Equal(0f, DeviceSnapshot.Empty.Axis(PadAxis.None));
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(PadAxis.None, 0f));
     }
 
@@ -174,6 +175,7 @@ public sealed class DeviceSnapshotTests
     [InlineData(99)]
     public void AnUnrepresentableAxis_Throws(int value)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.Axis((PadAxis)value));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis((PadAxis)value, 0f));
+        Assert.Equal(0f, DeviceSnapshot.Empty.Axis((PadAxis)value));
     }
 }

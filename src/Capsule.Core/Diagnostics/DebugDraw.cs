@@ -5,57 +5,43 @@ using Capsule.Rendering;
 namespace Capsule.Diagnostics;
 
 /// <summary>
-/// How game logic draws a wire shape or a label over the world to see what it is doing. Write-only,
-/// as <see cref="Log"/> is: nothing reads back, so a run with the draws shown reaches the same state
-/// as a run without, and no call can learn whether its channel is being looked at. Every method is
-/// compiled out of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c> — the call and every
-/// argument expression it was passed are absent — and Capsule's build defines that symbol for a
-/// consuming game whenever <c>CapsuleShipping</c> is not <c>true</c>.
+/// How game logic draws a wire shape or a label over the world to see what it is doing. It is
+/// write-only, like <see cref="Log"/>, so showing the draws does not change the state a run reaches.
+/// Every method is compiled out of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c>.
 /// <para>
-/// Positions are world units at the settled step: a draw lands where the step left it while the
-/// sprites around it interpolate towards it. Each draw stays for <c>steps</c> fixed steps, counted
-/// by the scheduler's tick rather than the clock, so a held run keeps it on screen. A draw is
-/// dropped until the host attaches a buffer, which the runtime's development overlay does; a
-/// headless run draws nothing.
-/// </para>
-/// <para>
-/// A channel is any name, and its draws are shown only while that channel is switched on in the
-/// overlay's Debug Draw menu; every channel starts off. A draw passing no colour takes its
-/// channel's: the engine channels below are bootstrapped with one, <see cref="SetColor"/> overrides
-/// one or names a game's own, and an unmapped channel draws white. An engine object draws itself
-/// from its <c>OnDebugDraw</c> hook once a step and follows its entity between steps the way its
-/// sprite does; a call from game code lands at the settled step.
-/// </para>
-/// <para>
-/// Every verb takes the channel it is shown under, the colour it is drawn in — straight alpha, and
-/// null takes the channel's — and how many fixed steps it stays, at least one. Geometry it is
-/// handed is read during the call and never retained. A null channel throws
-/// <see cref="ArgumentNullException"/>, <see cref="SetColor"/> included.
+/// Positions are world units at the settled step, and a draw stays for <c>steps</c> fixed steps
+/// counted by the scheduler's tick. Draws are dropped until the host attaches a buffer, which the
+/// development overlay does. A headless run draws nothing. A draw is shown while its channel is
+/// switched on in the overlay, in the colour <see cref="SetColor"/> gave it.
 /// </para>
 /// </summary>
 public static class DebugDraw
 {
     /// <summary>
-    /// The engine channel every collider's shape is drawn on, exactly as the collision world holds
-    /// it, dimmed while disabled, with the faces of the grid cells in and around the camera's view.
+    /// The engine channel every collider's shape is drawn on, as the collision world holds it and
+    /// dimmed while disabled, with the faces of the grid cells in and around the camera's view.
     /// </summary>
     public const string Colliders = "Colliders";
 
-    /// <summary>The engine channel the camera's bounds are drawn on, while it has any.</summary>
+    /// <summary>The engine channel the camera's bounds are drawn on, when it has bounds.</summary>
     public const string Camera = "Camera";
 
     /// <summary>The engine channel a cross is drawn on at every world entity's position.</summary>
     public const string Origins = "Origins";
 
-    // Segments a circle is drawn as, and a capsule's half arc.
+    // Segment counts for a full circle and for a capsule's half arc.
     private const int CircleSegments = 24;
     private const int CapSegments = CircleSegments / 2;
 
-    // Private, as Log's sink is: a reader would let a game inspect what the host attached.
+    // Private, like Log's sink, because a reader would let a game inspect what the host attached. It is
+    // thread-static. A draw reaches only the buffer attached on the thread that emitted it. The buffer
+    // is a single-threaded list and the host attaches it on the thread that steps the simulation, so test
+    // hosts stepping their own runs in parallel stay out of each other's buffers.
+    [field: ThreadStatic]
     private static DebugDrawBuffer? Buffer { get; set; }
 
-    // Write-only from the game's side: the host resolves it at draw time, so nothing in the
-    // simulation can read a channel's colour back any more than its toggle.
+    // Write-only from the game's side. The host resolves a colour at draw time, and the simulation can
+    // read back neither a channel's colour nor its toggle.
     private static readonly Dictionary<string, ColorRgba> Colors = new(StringComparer.Ordinal)
     {
         [Colliders] = ColorRgba.Lime,
@@ -64,9 +50,9 @@ public static class DebugDraw
     };
 
     /// <summary>
-    /// Sets the colour <paramref name="channel"/>'s draws take when a call passes none, for the
-    /// rest of the process. Configuration rather than a draw, so it is never compiled out: call it
-    /// from <c>Main</c> before the run starts or from a scene's <c>OnStart</c>.
+    /// Sets the colour <paramref name="channel"/>'s draws take when a call passes none, for the rest
+    /// of the process. This is configuration, not a draw, so it is never compiled out. Call it from
+    /// <c>Main</c> before the run starts or from a scene's <c>OnStart</c>.
     /// </summary>
     public static void SetColor(string channel, ColorRgba color)
     {
@@ -75,17 +61,16 @@ public static class DebugDraw
         Colors[channel] = color;
     }
 
-    // The colour a channel's uncoloured draws take; white for one nothing has named.
+    // The colour a channel's uncoloured draws take. An unnamed channel draws white.
     internal static ColorRgba ColorOf(string channel) =>
         Colors.TryGetValue(channel, out ColorRgba color) ? color : ColorRgba.White;
 
-    // Attaches buffer, replacing whatever was there; null drops every draw again.
+    // Attaches buffer, replacing whatever was there. Null drops every draw again.
     internal static void UseBuffer(DebugDrawBuffer? buffer) => Buffer = buffer;
 
-    // Whether a call would land anywhere, so an engine pass can skip the walk that feeds it.
-    // Internal: no game may branch on it. The development switch comes first so a trimmed
-    // shipping publish, where it folds to false, drops the walk and every OnDebugDraw override
-    // with it; only the overlay attaches a buffer, so at runtime the two agree.
+    // Whether a call would land anywhere, letting an engine pass skip the walk that feeds it. Internal
+    // because no game may branch on it. The development switch is tested first. A trimmed shipping publish
+    // folds it to false and drops the walk along with every OnDebugDraw override.
     internal static bool IsAttached => Development.IsSupported && Buffer is not null;
 
     /// <summary>Draws the segment from <paramref name="a"/> to <paramref name="b"/>.</summary>
@@ -93,120 +78,60 @@ public static class DebugDraw
     public static void Line(string channel, Vector2 a, Vector2 b, ColorRgba? color = null, int steps = 1) =>
         Segment(channel, a, b, color, steps, default);
 
-    // For one step. motion is how far what the draw follows moved this step; the host draws the
-    // shape back along it by the frame's unsimulated fraction, as it does the sprite. Every verb
-    // below has such a twin.
+    // For one step, following something that moved by motion this step. The host draws the shape back
+    // along that motion by the frame's unsimulated fraction, as it does the sprite. Every verb below has
+    // a twin like this.
     [Conditional(Development.Symbol)]
     internal static void Line(string channel, Vector2 a, Vector2 b, ColorRgba? color, Vector2 motion) =>
         Segment(channel, a, b, color, 1, motion);
 
-    /// <summary>Draws the outline of <paramref name="rect"/>: its four edges.</summary>
+    /// <summary>Draws the four edges of <paramref name="rect"/>.</summary>
     [Conditional(Development.Symbol)]
-    public static void Rect(string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color = null, int steps = 1)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            RectEdges(buffer, channel, rect, color, steps, default);
-        }
-    }
+    public static void Rect(string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color = null, int steps = 1) =>
+        RectEdges(channel, rect, color, steps, default);
 
     [Conditional(Development.Symbol)]
-    internal static void Rect(string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color, Vector2 motion)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
+    internal static void Rect(string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color, Vector2 motion) =>
+        RectEdges(channel, rect, color, 1, motion);
 
-        if (Buffer is { } buffer)
-        {
-            RectEdges(buffer, channel, rect, color, 1, motion);
-        }
-    }
+    /// <summary>Draws the outline of the circle of <paramref name="radius"/> around <paramref name="center"/>, as twenty-four segments.</summary>
+    [Conditional(Development.Symbol)]
+    public static void Circle(string channel, Vector2 center, float radius, ColorRgba? color = null, int steps = 1) =>
+        Arc(channel, center, radius, 0f, MathF.Tau, CircleSegments, color, steps, default);
+
+    [Conditional(Development.Symbol)]
+    internal static void Circle(string channel, Vector2 center, float radius, ColorRgba? color, Vector2 motion) =>
+        Arc(channel, center, radius, 0f, MathF.Tau, CircleSegments, color, 1, motion);
 
     /// <summary>
-    /// Draws the outline of the circle of <paramref name="radius"/> around <paramref name="center"/>,
-    /// as twenty-four segments.
+    /// Draws the outline of everything within <paramref name="radius"/> of the segment from
+    /// <paramref name="start"/> to <paramref name="end"/>. This is the shape
+    /// <c>Capsule.Physics.Shape2D.Capsule</c> describes with the same three arguments.
     /// </summary>
     [Conditional(Development.Symbol)]
-    public static void Circle(string channel, Vector2 center, float radius, ColorRgba? color = null, int steps = 1)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            Arc(buffer, channel, center, radius, 0f, MathF.Tau, CircleSegments, color, steps, default);
-        }
-    }
+    public static void Capsule(string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color = null, int steps = 1) =>
+        CapsuleOutline(channel, start, end, radius, color, steps, default);
 
     [Conditional(Development.Symbol)]
-    internal static void Circle(string channel, Vector2 center, float radius, ColorRgba? color, Vector2 motion)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            Arc(buffer, channel, center, radius, 0f, MathF.Tau, CircleSegments, color, 1, motion);
-        }
-    }
+    internal static void Capsule(string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color, Vector2 motion) =>
+        CapsuleOutline(channel, start, end, radius, color, 1, motion);
 
     /// <summary>
-    /// Draws the outline of a capsule: everything within <paramref name="radius"/> of the segment
-    /// from <paramref name="start"/> to <paramref name="end"/>, the shape
-    /// <c>Capsule.Physics.Shape2D.Capsule</c> describes with the same three arguments. A half arc
-    /// of twelve segments around each end, joined by the two sides.
-    /// </summary>
-    [Conditional(Development.Symbol)]
-    public static void Capsule(string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color = null, int steps = 1)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            CapsuleOutline(buffer, channel, start, end, radius, color, steps, default);
-        }
-    }
-
-    [Conditional(Development.Symbol)]
-    internal static void Capsule(string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color, Vector2 motion)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            CapsuleOutline(buffer, channel, start, end, radius, color, 1, motion);
-        }
-    }
-
-    /// <summary>
-    /// Draws the closed outline through <paramref name="points"/> in order, the last joined back to
+    /// Draws the closed outline through <paramref name="points"/> in order, joining the last back to
     /// the first. Fewer than two points draw nothing.
     /// </summary>
     [Conditional(Development.Symbol)]
-    public static void Polygon(string channel, ReadOnlySpan<Vector2> points, ColorRgba? color = null, int steps = 1)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            ClosedOutline(buffer, channel, points, color, steps, default);
-        }
-    }
+    public static void Polygon(string channel, ReadOnlySpan<Vector2> points, ColorRgba? color = null, int steps = 1) =>
+        ClosedOutline(channel, points, color, steps, default);
 
     [Conditional(Development.Symbol)]
-    internal static void Polygon(string channel, ReadOnlySpan<Vector2> points, ColorRgba? color, Vector2 motion)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        if (Buffer is { } buffer)
-        {
-            ClosedOutline(buffer, channel, points, color, 1, motion);
-        }
-    }
+    internal static void Polygon(string channel, ReadOnlySpan<Vector2> points, ColorRgba? color, Vector2 motion) =>
+        ClosedOutline(channel, points, color, 1, motion);
 
     /// <summary>
-    /// Draws <paramref name="text"/> with its top-left corner on <paramref name="position"/>; null
-    /// or empty draws nothing. The glyphs are screen-sized at the overlay's own scale rather than
-    /// world-sized, so a label reads the same however far the camera is zoomed.
+    /// Draws <paramref name="text"/> with its top-left corner on <paramref name="position"/>. Null or
+    /// empty text draws nothing. Glyphs are sized in screen pixels at the overlay's scale. A label
+    /// reads the same however far the camera is zoomed.
     /// </summary>
     [Conditional(Development.Symbol)]
     public static void Text(string channel, Vector2 position, string? text, ColorRgba? color = null, int steps = 1)
@@ -219,17 +144,19 @@ public static class DebugDraw
         }
     }
 
-    // The one segment both Line verbs raise.
     private static void Segment(string channel, Vector2 a, Vector2 b, ColorRgba? color, int steps, Vector2 motion)
     {
         ArgumentNullException.ThrowIfNull(channel);
+
         Buffer?.Segment(channel, a, b, color, steps, motion);
     }
 
-    // Each corner joined to the next and the last back to the first; fewer than two draw nothing.
-    private static void ClosedOutline(DebugDrawBuffer buffer, string channel, ReadOnlySpan<Vector2> points, ColorRgba? color, int steps, Vector2 motion)
+    // Joins each corner to the next and the last back to the first.
+    private static void ClosedOutline(string channel, ReadOnlySpan<Vector2> points, ColorRgba? color, int steps, Vector2 motion)
     {
-        if (points.Length < 2)
+        ArgumentNullException.ThrowIfNull(channel);
+
+        if (Buffer is not { } buffer || points.Length < 2)
         {
             return;
         }
@@ -241,8 +168,15 @@ public static class DebugDraw
     }
 
     // The four edges clockwise from the top-left corner.
-    private static void RectEdges(DebugDrawBuffer buffer, string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color, int steps, Vector2 motion)
+    private static void RectEdges(string channel, global::Capsule.Rendering.Rect rect, ColorRgba? color, int steps, Vector2 motion)
     {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        if (Buffer is not { } buffer)
+        {
+            return;
+        }
+
         Vector2 topLeft = new(rect.Left, rect.Top);
         Vector2 topRight = new(rect.Right, rect.Top);
         Vector2 bottomRight = new(rect.Right, rect.Bottom);
@@ -253,29 +187,43 @@ public static class DebugDraw
         buffer.Segment(channel, bottomLeft, topLeft, color, steps, motion);
     }
 
-    // Two half arcs, one around each end facing away from the other, joined by the two sides one
-    // radius either side of the axis. A capsule of no length is its circle.
-    private static void CapsuleOutline(DebugDrawBuffer buffer, string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color, int steps, Vector2 motion)
+    // Two half arcs, one around each end facing away from the other, joined by two sides one radius from
+    // the axis. A capsule of no length draws as a circle.
+    private static void CapsuleOutline(string channel, Vector2 start, Vector2 end, float radius, ColorRgba? color, int steps, Vector2 motion)
     {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        if (Buffer is not { } buffer)
+        {
+            return;
+        }
+
         Vector2 axis = end - start;
         float length = axis.Length();
         if (!(length > 0f))
         {
-            Arc(buffer, channel, start, radius, 0f, MathF.Tau, CircleSegments, color, steps, motion);
+            Arc(channel, start, radius, 0f, MathF.Tau, CircleSegments, color, steps, motion);
             return;
         }
 
         float heading = MathF.Atan2(axis.Y, axis.X);
         Vector2 normal = new Vector2(-axis.Y, axis.X) / length * radius;
 
-        Arc(buffer, channel, end, radius, heading - (MathF.PI / 2f), MathF.PI, CapSegments, color, steps, motion);
-        Arc(buffer, channel, start, radius, heading + (MathF.PI / 2f), MathF.PI, CapSegments, color, steps, motion);
+        Arc(channel, end, radius, heading - (MathF.PI / 2f), MathF.PI, CapSegments, color, steps, motion);
+        Arc(channel, start, radius, heading + (MathF.PI / 2f), MathF.PI, CapSegments, color, steps, motion);
         buffer.Segment(channel, start + normal, end + normal, color, steps, motion);
         buffer.Segment(channel, start - normal, end - normal, color, steps, motion);
     }
 
-    private static void Arc(DebugDrawBuffer buffer, string channel, Vector2 center, float radius, float from, float sweep, int segments, ColorRgba? color, int steps, Vector2 motion)
+    private static void Arc(string channel, Vector2 center, float radius, float from, float sweep, int segments, ColorRgba? color, int steps, Vector2 motion)
     {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        if (Buffer is not { } buffer)
+        {
+            return;
+        }
+
         Vector2 previous = center + (radius * new Vector2(MathF.Cos(from), MathF.Sin(from)));
         for (int segment = 1; segment <= segments; segment++)
         {

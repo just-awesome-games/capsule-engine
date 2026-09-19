@@ -1,9 +1,8 @@
 namespace Capsule.Rendering;
 
 /// <summary>
-/// One character of a <see cref="BitmapFont"/>: the texels it is cut from, and how it sits on the
-/// line. Every measure is in font pixels — the units the font was baked at, which
-/// <see cref="TextIntent.Scale"/> turns into world units.
+/// One character of a <see cref="BitmapFont"/>: the texels it is cut from and how it sits on the line.
+/// Every measure is in font pixels, which <see cref="TextIntent.Scale"/> turns into world units.
 /// </summary>
 /// <param name="Codepoint">The Unicode scalar value this glyph draws.</param>
 /// <param name="Page">The index into <see cref="BitmapFont.Pages"/> of the page it is cut from.</param>

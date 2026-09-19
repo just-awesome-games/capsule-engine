@@ -4,24 +4,22 @@ namespace Capsule.Rendering;
 public enum ViewportFit
 {
     /// <summary>
-    /// The span is exactly the visible world on both axes, so every display shows the same region
-    /// and the output's slack becomes bars.
+    /// The span is the visible world on both axes, so every display shows the same region and the
+    /// output's slack becomes bars.
     /// </summary>
     Letterbox,
 
     /// <summary>
-    /// The span is a minimum on both axes: the output's slack axis reveals more world at the same
-    /// scale rather than becoming bars. Rasterised to a declared render surface, the revealed
-    /// axis grows in whole surface pixels, so the scale stays exactly the declared pixels per
-    /// unit at every output size; with no surface the world fills the window at its own scale.
+    /// The span is a minimum on both axes, so the output's slack axis reveals more world at the same
+    /// scale instead of becoming bars. Rasterised to a declared render surface, the revealed axis grows
+    /// in whole surface pixels, so the scale stays at the declared pixels per unit.
     /// </summary>
     Expand,
 
     /// <summary>
-    /// The vertical span is exact and the horizontal span follows the output's aspect, so a wider
-    /// output shows more width and a taller one shows less. Rasterised to a declared render
-    /// surface, the width is a whole number of surface pixels, so the scale stays exactly the
-    /// declared pixels per unit; with no surface the world fills the window at its own scale.
+    /// The vertical span is exact and the horizontal span follows the output's aspect. A wider output
+    /// shows more width and a taller one less. Rasterised to a declared render surface, the
+    /// width is a whole number of surface pixels, so the scale stays at the declared pixels per unit.
     /// </summary>
     FixedHeight,
 }

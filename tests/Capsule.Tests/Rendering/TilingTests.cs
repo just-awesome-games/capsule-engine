@@ -143,7 +143,7 @@ public sealed class TilingTests
         view.Add(At(Vector2.Zero), new Vector2(x, y));
 
         Assert.Empty(view.Sprites.ToArray());
-        Assert.Equal(new RenderMetrics(Submitted: 1, Visible: 0), view.Metrics);
+        Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
     }
 
     // Each copy is culled on its own, so a finite run reaching past the camera costs only the copies

@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <!-- _IsPublishing flows through project references; CapsuleShipping remains testable directly. -->
+    <!-- _IsPublishing flows through project references. CapsuleShipping stays directly testable. -->
     <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">$(_IsPublishing)</CapsuleShipping>
     <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">false</CapsuleShipping>
 
@@ -10,8 +10,8 @@
     <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
   </PropertyGroup>
 
-  <!-- The compile symbol Capsule's [Conditional] development calls answer to: defined for every
-       ordinary build, absent from a publish so the calls and their arguments are compiled out. -->
+  <!-- The compile symbol Capsule's [Conditional] development calls answer to. Defined for every
+       ordinary build and absent from a publish, so those calls and their arguments compile out. -->
   <PropertyGroup Condition="'$(CapsuleShipping)' != 'true'">
     <DefineConstants>$(DefineConstants);CAPSULE_DEVELOPMENT</DefineConstants>
   </PropertyGroup>
@@ -29,8 +29,8 @@
     <_CapsuleDevelopmentOnly Include="@(_CapsuleAssetMarker->'%(RootDir)%(Directory)**/*')" />
   </ItemGroup>
 
-  <!-- Filter after compile items exist but before the dependency cache; CoreCompile is what a
-       design-time build reaches. Paths are compared normalized, under the host's case rules. -->
+  <!-- Filter after compile items exist but before the dependency cache. A design-time build
+       reaches CoreCompile. Paths are compared normalized, under the host's case rules. -->
   <Target Name="CapsuleRemoveDevelopmentOnlySources"
           Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySourceDir)' != ''"
           Outputs="%(_CapsuleDevelopmentOnlySourceDir.Identity)"

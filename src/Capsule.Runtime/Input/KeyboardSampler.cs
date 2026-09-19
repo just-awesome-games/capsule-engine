@@ -13,7 +13,7 @@ internal static class KeyboardSampler
         KeyboardState keyboard = Keyboard.GetState();
         DeviceSnapshot snapshot = DeviceSnapshot.Empty;
 
-        // From 1: index 0 is Key.None, which is never a snapshot member.
+        // From 1, because index 0 is Key.None and not a snapshot member.
         for (int index = 1; index < XnaByKey.Length; index++)
         {
             if (keyboard.IsKeyDown(XnaByKey[index]))

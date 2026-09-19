@@ -61,10 +61,19 @@
   <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and its
        spine, which must ship beside it. -->
   <Target Name="IncludeCapsuleBuildAssets">
+    <!-- The generator is referenced with ReferenceOutputAssembly false, so its assembly is asked for
+         by name rather than picked up off a spelt-out bin path. TargetFramework is removed because
+         pack sets this project's own, and the generator targets netstandard2.0. -->
+    <MSBuild Projects="../Capsule.Generators/Capsule.Generators.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleGeneratorAssembly" />
+    </MSBuild>
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(OutDir)*.dll" PackagePath="tools/net10.0/any/" />
       <TfmSpecificPackageFile Include="$(OutDir)*.json" PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="../Capsule.Generators/bin/$(Configuration)/netstandard2.0/Capsule.Generators.dll" PackagePath="analyzers/dotnet/cs/" />
+      <TfmSpecificPackageFile Include="@(_CapsuleGeneratorAssembly)" PackagePath="analyzers/dotnet/cs/" />
     </ItemGroup>
   </Target>
 

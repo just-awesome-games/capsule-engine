@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Capsule.Generators;
 
-// One additional file with the two pieces of metadata the asset hook wrote beside it. The options
-// provider itself never compares equal, so projecting it away the moment a file arrives is what
-// lets the pipeline cache a parse rather than re-read every font and sheet on every pass.
+// One additional file plus the two pieces of metadata the asset hook wrote beside it. The options
+// provider never compares equal, so it is projected away as soon as a file arrives and the pipeline
+// can then cache a font parse across passes.
 internal readonly struct AssetFile(AdditionalText text, string? domain, string authored) : IEquatable<AssetFile>
 {
     private const string DomainMetadata = "build_metadata.AdditionalFiles.CapsuleAssetDomain";
@@ -14,17 +14,17 @@ internal readonly struct AssetFile(AdditionalText text, string? domain, string a
 
     internal AdditionalText Text { get; } = text;
 
-    /// <summary>The domain root the file was authored under, null for a file the hook never wrote.</summary>
+    /// <summary>The domain root the file was authored under. Null when the hook did not write it.</summary>
     internal string? Domain { get; } = domain;
 
-    /// <summary>The path the hook authored it at, extension stripped, with one spelling.</summary>
+    /// <summary>The path the hook authored it at, extension stripped, forward slashes only.</summary>
     internal string Authored { get; } = authored;
 
     internal static AssetFile From(AdditionalText text, AnalyzerConfigOptionsProvider options)
     {
         AnalyzerConfigOptions declared = options.GetOptions(text);
 
-        // MSBuild's %(RecursiveDir) carries the platform's separator; a handle has one spelling.
+        // MSBuild's %(RecursiveDir) carries the platform separator. Handles use forward slashes.
         string authored = declared.TryGetValue(PathMetadata, out string? path) && !string.IsNullOrEmpty(path)
             ? path!.Replace('\\', '/')
             : System.IO.Path.GetFileNameWithoutExtension(text.Path);

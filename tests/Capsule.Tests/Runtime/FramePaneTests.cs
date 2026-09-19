@@ -5,6 +5,7 @@ using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
+using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
@@ -18,12 +19,12 @@ public sealed class FramePaneTests
     {
         using OverlayRig rig = new();
 
-        Assert.Empty(rig.Overlay.Host.Simulation.View.ScreenSprites.ToArray());
+        Assert.Empty(rig.Overlay.View.ScreenSprites.ToArray());
 
         rig.Frame(intervalMs: 16, updateMs: 1);
 
         Assert.False(rig.Overlay.IsOpen);
-        Assert.Empty(rig.Overlay.Host.Simulation.View.ScreenSprites.ToArray());
+        Assert.Empty(rig.Overlay.View.ScreenSprites.ToArray());
     }
 
     [Fact]
@@ -47,18 +48,18 @@ public sealed class FramePaneTests
         rig.Frame(intervalMs: 16, updateMs: 1, sampled: DeviceSnapshot.Of(Key.H));
         Assert.True(overlay.IsHidden);
         Assert.True(overlay.IsFramePaneOn);
-        Assert.DoesNotContain(overlay.Host.Simulation.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
+        Assert.DoesNotContain(overlay.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
         rig.Frame(intervalMs: 16, updateMs: 1);
 
         rig.Press(Key.Grave);
         Assert.True(overlay.IsOpen);
         Assert.True(overlay.IsFramePaneOn);
-        Assert.Contains(overlay.Host.Simulation.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
+        Assert.Contains(overlay.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
 
         rig.Press(Key.Down);
         rig.Press(Key.Down);
         rig.Press(Key.Down);
-        Assert.Equal("Frame Pane", overlay.Scene.Current.Items[overlay.Scene.FocusedIndex].Label);
+        Assert.Equal("Frame Pane", Focused(overlay));
 
         for (int frame = 0; frame < 70; frame++)
         {
@@ -85,21 +86,21 @@ public sealed class FramePaneTests
 
         rig.Open();
         rig.Press(Key.Grave);
-        Assert.Empty(overlay.Host.Simulation.View.ScreenSprites.ToArray());
+        Assert.Empty(overlay.View.ScreenSprites.ToArray());
 
         rig.Open();
         rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.F);
-        Assert.Equal(1, scene.Depth);
-        Assert.Equal("Frame Pane", scene.Current.Items[scene.FocusedIndex].Label);
+        Assert.Equal(1, overlay.Depth);
+        Assert.Equal("Frame Pane", Focused(overlay));
 
         rig.Press(Key.Grave);
         Assert.False(overlay.IsOpen);
 
         // One backdrop and the pane's glyphs, hanging from the canvas's top-right corner; no menu
         // backdrop at the origin, no row highlight, no row entity.
-        SpriteIntent[] sprites = overlay.Host.Simulation.View.ScreenSprites.ToArray();
+        SpriteIntent[] sprites = overlay.View.ScreenSprites.ToArray();
         int glyphs = 0;
         foreach (GlyphPlacement _ in new GlyphRun(BitmapFont.Default, scene.Pane.Text, 0, TextWrap.None, HorizontalAlignment.Left))
         {
@@ -108,19 +109,15 @@ public sealed class FramePaneTests
 
         Assert.StartsWith("fps ", scene.Pane.Text, StringComparison.Ordinal);
         Assert.Equal(1 + glyphs, sprites.Length);
-        Assert.Equal(overlay.Host.Run.Canvas.X - sprites[0].Size.X, sprites[0].Position.X);
+        Assert.Equal(overlay.View.Canvas.X - sprites[0].Size.X, sprites[0].Position.X);
         Assert.Equal(0f, sprites[0].Position.Y);
         Assert.DoesNotContain(sprites, static sprite => sprite.Color == Highlight);
-        foreach (Entity entity in scene.Entities)
-        {
-            Assert.IsNotType<MenuRow>(entity);
-        }
 
         rig.Open();
 
-        Assert.Equal(1, scene.Depth);
-        Assert.Equal("Frame Pane", scene.Current.Items[scene.FocusedIndex].Label);
-        Assert.Contains(overlay.Host.Simulation.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
+        Assert.Equal(1, overlay.Depth);
+        Assert.Equal("Frame Pane", Focused(overlay));
+        Assert.Contains(overlay.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
     }
 
     [Fact]
@@ -128,7 +125,7 @@ public sealed class FramePaneTests
     {
         using OverlayRig rig = new();
         rig.Overlay.ToggleFramePane();
-        rig.Overlay.LastFrame = new RenderStats(1.5);
+        rig.DrawMs = 1.5;
 
         // Zeros until a second completes. The first frame has no interval to measure; the second
         // is the first sampled.
@@ -190,7 +187,7 @@ public sealed class FramePaneTests
     {
         using OverlayRig rig = new();
         rig.Overlay.ToggleFramePane();
-        rig.Overlay.LastFrame = new RenderStats(1.5);
+        rig.DrawMs = 1.5;
 
         for (int frame = 0; frame < 200; frame++)
         {

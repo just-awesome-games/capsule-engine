@@ -1,13 +1,12 @@
 namespace Capsule.Physics;
 
 /// <summary>
-/// Which sides of a grid cell collide. Named by grid direction in a Y-down world:
-/// <see cref="Top"/> is the cell's -Y side and <see cref="Bottom"/> its +Y side.
+/// Which sides of a grid cell collide. Names follow grid direction in a Y-down world, where
+/// <see cref="Top"/> is the -Y side and <see cref="Bottom"/> the +Y side.
 /// <para>
-/// <see cref="All"/> is a solid cell — the whole box, with faces shared with a solid neighbour
-/// culled so a flat run is one surface. Any smaller set is that many one-directional edges: a face
-/// blocks only what crosses it travelling into the cell, never motion along it and never something
-/// that started on the far side of it.
+/// <see cref="All"/> is a solid cell. Faces shared with a solid neighbour are culled, leaving a flat
+/// run to read as one surface. A smaller set gives one-directional edges. A face blocks motion crossing
+/// it into the cell, and ignores motion along the face or a body that started on the far side.
 /// </para>
 /// </summary>
 [Flags]
@@ -22,12 +21,12 @@ public enum CellFaces2D
     /// <summary>The cell's +X side.</summary>
     Right = 2,
 
-    /// <summary>The cell's -Y side; the one a falling body lands on in a Y-down world.</summary>
+    /// <summary>The cell's -Y side. A falling body lands on it in a Y-down world.</summary>
     Top = 4,
 
     /// <summary>The cell's +Y side.</summary>
     Bottom = 8,
 
-    /// <summary>Every side: the whole cell as a box.</summary>
+    /// <summary>Every side, the cell as a solid box.</summary>
     All = Left | Right | Top | Bottom,
 }

@@ -1,13 +1,13 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// A physical gamepad button, face buttons named by position rather than by brand. The triggers
-/// appear here as well as on <see cref="PadAxis"/>, pressed once pulled past the trigger deadzone.
-/// Values must stay below <see cref="DeviceSnapshot.PadCapacity"/>.
+/// A physical gamepad button, with face buttons named by position and not by brand. The triggers
+/// appear here as well as on <see cref="PadAxis"/>, and read as pressed once pulled past the trigger
+/// deadzone. Values must stay below <see cref="DeviceSnapshot.PadCapacity"/>.
 /// </summary>
 public enum PadButton
 {
-    /// <summary>No button. The default, so an unassigned <see cref="PadButton"/> never means a real button.</summary>
+    /// <summary>No button. It is the default, and an unassigned <see cref="PadButton"/> does not mean a real button.</summary>
     None,
 
     /// <summary>Up on the directional pad.</summary>
@@ -40,10 +40,10 @@ public enum PadButton
     /// <summary>The right shoulder button, above the right trigger.</summary>
     RightShoulder,
 
-    /// <summary>The digital view of <see cref="PadAxis.LeftTrigger"/>, held whenever that axis reads above 0.</summary>
+    /// <summary>The digital view of <see cref="PadAxis.LeftTrigger"/>, held while that axis reads above 0.</summary>
     LeftTrigger,
 
-    /// <summary>The digital view of <see cref="PadAxis.RightTrigger"/>, held whenever that axis reads above 0.</summary>
+    /// <summary>The digital view of <see cref="PadAxis.RightTrigger"/>, held while that axis reads above 0.</summary>
     RightTrigger,
 
     /// <summary>The left stick pressed in.</summary>

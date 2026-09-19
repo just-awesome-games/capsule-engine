@@ -42,13 +42,15 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build
 
-      - name: Development-only exclusion (shipping)
+      # The smoke run the AOT legs publish, in the other build direction: a marker that excluded in
+      # an ordinary build fails here.
+      - name: Development-only inclusion (ordinary build)
         run: >
-          dotnet build tests/Capsule.BuildProof/Capsule.BuildProof.csproj
+          dotnet run --project tests/Capsule.AotSmoke
           --configuration Release
+          --no-build
           --no-restore
-          --no-dependencies
-          -p:CapsuleShipping=true
+          -- --saves ${{ runner.temp }}/capsule-smoke-ordinary
 
       - name: Pack
         run: >

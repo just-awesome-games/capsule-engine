@@ -15,9 +15,9 @@ internal static class NativeSceneImporter
 
     internal static SceneDocument Import(string documentPath, int? tileSize = null)
     {
-        // Read as bytes, because the hash is over the source bytes: an authored file is under no
-        // obligation to be canonical. The format is written without a BOM, but an editor may add
-        // one and the JSON reader would find it where it expects a brace.
+        // Read as bytes, since the hash is over the source bytes and an authored file need not be
+        // canonical. The format is written without a BOM, but an editor may add one and the JSON
+        // reader would find it where it expects a brace.
         byte[] sourceBytes = File.ReadAllBytes(documentPath);
         SceneDocument authored = SceneDocumentFile.Parse(Encoding.UTF8.GetString(sourceBytes).TrimStart(ByteOrderMark));
 
@@ -28,13 +28,13 @@ internal static class NativeSceneImporter
                 if (entry.TileMap is { Grid.TileSize: var actual } && actual != declared)
                 {
                     throw new SceneDocumentFormatException(
-                        $"the scene document has {actual}px tiles but the game declares {declared}px; set tileSize to {declared} on every tile-map entry, or change CapsuleTileSize.");
+                        $"the scene document has {actual}px tiles but the game declares {declared}px. Set tileSize to {declared} on every tile-map entry, or change CapsuleTileSize.");
                 }
             }
         }
 
         // A document that arrives stamped was derived by an authoring module, and its block names
-        // the file a person edited; re-stamping it would name the intermediate instead.
+        // the file a person edited. Re-stamping it would name the intermediate instead.
         SceneDocumentSource source = authored.Source ?? new(
             ToolName,
             documentPath.Replace('\\', '/'),
@@ -43,8 +43,8 @@ internal static class NativeSceneImporter
         return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source, authored.ScrollOrigin);
     }
 
-    // However a document spelled a texture, a texture is reached by its key, so what is re-emitted
-    // and what the runtime loads is the path the build ships it at.
+    // A texture is reached by its key however the document spelled it, so what is re-emitted and
+    // what the runtime loads is the path the build ships it at.
     private static SceneDocumentEntry[] Keyed(ReadOnlySpan<SceneDocumentEntry> entries)
     {
         SceneDocumentEntry[] keyed = new SceneDocumentEntry[entries.Length];
@@ -63,7 +63,7 @@ internal static class NativeSceneImporter
         TypeNaming.NormalizeKey(texture.Name, out string? rejected) is { } key
             ? new TextureHandle(key, texture.Extension)
             : throw new SceneDocumentFormatException(
-                $"a tile-map entry's grid draws from texture \"{texture.Name}{texture.Extension}\", whose \"{rejected}\" is no C# name; every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.");
+                $"a tile-map entry's grid draws from texture \"{texture.Name}{texture.Extension}\", whose \"{rejected}\" is no C# name. Every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.");
 
     private static TileGrid Regrid(TileGrid grid, TextureHandle texture) =>
         string.Equals(texture.Name, grid.Texture!.Value.Name, StringComparison.Ordinal)

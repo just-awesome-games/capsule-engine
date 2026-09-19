@@ -11,7 +11,7 @@ public sealed class StreamedVoiceTests
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
 
     // The allocation constraint a region loop is played under: after the first play, stopping and
-    // playing again reuses the retired voice whole — the same object, the same device queue and the
+    // playing again reuses the ended voice whole — the same object, the same device queue and the
     // same buffers handed to it — rather than building a queue, a scratch buffer and three device
     // buffers per play.
     [Fact]
@@ -34,14 +34,14 @@ public sealed class StreamedVoiceTests
 
         // The worker releases the source and only then pools the voice, so this is also the assertion
         // that a reused voice is one no decode still holds.
-        Wait(() => streamer.Idle == 1);
+        Wait(() => streamer.Pooled == 1);
 
         StreamedVoice second = streamer.Play(samples, clip, 1f, 0f, 0f, loop: true);
         Pump(second, queue);
 
         Assert.Same(first, second);
         Assert.Same(queue, Assert.Single(queues));
-        Assert.Equal(0, streamer.Idle);
+        Assert.Equal(0, streamer.Pooled);
 
         Assert.Equal(buffers.Length, queue.Buffers.Count);
         for (int i = 0; i < buffers.Length; i++)
@@ -62,7 +62,7 @@ public sealed class StreamedVoiceTests
 
         StreamedVoice mono = streamer.Play(new PcmAudio(new float[Rate], 1, Rate), clip, 1f, 0f, 0f, loop: true);
         mono.Dispose();
-        Wait(() => streamer.Idle == 1);
+        Wait(() => streamer.Pooled == 1);
 
         StreamedVoice stereo = streamer.Play(
             new PcmAudio(new float[Rate * 2], 2, Rate),
@@ -80,7 +80,7 @@ public sealed class StreamedVoiceTests
     // The retention constraint the pool is under: a voice reports its retirement through a callback
     // holding the resident sound whose samples it streamed, and reads those samples through a cursor
     // of its own, so an idle voice keeping either would keep the sound decoded for the rest of the
-    // run. What reaches the pool holds nothing of the play it retired from, and is still a voice.
+    // run. What reaches the pool holds nothing of the play it ended from, and is still a voice.
     [Fact]
     public void ARetiredVoice_IsPooledHoldingNothingOfThePlayItRetiredFrom()
     {
@@ -94,7 +94,7 @@ public sealed class StreamedVoiceTests
 
         // The worker releases the source and only then pools the voice, so what is idle here is what
         // the next play is handed.
-        Wait(() => streamer.Idle == 1);
+        Wait(() => streamer.Pooled == 1);
         Assert.Equal(1, retirements.Value);
 
         GC.Collect();
@@ -107,7 +107,7 @@ public sealed class StreamedVoiceTests
         StreamedVoice replayed = streamer.Play(new PcmAudio(new float[Rate], 1, Rate), clip, 1f, 0f, 0f, loop: true);
         Pump(replayed, Assert.Single(queues));
 
-        Assert.Equal(0, streamer.Idle);
+        Assert.Equal(0, streamer.Pooled);
         Assert.Equal(1, retirements.Value);
     }
 
@@ -128,7 +128,7 @@ public sealed class StreamedVoiceTests
         StreamedVoice first = streamer.Play(samples, clip, 1f, 1f, 0f, loop: true);
         Pump(first, Assert.Single(queues));
         first.Dispose();
-        Wait(() => streamer.Idle == 1);
+        Wait(() => streamer.Pooled == 1);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         StreamedVoice second = streamer.Play(samples, clip, 1f, 1f, 0f, loop: true, startSeconds: 0.5);
@@ -150,7 +150,7 @@ public sealed class StreamedVoiceTests
         PcmAudio samples = new(new float[Rate], 1, Rate);
         Resident resident = new(retirements);
 
-        streamer.Play(samples, clip, 1f, 0f, 0f, loop: true, retired: resident.Retire).Dispose();
+        streamer.Play(samples, clip, 1f, 0f, 0f, loop: true, ended: resident.Retire).Dispose();
 
         return (new WeakReference(resident), new WeakReference(samples));
     }
@@ -176,16 +176,8 @@ public sealed class StreamedVoiceTests
         });
     }
 
-    private static void Wait(Func<bool> held)
-    {
-        DateTime deadline = DateTime.UtcNow + Patience;
-
-        while (!held())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "the streaming worker did not get there in time");
-            Thread.Sleep(1);
-        }
-    }
+    private static void Wait(Func<bool> held) =>
+        Assert.True(SpinWait.SpinUntil(held, Patience), "the streaming worker did not get there in time");
 
     // Stands in for the resident sound a streamed region loop is counted against: the retirement
     // callback's target, and the count that outlives it.

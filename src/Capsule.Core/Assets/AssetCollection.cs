@@ -3,8 +3,8 @@ using Capsule.Audio;
 namespace Capsule.Assets;
 
 /// <summary>
-/// Assets an object graph asks the host to preload, kept once in first-declaration order.
-/// Pure names only; collecting them performs no device or file-system work.
+/// Assets an object graph asks the host to preload, kept once each in first-declaration order. These
+/// are names only, so collecting them performs no device or file-system work.
 /// </summary>
 public sealed class AssetCollection
 {
@@ -14,9 +14,8 @@ public sealed class AssetCollection
     private readonly HashSet<AudioClip> _clipSet = [];
 
     /// <summary>
-    /// Adds one texture unless it was already declared. A texture the engine reserves — the white
-    /// texel a flat colour is drawn from, or the page of <see cref="Capsule.Rendering.BitmapFont.Default"/> — is the
-    /// host's own and is ignored here.
+    /// Adds one texture unless it was already declared. The engine's own textures, the white texel and
+    /// the default font's page, belong to the host and are ignored here.
     /// </summary>
     public void Add(TextureHandle texture)
     {
@@ -41,8 +40,8 @@ public sealed class AssetCollection
     }
 
     /// <summary>
-    /// Adds one clip unless it was already declared. A clip whose format the host streams rather
-    /// than holds in memory reserves nothing: declaring it is harmless and preloads no samples.
+    /// Adds one clip unless it was already declared. A clip whose format the host streams instead of
+    /// holding in memory reserves nothing, so declaring it preloads no samples.
     /// </summary>
     public void Add(AudioClip clip)
     {

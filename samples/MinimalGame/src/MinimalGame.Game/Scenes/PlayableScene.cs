@@ -9,12 +9,9 @@ namespace MinimalGame.Game.Scenes;
 /// <summary>
 /// What every playable scene is made of, with the level left to the subclass: the follow camera it is
 /// framed through, the head-up display over it, quitting, and returning to the <see cref="MainMenu"/>
-/// at no health. A subclass adds the document it claims and nothing else, so a level is one line.
-/// <para>
-/// Both the camera and the display are installed in the constructor rather than in
-/// <see cref="OnStart"/>: the camera is then the one the scene opens with, and the display's contents
-/// are collected for the scene's asset preload.
-/// </para>
+/// at no health. A subclass adds the document it claims and nothing else, so a level is one line. Both
+/// the camera and the display are installed in the constructor, so the scene opens on that camera and
+/// the display's contents are collected for its preload.
 /// </summary>
 public abstract class PlayableScene : Scene
 {

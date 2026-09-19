@@ -3,9 +3,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Capsule.Generators;
 
-// What one type declaration was read as, bound once. A declaration may be several of these at
-// once — a scene that is also an input driver — so all three are described off the one symbol
-// rather than binding it again per registry.
+// What one type declaration was read as. A declaration can be a scene and an input driver at
+// once, so all three are described from a single symbol binding.
 internal readonly struct RegistryCandidate(EntityModel? entity, SceneModel? scene, InputDriverModel? driver)
     : IEquatable<RegistryCandidate>
 {
@@ -31,9 +30,6 @@ internal readonly struct RegistryCandidate(EntityModel? entity, SceneModel? scen
 [Generator(LanguageNames.CSharp)]
 public sealed class RegistryGenerator : IIncrementalGenerator
 {
-    /// <summary>The pipeline step that walks the referenced assemblies, named so a spec can hold it to caching.</summary>
-    internal const string BootStep = "BootModel";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValueProvider<(bool Logic, bool Shell)> roles = context.AnalyzerConfigOptionsProvider
@@ -56,7 +52,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                     input.Left.AssemblyName));
 
         // An assembly that does not reference Capsule.Scenes has no registry to hold and no call
-        // site to satisfy, so it gets nothing rather than code it could not compile.
+        // site to satisfy, so it gets no generated code.
         IncrementalValueProvider<bool> registries = configuration
             .Select(static (configured, _) => configured.EnginePresent && configured.Logic && !configured.Shell);
 
@@ -65,14 +61,14 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 ? TypeNaming.RegistryProviderName(configured.AssemblyName)
                 : null);
 
-        // The role filter comes first: describing the boot model walks every referenced assembly's
-        // attributes, which no project but the shell has any use for.
+        // The role filter comes first. Describing the boot model walks every referenced assembly's
+        // attributes, and only the shell needs it.
         IncrementalValueProvider<BootModel> boot = roles
             .Combine(context.CompilationProvider)
             .Select(static (input, _) => input.Left.Shell && !input.Left.Logic
                 ? CapsuleBootSource.Describe(input.Right)
                 : BootModel.None)
-            .WithTrackingName(BootStep);
+            .WithTrackingName("BootModel");
 
         IncrementalValuesProvider<RegistryCandidate> candidates = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -92,8 +88,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static candidate => candidate.Driver is not null)
             .Select(static (candidate, _) => candidate.Driver!.Value);
 
-        // What a key is measured against: the declared root namespace, or the assembly's name when
-        // a project leaves it to MSBuild's own default.
+        // Keys are measured against the declared root namespace, or the assembly name when the
+        // project leaves it to MSBuild's default.
         IncrementalValueProvider<string> rootNamespace = context.AnalyzerConfigOptionsProvider
             .Select(static (options, _) =>
                 options.GlobalOptions.TryGetValue(Symbols.RootNamespace, out string? declared) && declared.Length > 0
@@ -112,8 +108,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             static (production, input) =>
                 SceneRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
 
-        // A logic assembly hands its drivers to the shell through its registry provider; a driver
-        // the shell itself declares is emitted straight into the entry point instead.
+        // A logic assembly hands its drivers to the shell through its registry provider. A driver
+        // the shell declares itself is emitted straight into the entry point.
         context.RegisterSourceOutput(
             drivers.Collect().Combine(registries),
             static (production, input) => InputDriverRegistrySource.Emit(production, input.Left, input.Right));
@@ -150,7 +146,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         Compilation compilation = context.SemanticModel.Compilation;
 
         return new RegistryCandidate(
-            EntityRegistrySource.Describe(type, declaration, compilation),
+            EntityRegistrySource.Describe(type, declaration, context.SemanticModel),
             SceneRegistrySource.Describe(type, declaration, compilation),
             InputDriverRegistrySource.Describe(type, declaration, compilation));
     }

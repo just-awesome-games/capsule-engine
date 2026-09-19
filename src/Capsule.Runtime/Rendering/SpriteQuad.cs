@@ -2,12 +2,12 @@ using System.Numerics;
 
 namespace Capsule.Runtime.Rendering;
 
-// The four corners of one drawn sprite and the texture coordinates at its top-left and
-// bottom-right, in the space the batch's transform maps to the surface. Computed operation for
-// operation as MonoGame 3.8.5.1's SpriteBatch.Draw and SpriteBatchItem.Set compute them — the same
-// float expressions, in the same order, sines and cosines from MathF — so a frame the batcher draws
-// is byte-identical to the frame SpriteBatch drew from the same intent. A rearranged expression
-// here, the double division shape included, moves the last bit of a vertex and with it pixels.
+// The four corners of one drawn sprite and the texture coordinates at its top-left and bottom-right, in
+// the space the batch's transform maps to the surface. Computed operation for operation as MonoGame
+// 3.8.5.1's SpriteBatch.Draw and SpriteBatchItem.Set compute them: the same float expressions in the
+// same order, with sines and cosines from MathF. A frame the batcher draws is byte-identical to the
+// frame SpriteBatch drew from the same intent. Rearranging an expression here, including the double
+// division shape, moves the last bit of a vertex and with it pixels.
 internal readonly struct SpriteQuad
 {
     public readonly Vector2 TopLeft;
@@ -38,10 +38,10 @@ internal readonly struct SpriteQuad
         TexBottomRight = texBottomRight;
     }
 
-    // A region of a texture: position is where origin lands, origin is in region texels, scale is
-    // drawn units per texel on each axis, the region is in texels of a texture whose texel is
-    // texelWidth by texelHeight (one over its extent), and rotation is radians clockwise about
-    // origin. A flip swaps the texture coordinates on that axis and leaves the corners where they are.
+    // A region of a texture: position is where origin lands, origin is in region texels, scale is drawn
+    // units per texel on each axis, the region is in texels of a texture whose texel is texelWidth by
+    // texelHeight (one over its extent), and rotation is radians clockwise about origin. A flip swaps
+    // the texture coordinates on that axis and leaves the corners in place.
     internal static SpriteQuad Place(
         Vector2 position,
         Vector2 origin,
@@ -62,8 +62,8 @@ internal readonly struct SpriteQuad
         return Place(position, origin, scale, regionWidth, regionHeight, texTopLeft, texBottomRight, rotation, flipX, flipY);
     }
 
-    // A whole texture of width by height texels. Its texture coordinates are the literal corners,
-    // never width times one over width, which is not always one.
+    // A full texture of width by height texels. Its texture coordinates are the literal corners, not
+    // width times one over width, which is not always one.
     internal static SpriteQuad PlaceWhole(Vector2 position, Vector2 origin, Vector2 scale, int width, int height, float rotation) =>
         Place(position, origin, scale, width, height, Vector2.Zero, Vector2.One, rotation, flipX: false, flipY: false);
 

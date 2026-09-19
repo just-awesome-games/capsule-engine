@@ -4,25 +4,24 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Rendering;
 
-// Saving the surface a frame was drawn on as a PNG. Read-back and encoding failures are logged
-// rather than thrown into the frame loop, and a destination is replaced only once a whole PNG is in
-// hand, so whatever is already there survives a capture that failed.
+// Saving the surface a frame was drawn on as a PNG. Read-back and encoding failures are logged instead
+// of thrown into the frame loop, and a destination is replaced once a complete PNG is in hand, so
+// whatever is already there survives a failed capture.
 internal static class FrameCapture
 {
-    // The capture is staged beside its destination under a name ending in this suffix. A random
-    // segment precedes it, so a capture never touches a file it did not create.
+    // The capture is staged beside its destination under a name ending in this suffix. A random segment
+    // precedes it, and a capture never touches a file it did not create.
     internal const string TemporarySuffix = ".tmp";
 
-    // Whether this frame drew at all. A back buffer with no area, as a minimised window has,
-    // presents nothing and leaves no frame to save — including behind a render target, which is
-    // drawn but never presented.
+    // Whether this frame drew. A back buffer with no area, as a minimised window has, presents nothing
+    // and leaves no frame to save, including behind a render target, which is drawn but not presented.
     internal static bool CanCapture(GraphicsDevice device) =>
         device.PresentationParameters.BackBufferWidth > 0 && device.PresentationParameters.BackBufferHeight > 0;
 
-    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names
-    // and overwriting the file. Called after Draw and before the frame is presented, while that
-    // surface still holds the frame: target where a render resolution is configured, whose extent
-    // is independent of the window, and the back buffer where there is none.
+    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names and
+    // overwriting the file. Called after Draw and before the frame is presented, while that surface
+    // still holds the frame. The surface is target where a render resolution is configured, whose
+    // extent is independent of the window, and the back buffer where there is none.
     internal static void Save(GraphicsDevice device, RenderTarget2D? target, string path)
     {
         if (!CanCapture(device))
@@ -47,10 +46,10 @@ internal static class FrameCapture
         Write(png, path);
     }
 
-    // Encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
-    // destination only once it is whole: neither a partial write nor a denied one touches the file
-    // already at path, nor any other file already beside it. Resolving path is part of the
-    // protected operation, so a path the file system rejects is logged rather than thrown.
+    // The encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
+    // destination once it is complete, so neither a partial write nor a denied one touches the file
+    // already at path or any other file beside it. Resolving path is inside the protected operation, so
+    // a path the file system rejects is logged instead of thrown.
     internal static void Write(byte[] png, string path)
     {
         // Null until this call owns a staging file, so cleanup never deletes a sibling it found.
@@ -87,8 +86,7 @@ internal static class FrameCapture
         }
     }
 
-    // The temporary is all a failed write can have left behind, and a truncated PNG nobody can
-    // read is worse than none.
+    // The temporary is all a failed write can have left behind, and a truncated PNG is worse than none.
     private static void Discard(string temporary)
     {
         try

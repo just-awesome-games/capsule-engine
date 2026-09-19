@@ -3,17 +3,11 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// A point on a box given as a fraction of its extent on each axis, Y-down: (0, 0) is the box's
-/// top-left corner, (1, 1) its bottom-right. A box is placed so that the point its pivot names lands
-/// on the position it is drawn at, so a centre-pivoted box is centred on that position and a
-/// top-left-pivoted one hangs from it.
-/// <para>
-/// A fraction outside [0, 1] is a point off the box, which is allowed: it offsets the box by a
-/// multiple of its own extent.
-/// </para>
+/// A point on a box given as a fraction of its extent on each axis, in the Y-down plane, so (0, 0) is
+/// the box's top-left corner and (1, 1) its bottom-right. A box is placed so the point its pivot names
+/// lands on the position it is drawn at. A fraction outside [0, 1] offsets the box by a multiple of its
+/// own extent.
 /// </summary>
-/// <param name="X">The fraction across the box on X; 0 is its left edge and 1 its right.</param>
-/// <param name="Y">The fraction down the box on Y; 0 is its top edge and 1 its bottom.</param>
 public readonly record struct Pivot(float X, float Y)
 {
     /// <summary>The box's top-left corner, which is the default.</summary>
@@ -43,6 +37,6 @@ public readonly record struct Pivot(float X, float Y)
     /// <summary>The box's bottom-right corner.</summary>
     public static Pivot BottomRight => new(1f, 1f);
 
-    // Where this pivot lands on a box of the given extent, from its top-left corner.
+    // Where this pivot lands on a box of the given extent, measured from its top-left corner.
     internal Vector2 On(Vector2 box) => new(X * box.X, Y * box.Y);
 }

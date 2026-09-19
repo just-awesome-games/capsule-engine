@@ -20,8 +20,6 @@ internal static class GeneratorHarness
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
     internal const string CapsuleInputDriversFile = "CapsuleInputDrivers.g.cs";
 
-    private const string SheetExtension = ".sheet.json";
-
     internal const string Preamble = """
         using System.Numerics;
         using Capsule.Scenes;
@@ -170,8 +168,8 @@ internal static class GeneratorHarness
         return Run(Created("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
     }
 
-    // Each path is '<domain>/<path under the domain root>', which is what the asset hook hands the
-    // generator as metadata beside the file.
+    // Each path is '<domain>/<path under the domain root>', as the asset hook hands the generator
+    // beside the file.
     private static (ImmutableArray<AdditionalText> Texts, Dictionary<string, (string Domain, string Path)> Assets) Assets(
         (string Path, string? Content)[] assetPaths)
     {
@@ -181,19 +179,9 @@ internal static class GeneratorHarness
         {
             int separator = path.IndexOf('/', StringComparison.Ordinal);
             string relative = path[(separator + 1)..];
+            int dot = relative.LastIndexOf('.');
 
-            // A sheet carries both halves of '.sheet.json', as the asset hook's metadata does.
-            if (relative.EndsWith(SheetExtension, StringComparison.Ordinal))
-            {
-                relative = relative[..^SheetExtension.Length];
-            }
-            else
-            {
-                int dot = relative.LastIndexOf('.');
-                relative = dot < 0 ? relative : relative[..dot];
-            }
-
-            assets[path] = (path[..separator], relative);
+            assets[path] = (path[..separator], dot < 0 ? relative : relative[..dot]);
             texts.Add(new AssetText(path, content));
         }
 

@@ -32,7 +32,7 @@ public sealed class FontGeneratorTests
             "Menu");
 
         Assert.Equal(15, font.LineHeight);
-        Assert.Equal(12, font.Base);
+        Assert.Equal(12, font.Baseline);
         Assert.Equal([TextureHandle.FontPage("menu", ".png")], font.Pages.ToArray());
         Assert.True(font.TryGetGlyph('A', out Glyph a));
         Assert.Equal(new Glyph('A', 0, new TextureRegion(0, 0, 4, 6), 1, 2, 5), a);
@@ -108,8 +108,8 @@ public sealed class FontGeneratorTests
         Assert.Equal([TextureHandle.FontPage("ui/menu", ".PNG")], font.Pages.ToArray());
     }
 
-    // A page the build does not ship — excluded as development-only, or never authored — would
-    // carry a handle that finds no file at run time, so the font fails the build instead.
+    // A page the build does not ship would carry a handle that finds no file at run time, so the
+    // font fails the build instead.
     [Fact]
     public void APageTheGameDoesNotShip_FailsTheBuild()
     {

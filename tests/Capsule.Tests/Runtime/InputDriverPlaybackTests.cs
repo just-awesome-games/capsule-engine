@@ -125,10 +125,10 @@ public sealed class InputDriverPlaybackTests
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [
-                        SceneRegistration.Plain(typeof(Menu), static () => new Menu()),
-                        SceneRegistration.Plain(typeof(Room), static () => new Room()),
-                        SceneRegistration.Plain(typeof(Idle), static () => new Idle()),
-                        SceneRegistration.Plain(typeof(Patrol), static () => new Patrol()),
+                        SceneRegistration.Plain(typeof(Menu), static _ => new Menu()),
+                        SceneRegistration.Plain(typeof(Room), static _ => new Room()),
+                        SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
+                        SceneRegistration.Plain(typeof(Patrol), static _ => new Patrol()),
                     ]))
             .WithFixedStep(10)
             .WithInput(static input => input.Bindings.Bind(Jump, Key.Space))

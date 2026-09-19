@@ -3,10 +3,10 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// An axis-aligned rect, held as its four edges rather than a corner and an extent, in whatever
-/// units the thing reporting it names — world units or canvas pixels. Y-down:
-/// <see cref="Left"/> and <see cref="Top"/> are the low edges. Overlap is open, so two rects sharing
-/// an edge do not <see cref="Intersects"/>; containment is half-open, as <see cref="Contains"/> states.
+/// An axis-aligned rect, held as its four edges instead of a corner and an extent, in whatever units
+/// the thing reporting it names. The plane is Y-down, so <see cref="Left"/> and <see cref="Top"/> are
+/// the low edges. Overlap is open, so two rects sharing an edge do not <see cref="Intersects"/>, and
+/// containment is half-open.
 /// </summary>
 /// <param name="Left">The low edge on X.</param>
 /// <param name="Top">The low edge on Y, which is Y-down and so the upper one on screen.</param>
@@ -16,21 +16,21 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
 {
     /// <summary>The rect spanning <paramref name="size"/> from the corner at <paramref name="position"/>.</summary>
     /// <param name="position">The top-left corner, which is the low edge on both axes.</param>
-    /// <param name="size">The extent spanned from that corner; a non-positive axis encloses nothing.</param>
+    /// <param name="size">The extent spanned from that corner. A non-positive axis encloses nothing.</param>
     public Rect(Vector2 position, Vector2 size)
         : this(position.X, position.Y, position.X + size.X, position.Y + size.Y)
     {
     }
 
-    /// <summary>The top-left corner: the low edge on each axis.</summary>
+    /// <summary>The top-left corner, which is the low edge on each axis.</summary>
     public Vector2 Position => new(Left, Top);
 
     /// <summary>The extent between the edges on each axis, which is negative where they are crossed.</summary>
     public Vector2 Size => new(Right - Left, Bottom - Top);
 
     /// <summary>
-    /// Whether this rect encloses nothing testable: no area on an axis, or a non-finite edge. NaN
-    /// lands here too, since it compares false to everything.
+    /// Whether this rect encloses nothing testable, meaning no area on an axis or a non-finite edge.
+    /// A NaN edge reads as empty, because it compares false to everything.
     /// </summary>
     public bool IsEmpty =>
         !(Right > Left) ||
@@ -42,10 +42,9 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
 
     /// <summary>
     /// Whether <paramref name="point"/> lies inside this rect, in the same units. The region is
-    /// half-open: <see cref="Left"/> and <see cref="Top"/> are inside it and <see cref="Right"/> and
-    /// <see cref="Bottom"/> are not, so abutting rects tile the plane with no point claimed twice and
-    /// none left unclaimed. An empty rect claims nothing, and a non-finite coordinate lands outside
-    /// everything.
+    /// half-open, with <see cref="Left"/> and <see cref="Top"/> inside and <see cref="Right"/> and
+    /// <see cref="Bottom"/> outside, so abutting rects tile the plane with no point claimed twice. An
+    /// empty rect claims nothing, and a non-finite coordinate lands outside every rect.
     /// </summary>
     public bool Contains(Vector2 point) =>
         !IsEmpty &&
@@ -60,4 +59,16 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
         Bottom > other.Top &&
         Left < other.Right &&
         Top < other.Bottom;
+
+    // The rect covering a box swept between two points. The box reaches lowPad from a point towards the
+    // low edges and highPad towards the high ones, both measured from the point.
+    internal static Rect Sweep(Vector2 from, Vector2 to, Vector2 lowPad, Vector2 highPad) =>
+        new(
+            MathF.Min(from.X, to.X) + lowPad.X,
+            MathF.Min(from.Y, to.Y) + lowPad.Y,
+            MathF.Max(from.X, to.X) + highPad.X,
+            MathF.Max(from.Y, to.Y) + highPad.Y);
+
+    // The same sweep where the box is centred on the point.
+    internal static Rect Sweep(Vector2 from, Vector2 to, Vector2 reach) => Sweep(from, to, -reach, reach);
 }

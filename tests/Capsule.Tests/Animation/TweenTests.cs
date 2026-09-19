@@ -47,6 +47,29 @@ public sealed class TweenTests
         Assert.False(tween.JustFinished);
     }
 
+    // The countdown case: a run cancelled mid-flight reports no finish on the step that would have
+    // ended it, and keeps its duration for a restart.
+    [Fact]
+    public void AStoppedRun_ReportsNoFinishAndLeavesItsDurationToRestartOn()
+    {
+        Tween tween = default;
+        tween.Start(2);
+        tween.Step();
+
+        tween.Stop();
+        tween.Step();
+
+        Assert.False(tween.JustFinished);
+        Assert.False(tween.IsRunning);
+        Assert.Equal(0, tween.TicksLeft);
+        Assert.Equal(2, tween.Duration);
+
+        tween.Start(3);
+
+        Assert.Equal(3, tween.TicksLeft);
+        Assert.True(tween.IsRunning);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(2)]

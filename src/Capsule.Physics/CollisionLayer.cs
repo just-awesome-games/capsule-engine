@@ -1,11 +1,12 @@
 namespace Capsule.Physics;
 
 /// <summary>
-/// One named layer of one <see cref="CollisionWorld2D"/>, held as the index it interned to, so no
-/// hot path compares text and query results stay unmanaged.
-/// <see cref="CollisionWorld2D.NameOf"/> reads the name back. A layer carries the world that
-/// interned it: two worlds' layers never compare equal even at the same index, and a world rejects
-/// a layer it did not intern. The default value is no world's layer.
+/// One named layer of a <see cref="CollisionWorld2D"/>, held as the index it interned to so hot
+/// paths never compare text. <see cref="CollisionWorld2D.NameOf"/> reads the name back.
+/// <para>
+/// A layer carries the world that interned it. Layers of two worlds do not compare equal even at the
+/// same index, and a world rejects a layer it did not intern. The default value belongs to no world.
+/// </para>
 /// </summary>
 public readonly struct CollisionLayer : IEquatable<CollisionLayer>
 {

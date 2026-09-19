@@ -15,4 +15,24 @@
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>
 
+  <!-- An authoring module as the sheet seam documents one: a sheet derived into this project's own
+       obj/ space and handed to the build tool from the seam target, keyed by %(CapsuleDocumentKey).
+       The shell references the sprite it generates, so a key that stopped arriving is a compile
+       error there. -->
+  <Target Name="CapsuleSmokeDeriveModuleSheet" BeforeTargets="CapsuleCollectSheetDocuments">
+    <PropertyGroup>
+      <_SmokeModuleSheetDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'smokemodule'))</_SmokeModuleSheetDir>
+    </PropertyGroup>
+
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)module/module.sheet.json"
+          DestinationFolder="$(_SmokeModuleSheetDir)"
+          SkipUnchangedFiles="true" />
+
+    <ItemGroup>
+      <CapsuleSheetDocument Include="$(_SmokeModuleSheetDir)/module.sheet.json">
+        <CapsuleDocumentKey>smoke/module</CapsuleDocumentKey>
+      </CapsuleSheetDocument>
+    </ItemGroup>
+  </Target>
+
 </Project>

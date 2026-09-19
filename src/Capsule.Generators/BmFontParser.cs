@@ -3,8 +3,8 @@ using System.Text;
 
 namespace Capsule.Generators;
 
-// One glyph as the font declares it, before it becomes a Capsule.Rendering.Glyph literal. Page is
-// the id the font gave it until the description resolves it into an index into PageFiles.
+// One glyph as the font declares it, before it becomes a Capsule.Rendering.Glyph literal. Page
+// holds the font's page id until the description resolves it to an index into PageFiles.
 internal readonly struct BmGlyph(
     int codepoint,
     int page,
@@ -37,8 +37,8 @@ internal readonly struct BmKerning(int first, int second, int amount)
     internal readonly int Amount = amount;
 }
 
-// What the generator reads out of one '.fnt': line metrics, the pages it was baked onto in page-id
-// order, the glyph cut for each codepoint ascending, and the kerning between them ascending by pair.
+// What the generator reads out of one '.fnt'. Pages are in page-id order, glyphs ascend by
+// codepoint, and kernings ascend by pair.
 internal sealed class BmFontDescription(
     int lineHeight,
     int baseline,
@@ -53,8 +53,8 @@ internal sealed class BmFontDescription(
     internal readonly BmKerning[] Kernings = kernings;
 }
 
-// Reads the text flavour of the BMFont format. The whole font is known at compile time, so the
-// generated registry carries it as literal data and nothing is parsed at run time.
+// Reads the text flavour of the BMFont format. The font is known at compile time, so the generated
+// registry carries it as literal data and nothing is parsed at run time.
 internal static class BmFontParser
 {
     /// <summary>The extension the fonts domain admits for a font description.</summary>
@@ -64,23 +64,22 @@ internal static class BmFontParser
     internal const string BmFontPageExtension = ".png";
 
     /// <summary>
-    /// Reads <paramref name="text"/>. Null with <paramref name="error"/> set when the source is of
-    /// the XML or binary flavour, channel-packed, malformed, or describes a glyph its own pages
-    /// cannot hold; the message states the defect and, where one exists, the fix.
+    /// Reads <paramref name="text"/>. Returns null with <paramref name="error"/> set when the
+    /// source is the XML or binary flavour, channel-packed, malformed, or cuts a glyph its pages
+    /// cannot hold.
     /// </summary>
     /// <param name="errorLine">
-    /// The zero-based line the defect is on, or zero where it belongs to the file rather than to
-    /// one line.
+    /// The zero-based line the defect is on, or zero when the defect belongs to the whole file.
     /// </param>
     internal static BmFontDescription? Parse(string text, out string? error, out int errorLine)
     {
         errorLine = 0;
 
-        // The three flavours the format has. Only the text one is shipped, and the other two are
-        // named rather than left to fail as malformed text.
+        // The format has three flavours. Only text is read, and the other two are named so they do
+        // not fail later as malformed text.
         if (text.StartsWith("BMF", StringComparison.Ordinal))
         {
-            error = "is a binary BMFont file; Capsule reads the text flavour, so export the font as text.";
+            error = "is a binary BMFont file. Capsule reads the text flavour. Export the font as text.";
 
             return null;
         }
@@ -94,7 +93,7 @@ internal static class BmFontParser
 
             if (character == '<')
             {
-                error = "is an XML BMFont file; Capsule reads the text flavour, so export the font as text.";
+                error = "is an XML BMFont file. Capsule reads the text flavour. Export the font as text.";
 
                 return null;
             }
@@ -126,8 +125,8 @@ internal static class BmFontParser
         {
             Fields fields = Fields.Split(lines[line]);
 
-            // Every defect this loop refuses is on the line being read; the checks after it name
-            // the line the entity they refuse was declared on.
+            // Defects this loop refuses are on the line being read. Checks after the loop set the
+            // line of the declaration they refuse.
             errorLine = line;
 
             switch (fields.Tag)
@@ -143,7 +142,7 @@ internal static class BmFontParser
                     {
                         if (fields.Optional("packed") != 0)
                         {
-                            error = "declares packed=1; Capsule draws a page as an ordinary RGBA texture and reads no channel-packed glyph, so bake the font unpacked.";
+                            error = "declares packed=1. Capsule draws a page as an RGBA texture and reads no channel-packed glyph. Bake the font unpacked.";
 
                             return null;
                         }
@@ -204,8 +203,7 @@ internal static class BmFontParser
 
                     break;
 
-                // "info", "chars", "kernings" and anything else: informational. A declared count
-                // that disagrees with the lines is ignored — the lines are the font.
+                // Declared counts are ignored. The page, char and kerning lines define the font.
                 default:
                     break;
             }
@@ -215,7 +213,7 @@ internal static class BmFontParser
 
         if (lineHeight <= 0)
         {
-            error = Invariant($"declares lineHeight={lineHeight}; a line has to be at least one pixel tall.");
+            error = Invariant($"declares lineHeight={lineHeight}. A line must be at least one pixel tall.");
 
             return null;
         }
@@ -223,7 +221,7 @@ internal static class BmFontParser
         if (pages.Count == 0)
         {
             errorLine = 0;
-            error = "declares no page; a font is baked onto at least one.";
+            error = "declares no page. A font must be baked onto at least one page.";
 
             return null;
         }
@@ -238,7 +236,7 @@ internal static class BmFontParser
             if (!string.Equals(Path.GetExtension(file), BmFontPageExtension, StringComparison.OrdinalIgnoreCase))
             {
                 errorLine = pageLines[page.Key];
-                error = $"names page \"{page.Value}\", and a page ships as {BmFontPageExtension}.";
+                error = $"names page \"{page.Value}\". A page must ship as {BmFontPageExtension}.";
 
                 return null;
             }
@@ -255,13 +253,13 @@ internal static class BmFontParser
 
             if (!pageIndex.TryGetValue(glyph.Page, out int index))
             {
-                error = Invariant($"puts codepoint {glyph.Codepoint} on page {glyph.Page}, which it declares no file for.");
+                error = Invariant($"puts codepoint {glyph.Codepoint} on page {glyph.Page} and declares no file for that page.");
 
                 return null;
             }
 
-            // Widened: two ints that each parse can still sum past what one holds, and a wrapped
-            // sum would read as a rectangle inside the page.
+            // Widened to long: two ints that each parse can sum past int range, and a wrapped sum
+            // would read as a rectangle inside the page.
             if (glyph.X < 0
                 || glyph.Y < 0
                 || glyph.Width < 0
@@ -270,7 +268,7 @@ internal static class BmFontParser
                 || (long)glyph.Y + glyph.Height > scaleHeight)
             {
                 error = Invariant(
-                    $"cuts codepoint {glyph.Codepoint} from ({glyph.X}, {glyph.Y}) {glyph.Width}x{glyph.Height}, which is outside its {scaleWidth}x{scaleHeight} page.");
+                    $"cuts codepoint {glyph.Codepoint} at ({glyph.X}, {glyph.Y}) {glyph.Width}x{glyph.Height}, outside its {scaleWidth}x{scaleHeight} page.");
 
                 return null;
             }
@@ -286,7 +284,7 @@ internal static class BmFontParser
             {
                 errorLine = kerningLines[i];
                 error = Invariant(
-                    $"kerns {kerning.First} against {kerning.Second}, and it carries no glyph for one of them.");
+                    $"kerns {kerning.First} against {kerning.Second} and carries no glyph for one of them.");
 
                 return null;
             }
@@ -308,10 +306,9 @@ internal static class BmFontParser
 
     private static string Invariant(FormattableString message) => FormattableString.Invariant(message);
 
-    // One line of the text flavour: a tag, then key=value pairs, the value optionally quoted. A
-    // field the font is measured by is required to be there and to parse — a missing or malformed
-    // one silently read as zero would bake an invisible glyph or collapse a line's spacing — while
-    // every key Capsule does not read is ignored whatever it holds.
+    // One line of the text flavour: a tag, then key=value pairs with optionally quoted values. A
+    // field the font is measured by must be present and must parse, since a zero would bake an
+    // invisible glyph or collapse line spacing. Other keys are ignored.
     private readonly struct Fields
     {
         private readonly Dictionary<string, string>? _values;
@@ -408,14 +405,14 @@ internal static class BmFontParser
                 return false;
             }
 
-            // TryParse refuses an overflowing literal too, so a value no int can hold fails here
-            // rather than wrapping into a plausible one.
+            // TryParse also refuses an overflowing literal. A value too large for an int fails
+            // here instead of wrapping into a plausible one.
             if (int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out parsed))
             {
                 return true;
             }
 
-            error = $"declares {Tag} {key}=\"{value}\", which is no whole number Capsule can measure the font by.";
+            error = $"declares {Tag} {key}=\"{value}\". That is not a whole number the font can be measured by.";
 
             return false;
         }
@@ -431,12 +428,12 @@ internal static class BmFontParser
                 return true;
             }
 
-            error = $"declares a {Tag} line carrying no {key}.";
+            error = $"declares a {Tag} line with no {key}.";
 
             return false;
         }
 
-        /// <summary>A field that may be absent, which reads as <paramref name="fallback"/>.</summary>
+        /// <summary>A field that may be absent. Reads as <paramref name="fallback"/> when missing.</summary>
         internal int Optional(string key, int fallback = 0) =>
             _values is not null
             && _values.TryGetValue(key, out string? value)

@@ -6,9 +6,9 @@ namespace Capsule.Runtime.Desktop.Audio;
 
 // The OpenAL device the backend opened, reached through the context it left current, and the two
 // OpenAL Soft extensions that let sound follow the operating system's default output: system events,
-// which announce that the default moved, and reopen, which moves the device's sources and buffers
-// to the new default with everything still playing. Attaches to nothing when either is missing, in
-// which case sound stays on the output the run opened.
+// which announce that the default moved, and reopen, which moves the device's sources and buffers to
+// the new default with everything still playing. When either extension is missing nothing attaches and
+// sound stays on the output the run opened.
 internal sealed class OpenAlOutput : AudioOutput
 {
     private const string LibraryName = "openal";
@@ -20,23 +20,28 @@ internal sealed class OpenAlOutput : AudioOutput
     private const byte AlcTrue = 1;
     private const byte AlcFalse = 0;
 
-    // Rooted for the device's lifetime: the library holds the thunk, which the collector cannot see.
-    // Static because the backend opens one device per process, and the event carries no handle to
-    // route on.
-    private static EventCallback? Callback;
-    private static Action? DefaultChanged;
-
     private readonly nint _device;
     private readonly ReopenDevice _reopen;
     private readonly EventControl _control;
     private readonly EventCallbackControl _subscribe;
 
-    private OpenAlOutput(nint device, ReopenDevice reopen, EventControl control, EventCallbackControl subscribe)
+    // Rooted for this output's lifetime, because the library holds a thunk the collector cannot see.
+    private readonly EventCallback _callback;
+    private readonly Action _defaultChanged;
+
+    private OpenAlOutput(
+        nint device,
+        ReopenDevice reopen,
+        EventControl control,
+        EventCallbackControl subscribe,
+        Action defaultChanged)
     {
         _device = device;
         _reopen = reopen;
         _control = control;
         _subscribe = subscribe;
+        _defaultChanged = defaultChanged;
+        _callback = OnEvent;
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -63,10 +68,10 @@ internal sealed class OpenAlOutput : AudioOutput
 
     public override string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
 
-    // Subscribes defaultChanged to the system's default playback device changing, or answers null
-    // when the device or the extensions are not there. defaultChanged runs on a thread of the
-    // library's own, possibly at real-time priority with a small stack: it may note the change and
-    // nothing else. Call once, after the backend has opened its device.
+    // Subscribes defaultChanged to the system's default playback device changing, or returns null when
+    // the device or the extensions are absent. defaultChanged runs on one of the library's own threads,
+    // possibly at real-time priority with a small stack, so it may only note the change. Call once,
+    // after the backend has opened its device.
     internal static OpenAlOutput? TryAttach(Action defaultChanged)
     {
         nint context = alcGetCurrentContext();
@@ -90,11 +95,10 @@ internal sealed class OpenAlOutput : AudioOutput
             device,
             Marshal.GetDelegateForFunctionPointer<ReopenDevice>(reopen),
             Marshal.GetDelegateForFunctionPointer<EventControl>(control),
-            Marshal.GetDelegateForFunctionPointer<EventCallbackControl>(subscribe));
+            Marshal.GetDelegateForFunctionPointer<EventCallbackControl>(subscribe),
+            defaultChanged);
 
-        DefaultChanged = defaultChanged;
-        Callback = OnEvent;
-        output._subscribe(Marshal.GetFunctionPointerForDelegate(Callback), nint.Zero);
+        output._subscribe(Marshal.GetFunctionPointerForDelegate(output._callback), nint.Zero);
 
         if (output._control(1, EventDefaultDeviceChanged, AlcTrue) != AlcTrue)
         {
@@ -125,20 +129,18 @@ internal sealed class OpenAlOutput : AudioOutput
     {
         _control(1, EventDefaultDeviceChanged, AlcFalse);
         _subscribe(nint.Zero, nint.Zero);
-        Callback = null;
-        DefaultChanged = null;
     }
 
-    private static void OnEvent(int eventType, int deviceType, nint device, int length, nint message, nint userParam)
+    private void OnEvent(int eventType, int deviceType, nint device, int length, nint message, nint userParam)
     {
         if (eventType == EventDefaultDeviceChanged && deviceType == PlaybackDevice)
         {
-            DefaultChanged?.Invoke();
+            _defaultChanged();
         }
     }
 
-    // LibraryImport generates unsafe marshalling stubs, and these do not justify opening the whole
-    // assembly to unsafe code: handles are pointers already, and the strings are ASCII names.
+    // LibraryImport generates unsafe marshalling stubs, and these calls do not justify opening the
+    // assembly to unsafe code. Handles are already pointers, and the strings are ASCII names.
 #pragma warning disable SYSLIB1054
     [DllImport(LibraryName, EntryPoint = "alcGetCurrentContext", CallingConvention = CallingConvention.Cdecl)]
     private static extern nint alcGetCurrentContext();

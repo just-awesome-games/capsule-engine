@@ -5,23 +5,23 @@ using Microsoft.Xna.Framework.Input;
 namespace Capsule.Runtime.Input;
 
 // Folds the first connected gamepad into a DeviceSnapshot. The only place pad hardware enters the
-// engine.
-internal static class GamepadSampler
+// engine. One instance per host, remembering which player index answered last.
+internal sealed class GamepadSampler
 {
-    // How many samples pass between sweeps for a pad on another player index while none is
-    // connected: each index costs a backend call, and a run played on the keyboard would otherwise
-    // pay four of them every frame for pads it never finds.
+    // How many samples pass between sweeps for a pad on another player index while none is connected.
+    // Each index costs a backend call, and a run played on the keyboard would otherwise pay four of
+    // them every frame for pads it never finds.
     private const int SweepInterval = 30;
 
     private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
 
-    // The player index the last connected pad was found on, which is the one tried every sample.
-    private static PlayerIndex ConnectedPlayer = PlayerIndex.One;
-    private static int SweepCountdown;
+    // The player index the last connected pad was found on, tried first every sample.
+    private PlayerIndex _connectedPlayer = PlayerIndex.One;
+    private int _sweepCountdown;
 
-    // snapshot with this frame's pad buttons additionally held and its axes set through filter.
-    // With no pad connected it is returned untouched.
-    internal static DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
+    // snapshot with this frame's pad buttons also held and its axes set through filter. With no pad
+    // connected it is returned untouched.
+    internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
     {
         GamePadState pad = FirstConnected();
         if (!pad.IsConnected)
@@ -64,26 +64,26 @@ internal static class GamepadSampler
             .WithAxis(PadAxis.RightTrigger, rightPull);
     }
 
-    // GamePadDeadZone.None: the backend's own filtering would apply a second, differently shaped
-    // deadzone under PadFilter's.
-    private static GamePadState FirstConnected()
+    // GamePadDeadZone.None, because the backend's own filtering would apply a second, differently
+    // shaped deadzone under PadFilter's.
+    private GamePadState FirstConnected()
     {
-        GamePadState remembered = GamePad.GetState(ConnectedPlayer, GamePadDeadZone.None);
+        GamePadState remembered = GamePad.GetState(_connectedPlayer, GamePadDeadZone.None);
         if (remembered.IsConnected)
         {
             return remembered;
         }
 
-        if (--SweepCountdown > 0)
+        if (--_sweepCountdown > 0)
         {
             return default;
         }
 
-        SweepCountdown = SweepInterval;
+        _sweepCountdown = SweepInterval;
 
         for (PlayerIndex player = PlayerIndex.One; player <= PlayerIndex.Four; player++)
         {
-            if (player == ConnectedPlayer)
+            if (player == _connectedPlayer)
             {
                 continue;
             }
@@ -91,7 +91,7 @@ internal static class GamepadSampler
             GamePadState state = GamePad.GetState(player, GamePadDeadZone.None);
             if (state.IsConnected)
             {
-                ConnectedPlayer = player;
+                _connectedPlayer = player;
 
                 return state;
             }
@@ -100,8 +100,8 @@ internal static class GamepadSampler
         return default;
     }
 
-    // Buttons without an XNA constant are absent from the lookup, so IsButtonDown is never handed
-    // an empty flag set — which every state reports as down.
+    // Buttons without an XNA constant are left out of the lookup, so IsButtonDown is never handed an
+    // empty flag set, which every state reports as down.
     private static (PadButton, Buttons)[] BuildLookup()
     {
         List<(PadButton, Buttons)> mappings = [];
@@ -120,7 +120,7 @@ internal static class GamepadSampler
 #pragma warning disable CS8524 // PadButton has no unnamed values; only a cast can produce one.
     private static Buttons? ToXna(PadButton button) => button switch
     {
-        // None is never a snapshot member; the triggers derive from the filtered pull instead.
+        // None is not a snapshot member, and the triggers derive from the filtered pull.
         PadButton.None => null,
         PadButton.LeftTrigger => null,
         PadButton.RightTrigger => null,

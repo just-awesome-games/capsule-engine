@@ -8,8 +8,8 @@ public sealed class RegistryNamesTests
 {
     [Theory]
     [InlineData("audio", "class of that name")]
-    [InlineData("all", "the set member")]
-    [InlineData("steps/all", "the set member")]
+    [InlineData("all", "a name the generated classes take")]
+    [InlineData("steps/all", "a name the generated classes take")]
     [InlineData("01-stone", "no C# name")]
     [InlineData("steps/hey there", "no C# name")]
     public void AKeyTheGeneratedClassesCannotDeclare_IsRefused(string key, string because)

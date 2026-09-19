@@ -8,8 +8,8 @@ internal static class CrashLog
     {
         try
         {
-            // The per-user local folder, not BaseDirectory: install locations are often read-only.
-            // Overwrite keeps the file bounded; the latest crash is the one that matters.
+            // The per-user local folder, not BaseDirectory, because install locations are often
+            // read-only. Overwriting keeps the file bounded, and only the latest crash matters.
             string directory = LocalFolder.Resolve(folderName);
             Directory.CreateDirectory(directory);
             File.WriteAllText(

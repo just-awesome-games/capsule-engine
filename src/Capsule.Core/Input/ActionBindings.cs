@@ -1,30 +1,27 @@
-using System.Collections.Frozen;
-
 namespace Capsule.Input;
 
 /// <summary>
-/// Which buttons and axes stand for which actions. Written once at configuration time and read
-/// every step thereafter; reads allocate nothing.
+/// Which buttons and axes stand for which actions. Written once at configuration time and read every
+/// step thereafter. A read is an array lookup and allocates nothing.
 /// </summary>
 public sealed class ActionBindings
 {
-    private readonly Dictionary<InputAction, InputButton[]> _buttonsByAction = [];
-    private readonly Dictionary<AxisAction, AxisSource[]> _sourcesByAction = [];
-
-    // The read tables, built on the first read after a bind and dropped by the next one: a step
-    // looks an action up far more often than configuration rebinds it, and a frozen lookup hashes
-    // an action's name faster than a dictionary does.
-    private FrozenDictionary<InputAction, InputButton[]>? _buttons;
-    private FrozenDictionary<AxisAction, AxisSource[]>? _sources;
+    // Indexed by the action's own index. A read hashes nothing. A null row is an unbound action, and
+    // index 0 is the unnamed action that binding refuses.
+    private InputButton[]?[] _buttons = [];
+    private AxisSource[]?[] _sources = [];
 
     /// <summary>
-    /// Adds <paramref name="buttons"/> to <paramref name="action"/>; any of them then stands for
-    /// it. Keys and pad buttons mix freely, and binding twice unions rather than replaces.
+    /// Adds <paramref name="buttons"/> to <paramref name="action"/>, and any of them then stands for
+    /// it. Keys and pad buttons mix freely, and a second bind unions with the first.
     /// </summary>
-    /// <exception cref="ArgumentException">The action is unnamed, or some button is <see cref="InputButton.None"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The action is unnamed, or a button is <see cref="InputButton.None"/> or outside its device's
+    /// capacity.
+    /// </exception>
     public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
-        RequireName(action.Name, nameof(action));
+        RequireName(action.Index, nameof(action));
 
         if (buttons.IsEmpty)
         {
@@ -36,7 +33,8 @@ public sealed class ActionBindings
             RequireButton(buttons[i], action.Name, nameof(buttons));
         }
 
-        List<InputButton> merged = _buttonsByAction.TryGetValue(action, out InputButton[]? existing) ? [.. existing] : [];
+        ref InputButton[]? bound = ref Row(ref _buttons, action.Index);
+        List<InputButton> merged = bound is { } existing ? [.. existing] : [];
         for (int i = 0; i < buttons.Length; i++)
         {
             if (!merged.Contains(buttons[i]))
@@ -45,20 +43,19 @@ public sealed class ActionBindings
             }
         }
 
-        _buttonsByAction[action] = [.. merged];
-        _buttons = null;
+        bound = [.. merged];
 
         return this;
     }
 
     /// <summary>
-    /// Adds <paramref name="axis"/> to <paramref name="action"/>: its position contributes to the
-    /// action's value. Binding again accumulates rather than replaces.
+    /// Adds <paramref name="axis"/> to <paramref name="action"/>, so its position contributes to the
+    /// action's value. A second bind accumulates with the first.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed, or the axis is <see cref="PadAxis.None"/>.</exception>
     public ActionBindings BindAxis(AxisAction action, PadAxis axis)
     {
-        RequireName(action.Name, nameof(action));
+        RequireName(action.Index, nameof(action));
 
         if (axis == PadAxis.None)
         {
@@ -69,15 +66,15 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds <paramref name="axis"/> of the mouse wheel to <paramref name="action"/>: the notches it
-    /// turns each step contribute to the action's value, unbounded. Binding again accumulates rather
-    /// than replaces.
+    /// Adds <paramref name="axis"/> of the mouse wheel to <paramref name="action"/>, so the notches
+    /// turned each step contribute to the action's value without bound. A second bind accumulates
+    /// with the first.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The axis names no wheel axis.</exception>
     public ActionBindings BindAxis(AxisAction action, MouseAxis axis)
     {
-        RequireName(action.Name, nameof(action));
+        RequireName(action.Index, nameof(action));
 
         if (axis is not (MouseAxis.ScrollX or MouseAxis.ScrollY))
         {
@@ -88,30 +85,29 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds a digital pair to <paramref name="action"/>: -1 while <paramref name="negative"/> is
-    /// held and +1 while <paramref name="positive"/> is, so holding both contributes 0.
+    /// Adds a digital pair to <paramref name="action"/>, reading -1 while <paramref name="negative"/>
+    /// is held and +1 while <paramref name="positive"/> is. Holding both contributes 0.
     /// </summary>
-    /// <exception cref="ArgumentException">The action is unnamed, or either button is <see cref="InputButton.None"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The action is unnamed, or either button is <see cref="InputButton.None"/> or outside its
+    /// device's capacity.
+    /// </exception>
     public ActionBindings BindAxis(AxisAction action, InputButton negative, InputButton positive)
     {
-        RequireName(action.Name, nameof(action));
+        RequireName(action.Index, nameof(action));
         RequireButton(negative, action.Name, nameof(negative));
         RequireButton(positive, action.Name, nameof(positive));
 
         return Accumulate(action, new AxisSource(PadAxis.None, null, negative, positive));
     }
 
-    /// <summary>Buttons bound to <paramref name="action"/>; empty when it is unbound.</summary>
-    public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) =>
-        Buttons.TryGetValue(action, out InputButton[]? buttons) ? buttons : ReadOnlySpan<InputButton>.Empty;
+    /// <summary>Buttons bound to <paramref name="action"/>. Empty when the action is unbound.</summary>
+    public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
 
     /// <summary>Whether any button bound to <paramref name="action"/> is held in <paramref name="snapshot"/>.</summary>
     public bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot)
     {
-        if (!Buttons.TryGetValue(action, out InputButton[]? buttons))
-        {
-            return false;
-        }
+        ReadOnlySpan<InputButton> buttons = Bound(_buttons, action.Index);
 
         for (int i = 0; i < buttons.Length; i++)
         {
@@ -125,16 +121,13 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// What <paramref name="action"/> reads in <paramref name="snapshot"/>: every bounded
-    /// contribution — buttons and pad axes — summed and clamped to [-1, 1], plus the wheel notches
-    /// bound to it, which are a count and so pass through unclamped; an unbound action reads 0.
+    /// What <paramref name="action"/> reads in <paramref name="snapshot"/>. Contributions from
+    /// buttons and pad axes are summed and clamped to [-1, 1]. Wheel notches bound to the action are
+    /// a count, so they add on unclamped. An unbound action reads 0.
     /// </summary>
     public float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
     {
-        if (!Sources.TryGetValue(action, out AxisSource[]? sources))
-        {
-            return 0f;
-        }
+        ReadOnlySpan<AxisSource> sources = Bound(_sources, action.Index);
 
         float bounded = 0f;
         float notches = 0f;
@@ -153,15 +146,24 @@ public sealed class ActionBindings
         return Math.Clamp(bounded, -1f, 1f) + notches;
     }
 
-    private FrozenDictionary<InputAction, InputButton[]> Buttons =>
-        _buttons ??= _buttonsByAction.ToFrozenDictionary();
+    private static ReadOnlySpan<T> Bound<T>(T[]?[] rows, int index) =>
+        (uint)index < (uint)rows.Length && rows[index] is { } bound ? bound : [];
 
-    private FrozenDictionary<AxisAction, AxisSource[]> Sources =>
-        _sources ??= _sourcesByAction.ToFrozenDictionary();
-
-    private static void RequireName(string? name, string parameterName)
+    // The row for an action, growing the table to reach it. Actions are interned in declaration order.
+    // A game's table is as long as the actions it declares.
+    private static ref T[]? Row<T>(ref T[]?[] rows, int index)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (index >= rows.Length)
+        {
+            Array.Resize(ref rows, index + 1);
+        }
+
+        return ref rows[index];
+    }
+
+    private static void RequireName(int index, string parameterName)
+    {
+        if (index == 0)
         {
             throw new ArgumentException("An action must be named.", parameterName);
         }
@@ -175,25 +177,33 @@ public sealed class ActionBindings
                 $"'{actionName}' cannot be bound to {nameof(InputButton)}.{nameof(InputButton.None)}.",
                 parameterName);
         }
+
+        // Checked once here so reading a snapshot never has to. A snapshot cannot hold a key or button
+        // outside its device's capacity, so binding one would silently never fire.
+        if (!button.IsRepresentable)
+        {
+            throw new ArgumentException(
+                $"'{actionName}' cannot be bound to {button}, which is outside its device's capacity.",
+                parameterName);
+        }
     }
 
     private ActionBindings Accumulate(AxisAction action, AxisSource source)
     {
-        List<AxisSource> merged = _sourcesByAction.TryGetValue(action, out AxisSource[]? existing) ? [.. existing] : [];
+        ref AxisSource[]? bound = ref Row(ref _sources, action.Index);
+        List<AxisSource> merged = bound is { } existing ? [.. existing] : [];
         if (!merged.Contains(source))
         {
             merged.Add(source);
         }
 
-        _sourcesByAction[action] = [.. merged];
-        _sources = null;
+        bound = [.. merged];
 
         return this;
     }
 
-    // One contribution to an axis action: a pad axis, a wheel axis, or else a digital pair. A wheel
-    // source reads a count of notches rather than a bounded position, so AxisValue keeps it out of
-    // the clamp.
+    // One contribution to an axis action: a pad axis, a wheel axis, or a digital pair. A wheel source
+    // reads a count of notches, not a bounded position, so AxisValue keeps it out of the clamp.
     private readonly record struct AxisSource(PadAxis Analog, MouseAxis? Wheel, InputButton Negative, InputButton Positive)
     {
         internal float Read(in DeviceSnapshot snapshot) => Wheel switch

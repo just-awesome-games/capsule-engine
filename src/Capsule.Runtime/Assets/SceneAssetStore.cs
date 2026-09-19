@@ -1,7 +1,7 @@
 namespace Capsule.Runtime.Assets;
 
-// Owns the assets loaded for one scene. Preloads are exchanged transactionally at a scene
-// boundary; an unlisted asset joins the current scene on first use.
+// Owns the assets loaded for one scene. Preloads are exchanged transactionally at a scene boundary,
+// and an unlisted asset joins the current scene on first use.
 internal sealed class SceneAssetStore<THandle, TAsset>(Func<THandle, TAsset> loader) : IDisposable
     where THandle : notnull
     where TAsset : class, IDisposable
@@ -32,7 +32,7 @@ internal sealed class SceneAssetStore<THandle, TAsset>(Func<THandle, TAsset> loa
     }
 
     // Makes preloads the next scene's initial ownership. Missing assets load before anything from
-    // the current scene is released, so a failed preload leaves the current scene intact.
+    // the current scene is released, and a failed preload leaves the current scene intact.
     internal void ChangeScene(IReadOnlyList<THandle> preloads, Action? prepareRemainingAssets = null)
     {
         HashSet<THandle> wanted = new(preloads.Count);
@@ -48,8 +48,8 @@ internal sealed class SceneAssetStore<THandle, TAsset>(Func<THandle, TAsset> loa
                 }
             }
 
-            // All stores finish loading before any outgoing asset is released. If another
-            // store fails, this store rolls back its staged assets too.
+            // Every store finishes loading before any outgoing asset is released. If another store
+            // fails, this store rolls back its staged assets too.
             prepareRemainingAssets?.Invoke();
         }
         catch

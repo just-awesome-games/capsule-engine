@@ -7,12 +7,12 @@ using Capsule.Runtime.Persistence;
 namespace Capsule.Runtime.Desktop;
 
 /// <summary>
-/// The desktop host family — Windows, Linux and macOS from one shell. Content is read beside the
-/// executable; saves are <see cref="DirectorySaveStorage"/> in the <c>saves</c> subfolder of the
-/// game's per-user local folder, and <c>crash.log</c> sits beside it (<c>docs/persistence.md</c>
-/// lists the per-OS paths); the window is raised and claims the foreground once shown, keeps
-/// drawing through a modal resize, and reads focus from the windowing library; sound follows the
-/// operating system's default output as it moves. Stateless: construct one per boot.
+/// Windows, Linux and macOS from one shell. Content is read beside the executable. Saves are a
+/// <see cref="DirectorySaveStorage"/> in the <c>saves</c> subfolder of the game's per-user local
+/// folder, with <c>crash.log</c> beside it (<c>docs/persistence.md</c> lists the per-OS paths). The
+/// window is raised and claims the foreground once shown, keeps drawing through a modal resize, and
+/// reads focus from the windowing library. Sound follows the operating system's default output as it
+/// moves. Holds no state, so construct one per boot.
 /// </summary>
 public sealed class DesktopPlatform : HostPlatform
 {
@@ -29,39 +29,31 @@ public sealed class DesktopPlatform : HostPlatform
         CrashLog.TryWrite(localFolderName, exception);
 
     /// <inheritdoc/>
-    public override void RaiseWindow(nint window)
+    public override void RaiseWindow(WindowHandle window)
     {
-        SdlPlatform.RaiseWindow(window);
+        SdlPlatform.RaiseWindow(window.Value);
 
         // A launch through the dotnet muxer breaks the foreground permission chain, so Windows
         // refuses the raise on its own.
-        WindowsForeground.Claim(SdlPlatform.NativeWindowHandle(window));
+        WindowsForeground.Claim(SdlPlatform.NativeWindowHandle(window.Value));
     }
 
     /// <inheritdoc/>
-    public override bool HasInputFocus(nint window) => SdlPlatform.HasInputFocus(window);
+    public override bool HasInputFocus(WindowHandle window) => SdlPlatform.HasInputFocus(window.Value);
 
     /// <inheritdoc/>
-    public override IDisposable? WatchWindowRedraw(nint window, Action<int, int> redraw)
+    public override IDisposable? WatchWindowRedraw(WindowHandle window, Action<int, int> redraw)
     {
-        SdlPlatform.WatchWindowRedraw(() =>
+        ArgumentNullException.ThrowIfNull(redraw);
+
+        return new SdlPlatform.RedrawWatch(() =>
         {
-            SdlPlatform.WindowSize(window, out int width, out int height);
+            SdlPlatform.WindowSize(window.Value, out int width, out int height);
             redraw(width, height);
         });
-
-        return RedrawWatch.Instance;
     }
 
     /// <inheritdoc/>
     public override AudioOutput? WatchDefaultAudioOutput(Action defaultChanged) =>
         OpenAlOutput.TryAttach(defaultChanged);
-
-    // The watch is one per process, so its handle carries nothing.
-    private sealed class RedrawWatch : IDisposable
-    {
-        internal static readonly RedrawWatch Instance = new();
-
-        public void Dispose() => SdlPlatform.StopWatchingWindowRedraw();
-    }
 }

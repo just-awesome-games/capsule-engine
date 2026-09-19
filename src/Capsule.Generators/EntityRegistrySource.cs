@@ -13,11 +13,12 @@ internal static class EntityRegistrySource
 {
     private const string FileName = "CapsuleEntities.g.cs";
 
-    // The namespace segment an entity is filed under says nothing its key has to repeat.
+    // Entity keys drop this namespace segment, since it repeats the domain.
     private const string DomainSegment = "Entities";
 
-    internal static EntityModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
+    internal static EntityModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, SemanticModel model)
     {
+        Compilation compilation = model.Compilation;
         bool concreteEntity = Symbols.IsConcreteClass(type) && Symbols.DerivesFrom(type, compilation, Symbols.Entity);
         int spawnConstructors = concreteEntity
             ? Symbols.PublicConstructorsTaking(type, compilation, Symbols.EntitySpawn)
@@ -26,7 +27,7 @@ internal static class EntityRegistrySource
 
         if (annotation is null)
         {
-            // A class of the wrong shape claiming nothing is an ordinary class, not a mistake.
+            // A class of the wrong shape that claims nothing is an ordinary class, not a mistake.
             if (spawnConstructors == 0)
             {
                 return null;
@@ -38,10 +39,10 @@ internal static class EntityRegistrySource
                     ? EntityFault.None
                     : EntityFault.InaccessibleType;
 
-            return SpawnChecked(type, declaration, null, discoveredFault, compilation);
+            return SpawnChecked(type, declaration, null, discoveredFault, model);
         }
 
-        // The attribute has one form; any other call is the compiler's error to report, not this.
+        // The attribute has a single form. Any other call is the compiler's error to report.
         if (annotation.ConstructorArguments.Length != 1)
         {
             return null;
@@ -71,26 +72,25 @@ internal static class EntityRegistrySource
             fault = EntityFault.InaccessibleType;
         }
 
-        return SpawnChecked(type, declaration, spawnType!, fault, compilation);
+        return SpawnChecked(type, declaration, spawnType!, fault, model);
     }
 
-    // A sound claim is held to one more shape: the spawn constructor hands its spawn on, or the
-    // authored band and factor the spawn carries never reach the entity. Reported at that
-    // constructor rather than the type.
+    // A sound claim must also pass its spawn to the base constructor, or the authored band and
+    // factor the spawn carries never reach the entity. The fault is reported at the constructor.
     private static EntityModel SpawnChecked(
         INamedTypeSymbol type,
         TypeDeclarationSyntax declaration,
         string? declared,
         EntityFault fault,
-        Compilation compilation)
+        SemanticModel model)
     {
         if (fault != EntityFault.None)
         {
             return Model(type, declaration, declared, fault);
         }
 
-        IMethodSymbol? spawnConstructor = Symbols.SpawnConstructor(type, compilation);
-        if (spawnConstructor is null || Symbols.PassesSpawnOn(spawnConstructor, compilation, out Location? at))
+        IMethodSymbol? spawnConstructor = Symbols.SpawnConstructor(type, model.Compilation);
+        if (spawnConstructor is null || Symbols.PassesSpawnOn(spawnConstructor, model, out Location? at))
         {
             return Model(type, declaration, declared, fault);
         }
@@ -115,7 +115,7 @@ internal static class EntityRegistrySource
             models,
             static model => model.QualifiedName,
             static model => model.DisplayName,
-            static model => model.Location,
+            static model => model.At,
             static model => Reported(model.Fault),
             model => Resolve(context, sound, model, rootNamespace));
 
@@ -130,7 +130,7 @@ internal static class EntityRegistrySource
             },
             static entry => entry.SpawnType,
             static entry => entry.Model.DisplayName,
-            static entry => entry.Model.Location,
+            static entry => entry.Model.At,
             RegistryDiagnostics.DuplicateSpawnType);
 
         context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
@@ -147,8 +147,8 @@ internal static class EntityRegistrySource
         _ => null,
     };
 
-    // Where the type is declared is the key it claims, so the key is not settled until the
-    // assembly's root namespace is. An override names a whole key, held to the same grammar.
+    // The key comes from where the type is declared, so it is not settled until the assembly's root
+    // namespace is known. An explicit [SpawnType] names the full key under the same grammar.
     private static void Resolve(
         SourceProductionContext context,
         List<Registration> sound,
@@ -166,7 +166,7 @@ internal static class EntityRegistrySource
         }
 
         context.ReportDiagnostic(Diagnostic.Create(
-            RegistryDiagnostics.UnsafeSpawnType, model.Location, model.DisplayName, spawnType));
+            RegistryDiagnostics.UnsafeSpawnType, model.At.Location(), model.DisplayName, spawnType));
     }
 
     private static EntityModel Model(
@@ -182,62 +182,52 @@ internal static class EntityRegistrySource
             type.Name,
             declared,
             fault,
-            at ?? declaration.Identifier.GetLocation());
+            DeclaredAt.From(at ?? declaration.Identifier.GetLocation()));
 
     private static string Render(List<Registration> registered)
     {
-        StringBuilder source = new();
-
-        source.AppendLine("// <auto-generated/>");
-        source.AppendLine("#nullable enable");
-        source.AppendLine();
+        StringBuilder claims = new();
+        StringBuilder registrations = new();
 
         foreach (Registration entry in registered)
         {
-            source.Append("[assembly: global::Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute(0, ");
-            source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
-            source.Append(", typeof(");
-            source.Append(entry.Model.QualifiedName);
-            source.AppendLine("))]");
+            claims.Append("[assembly: global::Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute(0, ")
+                .Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true))
+                .Append(", typeof(").Append(entry.Model.QualifiedName).AppendLine("))]");
+
+            registrations.Append("                new global::Capsule.Scenes.Spawning.EntityRegistration(")
+                .Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true))
+                .Append(", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new ")
+                .Append(entry.Model.QualifiedName).AppendLine("(spawn)),");
         }
 
         if (registered.Count > 0)
         {
-            source.AppendLine();
+            claims.AppendLine();
         }
 
-        source.AppendLine("namespace Capsule.Scenes.Generated");
-        source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every spawnable entity this assembly declares, as one registry. Generated; do not edit.</summary>");
-        source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    public static class CapsuleEntities");
-        source.AppendLine("    {");
-        source.AppendLine("        internal static global::Capsule.Scenes.Spawning.EntityRegistration[] Registrations { get; } =");
-        source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistration[]");
-        source.AppendLine("            {");
+        return $$"""
+            // <auto-generated/>
+            #nullable enable
 
-        for (int i = 0; i < registered.Count; i++)
-        {
-            Registration entry = registered[i];
+            {{claims}}namespace Capsule.Scenes.Generated
+            {
+                /// <summary>Every spawnable entity this assembly declares, as one registry. Generated code. Do not edit.</summary>
+                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+                public static class CapsuleEntities
+                {
+                    internal static global::Capsule.Scenes.Spawning.EntityRegistration[] Registrations { get; } =
+                        new global::Capsule.Scenes.Spawning.EntityRegistration[]
+                        {
+            {{registrations}}            };
 
-            source.Append("                new global::Capsule.Scenes.Spawning.EntityRegistration(");
-            source.Append(SymbolDisplay.FormatLiteral(entry.SpawnType, quote: true));
-            source.Append(", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new ");
-            source.Append(entry.Model.QualifiedName);
-            source.Append("(spawn)");
-            source.AppendLine("),");
-        }
+                    /// <summary>The registry a scene resolves its spawn types through.</summary>
+                    public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =
+                        new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);
+                }
+            }
 
-        source.AppendLine("            };");
-        source.AppendLine();
-
-        source.AppendLine("        /// <summary>The registry a scene resolves its spawn types through.</summary>");
-        source.AppendLine("        public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =");
-        source.AppendLine("            new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);");
-        source.AppendLine("    }");
-        source.AppendLine("}");
-
-        return source.ToString();
+            """;
     }
 
     private readonly struct Registration(string spawnType, EntityModel model)

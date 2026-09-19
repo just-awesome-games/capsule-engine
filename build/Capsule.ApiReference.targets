@@ -17,9 +17,9 @@
                                Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
 
       <!-- A renamed or dropped module would otherwise leave its documentation here forever. The
-           stale set is named against the engine's modules, not against this project's references:
-           parallel role projects share this destination and each stages only its own subset, so
-           comparing with that subset would have them deleting each other's current files. -->
+           stale set is named against the engine's modules, not this project's references. Parallel
+           role projects share this destination and each stages only its own subset, so comparing
+           against that subset would have them delete each other's current files. -->
       <_CapsuleModuleProject Include="$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))*/*.csproj" />
       <_CapsuleStaleApiReferenceFile Include="$(CapsuleApiReferenceDirectory)/Capsule.*.xml"
                                      Exclude="@(_CapsuleModuleProject->'$(CapsuleApiReferenceDirectory)/%(Filename).xml')" />

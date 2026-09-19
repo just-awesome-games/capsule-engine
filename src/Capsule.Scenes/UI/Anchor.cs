@@ -3,20 +3,19 @@ using System.Numerics;
 namespace Capsule.UI;
 
 /// <summary>
-/// A point on the canvas given as a fraction of its extent on each axis, Y-down: (0, 0) is the
-/// top-left corner, (1, 1) the bottom-right. A <see cref="ScreenEntity"/>'s position is measured from
-/// the point its anchor names, so a corner-anchored interface element keeps its distance from that
-/// corner whatever the canvas is.
+/// A point on the canvas given as a fraction of its extent on each axis, Y-down, so (0, 0) is the top-left
+/// corner and (1, 1) the bottom-right. A <see cref="ScreenEntity"/>'s position is measured from the point its
+/// anchor names, and a corner-anchored element keeps its distance from that corner at any canvas size.
 /// <para>
-/// A fraction outside [0, 1] is a point off the canvas, which is allowed: it anchors something just
-/// past an edge.
+/// A fraction outside [0, 1] names a point off the canvas, which is allowed and anchors something just past an
+/// edge.
 /// </para>
 /// </summary>
-/// <param name="X">The fraction across the canvas on X; 0 is its left edge and 1 its right.</param>
-/// <param name="Y">The fraction down the canvas on Y; 0 is its top edge and 1 its bottom.</param>
+/// <param name="X">The fraction across the canvas on X, where 0 is its left edge and 1 its right.</param>
+/// <param name="Y">The fraction down the canvas on Y, where 0 is its top edge and 1 its bottom.</param>
 public readonly record struct Anchor(float X, float Y)
 {
-    /// <summary>The canvas's top-left corner, which is the default.</summary>
+    /// <summary>The canvas's top-left corner, and the default anchor.</summary>
     public static Anchor TopLeft => default;
 
     /// <summary>The middle of the canvas's top edge.</summary>
@@ -43,6 +42,6 @@ public readonly record struct Anchor(float X, float Y)
     /// <summary>The canvas's bottom-right corner.</summary>
     public static Anchor BottomRight => new(1f, 1f);
 
-    // Where this anchor lands on a canvas of the given pixel extent.
+    // Returns where this anchor lands on a canvas of the given pixel extent.
     internal Vector2 On(Vector2 canvas) => new(X * canvas.X, Y * canvas.Y);
 }

@@ -6,12 +6,17 @@ public enum ShapeKind2D
     /// <summary>One point and a positive radius.</summary>
     Circle,
 
-    /// <summary>A segment and a positive radius: the region within that radius of the segment.</summary>
+    /// <summary>A segment and a positive radius, covering the region within that radius of the segment.</summary>
     Capsule,
 
-    /// <summary>An axis-aligned rectangle with no radius; the narrowphase's fast path.</summary>
+    /// <summary>An axis-aligned rectangle with no radius. The narrowphase has a fast path for it.</summary>
     Box,
 
-    /// <summary>A convex polygon of three to eight points, optionally rounded by a radius.</summary>
+    /// <summary>A convex polygon of three or four points, optionally rounded by a radius.</summary>
     Polygon,
+
+    /// <summary>
+    /// A segment with no interior, used by one side of a grid collider. No public factory builds one.
+    /// </summary>
+    Segment,
 }

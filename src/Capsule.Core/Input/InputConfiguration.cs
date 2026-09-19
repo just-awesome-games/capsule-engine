@@ -1,12 +1,25 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// Everything a game says about input: the actions its devices stand for, the gamepad
-/// deadzones its sampled pad is filtered by, and the host-owned button that opens the debug menu
-/// in a development build. A run played by an input driver — one given to
-/// <c>WithInputDriver</c> or to <c>RunHeadless</c> — takes the driver's snapshots as already
-/// filtered, so the deadzones apply only to a sampled gamepad.
+/// Everything a game says about input: the actions its devices stand for, the gamepad deadzones its
+/// sampled pad is filtered by, and the host-owned button that opens the debug menu in a development
+/// build. A run played by an input driver treats the driver's snapshots as already filtered, so the
+/// deadzones apply only to a sampled gamepad.
 /// </summary>
+/// <example>
+/// <code>
+/// public static readonly AxisAction Move = new("move");
+/// public static readonly InputAction Jump = new("jump");
+///
+/// public static void Configure(InputConfiguration input)
+/// {
+///     input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
+///     input.Bindings.BindAxis(Move, Key.A, Key.D);
+///     input.Bindings.BindAxis(Move, PadAxis.LeftStickX);
+///     input.Bindings.Bind(Jump, Key.Space, PadButton.South);
+/// }
+/// </code>
+/// </example>
 public sealed class InputConfiguration
 {
     /// <summary>The stick radius a game that never sets one is filtered by.</summary>
@@ -27,20 +40,20 @@ public sealed class InputConfiguration
     public float TriggerDeadzone { get; private set; } = DefaultTriggerDeadzone;
 
     /// <summary>
-    /// The host-owned button that opens Capsule's debug menu in a development build; defaults to
-    /// <see cref="Key.Grave"/>. It never reaches the simulation, wins over a game binding of the
-    /// same button, and is inert in a shipping publish. <see cref="InputButton.None"/> disables
-    /// opening the menu.
+    /// The host-owned button that opens Capsule's debug menu in a development build. It defaults to
+    /// <see cref="Key.Grave"/>, does not reach the simulation, wins over a game binding of the same
+    /// button, and is inert in a shipping publish. <see cref="InputButton.None"/> disables opening the
+    /// menu.
     /// </summary>
     public InputButton DebugMenuButton { get; private set; } = Key.Grave;
 
     /// <summary>
-    /// A stick reading inside <paramref name="stick"/> radially reads centred and a trigger pull
-    /// below <paramref name="trigger"/> reads released; past either, what remains is remapped onto
-    /// [0, 1]. Defaults to 0.25 and 0.12.
+    /// A stick reading inside <paramref name="stick"/> radially reads centred, and a trigger pull
+    /// below <paramref name="trigger"/> reads released. Past either threshold, the remainder is
+    /// remapped onto [0, 1].
     /// </summary>
-    /// <param name="stick">Stick radius, in [0, 1); 0 applies no stick deadzone.</param>
-    /// <param name="trigger">Trigger pull, in [0, 1); 0 applies no trigger deadzone.</param>
+    /// <param name="stick">Stick radius, in [0, 1). Zero applies no stick deadzone.</param>
+    /// <param name="trigger">Trigger pull, in [0, 1). Zero applies no trigger deadzone.</param>
     /// <exception cref="ArgumentOutOfRangeException">A radius is NaN or outside [0, 1).</exception>
     public InputConfiguration GamepadDeadzones(float stick, float trigger)
     {
@@ -53,17 +66,12 @@ public sealed class InputConfiguration
     }
 
     /// <summary>
-    /// Sets the host-owned button that opens Capsule's development debug menu. The button is
-    /// quarantined from the simulation and wins over a game binding of the same button; it is
-    /// inert in a shipping publish. A button may be a key, pad button, mouse button or stick
-    /// direction, and <see cref="InputButton.None"/> leaves the menu unreachable. While the menu
-    /// is open or hidden the simulation is held on the settled step and every playing voice is
-    /// suspended, its own navigation keys are withheld from the simulation, and the menu displays
-    /// its key legend; closing it resumes the simulation and the voices, one the game itself
-    /// paused staying paused. A toggle that is also one of the menu's own keys withholds that key
-    /// from the menu.
+    /// Sets the host-owned button that opens Capsule's development debug menu. It may be a key, pad
+    /// button, mouse button or stick direction, and <see cref="InputButton.None"/> leaves the menu
+    /// unreachable. While the menu is open the simulation is held on the settled step and every
+    /// playing voice is suspended. Closing it resumes both.
     /// </summary>
-    /// <param name="button">The single button that toggles the menu on its leading edge.</param>
+    /// <param name="button">The button that toggles the menu on its leading edge.</param>
     /// <returns>This configuration.</returns>
     public InputConfiguration DebugMenu(InputButton button)
     {
@@ -74,12 +82,7 @@ public sealed class InputConfiguration
 
     private static void RequireDeadzone(float value, string parameterName)
     {
-        // NaN compares false to everything, so the range guards below cannot reject it.
-        if (float.IsNaN(value))
-        {
-            throw new ArgumentOutOfRangeException(parameterName, value, "A deadzone radius cannot be NaN.");
-        }
-
+        Guard.Finite(value, parameterName);
         ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, 1f, parameterName);
     }

@@ -2,8 +2,8 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime.Assets;
 
-// Where a texture handle's file is. Separate from the store so the resolution and its failure are
-// testable without a graphics device.
+// Where a texture handle's file is. Separate from the store so resolution and its failure are testable
+// without a graphics device.
 internal static class TextureFiles
 {
     private static readonly AssetFiles Textures = new("textures", "Texture", "handle");

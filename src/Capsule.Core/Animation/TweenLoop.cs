@@ -6,9 +6,9 @@ public enum TweenLoop
     /// <summary>Holds the end and finishes.</summary>
     Once,
 
-    /// <summary>Begins the run again from the start, a sawtooth that never finishes.</summary>
+    /// <summary>Begins the run again from the start, giving a sawtooth that never finishes.</summary>
     Repeat,
 
-    /// <summary>Runs back to the start and out again, a triangle that never finishes.</summary>
+    /// <summary>Runs back to the start and out again, giving a triangle that never finishes.</summary>
     PingPong,
 }

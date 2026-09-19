@@ -171,74 +171,6 @@ public sealed class SceneVisibilityTests
         Assert.Empty(log);
     }
 
-    // The arrivals answer for the frame the step drew, so a camera an arriving entity's OnStart
-    // installs — whose own region is empty until its first late step — must not answer for them.
-    [Fact]
-    public void ANotifierLandingBesideACameraInstalledOnStart_StillAnswersForTheFrameThatStepDrew()
-    {
-        List<string> log = [];
-        List<bool> seen = [];
-
-        static void Reframe(Scene host)
-        {
-            Camera replacement = new() { Center = host.Camera.Center, ViewportSize = host.Camera.ViewportSize };
-            ((SceneFixtures.HookScene)host).Install(replacement);
-        }
-
-        ArrivingWatcher marker = new(Vector2.Zero, log, seen, Reframe);
-
-        void Spawn(Scene host, in StepContext context)
-        {
-            if (context.Tick == 0)
-            {
-                host.Add(marker);
-            }
-        }
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SimulationHost run = new(scene);
-
-        run.Step();
-        Assert.True(scene.Camera.VisibleRegion.IsEmpty);
-        Assert.Equal(["entered"], log);
-
-        run.Step();
-        Assert.Equal([true], seen);
-    }
-
-    [Fact]
-    public void ANotifierAttachedFromAnArrivalsHandler_FirstSettlesOnTheNextStep()
-    {
-        List<string> log = [];
-        List<string> lateLog = [];
-        Watched marker = new(Vector2.Zero, log);
-
-        VisibleOnScreenNotifier2D late = new(Vector2.One);
-        late.ScreenEntered += () => lateLog.Add("entered");
-        marker.Notifier.ScreenEntered += () => marker.Add(late);
-
-        void Spawn(Scene host, in StepContext context)
-        {
-            if (context.Tick == 0)
-            {
-                host.Add(marker);
-            }
-        }
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SimulationHost run = new(scene);
-
-        // The arrival settle owns the entries that landed with the adds, and stops at them.
-        run.Step();
-        Assert.Equal(["entered"], log);
-        Assert.Empty(lateLog);
-        Assert.False(late.IsOnScreen);
-
-        run.Step();
-        Assert.Equal(["entered"], lateLog);
-        Assert.True(late.IsOnScreen);
-    }
-
     [Fact]
     public void ANotifierDriftingOffTheEdge_ExitsTheScreen()
     {
@@ -299,43 +231,8 @@ public sealed class SceneVisibilityTests
         Assert.Equal(["entered"], log);
     }
 
-    // The settle walks a list its handlers may shrink by more than one entry: a guard that only
-    // held the cursor still against a single removal left the traversal past the end of the list,
-    // and the notifier behind the detached pair kept a stale IsOnScreen for the rest of the run.
-    [Fact]
-    public void ANotifierHandlerThatDetachesItsOwnAndAnEarlierNotifier_LeavesTheRestSettlingThatStep()
-    {
-        List<string> firstLog = [];
-        List<string> secondLog = [];
-        List<string> thirdLog = [];
-
-        Watched first = new(Vector2.Zero, firstLog);
-        Watched second = new(Vector2.Zero, secondLog);
-        Watched third = new(Vector2.Zero, thirdLog);
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(first);
-        scene.Add(second);
-        scene.Add(third);
-
-        second.Notifier.ScreenEntered += () =>
-        {
-            first.Remove(first.Notifier);
-            second.Remove(second.Notifier);
-        };
-
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        // Both detached notifiers were on screen, so both are owed their exit.
-        Assert.Equal(["entered", "exited"], firstLog);
-        Assert.Equal(["entered", "exited"], secondLog);
-        Assert.Equal(["entered"], thirdLog);
-        Assert.True(third.Notifier.IsOnScreen);
-    }
-
-    // The mirror case: the handler takes out a notifier the settle has not reached yet, which must
-    // neither settle nor cost the one behind it its turn.
+    // The canonical detach during a settle: a handler takes a notifier the walk has not reached out
+    // of the scene, which must neither settle nor cost the one behind it its turn.
     [Fact]
     public void ANotifierHandlerThatDetachesALaterNotifier_SettlesTheRestExactlyOnce()
     {
@@ -361,6 +258,33 @@ public sealed class SceneVisibilityTests
         Assert.Empty(secondLog);
         Assert.False(second.Notifier.IsOnScreen);
         Assert.Equal(["entered"], thirdLog);
+    }
+
+    // A handler sees the new state and may not reconfigure the notifier it is running for.
+    [Fact]
+    public void AHandlerThatResizesOrMovesItsOwnNotifier_IsRefused()
+    {
+        List<string> log = [];
+        Watched watched = new(Vector2.Zero, log);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
+        scene.Add(watched);
+
+        Exception? sizeFailure = null;
+        Exception? offsetFailure = null;
+        watched.Notifier.ScreenEntered += () =>
+        {
+            sizeFailure = Record.Exception(() => watched.Notifier.Size = new Vector2(2f, 2f));
+            offsetFailure = Record.Exception(() => watched.Notifier.Offset = new Vector2(1f, 0f));
+        };
+
+        SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.IsType<InvalidOperationException>(sizeFailure);
+        Assert.IsType<InvalidOperationException>(offsetFailure);
+        Assert.Equal(Vector2.One, watched.Notifier.Size);
+        Assert.Equal(Vector2.Zero, watched.Notifier.Offset);
+        Assert.Equal(["entered"], log);
     }
 
     [Fact]

@@ -5,12 +5,6 @@ namespace Capsule.Generators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AssetRegistryGenerator : IIncrementalGenerator
 {
-    /// <summary>The pipeline step that reads a '.fnt', named so a spec can hold it to caching.</summary>
-    internal const string FontParseStep = "FontParse";
-
-    /// <summary>The pipeline step that reads a sheet document, named for the same reason.</summary>
-    internal const string SheetParseStep = "SheetParse";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // An assembly that does not reference the handle types gets nothing to compile.
@@ -31,8 +25,8 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value);
 
-        // A font's pages ship like any other texture; the '.fnt' beside them is compiled into the
-        // game, so both halves of the fonts domain are read here and neither is a texture handle.
+        // A font's pages ship like any other texture and the '.fnt' beside them is compiled into
+        // the game. Both halves of the fonts domain are read here.
         IncrementalValuesProvider<AssetFile> fontFiles = files
             .Where(static file => file.InDomain(FontRegistrySource.Domain));
 
@@ -41,7 +35,7 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
             .Where(static page => page.HasValue)
             .Select(static (page, _) => page!.Value);
 
-        // Parsed behind the role gate: a project that emits no registry reads no font and no sheet.
+        // Parsed behind the role gate. A project that emits no registry reads no font.
         IncrementalValuesProvider<ParsedAsset<BmFontDescription>> fonts = fontFiles
             .Where(static file => string.Equals(
                 Path.GetExtension(file.Text.Path),
@@ -51,24 +45,13 @@ public sealed class AssetRegistryGenerator : IIncrementalGenerator
             .Where(static input => input.Right)
             .Select(static (input, cancellation) =>
                 FontRegistrySource.Describe(input.Left.Text, input.Left.Authored, cancellation))
-            .WithTrackingName(FontParseStep);
-
-        // A sheet is text in and C# out: nothing ships for it, so it reaches the generator as an
-        // additional file of its own domain and never as an asset.
-        IncrementalValuesProvider<ParsedAsset<SheetDocument>> sheets = files
-            .Where(static file => file.InDomain(SpriteRegistrySource.Domain))
-            .Combine(emitting)
-            .Where(static input => input.Right)
-            .Select(static (input, cancellation) =>
-                SpriteRegistrySource.Describe(input.Left.Text, input.Left.Authored, cancellation))
-            .WithTrackingName(SheetParseStep);
+            .WithTrackingName("FontParse");
 
         context.RegisterSourceOutput(
-            assets.Collect().Combine(pages.Collect()).Combine(fonts.Collect()).Combine(sheets.Collect()).Combine(emitting),
+            assets.Collect().Combine(pages.Collect()).Combine(fonts.Collect()).Combine(emitting),
             static (production, input) => AssetRegistrySource.Emit(
                 production,
-                input.Left.Left.Left.Left,
-                input.Left.Left.Left.Right,
+                input.Left.Left.Left,
                 input.Left.Left.Right,
                 input.Left.Right,
                 input.Right));

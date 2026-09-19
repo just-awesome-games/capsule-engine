@@ -7,14 +7,10 @@ using Capsule.UI;
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// One item of the title menu, and the shape an interface element takes in Capsule: a
-/// <see cref="ScreenEntity"/> holding a <see cref="Focusable"/> for the box that can be focused, and
-/// the renderers that show it. It owns its own reaction to the focus — the ink and the highlight bar
-/// are its business, not its menu's — and it says it was pressed, never what pressing it means.
-/// <para>
-/// Everything it holds is attached in the constructor, so the font is collected for preload before
-/// the scene starts.
-/// </para>
+/// One item of the title menu: a focusable box, its caption and its highlight bar. The ink and the bar
+/// are this item's own reaction to the focus, and it says it was pressed, never what pressing it means.
+/// Everything it holds is attached in the constructor, so the font is collected for the scene's
+/// preload.
 /// </summary>
 public sealed class TitleMenuItem : ScreenEntity
 {

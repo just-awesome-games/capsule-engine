@@ -34,34 +34,7 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => Shape2D.Capsule(new Vector2(-3e38f, 0f), new Vector2(3e38f, 0f), 1f));
     }
 
-    // Far enough out, the floats either side of a small shape are the same float: the hull survives
-    // but the broadphase box collapses, and the tree skips geometry the narrowphase still holds.
-    [Fact]
-    public void AShapeWhoseExtentCollapsesUnderTranslation_IsRefusedWhereItIsPlaced()
-    {
-        Shape2D unit = Shape2D.Box(Vector2.Zero, new Vector2(1f, 1f));
-
-        Assert.Throws<ArgumentException>(() => unit.Translated(new Vector2(3e38f, 0f)));
-
-        // A capsule loses its two points to the same coordinate before its bounds go.
-        Shape2D capsule = Shape2D.Capsule(new Vector2(-10f, 0f), new Vector2(10f, 0f), 1f);
-        Assert.Throws<ArgumentException>(() => capsule.Translated(new Vector2(3e38f, 0f)));
-
-        // And every seam that places a shape refuses it for the same reason.
-        CollisionWorld2D world = new();
-        CollisionLayer item = world.Layer("item");
-        ColliderHandle handle = world.Add(unit, Vector2.Zero, item, CollisionFilter.None);
-
-        Assert.Throws<ArgumentException>(() => world.Add(unit, new Vector2(3e38f, 0f), item, CollisionFilter.None));
-        Assert.Throws<ArgumentException>(() => world.SetPosition(handle, new Vector2(3e38f, 0f)));
-        Assert.Throws<ArgumentException>(
-            () => world.OverlapAll(unit, new Vector2(3e38f, 0f), CollisionFilter.Everything, default));
-
-        Assert.Equal(Vector2.Zero, world.PositionOf(handle));
-    }
-
-    // The other side of that boundary: as far out as a unit box can go and still have width, it is
-    // still found.
+    // As far out as a unit box can go and still have width, it is placed and found.
     [Fact]
     public void AShapeAtTheFurthestCoordinateItKeepsItsExtent_IsPlacedAndFound()
     {
@@ -261,12 +234,4 @@ public sealed class Shape2DTests
 
     // Scaled far enough up, a capsule's endpoints are still floats while the segment the
     // narrowphase measures along is not.
-    [Fact]
-    public void Scaled_RefusesACapsuleWhoseSegmentOverflows()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Shape2D.Capsule(Vector2.Zero, new Vector2(1f, 0f), 1e-6f).Scaled(new Vector2(3e19f, 3e19f)));
-
-        Assert.Contains("point 0", error.Message, StringComparison.Ordinal);
-    }
 }

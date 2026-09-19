@@ -1,47 +1,44 @@
 <Project>
 
-  <!-- Enforce the JAG.Capsule package graph. -->
+  <!-- The JAG.Capsule package graph, one row per module: Admits lists the projects it may reference,
+       and NoPackages marks a module whose dependency set is the framework alone. A module absent
+       from the table is unconstrained. -->
+  <ItemGroup>
+    <CapsuleModule Include="Capsule.Core" Admits="" NoPackages="true" />
+    <CapsuleModule Include="Capsule.Physics" Admits="Capsule.Core" NoPackages="true" />
+    <CapsuleModule Include="Capsule.Scenes" Admits="Capsule.Core;Capsule.Physics" NoPackages="true" />
+    <CapsuleModule Include="Capsule" Admits="Capsule.Core;Capsule.Physics;Capsule.Scenes" NoPackages="true" />
+  </ItemGroup>
+
   <Target Name="CapsuleValidateModuleDependencies" BeforeTargets="ResolveReferences">
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Core' or '$(MSBuildProjectName)' == 'Capsule.Physics' or '$(MSBuildProjectName)' == 'Capsule.Scenes' or '$(MSBuildProjectName)' == 'Capsule'">
+    <ItemGroup>
+      <_CapsuleThisModule Include="@(CapsuleModule)" Condition="'%(Identity)' == '$(MSBuildProjectName)'" />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_CapsuleAdmits>;@(_CapsuleThisModule->'%(Admits)');</_CapsuleAdmits>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'@(_CapsuleThisModule)' != ''">
+      <_CapsuleForbiddenProject Include="@(ProjectReference->'%(Filename)')"
+          Condition="!$(_CapsuleAdmits.Contains(';%(Filename);'))" />
       <!-- Ignore SDK-injected references such as the NativeAOT compiler pack. -->
-      <_CapsuleExplicitPackageReference Include="@(PackageReference)"
-          Condition="'%(PackageReference.IsImplicitlyDefined)' != 'true'" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Physics'">
-      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
-          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj'" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes'">
-      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
-          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Physics.csproj'" />
-    </ItemGroup>
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule'">
-      <_CapsuleForbiddenProjectReference Include="@(ProjectReference)"
-          Condition="'%(Filename)%(Extension)' != 'Capsule.Core.csproj' and '%(Filename)%(Extension)' != 'Capsule.Physics.csproj' and '%(Filename)%(Extension)' != 'Capsule.Scenes.csproj'" />
+      <_CapsuleForbiddenPackage Include="@(PackageReference)"
+          Condition="'@(_CapsuleThisModule->'%(NoPackages)')' == 'true' and '%(PackageReference.IsImplicitlyDefined)' != 'true'" />
     </ItemGroup>
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Capsule.Runtime'">
       <_CapsuleForbiddenInternalsGrant Include="@(InternalsVisibleTo)"
           Condition="'%(Identity)' == 'Capsule.Runtime.Desktop'" />
     </ItemGroup>
 
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(ProjectReference)' != ''"
-           Text="Capsule.Core must not reference another project." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Core' and '@(_CapsuleExplicitPackageReference)' != ''"
-           Text="Capsule.Core must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Physics' and '@(_CapsuleExplicitPackageReference)' != ''"
-           Text="Capsule.Physics must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Physics' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="Capsule.Physics may reference Capsule.Core only; found @(_CapsuleForbiddenProjectReference)." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleExplicitPackageReference)' != ''"
-           Text="Capsule.Scenes must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Scenes' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="Capsule.Scenes may reference Capsule.Core and Capsule.Physics only; found @(_CapsuleForbiddenProjectReference)." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleExplicitPackageReference)' != ''"
-           Text="JAG.Capsule must not reference a package." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule' and '@(_CapsuleForbiddenProjectReference)' != ''"
-           Text="JAG.Capsule admits Capsule.Core, Capsule.Physics and Capsule.Scenes only; found @(_CapsuleForbiddenProjectReference)." />
-    <Error Condition="'$(MSBuildProjectName)' == 'Capsule.Runtime' and '@(_CapsuleForbiddenInternalsGrant)' != ''"
-           Text="Capsule.Runtime grants Capsule.Runtime.Desktop no internals: the platform module is written against the public contract." />
+    <Error Condition="'@(_CapsuleForbiddenProject)' != '' and '@(_CapsuleThisModule->'%(Admits)')' == ''"
+           Text="$(MSBuildProjectName) must reference no project; drop the reference to @(_CapsuleForbiddenProject)." />
+    <Error Condition="'@(_CapsuleForbiddenProject)' != '' and '@(_CapsuleThisModule->'%(Admits)')' != ''"
+           Text="$(MSBuildProjectName) must not reference @(_CapsuleForbiddenProject); the package graph admits @(_CapsuleThisModule->'%(Admits)') only." />
+    <Error Condition="'@(_CapsuleForbiddenPackage)' != ''"
+           Text="$(MSBuildProjectName) must not reference the package @(_CapsuleForbiddenPackage); drop it or move the code to a module that may take a dependency." />
+    <Error Condition="'@(_CapsuleForbiddenInternalsGrant)' != ''"
+           Text="Capsule.Runtime must not grant Capsule.Runtime.Desktop internals; the platform module is written against the public contract." />
   </Target>
 
 </Project>

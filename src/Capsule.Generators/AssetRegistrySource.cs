@@ -16,17 +16,16 @@ internal static class AssetRegistrySource
 
     internal static AssetModel? Describe(AssetFile file)
     {
-        // Every other additional file a project carries reaches this the same way and is no asset.
-        // A domain this generator declares no class for is no asset of its either: audio arrives
-        // here like every other shipped file, and its registry is emitted by the build tool, which
-        // measures each clip's duration.
+        // Every additional file a project carries arrives here, most of them assets of no domain
+        // this generator declares a class for. Audio is one: the build tool emits its registry
+        // because it measures each clip's duration.
         if (!file.InDomain(TextureDomain))
         {
             return null;
         }
 
-        // The key, not the spelling: the build ships the asset at the normalized path, so the
-        // handle this declares must name that and no other.
+        // The build ships the asset at the normalized path, so the handle names the key and not the
+        // authored spelling.
         string path = file.Authored;
         string extension = Path.GetExtension(file.Text.Path);
 
@@ -35,7 +34,7 @@ internal static class AssetRegistrySource
             : new AssetModel(TextureDomain, path, path, extension, file.Text.Path, AssetFault.UnsafeName);
     }
 
-    /// <summary>Reads one fonts-domain page into the key and spelling the build ships it at.</summary>
+    /// <summary>Reads one fonts-domain page into the key and extension the build ships it at.</summary>
     internal static KeyValuePair<string, string>? DescribePage(AssetFile file)
     {
         string extension = Path.GetExtension(file.Text.Path);
@@ -44,7 +43,7 @@ internal static class AssetRegistrySource
             return null;
         }
 
-        // A page whose path is no key fails the key pass, which reads the same authored paths.
+        // A page whose path is not a valid key is refused by the key pass over the same paths.
         return TypeNaming.NormalizeKey(file.Authored, out _) is { } key
             ? new KeyValuePair<string, string>(key, extension)
             : null;
@@ -55,7 +54,6 @@ internal static class AssetRegistrySource
         ImmutableArray<AssetModel> models,
         ImmutableArray<KeyValuePair<string, string>> pages,
         ImmutableArray<ParsedAsset<BmFontDescription>> fonts,
-        ImmutableArray<ParsedAsset<SheetDocument>> sheets,
         bool emitting)
     {
         if (!emitting)
@@ -71,8 +69,8 @@ internal static class AssetRegistrySource
             "Everything shipped at <c>assets/" + TextureDomain + "</c>.",
             AppendHandle);
 
-        // Sorted before the tree is built off it: the additional files arrive in whatever order
-        // MSBuild collected them, and the generated source must not reorder between machines.
+        // Sorted before the tree is built from it. Additional files arrive in MSBuild's collection
+        // order, and the generated source must not reorder between machines.
         List<AssetModel> sound = new(models.Length);
         foreach (AssetModel model in models)
         {
@@ -95,71 +93,15 @@ internal static class AssetRegistrySource
 
         foreach (AssetModel model in sound)
         {
-            textures.Add(model.Path, model.Display, model, Claimable<AssetModel>(context, ParsedAsset.At(model.Source)));
+            textures.Add(model.Path, model.Display, model, Refused<AssetModel>(context, ParsedAsset.At(model.Source)));
         }
 
         StringBuilder source = RegistryFile.Open();
         textures.Append(source, "        ");
         source.AppendLine();
         Fonts(context, pages, fonts).Append(source, "        ");
-        source.AppendLine();
-        Sprites(context, sound, sheets).Append(source, "        ");
 
         context.AddSource(FileName, SourceText.From(RegistryFile.Close(source), Encoding.UTF8));
-    }
-
-    private static RegistryDomain<SheetDocument> Sprites(
-        SourceProductionContext context,
-        List<AssetModel> textures,
-        ImmutableArray<ParsedAsset<SheetDocument>> sheets)
-    {
-        RegistryDomain<SheetDocument> registry = SpriteRegistrySource.Registry();
-
-        // Ordinal, not case-insensitive: the runtime store is keyed by the shipped spelling, so a
-        // sheet naming 'player.PNG' against 'player.png' would carry a handle nothing loaded.
-        HashSet<string> shipped = new(StringComparer.Ordinal);
-        foreach (AssetModel texture in textures)
-        {
-            shipped.Add(texture.Path + texture.Extension);
-        }
-
-        List<ParsedAsset<SheetDocument>> ordered = [.. sheets];
-        ordered.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
-
-        foreach (ParsedAsset<SheetDocument> sheet in ordered)
-        {
-            if (sheet.Fault == ParsedFault.UnsafeName)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.UnsafeAssetName, sheet.Location, sheet.Display));
-                continue;
-            }
-
-            if (sheet.Parsed is not { } document)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.UnreadableSheet, sheet.Location, sheet.Display, sheet.Message));
-                continue;
-            }
-
-            if (!shipped.Contains(document.Texture))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.UnshippedSheetTexture,
-                    sheet.Location,
-                    sheet.Display,
-                    $"cuts from texture \"{document.Texture}\", which this game does not ship; author it at Assets/Textures/{document.Texture}."));
-                continue;
-            }
-
-            registry.Add(
-                sheet.Key,
-                sheet.Display,
-                document,
-                Claimable<SheetDocument>(context, sheet.Location, SpriteRegistrySource.Reserves));
-        }
-
-        return registry;
     }
 
     private static RegistryDomain<FontSource> Fonts(
@@ -201,48 +143,29 @@ internal static class AssetRegistrySource
                 continue;
             }
 
-            registry.Add(font.Key, font.Display, source, Claimable<FontSource>(context, font.Location));
+            registry.Add(font.Key, font.Display, source, Refused<FontSource>(context, font.Location));
         }
 
         return registry;
     }
 
-    // Whether an identifier may be declared on this class: not the class's own name (CS0542), not a
-    // name the domain's own generated members take, and not one already claimed here.
-    private static RegistryClaimCheck<T> Claimable<T>(
-        SourceProductionContext context,
-        Location location,
-        Func<string, bool, bool>? reserves = null) =>
-        (node, identifier, display, leaf) =>
-        {
-            bool reserved = reserves is null
-                ? string.Equals(identifier, RegistryFile.ListMember, StringComparison.Ordinal)
-                : reserves(identifier, leaf);
-
-            if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal) || reserved)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.AssetNamedAfterItsDomain, location, display, identifier, node.Display));
-
-                return false;
-            }
-
-            if (node.ClaimedBy.TryGetValue(identifier, out string? claimed))
-            {
-                // A directory declared twice is one class, not a collision.
-                if (node.Directories.ContainsKey(identifier) && string.Equals(claimed, display, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-
-                context.ReportDiagnostic(Diagnostic.Create(
-                    RegistryDiagnostics.DuplicateAssetIdentifier, location, claimed, display, identifier, node.Display));
-
-                return false;
-            }
-
-            return true;
-        };
+    // Turns a registry refusal into the diagnostic the game sees at the asset's file.
+    private static RegistryClaimCheck<T> Refused<T>(SourceProductionContext context, Location location) =>
+        RegistryClaims.Check<T>(refusal => context.ReportDiagnostic(
+            refusal.Fault == RegistryFault.AlreadyDeclared
+                ? Diagnostic.Create(
+                    RegistryDiagnostics.DuplicateAssetIdentifier,
+                    location,
+                    refusal.ClaimedBy,
+                    refusal.Display,
+                    refusal.Identifier,
+                    refusal.Directory)
+                : Diagnostic.Create(
+                    RegistryDiagnostics.AssetNamedAfterItsDomain,
+                    location,
+                    refusal.Display,
+                    refusal.Identifier,
+                    refusal.Directory)));
 
     private static void AppendHandle(StringBuilder source, string indent, string identifier, AssetModel model)
     {

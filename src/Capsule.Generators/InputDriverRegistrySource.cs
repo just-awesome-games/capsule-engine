@@ -8,41 +8,15 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-internal readonly struct InputDriverModel : IEquatable<InputDriverModel>
-{
-    internal InputDriverModel(string qualifiedName, string displayName, string typeName, bool accessible, Location location)
-    {
-        QualifiedName = qualifiedName;
-        DisplayName = displayName;
-        TypeName = typeName;
-        Accessible = accessible;
-        Location = location;
-    }
-
-    internal string QualifiedName { get; }
-
-    internal string DisplayName { get; }
-
-    /// <summary>The simple class name, which is the key <c>--driver</c> takes.</summary>
-    internal string TypeName { get; }
-
-    internal bool Accessible { get; }
-
-    internal Location Location { get; }
-
-    // Location participates in equality only for a faulted model, so an unrelated edit does not
-    // re-emit the registry.
-    public bool Equals(InputDriverModel other) =>
-        Accessible == other.Accessible
-        && string.Equals(QualifiedName, other.QualifiedName, StringComparison.Ordinal)
-        && string.Equals(TypeName, other.TypeName, StringComparison.Ordinal)
-        && (Accessible || Location.Equals(other.Location));
-
-    public override bool Equals(object? obj) => obj is InputDriverModel other && Equals(other);
-
-    public override int GetHashCode() =>
-        (QualifiedName.GetHashCode() * 31) ^ (TypeName.GetHashCode() * 17) ^ (Accessible ? 1 : 0);
-}
+/// <summary>One class the driver registry considered, and the name <c>--driver</c> reaches it by.</summary>
+/// <param name="TypeName">The simple class name, which is the key <c>--driver</c> takes.</param>
+/// <param name="At">Where a fault about this model is reported.</param>
+internal readonly record struct InputDriverModel(
+    string QualifiedName,
+    string DisplayName,
+    string TypeName,
+    bool Accessible,
+    DeclaredAt At);
 
 internal static class InputDriverRegistrySource
 {
@@ -50,8 +24,8 @@ internal static class InputDriverRegistrySource
 
     internal static InputDriverModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
-        // A driver the command line names is constructed by the generated registry, so one that
-        // takes arguments registers under no name; it reaches a run through WithInputDriver.
+        // The generated registry constructs a driver the command line names. A driver that takes
+        // arguments is left unregistered and reaches a run through WithInputDriver.
         if (!Symbols.IsConcreteClass(type)
             || !Symbols.HasPublicParameterlessConstructor(type)
             || !Symbols.Implements(type, compilation, Symbols.InputDriver))
@@ -64,7 +38,7 @@ internal static class InputDriverRegistrySource
             type.ToDisplayString(),
             type.Name,
             Symbols.IsAccessibleFromGeneratedCode(type),
-            declaration.Identifier.GetLocation());
+            DeclaredAt.From(declaration.Identifier.GetLocation()));
     }
 
     internal static void Emit(SourceProductionContext context, ImmutableArray<InputDriverModel> models, bool registered)
@@ -75,9 +49,9 @@ internal static class InputDriverRegistrySource
         }
     }
 
-    // Every driver the assembly registers, in declaration order: one entry per class, each
-    // accessible to generated code and each claiming a name no other class in the assembly claims.
-    // The name is claimed here rather than by a second sort, so the registry keeps that order.
+    // Every driver the assembly registers, in declaration order. Each entry is accessible to
+    // generated code and claims a name unused by another class. Names are claimed in this pass so
+    // the registry keeps declaration order.
     internal static List<InputDriverModel> Sound(SourceProductionContext context, ImmutableArray<InputDriverModel> models)
     {
         List<InputDriverModel> sound = [];
@@ -88,7 +62,7 @@ internal static class InputDriverRegistrySource
             models,
             static model => model.QualifiedName,
             static model => model.DisplayName,
-            static model => model.Location,
+            static model => model.At,
             static model => model.Accessible ? null : RegistryDiagnostics.InaccessibleRegisteredType,
             model =>
             {
@@ -96,7 +70,7 @@ internal static class InputDriverRegistrySource
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         RegistryDiagnostics.DuplicateInputDriverName,
-                        model.Location,
+                        model.At.Location(),
                         previous.DisplayName,
                         model.DisplayName,
                         model.TypeName));
@@ -111,8 +85,8 @@ internal static class InputDriverRegistrySource
         return sound;
     }
 
-    // One registration's construction, which reads the same inline in the shell's entry point as it
-    // does in a logic assembly's registry.
+    // One registration's construction, written the same way in the shell's entry point and in a
+    // logic assembly's registry.
     internal static void AppendRegistration(StringBuilder source, InputDriverModel model)
     {
         source.Append("new global::Capsule.Input.InputDriverRegistration(");
@@ -124,32 +98,32 @@ internal static class InputDriverRegistrySource
 
     private static string Render(List<InputDriverModel> registered)
     {
-        StringBuilder source = new();
-
-        source.AppendLine("// <auto-generated/>");
-        source.AppendLine("#nullable enable");
-        source.AppendLine();
-        source.AppendLine("namespace Capsule.Scenes.Generated");
-        source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every input driver this assembly declares. Generated; do not edit.</summary>");
-        source.AppendLine("    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        source.AppendLine("    internal static class CapsuleInputDrivers");
-        source.AppendLine("    {");
-        source.AppendLine("        internal static global::Capsule.Input.InputDriverRegistration[] Registrations { get; } =");
-        source.AppendLine("            new global::Capsule.Input.InputDriverRegistration[]");
-        source.AppendLine("            {");
+        StringBuilder registrations = new();
 
         foreach (InputDriverModel model in registered)
         {
-            source.Append("                ");
-            AppendRegistration(source, model);
-            source.AppendLine(",");
+            registrations.Append("                ");
+            AppendRegistration(registrations, model);
+            registrations.AppendLine(",");
         }
 
-        source.AppendLine("            };");
-        source.AppendLine("    }");
-        source.AppendLine("}");
+        return $$"""
+            // <auto-generated/>
+            #nullable enable
 
-        return source.ToString();
+            namespace Capsule.Scenes.Generated
+            {
+                /// <summary>Every input driver this assembly declares. Generated code. Do not edit.</summary>
+                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+                internal static class CapsuleInputDrivers
+                {
+                    internal static global::Capsule.Input.InputDriverRegistration[] Registrations { get; } =
+                        new global::Capsule.Input.InputDriverRegistration[]
+                        {
+            {{registrations}}            };
+                }
+            }
+
+            """;
     }
 }

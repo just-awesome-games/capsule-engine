@@ -3,15 +3,15 @@ using Capsule.Diagnostics;
 
 namespace Capsule.Runtime.Audio;
 
-// The one background thread every streamed voice decodes on, and the pool those voices come from.
-// Decoding ahead off the game thread is the whole point of the thread: a frame never pays for a
-// Vorbis packet, and a voice that falls behind starves its own device queue rather than the frame.
+// The background thread every streamed voice decodes on, and the pool those voices come from.
+// Decoding ahead off the game thread keeps a frame from paying for a Vorbis packet, and a voice that
+// falls behind starves its own device queue instead of the frame.
 //
-// A voice's source is released here rather than by whoever retired it, so nothing is ever freed under
-// a decode in progress — and the release is what returns the voice to the pool, so a voice handed out
-// again is one no decode still holds. The pool is keyed by format because a voice's queue and buffers
-// are sized for one rate and channel count; it therefore holds no more voices than a run has sounded
-// at once, and every replay of a format already heard allocates none of them.
+// A voice's source is closed here, not by whoever ended it, so nothing is freed under a decode in
+// progress. Closing the source also returns the voice to the pool, and a voice handed out again is one
+// no decode still holds. The pool is keyed by format, because a voice's queue and buffers are
+// sized for one rate and channel count. It holds no more voices than a run has sounded at once, and a
+// replay of a format already heard allocates none of them.
 internal sealed class AudioStreamer : IDisposable
 {
     // How long an idle worker waits before looking again. A submit wakes it, so this only bounds
@@ -20,7 +20,7 @@ internal sealed class AudioStreamer : IDisposable
 
     private readonly Lock _gate = new();
     private readonly List<StreamedVoice> _voices = [];
-    private readonly Dictionary<(int SampleRate, int Channels), Stack<StreamedVoice>> _idle = [];
+    private readonly Dictionary<(int SampleRate, int Channels), Stack<StreamedVoice>> _pooled = [];
     private readonly AutoResetEvent _wake = new(false);
     private readonly Func<int, int, IPcmQueue> _queues;
     private readonly Thread _worker;
@@ -28,7 +28,7 @@ internal sealed class AudioStreamer : IDisposable
     private volatile bool _stopping;
     private bool _disposed;
 
-    // queues opens one device queue per voice, by sample rate and channel count.
+    // queues opens a device queue per voice, by sample rate and channel count.
     internal AudioStreamer(Func<int, int, IPcmQueue> queues)
     {
         _queues = queues;
@@ -41,10 +41,10 @@ internal sealed class AudioStreamer : IDisposable
         _worker.Start();
     }
 
-    // Sounds a resident clip's samples as a voice of its own from startSeconds on, on a retired voice
-    // of the same format where one is idle: that voice's own cursor is pointed at the samples, so a
-    // replay of a clip already heard at this format allocates nothing at all. retired is reported
-    // when the voice is disposed, for a caller counting a resident clip's live voices.
+    // Sounds a resident clip's samples as its own voice from startSeconds on, reusing a pooled voice
+    // of the same format. The pooled voice's cursor is pointed at the samples, and a replay of a clip
+    // already heard at this format allocates nothing. The `ended` callback is reported when the voice
+    // is disposed, for a caller counting a resident clip's live voices.
     internal StreamedVoice Play(
         PcmAudio samples,
         in AudioClip clip,
@@ -53,16 +53,16 @@ internal sealed class AudioStreamer : IDisposable
         float pan,
         bool loop,
         double startSeconds = 0.0,
-        Action? retired = null)
+        Action? ended = null)
     {
-        StreamedVoice voice = Take(samples.SampleRate, samples.Channels);
-        voice.Start(samples, clip, gain, pitch, pan, loop, startSeconds, retired);
+        StreamedVoice voice = Rent(samples.SampleRate, samples.Channels);
+        voice.Start(samples, clip, gain, pitch, pan, loop, startSeconds, ended);
 
         return voice;
     }
 
-    // Sounds source as a voice of its own from startSeconds on. The source is the caller's to open
-    // per play — a file handle is not poolable — and the voice's from here on.
+    // Sounds source as its own voice from startSeconds on. A file handle is not poolable, so the
+    // caller opens the source per play and the voice owns it from here on.
     internal StreamedVoice Play(
         IPcmSource source,
         in AudioClip clip,
@@ -71,10 +71,10 @@ internal sealed class AudioStreamer : IDisposable
         float pan,
         bool loop,
         double startSeconds = 0.0,
-        Action? retired = null)
+        Action? ended = null)
     {
-        StreamedVoice voice = Take(source.SampleRate, source.Channels);
-        voice.Start(source, clip, gain, pitch, pan, loop, startSeconds, retired);
+        StreamedVoice voice = Rent(source.SampleRate, source.Channels);
+        voice.Start(source, clip, gain, pitch, pan, loop, startSeconds, ended);
 
         return voice;
     }
@@ -97,20 +97,20 @@ internal sealed class AudioStreamer : IDisposable
         }
     }
 
-    // Voices retired, released by the worker, and waiting to be played again.
-    internal int Idle
+    // Voices the worker has returned to the pool, waiting to be played again.
+    internal int Pooled
     {
         get
         {
             lock (_gate)
             {
-                int idle = 0;
-                foreach (Stack<StreamedVoice> voices in _idle.Values)
+                int pooled = 0;
+                foreach (Stack<StreamedVoice> voices in _pooled.Values)
                 {
-                    idle += voices.Count;
+                    pooled += voices.Count;
                 }
 
-                return idle;
+                return pooled;
             }
         }
     }
@@ -127,35 +127,35 @@ internal sealed class AudioStreamer : IDisposable
         _worker.Join();
         _disposed = true;
 
-        // The worker is joined, so what it left is this thread's to release.
+        // The worker is joined, so this thread releases what it left.
         foreach (StreamedVoice voice in _voices)
         {
-            voice.ReleaseSource();
-            voice.Release();
+            voice.CloseSource();
+            voice.CloseQueue();
         }
 
-        foreach (Stack<StreamedVoice> idle in _idle.Values)
+        foreach (Stack<StreamedVoice> pooled in _pooled.Values)
         {
-            foreach (StreamedVoice voice in idle)
+            foreach (StreamedVoice voice in pooled)
             {
-                voice.Release();
+                voice.CloseQueue();
             }
         }
 
         _voices.Clear();
-        _idle.Clear();
+        _pooled.Clear();
         _wake.Dispose();
     }
 
-    // An idle voice of this format, else one built for it. A voice from the pool holds no source: the
-    // worker releases it before pooling it.
-    private StreamedVoice Take(int sampleRate, int channels)
+    // A pooled voice of this format, else one built for it. A voice from the pool holds no source,
+    // because the worker releases it before pooling it.
+    private StreamedVoice Rent(int sampleRate, int channels)
     {
         lock (_gate)
         {
-            if (_idle.TryGetValue((sampleRate, channels), out Stack<StreamedVoice>? idle) && idle.Count > 0)
+            if (_pooled.TryGetValue((sampleRate, channels), out Stack<StreamedVoice>? pooled) && pooled.Count > 0)
             {
-                return idle.Pop();
+                return pooled.Pop();
             }
         }
 
@@ -170,10 +170,10 @@ internal sealed class AudioStreamer : IDisposable
         }
         catch (Exception failure)
         {
-            // A decode fault silences its own voice inside Fill; reaching here means the worker
-            // itself is gone, so every streamed voice from now on stays silent. Never a crash: this
-            // is not the frame's thread.
-            Log.Warning($"audio: the streaming worker stopped, so streamed sound falls silent — {failure.Message}");
+            // A decode fault silences its own voice inside Fill. Reaching here means the worker is
+            // gone and every streamed voice from now on stays silent. This is not the frame's thread,
+            // so it must not crash.
+            Log.Warning($"audio: the streaming worker stopped and streamed sound falls silent. {failure.Message}");
         }
     }
 
@@ -193,16 +193,16 @@ internal sealed class AudioStreamer : IDisposable
 
             foreach (StreamedVoice voice in pass)
             {
-                if (voice.Retiring)
+                if (voice.Returning)
                 {
-                    // Released before it is pooled, never after: the pool is what the game thread
-                    // takes from, so a voice reaches it holding no source a decode could still read.
-                    voice.ReleaseSource();
+                    // Released before it is pooled. The game thread takes from the pool, and a voice
+                    // reaches it holding no source a decode could still read.
+                    voice.CloseSource();
 
                     lock (_gate)
                     {
                         _voices.Remove(voice);
-                        Pool(voice);
+                        Return(voice);
                     }
 
                     worked = true;
@@ -221,13 +221,13 @@ internal sealed class AudioStreamer : IDisposable
     }
 
     // Under _gate.
-    private void Pool(StreamedVoice voice)
+    private void Return(StreamedVoice voice)
     {
-        if (!_idle.TryGetValue(voice.Format, out Stack<StreamedVoice>? idle))
+        if (!_pooled.TryGetValue(voice.Format, out Stack<StreamedVoice>? pooled))
         {
-            _idle[voice.Format] = idle = new Stack<StreamedVoice>();
+            _pooled[voice.Format] = pooled = new Stack<StreamedVoice>();
         }
 
-        idle.Push(voice);
+        pooled.Push(voice);
     }
 }

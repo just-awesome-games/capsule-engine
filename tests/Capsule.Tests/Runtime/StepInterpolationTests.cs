@@ -30,7 +30,7 @@ public sealed class StepInterpolationTests
     {
         Assert.All(Alphas(), alpha => Assert.Equal(
             new Vector2(153f, 74f),
-            PixelGrid.Snap(StepInterpolation.Interpolate(OnASnapBoundary, OnASnapBoundary, alpha), 1f)));
+            PixelGrid.SnapOffset(Vector2.Zero, StepInterpolation.Interpolate(OnASnapBoundary, OnASnapBoundary, alpha), 1f)));
     }
 
     [Fact]

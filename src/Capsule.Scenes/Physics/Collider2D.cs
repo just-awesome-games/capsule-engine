@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -7,22 +8,19 @@ using Capsule.Scenes;
 namespace Capsule.Physics;
 
 /// <summary>
-/// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. It registers when
-/// its entity joins a scene and unregisters when it leaves, and follows the entity's
-/// <see cref="Scenes.Entity.WorldPosition"/> — direct writes, teleports and an ancestor's moves
-/// included — so a query never sees a stale one. It follows position alone: an entity turned or
-/// scaled anywhere up its ancestry refuses a collider, and an entity refuses a turn or a scale
-/// while a collider sits anywhere beneath it. The shape, and where it sits relative to the position, belong to the
-/// subclass.
-/// It draws itself on the <c>Colliders</c> debug channel, dimmed while disabled, and reports its
-/// configuration and its shape to the debug panel.
+/// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. The collider
+/// registers when its entity joins a scene, unregisters when it leaves, and follows the entity's
+/// <see cref="Scenes.Entity.WorldPosition"/> every step. Position is the only transform it follows.
+/// Rotation and scale anywhere in the entity's ancestry are refused while a collider is present.
+/// The subclass owns the shape and its offset from the position.
+/// Every query throws while the collider is disabled or in no scene. A filter built from another
+/// collision world's layers throws too.
 /// <para>
-/// While this collider is dispatching its own contact handlers, what they are being told about is
-/// fixed: <see cref="Enabled"/>, <see cref="Offset"/>, <see cref="Layer"/>,
-/// <see cref="ReportsContacts"/>, <see cref="SetFilter"/> and a subclass's shape are all refused for
-/// the whole dispatch, nested ones included. A handler may detach the collider, which takes it out
-/// of the world, gives it the exits it owes and ends its enters for the step; re-attaching before
-/// the dispatch ends is refused.
+/// A contact handler cannot reconfigure the collider it was raised for. <see cref="Enabled"/>,
+/// <see cref="Offset"/>, <see cref="Layer"/>, <see cref="ReportsContacts"/>, <see cref="SetFilter"/>
+/// and a subclass's shape all throw for the length of the dispatch. A handler may detach the
+/// collider. Detaching removes it from the world, raises the exits it owes, and cancels the
+/// remaining enters for this step.
 /// </para>
 /// </summary>
 public abstract class Collider2D : Component
@@ -31,7 +29,7 @@ public abstract class Collider2D : Component
 
     private Shape2D _shape;
 
-    // The shape as the world holds it: this shape at this offset.
+    // The shape translated by the offset. This is the form the world holds.
     private Shape2D _local;
     private Vector2 _offset;
     private string _layer = CollisionWorld2D.DefaultLayerName;
@@ -48,18 +46,16 @@ public abstract class Collider2D : Component
     private int _touchingCount;
     private int _wasTouchingCount;
 
-    // How many entries at the head of _touching have been announced through ContactEntered, and so
-    // are owed a ContactExited. SettleContacts orders carried-over contacts first, which is what
-    // keeps the announced set a prefix while the enter loop walks the new ones.
+    // How many entries at the head of _touching have been raised through ContactEntered and are now
+    // owed a ContactExited. Carried-over contacts settle first, so the announced entries stay at the
+    // head while the enter loop walks the new ones.
     private int _announcedCount;
 
-    // True while this collider's own enter and exit handlers are running. Each dispatch scope
-    // restores the value it found rather than clearing: a handler that detaches this collider
-    // dispatches its exits from inside the outer dispatch, which stays armed across that.
+    // True while this collider's own enter and exit handlers are running.
     private bool _dispatching;
 
-    /// <summary>The shape this collider starts out holding, expressed relative to the entity's position.</summary>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, which is no shape at all.</exception>
+    /// <summary>The collider's starting shape, expressed relative to the entity's position.</summary>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/> with no points.</exception>
     protected Collider2D(in Shape2D shape)
     {
         RequireShape(shape);
@@ -69,56 +65,48 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Raised for each thing this collider began touching since the previous step, in the order an
-    /// overlap query would return them. A handler may not reconfigure the collider it is raised
-    /// for; it may detach it, which ends the dispatch, leaving the contacts the loop had not
-    /// reached unannounced.
+    /// Raised for each thing this collider began touching since the previous step, in overlap-query
+    /// order. A handler may not reconfigure the collider. A handler that detaches it ends the
+    /// dispatch, and the contacts the loop had not reached go unannounced.
     /// </summary>
     public event Action<ColliderContact2D>? ContactEntered;
 
     /// <summary>
     /// Raised for each thing this collider stopped touching since the previous step, and for
-    /// everything it had announced entering when it left its scene, was disabled, stopped
-    /// reporting contacts, or was detached from its entity. Exits come in <see cref="Touching"/>
-    /// order, and handlers are bound by the same rule as <see cref="ContactEntered"/>. The pairing
-    /// is exact for handlers that return; one that throws leaves the exits owed behind it unraised.
+    /// everything it had announced entering when it left its scene, was disabled, stopped reporting
+    /// contacts, or was detached from its entity. Exits come in <see cref="Touching"/> order. Each
+    /// enter is paired with one exit, provided the handlers return normally.
     /// </summary>
     public event Action<ColliderContact2D>? ContactExited;
 
-    /// <summary>The shape, in the collider's own space; <see cref="Offset"/> and the entity's position place it.</summary>
+    /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
     public Shape2D Shape => _shape;
 
-    // The shape at its offset, which the world translates by the entity's position.
+    // The shape at its offset. The world translates this by the entity's position.
     internal Shape2D Local => _local;
 
-    // The shape exactly as the world holds it: the local shape translated by the entity's settled
-    // position, the world's own two translations in its order.
-    private protected Shape2D WorldShape => _local.Translated(Entity!.WorldPosition);
+    // The shape at its current place in the world.
+    private protected Shape2D WorldShape =>
+        Entity is { } entity
+            ? _local.Translated(entity.WorldPosition)
+            : throw new InvalidOperationException("This Collider2D is attached to no entity. Attach it before asking where its shape sits.");
 
-    // The channel's colour, or, while disabled, that colour at half alpha, so a collider that is
-    // not working is still seen.
+    // Null to use the channel's colour. A disabled collider draws in that colour at half alpha.
     private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
 
     private protected Vector2 Motion => Entity!.WorldPosition - Entity.PreviousWorld.Position;
 
     private protected static Rect Edges(in Aabb2D box) => new(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y);
 
-    /// <summary>Added to the entity's position to place the shape; zero by default.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>
+    /// <summary>Added to the entity's position to place the shape. Zero by default.</summary>
     /// <exception cref="ArgumentException">The shape cannot be placed at this offset.</exception>
-    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public Vector2 Offset
     {
         get => _offset;
         set
         {
             RequireNotDispatching();
-
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "A collider's offset must be finite.");
-            }
-
+            Guard.Finite(value, nameof(value));
             RequirePlaceable(_shape, value);
 
             _offset = value;
@@ -131,7 +119,6 @@ public abstract class Collider2D : Component
     /// Whether this collider participates in its scene's collision world. A disabled collider
     /// remains attached to its entity but cannot be hit, queried, or report contacts.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public bool Enabled
     {
         get => _enabled;
@@ -163,10 +150,9 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Whether contacts are settled each step and announced through <see cref="ContactEntered"/>
     /// and <see cref="ContactExited"/>. Off by default. Turning it off raises
-    /// <see cref="ContactExited"/> for every announced contact before returning; turning it on
+    /// <see cref="ContactExited"/> for every announced contact before returning. Turning it on
     /// announces afresh on the next step.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
     public bool ReportsContacts
     {
         get => _reportsContacts;
@@ -197,31 +183,31 @@ public abstract class Collider2D : Component
         }
     }
 
-    // The world this collider is registered with, or null while disabled or in no scene. Game code
-    // reaches the same world through Scene.Collision, so this is the engine's own shortcut and stays
-    // out of the API reference: a doc comment here would ship in the XML a consumer reads.
-    internal CollisionWorld2D? World => _world;
+    /// <summary>
+    /// The collision world this collider is registered with, or null while it is disabled or in no
+    /// scene. This is the world the scene exposes as <see cref="Scene.Collision"/>.
+    /// </summary>
+    public CollisionWorld2D? World => _world;
 
     /// <summary>
-    /// This collider's identity in its scene's <see cref="Scene.Collision"/> world;
-    /// <see cref="ColliderHandle.None"/> while it is disabled or in no scene.
+    /// This collider's identity in its scene's <see cref="Scene.Collision"/> world. Reads
+    /// <see cref="ColliderHandle.None"/> while the collider is disabled or in no scene.
     /// </summary>
     public ColliderHandle Handle => _handle;
 
     /// <summary>
-    /// What this collider's contact queries may detect, in its scene's <see cref="Scene.Collision"/>
-    /// world's terms. Rebuilt from the names given to <see cref="SetFilter"/> each time the collider
-    /// joins a scene, so one carried between scenes filters against the world it is in; None while
-    /// it is in none.
+    /// The layers this collider's contact queries may detect, resolved against its scene's
+    /// <see cref="Scene.Collision"/> world. The engine rebuilds it from the names given to
+    /// <see cref="SetFilter"/> each time the collider joins a scene, so the filter always matches the
+    /// world the collider is in. Reads None while it is in no scene.
     /// </summary>
     public CollisionFilter Filter { get; private set; }
 
     /// <summary>
-    /// The layer this collider is on, which is what other queries' filters match. Defaults to
+    /// The layer this collider is on. Other queries' filters match against it. Defaults to
     /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
     /// </summary>
-    /// <exception cref="ArgumentException">The name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world cannot intern the name, or contacts are being dispatched.</exception>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
     public string Layer
     {
         get => _layer;
@@ -232,8 +218,8 @@ public abstract class Collider2D : Component
 
             if (_scene?.Collision is { } world)
             {
-                // Interned first: a world with no layer slots left refuses the name here, while the
-                // collider is still filtering by the one it had.
+                // Intern first. A world with no layer slots left throws here, while the collider
+                // still holds its old layer.
                 CollisionLayer layer = world.Layer(value);
 
                 _layer = value;
@@ -251,46 +237,30 @@ public abstract class Collider2D : Component
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
-    public Aabb2D Bounds =>
-        Entity is { } entity
-            ? _local.Translated(entity.WorldPosition).Bounds
-            : throw new InvalidOperationException("A Collider2D that is attached to no entity has no place in the world.");
+    public Aabb2D Bounds => WorldShape.Bounds;
 
     /// <summary>
-    /// Everything this collider was touching as of the last step, while
-    /// <see cref="ReportsContacts"/> is on; empty otherwise. Never abridged, and ordered
-    /// carried-over contacts first, then newly entered ones, each group in overlap-query order.
-    /// Mid-dispatch it can hold contacts whose <see cref="ContactEntered"/> has not been raised:
-    /// the enter/exit pairing is a promise about the events, not about this span.
+    /// Everything this collider was touching as of the last step while <see cref="ReportsContacts"/>
+    /// is on, and empty otherwise. Carried-over contacts come first, then newly entered ones, each
+    /// group in overlap-query order. During a dispatch the span can already hold contacts whose
+    /// <see cref="ContactEntered"/> has not been raised. The enter and exit pairing is a guarantee
+    /// about the events, not about this span.
     /// </summary>
     public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
 
     /// <summary>
-    /// Replaces what this collider's contact queries detect. Detection does not block movement;
-    /// <see cref="KinematicBody2D.BlocksOn"/> owns that independent filter.
+    /// Replaces the layers this collider's contact queries detect. Detection does not block movement.
+    /// <see cref="KinematicBody2D.BlocksOn"/> holds a separate filter for blocking.
     /// </summary>
-    /// <param name="names">The layer names to hit; an empty list hits nothing.</param>
-    /// <exception cref="ArgumentException">A name is null, empty or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The world cannot intern a name, or contacts are being dispatched.</exception>
+    /// <param name="names">The layer names to hit. An empty list hits nothing.</param>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
     public void SetFilter(params ReadOnlySpan<string> names)
     {
         RequireNotDispatching();
 
-        // Every name is checked, and every one interned, before the list this collider filters by
-        // is touched: a bad name half way along must leave the old list intact.
-        foreach (string name in names)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
-        }
-
-        CollisionFilter filter = CollisionFilter.None;
-        if (_scene?.Collision is { } world)
-        {
-            foreach (string name in names)
-            {
-                filter = filter.With(world.Layer(name));
-            }
-        }
+        // Resolve before touching the stored list. A bad name part way along leaves the old list
+        // intact.
+        CollisionFilter filter = ResolveFilter(_scene?.Collision, names);
 
         _detects.Clear();
         foreach (string name in names)
@@ -306,32 +276,31 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Everything this collider is touching right now — within
-    /// <see cref="CollisionWorld2D.ContactSkin"/>, matching <see cref="Filter"/>, never itself —
-    /// written into <paramref name="contacts"/>.
+    /// Writes into <paramref name="contacts"/> everything within
+    /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that matches
+    /// <see cref="Filter"/>. The collider never reports itself.
     /// </summary>
-    /// <returns>How many contacts were written, never more than <paramref name="contacts"/> holds.</returns>
-    /// <exception cref="InvalidOperationException">The collider is in no scene.</exception>
-    public int OverlapAll(Span<Contact2D> contacts) => RequireWorld().OverlapColliderAll(_handle, contacts);
+    /// <returns>
+    /// The total overlap count. A span shorter than that count is filled to capacity and the
+    /// remaining overlaps are counted but not written.
+    /// </returns>
+    public int OverlapAll(Span<Contact2D> contacts) => RequireWorld().OverlapColliderAll(_handle, Filter, contacts);
 
     /// <summary>
-    /// Whether this collider is touching <paramref name="other"/> — within
-    /// <see cref="CollisionWorld2D.ContactSkin"/> of it. An explicit pair test: neither collider's
-    /// <see cref="Filter"/> is consulted, because the caller named both. A collider never touches
-    /// itself, and one that is disabled or in no scene is touching nothing.
+    /// Reports whether this collider is within <see cref="CollisionTolerance.ContactSkin"/> of
+    /// <paramref name="other"/>. This is an explicit pair test, so neither collider's
+    /// <see cref="Filter"/> applies. A collider never touches itself, and a disabled collider or one
+    /// in no scene touches nothing.
     /// </summary>
     /// <param name="other">The collider to test against.</param>
     /// <returns>Whether the two are touching.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
-    /// <exception cref="InvalidOperationException">This collider is disabled or in no scene.</exception>
     public bool Overlaps(Collider2D other) => Overlaps(other, out _);
 
     /// <summary>
-    /// Where this collider touches <paramref name="other"/>, written to
-    /// <paramref name="contact"/>; bound in every other way by <see cref="Overlaps(Collider2D)"/>.
-    /// The contact describes <paramref name="other"/>'s surface, exactly as an overlap query over
-    /// the same pair would.
+    /// Writes where this collider touches <paramref name="other"/> to <paramref name="contact"/>.
+    /// All other rules of <see cref="Overlaps(Collider2D)"/> apply. The contact describes
+    /// <paramref name="other"/>'s surface, matching what an overlap query over the same pair reports.
     /// </summary>
     public bool Overlaps(Collider2D other, out Contact2D contact)
     {
@@ -340,8 +309,7 @@ public abstract class Collider2D : Component
         CollisionWorld2D world = RequireWorld();
         contact = default;
 
-        // A collider outside a world is not in the world's terms at all, which is how every other
-        // query already treats a disabled one: it is simply not there to be met.
+        // A collider outside a world touches nothing, as in every other query.
         if (ReferenceEquals(other, this) || other._world is not { } theirs)
         {
             return false;
@@ -350,38 +318,35 @@ public abstract class Collider2D : Component
         if (!ReferenceEquals(theirs, world))
         {
             throw new ArgumentException(
-                "The other collider is registered with another collision world; a pair test compares two shapes in one world, and these stand in different ones.",
+                "The other collider belongs to a different collision world. Test colliders that share a scene.",
                 nameof(other));
         }
 
-        return world.OverlapPair(_handle, other._handle, out contact);
+        return world.OverlapPair(_handle, other._handle, CollisionFilter.Everything, out contact);
     }
 
     /// <summary>
-    /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, under
-    /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit, breaking ties
-    /// as <see cref="CollisionWorld2D.Raycast"/> does.
+    /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, using
+    /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit and breaks ties
+    /// the way <see cref="CollisionWorld2D.Raycast"/> does.
     /// </summary>
-    /// <param name="direction">Which way to look; normalised here, so any non-zero length will do.</param>
+    /// <param name="direction">Which way to look. The method normalises it, so any non-zero length works.</param>
     /// <param name="distance">How far to look, in world units.</param>
-    /// <param name="hit">The nearest thing met, when there is one.</param>
-    /// <returns>Whether the ray met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The direction is zero or not finite, or the distance is not positive and finite.</exception>
-    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    /// <param name="hit">The nearest hit, when there is one.</param>
+    /// <returns>Whether the ray hit anything.</returns>
     public bool Raycast(Vector2 direction, float distance, out RayHit2D hit) =>
         Raycast(direction, distance, Filter, out hit);
 
     /// <summary>
     /// Casts a ray against <paramref name="filter"/> instead of <see cref="Filter"/>, for this call
-    /// alone — <see cref="CollisionFilter.None"/> hits nothing and <see cref="SetFilter"/> is
-    /// untouched. Bound in every other way by
-    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/>.
+    /// only. <see cref="CollisionFilter.None"/> hits nothing, and this does not change
+    /// <see cref="SetFilter"/>. All other rules of
+    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
     /// </summary>
-    /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
-        // The world admits a zero distance; a ray of no length out of a collider that ignores itself
-        // could only ever answer false, so it is a caller's mistake rather than a query.
+        // The world allows a zero distance, but a zero-length ray from a collider that ignores itself
+        // always returns false. Reject it as a caller mistake.
         if (!float.IsFinite(distance) || distance <= 0f)
         {
             throw new ArgumentOutOfRangeException(nameof(distance), distance, "A collider's ray must reach a finite, positive distance.");
@@ -393,35 +358,30 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Sweeps this collider's own shape from where it stands along <paramref name="translation"/>
-    /// and reports the first thing it meets, under <see cref="Filter"/> and never itself. Nothing
-    /// moves. A surface already being touched is reported at fraction 0 when the sweep drives into
-    /// it, and passed by when the sweep runs along it or away from it.
+    /// Sweeps this collider's shape from its current place along <paramref name="translation"/> and
+    /// reports the first thing it hits, using <see cref="Filter"/> and never itself. Nothing moves. A
+    /// surface the collider already touches reports at fraction 0 when the sweep drives into it, and
+    /// is ignored when the sweep runs along it or away from it.
     /// </summary>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
-    /// <param name="hit">The nearest thing met, when there is one.</param>
-    /// <returns>Whether the sweep met anything.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The translation, or the box the sweep covers, is not finite.</exception>
-    /// <exception cref="InvalidOperationException">The collider is disabled or in no scene.</exception>
+    /// <param name="hit">The nearest hit, when there is one.</param>
+    /// <returns>Whether the sweep hit anything.</returns>
     public bool Cast(Vector2 translation, out ShapeCastHit2D hit) => Cast(translation, Filter, out hit);
 
     /// <summary>
-    /// Sweeps this collider's own shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call alone — <see cref="CollisionFilter.None"/> hits nothing
-    /// and <see cref="SetFilter"/> is untouched. Bound in every other way by
-    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/>.
+    /// Sweeps this collider's shape against <paramref name="filter"/> instead of
+    /// <see cref="Filter"/>, for this call only. <see cref="CollisionFilter.None"/> hits nothing, and
+    /// this does not change <see cref="SetFilter"/>. All other rules of
+    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
     /// </summary>
-    /// <exception cref="ArgumentException">The filter was built from another collision world's layers.</exception>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
 
     /// <summary>
-    /// Takes <paramref name="shape"/> as the collider's shape and resyncs whatever world holds it,
-    /// so a registered collider is queried as its new shape from the moment the call returns. A
-    /// refusal leaves the collider exactly as it was.
+    /// Replaces the collider's shape with <paramref name="shape"/> and updates the world holding it,
+    /// so queries see the new shape as soon as this returns. A throw leaves the collider unchanged.
     /// </summary>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or is unplaceable here.</exception>
-    /// <exception cref="InvalidOperationException">The collider's contacts are being dispatched.</exception>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or cannot be placed at the current offset.</exception>
     protected void SetShape(in Shape2D shape)
     {
         RequireNotDispatching();
@@ -435,8 +395,8 @@ public abstract class Collider2D : Component
 
     internal sealed override TransformSupport Supports => TransformSupport.Position;
 
-    // Re-attaching mid-dispatch would put the collider back in the world, where whether it settles
-    // again this step depends on where the next reporting collider sits in the scene's list.
+    // Re-attaching during a dispatch would put the collider back in the world, and whether it
+    // settled again this step would depend on its position in the scene's list.
     internal override void OnAttachedTo(Entity entity)
     {
         if (_dispatching)
@@ -448,11 +408,11 @@ public abstract class Collider2D : Component
         entity.TrackMovement(1);
     }
 
-    // No dispatch guard: a handler detaching its own collider is legal, and by the time this runs
+    // No dispatch guard here, because a handler may detach its own collider. By the time this runs,
     // Entity.Remove has already taken the collider out of the world through LeaveScene.
     internal override void OnDetachingFrom(Entity entity) => entity.TrackMovement(-1);
 
-    // What every collider reports; a subclass adds its shape after calling this.
+    // The rows every collider reports. A subclass adds its shape rows after calling this.
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
@@ -466,7 +426,7 @@ public abstract class Collider2D : Component
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
-        _scene = Entity!.Scene!;
+        _scene = Entity!.Scene;
         if (_enabled)
         {
             Register();
@@ -484,7 +444,7 @@ public abstract class Collider2D : Component
     {
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
-        CollisionFilter filter = ResolveFilter(world, _detects);
+        CollisionFilter filter = ResolveFilter(world, CollectionsMarshal.AsSpan(_detects));
         ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, world.Layer(_layer), filter, this);
 
         _world = world;
@@ -514,9 +474,9 @@ public abstract class Collider2D : Component
         EndAnnouncedContacts();
     }
 
-    // Ends every announced contact and only those, leaving this collider holding none. The counts
-    // are cleared before the first handler runs: a handler that detaches the collider from in here
-    // finds nothing left owing rather than exiting the same contacts twice.
+    // Raises an exit for each announced contact and leaves the collider holding none. The counts are
+    // cleared before the first handler runs, and a handler that detaches from in here finds nothing
+    // owed and cannot exit the same contact twice.
     private void EndAnnouncedContacts()
     {
         ColliderContact2D[] announced = _touching;
@@ -526,7 +486,6 @@ public abstract class Collider2D : Component
         _wasTouchingCount = 0;
         _announcedCount = 0;
 
-        bool wasDispatching = _dispatching;
         _dispatching = true;
         try
         {
@@ -537,7 +496,7 @@ public abstract class Collider2D : Component
         }
         finally
         {
-            _dispatching = wasDispatching;
+            _dispatching = false;
         }
     }
 
@@ -550,27 +509,21 @@ public abstract class Collider2D : Component
             return;
         }
 
-        // Widened and re-asked until the answer fits, because a truncated gather is a contact
-        // silently never entered and later never exited.
-        int count = world.OverlapColliderAll(_handle, _found);
-        while (count == _found.Length)
+        // Grow the buffer to the reported count and query again, because a truncated gather would
+        // silently drop a contact's enter and its later exit.
+        int count = world.OverlapColliderAll(_handle, Filter, _found);
+        if (count > _found.Length)
         {
-            Array.Resize(ref _found, _found.Length * 2);
-            count = world.OverlapColliderAll(_handle, _found);
+            Array.Resize(ref _found, count);
+            count = world.OverlapColliderAll(_handle, Filter, _found);
         }
 
         (_touching, _wasTouching) = (_wasTouching, _touching);
         _wasTouchingCount = _touchingCount;
 
-        // Carried-over contacts were announced last step and are owed an exit from here on;
-        // everything after them owes nothing until the enter loop announces it, one at a time.
-        _touchingCount = DescribeCarriedFirst(
-            world,
-            _found.AsSpan(0, count),
-            ref _touching,
-            _wasTouching,
-            _wasTouchingCount,
-            out int carried);
+        // Carried-over contacts were announced last step and are owed an exit from here on. The
+        // contacts after them owe nothing until the enter loop announces each one.
+        _touchingCount = SettleCarriedFirst(world, _found.AsSpan(0, count), out int carried);
         _announcedCount = carried;
 
         ColliderContact2D[] entered = _touching;
@@ -578,13 +531,12 @@ public abstract class Collider2D : Component
         ColliderContact2D[] left = _wasTouching;
         int leftCount = _wasTouchingCount;
 
-        bool wasDispatching = _dispatching;
         _dispatching = true;
         try
         {
-            // Exits before enters, so a handler reading Touching sees the settled set either way.
-            // This loop runs to the end even if a handler detaches the collider: its contacts and
-            // the unregister sweep's are disjoint, so nothing is exited twice or dropped.
+            // Exits run before enters, and a handler reading Touching sees the settled set. This loop
+            // finishes even if a handler detaches the collider. These contacts and the unregister
+            // sweep's are disjoint, so nothing exits twice and nothing is dropped.
             for (int index = 0; index < leftCount; index++)
             {
                 if (!Holds(entered, enteredCount, left[index].Target))
@@ -595,76 +547,57 @@ public abstract class Collider2D : Component
 
             for (int index = carried; index < enteredCount; index++)
             {
-                // Re-read after every handler: one that detached this collider took it out of the
-                // world and swept the exits it owed, so it has nothing left to enter.
-                if (_world is null || _announcedCount != index)
+                // A handler detached this collider, which removed it from the world and raised the
+                // exits it owed. Nothing is left to enter.
+                if (_world is null)
                 {
                     break;
                 }
 
-                // Announced before the handler runs, so a handler that detaches from inside it
-                // still counts this contact among the ones owed an exit.
+                // Count the contact before the handler runs, and a handler that detaches from inside
+                // it still sees this contact as owed an exit.
                 _announcedCount = index + 1;
                 ContactEntered?.Invoke(entered[index]);
             }
         }
         finally
         {
-            // A handler that threw leaves the tail of the settled set unannounced. Forgetting it
-            // here is what keeps the pairing exact: carried into the next step it would count as
-            // announced, and could be given an exit for a contact that never entered.
-            if (_touchingCount > _announcedCount)
-            {
-                _touchingCount = _announcedCount;
-            }
-
-            _dispatching = wasDispatching;
+            _dispatching = false;
         }
     }
 
-    // One pass over the gather rather than a scratch buffer: carried contacts are written forward
-    // from the head and new ones backward from the tail, whose order is then put back. Stable
-    // within each group.
-    private static int DescribeCarriedFirst(
-        CollisionWorld2D world,
-        ReadOnlySpan<Contact2D> found,
-        ref ColliderContact2D[] into,
-        ColliderContact2D[] previous,
-        int previousCount,
-        out int carried)
+    // Writes the gather into _touching, putting contacts carried over from the previous step first and
+    // keeping query order within each group, so the announced contacts stay at the head.
+    private int SettleCarriedFirst(CollisionWorld2D world, ReadOnlySpan<Contact2D> found, out int carried)
     {
-        if (into.Length < found.Length)
+        if (_touching.Length < found.Length)
         {
-            Array.Resize(ref into, found.Length);
+            Array.Resize(ref _touching, found.Length);
         }
 
-        int head = 0;
-        int tail = found.Length;
+        int next = 0;
         for (int index = 0; index < found.Length; index++)
         {
-            ColliderContact2D described = Describe(world, found[index]);
-            if (Holds(previous, previousCount, found[index].Target))
+            if (Holds(_wasTouching, _wasTouchingCount, found[index].Target))
             {
-                into[head++] = described;
-            }
-            else
-            {
-                into[--tail] = described;
+                _touching[next++] = Describe(world, found[index]);
             }
         }
 
-        carried = head;
-
-        for (int left = head, right = found.Length - 1; left < right; left++, right--)
+        carried = next;
+        for (int index = 0; index < found.Length; index++)
         {
-            (into[left], into[right]) = (into[right], into[left]);
+            if (!Holds(_wasTouching, _wasTouchingCount, found[index].Target))
+            {
+                _touching[next++] = Describe(world, found[index]);
+            }
         }
 
-        return found.Length;
+        return next;
     }
 
-    // The shape as the world would have to hold it, checked before anything is committed, so an
-    // unplaceable offset is refused where it is set rather than as a failure to join a scene.
+    // Builds the shape the way the world would hold it before anything is committed. An offset that
+    // cannot be placed throws here instead of later, when the entity joins a scene.
     private void RequirePlaceable(in Shape2D shape, Vector2 offset)
     {
         Shape2D local = shape.Translated(offset);
@@ -689,7 +622,7 @@ public abstract class Collider2D : Component
         if (shape.PointCount == 0)
         {
             throw new ArgumentException(
-                "A default Shape2D holds no points and is not a shape; build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
+                "A default Shape2D holds no points. Build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
                 parameterName);
         }
     }
@@ -746,13 +679,23 @@ public abstract class Collider2D : Component
             cell);
     }
 
-    // Interning as it goes: a name the world has no room for is refused here.
-    internal static CollisionFilter ResolveFilter(CollisionWorld2D world, List<string> names)
+    // Resolves layer names to a filter in this world, interning each name as it goes, because a
+    // collider may name a layer no other collider has registered yet. A name the world has no room
+    // for throws here. A null world resolves nothing, so the result is None.
+    internal static CollisionFilter ResolveFilter(CollisionWorld2D? world, ReadOnlySpan<string> names)
     {
-        CollisionFilter filter = CollisionFilter.None;
         foreach (string name in names)
         {
-            filter = filter.With(world.Layer(name));
+            ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
+        }
+
+        CollisionFilter filter = CollisionFilter.None;
+        if (world is { } present)
+        {
+            foreach (string name in names)
+            {
+                filter = filter.With(present.Layer(name));
+            }
         }
 
         return filter;
@@ -769,5 +712,5 @@ public abstract class Collider2D : Component
 
     private CollisionWorld2D RequireWorld() =>
         _world ?? throw new InvalidOperationException(
-            "A disabled Collider2D, or one that is in no scene, has no world to query; enable it and add its entity to a scene first.");
+            "This Collider2D is disabled or in no scene, so it has no world to query. Enable it and add its entity to a scene.");
 }

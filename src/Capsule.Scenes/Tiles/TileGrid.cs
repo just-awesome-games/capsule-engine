@@ -8,28 +8,27 @@ namespace Capsule.Tiles;
 /// <summary>A validated rectangular grid of palette indices.</summary>
 public sealed class TileGrid
 {
-    /// <summary>The palette entry at index 0, meaning "no tile here". Reserved; never a game's tile type.</summary>
+    /// <summary>The palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
     public const string EmptyTileType = "empty";
 
     private readonly TileDefinition[] _tileTypes;
     private readonly int[] _tiles;
 
-    // One frame per palette entry, cut once so drawing a cell is a table lookup rather than
-    // arithmetic per tile. Null where a tile type draws nothing.
+    // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
+    // per tile. An entry is null when its tile type draws nothing.
     private readonly Sprite?[] _sprites;
 
-    /// <param name="tileSize">The edge length of one tile; see <see cref="TileSize"/>.</param>
+    /// <param name="tileSize">The edge length of one tile. See <see cref="TileSize"/>.</param>
     /// <param name="width">Grid width in tiles.</param>
     /// <param name="height">Grid height in tiles.</param>
     /// <param name="tileTypes">The palette, starting with <see cref="EmptyTile"/>.</param>
     /// <param name="tiles">Palette indices, row-major, <paramref name="width"/> * <paramref name="height"/> of them.</param>
     /// <param name="texture">The texture every drawn tile is cut from, or null for a grid that draws nothing.</param>
     /// <param name="columns">
-    /// How many cells wide <paramref name="texture"/> is, which turns a cell number into a source
-    /// region. At least 1 when a texture is named, and 0 when none is.
+    /// How many cells wide <paramref name="texture"/> is. This turns a cell number into a source
+    /// region. Pass at least 1 with a texture, and 0 without one.
     /// </param>
-    /// <exception cref="ArgumentException">Some invariant of the grid is broken; the message names the defect.</exception>
-    /// <exception cref="ArgumentNullException"><paramref name="tileTypes"/> is null. <paramref name="tiles"/> is null.</exception>
+    /// <exception cref="ArgumentException">The grid is malformed. The message names the defect.</exception>
     public TileGrid(
         int tileSize,
         int width,
@@ -59,8 +58,8 @@ public sealed class TileGrid
     public static TileDefinition EmptyTile => new(EmptyTileType, null);
 
     /// <summary>
-    /// The edge length of one tile in world units, which is also its edge in atlas pixels: the two
-    /// are equal by construction. Supplied by the grid; the engine has no opinion.
+    /// The edge length of one tile in world units, which also equals its edge in atlas pixels. The grid
+    /// supplies this value and the engine does not constrain it.
     /// </summary>
     public int TileSize { get; }
 
@@ -70,12 +69,12 @@ public sealed class TileGrid
     /// <summary>Grid height in tiles.</summary>
     public int Height { get; }
 
-    /// <summary>The texture every drawn tile is cut from, or null where no tile type draws.</summary>
+    /// <summary>The texture every drawn tile is cut from, or null when no tile type draws.</summary>
     public TextureHandle? Texture { get; }
 
     /// <summary>
-    /// How many cells wide <see cref="Texture"/> is; 0 where the grid has none. A cell number runs
-    /// across a row of this many and then down.
+    /// How many cells wide <see cref="Texture"/> is, or 0 when the grid has no texture. Cell numbers run
+    /// across a row of this many and then wrap to the next row.
     /// </summary>
     public int Columns { get; }
 
@@ -85,7 +84,7 @@ public sealed class TileGrid
     /// <summary>Palette indices, row-major, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
 
-    /// <summary>Whether any palette entry is on a layer, so the grid is worth a collider at all.</summary>
+    /// <summary>Whether any palette entry is on a layer. A grid with none needs no collider.</summary>
     public bool Collides
     {
         get
@@ -102,14 +101,13 @@ public sealed class TileGrid
         }
     }
 
-    // Handed to a tilemap collider, which reads it rather than copying it: a room-scale grid is
-    // tens of thousands of ints.
+    // Handed to a tilemap collider, which reads this array in place instead of copying it, because a
+    // room-scale grid holds tens of thousands of ints.
     internal int[] Cells => _tiles;
 
     internal ReadOnlySpan<Sprite?> Sprites => _sprites;
 
-    /// <summary>The palette index at a tile coordinate; 0 where the grid is empty.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
+    /// <summary>Returns the palette index at a tile coordinate, and 0 where the grid is empty.</summary>
     public int TileAt(int x, int y)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(x);
@@ -120,8 +118,7 @@ public sealed class TileGrid
         return _tiles[(y * Width) + x];
     }
 
-    /// <summary>The tile type name at a tile coordinate; <see cref="EmptyTileType"/> where the grid is empty.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The coordinate is off the grid.</exception>
+    /// <summary>Returns the tile type name at a tile coordinate, and <see cref="EmptyTileType"/> where the grid is empty.</summary>
     public string TileTypeAt(int x, int y) => _tileTypes[TileAt(x, y)].Type;
 
     private void Validate()
@@ -154,7 +151,7 @@ public sealed class TileGrid
                 ? "an empty palette"
                 : $"\"{_tileTypes[0].Type}\" with cell {_tileTypes[0].Cell?.ToString() ?? "none"} and layer {_tileTypes[0].Layer ?? "none"}";
             throw Malformed(
-                $"tileTypes[0] must be \"{EmptyTileType}\" with no cell and no layer, not {actual}.",
+                $"tileTypes[0] is {actual}. Make it \"{EmptyTileType}\" with no cell and no layer.",
                 "tileTypes");
         }
 
@@ -165,23 +162,23 @@ public sealed class TileGrid
 
             if (string.IsNullOrWhiteSpace(definition.Type))
             {
-                throw Malformed($"tileTypes[{i}] is blank; every tile type must be named.", "tileTypes");
+                throw Malformed($"tileTypes[{i}] is blank. Name every tile type.", "tileTypes");
             }
 
             if (!seen.Add(definition.Type))
             {
-                throw Malformed($"tileTypes[{i}] repeats \"{definition.Type}\"; tile type names must be unique.", "tileTypes");
+                throw Malformed($"tileTypes[{i}] repeats \"{definition.Type}\". Give every tile type a unique name.", "tileTypes");
             }
 
             if (definition.Cell is { } cell && cell < 0)
             {
-                throw Malformed($"tileTypes[{i}] draws cell {cell}; a cell is counted from 0.", "tileTypes");
+                throw Malformed($"tileTypes[{i}] draws cell {cell}. Count cells from 0.", "tileTypes");
             }
 
             if ((definition.CollidableFaces & ~CellFaces2D.All) != 0)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares collidableFaces {(int)definition.CollidableFaces}, which is not a combination of the four sides a tile has.",
+                    $"tileTypes[{i}] declares collidableFaces {(int)definition.CollidableFaces}. Use a combination of the four tile sides.",
                     "tileTypes");
             }
 
@@ -189,28 +186,29 @@ public sealed class TileGrid
             {
                 if (string.IsNullOrWhiteSpace(layer))
                 {
-                    throw Malformed($"tileTypes[{i}] has a blank layer; a tile that collides names the layer it is on.", "tileTypes");
+                    throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
                 }
 
-                // A tile on a layer with no face collides with nothing, which is a mistake rather
-                // than a spelling of "decoration": that is written by naming no layer.
+                // A tile on a layer with no faces collides with nothing, which is a mistake.
+                // Decoration names no layer instead.
                 if (definition.CollidableFaces == CellFaces2D.None)
                 {
                     throw Malformed(
-                        $"tileTypes[{i}] is on a layer but has no collidableFaces; a tile that collides needs at least one face, and one that collides as nothing names no layer.",
+                        $"tileTypes[{i}] is on a layer but has no collidableFaces. Give it at least one face, or drop the layer if it should not collide.",
                         "tileTypes");
                 }
             }
             else if (definition.CollidableFaces != CellFaces2D.All)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares collidableFaces but no layer; a tile that collides as nothing has no sides to declare.",
+                    $"tileTypes[{i}] declares collidableFaces but no layer, so it collides as nothing; add a layer, or drop the faces.",
                     "tileTypes");
             }
         }
     }
 
-    // Strict both ways: either of cell and texture without the other is a half-written grid.
+    // Checks both directions, because a cell without a texture or a texture without a cell is a
+    // half-written grid.
     private void ValidateTexture()
     {
         int drawn = 0;
@@ -226,7 +224,7 @@ public sealed class TileGrid
             if (Texture is null)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] draws cell {_tileTypes[i].Cell}, but the grid names no texture to cut it from.",
+                    $"tileTypes[{i}] draws cell {_tileTypes[i].Cell} but the grid names no texture. Give the grid a texture to cut from.",
                     "tileTypes");
             }
         }
@@ -236,7 +234,7 @@ public sealed class TileGrid
             if (Columns != 0)
             {
                 throw Malformed(
-                    $"columns is {Columns} on a grid that names no texture; columns counts the cells across the texture a grid draws from.",
+                    $"columns is {Columns} on a grid that names no texture. Set columns to 0, or name a texture.",
                     "columns");
             }
 
@@ -246,7 +244,7 @@ public sealed class TileGrid
         if (drawn == 0)
         {
             throw Malformed(
-                $"the grid names texture \"{Texture.Value.Name}\" but no tile type draws a cell of it.",
+                $"the grid names texture \"{Texture.Value.Name}\" but no tile type draws a cell of it. Give a tile type a cell, or drop the texture.",
                 "texture");
         }
 
@@ -260,8 +258,8 @@ public sealed class TileGrid
         ValidateCellRegions();
     }
 
-    // Widened to long, and only once columns is known positive: a cell far enough down the atlas
-    // overflows int, and the wrapped coordinate would silently cut the wrong region.
+    // Computes in long, and runs only after columns is known positive, because a cell far enough down
+    // the atlas overflows int and the wrapped coordinate would cut the wrong region.
     private void ValidateCellRegions()
     {
         for (int i = 0; i < _tileTypes.Length; i++)
@@ -277,7 +275,7 @@ public sealed class TileGrid
             if (x + TileSize > int.MaxValue || y + TileSize > int.MaxValue)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] (\"{_tileTypes[i].Type}\") draws cell {cell}, whose source region starts at ({x}, {y}) texels across {Columns} columns of {TileSize}px — further than a texture coordinate reaches.",
+                    $"tileTypes[{i}] (\"{_tileTypes[i].Type}\") draws cell {cell}, whose source region starts at ({x}, {y}) texels across {Columns} columns of {TileSize}px, beyond the reach of a texture coordinate. Lower the cell number or the tile size.",
                     "tileTypes");
             }
         }
@@ -285,7 +283,7 @@ public sealed class TileGrid
 
     private void ValidateTiles()
     {
-        // Widened to long: an int product wraps, and 65536 x 65536 wrapping to 0 would let an
+        // Computes in long, because an int product wraps and 65536 x 65536 wrapping to 0 would let an
         // empty tiles array pass here and fail later inside TileAt.
         long expected = (long)Width * Height;
         if (_tiles.Length != expected)
@@ -300,7 +298,7 @@ public sealed class TileGrid
             if (_tiles[i] < 0 || _tiles[i] >= _tileTypes.Length)
             {
                 throw Malformed(
-                    $"tiles[{i}] is {_tiles[i]}, which is not a tileTypes index (0..{_tileTypes.Length - 1}).",
+                    $"tiles[{i}] is {_tiles[i]}. Use a tileTypes index in 0..{_tileTypes.Length - 1}.",
                     "tiles");
             }
         }

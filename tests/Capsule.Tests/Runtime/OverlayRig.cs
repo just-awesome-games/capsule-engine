@@ -2,15 +2,18 @@ using System.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
+using Capsule.Runtime.Rendering;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
 // The overlay specs' host: one frame is observe, advance the game, step the overlay, which is the
-// order CapsuleGame runs them in, and a press is the key's frame followed by its release. An
-// instance owns the clock too, so a spec that reads the frame pane can say how long each frame took
-// and how much of it the update bracket spent; a spec that does not reads the same frames through
-// the static helpers, which drive an overlay the spec built itself.
+// order CapsuleGame runs them in, and a press is the key's frame followed by its release. An instance
+// owns the clock too, so a spec that reads the frame pane can say how long each frame took and how
+// much of it the update bracket spent; a spec that does not reads the same frames through the static
+// helpers, which drive an overlay the spec built itself.
 internal sealed class OverlayRig : IDisposable
 {
     internal const double StepSeconds = 0.1;
@@ -35,6 +38,9 @@ internal sealed class OverlayRig : IDisposable
 
     internal RecordingSimulation Simulation { get; } = new();
 
+    // The game frame's cost the pane is told about, which a rig with no renderer has to supply.
+    internal double DrawMs { get; set; }
+
     internal string[] PaneLines() => Overlay.Scene.Pane.Text.Split('\n');
 
     internal void Open()
@@ -50,16 +56,20 @@ internal sealed class OverlayRig : IDisposable
         Frame(DefaultIntervalMs, DefaultUpdateMs, sampled: DeviceSnapshot.Empty);
     }
 
-    // One frame that starts intervalMs after the last began and whose update bracket costs
-    // updateMs, of which elapsedSeconds is offered to the scheduler.
-    internal void Frame(double intervalMs, double updateMs, double elapsedSeconds = 0, DeviceSnapshot sampled = default)
+    // One frame that starts intervalMs after the last began and whose update bracket costs updateMs,
+    // of which elapsedSeconds is offered to the scheduler.
+    internal void Frame(
+        double intervalMs,
+        double updateMs,
+        double elapsedSeconds = 0,
+        DeviceSnapshot sampled = default)
     {
         _frameStart += Ticks(intervalMs);
         _ticks = _frameStart;
         DeviceSnapshot stripped = Overlay.Observe(sampled);
         _ticks += Ticks(updateMs);
         Scheduler.Advance(elapsedSeconds, stripped, Simulation);
-        Overlay.Step();
+        Overlay.Step(lastFrame: new RenderStats(DrawMs));
     }
 
     public void Dispose() => Overlay.Dispose();
@@ -67,20 +77,24 @@ internal sealed class OverlayRig : IDisposable
     internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
         new(StepSeconds, 5, bindings ?? new ActionBindings());
 
-    internal static string[] Labels(OverlayScene scene)
+    // The labels of the page the overlay last built, in order.
+    internal static string[] Rows(OverlayHost overlay)
     {
-        IReadOnlyList<MenuItem> items = scene.Current.Items;
-        string[] labels = new string[items.Count];
-        for (int index = 0; index < items.Count; index++)
+        IReadOnlyList<OverlayRow> rows = overlay.Rows;
+        string[] labels = new string[rows.Count];
+        for (int index = 0; index < labels.Length; index++)
         {
-            labels[index] = items[index].Label;
+            labels[index] = rows[index].Label;
         }
 
         return labels;
     }
 
+    // The label of the focused row.
+    internal static string Focused(OverlayHost overlay) => overlay.Rows[overlay.Focus].Label;
+
     // Opens the overlay on the toggle's edge and releases it, so the next frame's keys are the
-    // menu's.
+    // overlay's.
     internal static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
     {
         Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
@@ -112,4 +126,85 @@ internal sealed class OverlayRig : IDisposable
     }
 
     private static long Ticks(double ms) => (long)Math.Round(ms * Stopwatch.Frequency / 1000.0);
+}
+
+// The scenes and registry the overlay specs run over: one scene that counts its steps, two more to
+// transition to, and the two that refuse a transition.
+internal static class OverlayFixtures
+{
+    internal const string NamedDocument = "levels/named";
+
+    internal static SceneHost CreateHost(Run? run = null, List<SceneTransition>? resolved = null) =>
+        new(
+            SceneTransition.ToScene(typeof(ReadoutScene), null),
+            (in SceneTransition target) =>
+            {
+                resolved?.Add(target);
+
+                return target.Kind switch
+                {
+                    SceneTransitionKind.Named when target.DocumentName == NamedDocument => new NamedScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(PlainScene) => new PlainScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(PayloadScene) => new PayloadScene(),
+                    SceneTransitionKind.Scene when target.SceneType == typeof(ReadoutScene) => new ReadoutScene(),
+                    _ => throw new InvalidOperationException($"Unexpected transition {target.Kind}."),
+                };
+            },
+            run ?? new Run());
+
+    internal static SceneRegistry CreateRegistry() =>
+        new(
+            new EntityRegistry([]),
+            [
+                SceneRegistration.Plain(typeof(PlainScene), static _ => new PlainScene()),
+                SceneRegistration.Plain(typeof(PayloadScene), static _ => new PayloadScene()),
+                SceneRegistration.FromDocument(typeof(NamedScene), NamedDocument, static _ => new NamedScene()),
+            ]);
+
+    internal sealed class ReadoutScene : Scene
+    {
+        internal int Steps { get; private set; }
+
+        internal bool Stopped { get; private set; }
+
+        protected override void OnStep(in StepContext context) => Steps++;
+
+        protected override void OnStop() => Stopped = true;
+    }
+
+    internal sealed class PlainScene : Scene;
+
+    internal sealed class NamedScene : Scene;
+
+    internal sealed class ExitOnStartScene : Scene
+    {
+        protected override void OnStart() => Run.RequestExit();
+    }
+
+    internal sealed class RequestOnStartScene : Scene
+    {
+        protected override void OnStart() => Run.RequestScene<PlainScene>();
+    }
+
+    internal sealed class EmptyDriver : IInputDriver
+    {
+        public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+        {
+            snapshot = DeviceSnapshot.Empty;
+
+            return false;
+        }
+    }
+
+    // Refuses to start without a payload, which is how a load that fails mid-tick is provoked.
+    internal sealed class PayloadScene : Scene
+    {
+        protected override void OnStart()
+        {
+            if (EntryPayload is null)
+            {
+                throw new InvalidOperationException("PayloadScene needs a payload.\nSecond line.");
+            }
+        }
+    }
 }

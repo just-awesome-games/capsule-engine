@@ -1,65 +1,122 @@
 # Architecture
 
-Capsule keeps gameplay deterministic and headless-testable by separating pure simulation from the host: game logic and the engine's simulation modules touch no device, file, clock or platform; the runtime hosts them and draws, plays and samples on their behalf.
+After this page you know which module a type belongs in, what game logic may not do, and what the
+determinism contract promises.
+
+Capsule separates pure simulation from the host. Simulation modules and game logic touch no device, file,
+clock or platform. The runtime hosts them and draws, plays and samples on their behalf.
 
 ## Modules
 
-| Module               | Charter                                                                                                                             | May reference    |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `Capsule.Core`       | Fixed-step, input, rendering, audio mixing, persistence, asset and diagnostic contracts.                                            | nothing          |
-| `Capsule.Physics`    | Shapes, broadphase, queries, sweeps and kinematic movement; no dynamics or solver.                                                  | Core             |
-| `Capsule.Scenes`     | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation.                                | Core, Physics    |
-| `Capsule.Runtime`    | The platform-neutral host: window, device, clock, input sampling, rendering, sound playback, scene hosting, and the `HostPlatform` contract. | the pure modules |
-| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime          |
-| `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary.                                                          | unconstrained    |
-| `Capsule.Build`      | Build-time validation and canonicalization of scene documents, the asset key pass, atlas packing, and measurement of audio sources. | unconstrained    |
+| Module | Charter | May reference |
+| --- | --- | --- |
+| `Capsule.Core` | Fixed step, input, rendering, audio mixing, persistence, asset and diagnostic contracts. | nothing |
+| `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement. No dynamics, no solver. | Core |
+| `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
+| `Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, rendering, sound playback, scene hosting, and the `HostPlatform` contract. | the pure modules |
+| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime |
+| `Capsule.Generators` | Source generation and compile-time enforcement of the game-logic boundary. | unconstrained |
+| `Capsule.Build` | The build tool: scene document validation and canonicalization, the asset key pass, sprite sheet compilation, atlas packing, audio measurement. | unconstrained |
+| `Capsule` | No code. The pack root whose project-reference list is the `JAG.Capsule` package's admission list. | the pure modules |
 
-The pure modules perform no external I/O; `SceneDocumentFile.Load` and `Save` are explicit filesystem adapters for tools and hosts beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime` alone, for project-reference and package consumers alike.
-
-`Capsule.Runtime` holds no implicit location and no native binding — a banned-API list refuses them at compile time — and consults its `HostPlatform` for every one; platform code lives in a platform module, which the runtime grants no internals ([`platforms.md`](platforms.md)).
+The pure modules perform no external I/O. `SceneDocumentFile.Load` and `Save` are filesystem adapters for
+tools and hosts, beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference
+direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime`, for
+project-reference and package consumers alike.
 
 ## Placement
 
-Assemblies follow layers, so the compiler enforces reference direction; namespaces and folders follow domains, so a subsystem is reached with one `using`. A type's assembly is decided by what it depends on — a contract or data plane with no scene dependency in `Capsule.Core`, the collision server in `Capsule.Physics`, anything referencing `Scene`, `Entity` or `Component` in `Capsule.Scenes`, anything touching a device, window, file or MonoGame in `Capsule.Runtime`, anything knowing an operating system's locations or linking a native library in a platform module — and its namespace is its domain's whichever assembly it lives in: `Capsule` (step, run, randomness, timing, deterministic math), `Capsule.Scenes`, `Capsule.Physics`, `Capsule.Rendering`, `Capsule.Audio`, `Capsule.Animation`, `Capsule.Input`, `Capsule.UI`, `Capsule.Tiles`, `Capsule.Assets`, `Capsule.Persistence`, `Capsule.Diagnostics`, and the runtime's own `Capsule.Runtime.*` mirrors, with the development overlay under `Capsule.Runtime.DevTools`. A new domain adds a namespace; a new assembly is created only when the compiler must enforce a reference direction.
+Assemblies follow layers, so the compiler enforces reference direction. Namespaces and folders follow
+domains, so a subsystem is reached with one `using`. A type's assembly follows the charters above: what it
+depends on decides it, and knowing an operating system's locations or linking a native library puts it in a
+platform module.
+
+Its namespace is its domain whichever assembly it lives in: `Capsule` for the step, the run, randomness and
+deterministic math, then a namespace per subsystem, the runtime's `Capsule.Runtime.*` mirrors, and the
+development overlay under `Capsule.Runtime.DevTools`. A new domain adds a namespace. A new assembly waits
+until the compiler must enforce a reference direction.
 
 ## Logic boundary
 
-The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), a direct MonoGame reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous execution (`CAP103`), process or wall-clock time (`CAP104`), and randomness outside the seeded `RandomSource`, `System.Random` included (`CAP105`).
+The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), a direct MonoGame
+reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
+execution (`CAP103`), process or wall-clock time (`CAP104`), and randomness outside the seeded
+`RandomSource`, `System.Random` included (`CAP105`).
+
+## Argument validation
+
+Argument validation follows .NET conventions. A null, non-finite or out-of-range argument throws from the
+`ArgumentException` family, and no member documents that per parameter. An `<exception>` tag marks a state
+rule a caller can violate, such as reaching a run before the scene has started or reconfiguring an object
+from inside its own handler.
 
 ## Determinism contract
 
-Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values, a simulation produces the same state transitions and render intents.
+Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values, a simulation
+produces the same state transitions and render intents.
 
-- Simulation is single-threaded, and work too large for one step is sliced across steps by its owner, never threaded. Input edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
-- A step retains previous transforms, runs the scene, entities and components, settles contacts, runs each entity's late step and its components' in that same order, runs the scene's late step, settles the camera and the visible region its notifiers answer against, applies deferred structural changes, starts newly attached objects, settles the notifiers those changes brought in against that same region, and rewrites the frame.
-- Entities update in tree order: each root in insertion order, followed by its subtree depth-first with children in the order they were parented, so a child steps after its parent and reads where the parent moved to this step. Rendering is ordered by `ZIndex` summed up the ancestry, stable over that same order. Collision queries and contact delivery order as their public methods document.
-- `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`, which persists across scene transitions.
-- Simulation arithmetic is IEEE-exact throughout. A platform's sine, cosine and exponential are correctly rounded by no standard and differ between operating systems, so simulation code evaluates them through `DeterministicMath` instead of calling `MathF`.
-- A frame runs at most the configured number of fixed steps; reaching the limit drops the remaining accumulated wall-clock time and alters no step that runs.
-- `Run.TimeScale` is host pace: it moves how much wall time a frame is worth in simulation seconds, and alters no step that runs, so a simulation never reads it.
+- Simulation is single-threaded. Work too large for one step is sliced across steps by its owner. Input
+  edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
+- A step runs in this order: the mixer opens the step, the scene steps, each entity steps and then its
+  components, contacts settle, every entity's late step runs in the same order, the scene's late step runs
+  and the camera settles the visible region the frame will use, deferred structural changes are applied and
+  newly attached objects started, the visible-screen notifiers settle once against that region, and the
+  frame is rewritten.
+- Entities update in tree order: each root in insertion order, then its subtree depth-first with children in
+  parenting order. Rendering is ordered by `ZIndex` summed up the ancestry, stable over the same order.
+  Collision queries and contact delivery order as their public methods document.
+- A handler sees the new state. Reconfiguring the object whose handler is running throws, across colliders,
+  focus navigators and screen notifiers.
+- `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
+  which persists across scene transitions.
+- Simulation arithmetic is IEEE-exact. Sine, cosine and exponential differ between operating systems, so
+  simulation code evaluates them through `DeterministicMath` instead of `MathF`.
+- A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining
+  accumulated wall-clock time and alters no step that runs.
+- `Run.TimeScale` is host pace. It moves how much wall time a frame is worth in simulation seconds, alters
+  no step that runs, and is not read by simulation.
 
-## Rendering and media
+## Simulation and host
 
-Simulation emits backend-free `FrameView` state and rewrites a step's `AudioCommand` list the same way; the host draws at display rate, interpolating entities and camera with one shared fraction, and applies audio commands after every step. Neither rendering nor audio feeds state back into simulation.
+Simulation emits backend-free `FrameView` state and rewrites a step's `AudioCommand` list the same way. The
+host draws at display rate, interpolating entities and the camera with one shared fraction, and applies
+audio commands after every step. Neither rendering nor audio feeds state back into simulation.
 
-Every thread the engine runs is the host's and has one shape: a step emits an intent — an audio command, a frame capture, a scene request — the host queues it, a worker fulfils it, and only the hand-off touches the device or the file system. The simulation never observes a thread or a completion, and a headless run runs no worker.
+Every thread the engine runs is the host's, and each has one shape: a step emits an intent, the host queues
+it, a worker fulfils it, and only the hand-off touches a device or the file system. A headless run runs no
+worker.
 
-A frame carries two ordered lists: the world, placed by the camera and culled against it, and a screen layer in canvas pixels, culled against `Run.Canvas`. Which layer an entity lives in is its type — a `ScreenEntity` is on the screen layer, anything else in the world — and every renderer it holds follows, so each layer bands on its own and the whole screen layer draws over the whole world.
+A parented entity's position, rotation and scale are local. Its world transform is the parent's applied to
+them: position through the parent's scale, rotation and offset, rotation summed, scale multiplied per axis,
+no shear. The transform is cached and recomposed lazily after a write anywhere above. Renderers under the
+entity are placed, turned and sized by it, interpolated from the transform the step began with. Colliders
+follow world position alone and refuse a turned or scaled ancestry. A subtree shares its root's scene, draw
+layer and scroll factor, and enters and leaves the scene with it.
 
-An entity may be placed by a parent. Its position, rotation and scale are then local, and its world transform is the parent's applied to them — position through the parent's scale, rotation and offset, rotation summed, scale multiplied per axis, never sheared — cached on the entity and recomposed lazily after a write anywhere above. Only presentation follows a turn or a scale: every renderer under the entity is placed, turned and sized by the composed transform, interpolated from the transform the step began with, while anything that collides follows world position alone and refuses a turned or scaled ancestry. A subtree shares its root's scene, draw layer and scroll factor, and enters and leaves the scene with it.
+How frames, layers, cameras and parallax are drawn is [`rendering.md`](rendering.md). Saved state is
+`Run.Saves` ([`persistence.md`](persistence.md)), sound is `Run.Audio` ([`audio.md`](audio.md)), and what a
+scene preloads and when it is released is [`assets.md`](assets.md#loading-and-residency).
 
-The world list stays in authored positions and may carry per-entity scroll factors (`Entity.ScrollFactor`) in runs beside it; the host draws each run by a virtual camera — the frame's top-left corner moved by the factor about the camera's `ScrollOrigin` — and snaps it from that camera's corner as it snaps the world from the frame's. Inside such an entity's `Draw`, `FrameView.Camera` is that virtual camera, so a renderer culls against it with no knowledge of the factor, and its intent is culled against a region that covers every rect the frame can draw the run at. Draw order is the one `ZIndex` sum whatever the factor.
+## Platforms
 
-On a declared render surface the world is drawn at exactly the declared pixels per unit under either sampling; `ViewportFit.Expand` and `FixedHeight` quantise the axis they grow to whole surface pixels, never past the span the fit resolved; and point sampling alone snaps each sprite to the surface's pixel grid from the camera's corner and presents the surface at a whole scale whenever the output can hold it at least once (a smaller output falls back to a fractional fit).
+A host family is one shell. The desktop shell publishes Windows, Linux and macOS from one project by runtime
+identifier, and a console is another family with a shell of its own. A platform module is one subclass of
+`HostPlatform`, handed to `CapsuleBoot.Configure` beside the game's name. It tells the host where shipped
+content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, and
+how sound follows the default output.
 
-A sound is an `AudioSource` component playing an `AudioClip` on a named `AudioBus`; `Run.Audio` is the one mixer every source mixes into, so a voice survives a scene transition and a bus is levelled, paused or resumed once at boot rather than per scene.
+`Capsule.Runtime` holds no implicit location and no native binding, and its banned-API list refuses one at
+compile time (`src/Capsule.Runtime/BannedSymbols.txt`). The handle it passes back is a `WindowHandle`, the
+graphics backend's handle and not the operating system's: an `SDL_Window*` on the shipped desktop backend,
+which Capsule does not interpret.
 
-The screen layer is `ScreenEntity` placed by an `Anchor` — a fraction of the canvas on each axis — so an interface element keeps its distance from the edge it was anchored to whatever the canvas is. A menu is `Focusable` components under one `FocusNavigator`, which owns which item has focus and moves it from the game's own focus actions, pointer included.
-
-Saved state is `Run.Saves`, a store of named JSON documents the host restores before the first scene and persists after every step ([`persistence.md`](persistence.md)).
-
-At a scene boundary the runtime synchronously preloads the media the composed scene, its entities and their components collect; a resource not collected there loads on first rendered or audible use and is cached for the rest of that scene, and the outgoing scene's resources are released at transition or exit except where the incoming preload also uses them. A texture packed onto an atlas page is resident as that page ([`atlases.md`](atlases.md)). `Run` owns one mixer, so a voice survives a scene transition. Headless simulation loads no media.
+`Capsule.Runtime.Desktop` is the platform module the engine ships. It consumes the neutral host's public
+surface with no internals, so it also proves a private module can be written against the contract. Writing
+one is [`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
 
 ## NativeAOT floor
 
-Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation, `dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes a package-consuming game and the source-backed headless smoke with NativeAOT on Windows and Linux and runs the result; the floor is also what a console platform module builds on ([`platforms.md`](platforms.md)).
+Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation,
+`dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes a package-consuming game and
+the source-backed headless smoke with NativeAOT on Windows and Linux and runs the result. A console platform
+module builds on the same floor.

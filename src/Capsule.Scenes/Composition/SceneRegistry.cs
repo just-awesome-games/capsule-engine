@@ -5,9 +5,9 @@ using Capsule.Scenes.Spawning;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// The scenes one assembly declares, indexed both by class and by the scene document backing one,
-/// fixed once built. A game passes the registry its source generator emits; hand-building one is
-/// the test path.
+/// The scenes one assembly declares, indexed by class and by the scene document backing each one. The
+/// registry is fixed once built. A game passes the registry its source generator emits, and hand-building
+/// one is for tests.
 /// </summary>
 public sealed class SceneRegistry
 {
@@ -15,10 +15,9 @@ public sealed class SceneRegistry
     private readonly Dictionary<string, SceneRegistration> _byDocumentName = new(StringComparer.Ordinal);
     private readonly EntityRegistry _entities;
 
-    /// <param name="entities">What each spawn type in a scene document constructs.</param>
+    /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <exception cref="ArgumentException">A registration names no class, or a class or a document is registered twice.</exception>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
     {
@@ -30,7 +29,7 @@ public sealed class SceneRegistry
         {
             if (registration.SceneType is null)
             {
-                throw new ArgumentException("A scene registration must name the class it registers.", nameof(scenes));
+                throw new ArgumentException("A scene registration names no class. Set its SceneType.", nameof(scenes));
             }
 
             if (!_byType.TryAdd(registration.SceneType, registration))
@@ -47,11 +46,11 @@ public sealed class SceneRegistry
 
     internal Dictionary<Type, SceneRegistration>.ValueCollection Registrations => _byType.Values;
 
-    // The scene document backing sceneType, or null when none does.
-    internal string? DocumentNameOf(Type sceneType) => Registered(sceneType).DocumentName;
+    // Returns the scene document backing sceneType, or null when none does.
+    internal string? DocumentNameOf(Type sceneType) => Find(sceneType).DocumentName;
 
-    // The registered scene whose class is named className, or null when none is — including when
-    // two namespaces both carry that class name, which names no one scene.
+    // Returns the registered scene whose class name is className, or null when none matches. Two namespaces
+    // carrying that class name also return null, because the name then picks out no single scene.
     internal Type? SceneNamed(string className)
     {
         Type? found = null;
@@ -76,12 +75,12 @@ public sealed class SceneRegistry
 
     internal Scene Create(Type sceneType)
     {
-        SceneRegistration registration = Registered(sceneType);
+        SceneRegistration registration = Find(sceneType);
         if (registration.DocumentName is { } name)
         {
             throw new InvalidOperationException(
                 $"The scene '{sceneType}' is composed from scene document '{name}', so it is built through that "
-                + $"name rather than its class: CreateFromDocument(\"{name}\", document).");
+                + $"name, not its class: CreateFromDocument(\"{name}\", document).");
         }
 
         return registration.Create();
@@ -104,7 +103,7 @@ public sealed class SceneRegistry
         return claimed.Create(content);
     }
 
-    private SceneRegistration Registered(Type sceneType)
+    private SceneRegistration Find(Type sceneType)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
 
@@ -113,7 +112,7 @@ public sealed class SceneRegistry
             throw new InvalidOperationException(
                 $"No scene is registered for '{sceneType}'. A scene registers by being a non-abstract "
                 + "Capsule.Scenes.Scene with either a public parameterless constructor, or a public constructor "
-                + "taking one Capsule.Scenes.SceneContent — which composes it from the scene document it names, "
+                + "taking one Capsule.Scenes.SceneContent, which composes it from the scene document it names, "
                 + "the key its namespace names unless [SceneDocument(\"key\")] overrides that. "
                 + $"Registered: {RegisteredTypes()}.");
         }
@@ -122,23 +121,5 @@ public sealed class SceneRegistry
     }
 
     // Every registered scene class, for a message naming what a caller could have asked for.
-    // Sorted so the message reads the same whatever order the registry was built in.
-    internal string RegisteredTypes()
-    {
-        if (_byType.Count == 0)
-        {
-            return "nothing";
-        }
-
-        string[] names = new string[_byType.Count];
-        int next = 0;
-        foreach (Type sceneType in _byType.Keys)
-        {
-            names[next++] = sceneType.ToString();
-        }
-
-        Array.Sort(names, StringComparer.Ordinal);
-
-        return string.Join(", ", names);
-    }
+    internal string RegisteredTypes() => Registered.Names(_byType.Keys);
 }

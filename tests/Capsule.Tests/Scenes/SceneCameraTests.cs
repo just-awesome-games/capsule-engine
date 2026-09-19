@@ -173,10 +173,10 @@ public sealed class SceneCameraTests
         Assert.Equal(["camera"], order);
     }
 
-    // A camera discovers its subject the way an entity does, so it must be attached before it is
-    // started and started only once the scene's entities have been.
+    // A camera discovers its subject the way an entity does, so it is started only once the scene's
+    // entities have been.
     [Fact]
-    public void ACameraInstalledFromTheScenesStart_IsAddedThenStartedAndSeesTheScenesEntities()
+    public void ACameraInstalledFromTheScenesStart_IsStartedAndSeesTheScenesEntities()
     {
         List<string> order = [];
         SceneFixtures.Drifter subject = new(new Vector2(7, 3));
@@ -187,14 +187,13 @@ public sealed class SceneCameraTests
 
         using SceneSimulation simulation = new(scene);
 
-        Assert.Equal(["added", "started"], order);
+        Assert.Equal(["started"], order);
         Assert.Same(scene, camera.Scene);
         Assert.Equal(new Vector2(7, 3), simulation.View.Camera.Center);
     }
 
     // Entities start before the scene installs its camera, so a camera installed from an entity's
-    // start is the one the scene opens with — and the camera it displaces was never the scene's,
-    // so it is told nothing.
+    // start is the one the scene opens with, and the camera it displaces never started.
     [Fact]
     public void ACameraInstalledAsTheScenesEntitiesStart_IsTheOneTheSceneOpensWith()
     {
@@ -209,15 +208,14 @@ public sealed class SceneCameraTests
 
         using SceneSimulation simulation = new(scene);
 
-        Assert.Equal(["last entity", "arriving+", "arriving!"], log);
+        Assert.Equal(["last entity", "arriving!"], log);
         Assert.Same(arriving, scene.Camera);
-        Assert.Null(displaced.Scene);
+        Assert.Null(displaced.SceneOrNull);
     }
 
-    // Structural hooks pair or they leak: a scene that fails to start never installed its camera,
-    // so cleaning up must not release one that was never added.
+    // A scene that fails to start never installed its camera, so that camera never began.
     [Fact]
-    public void ASceneWhoseEntityFailsToStart_ReleasesNoCameraItNeverAdded()
+    public void ASceneWhoseEntityFailsToStart_NeverStartsItsCamera()
     {
         List<string> log = [];
         SceneFixtures.HookScene scene = new();
@@ -226,49 +224,6 @@ public sealed class SceneCameraTests
 
         Assert.Throws<InvalidOperationException>(() => new SceneSimulation(scene));
         Assert.Empty(log);
-    }
-
-    // The handover installs whichever camera is current once the outgoing one has been told, not
-    // the one the write arrived with: a hook that installs a camera of its own finds none
-    // installed and only takes the handle, so trusting the stale one would leave the scene naming
-    // one camera while another framed it.
-    [Fact]
-    public void ACameraInstalledFromTheOutgoingCamerasRemoval_IsTheOneTheSceneFrames()
-    {
-        List<string> log = [];
-        SceneFixtures.HookScene scene = new();
-        using SceneSimulation simulation = new(scene);
-
-        MeddlingCamera usurper = new("usurper", log);
-        MeddlingCamera opening = new("opening", log, onRemoved: () => scene.Install(usurper));
-        scene.Install(opening);
-
-        Camera displaced = new();
-        scene.Install(displaced);
-
-        Assert.Equal(["opening+", "opening!", "opening-", "usurper+", "usurper!"], log);
-        Assert.Same(usurper, scene.Camera);
-        Assert.Same(scene, usurper.Scene);
-        Assert.Null(displaced.Scene);
-        Assert.Null(opening.Scene);
-    }
-
-    // Install re-reads the scene's camera after the arrival hook: one that installed another from
-    // it has already been released, and starting it would begin time for a camera the scene let go.
-    [Fact]
-    public void ACameraReplacedFromItsOwnArrivalHook_IsNeverStarted()
-    {
-        List<string> log = [];
-        SceneFixtures.HookScene scene = new();
-        using SceneSimulation simulation = new(scene);
-
-        MeddlingCamera replacement = new("replacement", log);
-        MeddlingCamera arriving = new("arriving", log, onAdded: () => scene.Install(replacement));
-        scene.Install(arriving);
-
-        Assert.Equal(["arriving+", "arriving-", "replacement+", "replacement!"], log);
-        Assert.Same(replacement, scene.Camera);
-        Assert.Null(arriving.Scene);
     }
 
     [Fact]
@@ -332,36 +287,11 @@ public sealed class SceneCameraTests
 
     private sealed class StructuralCamera(string name, List<string> log) : Camera
     {
-        protected internal override void OnAddedToScene() => log.Add($"{name}+");
-
         protected internal override void OnStart() => log.Add($"{name}!");
-
-        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
-    }
-
-    /// <summary>A <see cref="StructuralCamera"/> that installs a camera of its own from a hook.</summary>
-    private sealed class MeddlingCamera(string name, List<string> log, Action? onAdded = null, Action? onRemoved = null)
-        : Camera
-    {
-        protected internal override void OnAddedToScene()
-        {
-            log.Add($"{name}+");
-            onAdded?.Invoke();
-        }
-
-        protected internal override void OnStart() => log.Add($"{name}!");
-
-        protected internal override void OnRemovedFromScene()
-        {
-            log.Add($"{name}-");
-            onRemoved?.Invoke();
-        }
     }
 
     private sealed class LifecycleCamera(List<string> log) : Camera
     {
-        protected internal override void OnAddedToScene() => log.Add("added");
-
         protected internal override void OnStart()
         {
             log.Add("started");

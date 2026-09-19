@@ -7,9 +7,9 @@ internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
     private readonly float _stickDeadzone = stickDeadzone;
     private readonly float _triggerDeadzone = triggerDeadzone;
 
-    // A raw stick reading with the deadzone removed radially: inside the radius it reads centred,
-    // outside it the magnitude is remapped onto [0, 1] with the direction preserved. The result
-    // never leaves the unit disk, even for a hardware diagonal past it.
+    // A raw stick reading with the deadzone removed radially. Inside the radius it reads centred.
+    // Outside, the magnitude is remapped onto [0, 1] with the direction preserved. The result stays in
+    // the unit disk, even for a hardware diagonal past it.
     internal (float X, float Y) Stick(float x, float y)
     {
         float magnitude = MathF.Sqrt((x * x) + (y * y));
@@ -27,7 +27,7 @@ internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
     internal float Trigger(float value) =>
         value <= _triggerDeadzone ? 0f : Remap(value, _triggerDeadzone);
 
-    // Whether a pull already through Trigger counts as a button press: the deadzone is the press
+    // Whether a pull already through Trigger counts as a button press. The deadzone is the press
     // threshold, so anything the filter did not zero is a press.
     internal static bool TriggerHeld(float filteredPull) => filteredPull > 0f;
 

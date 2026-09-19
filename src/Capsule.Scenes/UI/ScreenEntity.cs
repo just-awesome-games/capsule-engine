@@ -5,26 +5,24 @@ using Capsule.Scenes;
 namespace Capsule.UI;
 
 /// <summary>
-/// An entity on the frame's screen layer: <see cref="Entity.Position"/> is canvas pixels from the
-/// point <see cref="Anchor"/> names, Y-down, and every renderer it holds draws over the whole world
-/// layer however the two layers are banded. This is what an interface is built from — a menu item, a
-/// bar, a panel — and a plain <see cref="Entity"/> is what the world is built from. Only ever a
-/// root: it refuses a <see cref="Entity.Parent"/>, and a plain entity parented under it is a
-/// group member that draws on the screen layer in canvas pixels from this entity's anchored point.
+/// An entity on the frame's screen layer. Its <see cref="Entity.Position"/> is canvas pixels, Y-down, from
+/// the point <see cref="Anchor"/> names, and every renderer it holds draws over the world layer whatever the
+/// two layers' bands are. Build an interface from these and the world from plain entities. A screen entity is
+/// always a root and rejects a <see cref="Entity.Parent"/>. A plain entity parented under one joins the
+/// group and draws on the screen layer in canvas pixels from this entity's anchored point.
 /// <para>
-/// The canvas is the run's (<see cref="Run.Canvas"/>), never the window's, so a corner-anchored
-/// element keeps its distance from that corner at every window size. Subclass it for behaviour and attach
-/// <see cref="Component"/>s for what composes, exactly as with an entity in the world.
+/// The canvas is the run's (<see cref="Run.Canvas"/>), not the window's. A corner-anchored element keeps
+/// its distance from that corner at every window size.
 /// </para>
 /// </summary>
 public class ScreenEntity : Entity
 {
     /// <param name="anchor">The point on the canvas <paramref name="offset"/> is measured from.</param>
     /// <param name="offset">
-    /// Canvas pixels from that point to this entity's position, which a negative component measures
-    /// back towards the canvas's origin.
+    /// Canvas pixels from that point to this entity's position. A negative component measures back towards
+    /// the canvas's origin.
     /// </param>
-    /// <exception cref="ArgumentOutOfRangeException">The anchor or the offset is not finite.</exception>
+
     public ScreenEntity(Anchor anchor, Vector2 offset)
         : base(offset) =>
         Anchor = anchor;
@@ -33,27 +31,20 @@ public class ScreenEntity : Entity
     /// The point on the canvas <see cref="Entity.Position"/> is measured from, as a fraction of the
     /// canvas on each axis.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">A fraction is not finite.</exception>
     public Anchor Anchor
     {
         get;
 
         set
         {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    value,
-                    "An anchor is a finite fraction of the canvas on each axis.");
-            }
-
+            Guard.Finite(value.X, nameof(value));
+            Guard.Finite(value.Y, nameof(value));
             field = value;
         }
     }
 
     internal sealed override RenderSpace OwnSpace => RenderSpace.Screen;
 
-    // Zero before this entity is in a scene, which is where the run's canvas is reached.
-    internal sealed override Vector2 OwnSpaceOrigin => Anchor.On(Scene?.RunOrNull?.Canvas ?? Vector2.Zero);
+    // Reads zero before this entity is in a scene, because the run's canvas is reached through the scene.
+    internal sealed override Vector2 OwnSpaceOrigin => Anchor.On(SceneOrNull?.RunOrNull?.Canvas ?? Vector2.Zero);
 }

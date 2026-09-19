@@ -18,7 +18,7 @@ public sealed class GameCamera : Camera
     /// <inheritdoc/>
     protected override void OnStart()
     {
-        _subject = Scene!.FindSingle<Player>();
+        _subject = Scene.FindSingle<Player>();
 
         // The room opens framed on the player rather than sweeping to it from the world origin.
         Teleport(_subject.Position);

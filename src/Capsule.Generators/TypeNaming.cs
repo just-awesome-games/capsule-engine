@@ -42,10 +42,10 @@ internal static class TypeNaming
         return id.ToString();
     }
 
-    // The one spelling of an authored path: every '/'-joined segment reduced to the kebab form of
-    // the identifier it names, so "Enemies/Bat", "enemies/bat" and "enemies/Bat" are one key.
-    // Idempotent, since the kebab form of an identifier names that identifier again. Null when a
-    // segment is no identifier at all; that segment comes back in <paramref name="rejected"/>.
+    // Reduces every '/'-joined segment to the kebab form of the identifier it names, so
+    // "Enemies/Bat", "enemies/bat" and "enemies/Bat" are one key. Idempotent, since the kebab form
+    // of an identifier names that identifier again. Returns null when a segment names no
+    // identifier, and hands that segment back in rejected.
     internal static string? NormalizeKey(string key, out string? rejected)
     {
         rejected = null;
@@ -104,7 +104,7 @@ internal static class TypeNaming
 
     // The key a type claims: its namespace under the root, minus a leading domain segment and a
     // trailing segment repeating its own name, kebab-cased per segment and joined with '/'. A type
-    // outside the root namespace claims its kebab-cased name alone.
+    // outside the root namespace claims just its kebab-cased name.
     internal static string KeyFor(string containingNamespace, string typeName, string rootNamespace, string domainSegment)
     {
         string name = FromTypeName(typeName);
@@ -116,7 +116,7 @@ internal static class TypeNaming
         int start = relative.Length > 0 && string.Equals(relative[0], domainSegment, StringComparison.Ordinal) ? 1 : 0;
         int end = relative.Length;
 
-        // A type in a folder of its own name is that folder, not a level below it.
+        // A type in a folder of its own name keys to that folder, not a level below it.
         if (end > start && string.Equals(relative[end - 1], typeName, StringComparison.Ordinal))
         {
             end--;
@@ -136,7 +136,7 @@ internal static class TypeNaming
         return key.Append(name).ToString();
     }
 
-    // The namespace segments below the root, or null when the type is not under it at all.
+    // The namespace segments below the root, or null when the type is not under the root.
     private static string[]? Relative(string containingNamespace, string rootNamespace)
     {
         if (rootNamespace.Length == 0 || containingNamespace.Length == 0)

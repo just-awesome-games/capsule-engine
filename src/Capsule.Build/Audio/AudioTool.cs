@@ -3,8 +3,8 @@ using System.Text;
 namespace Capsule.Build.Audio;
 
 /// <summary>
-/// The audio half of the build hook: measures every shipped source and renders the whole set as the
-/// one C# file a game compiles against. Nothing is derived onto disk — an audio source ships as it
+/// The audio half of the build hook. Measures every shipped source and renders the set as a single
+/// C# file a game compiles against. Nothing is derived onto disk, since an audio source ships as it
 /// was authored.
 /// </summary>
 internal static class AudioTool
@@ -14,8 +14,8 @@ internal static class AudioTool
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
-    /// Measures every source and renders the whole set at <paramref name="generatedPath"/>, which
-    /// is written whole so a clip deleted since the last build leaves nothing behind.
+    /// Measures every source and renders the set at <paramref name="generatedPath"/>. The file is
+    /// rewritten in full. A clip deleted since the last build leaves nothing behind.
     /// </summary>
     /// <param name="sources">The audio sources to measure, each with the key it claims.</param>
     /// <param name="generatedPath">Where the generated C# is written.</param>
@@ -38,14 +38,6 @@ internal static class AudioTool
 
         foreach (DocumentSource source in sources)
         {
-            if (!source.HasSafeKey())
-            {
-                error.WriteLine(
-                    $"{source.Path}: claims clip key \"{source.Key}\"; a key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name (nul, con, ...), and carries no extension.");
-                failures++;
-                continue;
-            }
-
             try
             {
                 AudioProbe.Measurement measured = AudioProbe.Measure(source.Path);
@@ -64,8 +56,8 @@ internal static class AudioTool
             }
         }
 
-        // Every key the generated classes cannot declare beside each other, caught against the
-        // source that claimed it.
+        // A key the generated classes cannot declare is reported here, against the source that
+        // claimed it.
         string? generated = null;
         if (failures == 0)
         {
@@ -90,7 +82,7 @@ internal static class AudioTool
         }
         catch (Exception ex) when (IsReportable(ex))
         {
-            error.WriteLine($"{Name}: cannot write '{generatedPath}' — {ex.Message}");
+            error.WriteLine($"{Name}: cannot write '{generatedPath}': {ex.Message}");
 
             return 1;
         }

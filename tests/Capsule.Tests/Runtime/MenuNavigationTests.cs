@@ -52,7 +52,7 @@ public sealed class MenuNavigationTests
                 new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(Menu), () => played = new Menu())]))
+                    [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))
             .WithRenderResolution((int)Canvas.X, (int)Canvas.Y)
             .WithInput(Bind)
             .WithoutCrashLog()

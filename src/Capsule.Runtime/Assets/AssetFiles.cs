@@ -2,12 +2,12 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime.Assets;
 
-// Where a named asset's file is, as a content path and nothing else. One instance per shipped
-// domain, so resolution and its failure are testable without a device.
+// Where a named asset's file is, as a content path. One instance per shipped domain, so resolution
+// and its failure are testable without a device.
 internal sealed class AssetFiles(string domain, string noun, string parameterName)
 {
     // The asset's file, relative to the publish root. A name is its source's path under the domain
-    // root, so a nested asset resolves to a nested file.
+    // root, and a nested asset resolves to a nested file.
     internal string RelativePathOf(string? name, string? extension)
     {
         Validate(name, extension);
@@ -15,7 +15,7 @@ internal sealed class AssetFiles(string domain, string noun, string parameterNam
         return "assets/" + domain + "/" + name + extension;
     }
 
-    // Opens the asset's shipped file through the platform; the caller disposes the stream.
+    // Opens the asset's shipped file through the platform. The caller disposes the stream.
     internal Stream Open(HostPlatform platform, string? name, string? extension)
     {
         string relative = RelativePathOf(name, extension);
@@ -33,7 +33,7 @@ internal sealed class AssetFiles(string domain, string noun, string parameterNam
         }
     }
 
-    // Every segment is one safe directory name, so a name cannot leave the domain root: no
+    // Every segment must be one safe directory name, which keeps a name inside the domain root. No
     // separator but '/', no '.' or '..', no rooted or device path.
     private void Validate(string? name, string? extension)
     {

@@ -111,6 +111,34 @@ public sealed class TextureResidencyTests
         Assert.Equal("next", store.Get(nextHandle).Name);
     }
 
+    // Pins that a transition leaks nothing: the store releases the outgoing scene's texture as it
+    // takes the incoming one, so residency after the first transition never grows.
+    [Fact]
+    public void AHundredTransitionsBetweenTwoScenes_LeaveResidencyWhereTheFirstTransitionPutIt()
+    {
+        List<FakeTexture> loaded = [];
+        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
+        {
+            FakeTexture texture = new(handle.Name);
+            loaded.Add(texture);
+
+            return texture;
+        });
+
+        store.ChangeScene([Hero]);
+        store.ChangeScene([Tiles]);
+        int resident = loaded.Count(texture => !texture.Disposed);
+
+        for (int transition = 0; transition < 100; transition++)
+        {
+            store.ChangeScene([transition % 2 == 0 ? Hero : Tiles]);
+        }
+
+        Assert.Equal(1, resident);
+        Assert.Equal(resident, loaded.Count(texture => !texture.Disposed));
+        Assert.Equal(102, loaded.Count);
+    }
+
     [Fact]
     public void APreloadFailure_RetainsPriorAssetsAndDisposesStagedAssets()
     {

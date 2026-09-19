@@ -1,11 +1,11 @@
 namespace Capsule.Runtime.Audio;
 
-// Keeps sound on the system's default output. The device announces a change from a thread of its
-// own, where nothing may be reopened, so the change is only noted there and acted on from the game
-// thread's next update. A reopen that fails — a headset still negotiating, or an output gone before
-// its replacement was announced — is retried on an interval rather than given up on, and a device
-// the system has disconnected is reopened even when no announcement arrived, noticed on that same
-// interval rather than by asking the library every frame.
+// Keeps sound on the system's default output. The device announces a change from one of its own
+// threads, where nothing may be reopened, so the change is noted there and acted on from the game
+// thread's next update. A reopen that fails, because a headset is still negotiating or an output went
+// before its replacement was announced, is retried on an interval. A device the system has
+// disconnected is reopened even when no announcement arrived, noticed on that same interval instead of
+// by asking the library every frame.
 internal sealed class OutputFollower(Func<bool> reopen, Func<bool> connected)
 {
     internal const double RetrySeconds = 0.5;
@@ -29,8 +29,8 @@ internal sealed class OutputFollower(Func<bool> reopen, Func<bool> connected)
         }
         else if (!_pending)
         {
-            // On the retry interval rather than every frame: asking the library whether the device
-            // is still there is a driver call, and a disconnection half a second late is inaudible.
+            // On the retry interval, not every frame. Asking the library whether the device is still
+            // there is a driver call, and a disconnection half a second late is inaudible.
             _untilPoll -= elapsedSeconds;
             if (_untilPoll <= 0.0)
             {

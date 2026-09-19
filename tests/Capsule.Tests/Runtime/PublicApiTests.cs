@@ -1,13 +1,11 @@
 using System.Reflection;
 using Capsule.Runtime;
+using static Capsule.Tests.Packaging.Surface;
 
 namespace Capsule.Tests.Runtime;
 
 public sealed class PublicApiTests
 {
-    private const BindingFlags DeclaredMembers =
-        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
     [Fact]
     public void NoMonoGameType_ReachesTheRuntimesPublicSurface()
     {
@@ -111,33 +109,6 @@ public sealed class PublicApiTests
         {
             leaks.Add($"{site} exposes {root.FullName}");
         }
-    }
-
-    private static bool IsVisibleOutsideTheAssembly(MemberInfo member) => member switch
-    {
-        MethodBase method => IsVisibleOutsideTheAssembly(method),
-        FieldInfo field => field.IsPublic || field.IsFamily || field.IsFamilyOrAssembly,
-        // A property or event is only as visible as its most visible accessor: a private
-        // one is an implementation detail the hiding contract permits.
-        PropertyInfo property => property.GetAccessors(nonPublic: true).Any(IsVisibleOutsideTheAssembly),
-        EventInfo declared => EventAccessors(declared).Any(IsVisibleOutsideTheAssembly),
-        // Nested types are walked as types, so as members they are already covered.
-        _ => false,
-    };
-
-    private static bool IsVisibleOutsideTheAssembly(MethodBase accessor) =>
-        accessor.IsPublic || accessor.IsFamily || accessor.IsFamilyOrAssembly;
-
-    private static IEnumerable<MethodInfo> EventAccessors(EventInfo declared)
-    {
-        MethodInfo?[] accessors =
-        [
-            declared.GetAddMethod(nonPublic: true),
-            declared.GetRemoveMethod(nonPublic: true),
-            declared.GetRaiseMethod(nonPublic: true),
-        ];
-
-        return accessors.OfType<MethodInfo>();
     }
 
     private static IEnumerable<Type> SignatureTypes(MemberInfo member)

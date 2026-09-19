@@ -53,6 +53,12 @@ internal sealed class RecordingSimulation(params InputAction[] actions) : ISimul
             Read(in context, 2)));
     }
 
+    public void Step(in StepContext context, Action before)
+    {
+        before();
+        Step(in context);
+    }
+
     private ActionRead Read(in StepContext context, int index) =>
         index < actions.Length
             ? new ActionRead(

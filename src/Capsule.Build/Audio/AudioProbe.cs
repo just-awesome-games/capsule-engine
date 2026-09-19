@@ -7,9 +7,8 @@ namespace Capsule.Build.Audio;
 
 /// <summary>
 /// Measures a shipped audio source by reading its container: how long it runs, and the loop region
-/// it authors. The build knows both so that the pure mixer derives playback state from the duration
-/// rather than reading anything back from a device, and the host loops a region without opening the
-/// file to learn where it is.
+/// it authors. The build knows both so the mixer derives playback state from the duration instead of
+/// reading a device, and the host loops a region without opening the file to find it.
 /// </summary>
 internal static class AudioProbe
 {
@@ -46,11 +45,11 @@ internal static class AudioProbe
         }
 
         throw new AudioFormatException(
-            $"carries extension \"{extension}\"; audio ships as {WavExtension} or {OggExtension}.");
+            $"carries extension \"{extension}\". Audio ships as {WavExtension} or {OggExtension}.");
     }
 
     // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length.
-    // Only 'fmt ', 'data' and 'smpl' are read; every other chunk is skipped whatever it holds.
+    // Only 'fmt ', 'data' and 'smpl' are read, and every other chunk is skipped.
     private static Measurement Wav(FileStream stream)
     {
         Span<byte> riff = stackalloc byte[12];
@@ -81,7 +80,7 @@ internal static class AudioProbe
                 if (size < format.Length)
                 {
                     throw new AudioFormatException(
-                        $"carries a {Number(size)}-byte 'fmt ' chunk; a WAVE format chunk is at least {Number(format.Length)} bytes.");
+                        $"carries a {Number(size)}-byte 'fmt ' chunk. A WAVE format chunk is at least {Number(format.Length)} bytes.");
                 }
 
                 Read(stream, format);
@@ -90,7 +89,7 @@ internal static class AudioProbe
                 if (tag is not 1 and not 3)
                 {
                     throw new AudioFormatException(
-                        $"is WAVE format {Number(tag)}; Capsule reads PCM (1) and IEEE float (3). Re-encode it as 16-bit PCM.");
+                        $"is WAVE format {Number(tag)}. Capsule reads PCM (1) and IEEE float (3). Re-encode it as 16-bit PCM.");
                 }
 
                 channels = BinaryPrimitives.ReadUInt16LittleEndian(format[2..]);
@@ -108,7 +107,7 @@ internal static class AudioProbe
 
             if (next > stream.Length)
             {
-                throw new AudioFormatException("ends inside a RIFF chunk; the file is truncated.");
+                throw new AudioFormatException("ends inside a RIFF chunk. The file is truncated.");
             }
 
             stream.Seek(next, SeekOrigin.Begin);
@@ -117,7 +116,7 @@ internal static class AudioProbe
         if (rate == 0 || channels == 0 || bits == 0 || bits % 8 != 0)
         {
             throw new AudioFormatException(
-                "carries no usable 'fmt ' chunk; its rate, channel count or sample width is zero or not a whole number of bytes.");
+                "carries no usable 'fmt ' chunk. Its rate, channel count or sample width is zero or not a whole number of bytes.");
         }
 
         if (dataBytes < 0)
@@ -131,8 +130,8 @@ internal static class AudioProbe
     }
 
     // The 'smpl' chunk: 36 fixed bytes, the last of which count the sample loops, then 24 bytes per
-    // loop. Only the first loop is read — one region is what a clip plays — and its end is the last
-    // sample sounded, so the region ends one past it.
+    // loop. A clip plays one region, so only the first loop is read. Its end is the last sample
+    // sounded, so the region ends one sample past it.
     private static void SampleLoop(FileStream stream, uint size, ref long? start, ref long? end)
     {
         const int Header = 36;
@@ -142,7 +141,7 @@ internal static class AudioProbe
         if (size < Header)
         {
             throw new AudioFormatException(
-                $"carries a {Number(size)}-byte 'smpl' chunk; a sampler chunk is at least {Number(Header)} bytes.");
+                $"carries a {Number(size)}-byte 'smpl' chunk. A sampler chunk is at least {Number(Header)} bytes.");
         }
 
         Read(stream, header);
@@ -169,7 +168,7 @@ internal static class AudioProbe
     // Ogg: a 27-byte page header, a segment table, then the segments' payload. The rate comes from
     // the Vorbis identification header the first page opens with, the frame count from the last
     // page's granule position, and the loop tags from the comment header behind it. Page CRCs are
-    // not verified — the container is the build's own output of an encoder, not untrusted input.
+    // not verified, since the container is an encoder's output on the build host.
     private static Measurement Ogg(FileStream stream)
     {
         Span<byte> page = stackalloc byte[27];
@@ -179,8 +178,8 @@ internal static class AudioProbe
         uint rate = 0;
         long frames = -1;
 
-        // Where the comment header begins. The identification packet is alone on the first page by
-        // the spec, so the next page of the same stream opens the comment one; -1 until it is seen.
+        // Where the comment header begins. The spec puts the identification packet alone on the
+        // first page, so the next page of the same stream opens the comment header. -1 until seen.
         long comments = -1;
         bool opened = false;
         long header = stream.Position;
@@ -194,7 +193,7 @@ internal static class AudioProbe
 
             if (page[4] != 0)
             {
-                throw new AudioFormatException($"carries an Ogg page of version {Number(page[4])}; only version 0 is defined.");
+                throw new AudioFormatException($"carries an Ogg page of version {Number(page[4])}. Only version 0 is defined.");
             }
 
             long granule = BinaryPrimitives.ReadInt64LittleEndian(page[6..14]);
@@ -213,7 +212,7 @@ internal static class AudioProbe
 
             if (body + payload > stream.Length)
             {
-                throw new AudioFormatException("ends inside an Ogg page; the file is truncated.");
+                throw new AudioFormatException("ends inside an Ogg page. The file is truncated.");
             }
 
             if (!opened)
@@ -227,8 +226,8 @@ internal static class AudioProbe
                 comments = header;
             }
 
-            // A granule of -1 says no packet finished on this page; a foreign serial is another
-            // logical stream multiplexed into the same file.
+            // A granule of -1 says no packet finished on this page. A foreign serial belongs to
+            // another logical stream multiplexed into the same file.
             if (pageSerial == serial && granule >= 0)
             {
                 frames = granule;
@@ -240,7 +239,7 @@ internal static class AudioProbe
 
         if (!opened)
         {
-            throw new AudioFormatException("holds no Ogg page at all.");
+            throw new AudioFormatException("holds no Ogg page.");
         }
 
         if (frames < 0)
@@ -257,7 +256,7 @@ internal static class AudioProbe
             LoopTags(stream, serial, comments, out start, out length, out end);
         }
 
-        // LOOPSTART with LOOPLENGTH is the RPG Maker pair; LOOPSTART with LOOPEND is the same
+        // LOOPSTART with LOOPLENGTH is the RPG Maker pair. LOOPSTART with LOOPEND is the same
         // authoring spelt the other way, and LOOPSTART alone loops the rest of the file.
         long? region = start is null ? null
             : length is { } run ? start + run
@@ -266,11 +265,10 @@ internal static class AudioProbe
         return new Measurement(frames / (double)rate, Region(start, region, frames, rate));
     }
 
-    // Reads the loop tags out of the Vorbis comment header, walking the whole packet across however
-    // many pages carry it: each comment's length is read, and a value no loop tag can be is stepped
-    // over in the file rather than gathered, so a large METADATA_BLOCK_PICTURE neither hides a tag
-    // behind it nor is held in memory. A packet the file does not finish is a malformed container
-    // rather than an absent region, and is refused.
+    // Reads the loop tags out of the Vorbis comment header, walking the packet across however many
+    // pages carry it. Each comment's length is read, and a value too long to be a loop tag is
+    // stepped over in the file. A large METADATA_BLOCK_PICTURE neither hides a tag behind it nor is
+    // held in memory. A packet the file does not finish is refused as a malformed container.
     private static void LoopTags(FileStream stream, uint serial, long page, out long? start, out long? length, out long? end)
     {
         start = null;
@@ -285,16 +283,16 @@ internal static class AudioProbe
         if (opening[0] != 3 || !Is(opening[1..], "vorbis"))
         {
             throw new AudioFormatException(
-                "follows its Vorbis identification header with no comment header; Capsule reads Ogg Vorbis.");
+                "follows its Vorbis identification header with no comment header. Capsule reads Ogg Vorbis.");
         }
 
         packet.Skip(packet.ReadLength());
 
         uint count = packet.ReadLength();
 
-        // A loop tag is a name, '=' and a decimal sample count, which this holds with room to spare.
-        // A longer comment is stepped over from its prefix alone: no loop tag's name reaches here
-        // without its whole value, and a value that would not is no whole number of samples anyway.
+        // A loop tag is a name, '=' and a decimal sample count, which this buffer holds with room to
+        // spare. A longer comment is stepped over from its prefix alone, since a value that does not
+        // fit here is not a whole number of samples.
         Span<byte> held = stackalloc byte[96];
 
         for (uint i = 0; i < count; i++)
@@ -356,13 +354,13 @@ internal static class AudioProbe
         if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long samples))
         {
             throw new AudioFormatException(
-                $"tags {Encoding.UTF8.GetString(name)}=\"{text}\"; a loop tag is a whole number of samples.");
+                $"tags {Encoding.UTF8.GetString(name)}=\"{text}\". A loop tag is a whole number of samples.");
         }
 
         return samples;
     }
 
-    // The one rule a region obeys, whichever convention named it: 0 <= start < end <= the clip.
+    // The rule a region obeys under every convention: 0 <= start < end <= the clip's length.
     private static AudioLoopRegion Region(long? start, long? end, long frames, uint rate)
     {
         if (start is not { } first || end is not { } last)
@@ -373,7 +371,7 @@ internal static class AudioProbe
         if (first < 0 || first >= last || last > frames)
         {
             throw new AudioFormatException(
-                $"names a loop region of samples [{Number(first)}, {Number(last)}) in {Number(frames)} sample(s); a region starts at or after zero, ends after it starts, and ends no later than the clip does.");
+                $"names a loop region of samples [{Number(first)}, {Number(last)}) in {Number(frames)} sample(s). A region starts at or after zero, ends after it starts, and ends no later than the clip.");
         }
 
         return new AudioLoopRegion(first / (double)rate, last / (double)rate);
@@ -392,7 +390,7 @@ internal static class AudioProbe
 
         if (identification[0] != 1 || !Is(identification[1..7], "vorbis"))
         {
-            throw new AudioFormatException("opens with no Vorbis identification header; Capsule reads Ogg Vorbis.");
+            throw new AudioFormatException("opens with no Vorbis identification header. Capsule reads Ogg Vorbis.");
         }
 
         uint rate = BinaryPrimitives.ReadUInt32LittleEndian(identification[12..]);
@@ -417,7 +415,7 @@ internal static class AudioProbe
         return true;
     }
 
-    // False only at a clean end of file; a partial read is a truncation either way.
+    // False only at a clean end of file. A partial read is a truncation.
     private static bool TryRead(Stream stream, Span<byte> buffer)
     {
         int read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
@@ -428,7 +426,7 @@ internal static class AudioProbe
 
         if (read < buffer.Length)
         {
-            throw new AudioFormatException("ends inside a header; the file is truncated.");
+            throw new AudioFormatException("ends inside a header. The file is truncated.");
         }
 
         return true;
@@ -442,19 +440,19 @@ internal static class AudioProbe
         }
         catch (EndOfStreamException ex)
         {
-            throw new AudioFormatException("ends where more of it was expected; the file is truncated.", ex);
+            throw new AudioFormatException("ends where more of it was expected. The file is truncated.", ex);
         }
     }
 
     private static string Number(long value) => value.ToString(CultureInfo.InvariantCulture);
 
-    // One Ogg packet read in order across however many pages carry it, so a value inside it can be
-    // stepped over in the file rather than buffered. Holds one page's segment table and nothing
-    // else, whatever the packet's length. A page of a foreign serial is another logical stream
-    // multiplexed into the file and is skipped; the packet continues past it.
+    // One Ogg packet read in order across however many pages carry it. A value inside it can be
+    // stepped over in the file instead of buffered. Holds one page's segment table and nothing else,
+    // whatever the packet's length. A page of a foreign serial belongs to another logical stream
+    // multiplexed into the file and is skipped, and the packet continues past it.
     private sealed class OggPacket(FileStream stream, uint serial, long page)
     {
-        // A segment of the maximum length says the packet continues into the next one; anything
+        // A segment of the maximum length says the packet continues into the next segment. Anything
         // shorter closes it.
         private const int Continued = 255;
 
@@ -499,8 +497,8 @@ internal static class AudioProbe
         }
 
         // Bytes of the packet readable at the stream's position, entering the next segment and the
-        // next page as the one being read runs out. A closed packet is the end of what may be read
-        // whether or not the page holds further segments: those belong to the packet behind this one.
+        // next page as the current one runs out. A closed packet ends what may be read even when the
+        // page holds further segments, because those belong to the next packet.
         private int Enter()
         {
             while (_remaining == 0)
@@ -508,7 +506,7 @@ internal static class AudioProbe
                 if (_closing)
                 {
                     throw new AudioFormatException(
-                        "ends its Vorbis comment header before the comments the header declares; the packet is truncated.");
+                        "ends its Vorbis comment header before the comments it declares. The packet is truncated.");
                 }
 
                 if (_index == _count)
@@ -536,7 +534,7 @@ internal static class AudioProbe
                 if (!TryRead(stream, header) || !Is(header[..4], "OggS"))
                 {
                     throw new AudioFormatException(
-                        "ends before the page continuing its Vorbis comment header; the file is truncated.");
+                        "ends before the page continuing its Vorbis comment header. The file is truncated.");
                 }
 
                 int count = header[26];

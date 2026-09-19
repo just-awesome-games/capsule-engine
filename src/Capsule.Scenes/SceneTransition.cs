@@ -12,13 +12,14 @@ public enum SceneTransitionKind
     /// <summary>Replace the current scene with one named by class.</summary>
     Scene,
 
-    /// <summary>Replace the current scene with the one a named scene document composes into.</summary>
+    /// <summary>Replace the current scene with whatever a named scene document composes into.</summary>
     Named,
 }
 
 /// <summary>
-/// A deferred scene operation stored by a <see cref="Run"/>, exposed to a host by
-/// <see cref="SceneSimulation.TryTakeTransition"/> after the step that requested it has finished.
+/// A deferred scene operation a <see cref="Run"/> holds.
+/// <see cref="SceneSimulation.TryTakeTransition"/> hands it to the host once the step that requested it has
+/// finished.
 /// </summary>
 public readonly record struct SceneTransition
 {
@@ -45,12 +46,12 @@ public readonly record struct SceneTransition
     /// <summary>The requested document name when <see cref="Kind"/> is <see cref="SceneTransitionKind.Named"/>.</summary>
     public string? DocumentName { get; }
 
-    /// <summary>State offered to the next scene, including null when <see cref="HasPayload"/> is true.</summary>
+    /// <summary>State offered to the next scene. It may be null while <see cref="HasPayload"/> is true.</summary>
     public object? Payload { get; }
 
     /// <summary>
-    /// Whether a restart replaces the payload that opened the current scene; every other kind
-    /// always carries its payload.
+    /// Whether a restart replaces the payload that opened the current scene. Every other kind carries
+    /// its payload.
     /// </summary>
     public bool HasPayload { get; }
 

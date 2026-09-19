@@ -1,8 +1,8 @@
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Render-command counts for the last rewrite of a <see cref="FrameView"/>, across every kind. One
-/// command is one sprite, and a run of text is one command per glyph.
+/// Render-command counts for the last rewrite of a <see cref="FrameView"/>. One command is one sprite,
+/// and a run of text costs one command per glyph.
 /// </summary>
 public readonly record struct RenderMetrics(int Submitted, int Visible)
 {

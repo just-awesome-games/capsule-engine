@@ -24,7 +24,7 @@ public sealed class SaveStoreTests
         Assert.True(saves.Exists(Slot));
         Assert.Equal(3, saves.Read(Slot));
         Assert.Equal(5, saves.Read(SettingsKey).Volume);
-        Assert.Equal(["settings", "slot-1"], saves.Names);
+        Assert.Equal(["settings", "slot-1"], saves.Names.ToArray());
 
         // A stamp is the host's; nothing under SimulationHost ever persists, so nothing is stamped.
         host.Step();
@@ -33,7 +33,7 @@ public sealed class SaveStoreTests
         Assert.True(saves.Delete(Slot));
         Assert.False(saves.Delete(Slot));
         Assert.False(saves.Exists(Slot));
-        Assert.Equal(["settings"], saves.Names);
+        Assert.Equal(["settings"], saves.Names.ToArray());
         Assert.False(saves.TryRead(Slot, out _));
     }
 

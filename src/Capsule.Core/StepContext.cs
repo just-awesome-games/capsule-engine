@@ -3,26 +3,28 @@ using Capsule.Input;
 namespace Capsule;
 
 /// <summary>Everything the runtime hands a simulation for one fixed step.</summary>
-public readonly struct StepContext(double deltaSeconds, InputState input, long tick)
+public readonly struct StepContext(double stepSeconds, InputState input, long tick)
 {
-    /// <summary>The fixed step rate a run uses unless the host configures another: 60 steps per second.</summary>
+    /// <summary>The fixed step rate a run uses unless the host configures another, at 60 steps per second.</summary>
     public const int DefaultStepHertz = 60;
 
-    private readonly double _stepSeconds = deltaSeconds;
+    // The step length at the precision the host configured. The engine's clocks derive from this, not
+    // from the rounded DeltaSeconds a game reads.
+    internal double StepSeconds { get; } = stepSeconds;
 
-    /// <summary>Simulated seconds this step represents; constant for a given engine configuration.</summary>
-    public float DeltaSeconds { get; } = (float)deltaSeconds;
+    /// <summary>Simulated seconds this step represents. Constant for a given engine configuration.</summary>
+    public float DeltaSeconds => (float)StepSeconds;
 
-    /// <summary>Action-level input for this step; the same instance across every step of a run.</summary>
+    /// <summary>Action-level input for this step. It is the same instance across every step of a run.</summary>
     public InputState Input { get; } = input;
 
-    /// <summary>Index of this step; 0 on the first step ever delivered.</summary>
+    /// <summary>Index of this step. The first step ever delivered is 0.</summary>
     public long Tick { get; } = tick;
 
     /// <summary>
-    /// Simulated seconds at the start of this step — never wall clock. Derived from
-    /// <see cref="Tick"/> and the double-precision step rather than accumulated, so it neither
-    /// drifts across a long run nor carries the rounding of <see cref="DeltaSeconds"/>.
+    /// Simulated seconds at the start of this step, not wall clock. It is computed from
+    /// <see cref="Tick"/> and the double-precision step instead of accumulated, so it neither drifts
+    /// across a long run nor carries the rounding of <see cref="DeltaSeconds"/>.
     /// </summary>
-    public double TotalSeconds => Tick * _stepSeconds;
+    public double TotalSeconds => Tick * StepSeconds;
 }

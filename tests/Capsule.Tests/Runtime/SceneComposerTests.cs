@@ -60,7 +60,7 @@ public sealed class SceneComposerTests : IDisposable
     private static SceneRegistry Registry() =>
         new(
             SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn))),
-            [SceneRegistration.FromDocument(typeof(Hall), DocumentName, static content => new Hall(content))]);
+            [SceneRegistration.FromDocument(typeof(Hall), DocumentName, static content => new Hall(content!.Value))]);
 
     private sealed class Hall(SceneContent content) : Scene(content);
 }

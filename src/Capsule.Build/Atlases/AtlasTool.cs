@@ -11,10 +11,10 @@ using StbImageWriteSharp;
 namespace Capsule.Build.Atlases;
 
 /// <summary>
-/// The atlas pass: every <c>*.atlas.json</c> claims the textures its globs match, packs them onto
-/// pages, and the one map the runtime reads sends each member's handle to its page and offset. Each
-/// atlas is stamped with a hash over its manifest and members, so a build that changed nothing an
-/// atlas holds repacks nothing and takes its placements back from the map it wrote last time.
+/// The atlas pass. Every <c>*.atlas.json</c> claims the textures its globs match and packs them onto
+/// pages, and the map the runtime reads sends each member's handle to its page and offset. Each
+/// atlas is stamped with its manifest hash and every member's size and write time. A build that
+/// changed nothing an atlas holds reuses the placements in the last map.
 /// </summary>
 internal static class AtlasTool
 {
@@ -29,11 +29,11 @@ internal static class AtlasTool
 
     private const int LargestMaxSize = 8192;
 
-    /// <param name="keyed">Everything the run keyed; the atlases and textures among it are this pass's.</param>
+    /// <param name="keyed">Everything the run keyed. This pass reads the atlases and textures in it.</param>
     /// <param name="atlasesDirectory">Where pages, stamps and the map are written.</param>
     /// <param name="output">Progress, one line per atlas.</param>
     /// <param name="error">Failures, each anchored to the manifest or texture that failed.</param>
-    /// <param name="packed">Receives every texture key some atlas packed, which ships nowhere on its own.</param>
+    /// <param name="packed">Receives every texture key an atlas packed. Those textures do not ship on their own.</param>
     /// <param name="shipped">Receives one shipped-asset line per page and one for the map.</param>
     /// <returns>How many atlases failed.</returns>
     internal static int Pack(
@@ -58,7 +58,8 @@ internal static class AtlasTool
         string mapPath = Path.Combine(atlasesDirectory, MapFile).Replace('\\', '/');
         IDictionary<string, AtlasEntryJson> previous = ReadMap(mapPath);
 
-        // Which manifest packs each texture, so a texture two manifests match is reported against both.
+        // Which manifest packs each texture. A texture two manifests match is reported against
+        // both.
         Dictionary<string, string> claimedBy = new(StringComparer.Ordinal);
         SortedDictionary<string, AtlasEntryJson> map = new(StringComparer.Ordinal);
         int failures = 0;
@@ -71,9 +72,9 @@ internal static class AtlasTool
                 continue;
             }
 
-            string hash = Hash(manifestBytes, members, textures);
+            string stamp = Stamp(manifestBytes, members, textures);
             string stampPath = Path.Combine(atlasesDirectory, atlas.Key + ".atlas.stamp");
-            Dictionary<string, AtlasEntryJson>? entries = File.Exists(stampPath) && File.ReadAllText(stampPath) == hash
+            Dictionary<string, AtlasEntryJson>? entries = File.Exists(stampPath) && File.ReadAllText(stampPath) == stamp
                 ? Previous(previous, atlas.Key, atlasesDirectory)
                 : null;
 
@@ -86,7 +87,7 @@ internal static class AtlasTool
                     continue;
                 }
 
-                AtomicFile.Write(stampPath, path => File.WriteAllText(path, hash));
+                AtomicFile.Write(stampPath, path => File.WriteAllText(path, stamp));
                 output.WriteLine($"atlas {atlas.Key}: {members.Count} texture(s) packed on {entries.Values.DistinctBy(static entry => entry.Page).Count()} page(s)");
             }
             else
@@ -123,10 +124,8 @@ internal static class AtlasTool
         return 0;
     }
 
-    /// <summary>
-    /// Parses a manifest into its globs, each compiled over keys, and its page extent.
-    /// </summary>
-    /// <exception cref="FormatException">The JSON is malformed or the document breaks the format; the message states the defect.</exception>
+    /// <summary>Parses a manifest into its globs, each compiled over keys, and its page extent.</summary>
+    /// <exception cref="FormatException">The JSON is malformed or the document breaks the format.</exception>
     internal static ((string Pattern, Regex Match)[] Patterns, int MaxSize) ReadManifest(string text)
     {
         AtlasManifestJson? raw;
@@ -141,26 +140,27 @@ internal static class AtlasTool
 
         if (raw?.Textures is not { Length: > 0 } patterns)
         {
-            throw new FormatException("declares no textures; \"textures\" is a non-empty array of globs over texture keys.");
+            throw new FormatException("declares no textures. \"textures\" is a non-empty array of globs over texture keys.");
         }
 
         int maxSize = raw.MaxSize ?? DefaultMaxSize;
         if (maxSize <= 0 || maxSize > LargestMaxSize || !int.IsPow2(maxSize))
         {
-            throw new FormatException($"declares a maxSize of {maxSize}; a page extent is a power of two no larger than {LargestMaxSize}.");
+            throw new FormatException($"declares a maxSize of {maxSize}. A page extent is a power of two no larger than {LargestMaxSize}.");
         }
 
         return ([.. patterns.Select(static pattern => (pattern ?? string.Empty, Glob(pattern)))], maxSize);
     }
 
-    // A glob over keys as one anchored expression: '*' is any run within a segment; '**' alone is
-    // everything below the directory it ends, or any depth including none in the middle.
+    // A glob over keys as one anchored expression. '*' matches any run within a segment. '**' at the
+    // end matches everything below that directory, and in the middle matches any depth, including
+    // none.
     private static Regex Glob(string? pattern)
     {
         string[] segments = pattern?.Split('/') ?? [];
         if (segments.Length == 0 || segments.Any(static segment => segment != "**" && (segment.Contains("**", StringComparison.Ordinal) || !Regex.IsMatch(segment, "^[A-Za-z0-9_*-]+$"))))
         {
-            throw new FormatException($"lists the texture pattern \"{pattern}\"; a pattern is forward-slash segments of key characters and '*', or '**' alone.");
+            throw new FormatException($"lists the texture pattern \"{pattern}\". A pattern is forward-slash segments of key characters and '*', or '**' alone.");
         }
 
         StringBuilder expression = new("^");
@@ -202,8 +202,8 @@ internal static class AtlasTool
         }
     }
 
-    // The atlas's placements from the last map written, or null when that map lacks it or one of
-    // its pages is gone — each a reason to pack again.
+    // The atlas's placements from the last map written, or null when the map lacks the atlas or one
+    // of its pages is gone. Either means it must be packed again.
     private static Dictionary<string, AtlasEntryJson>? Previous(IDictionary<string, AtlasEntryJson> previous, string atlas, string atlasesDirectory)
     {
         Dictionary<string, AtlasEntryJson> entries = new(StringComparer.Ordinal);
@@ -223,7 +223,7 @@ internal static class AtlasTool
         return entries.Count > 0 ? entries : null;
     }
 
-    // Reads one manifest and resolves its globs against the texture set, reporting every defect
+    // Reads one manifest and resolves its globs against the texture set. Reports every defect
     // before returning false.
     private static bool TryClaim(
         KeyedAsset atlas,
@@ -267,7 +267,7 @@ internal static class AtlasTool
 
             if (hits == 0)
             {
-                error.WriteLine($"{atlas.Source}: the texture pattern \"{pattern}\" matches no texture under Textures/; every pattern packs at least one.");
+                error.WriteLine($"{atlas.Source}: the texture pattern \"{pattern}\" matches no texture under Textures/. Every pattern must pack at least one texture.");
                 valid = false;
             }
         }
@@ -276,7 +276,7 @@ internal static class AtlasTool
         {
             if (claimedBy.TryGetValue(key, out string? claimant))
             {
-                error.WriteLine($"{atlas.Source}: packs '{textures[key]}', which '{claimant}' already packs; a texture belongs to one atlas.");
+                error.WriteLine($"{atlas.Source}: packs '{textures[key]}', which '{claimant}' already packs. A texture belongs to one atlas.");
                 valid = false;
                 continue;
             }
@@ -288,23 +288,26 @@ internal static class AtlasTool
         return valid;
     }
 
-    private static string Hash(byte[] manifestBytes, List<string> members, Dictionary<string, string> textures)
+    // A repack is decided by the manifest itself plus every member's key, length and write time.
+    // Reading and hashing every texture on every build costs more than the repack it saves.
+    private static string Stamp(byte[] manifestBytes, List<string> members, Dictionary<string, string> textures)
     {
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        hash.AppendData(manifestBytes);
+        StringBuilder stamp = new();
+        stamp.AppendLine(Convert.ToHexString(SHA256.HashData(manifestBytes)));
 
         foreach (string key in members)
         {
-            hash.AppendData(Encoding.UTF8.GetBytes(key));
-            hash.AppendData([0]);
-            hash.AppendData(File.ReadAllBytes(textures[key]));
+            FileInfo file = new(textures[key]);
+            stamp.Append(key).Append(BuildRequests.Separator).Append(file.Length)
+                .Append(BuildRequests.Separator)
+                .AppendLine(file.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture));
         }
 
-        return Convert.ToHexString(hash.GetHashAndReset());
+        return stamp.ToString();
     }
 
-    // Decodes, packs and writes every page of one atlas, reporting every member that cannot be
-    // packed before returning null.
+    // Decodes, packs and writes every page of one atlas. Reports every member that cannot be packed
+    // before returning null.
     private static Dictionary<string, AtlasEntryJson>? Repack(
         KeyedAsset atlas,
         int maxSize,
@@ -326,7 +329,7 @@ internal static class AtlasTool
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException or IOException or UnauthorizedAccessException)
             {
-                error.WriteLine($"{textures[key]}: is not a PNG the packer can decode — {ex.Message}");
+                error.WriteLine($"{textures[key]}: is not a PNG the packer can decode: {ex.Message}");
                 valid = false;
                 continue;
             }
@@ -334,7 +337,7 @@ internal static class AtlasTool
             if (image.Width + (2 * Extrude) > maxSize || image.Height + (2 * Extrude) > maxSize)
             {
                 error.WriteLine(
-                    $"{textures[key]}: is {image.Width}x{image.Height}, which with its {Extrude}-texel border exceeds the {maxSize}-texel page '{atlas.Source}' declares; raise maxSize or leave it out of the atlas.");
+                    $"{textures[key]}: is {image.Width}x{image.Height}, which with its {Extrude}-texel border exceeds the {maxSize}-texel page '{atlas.Source}' declares. Raise maxSize or leave the texture out of the atlas.");
                 valid = false;
                 continue;
             }
@@ -373,8 +376,8 @@ internal static class AtlasTool
             });
         }
 
-        // A page the previous pack needed and this one does not would otherwise sit beside the live
-        // ones until a clean.
+        // Delete pages the previous pack wrote and this one does not, or they sit beside the live
+        // pages until a clean.
         for (int stale = pages.Length; File.Exists(PagePath(atlasesDirectory, $"{atlas.Key}.{stale.ToString(CultureInfo.InvariantCulture)}")); stale++)
         {
             File.Delete(PagePath(atlasesDirectory, $"{atlas.Key}.{stale.ToString(CultureInfo.InvariantCulture)}"));
@@ -385,9 +388,9 @@ internal static class AtlasTool
 
     /// <summary>
     /// Copies <paramref name="member"/> onto <paramref name="page"/> (RGBA8, <paramref name="pageWidth"/>
-    /// texels a row) with its top-left texel at (<paramref name="x"/>, <paramref name="y"/>) and its
-    /// border extruded <see cref="Extrude"/> texels outward on every side, corners included, so a
-    /// clamped linear sample at the member's edge reads the edge and never a neighbour.
+    /// texels a row) with its top-left texel at (<paramref name="x"/>, <paramref name="y"/>). The
+    /// border is extruded <see cref="Extrude"/> texels outward on every side, corners included, so a
+    /// clamped linear sample at the member's edge reads the edge and not a neighbour.
     /// </summary>
     internal static void Blit(byte[] page, int pageWidth, ImageResult member, int x, int y)
     {
@@ -424,7 +427,7 @@ internal sealed class AtlasManifestJson
     public int? MaxSize { get; set; }
 }
 
-/// <summary>The map as shipped: each packed texture key to the page key it lives on and where its texel (0, 0) is.</summary>
+/// <summary>The shipped map: each packed texture key to the page it lives on and the position of its texel (0, 0).</summary>
 internal sealed class AtlasMapJson
 {
     [JsonPropertyName("textures")]
@@ -443,8 +446,8 @@ internal sealed class AtlasEntryJson
     public int Y { get; set; }
 }
 
-// Reflection-based serialization is off solution-wide; Disallow is what makes an unknown manifest
-// member a defect rather than an ignored typo.
+// Reflection-based serialization is off solution-wide. Disallow makes an unknown manifest member a
+// defect instead of an ignored typo.
 [JsonSourceGenerationOptions(UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(AtlasManifestJson))]
 internal sealed partial class AtlasManifestJsonContext : JsonSerializerContext;

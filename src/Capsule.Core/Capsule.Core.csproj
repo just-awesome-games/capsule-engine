@@ -11,6 +11,7 @@
 
   <!-- Host seams and test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Physics" />
     <InternalsVisibleTo Include="Capsule.Scenes" />
     <InternalsVisibleTo Include="Capsule.Runtime" />
     <InternalsVisibleTo Include="Capsule.Tests" />

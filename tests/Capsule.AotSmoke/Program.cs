@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Capsule.AotSmoke.Logic;
 using Capsule.Assets;
 using Capsule.Assets.Generated;
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
@@ -25,6 +26,8 @@ internal static class Program
 
     private const int MinimumVisible = DocumentSprites + FixtureLabel.Glyphs;
 
+    private const string DevelopmentTexturePath = "assets/textures/development/scratch.png";
+
     public static int Main(string[] args)
     {
         try
@@ -34,16 +37,55 @@ internal static class Program
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);
+
             return 1;
         }
     }
 
+    // Every check names both directions of its axis: a hook that stopped excluding and one that
+    // started excluding everything must both fail here rather than downstream. Each answers with its
+    // own exit code so a failure names the axis.
     private static int Run(string[] args)
     {
-        // A NativeAOT binary is the publish, where the switch must be present and off; an ordinary
-        // source-mode run has no shipping runtimeconfig at all.
+        bool shipping = !Development.IsSupported;
         bool published = !RuntimeFeature.IsDynamicCodeSupported;
-        bool developmentDisabled = AppContext.TryGetSwitch("Capsule.Development", out bool on) && !on;
+
+        // A NativeAOT binary is the publish, and a publish ships: this is what holds CI's run to the
+        // shipping direction of every check below.
+        if (published && !shipping)
+        {
+            Console.Error.WriteLine(
+                "AOT smoke failed (3): this is a published binary whose Development.IsSupported is true, so the publish did not set CapsuleShipping.");
+
+            return 3;
+        }
+
+        bool keptDriver = Registers(SmokeDrivers.Kept);
+        bool developmentDriver = Registers(SmokeDrivers.DevelopmentOnly);
+
+        if (!keptDriver || developmentDriver == shipping)
+        {
+            Console.Error.WriteLine(
+                FormattableString.Invariant(
+                    $"AOT smoke failed (4): the driver registry holds [{string.Join(", ", SmokeDrivers.Names)}]; it must register {SmokeDrivers.Kept} in every build, and {SmokeDrivers.DevelopmentOnly}, which sits under a .capsuleignore marker, in a non-shipping build only (shipping {shipping})."));
+
+            return 4;
+        }
+
+        // The generated sprite for the module-derived sheet, referenced so a key that stopped
+        // reaching the build tool is a compile error rather than a silent gap.
+        Sprite module = CapsuleAssets.Sprites.Smoke.Module.Frames.Only;
+        bool keptTexture = Shipped(CapsuleAssets.Textures.Kept) && module.Texture.Name == CapsuleAssets.Textures.Kept.Name;
+        bool developmentTexture = File.Exists(Path.Combine(AppContext.BaseDirectory, DevelopmentTexturePath));
+
+        if (!keptTexture || developmentTexture == shipping)
+        {
+            Console.Error.WriteLine(
+                FormattableString.Invariant(
+                    $"AOT smoke failed (5): the textures beside this executable must hold {CapsuleAssets.Textures.Kept.Name} (present {keptTexture}), and {DevelopmentTexturePath} (present {developmentTexture}) in a non-shipping build only (shipping {shipping})."));
+
+            return 5;
+        }
 
         // Twice in one process: each run builds a fresh store, so the second read comes back from
         // the file the first run wrote.
@@ -60,22 +102,25 @@ internal static class Program
             second.Steps == DrivenSteps &&
             contentShipped &&
             firstRead == 0 &&
-            secondRead == 1 &&
-            (!published || developmentDisabled);
+            secondRead == 1;
 
         if (!booted)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed: {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}, runs read {firstRead} then {secondRead} (expected 0 then 1), development disabled {developmentDisabled}."));
-            return 1;
+                    $"AOT smoke failed (2): {result.Steps}/{DrivenSteps} steps, exit {result.ExitRequested}, {result.Metrics.Visible}/{result.Metrics.Submitted} commands (at least {MinimumVisible} visible), content {contentShipped}, runs read {firstRead} then {secondRead} (expected 0 then 1)."));
+
+            return 2;
         }
 
         Console.WriteLine(
             FormattableString.Invariant(
-                $"AOT smoke passed: {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped, runs read {firstRead} then {secondRead}."));
+                $"AOT smoke passed (shipping {shipping}): {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped, runs read {firstRead} then {secondRead}."));
+
         return 0;
     }
+
+    private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;
 
     private static HeadlessRunResult Play(string[] args) =>
         CapsuleEngine.Configure("Capsule AOT Smoke", new DesktopPlatform(), CapsuleScenes.Registry)

@@ -2,12 +2,81 @@ using System.Text;
 
 namespace Capsule.Generators;
 
-/// <summary>Writes one member of a registry class at <paramref name="indent"/>, backing included.</summary>
+/// <summary>Writes one member of a registry class at <paramref name="indent"/>, backing field included.</summary>
 internal delegate void RegistryLeafWriter<T>(StringBuilder source, string indent, string identifier, T value);
 
 /// <summary>Whether <paramref name="identifier"/> may be declared on <paramref name="node"/>.</summary>
-/// <param name="leaf">Whether it names the source itself rather than a directory above it.</param>
+/// <param name="leaf">Whether it names the source itself, not a directory above it.</param>
 internal delegate bool RegistryClaimCheck<T>(RegistryNode<T> node, string identifier, string display, bool leaf);
+
+/// <summary>Why an identifier cannot be declared where a key puts it.</summary>
+internal enum RegistryFault
+{
+    /// <summary>It is the name of the generated class it would be declared on (CS0542).</summary>
+    NamedAfterItsClass,
+
+    /// <summary>It is a name the generated classes take for a member of their own.</summary>
+    NamedAfterAGeneratedMember,
+
+    /// <summary>Something else in that directory already declares it.</summary>
+    AlreadyDeclared,
+}
+
+/// <summary>One refused identifier, in the terms the refusing domain reports it.</summary>
+/// <param name="Display">The name a diagnostic gives the refused source.</param>
+/// <param name="Directory">The source directory whose generated class refused it.</param>
+/// <param name="ClaimedBy">What already declares it, for <see cref="RegistryFault.AlreadyDeclared"/>.</param>
+internal readonly record struct RegistryRefusal(
+    RegistryFault Fault,
+    string Identifier,
+    string Display,
+    string Directory,
+    string? ClaimedBy);
+
+/// <summary>The rule every generated registry admits an identifier by.</summary>
+internal static class RegistryClaims
+{
+    /// <param name="refuse">Reports the defect in the calling domain's own terms.</param>
+    /// <param name="reserves">Which identifiers the domain's generated members take. Null reserves just the set member.</param>
+    internal static RegistryClaimCheck<T> Check<T>(
+        Action<RegistryRefusal> refuse,
+        Func<string, bool, bool>? reserves = null) =>
+        (node, identifier, display, leaf) =>
+        {
+            if (string.Equals(identifier, node.Identifier, StringComparison.Ordinal))
+            {
+                refuse(new RegistryRefusal(RegistryFault.NamedAfterItsClass, identifier, display, node.Display, null));
+
+                return false;
+            }
+
+            bool reserved = reserves is null
+                ? string.Equals(identifier, RegistryFile.ListMember, StringComparison.Ordinal)
+                : reserves(identifier, leaf);
+
+            if (reserved)
+            {
+                refuse(new RegistryRefusal(RegistryFault.NamedAfterAGeneratedMember, identifier, display, node.Display, null));
+
+                return false;
+            }
+
+            if (node.ClaimedBy.TryGetValue(identifier, out string? claimed))
+            {
+                // A directory two sources share is one class, not a collision.
+                if (node.Directories.ContainsKey(identifier) && string.Equals(claimed, display, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                refuse(new RegistryRefusal(RegistryFault.AlreadyDeclared, identifier, display, node.Display, claimed));
+
+                return false;
+            }
+
+            return true;
+        };
+}
 
 // One directory of a generated registry: the members declared on it, the nested classes under it,
 // and every member beneath it transitively.
@@ -18,7 +87,7 @@ internal sealed class RegistryNode<T>
         Identifier = identifier;
         Display = display;
 
-        // The domain root's display is '<domain>/', which is no part of a key.
+        // The domain root's display is '<domain>/', which no key includes.
         Depth = display.Length - display.IndexOf('/') - 1;
     }
 
@@ -34,7 +103,7 @@ internal sealed class RegistryNode<T>
 
     internal SortedDictionary<string, RegistryNode<T>> Directories { get; } = new(StringComparer.Ordinal);
 
-    /// <summary>What already declares each identifier here, by the display name a diagnostic knows it as.</summary>
+    /// <summary>What already declares each identifier here, keyed by identifier and holding its display name.</summary>
     internal Dictionary<string, string> ClaimedBy { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Every key beneath this class, transitively, in ordinal order.</summary>
@@ -43,8 +112,7 @@ internal sealed class RegistryNode<T>
 
 // The shape every generated asset registry has: a domain class of nested static classes, one per
 // authored directory, each carrying the members keyed into it and an 'All' set of everything
-// beneath it. A domain writes only its own leaves, and one whose leaf is no single member — a null
-// memberType — declares no set.
+// beneath it. A null memberType declares no set.
 internal sealed class RegistryDomain<T>(
     string registryClass,
     string domain,
@@ -59,13 +127,14 @@ internal sealed class RegistryDomain<T>(
 
     /// <summary>
     /// Hangs <paramref name="value"/> off the class <paramref name="key"/> names, creating the
-    /// directories it walks through. False when <paramref name="claim"/> refused a name on the way.
+    /// directory classes it walks through. Returns false when <paramref name="claim"/> refused a
+    /// name on the way.
     /// </summary>
     /// <param name="key">The source's key under the domain root, forward slashes and no extension.</param>
-    /// <param name="display">What a diagnostic names the source by.</param>
+    /// <param name="display">The name a diagnostic gives the source.</param>
     /// <param name="value">What the leaf member hands back.</param>
-    /// <param name="claim">Checks each identifier before it is declared; null declares them all.</param>
-    internal bool Add(string key, string display, T value, RegistryClaimCheck<T>? claim = null)
+    /// <param name="claim">Checks each identifier before it is declared.</param>
+    internal bool Add(string key, string display, T value, RegistryClaimCheck<T> claim)
     {
         string[] segments = key.Split('/');
         List<RegistryNode<T>> walked = new(segments.Length) { Root };
@@ -76,7 +145,7 @@ internal sealed class RegistryDomain<T>(
             string identifier = TypeNaming.ToIdentifier(segments[i])!;
             string directory = node.Display + segments[i] + "/";
 
-            if (claim is not null && !claim(node, identifier, directory, leaf: false))
+            if (!claim(node, identifier, directory, leaf: false))
             {
                 return false;
             }
@@ -93,7 +162,7 @@ internal sealed class RegistryDomain<T>(
         }
 
         string name = TypeNaming.ToIdentifier(segments[segments.Length - 1])!;
-        if (claim is not null && !claim(node, name, display, leaf: true))
+        if (!claim(node, name, display, leaf: true))
         {
             return false;
         }
@@ -169,7 +238,7 @@ internal sealed class RegistryDomain<T>(
         source.Append(indent).AppendLine("}");
     }
 
-    // Backed by a field and handed out as a span: allocation-free to enumerate, and read-only.
+    // Handed out as a span over a backing field, so enumerating it allocates nothing.
     private void AppendList(StringBuilder source, RegistryNode<T> node, string shipped, string indent, bool first)
     {
         if (!first)
@@ -213,17 +282,17 @@ internal sealed class RegistryDomain<T>(
     }
 }
 
-// The one generated class every asset domain declares itself inside.
+// The generated class every asset domain declares itself inside.
 internal static class RegistryFile
 {
     internal const string RootClass = "CapsuleAssets";
 
-    /// <summary>The set member every class carries, and therefore a name no directory or file may take.</summary>
+    /// <summary>The set member every class carries, so no directory or file may take this name.</summary>
     internal const string ListMember = "All";
 
-    // Every half of this partial class carries the same summary, so whichever the compiler keeps is
-    // the same text, and each half attributes only the classes it declares: a non-repeatable
-    // attribute named by two halves of one partial class is CS0579.
+    // Every half of this partial class carries the same summary, so the compiler keeps the same
+    // text whichever half it picks. Each half attributes only the classes it declares, because a
+    // non-repeatable attribute named by two halves of one partial class is CS0579.
     internal static StringBuilder Open()
     {
         StringBuilder source = new();
@@ -233,7 +302,7 @@ internal static class RegistryFile
         source.AppendLine();
         source.AppendLine("namespace Capsule.Assets.Generated");
         source.AppendLine("{");
-        source.AppendLine("    /// <summary>Every asset this game ships and every sprite sheet it authors. Generated; do not edit.</summary>");
+        source.AppendLine("    /// <summary>Every asset this game ships and every sprite sheet it authors. Generated code. Do not edit.</summary>");
         source.Append("    public static partial class ").AppendLine(RootClass);
         source.AppendLine("    {");
 

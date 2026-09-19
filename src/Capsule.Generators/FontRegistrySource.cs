@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-// One shipped font, with every page resolved to the key and spelling the build ships it at.
+// One shipped font, with every page resolved to the key and extension the build ships it at.
 internal sealed class FontSource(string key, BmFontDescription description, string[] pageKeys, string[] pageExtensions)
 {
     internal string Key { get; } = key;
@@ -20,8 +20,8 @@ internal sealed class FontSource(string key, BmFontDescription description, stri
 }
 
 // Renders every font a game ships as typed members of CapsuleAssets.Fonts, each carrying the
-// metrics, glyphs and kerning read out of its '.fnt', so a misspelt font is a compile error,
-// nothing is parsed at run time, and the '.fnt' itself never ships — only the pages it names.
+// metrics, glyphs and kerning read out of its '.fnt'. A misspelt font is a compile error and
+// nothing is parsed at run time.
 internal static class FontRegistrySource
 {
     internal const string RegistryClass = "Fonts";
@@ -48,16 +48,13 @@ internal static class FontRegistrySource
             authored,
             Domain,
             BmFontParser.BmFontExtension,
-            "cannot be read as text; export the font as text.",
+            "cannot be read as text. Export the font as text.",
             BmFontParser.Parse,
             cancellation);
 
     /// <summary>
-    /// Where each page ships. A page is a fonts-domain asset of its own, so the key pass has already
-    /// keyed it off its authored path; deriving that same key here from the font's key and the
-    /// page's file name is what ties the two together across normalization. A page missing from
-    /// <paramref name="shipped"/> is one the build does not ship — excluded as development-only, or
-    /// never authored — and a handle naming it would find no file at run time.
+    /// Resolves every page the font names to the shipped asset that carries it. Page keys are
+    /// derived the same way the key pass derives them, so the two agree across normalization.
     /// </summary>
     /// <returns>The source, or null with <paramref name="error"/> set.</returns>
     internal static FontSource? Resolve(
@@ -78,18 +75,17 @@ internal static class FontRegistrySource
 
             if (TypeNaming.NormalizeKey(stem, out string? rejected) is not { } normalized)
             {
-                error = $"names page \"{file}\", whose \"{rejected}\" is no C# name; every segment of a path under a domain root is letters, digits, '-' and '_', and does not start with a digit.";
+                error = $"names page \"{file}\", whose \"{rejected}\" is no C# name. A path segment under a domain root holds letters, digits, '-' and '_', and does not start with a digit.";
 
                 return null;
             }
 
             string page = directory + normalized;
 
-            // The shipped spelling, not the one the font used: the handle has to name the file the
-            // build actually wrote.
+            // The handle names the file the build wrote, not the spelling the font used.
             if (!shipped.TryGetValue(page, out string? extension))
             {
-                error = $"names page \"{file}\", which this game ships nothing for at \"assets/fonts/{page}\"; author the page under Assets/Fonts/ and keep it out of a development-only directory.";
+                error = $"names page \"{file}\", and this game ships nothing at \"assets/fonts/{page}\". Author the page under Assets/Fonts/ and keep it out of a development-only directory.";
 
                 return null;
             }
@@ -112,8 +108,8 @@ internal static class FontRegistrySource
             "Every font this game ships, with the glyphs the build read for it.",
             AppendFont);
 
-    // One instance, built once from literal data: a font is a class, so the member hands the same
-    // one back rather than rebuilding its tables per call.
+    // A font is a class, so the member hands back a single instance built once from literal data
+    // instead of rebuilding its tables per call.
     private static void AppendFont(StringBuilder source, string indent, string identifier, FontSource font)
     {
         BmFontDescription described = font.Description;

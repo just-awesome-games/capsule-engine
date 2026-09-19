@@ -9,9 +9,9 @@ namespace Capsule.Runtime.Persistence;
 /// <summary>
 /// The directory medium: <c>&lt;name&gt;.save.json</c> per document under one directory, created on
 /// the first persist. Each write is staged as <c>.save.json.tmp</c> and swapped in, keeping the
-/// previous file as <c>.save.json.bak</c>; a file that does not parse at restore is set aside as
-/// <c>.save.json.corrupt</c> and its backup restored in its place, with a warning either way. A file the process cannot read
-/// at all propagates, and the run does not boot. <c>docs/persistence.md</c> holds the file format.
+/// previous file as <c>.save.json.bak</c>. A file that does not parse at restore is set aside as
+/// <c>.save.json.corrupt</c> and its backup restored in its place, with a warning either way. A read
+/// failure propagates and the run does not boot. <c>docs/persistence.md</c> holds the file format.
 /// </summary>
 public sealed class DirectorySaveStorage : ISaveStorage
 {
@@ -27,11 +27,11 @@ public sealed class DirectorySaveStorage : ISaveStorage
 
     private static ReadOnlySpan<byte> Utf8Bom => [0xEF, 0xBB, 0xBF];
 
-    // Created on the first persist, so a run that never saves allocates no writer.
+    // Created on the first persist, and a run that never saves allocates no writer.
     private ArrayBufferWriter<byte>? _buffer;
     private Utf8JsonWriter? _writer;
 
-    /// <summary>Stores documents under <paramref name="directory"/>; a relative path resolves against the working directory.</summary>
+    /// <summary>Stores documents under <paramref name="directory"/>. A relative path resolves against the working directory.</summary>
     /// <exception cref="ArgumentException">The path is null or blank.</exception>
     public DirectorySaveStorage(string directory)
     {
@@ -61,7 +61,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
         {
             string file = Path.GetFileName(primary);
 
-            // A name no key can spell was never written by a game, so it is no document either.
+            // A name no key can spell was never written by a game, so it is not a document.
             if (!file.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)
                 || !SafeName.IsOneSafeDirectoryName(file[..^Extension.Length]))
             {
@@ -82,12 +82,12 @@ public sealed class DirectorySaveStorage : ISaveStorage
             if (File.Exists(backup) && TryParse(backup, out document, out info))
             {
                 File.Copy(backup, primary, overwrite: true);
-                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'; its backup is restored in its place");
+                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'. Its backup is restored in its place");
                 restore(name, document, info);
             }
             else
             {
-                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'; it has no usable backup, so the document is absent");
+                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'. It has no usable backup, so the document is absent");
             }
         }
     }
@@ -113,9 +113,9 @@ public sealed class DirectorySaveStorage : ISaveStorage
         JsonSerializer.Serialize(_writer, metadata, SaveFileJsonContext.Default.SaveMetadata);
         _writer.WritePropertyName("document");
 
-        // A JSON string never holds a raw newline, so every newline in the document is between
-        // tokens and pushing each line in by the envelope's depth changes no value; the read strips
-        // exactly this and hands the text back as written.
+        // A JSON string never holds a raw newline, so every newline in the document is between tokens
+        // and indenting each line by the envelope's depth changes no value. The read strips the same
+        // indent and hands the text back as written.
         _writer.WriteRawValue(document.Replace("\n", DocumentIndent, StringComparison.Ordinal));
         _writer.WriteEndObject();
         _writer.Flush();
@@ -130,9 +130,9 @@ public sealed class DirectorySaveStorage : ISaveStorage
 
         if (File.Exists(primary))
         {
-            // Metadata errors ignored: on exFAT, FAT and some network volumes — where a portable
-            // build beside its executable lives — ReplaceFile cannot merge ACLs or streams and
-            // would fail the whole swap over metadata the save never needed.
+            // Metadata errors are ignored because on exFAT, FAT and some network volumes, where a
+            // portable build beside its executable lives, ReplaceFile cannot merge ACLs or streams and
+            // would fail the swap over metadata the save never needed.
             File.Replace(staging, primary, primary + BackupSuffix, ignoreMetadataErrors: true);
         }
         else
@@ -142,7 +142,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
     }
 
     /// <inheritdoc/>
-    /// <remarks>Removes the file, its backup and any staged write; a set-aside corrupt file stays.</remarks>
+    /// <remarks>Removes the file, its backup and any staged write. A set-aside corrupt file stays.</remarks>
     /// <exception cref="ArgumentException">The name is not one safe file name.</exception>
     /// <exception cref="IOException">A file is in use.</exception>
     /// <exception cref="UnauthorizedAccessException">A file denies access.</exception>
@@ -194,7 +194,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
     {
         if (!SafeName.IsOneSafeDirectoryName(name))
         {
-            throw new ArgumentException("A save name must be one safe file name.", nameof(name));
+            throw new ArgumentException("Save name is not one safe file name. Use a name with no separators or reserved characters.", nameof(name));
         }
     }
 
@@ -202,7 +202,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
 }
 
 // The envelope's `metadata` half: camel-cased ISO-8601 instants with their offsets. Reflection-based
-// serialization is off solution-wide, so this generated context is the only way it is written or read.
+// serialization is off solution-wide, so this generated context reads and writes it.
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SaveMetadata))]
 internal sealed partial class SaveFileJsonContext : JsonSerializerContext;

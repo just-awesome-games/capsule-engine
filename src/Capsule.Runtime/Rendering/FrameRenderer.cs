@@ -9,13 +9,13 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace Capsule.Runtime.Rendering;
 
-// Draws a FrameView. Holds no scene state of its own: what a sprite interpolates from travels in
-// the sprite.
+// Draws a FrameView. Holds no scene state of its own, since what a sprite interpolates from travels
+// in the sprite.
 internal sealed class FrameRenderer : IDisposable
 {
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
 
-    // Bars are presentation rather than world intent and remain black.
+    // Bars are presentation, not world intent, and stay black.
     private static readonly Color BarColor = Color.FromNonPremultiplied(
         ColorRgba.Black.R,
         ColorRgba.Black.G,
@@ -31,28 +31,28 @@ internal sealed class FrameRenderer : IDisposable
 
     private readonly Texture2D _defaultFontPage;
 
-    // Every engine-owned texture, so the draw path resolves one handle through one table.
+    // Every engine-owned texture, so the draw path resolves a handle through a single table.
     private readonly Dictionary<TextureHandle, Texture2D> _engineTextures;
 
     // The declared canvas, or null when the world rasterises straight into the back buffer at
     // whatever size the window is.
     private readonly (int Width, int Height)? _canvas;
 
-    // Null exactly when no canvas is declared. Its extent is the canvas under Letterbox and grows
-    // with the resolved world rect under a fit that reveals more of it.
+    // Null when no canvas is declared. Its extent is the canvas under Letterbox and grows with the
+    // resolved world rect under a fit that reveals more of it.
     private RenderTarget2D? _target;
 
-    // Where the screen layer landed on the last frame drawn, which is what turns a sampled mouse
-    // position back into a canvas position; seeded by ResolveScreenLayer before the first frame.
+    // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
+    // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
 
     // Where the last frame's world landed in the back buffer, which places a host-owned
-    // world-anchored draw over that frame; null until a frame has drawn a world.
+    // world-anchored draw over that frame. Null until a frame has drawn a world.
     private WorldPlacement? _world;
 
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
-    // textures: The scene texture cache, loading on first use; owned by the caller.
+    // textures: The scene texture cache, loading on first use. The caller owns it.
     internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
     {
         _device = device;
@@ -92,7 +92,7 @@ internal sealed class FrameRenderer : IDisposable
         return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
     }
 
-    // The cost of the last game frame Draw submitted; default before the first.
+    // The cost of the last game frame Draw submitted. Default before the first.
     internal RenderStats LastFrame { get; private set; }
 
     // Draws one frame. Allocation-free at steady state.
@@ -125,8 +125,8 @@ internal sealed class FrameRenderer : IDisposable
             _device.SetRenderTarget(target);
             DrawWorld(view, alpha, world, layout.Span, layout.World, target.Width, target.Height, layout.Present);
 
-            // Over the world's own bars: the viewport is the whole surface again and the canvas sits
-            // centred in it on whole pixels, so nothing lands on a grid the world did not already use.
+            // Drawn over the world's bars. The viewport is the full surface again and the canvas sits
+            // centred in it on whole pixels, so nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
                 DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling);
@@ -154,11 +154,10 @@ internal sealed class FrameRenderer : IDisposable
         LastFrame = new RenderStats(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
-    // Draws a host-owned frame over the game frame already submitted to the back buffer: its world
-    // list first, placed exactly where the last game frame's world landed so it annotates that
-    // frame's sprites, then its screen layer at an integer scale of the whole back buffer. The
-    // host's own camera never enters this path; its world list is culled against nothing and drawn
-    // at the settled step.
+    // Draws a host-owned frame over the game frame already submitted to the back buffer. Its world
+    // list comes first, placed where the last game frame's world landed so it annotates that frame's
+    // sprites, then its screen layer at an integer scale of the back buffer. The host's own camera is
+    // not used here, and the world list is culled against nothing and drawn at the settled step.
     internal void DrawOverlay(FrameView view, int scale)
     {
         ArgumentNullException.ThrowIfNull(view);
@@ -177,8 +176,8 @@ internal sealed class FrameRenderer : IDisposable
             DrawOverlayWorld(view, in world, width, height);
         }
 
-        // DrawScreen restores the whole back buffer itself, so nothing is written here for a view
-        // whose screen layer is empty.
+        // DrawScreen restores the full back buffer itself. A view with an empty screen layer writes
+        // nothing here.
         DrawScreen(
             view,
             alpha: 1f,
@@ -189,13 +188,13 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
-    // world: what sizes a screen-sized glyph placed at a world point.
+    // world. It sizes a screen-sized glyph placed at a world point.
     internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
 
     // The world's region of the back buffer is the fit inside the surface carried through the
-    // surface's own placement, and the viewport is that region so nothing lands on the bars. With
-    // the viewport's origin at the region's corner, the transform is the world's top-left to the
-    // origin and units to back-buffer pixels.
+    // surface's placement, and the viewport is narrowed to that region so nothing lands on the bars.
+    // With the viewport's origin at the region's corner, the transform maps the world's top-left to
+    // the origin and units to back-buffer pixels.
     private void DrawOverlayWorld(FrameView view, in WorldPlacement world, int width, int height)
     {
         Letterbox fit = world.Fit;
@@ -218,30 +217,28 @@ internal sealed class FrameRenderer : IDisposable
 
         _batcher.Begin(in worldToBackBuffer, SamplerState.PointClamp);
 
-        TextureHandle resolved = default;
-        TextureSlice slice = default;
-        foreach (ref readonly SpriteIntent sprite in view.Sprites)
+        Pass pass = new()
         {
-            DrawSprite(sprite, alpha: 1f, snap: true, world.TopLeft, world.TopLeft, pixelsPerUnit, ref resolved, ref slice);
-        }
+            Alpha = 1f,
+            Snap = true,
+            Scale = pixelsPerUnit,
+            SnapLines = world.Snap,
+            LineScale = world.Fit.Scale,
+            LayerCorner = world.TopLeft,
+            FrameCorner = world.TopLeft,
+        };
 
-        foreach (ref readonly LineIntent line in view.Lines)
-        {
-            // Snapped on the game surface's grid from the same corner its sprites were quantised
-            // from, so a line lands on the sprite it outlines rather than gliding between its steps.
-            DrawLine(line, pixelsPerUnit, world.Snap, world.TopLeft, world.TopLeft, world.Fit.Scale);
-        }
-
+        DrawIntents(view.Sprites, view.Lines, default, default, ref pass);
         _batcher.End();
     }
 
-    // Where the screen layer lands in the window: the last frame drawn, or what ResolveScreenLayer
-    // settled before the first one.
+    // Where the screen layer lands in the window, from the last frame drawn or from
+    // ResolveScreenLayer before the first one.
     internal ScreenPlacement ScreenLayer => _placement;
 
     // Settles ScreenLayer for view at the back buffer's current extent, drawing nothing. The host
-    // samples the mouse before the first frame, and an unplaced layer would hand the simulation window
-    // pixels as canvas pixels for that frame.
+    // samples the mouse before the first frame, and an unplaced layer would hand the simulation
+    // window pixels as canvas pixels for that frame.
     internal void ResolveScreenLayer(FrameView view)
     {
         PresentationParameters backBuffer = _device.PresentationParameters;
@@ -271,15 +268,15 @@ internal sealed class FrameRenderer : IDisposable
         return _target;
     }
 
-    // Whether this frame drew at all, so a capture request can stand until one does.
+    // Whether this frame drew. A capture request stands until one does.
     internal bool CanCaptureFrame => FrameCapture.CanCapture(_device);
 
-    // Saves the surface the world was drawn on as a PNG at path; see FrameCapture.
+    // Saves the surface the world was drawn on as a PNG at path. See FrameCapture.
     internal void SaveSurface(string path) => FrameCapture.Save(_device, _target, path);
 
-    // surfaceWidth and surfaceHeight are the bound surface's own extent, which the viewport no
-    // longer reports once narrowed to the letterbox; present is where that surface lands in the
-    // back buffer, identity when the surface is the back buffer.
+    // surfaceWidth and surfaceHeight are the bound surface's extent, which the viewport no longer
+    // reports once narrowed to the letterbox. present is where that surface lands in the back buffer,
+    // identity when the surface is the back buffer.
     private void DrawWorld(
         FrameView view,
         float alpha,
@@ -309,11 +306,11 @@ internal sealed class FrameRenderer : IDisposable
 
         _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        // The camera interpolated on the same clock as what it looks at; snapping it to the step's
-        // end instead would slide the whole world back once per step. The corner itself is not
-        // snapped: each sprite snaps to the grid anchored here, so a sprite is a whole number of
-        // pixels from the corner wherever the corner sits, and a followed sprite never crawls
-        // between two roundings. The simulation keeps its fractional positions.
+        // The camera interpolates on the same clock as what it looks at. Snapping it to the step's
+        // end would slide the world back once per step. The corner itself is not snapped, because
+        // each sprite snaps to the grid anchored here and stays a whole number of pixels from the
+        // corner, and a followed sprite does not crawl between two roundings. The simulation
+        // keeps its fractional positions.
         Vector2 topLeft = new(world.Left, world.Top);
         bool snap = view.Sampling == TextureSampling.Point;
 
@@ -331,51 +328,23 @@ internal sealed class FrameRenderer : IDisposable
         // Drawn through the narrowed world viewport, so presentation bars stay black.
         _batcher.DrawWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
-        // Compared before the dictionary is asked, so the lookup is once per texture change
-        // rather than once per sprite.
-        TextureHandle resolved = default;
-        TextureSlice slice = default;
-
-        // Each scrolled run is drawn from its own layer's corner, formed once as the run opens;
-        // the runs are in list order, so one cursor walks them beside the sprites and again
-        // beside the lines.
-        ReadOnlySpan<ParallaxLayer> layers = view.ParallaxLayers;
-        Vector2 origin = view.Camera.ScrollOrigin;
-        Vector2 corner = topLeft;
-        int next = 0;
-
-        ReadOnlySpan<SpriteIntent> sprites = view.Sprites;
-        for (int index = 0; index < sprites.Length; index++)
+        Pass pass = new()
         {
-            while (next < layers.Length && layers[next].FirstSprite <= index)
-            {
-                corner = ScrollLayout.Corner(topLeft, origin, layers[next].ScrollFactor);
-                next++;
-            }
+            Alpha = alpha,
+            Snap = snap,
+            Scale = fit.Scale,
+            SnapLines = snap,
+            LineScale = fit.Scale,
+            LayerCorner = topLeft,
+            FrameCorner = topLeft,
+        };
 
-            DrawSprite(sprites[index], alpha, snap, corner, topLeft, fit.Scale, ref resolved, ref slice);
-        }
-
-        corner = topLeft;
-        next = 0;
-
-        ReadOnlySpan<LineIntent> lines = view.Lines;
-        for (int index = 0; index < lines.Length; index++)
-        {
-            while (next < layers.Length && layers[next].FirstLine <= index)
-            {
-                corner = ScrollLayout.Corner(topLeft, origin, layers[next].ScrollFactor);
-                next++;
-            }
-
-            DrawLine(lines[index], fit.Scale, snap, corner, topLeft, fit.Scale);
-        }
-
+        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
         _batcher.End();
     }
 
-    // The screen layer, in canvas pixels placed by placement. Drawn after the world and over the
-    // whole surface, so it covers the bars the world's own fit left.
+    // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
+    // full surface, so it covers the bars the world's fit left.
     private void DrawScreen(
         FrameView view,
         float alpha,
@@ -400,41 +369,67 @@ internal sealed class FrameRenderer : IDisposable
         _batcher.Begin(in canvasToSurface, Sampler(sampling));
 
         bool snap = sampling == TextureSampling.Point;
-        TextureHandle resolved = default;
-        TextureSlice slice = default;
-
-        foreach (ref readonly SpriteIntent sprite in sprites)
+        Pass pass = new()
         {
-            DrawSprite(sprite, alpha, snap, Vector2.Zero, Vector2.Zero, placement.Scale, ref resolved, ref slice);
-        }
+            Alpha = alpha,
+            Snap = snap,
+            Scale = placement.Scale,
+            SnapLines = snap,
+            LineScale = placement.Scale,
+        };
 
-        foreach (ref readonly LineIntent line in lines)
-        {
-            DrawLine(line, placement.Scale, snap, Vector2.Zero, Vector2.Zero, placement.Scale);
-        }
-
+        DrawIntents(sprites, lines, default, default, ref pass);
         _batcher.End();
     }
 
-    // The white texel stretched to the segment's length and thickness and turned along it, from
-    // the middle of its left edge on A. surfaceScale is the batch's pixels per unit on the surface
-    // being drawn, which is what a hairline's one pixel is in units: the back buffer's here and
-    // on the overlay path, the render surface's where one is declared, since a quad thinner than
-    // that surface's pixel would miss its pixel centres and not rasterise at all.
-    //
-    // Both ends are placed from layerCorner into the frame at frameCorner as DrawSprite places its
-    // position, snap quantising them to the grid of snapScale pixels per unit — the grid the
-    // frame's sprites were snapped to — before the segment is measured, so a line lands on the
-    // sprite it outlines.
-    private void DrawLine(in LineIntent line, float surfaceScale, bool snap, Vector2 layerCorner, Vector2 frameCorner, float snapScale)
+    // Draws the sprites, then the lines, each scrolled run from its own layer's corner, formed as the
+    // run opens. The runs are in list order, and a single cursor walks them.
+    private void DrawIntents(
+        ReadOnlySpan<SpriteIntent> sprites,
+        ReadOnlySpan<LineIntent> lines,
+        ReadOnlySpan<ParallaxLayer> layers,
+        Vector2 scrollOrigin,
+        ref Pass pass)
     {
-        Vector2 a = ScrollLayout.Place(line.A, layerCorner, frameCorner, snap, snapScale);
-        Vector2 b = ScrollLayout.Place(line.B, layerCorner, frameCorner, snap, snapScale);
+        Vector2 frameCorner = pass.FrameCorner;
+        int next = 0;
+        for (int index = 0; index < sprites.Length; index++)
+        {
+            while (next < layers.Length && layers[next].FirstSprite <= index)
+            {
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            DrawSprite(in sprites[index], ref pass);
+        }
+
+        pass.LayerCorner = frameCorner;
+        next = 0;
+        for (int index = 0; index < lines.Length; index++)
+        {
+            while (next < layers.Length && layers[next].FirstLine <= index)
+            {
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            DrawLine(in lines[index], in pass);
+        }
+    }
+
+    // The white texel stretched to the segment's length and thickness and turned along it, from the
+    // middle of its left edge on A. A hairline is one pixel of the surface being drawn, since a
+    // thinner quad would miss the pixel centres and not rasterise.
+    private void DrawLine(in LineIntent line, in Pass pass)
+    {
+        Vector2 a = ScrollLayout.Place(line.A, pass.LayerCorner, pass.FrameCorner, pass.SnapLines, pass.LineScale);
+        Vector2 b = ScrollLayout.Place(line.B, pass.LayerCorner, pass.FrameCorner, pass.SnapLines, pass.LineScale);
 
         Vector2 delta = b - a;
         float length = delta.Length();
 
-        float thickness = line.Thickness > 0f ? line.Thickness : 1f / surfaceScale;
+        float thickness = line.Thickness > 0f ? line.Thickness : 1f / pass.Scale;
 
         _batcher.DrawWhole(
             _white,
@@ -445,39 +440,52 @@ internal sealed class FrameRenderer : IDisposable
             line.Color);
     }
 
-    // resolved is the handle slice was fetched for; both are carried across the whole stream, so a
-    // run of sprites on one texture resolves it once, and the slice's offset moves the region onto
-    // a packed handle's page.
-    // layerCorner is the corner of the camera this sprite's layer is drawn by and frameCorner the
-    // corner of the rect the frame draws — the same point on a world pass outside a scrolled run,
-    // and the canvas's origin on a screen pass — and the pixel grid is anchored at the frame's.
-    private void DrawSprite(
-        in SpriteIntent sprite,
-        float alpha,
-        bool snap,
-        Vector2 layerCorner,
-        Vector2 frameCorner,
-        float surfaceScale,
-        ref TextureHandle resolved,
-        ref TextureSlice slice)
+    // What one pass of intents is drawn with. LayerCorner is the camera corner the current scrolled
+    // run is drawn by, and FrameCorner the corner of the rect the frame draws, the same point outside
+    // a scrolled run and the canvas's origin on a screen pass. The pixel grid is anchored at
+    // FrameCorner. Resolved is the handle Slice was fetched for, carried across the stream, and a run
+    // of sprites on one texture resolves it once.
+    private struct Pass
     {
-        if (slice.Texture is null || sprite.Sprite.Texture != resolved)
-        {
-            resolved = sprite.Sprite.Texture;
+        internal float Alpha;
 
-            slice = resolved.IsEngineOwned ? new TextureSlice(EngineTexture(resolved), 0, 0) : _textures.Get(resolved);
+        // Whether a sprite quantises to whole pixels, and the pixels per world unit of the surface
+        // being drawn. The scale is both that grid and a hairline's width.
+        internal bool Snap;
+        internal float Scale;
+
+        // The same two for a line. On the overlay pass a line quantises on the game surface's grid,
+        // not the back buffer's, so it lands on the sprite it outlines.
+        internal bool SnapLines;
+        internal float LineScale;
+
+        internal Vector2 LayerCorner;
+        internal Vector2 FrameCorner;
+        internal TextureHandle Resolved;
+        internal TextureSlice Slice;
+    }
+
+    private void DrawSprite(in SpriteIntent sprite, ref Pass pass)
+    {
+        if (pass.Slice.Texture is null || sprite.Sprite.Texture != pass.Resolved)
+        {
+            pass.Resolved = sprite.Sprite.Texture;
+            pass.Slice = pass.Resolved.IsEngineOwned
+                ? new TextureSlice(EngineTexture(pass.Resolved), 0, 0)
+                : _textures.Get(pass.Resolved);
         }
 
+        TextureSlice slice = pass.Slice;
         Vector2 position = ScrollLayout.Place(
-            StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, alpha),
-            layerCorner,
-            frameCorner,
-            snap,
-            surfaceScale);
+            StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, pass.Alpha),
+            pass.LayerCorner,
+            pass.FrameCorner,
+            pass.Snap,
+            pass.Scale);
 
         TextureRegion region = sprite.Sprite.Region;
 
-        // The drawn rect is already placed by the mirrored origin; the flips only swap the texture
+        // The drawn rect is already placed by the mirrored origin. The flips swap the texture
         // coordinates that fill it.
         _batcher.Draw(
             slice.Texture,
@@ -487,7 +495,7 @@ internal sealed class FrameRenderer : IDisposable
             in region,
             slice.OffsetX,
             slice.OffsetY,
-            StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, alpha),
+            StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, pass.Alpha),
             sprite.FlipX,
             sprite.FlipY,
             sprite.Color);
@@ -527,9 +535,9 @@ internal sealed class FrameRenderer : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(sampling), sampling, "Unknown texture sampling mode."),
     };
 
-    // TopLeft is the world rect's corner, which the frame's pixel grid is anchored at, Fit where
-    // that rect landed on the surface, Present where the surface landed in the back buffer, and
-    // Snap whether the frame quantised to the surface's pixel grid.
+    // TopLeft is the world rect's corner, where the frame's pixel grid is anchored. Fit is where that
+    // rect landed on the surface, Present where the surface landed in the back buffer, and Snap
+    // whether the frame quantised to the surface's pixel grid.
     private readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap)
     {
         internal float PixelsPerUnit => Fit.Scale * Present.Scale;

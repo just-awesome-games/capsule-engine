@@ -15,7 +15,7 @@ public sealed class PixelGridTests
     [InlineData(101.111f, 6f)]
     public void Snap_LandsOnAWholeSurfacePixel(float value, float scale)
     {
-        float surface = PixelGrid.Snap(new Vector2(value, value), scale).X * scale;
+        float surface = PixelGrid.SnapOffset(Vector2.Zero, new Vector2(value, value), scale).X * scale;
 
         Assert.Equal(MathF.Round(surface), surface, 0.001);
     }
@@ -29,7 +29,7 @@ public sealed class PixelGridTests
     [InlineData(45.25f, 2f)]
     public void AMidpoint_RoundsDownOnBothSidesOfZero(float value, float scale)
     {
-        Vector2 snapped = PixelGrid.Snap(new Vector2(value, value), scale);
+        Vector2 snapped = PixelGrid.SnapOffset(Vector2.Zero, new Vector2(value, value), scale);
 
         Assert.Equal(MathF.Floor(value * scale) / scale, snapped.X);
         Assert.Equal(snapped.X, snapped.Y);

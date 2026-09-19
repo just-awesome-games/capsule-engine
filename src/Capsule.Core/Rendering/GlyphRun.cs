@@ -2,32 +2,26 @@ using System.Text;
 
 namespace Capsule.Rendering;
 
-/// <summary>
-/// Where one glyph of a laid-out run sits, in font pixels from the run's origin — the top-left
-/// corner of its first line.
-/// </summary>
+/// <summary>Where one glyph of a laid-out run sits, in font pixels from the run's origin, which is the top-left corner of its first line.</summary>
 /// <param name="Glyph">The glyph to draw.</param>
 /// <param name="PenX">
-/// Font pixels right from the origin to this glyph's pen, alignment included;
-/// <see cref="Rendering.Glyph.XOffset"/> still applies on top of it.
+/// Font pixels right from the origin to this glyph's pen, alignment included.
+/// <see cref="Rendering.Glyph.XOffset"/> applies on top of it.
 /// </param>
 /// <param name="Line">Lines below the first, so the glyph's top edge is this times <see cref="BitmapFont.LineHeight"/>.</param>
 /// <param name="Index">
-/// The glyph's codepoint position in the run's text, counting every codepoint the text carries —
-/// line breaks, codepoints the font has no glyph for, and the spaces a wrap broke at included. Rises
-/// over the run and skips the codepoints that draw nothing.
+/// The glyph's codepoint position in the run's text. It counts every codepoint the text carries,
+/// including line breaks, codepoints the font has no glyph for, and the spaces a wrap broke at, so it
+/// rises over the run and skips the positions that draw nothing.
 /// </param>
 public readonly record struct GlyphPlacement(Glyph Glyph, int PenX, int Line, int Index);
 
 /// <summary>
-/// The one layout pass over a font and a run of text, in font pixels and free of any texture, frame
-/// or camera: <c>foreach</c> it to place every glyph the run draws, in reading order. Measuring and
-/// drawing both enumerate this, so what a game measures is what gets drawn.
-/// <para>
-/// Allocation-free and it never throws: it is on the frame path. A consumer that draws its own
-/// glyphs — rich text, a per-character animation — lays the run out here and emits whatever sprites
-/// it likes onto either of a <see cref="FrameView"/>'s lists.
-/// </para>
+/// The layout pass over a font and a run of text, in font pixels and free of any texture, frame or
+/// camera. <c>foreach</c> it to place every glyph the run draws, in reading order. Measuring and
+/// drawing both enumerate this, and a game measures what gets drawn. It allocates nothing and throws
+/// nothing, because it runs on the frame path. A consumer that draws its own glyphs lays the run out
+/// here and emits its own sprites onto either of a <see cref="FrameView"/>'s lists.
 /// </summary>
 public ref struct GlyphRun
 {
@@ -37,9 +31,9 @@ public ref struct GlyphRun
     private readonly TextWrap _wrap;
     private readonly HorizontalAlignment _alignment;
 
-    // The half-open char range of the line being emitted, and where the line after it begins. The
-    // gap between _lineEnd and _nextLine is what the break consumed: a newline, or the space a wrap
-    // broke at.
+    // The half-open char range of the line being emitted, and where the next line begins. The gap
+    // between _lineEnd and _nextLine holds what the break consumed, a newline or the space a wrap broke
+    // at.
     private int _lineEnd;
     private int _nextLine;
     private bool _lineOpen;
@@ -52,27 +46,30 @@ public ref struct GlyphRun
     private int _pen;
     private int _line;
 
-    // The last codepoint drawn on this line, or -1 at the start of one. A codepoint the font has no
+    // The last codepoint drawn on this line, or -1 at the start of a line. A codepoint the font has no
     // glyph for leaves it alone, so the pair either side of it still kerns.
     private int _previous;
 
     /// <summary>
-    /// Lays <paramref name="text"/> out in <paramref name="font"/> as one left-aligned block of
-    /// lines as long as the text makes them: the plain run.
+    /// Lays <paramref name="text"/> out in <paramref name="font"/> as one left-aligned block, with
+    /// each line as long as the text makes it.
     /// </summary>
-    /// <param name="font">The font the run is laid out in; never null.</param>
-    /// <param name="text">The text to lay out. <c>\n</c> starts a new line, <c>\r</c> is ignored, and a codepoint the font carries no glyph for draws nothing and advances nothing.</param>
+    /// <param name="font">The font the run is laid out in. Must not be null.</param>
+    /// <param name="text">
+    /// The text to lay out. <c>\n</c> starts a new line, <c>\r</c> is ignored, and a codepoint the
+    /// font carries no glyph for draws nothing and advances nothing.
+    /// </param>
     public GlyphRun(BitmapFont font, ReadOnlySpan<char> text)
         : this(font, text, 0, TextWrap.None, HorizontalAlignment.Left)
     {
     }
 
     /// <summary>Lays <paramref name="text"/> out inside a box of <paramref name="boxWidth"/>.</summary>
-    /// <param name="font">The font the run is laid out in; never null.</param>
+    /// <param name="font">The font the run is laid out in. Must not be null.</param>
     /// <param name="text">The text to lay out, with the line rules the other constructor states.</param>
     /// <param name="boxWidth">
     /// The box's width in font pixels, which lines wrap inside and are aligned within. Zero or less
-    /// is no box at all: lines neither wrap nor shift, whatever the other two arguments say.
+    /// means no box, and lines then neither wrap nor shift whatever the other two arguments say.
     /// </param>
     /// <param name="wrap">Whether a line too wide for the box breaks inside it.</param>
     /// <param name="alignment">Where each line sits between the box's edges.</param>
@@ -89,7 +86,7 @@ public ref struct GlyphRun
     /// <summary>The glyph this enumerator has reached.</summary>
     public GlyphPlacement Current { get; private set; }
 
-    /// <summary>The run itself, so <c>foreach</c> walks a copy and leaves this one where it was.</summary>
+    /// <summary>Returns a copy of the run, so <c>foreach</c> leaves this one where it was.</summary>
     public readonly GlyphRun GetEnumerator() => this;
 
     /// <summary>Advances to the next glyph the run draws.</summary>
@@ -105,8 +102,8 @@ public ref struct GlyphRun
 
             if (_index >= _lineEnd)
             {
-                // The break's own codepoints are counted, never drawn, so an Index stays the
-                // position in the text whatever the layout did with the character.
+                // A break's codepoints are counted but never drawn, so Index stays the position in the
+                // text whatever the layout did with the character.
                 while (_index < _nextLine)
                 {
                     CodepointAt(_index, out int skipped);
@@ -146,8 +143,8 @@ public ref struct GlyphRun
         return false;
     }
 
-    // Finds where the line starting at _index ends and how far it is shifted. One measuring walk per
-    // line, so laying a run out costs two passes over it rather than one.
+    // Finds where the line starting at _index ends and how far it is shifted. This is one measuring walk
+    // per line, so laying out a run costs two passes over it.
     private void OpenLine()
     {
         _lineOpen = true;
@@ -161,8 +158,8 @@ public ref struct GlyphRun
         int width = 0;
         int previous = -1;
 
-        // The last space on the line: where the line would end, where the one after it would begin,
-        // and the width without the space, since a trailing space no one draws measures nothing.
+        // The last space on the line: where the line would end, where the next would begin, and the width
+        // without the space, because an undrawn trailing space measures nothing.
         int spaceAt = -1;
         int spaceNext = -1;
         int widthAtSpace = 0;
@@ -188,8 +185,8 @@ public ref struct GlyphRun
                 continue;
             }
 
-            // Taken before the overflow check, so a space that overflows the box is itself the break
-            // rather than opening a line the word after it then overflows in turn.
+            // Taken before the overflow check. A space that overflows the box then becomes the break. Taken
+            // after, it would open a line that the following word overflows in turn.
             if (codepoint == ' ')
             {
                 spaceAt = cursor;
@@ -197,8 +194,8 @@ public ref struct GlyphRun
                 widthAtSpace = width;
             }
 
-            // Only past the first glyph of the line: a glyph wider than the whole box still has to
-            // go somewhere, and breaking before it would place nothing and never advance.
+            // Checked only past the line's first glyph. A glyph wider than the box has to go somewhere,
+            // and breaking before it would place nothing and never advance.
             if (wrapping && previous >= 0 && start + glyph.XAdvance > _boxWidth)
             {
                 if (spaceAt >= 0)
@@ -229,9 +226,9 @@ public ref struct GlyphRun
         }
     }
 
-    // The codepoint at cursor and the UTF-16 units it spans. ASCII is answered without decoding,
-    // which is the whole of most runs; malformed UTF-16 decodes to the replacement character over
-    // one unit, so a lone surrogate is a codepoint the font has no glyph for rather than a throw.
+    // The codepoint at cursor and the UTF-16 units it spans. ASCII, which covers most runs, is answered
+    // without decoding. Malformed UTF-16 decodes to the replacement character over one unit. A lone
+    // surrogate reads as a codepoint the font has no glyph for and throws nothing.
     private readonly int CodepointAt(int cursor, out int consumed)
     {
         char unit = _text[cursor];
@@ -247,10 +244,10 @@ public ref struct GlyphRun
         return rune.Value;
     }
 
-    // The one step both walks take over a codepoint: read it, find its glyph, and kern the pen
-    // against the codepoint drawn before it. False where the run draws nothing for it — a break, a
-    // \r, or a codepoint the font carries none for — and pen is then left where it was, so the pair
-    // either side still kerns. codepoint and consumed are set whatever the answer.
+    // The step both walks take over a codepoint: read it, find its glyph, and kern the pen against the
+    // codepoint drawn before it. Returns false for a break, a \r, or a codepoint the font has no glyph
+    // for, and then leaves pen where it was so the pair either side still kerns. codepoint and consumed
+    // are set either way.
     private readonly bool TryAdvance(int cursor, int previous, ref int pen, out int codepoint, out Glyph glyph, out int consumed)
     {
         codepoint = CodepointAt(cursor, out consumed);
@@ -269,8 +266,8 @@ public ref struct GlyphRun
         return true;
     }
 
-    // The widest line and the line count of a run laid out this way, in font pixels. Walking the
-    // placements is what measures: what a caller is told is what the same layout draws.
+    // The widest line and the line count of a run laid out this way, in font pixels. Measuring walks the
+    // placements, and a caller is told what the same layout draws.
     internal static (int Width, int Lines) Extent(BitmapFont font, ReadOnlySpan<char> text, int boxWidth, TextWrap wrap)
     {
         int width = 0;

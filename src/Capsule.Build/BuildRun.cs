@@ -2,29 +2,33 @@ using Capsule.Build.Atlases;
 using Capsule.Build.Audio;
 using Capsule.Build.Keys;
 using Capsule.Build.Scenes;
+using Capsule.Build.Sprites;
 
 namespace Capsule.Build;
 
 /// <summary>
-/// One run over one request manifest: key every authored path, derive every keyed scene, measure
-/// the whole clip set, pack every atlas, and write the manifests the targets read their items back
-/// from. The scene, audio and atlas steps are independent, so one run reports every defect in the
-/// authoring plane rather than the first kind of defect it met.
+/// One run over one request manifest: key every authored path, derive every keyed scene, measure the
+/// clip set, pack every atlas, and write the manifests the targets read their items back from. The
+/// scene, audio and atlas steps are independent, so one run reports every authoring defect instead
+/// of stopping at the first kind it met.
 /// </summary>
 internal static class BuildRun
 {
     /// <summary>Where the keyed scenes are derived, below the output directory.</summary>
     private const string ScenesDirectory = "scenes";
 
-    /// <summary>The whole clip set rendered as the one C# file a game compiles against.</summary>
+    /// <summary>The clip set rendered as a single C# file a game compiles against.</summary>
     private const string AudioRegistryFile = "CapsuleAssets.Audio.g.cs";
+
+    /// <summary>The sheet set rendered as a single C# file a game compiles against.</summary>
+    private const string SpriteRegistryFile = "CapsuleAssets.Sprites.g.cs";
 
     /// <summary>Where atlas pages, stamps and the map are written, below the output directory.</summary>
     private const string AtlasesDirectory = "atlases";
 
     /// <summary>
-    /// Empty, and written last: it is the run's single MSBuild output, so a run that failed part
-    /// way leaves it older than the manifest and the next build runs the whole pass again.
+    /// Empty, and written last. It is the run's single MSBuild output. A run that failed part way
+    /// leaves it older than the manifest, and the next build runs the pass again.
     /// </summary>
     private const string StampFile = "build.stamp";
 
@@ -51,8 +55,8 @@ internal static class BuildRun
             return 1;
         }
 
-        // Nothing downstream can name a source whose key the pass refused, so keying is the one
-        // step whose failure ends the run.
+        // Nothing downstream can name a source whose key the pass refused. A keying failure ends
+        // the run.
         List<KeyedAsset> keyed = [];
         if (KeyTool.Derive(requests.Assets, keyed, error) > 0)
         {
@@ -62,6 +66,7 @@ internal static class BuildRun
         string scenesDirectory = Path.Combine(outputDirectory, ScenesDirectory);
         DocumentSource[] scenes = Sources(keyed, "scenes");
         DocumentSource[] clips = Sources(keyed, "audio");
+        DocumentSource[] sheets = Sources(keyed, "sprites");
 
         int failed = 0;
 
@@ -70,11 +75,22 @@ internal static class BuildRun
             failed += SceneDocumentTool.Import(scenesDirectory, scenes, requests.TileSize, output, error);
         }
 
-        // Left alone when nothing asked for audio, so a game with no clips compiles the registry it
-        // already has rather than losing one mid-build.
+        // Left alone when nothing asked for audio. A game with no clips keeps the registry it
+        // already has instead of losing it mid-build.
         if (clips.Length > 0)
         {
             failed += AudioTool.Emit(clips, Path.Combine(outputDirectory, AudioRegistryFile), output, error);
+        }
+
+        // Left alone when nothing asked for sprites, for the same reason as the audio registry.
+        if (sheets.Length > 0)
+        {
+            failed += SpriteTool.Emit(
+                sheets,
+                Textures(keyed),
+                Path.Combine(outputDirectory, SpriteRegistryFile),
+                output,
+                error);
         }
 
         HashSet<string> packedTextures = new(StringComparer.Ordinal);
@@ -85,7 +101,7 @@ internal static class BuildRun
         }
         catch (Exception ex) when (IsReportable(ex))
         {
-            error.WriteLine($"{outputDirectory}: atlases cannot be written — {ex.Message}");
+            error.WriteLine($"{outputDirectory}: atlases cannot be written: {ex.Message}");
 
             return 1;
         }
@@ -103,7 +119,7 @@ internal static class BuildRun
         }
         catch (Exception ex) when (IsReportable(ex))
         {
-            error.WriteLine($"{outputDirectory}: cannot be written — {ex.Message}");
+            error.WriteLine($"{outputDirectory}: cannot be written: {ex.Message}");
 
             return 1;
         }
@@ -122,6 +138,23 @@ internal static class BuildRun
         [.. keyed
             .Where(entry => entry.Group == group)
             .Select(static entry => new DocumentSource(entry.Key, entry.Source))];
+
+    // Every shipped texture by key. A sheet's texture reference resolves through this, so the sheet
+    // carries the extension the build wrote instead of the extension the sheet spelled.
+    private static Dictionary<string, string> Textures(List<KeyedAsset> keyed)
+    {
+        Dictionary<string, string> textures = new(StringComparer.Ordinal);
+
+        foreach (KeyedAsset entry in keyed)
+        {
+            if (entry.Group == "textures")
+            {
+                textures[entry.Key] = entry.Extension;
+            }
+        }
+
+        return textures;
+    }
 
     private static bool IsReportable(Exception exception) =>
         exception is FormatException or IOException or UnauthorizedAccessException;

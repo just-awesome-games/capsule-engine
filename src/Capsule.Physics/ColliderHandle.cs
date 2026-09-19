@@ -1,10 +1,12 @@
 namespace Capsule.Physics;
 
 /// <summary>
-/// Identifies one collider in one <see cref="CollisionWorld2D"/>. Handles are not reused: a slot
-/// refilled after a removal hands out a handle that no longer equals the old one, so a stale
-/// handle reads as absent. A handle carries the world that issued it, and every world API rejects
-/// a foreign handle.
+/// Identifies a collider in a <see cref="CollisionWorld2D"/>. A handle carries the world that
+/// issued it, and world APIs reject a foreign handle.
+/// <para>
+/// Handles are not reused. A slot refilled after a removal issues a different handle, and a stale
+/// handle reads as absent.
+/// </para>
 /// </summary>
 public readonly struct ColliderHandle : IEquatable<ColliderHandle>
 {
@@ -15,10 +17,10 @@ public readonly struct ColliderHandle : IEquatable<ColliderHandle>
         Generation = generation;
     }
 
-    /// <summary>The handle no collider ever has, and the one every world accepts as "nothing".</summary>
+    /// <summary>The handle no collider has. Every world accepts it as "nothing".</summary>
     public static ColliderHandle None => default;
 
-    /// <summary>Whether this is <see cref="None"/> rather than a collider.</summary>
+    /// <summary>Whether this handle is <see cref="None"/>.</summary>
     public bool IsNone => Generation == 0;
 
     internal int World { get; }

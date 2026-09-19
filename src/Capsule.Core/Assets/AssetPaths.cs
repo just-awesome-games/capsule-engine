@@ -2,15 +2,16 @@ namespace Capsule.Assets;
 
 // The two spellings the build's own tree is named by:
 //
-//   a path — an asset's place under its domain root, extension included: "enemies/bat.png";
-//   a key — a document's place under its root, without extensions: "stage-1/room-01".
+//   a path is an asset's place under its domain root, extension included: "enemies/bat.png".
+//   a key is a document's place under its root, without extensions: "stage-1/room-01".
 //
-// Neither can reach outside the directory the build owns. Compiled into Capsule.Generators as well,
-// which references no engine assembly, so nothing here may use a type netstandard2.0 lacks.
+// Neither can reach outside the directory the build owns. This file is also compiled into
+// Capsule.Generators, which references no engine assembly, so nothing here may use a type
+// netstandard2.0 lacks.
 internal static class AssetPaths
 {
-    // Windows resolves these as devices from any directory, matching on the stem before the first
-    // dot, so a directory or file of one of these names is not a file at all.
+    // Windows resolves these as devices from any directory, matching on the stem before the first dot, so
+    // a directory or file with one of these names does not behave as a file.
     private static readonly string[] ReservedDeviceNames =
     [
         "CON", "PRN", "AUX", "NUL",
@@ -18,8 +19,8 @@ internal static class AssetPaths
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
 
-    // A key is the path a file is written at, so its segments carry the characters a file name
-    // carries on every platform Capsule targets and nothing else.
+    // A key is the path a file is written at, so its segments admit only the characters a file name can
+    // carry on every platform Capsule targets.
     internal static bool IsKey(string key)
     {
         if (key.Length == 0)
@@ -73,8 +74,8 @@ internal static class AssetPaths
         return false;
     }
 
-    // Split on the last dot rather than matched against a known extension: which extensions a
-    // domain admits is the build's allow-list, not this rule's.
+    // Split on the last dot, not matched against known extensions. Which extensions a domain admits is
+    // the build's allow-list.
     internal static bool TrySplit(string path, out string name, out string extension)
     {
         name = string.Empty;
@@ -98,8 +99,8 @@ internal static class AssetPaths
         return true;
     }
 
-    // The exact inverse of the split, so a written name gives its handle back unchanged. A name
-    // carrying dots of its own is fine: "x.atlas" and ".png" split apart again at the last one.
+    // The inverse of the split. A written name gives its handle back unchanged. A name carrying dots
+    // is fine, because "x.atlas" and ".png" split apart again at the last dot.
     internal static bool Joins(string name, string extension) =>
         extension is { Length: > 1 }
         && extension[0] == '.'
@@ -109,8 +110,8 @@ internal static class AssetPaths
         && IsPath(name)
         && name.LastIndexOf('/') < name.Length - 1;
 
-    // Forward slashes only, and every segment names something: a backslash, an empty segment, or a
-    // '.' or '..' segment would reach outside the directory the build ships into.
+    // Forward slashes only, and every segment must name something. A backslash, an empty segment, or a
+    // '.' or '..' segment could reach outside the directory the build ships into.
     private static bool IsPath(string value)
     {
         if (value.Length == 0 || value.IndexOf('\\') >= 0)

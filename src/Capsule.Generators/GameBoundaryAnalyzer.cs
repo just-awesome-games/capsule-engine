@@ -18,32 +18,32 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private static readonly DiagnosticDescriptor RuntimeBoundary = Rule(
         RuntimeBoundaryId,
         "Game logic cannot reference the runtime",
-        "Game-logic assembly '{0}' references '{1}'; runtime access belongs in the shell");
+        "Game-logic assembly '{0}' references '{1}'. Runtime access belongs in the shell");
 
     private static readonly DiagnosticDescriptor PlatformBoundary = Rule(
         PlatformBoundaryId,
         "Game projects cannot reference MonoGame directly",
-        "Capsule project '{0}' references '{1}' directly; platform APIs belong behind Capsule.Runtime");
+        "Capsule project '{0}' references '{1}' directly. Platform APIs belong behind Capsule.Runtime");
 
     private static readonly DiagnosticDescriptor ExternalIo = Rule(
         ExternalIoId,
         "Game logic cannot perform external I/O",
-        "'{0}' performs external I/O; the build reads what a game ships and hands it over as CapsuleAssets, and the shell owns every other file, socket and device");
+        "'{0}' performs external I/O. Read shipped files through CapsuleAssets, and leave every other file, socket and device to the shell");
 
     private static readonly DiagnosticDescriptor Concurrency = Rule(
         ConcurrencyId,
         "Game logic cannot schedule ambient concurrency",
-        "'{0}' schedules work outside the deterministic simulation; do the work inside the step instead");
+        "'{0}' schedules work outside the deterministic simulation. Do the work inside the step");
 
     private static readonly DiagnosticDescriptor AmbientTime = Rule(
         AmbientTimeId,
         "Game logic cannot read ambient time",
-        "'{0}' reads process or wall-clock time; use the simulation time the step is given, which a scene, entity or component reaches as StepContext.TotalSeconds or StepContext.DeltaSeconds");
+        "'{0}' reads process or wall-clock time. Use the simulation time the step is given, reached from a scene, entity or component as StepContext.TotalSeconds or StepContext.DeltaSeconds");
 
     private static readonly DiagnosticDescriptor AmbientRandom = Rule(
         AmbientRandomId,
         "Game logic cannot use randomness outside the run's seeded source",
-        "'{0}' is not reproducible across runs or runtime versions; draw from the seeded source the run holds, which a scene, entity or component reaches as Random");
+        "'{0}' is not reproducible across runs or runtime versions. Draw from the run's seeded source, reached from a scene, entity or component as Random");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [RuntimeBoundary, PlatformBoundary, ExternalIo, Concurrency, AmbientTime, AmbientRandom];
@@ -120,7 +120,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         IObjectCreationOperation operation = (IObjectCreationOperation)context.Operation;
         if (operation.Constructor is { } constructor && Classify(new Subject(constructor)) is { } rule)
         {
-            // The type, not the constructor: a call site reads as 'new Random(...)'.
+            // Report the type, since the call site reads as 'new Random(...)'.
             Report(context, rule, operation.Syntax.GetLocation(), Display(constructor.ContainingType));
         }
     }
@@ -140,8 +140,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         IPropertyReferenceOperation operation = (IPropertyReferenceOperation)context.Operation;
         Subject subject = new(operation.Property);
 
-        // Time and randomness are judged first: the types they live on are external state too, and
-        // the narrower rule is the one that names what to reach for instead.
+        // Time and randomness are judged first. Their types count as external state too, and the
+        // narrower rule names what to reach for instead.
         DiagnosticDescriptor? rule = IsAmbientTime(subject) ? AmbientTime
             : subject.IsSystem("Random") ? AmbientRandom
             : IsExternalIo(subject) || IsExternalState(subject) ? ExternalIo
@@ -181,8 +181,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // Construction is caught at its own site, but a seeded instance can also arrive from
-    // outside the assembly; the field or property that keeps it is where holding one is visible.
+    // Construction is caught at its own site, but a seeded instance can also arrive from outside the
+    // assembly. The field or property that keeps it is where holding one becomes visible.
     private static void AnalyzeStoredRandom(SymbolAnalysisContext context)
     {
         ITypeSymbol stored = context.Symbol switch
@@ -229,8 +229,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         assemblyName.StartsWith("MonoGame.Framework", StringComparison.Ordinal)
         || string.Equals(assemblyName, "Microsoft.Xna.Framework", StringComparison.Ordinal);
 
-    // The whole namespace tree is banned, so a sub-namespace nobody anticipated stays closed;
-    // only members proven to have no external effect are carved back out.
+    // The namespace tree is banned wholesale, keeping an unanticipated sub-namespace closed. Only
+    // members proven to have no external effect are carved back out.
     private static bool IsExternalIo(in Subject subject) =>
         (subject.Under("System.IO") || subject.Under("System.Net")) && !TouchesNothingOutside(subject);
 
@@ -258,8 +258,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        // A reader or writer over a stream is only as external as that stream, which is judged
-        // where it is created; one opened from a path opens the file itself.
+        // A reader or writer over a stream is only as external as that stream, judged where the
+        // stream is created. One opened from a path opens the file itself.
         return subject.Type?.Name is "BinaryReader" or "BinaryWriter" or "StreamReader" or "StreamWriter"
             && (subject.Symbol is not IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
                 || constructor.Parameters.Length == 0
@@ -292,7 +292,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             return subject.Type?.Name is "Interlocked" or "Volatile" or "CancellationToken" or "CancellationTokenSource";
         }
 
-        // Every other Task member either queues work or waits on it; construction does both.
+        // Every other Task member queues work or waits on it, and construction does both.
         return subject.In("System.Threading.Tasks")
             && subject.Type?.Name == "Task"
             && subject.Symbol.Name is "FromResult" or "CompletedTask" or "FromException" or "FromCanceled"
@@ -346,8 +346,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             id, title, message, "Capsule.Architecture", DiagnosticSeverity.Error, true, null,
             CapsuleDocs.At(CapsuleDocs.LogicBoundary));
 
-    // Every rule asks the same things of a symbol, and spelling a namespace out allocates a string;
-    // spelt once per operation here and read by all of them.
+    // Every rule asks the same things of a symbol, and spelling a namespace out allocates a string.
+    // Spell it once per operation here for all of them to read.
     private readonly struct Subject(ISymbol symbol)
     {
         internal ISymbol Symbol { get; } = symbol;

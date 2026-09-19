@@ -103,7 +103,7 @@ internal static class StageWorkload
                 SceneRegistration.FromDocument(
                     typeof(StageScene),
                     DocumentName,
-                    static content => new StageScene(content)),
+                    static content => new StageScene(content!.Value)),
             ]);
 
     internal static StageScene Compose(SceneDocument document, StageChurn churn = StageChurn.Spawning) =>
@@ -187,7 +187,7 @@ internal static class StageWorkload
                 case StageChurn.DrawListOnly:
                     // One structural change a step and nothing else: the population, the update
                     // work and the draw work are the same as StageChurn.None either side of it.
-                    if (_flicker.Scene is null)
+                    if (_flicker.SceneOrNull is null)
                     {
                         Add(_flicker);
                     }

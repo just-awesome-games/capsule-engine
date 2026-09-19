@@ -7,10 +7,10 @@ namespace Capsule.Physics;
 /// <param name="Grid">The collision grid that owns the cell.</param>
 /// <param name="X">The cell's column.</param>
 /// <param name="Y">The cell's row.</param>
-/// <param name="Owner">The object supplied when the grid was registered, if any.</param>
+/// <param name="Owner">The object supplied when the grid was registered, or null when none was.</param>
 public readonly record struct GridCellContact2D(GridCollider2D Grid, int X, int Y, object? Owner);
 
-/// <summary>Something a <see cref="Collider2D"/> is touching, named the way the game authored it.</summary>
+/// <summary>Something a <see cref="Collider2D"/> is touching, described in the game's own terms.</summary>
 public readonly struct ColliderContact2D
 {
     private readonly CollisionWorld2D? _world;
@@ -38,28 +38,28 @@ public readonly struct ColliderContact2D
     public Vector2 Point { get; }
 
     /// <summary>
-    /// The unit surface normal pointing from what was touched back towards this collider. In a
-    /// Y-down world, standing on something gives (0, -1).
+    /// The unit surface normal pointing from the touched surface back towards this collider. In a Y-down
+    /// world, standing on something reads (0, -1).
     /// </summary>
     public Vector2 Normal { get; }
 
     /// <summary>The other collider, or null when <see cref="Cell"/> names a grid cell.</summary>
     public Collider2D? OtherCollider { get; }
 
-    /// <summary>The grid cell touched, or null when <see cref="OtherCollider"/> names another collider.</summary>
+    /// <summary>The grid cell touched, or null when <see cref="OtherCollider"/> holds another collider.</summary>
     public GridCellContact2D? Cell { get; }
 
-    /// <summary>The entity reached through <see cref="OtherCollider"/> or the grid's owner.</summary>
+    /// <summary>The entity behind <see cref="OtherCollider"/>, or the grid's owner when a cell was touched.</summary>
     public Entity? OtherEntity => OtherCollider?.Entity ?? Cell?.Owner as Entity;
 
     /// <summary>
-    /// The touched thing's layer as the name it was interned under; the readable form, for a log
-    /// line. Empty on a default contact, which names no world. A handler deciding what to do
+    /// The touched surface's layer as the name it was interned under, which is the readable form for a
+    /// log line. Reads empty on a default contact, which has no world. A handler deciding what to do
     /// compares <see cref="Layer"/> instead, which costs no lookup.
     /// </summary>
     public string LayerName => _world?.NameOf(Layer) ?? string.Empty;
 
-    // Stable low-level identity used to pair enter and exit without exposing grid implementation
-    // details through the scene-level API.
+    // A stable identity that pairs an enter with its exit without exposing grid internals through the
+    // scene-level API.
     internal CollisionTarget Target { get; }
 }

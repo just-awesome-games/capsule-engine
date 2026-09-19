@@ -36,9 +36,8 @@ public sealed class CommandLineTests : IDisposable
     [Fact]
     public void ADriverNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered()
     {
-        Assert.Equal(2, Builder().WithCommandLine(["--headless", "--driver", "Wanderer"]).RunScene<Idle>());
+        string reported = Refused(["--headless", "--driver", "Wanderer"]);
 
-        string reported = Captured();
         Assert.Contains("Wanderer", reported, StringComparison.Ordinal);
         Assert.Contains("Idler, Presser", reported, StringComparison.Ordinal);
         Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
@@ -47,8 +46,7 @@ public sealed class CommandLineTests : IDisposable
     [Fact]
     public void Headless_WithNoDriver_IsReportedLikeABadArgument()
     {
-        Assert.Equal(2, Builder().WithCommandLine(["--headless"]).RunScene<Idle>());
-        Assert.Contains("--driver", Captured(), StringComparison.Ordinal);
+        Assert.Contains("--driver", Refused(["--headless"]), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -67,17 +65,18 @@ public sealed class CommandLineTests : IDisposable
     public void Scene_BootsTheNamedClassRatherThanTheOneRunSceneNames()
     {
         int before = Selected.Openings;
+        EngineBuilder builder = Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Selected"]);
 
-        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Selected"]).RunScene<Idle>());
+        Assert.Equal(nameof(Selected), builder.SceneOverride);
+        Assert.Equal(0, builder.RunScene<Idle>());
         Assert.Equal(before + 1, Selected.Openings);
     }
 
     [Fact]
     public void ASceneNoRegistryHolds_IsReportedWithTheScenesThatAreRegistered()
     {
-        Assert.Equal(2, Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Nowhere"]).RunScene<Idle>());
+        string reported = Refused(["--headless", "--driver", "Idler", "--scene", "Nowhere"]);
 
-        string reported = Captured();
         Assert.Contains("Nowhere", reported, StringComparison.Ordinal);
         Assert.Contains(nameof(Selected), reported, StringComparison.Ordinal);
         Assert.Contains("--scene <Name>", reported, StringComparison.Ordinal);
@@ -89,13 +88,16 @@ public sealed class CommandLineTests : IDisposable
         StringWriter stdout = new();
         Console.SetOut(stdout);
 
-        Assert.Equal(0, Builder().WithCommandLine(["--help"]).RunScene<Idle>());
+        CommandLineException asked = Assert.Throws<CommandLineException>(() => Builder().WithCommandLine(["--help"]));
+
+        Assert.True(asked.HelpRequested);
+        Assert.Equal(0, asked.Report());
         Assert.Contains("--headless", stdout.ToString(), StringComparison.Ordinal);
         Assert.Contains("--saves <dir>", stdout.ToString(), StringComparison.Ordinal);
     }
 
-    // The flag is applied as eagerly as --frames, so the headless run persists into the directory
-    // it names: the document the scene wrote on its way out is there when the run returns.
+    // The flag is applied as eagerly as --frames, so the headless run persists into the directory it
+    // names: the document the scene wrote on its way out is there when the run returns.
     [Fact]
     public void Saves_IsHonouredByAHeadlessRun()
     {
@@ -109,9 +111,8 @@ public sealed class CommandLineTests : IDisposable
     [MemberData(nameof(MalformedCommandLines))]
     public void AMalformedCommandLine_IsReportedWithTheUsageAndExitsTwo(string[] args)
     {
-        Assert.Equal(2, Builder().WithCommandLine(args).RunScene<Idle>());
+        string reported = Refused(args);
 
-        string reported = Captured();
         Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
         Assert.Contains("--frames <csv> [seconds]", reported, StringComparison.Ordinal);
     }
@@ -142,15 +143,19 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--frames", "frames.csv")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
-        Assert.Contains("unknown option", CommandLine.Parse(args, development: false).Error, StringComparison.Ordinal);
+        CommandLineException refused = Assert.Throws<CommandLineException>(
+            () => CommandLine.Parse(args, "Game", development: false));
+
+        Assert.Contains("unknown option", refused.Message, StringComparison.Ordinal);
+        Assert.False(refused.HelpRequested);
+        Assert.Equal(2, refused.ExitCode);
     }
 
     [Fact]
     public void AShippingBuild_KeepsSavesAndHelp()
     {
-        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--help"], development: false);
+        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--help"], "Game", development: false);
 
-        Assert.Null(parsed.Error);
         Assert.Equal("portable", parsed.SavesPath);
         Assert.True(parsed.HelpRequested);
 
@@ -163,6 +168,17 @@ public sealed class CommandLineTests : IDisposable
         Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
     }
 
+    // The defect and the usage block as the shell prints them, with the exit code it returns.
+    private string Refused(string[] args)
+    {
+        CommandLineException refused = Assert.Throws<CommandLineException>(() => Builder().WithCommandLine(args));
+
+        Assert.False(refused.HelpRequested);
+        Assert.Equal(2, refused.Report());
+
+        return Captured();
+    }
+
     private string Captured() => _captured.ToString();
 
     private static EngineBuilder Builder() =>
@@ -172,10 +188,10 @@ public sealed class CommandLineTests : IDisposable
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [
-                        SceneRegistration.Plain(typeof(Idle), static () => new Idle()),
-                        SceneRegistration.Plain(typeof(Exiting), static () => new Exiting()),
-                        SceneRegistration.Plain(typeof(Selected), static () => new Selected()),
-                        SceneRegistration.Plain(typeof(Saver), static () => new Saver()),
+                        SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
+                        SceneRegistration.Plain(typeof(Exiting), static _ => new Exiting()),
+                        SceneRegistration.Plain(typeof(Selected), static _ => new Selected()),
+                        SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
                     ]),
                 new InputDriverRegistry(
                     [

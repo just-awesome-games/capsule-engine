@@ -4,12 +4,11 @@ using Capsule.Runtime.Assets;
 
 namespace Capsule.Runtime.Audio;
 
-// The sounds owned by the current scene, preloaded where declared and otherwise loaded on first
-// play. Streamed clips are never resident: they are opened per voice and released at retire.
+// The sounds owned by the current scene, preloaded where declared and otherwise loaded on first play.
+// Streamed clips are not resident. They are opened per voice and closed when the voice ends.
 //
-// A voice outlives the scene that started it — the mixer is the run's, not the scene's — so a
-// resident sound the outgoing scene drops is retained until its last live voice retires, and only
-// then released.
+// A voice outlives the scene that started it, because the mixer is the run's and not the scene's, so
+// a resident sound the outgoing scene drops is held until its last live voice ends.
 internal sealed class SoundStore : IDisposable
 {
     private readonly IAudioBackend _backend;
@@ -22,7 +21,7 @@ internal sealed class SoundStore : IDisposable
     }
 
     // Missing preloads are decoded before the prior scene's sounds are released. Streamed clips are
-    // dropped here rather than loaded; declaring one is not an error, it simply reserves nothing.
+    // dropped here instead of loaded. Declaring one is not an error and reserves nothing.
     internal void ChangeScene(AssetCollection preloads)
     {
         List<AudioClip> resident = [];
@@ -38,8 +37,8 @@ internal sealed class SoundStore : IDisposable
     }
 
     // Loads on first use when the scene did not preload the clip. A resident clip streams its own
-    // samples instead of being queued whole when it must repeat a loop region or begin mid-clip: the
-    // device can only repeat all of what it was queued, and only from the front of it.
+    // samples instead of being queued whole when it must repeat a loop region or begin mid-clip,
+    // because the device repeats all of what it was queued and only from the front.
     internal IAudioVoice Play(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds) =>
         AudioFiles.IsStreamed(clip)
             ? _backend.Stream(clip, gain, pitch, pan, loop, startSeconds)
@@ -64,13 +63,13 @@ internal sealed class SoundStore : IDisposable
     }
 
     // One resident sound plus the count of live voices playing it. The scene's release and the last
-    // voice's retire race in either order; whichever is last frees the sound.
+    // voice's end race in either order, and whichever is last frees the sound.
     private sealed class RetainedSound : IDisposable
     {
         private readonly IResidentSound _sound;
 
-        // One delegate for every voice this sound ever plays, so a play allocates nothing.
-        private readonly Action _retire;
+        // One delegate shared by every voice this sound plays, which keeps a play allocation-free.
+        private readonly Action _ended;
 
         private int _voices;
         private bool _released;
@@ -78,14 +77,14 @@ internal sealed class SoundStore : IDisposable
         internal RetainedSound(IResidentSound sound)
         {
             _sound = sound;
-            _retire = Retire;
+            _ended = Ended;
         }
 
         internal IAudioVoice Play(float gain, float pitch, float pan, bool loop, double startSeconds, bool stream)
         {
             IAudioVoice voice = stream
-                ? _sound.Stream(gain, pitch, pan, loop, startSeconds, _retire)
-                : _sound.Play(gain, pitch, pan, loop, _retire);
+                ? _sound.Stream(gain, pitch, pan, loop, startSeconds, _ended)
+                : _sound.Play(gain, pitch, pan, loop, _ended);
             _voices++;
 
             return voice;
@@ -103,7 +102,7 @@ internal sealed class SoundStore : IDisposable
             Free();
         }
 
-        private void Retire()
+        private void Ended()
         {
             _voices--;
             Free();

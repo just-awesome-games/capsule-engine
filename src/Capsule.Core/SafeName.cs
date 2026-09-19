@@ -4,14 +4,14 @@ using Capsule.Assets;
 
 namespace Capsule;
 
-// Whether a name that will become a file or directory is portable. The runtime's local folder and
-// every save document's name pass through here, so a name is refused identically on a headless run
-// with no file system behind it and on the player's machine.
+// Whether a name that will become a file or directory is portable. The runtime's local folder and every
+// save document's name pass through here. A name is refused the same way on a headless run with no file
+// system and on the player's machine.
 internal static class SafeName
 {
-    // Fixed rather than Path.GetInvalidFileNameChars(): the POSIX set rejects only '\0'
-    // and '/', so a name accepted on a Linux build machine would fail on a player's
-    // Windows box. The safe-name contract must not depend on where the game was built.
+    // A fixed set, not Path.GetInvalidFileNameChars(). The POSIX set rejects only '\0' and '/', and a name
+    // accepted on a Linux build machine would fail on a player's Windows box. The safe-name contract must
+    // not depend on where the game was built.
     private static readonly SearchValues<char> UnsafeNameChars = SearchValues.Create(UnsafeNameCharSet());
 
     internal static bool IsOneSafeDirectoryName(string name)
@@ -21,23 +21,23 @@ internal static class SafeName
             return false;
         }
 
-        // Catches "." and ".." with it: Windows trims trailing dots and spaces, so such a
-        // name silently resolves to a different directory than the one it reads as.
+        // Windows trims trailing dots and spaces, so such a name silently resolves to a different
+        // directory than it reads as. This also catches "." and "..".
         if (name[^1] is '.' or ' ')
         {
             return false;
         }
 
         // Windows matches a device name on the stem before the first dot, so "CON" and "CON.log"
-        // both fail rather than creating a directory.
+        // both fail instead of creating a directory.
         int dot = name.IndexOf('.', StringComparison.Ordinal);
 
         return !AssetPaths.IsReservedDeviceName(dot >= 0 ? name[..dot] : name);
     }
 
-    // A display name lowercased, with every run of anything that is not a letter or a digit
-    // becoming one hyphen — so "My Game" is "my-game". Null where what remains is not one safe
-    // directory name, which a game name of punctuation alone or of a reserved device name is.
+    // A display name lowercased, with each run of non-alphanumeric characters collapsed to one hyphen, so
+    // "My Game" becomes "my-game". Returns null when the result is not a safe directory name, as happens
+    // for a name of only punctuation or a reserved device name.
     internal static string? Slug(string name)
     {
         StringBuilder slug = new(name.Length);

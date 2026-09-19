@@ -3,8 +3,7 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// The overlay's input actions and their bindings, the one place its devices are named; no
-// behaviour.
+// The overlay's input actions and their bindings, the only place its devices are named. No behaviour.
 internal static class OverlayActions
 {
     internal static readonly InputAction MenuUp = new("debug-menu.up");
@@ -23,7 +22,7 @@ internal static class OverlayActions
     internal static readonly InputAction Click = new("debug-menu.click");
     internal static readonly AxisAction Scroll = new("debug-menu.scroll");
 
-    // Sideways moves are the menu's own (back and step), so the navigator is given a direction
+    // The menu handles sideways moves itself (back and step), so the navigator is given a direction
     // bound to nothing.
     private static readonly InputAction None = new("debug-menu.none");
 
@@ -32,8 +31,8 @@ internal static class OverlayActions
     internal static readonly InputAction[] Actions =
         [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, Exit, Click];
 
-    // Read-only once built, so the one instance serves every overlay. The keyboard key is bound
-    // first on every action: KeyName reads an action's first button as its keyboard name.
+    // Read-only once built, and a single instance serves every overlay. The keyboard key is bound first
+    // on every action, because KeyName reads an action's first button as its keyboard name.
     internal static readonly ActionBindings Bindings =
         new ActionBindings()
             .Bind(MenuUp, Key.Up, PadButton.DPadUp)

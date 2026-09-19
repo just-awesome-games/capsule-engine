@@ -5,20 +5,18 @@ using Capsule.Scenes;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and
-/// says when it comes on screen and when it leaves. Corner-anchored like a
-/// <see cref="Physics.BoxCollider2D"/>: the rect's corner is the entity's position plus
-/// <see cref="Offset"/>, and it spans <see cref="Size"/> world units from there.
+/// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and reports
+/// when it comes on screen and when it leaves. The rect is corner-anchored like a
+/// <see cref="Physics.BoxCollider2D"/>: its corner sits at the entity's position plus <see cref="Offset"/>
+/// and it spans <see cref="Size"/> world units from there.
 /// <para>
-/// Simulation only — nothing here reads the renderer, the window or the output, so a headless run
-/// answers exactly as a windowed one does. It settles once a step, immediately after the camera's
-/// late step, and a notifier that arrives with that step's deferred adds settles as they land,
-/// against the region that step settled — so from its entity's first step
-/// <see cref="IsOnScreen"/> and the events describe the frame last drawn, including the frame its
-/// own spawn step drew. Sharing an edge with the visible region is not being on it, and a region
-/// spanning nothing puts everything off screen. A notifier added to a scene from inside another
-/// notifier's handler first settles on the next step. The rect is in authored space, so an entity
-/// whose <see cref="Entity.ScrollFactor"/> is not one refuses one.
+/// This is simulation state only. Nothing here reads the renderer, the window or the output, so headless
+/// and windowed runs answer alike. Every notifier settles once per step, after the step's deferred
+/// adds have landed, against the region the frame for that step was framed with, so from its entity's first
+/// step <see cref="IsOnScreen"/> and the events describe that frame. Sharing an edge with the visible region
+/// does not count as being on screen, and a region spanning nothing puts everything off screen. A notifier
+/// registered from inside another notifier's handler first settles on the next step. The rect is in authored
+/// space, and an entity whose <see cref="Entity.ScrollFactor"/> is not one rejects this component.
 /// </para>
 /// </summary>
 public sealed class VisibleOnScreenNotifier2D : Component
@@ -26,51 +24,51 @@ public sealed class VisibleOnScreenNotifier2D : Component
     private Vector2 _size;
     private Vector2 _offset;
     private Scene? _scene;
+    private bool _dispatching;
 
     /// <param name="size">The extent the rect spans from its corner, in world units.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A component of <paramref name="size"/> is not positive and finite.</exception>
     public VisibleOnScreenNotifier2D(Vector2 size) => _size = RequireSize(size);
 
     /// <summary>
-    /// Raised as the rect begins overlapping the visible region, from the settle that found it
-    /// there. Never raised twice without a <see cref="ScreenExited"/> between.
+    /// Raised from the settle that first finds the rect overlapping the visible region. It is never raised
+    /// twice without a <see cref="ScreenExited"/> in between.
     /// </summary>
     public event Action? ScreenEntered;
 
     /// <summary>
-    /// Raised as the rect stops overlapping the visible region, and once for a notifier that was on
-    /// screen when it left its scene or was detached from its entity, so the pairing stays exact.
+    /// Raised when the rect stops overlapping the visible region, and once for a notifier that was on screen
+    /// when it left its scene or was detached from its entity, which keeps every enter paired with one exit.
     /// </summary>
     public event Action? ScreenExited;
 
     /// <summary>The extent the rect spans from its corner, in world units.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">A component of the size is not positive and finite.</exception>
+    /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
     public Vector2 Size
     {
         get => _size;
-        set => _size = RequireSize(value);
+        set
+        {
+            RequireNotDispatching();
+            _size = RequireSize(value);
+        }
     }
 
-    /// <summary>Added to the entity's position to place the rect's corner; zero by default.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The offset is not finite.</exception>
+    /// <summary>Added to the entity's position to place the rect's corner. Zero by default.</summary>
+    /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
     public Vector2 Offset
     {
         get => _offset;
         set
         {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "A notifier's offset must be finite.");
-            }
-
+            RequireNotDispatching();
+            Guard.Finite(value, nameof(value));
             _offset = value;
         }
     }
 
     /// <summary>
-    /// Whether the rect overlapped the camera's visible region at the last visibility settle,
-    /// including the arrival settle for entities added during a step. False before its first
-    /// settle and while outside a scene.
+    /// Whether the rect overlapped the camera's visible region at the last settle. Reads false before the
+    /// first settle and while the notifier is outside a scene.
     /// </summary>
     public bool IsOnScreen { get; private set; }
 
@@ -79,7 +77,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
-        _scene = Entity!.Scene!;
+        _scene = Entity!.Scene;
         _scene.TrackVisibility(this);
     }
 
@@ -89,17 +87,17 @@ public sealed class VisibleOnScreenNotifier2D : Component
         _scene?.UntrackVisibility(this);
         _scene = null;
 
-        // Cleared before the handler runs, so one that reads the notifier from in here sees it off
-        // screen rather than owing a second exit.
+        // Clear the flag before the handler runs. A handler that reads the notifier sees it off screen,
+        // and no second exit is owed.
         if (IsOnScreen)
         {
             IsOnScreen = false;
-            ScreenExited?.Invoke();
+            Raise(ScreenExited);
         }
     }
 
-    // The whole rect against the whole region: a partial overlap is on screen, exactly as the
-    // renderer would show a partly framed sprite.
+    // Tests the full rect against the full region. A partial overlap counts as on screen, matching
+    // how the renderer shows a partly framed sprite.
     internal void SettleVisibility(in Rect region)
     {
         bool onScreen = !region.IsEmpty &&
@@ -111,23 +109,36 @@ public sealed class VisibleOnScreenNotifier2D : Component
         }
 
         IsOnScreen = onScreen;
-        if (onScreen)
+        Raise(onScreen ? ScreenEntered : ScreenExited);
+    }
+
+    // A handler sees the new state and may not resize or move the notifier it is running for.
+    private void Raise(Action? handler)
+    {
+        _dispatching = true;
+        try
         {
-            ScreenEntered?.Invoke();
+            handler?.Invoke();
         }
-        else
+        finally
         {
-            ScreenExited?.Invoke();
+            _dispatching = false;
+        }
+    }
+
+    private void RequireNotDispatching()
+    {
+        if (_dispatching)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} cannot change from inside its own handler. Change it after the handler returns.");
         }
     }
 
     private static Vector2 RequireSize(Vector2 size)
     {
-        // Negated so a NaN extent is rejected alongside the non-positive ones.
-        if (!(size.X > 0f) || !(size.Y > 0f) || !float.IsFinite(size.X) || !float.IsFinite(size.Y))
-        {
-            throw new ArgumentOutOfRangeException(nameof(size), size, "A notifier's size must be positive and finite on both axes.");
-        }
+        Guard.Positive(size.X, nameof(size));
+        Guard.Positive(size.Y, nameof(size));
 
         return size;
     }

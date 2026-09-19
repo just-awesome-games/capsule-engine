@@ -8,21 +8,14 @@ namespace Capsule.Diagnostics;
 
 /// <summary>
 /// How a scene, entity or component offers itself to the development overlay from its
-/// <c>OnDebugPanel</c> hook: a labelled value to read, a command to run, or a toggle to flip, one
-/// row per call and shown in write order. Write-only, as <see cref="DebugDraw"/> is: nothing
-/// written here is read back by game code, so a run whose panels were never opened reaches the same
-/// state as one whose were. A command or toggle runs while the overlay holds the simulation, inside
-/// the one fixed step the overlay then runs through the ordinary input path — after the step has
-/// begun and ahead of the scene's own, so its sounds and the scene transition it requests are that
-/// step's and are consumed with it — and one that throws is not caught. Every verb is compiled out
-/// of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c> — the call, its argument
-/// expressions and any lambda among them are absent — and Capsule's build defines that symbol for
-/// a consuming game whenever <c>CapsuleShipping</c> is not <c>true</c>.
+/// <c>OnDebugPanel</c> hook. Each call writes one row, shown in write order: a labelled value to
+/// read, a command to run, or a toggle to flip. It is write-only, like <see cref="DebugDraw"/>, and
+/// every verb is compiled out of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c>. Values
+/// are formatted in the invariant culture.
 /// <para>
-/// Values are formatted in the invariant culture: a float or double at its shortest round-trip
-/// form, a <see cref="Vector2"/> as <c>(x, y)</c>, a <see cref="ColorRgba"/> as <c>#rrggbbaa</c>, an
-/// enum by its name, a null string as <c>null</c>. A label is a short noun and a value is one line.
-/// Every verb throws <see cref="ArgumentNullException"/> for a null label, command or setter.
+/// A command or toggle runs while the overlay holds the simulation, inside the fixed step the overlay
+/// then runs through the ordinary input path. It runs after that step has begun and before the
+/// scene's own logic, so its sounds and any scene transition it requests belong to that step.
 /// </para>
 /// </summary>
 public sealed class DebugPanel
@@ -31,19 +24,16 @@ public sealed class DebugPanel
 
     private readonly List<DebugPanelRow> _rows = [];
 
-    /// <summary>
-    /// An empty panel, which a game constructs to call its own <c>OnDebugPanel</c> in a test; the
-    /// overlay builds the one a running hook is handed.
-    /// </summary>
+    /// <summary>An empty panel. A game constructs one to call its own <c>OnDebugPanel</c> in a test.</summary>
     public DebugPanel()
     {
     }
 
-    // The rows in the order they were written: a heading row for each component the walk reached
-    // and a row for each call. Invalidated by the next write or Clear.
+    // The rows in the order they were written, with a heading row for each component the walk reached and
+    // a row for each call. Invalidated by the next write or Clear.
     internal ReadOnlySpan<DebugPanelRow> Rows => CollectionsMarshal.AsSpan(_rows);
 
-    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/>; null shows as <c>null</c>.</summary>
+    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/>. Null shows as <c>null</c>.</summary>
     [Conditional(Development.Symbol)]
     public void Field(string label, string? value) => Write(label, value ?? Null);
 
@@ -51,7 +41,7 @@ public sealed class DebugPanel
     [Conditional(Development.Symbol)]
     public void Field(string label, bool value) => Write(label, value ? bool.TrueString : bool.FalseString);
 
-    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/>; an <see cref="int"/> lands here.</summary>
+    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/>. An <see cref="int"/> binds to this overload.</summary>
     [Conditional(Development.Symbol)]
     public void Field(string label, long value) => Write(label, value.ToString(CultureInfo.InvariantCulture));
 
@@ -77,15 +67,15 @@ public sealed class DebugPanel
         Write(label, string.Create(CultureInfo.InvariantCulture, $"#{value.R:x2}{value.G:x2}{value.B:x2}{value.A:x2}"));
 
     /// <summary>Writes <paramref name="value"/> under <paramref name="label"/> by its name.</summary>
-    /// <typeparam name="TEnum">The enum type; a value outside its names shows as its number.</typeparam>
+    /// <typeparam name="TEnum">The enum type. A value outside its names shows as its number.</typeparam>
     [Conditional(Development.Symbol)]
     public void Field<TEnum>(string label, TEnum value)
         where TEnum : struct, Enum =>
         Write(label, value.ToString());
 
     /// <summary>
-    /// Offers <paramref name="activate"/> under <paramref name="label"/>, run when the row is
-    /// chosen; every open page is rebuilt afterwards.
+    /// Offers <paramref name="activate"/> under <paramref name="label"/>, run when the row is chosen.
+    /// Every open page is rebuilt afterwards.
     /// </summary>
     [Conditional(Development.Symbol)]
     public void Command(string label, Action activate)
@@ -97,9 +87,9 @@ public sealed class DebugPanel
     }
 
     /// <summary>
-    /// Offers a switch under <paramref name="label"/> showing <paramref name="value"/>:
-    /// <paramref name="set"/> is called with the opposite when the row is chosen, and the row then
-    /// shows whatever the rebuilt hook writes.
+    /// Offers a switch under <paramref name="label"/> showing <paramref name="value"/>. Choosing the
+    /// row calls <paramref name="set"/> with the opposite value, and the row then shows whatever the
+    /// rebuilt hook writes.
     /// </summary>
     [Conditional(Development.Symbol)]
     public void Toggle(string label, bool value, Action<bool> set)
@@ -110,7 +100,7 @@ public sealed class DebugPanel
         _rows.Add(new DebugPanelRow(DebugPanelRowKind.Toggle, label, null, () => set(!value), value));
     }
 
-    // Opens the section the rows that follow belong to, named for the component they describe.
+    // Opens the section the following rows belong to, named for the component they describe.
     internal void Section(string heading)
     {
         ArgumentNullException.ThrowIfNull(heading);
@@ -120,8 +110,8 @@ public sealed class DebugPanel
 
     internal void Clear() => _rows.Clear();
 
-    // Every overload lands here rather than on the string overload: [Conditional] removes the call
-    // site, so the row would be lost wherever this assembly is itself built for shipping.
+    // Every overload calls this instead of the public string overload, because [Conditional] removes the
+    // call site and the row would be lost wherever this assembly is built for shipping.
     private void Write(string label, string value)
     {
         ArgumentNullException.ThrowIfNull(label);
@@ -129,7 +119,7 @@ public sealed class DebugPanel
         _rows.Add(new DebugPanelRow(DebugPanelRowKind.Field, label, value, null));
     }
 
-    // The one spelling of a position, shared with the overlay's own rows.
+    // The shared spelling of a position, used by the overlay's own rows too.
     internal static string Format(Vector2 value) =>
         string.Create(CultureInfo.InvariantCulture, $"({value.X}, {value.Y})");
 }
@@ -143,8 +133,8 @@ internal enum DebugPanelRowKind
     Toggle,
 }
 
-// One row a panel holds. Value is set for a field only; Activate for a command or toggle, the
-// toggle's already carrying the flip; On is the toggle's shown state.
+// One row a panel holds. Value is set for a field, Activate for a command or toggle, and a toggle's
+// Activate already carries the flip. On is the toggle's shown state.
 internal readonly record struct DebugPanelRow(DebugPanelRowKind Kind, string Label, string? Value, Action? Activate, bool On = false)
 {
     internal bool IsHeading => Kind == DebugPanelRowKind.Heading;

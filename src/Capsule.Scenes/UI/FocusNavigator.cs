@@ -8,45 +8,30 @@ using Capsule.Scenes;
 namespace Capsule.UI;
 
 /// <summary>
-/// Moves a focus between <see cref="Focusable"/> items and presses the one that has it: the state
-/// machine behind a menu, a tab strip, a grid or a talent tree. It steps itself, so a scene attaches
-/// one and reads nothing; the items carry what the focus looks like and what pressing one means.
+/// Moves a focus between <see cref="Focusable"/> items and presses the focused one. This is the state
+/// machine behind a menu, a tab strip, a grid or a talent tree. It steps itself and draws nothing. The
+/// items supply the focus visuals and decide what pressing means. The items need not sit on this
+/// component's entity, or even on one entity. An item counts as live while its
+/// <see cref="Component.Entity"/> is in a scene, or queued to join one and not queued to leave. Only
+/// live items take part in directions, the pointer and the press.
 /// <para>
-/// The items need not be on this component's entity, and need not share one: a navigator is where a
-/// set of items is declared to be one focus, wherever in the scene they are. It draws nothing, and a
-/// step allocates nothing.
-/// </para>
-/// <para>
-/// Where the focused item names no neighbour for it, a direction ranks the items lying that way from
-/// the focused one's <see cref="Focusable.Bounds"/> centre by <c>dot(direction, delta) / |delta|²</c>,
-/// highest first: alignment and closeness trade against each other rather than one being settled
-/// before the other, so a near diagonal can win over a far aligned item — pressing right with deltas
-/// of <c>(40, 0)</c> and <c>(10, 10)</c> scores them 0.025 and 0.05 and moves to the diagonal. Ties go
-/// to list order, and where nothing lies that way the focus wraps to the item farthest the other way.
-/// </para>
-/// <para>
-/// A neighbour the focused item names — its <see cref="Focusable.Up"/>, <see cref="Focusable.Down"/>,
-/// <see cref="Focusable.Left"/> or <see cref="Focusable.Right"/> — is read before that geometry: it is
-/// the move, and neither the score nor the wrap is consulted, so a menu may name one direction on one
-/// item and leave the rest automatic. An item naming itself blocks that direction, moving nothing and
-/// raising nothing. A named item that is not live hands the move on to the item it names in the same
-/// direction, as far as the chain runs, so a column still works while one of its items is out of the
-/// scene; a chain that names nothing further, or that comes back on an item it already reached, moves
-/// nothing. Every item a chain reaches must be one of <see cref="Items"/> — the focus moves only among
-/// the items one navigator holds, so one screen's menus are one navigator — and a neighbour that is
-/// not throws <see cref="InvalidOperationException"/> from the step that read it.
-/// </para>
-/// <para>
-/// An item is <em>live</em> while its <see cref="Component.Entity"/> is one a scene still holds, and
-/// only live items take part: the directions, the pointer and the press all pass over an item whose
-/// entity has left its scene or is queued to leave it this step. A focus found on one is released —
-/// its <see cref="Focusable.Unfocused"/> raised — and the first live item in list order takes it, or
-/// this navigator holds none until one is live again. An item that re-enters a scene is live again;
-/// liveness never takes an item out of <see cref="Items"/>, which only <see cref="Remove"/> does. A
-/// request to focus an item that is not live — one whose entity is queued to join the scene this
-/// step — is kept <em>pending</em> and resolved at the next step, per <see cref="Focus"/>.
+/// A direction first takes the neighbour the focused item names for that side. When the item names
+/// none, the navigator ranks the items lying that way from the focused item's
+/// <see cref="Focusable.Bounds"/> centre by <c>dot(direction, delta) / |delta|²</c> and takes the
+/// highest score, which lets a near diagonal beat a far aligned item. Deltas of <c>(40, 0)</c> and
+/// <c>(10, 10)</c> score 0.025 and 0.05, so right moves to the diagonal. Ties go to list order, and
+/// when nothing lies that way the focus wraps to the item farthest the other way. An item that names
+/// itself blocks that direction. A named item that is not live passes the move on to the item it names
+/// in the same direction, which keeps a column working while one of its items is out of the scene. A
+/// chain that names nothing further, returns to an item it already visited, or reaches an item this
+/// navigator does not hold moves nothing.
 /// </para>
 /// </summary>
+/// <remarks>
+/// A focus change applies immediately, so handlers read the new focus. Changing this navigator's
+/// items or its focus from inside one of its own focus events throws, because a second move from there
+/// would leave two items claiming the focus.
+/// </remarks>
 public sealed class FocusNavigator : Component
 {
     private readonly List<Focusable> _items = [];
@@ -54,54 +39,55 @@ public sealed class FocusNavigator : Component
 
     private bool _started;
     private bool _raising;
-    private Focusable? _queued;
-    private bool _repairQueued;
-    private Focusable? _pending;
 
-    // Steps a direction has been held past its press, counted while any direction is held and
-    // none was pressed this step; a press edge restarts it.
+    // How many steps a direction has been held since its press. Counts up while any direction is held
+    // and none was pressed this step, and a press edge resets it to zero.
     private int _heldSteps;
     private int _repeatDelay = 30;
     private int _repeatInterval = 6;
 
     /// <summary>
-    /// Navigates <paramref name="items"/>, the first of which is the starting item. Their order carries
-    /// no layout: each direction is read from where the items sit, so the same call serves a column,
-    /// a row or a grid.
+    /// Navigates <paramref name="items"/>, and the first item takes the focus when this navigator
+    /// starts. List order does not imply layout, because directions come from where the items sit, so
+    /// one call serves a column, a row or a grid. Named neighbours are checked once every item is held,
+    /// so the items may already name each other in a ring.
     /// </summary>
-    /// <param name="actions">The actions this navigator is driven by, for its whole life.</param>
-    /// <param name="items">The items the focus moves between; each must be non-null and named once.</param>
-    /// <exception cref="ArgumentNullException">Some item is null.</exception>
-    /// <exception cref="ArgumentException">Some item is named twice.</exception>
+    /// <param name="actions">The actions that drive this navigator for its whole life.</param>
+    /// <param name="items">The items the focus moves between. Each must be non-null and listed once.</param>
     public FocusNavigator(FocusActions actions, params ReadOnlySpan<Focusable> items)
     {
         _actions = actions;
 
-        for (int i = 0; i < items.Length; i++)
+        foreach (Focusable item in items)
         {
-            Add(items[i]);
+            Append(item);
         }
+
+        foreach (Focusable item in items)
+        {
+            RequireNeighboursHeld(item);
+        }
+
+        Focused = First();
     }
 
     /// <summary>
-    /// Raised with the item the focus landed on, after that item's <see cref="Focusable.Focused"/>
-    /// and before anything that step presses it. Raised for the focus the starting item takes at
-    /// this navigator's start, and not where the focus does not move or where it is released to no
-    /// item at all. Handlers run synchronously, in subscription order.
+    /// Raised with the item the focus landed on, after that item's <see cref="Focusable.Focused"/> and
+    /// before anything presses it in the same step. The navigator also raises it for the starting
+    /// item's focus. It does not raise it when the focus is released to no item.
     /// </summary>
     public event Action<Focusable>? FocusChanged;
 
     /// <summary>
-    /// Which item has the focus, or null while this navigator holds none. Before it starts, this is
-    /// the item that will take the focus then.
+    /// The item that has the focus, or null while this navigator holds none. Before the navigator
+    /// starts, this names the item that will take the focus at start.
     /// </summary>
     public Focusable? Focused { get; private set; }
 
     /// <summary>
-    /// Steps a direction is held past its press before it first repeats; 30 by default, half a
-    /// second at sixty steps. Read on each step, so a change takes effect on the next.
+    /// How many steps a direction must be held after its press before it first repeats. Defaults to
+    /// 30, half a second at sixty steps. Read on each step, and a new value takes effect next step.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
     public int RepeatDelay
     {
         get => _repeatDelay;
@@ -113,11 +99,10 @@ public sealed class FocusNavigator : Component
     }
 
     /// <summary>
-    /// Steps between one repeat of a held direction and the next; 6 by default, a tenth of a
-    /// second at sixty steps. Zero means a held direction never repeats: it moves once on its
-    /// press alone. Read on each step, so a change takes effect on the next.
+    /// How many steps pass between repeats of a held direction. Defaults to 6, a tenth of a second at
+    /// sixty steps. Zero makes a held direction move once on its press. Read on each step, and a new
+    /// value takes effect next step.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
     public int RepeatInterval
     {
         get => _repeatInterval;
@@ -129,136 +114,91 @@ public sealed class FocusNavigator : Component
     }
 
     /// <summary>
-    /// The items the focus moves between, in list order, which is the order the pointer hit-tests
-    /// them in and the order ties in a direction are broken by. Invalidated by the next
-    /// <see cref="Add"/> or <see cref="Remove"/>.
+    /// The items the focus moves between, in list order. The pointer hit-tests them in this order and
+    /// a direction breaks ties by it. The next <see cref="Add"/> or <see cref="Remove"/> invalidates
+    /// the span.
     /// </summary>
     public ReadOnlySpan<Focusable> Items => CollectionsMarshal.AsSpan(_items);
 
     /// <summary>
-    /// Appends <paramref name="item"/> to the end of the list. The first one appended is the starting
-    /// item: it takes the focus at this navigator's start. Appended while this navigator has started
-    /// and holds no focus and no pending request, it is requested as <see cref="Focus"/> requests it —
-    /// taking the focus at once where it is live, and pending where it is not.
+    /// Appends <paramref name="item"/> to the end of the list. The first item appended is the starting
+    /// item. If the navigator has already started and holds no focus, the new item takes the focus
+    /// immediately, or the first live item does when the new item is not live.
     /// </summary>
-    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
-    /// <exception cref="ArgumentException">The item is already one of <see cref="Items"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The item is already in <see cref="Items"/>, or it names a neighbour this navigator does not
+    /// hold. Add the neighbour first, or name it once both are held.
+    /// </exception>
     public void Add(Focusable item)
     {
-        ArgumentNullException.ThrowIfNull(item);
+        RequireNotRaising();
+        Append(item);
+        RequireNeighboursHeld(item);
 
-        if (_items.Contains(item))
-        {
-            throw new ArgumentException($"{nameof(Focusable)} is already an item of this navigator.", nameof(item));
-        }
-
-        _items.Add(item);
-
-        if (Focused is not null || _pending is not null)
+        if (Focused is not null)
         {
             return;
         }
 
         if (_started)
         {
-            Request(item);
-
-            return;
+            Move(Live(item) ? item : FirstLive());
         }
-
-        Focused = item;
+        else
+        {
+            Focused = item;
+        }
     }
 
     /// <summary>
-    /// Takes <paramref name="item"/> out of the list; false, doing nothing, where this navigator does
-    /// not hold it. An item that held the focus is released — its <see cref="Focusable.Unfocused"/>
-    /// raised where this navigator has started — and the focus lands at once on the first live item
-    /// in list order, or on none, raising exactly what a step's repair raises. A pending request
-    /// naming the item is dropped, as is one queued behind the sequence under way.
-    /// <para>
-    /// A call arriving from inside this navigator's own focus events takes the item out of the list at
-    /// once, and its repair is queued the way <see cref="Focus"/> queues: the sequence under way
-    /// finishes, then the repair runs as its own sequence.
-    /// </para>
+    /// Takes <paramref name="item"/> out of the list, and does nothing when this navigator does not
+    /// hold it. Removing the focused item releases its focus and lands the focus immediately on the
+    /// first live item in list order, or on no item.
     /// </summary>
-    /// <returns>Whether the item was one of <see cref="Items"/>.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
+    /// <returns>Whether the item was in <see cref="Items"/>.</returns>
     public bool Remove(Focusable item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        RequireNotRaising();
 
         if (!_items.Remove(item))
         {
             return false;
         }
 
-        if (ReferenceEquals(_pending, item))
+        if (ReferenceEquals(Focused, item))
         {
-            _pending = null;
+            Move(_started ? FirstLive() : First());
         }
-
-        if (ReferenceEquals(_queued, item))
-        {
-            _queued = null;
-        }
-
-        if (!ReferenceEquals(Focused, item))
-        {
-            return true;
-        }
-
-        if (_raising)
-        {
-            _repairQueued = true;
-
-            return true;
-        }
-
-        Move(_started ? FirstLive() : First());
 
         return true;
     }
 
     /// <summary>
-    /// Moves the focus onto <paramref name="item"/>, raising exactly what an input move raises; a
-    /// no-op, raising nothing, where that item already has it. Called before this navigator starts it
-    /// names the starting item instead, raising nothing.
-    /// <para>
-    /// A request naming an item that is not live is kept pending rather than applied: the focus is
-    /// released now where the item holding it is not live either, and otherwise stays where it is.
-    /// The next step at which any item is live first lands the pending item where it is live by
-    /// then, or the first live item in list order, clears the request, and then reads its input as
-    /// usual — it is not the repair a step spends itself on; a step at which no item is live leaves
-    /// the request pending. A later request replaces a pending one, and <see cref="Remove"/> of the
-    /// pending item drops it. Before this navigator starts there is no liveness to read: the request
-    /// names the starting item, and the start resolves it.
-    /// </para>
-    /// <para>
-    /// A call arriving from inside this navigator's own focus events is queued, not applied: the
-    /// sequence under way finishes, then the request runs as its own full sequence from the item that
-    /// just landed, and only the last request one sequence queued is kept.
-    /// </para>
+    /// Moves the focus onto <paramref name="item"/>, raising the same events an input move raises, and
+    /// does nothing when that item already has the focus. An item that is not live passes the focus to
+    /// the first live item in list order. Called before this navigator starts, it sets the starting
+    /// item and raises nothing.
     /// </summary>
-    /// <param name="item">The item to focus, which this navigator must already hold.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
-    /// <exception cref="ArgumentException">The item is not one of <see cref="Items"/>.</exception>
+    /// <param name="item">The item to focus. This navigator must already hold it.</param>
+    /// <exception cref="ArgumentException">The item is not in <see cref="Items"/>.</exception>
     public void Focus(Focusable item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        RequireNotRaising();
 
         if (!_items.Contains(item))
         {
-            throw new ArgumentException($"{nameof(Focusable)} is not an item of this navigator.", nameof(item));
+            throw new ArgumentException($"{nameof(Focusable)} is not an item of this navigator; add it first.", nameof(item));
         }
 
-        Request(item);
+        Move(_started ? Live(item) ? item : FirstLive() : item);
     }
 
     /// <summary>
-    /// Hands the starting item the focus: its <see cref="Focusable.Focused"/> is raised, then
-    /// <see cref="FocusChanged"/>. Its liveness is read here for the first time, so a starting item
-    /// that is not live hands the focus to the first live item in list order, or leaves this
-    /// navigator holding none. Nothing is raised before this.
+    /// Gives the starting item the focus. Liveness is read here for the first time. A starting item that
+    /// is not live passes the focus to the first live item in list order, or leaves this navigator
+    /// holding no focus. The navigator raises nothing before this call.
     /// </summary>
     protected internal override void OnStart()
     {
@@ -273,60 +213,36 @@ public sealed class FocusNavigator : Component
 
         if (Focused is { } landing)
         {
-            Announce(left: null, landing);
+            Raise(left: null, landing);
         }
     }
 
     /// <summary>
-    /// Reads one step of the directions, the pointer and the presses, raising at most one focus move
-    /// and at most one press.
+    /// Reads one step of the directions, the pointer and the presses, and raises at most one focus move
+    /// and at most one press. A direction moves the focus on its press edge, again once it has been
+    /// held <see cref="RepeatDelay"/> steps, and then every <see cref="RepeatInterval"/> steps. One
+    /// counter serves every direction and runs while any direction is held and no direction was pressed
+    /// this step. A step holding two directions uses the first of up, down, left and right.
+    /// <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on their press
+    /// edge only.
     /// <para>
-    /// A direction moves the focus on its press edge, and again once it has been held
-    /// <see cref="RepeatDelay"/> steps, then every <see cref="RepeatInterval"/> steps after that; a
-    /// repeat resolves exactly as the press did. One counter serves every direction: it runs while
-    /// any direction is held and no direction was pressed this step, and any press edge restarts
-    /// it. A step holding two directions reads the first of up, down, left and right, press or
-    /// repeat. <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on
-    /// their press edge alone and never repeat, and the pointer is not a direction. A direction
-    /// resolves through the named neighbour, the score and the wrap this class documents.
-    /// </para>
-    /// <para>
-    /// A pointer that moved this step and lies inside an item's bounds focuses it; a pointer resting
-    /// where it already was focuses nothing, so a mouse left lying on the menu never fights a player
-    /// on a gamepad. Items are hit-tested in list order and the first the pointer is inside wins; one
-    /// whose bounds are empty is never under it. A click pressed over no item does nothing at all,
-    /// and unlike the pointer's own focusing it does not need the pointer to have moved. The pointer
-    /// and the click reach items on a <see cref="ScreenEntity"/> only; a world-space item is reached
-    /// by the directions and <see cref="FocusActions.Confirm"/> alone.
-    /// </para>
-    /// <para>
-    /// A pending <see cref="Focus"/> request is resolved before anything else: the focus lands on the
-    /// pending item where it is live now, or on the first live item in list order, and the step then
-    /// reads its input from there; where no item is live the request stays pending. A step that finds
-    /// no live focus spends itself repairing one and reads nothing else, so the item it lands on is
-    /// never pressed by an action aimed at the item that held the focus before. For the same reason a
-    /// handler of this step's own focus move that takes the landing item out of its scene drops the
-    /// press rather than redirecting it; the next step repairs the focus.
+    /// A pointer that moved this step and lies inside an item's bounds focuses that item. A mouse
+    /// resting on the menu therefore does not fight a player on a gamepad. Items are hit-tested in list order and
+    /// the first one containing the pointer wins. An item with empty bounds is never under the pointer.
+    /// Both the pointer and the click only reach items on a <see cref="ScreenEntity"/>. A click presses
+    /// the item under the pointer whether or not the pointer moved, and does nothing over empty space.
+    /// A step that finds no live focus spends itself moving to one and reads nothing else, so the item
+    /// it lands on cannot be pressed by an action aimed at the previously focused item. For the same
+    /// reason, a handler that takes the landing item out of its scene drops the press.
     /// </para>
     /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// The direction this step read reached a named neighbour this navigator does not hold.
-    /// </exception>
     protected internal override void OnStep(in StepContext context)
     {
         InputState input = context.Input;
 
-        // Counted whatever else the step does, so a hold through a repair or a pending landing
-        // keeps its timing.
-        Side? pressedSide = Pressed(input);
-        Side? heldSide = Held(input);
+        Side? pressedSide = Direction(input, pressed: true);
+        Side? heldSide = Direction(input, pressed: false);
         _heldSteps = heldSide is not null && pressedSide is null ? _heldSteps + 1 : 0;
-
-        if (_pending is { } pending && (Live(pending) ? pending : FirstLive()) is { } requested)
-        {
-            _pending = null;
-            Move(requested);
-        }
 
         if (Focused is not { } focused || !Live(focused))
         {
@@ -338,9 +254,8 @@ public sealed class FocusNavigator : Component
         Focusable target = focused;
         bool press = false;
 
-        // One hit test for the step. The pointer's own focusing needs the pointer to have moved;
-        // the click's does not, so a player who clicks without nudging the mouse first still picks
-        // what is under it.
+        // One hit test per step. Pointer focusing requires the pointer to have moved, but a click does
+        // not, so clicking without nudging the mouse still picks the item under it.
         bool clicking = _actions.Click is { } click && input.WasPressed(click);
         Focusable? under = input.PointerMoved || clicking ? Under(input.Pointer) : null;
 
@@ -351,7 +266,7 @@ public sealed class FocusNavigator : Component
 
         bool repeat = _repeatInterval > 0 && _heldSteps >= _repeatDelay
             && (_heldSteps - _repeatDelay) % _repeatInterval == 0;
-        if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Stepped(target, side) is { } moved)
+        if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Reached(target, side) is { } moved)
         {
             target = moved;
         }
@@ -364,64 +279,42 @@ public sealed class FocusNavigator : Component
 
         press |= input.WasPressed(_actions.Confirm);
 
-        // The move first and the focus already settled: a handler told an item was pressed finds
-        // this navigator naming that same item.
+        // Move first. A press handler then finds this navigator already focused on the pressed item.
         Move(target);
 
-        // The move's own handlers may have taken the landing item out of its scene, and a press is
-        // aimed at one item: it is dropped rather than handed to a fallback.
         if (press && Focused is { } pressed && Live(pressed))
         {
             pressed.Press();
         }
     }
 
-    // The first of up, down, left and right pressed this step, or null.
-    private Side? Pressed(InputState input)
+    // Returns the first of up, down, left and right the step reports, or null. One walk serves both
+    // edges: a press moves the focus and a hold drives the repeat counter.
+    private Side? Direction(InputState input, bool pressed)
     {
-        if (input.WasPressed(_actions.Up))
+        for (Side side = Side.Up; side <= Side.Right; side++)
         {
-            return Side.Up;
+            InputAction action = side switch
+            {
+                Side.Up => _actions.Up,
+                Side.Down => _actions.Down,
+                Side.Left => _actions.Left,
+                _ => _actions.Right,
+            };
+
+            if (pressed ? input.WasPressed(action) : input.IsHeld(action))
+            {
+                return side;
+            }
         }
 
-        if (input.WasPressed(_actions.Down))
-        {
-            return Side.Down;
-        }
-
-        if (input.WasPressed(_actions.Left))
-        {
-            return Side.Left;
-        }
-
-        return input.WasPressed(_actions.Right) ? Side.Right : null;
+        return null;
     }
 
-    // The first of up, down, left and right held this step, or null.
-    private Side? Held(InputState input)
-    {
-        if (input.IsHeld(_actions.Up))
-        {
-            return Side.Up;
-        }
-
-        if (input.IsHeld(_actions.Down))
-        {
-            return Side.Down;
-        }
-
-        if (input.IsHeld(_actions.Left))
-        {
-            return Side.Left;
-        }
-
-        return input.IsHeld(_actions.Right) ? Side.Right : null;
-    }
-
-    // The item `side` reaches from `from`: the neighbour it names for that side, and the geometry only
-    // where it names none. Null where the side is blocked or its chain of named neighbours ends
-    // without a live item.
-    private Focusable? Stepped(Focusable from, Side side)
+    // Returns the item `side` reaches from `from`: the neighbour it names for that side, falling back
+    // to geometry when it names none. Returns null when the side is blocked or the chain ends without
+    // a live item this navigator holds.
+    private Focusable? Reached(Focusable from, Side side)
     {
         if (Named(from, side) is not { } named)
         {
@@ -430,19 +323,13 @@ public sealed class FocusNavigator : Component
 
         Focusable step = named;
 
-        // The item count bounds the walk: a chain longer than that has revisited an item, and a cycle
-        // reaches nothing a shorter walk would not have.
+        // The item count bounds the walk, because a longer chain must have revisited an item and a
+        // cycle reaches nothing a shorter walk would not.
         for (int i = 0; i < _items.Count; i++)
         {
-            if (ReferenceEquals(step, from))
+            if (ReferenceEquals(step, from) || !_items.Contains(step))
             {
                 return null;
-            }
-
-            if (!_items.Contains(step))
-            {
-                throw new InvalidOperationException(
-                    $"{nameof(Focusable)} names a focus neighbour this navigator does not hold: the focus moves only among the items one navigator holds, so one screen's menus are one navigator.");
             }
 
             if (Live(step))
@@ -479,10 +366,8 @@ public sealed class FocusNavigator : Component
             _ => Vector2.UnitX,
         };
 
-    // The item `direction` reaches from `from`: the live item lying that way whose
-    // dot(direction, delta) / |delta|² is highest, so alignment and closeness trade against each
-    // other rather than being ranked one after the other; failing that the wrap, which is the live
-    // item farthest the other way. Null where no other item is live.
+    // Returns the live item `direction` reaches from `from`, or the wrap target when nothing lies that
+    // way.
     private Focusable? Neighbour(Focusable from, Vector2 direction)
     {
         Vector2 origin = Centre(from);
@@ -524,8 +409,7 @@ public sealed class FocusNavigator : Component
         return best ?? wrap;
     }
 
-    // A zero-size box has its centre at its position, so an item with no extent still takes part in
-    // every direction.
+    // A zero-size box centres on its position, which keeps an item with no extent in every direction.
     private static Vector2 Centre(Focusable item)
     {
         Rect bounds = item.Bounds;
@@ -533,14 +417,15 @@ public sealed class FocusNavigator : Component
         return bounds.Position + (bounds.Size / 2f);
     }
 
-    // Whether a scene still holds the item's entity. An entity queued to leave this step has already
-    // stopped stepping, so the focus must stop reaching it then rather than a step later.
+    // An entity queued to leave has already stopped stepping, so the focus stops reaching it in the
+    // same step instead of one step later. An entity queued to join counts as live, which lets a menu
+    // rebuilt during a step focus the row it just added when that step's queue drains.
     private static bool Live(Focusable item) =>
-        item.Entity is { Scene: { } scene } entity && scene.Keeps(entity);
+        item.Entity is { } entity &&
+        (entity.SceneOrNull is { } scene ? scene.Contains(entity) : entity.PendingScene is not null);
 
-    // The first screen item the pointer is inside, or null where it is inside none of them. A world
-    // item is skipped rather than tested: the pointer is canvas pixels and its bounds are world
-    // units, so the comparison would be arithmetic between two unrelated spaces.
+    // Returns the first screen item containing the pointer, or null. World items are skipped, because
+    // the pointer is in canvas pixels and their bounds are in world units.
     private Focusable? Under(Vector2 pointer)
     {
         for (int i = 0; i < _items.Count; i++)
@@ -571,47 +456,32 @@ public sealed class FocusNavigator : Component
 
     private Focusable? First() => _items.Count > 0 ? _items[0] : null;
 
-    // A move asked for from outside the step: queued while this navigator's events are being raised,
-    // and otherwise applied at once. Before the start there is no scene to be live in, so the item is
-    // recorded as asked for and the start resolves it. Either way the request replaces a pending one.
-    private void Request(Focusable item)
+    private void Append(Focusable item)
     {
-        if (_raising)
-        {
-            _pending = null;
-            _queued = ReferenceEquals(item, Focused) ? null : item;
+        ArgumentNullException.ThrowIfNull(item);
 
-            return;
+        if (_items.Contains(item))
+        {
+            throw new ArgumentException($"{nameof(Focusable)} is already an item of this navigator; list it once.", nameof(item));
         }
 
-        Move(_started ? Land(item, repair: false) : item);
+        _items.Add(item);
     }
 
-    // Where a request for `item` lands now: the item itself where it is live. Otherwise it is kept
-    // pending for the next step, and the focus stays where it is — unless `repair` says the item
-    // holding it has been removed, or it is not live either, in which case the first live item
-    // takes it or it is released.
-    private Focusable? Land(Focusable item, bool repair)
+    private void RequireNeighboursHeld(Focusable item)
     {
-        _pending = null;
-
-        if (Live(item))
+        for (Side side = Side.Up; side <= Side.Right; side++)
         {
-            return item;
+            if (Named(item, side) is { } named && !_items.Contains(named))
+            {
+                throw new ArgumentException(
+                    $"{nameof(Focusable)} names a {side} neighbour this navigator does not hold; add that item first.",
+                    nameof(item));
+            }
         }
-
-        _pending = item;
-
-        if (repair)
-        {
-            return FirstLive();
-        }
-
-        return Focused is { } focused && Live(focused) ? focused : null;
     }
 
-    // One move, raised in the order the game writes its handlers against. Before this navigator has
-    // started it only names the item that will take the focus then.
+    // Applies the move before raising anything. A handler then reads the focus it landed on.
     private void Move(Focusable? landing)
     {
         if (ReferenceEquals(landing, Focused))
@@ -622,58 +492,38 @@ public sealed class FocusNavigator : Component
         Focusable? left = Focused;
         Focused = landing;
 
-        if (!_started)
+        if (_started)
         {
-            return;
+            Raise(left, landing);
         }
-
-        Announce(left, landing);
     }
 
-    // The ordered sequence, and then every move a handler inside it asked for — a request, or the
-    // repair of a focused item removed — each run whole from the item the one before it landed on.
-    // The flag is what keeps a nested request out of the middle of a sequence, where it would leave
-    // two items claiming the focus.
-    private void Announce(Focusable? left, Focusable? landing)
+    private void Raise(Focusable? left, Focusable? landing)
     {
-        while (true)
+        _raising = true;
+
+        try
         {
-            _raising = true;
+            left?.LoseFocus();
 
-            try
+            if (landing is { } item)
             {
-                left?.LoseFocus();
-
-                if (landing is { } item)
-                {
-                    item.TakeFocus();
-                    FocusChanged?.Invoke(item);
-                }
+                item.TakeFocus();
+                FocusChanged?.Invoke(item);
             }
-            finally
-            {
-                _raising = false;
-            }
+        }
+        finally
+        {
+            _raising = false;
+        }
+    }
 
-            Focusable? next = _queued;
-            bool repair = _repairQueued;
-            _queued = null;
-            _repairQueued = false;
-
-            if (next is null && !repair)
-            {
-                return;
-            }
-
-            left = landing;
-            landing = next is { } requested ? Land(requested, repair) : FirstLive();
-
-            if (ReferenceEquals(landing, left))
-            {
-                return;
-            }
-
-            Focused = landing;
+    private void RequireNotRaising()
+    {
+        if (_raising)
+        {
+            throw new InvalidOperationException(
+                "A FocusNavigator cannot change its items or its focus while its own focus events are being raised.");
         }
     }
 

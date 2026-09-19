@@ -1,21 +1,16 @@
 namespace Capsule.Scenes.Documents;
 
-/// <summary>A scene document is malformed. The message states the defect and, where one exists, the fix.</summary>
+/// <summary>A scene document is malformed. The message states the defect and the fix when there is one.</summary>
 public sealed class SceneDocumentFormatException : Exception
 {
-    /// <summary>Creates the exception with the runtime's own default message.</summary>
-    public SceneDocumentFormatException()
-    {
-    }
-
-    /// <param name="message">The defect, and where one exists the fix.</param>
+    /// <param name="message">The defect, and the fix when there is one.</param>
     public SceneDocumentFormatException(string message)
         : base(message)
     {
     }
 
-    /// <param name="message">The defect, and where one exists the fix.</param>
-    /// <param name="innerException">The parse failure underneath, kept for the stack it carries.</param>
+    /// <param name="message">The defect, and the fix when there is one.</param>
+    /// <param name="innerException">The underlying parse failure, kept for its stack trace.</param>
     public SceneDocumentFormatException(string message, Exception innerException)
         : base(message, innerException)
     {

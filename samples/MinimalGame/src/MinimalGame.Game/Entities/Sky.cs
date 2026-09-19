@@ -7,12 +7,10 @@ using Capsule.Scenes.Spawning;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// The screen-fixed backdrop spawned by the <c>sky</c> entry of <c>scenes/room.scene.json</c>: a
-/// <see cref="Entity.ScrollFactor"/> of zero on both axes keeps it where it is whatever the camera
-/// does, and the frame repeats without bound along X so no edge of it is ever seen. Authored at the
-/// world origin, which is the camera corner every layer is measured from, it fills the screen.
-/// The factor, the tiling and the band are this class's own; <see cref="Hills"/> shows the same
-/// factor authored in the document instead.
+/// The screen-fixed backdrop spawned by the <c>sky</c> entry of <c>scenes/room.scene.json</c>: dusk,
+/// repeating without bound along X, pinned to the screen and banded under everything else. Authored at
+/// the world origin, it fills the screen. The factor, the tiling and the band are this class's own,
+/// while <see cref="Hills"/> has its factor authored in the document.
 /// </summary>
 public sealed class Sky : Entity
 {

@@ -14,24 +14,17 @@ public sealed class GeneratorCachingTests
         char id=65 x=0 y=0 width=4 height=6 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15
         """;
 
-    private const string Sheet = """
-        { "formatVersion": 1, "texture": "hero.png",
-          "frames": [ { "name": "idle", "x": 0, "y": 0, "width": 8, "height": 8 } ] }
-        """;
-
     [Fact]
     public void ASecondRunOverAnUnchangedCompilation_ParsesNothingAgain()
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
             ("fonts/menu.fnt", Font),
             ("fonts/menu.png", null),
-            ("sprites/hero.sheet.json", Sheet),
             ("textures/hero.png", null));
 
-        // The names the generators hand WithTrackingName: the '.fnt' read, the sheet read, and the
-        // walk over every referenced assembly's registry metadata.
+        // The names the generators hand WithTrackingName: the '.fnt' read, and the walk over every
+        // referenced assembly's registry metadata.
         AssertCached(result, "FontParse");
-        AssertCached(result, "SheetParse");
         AssertCached(result, "BootModel");
     }
 

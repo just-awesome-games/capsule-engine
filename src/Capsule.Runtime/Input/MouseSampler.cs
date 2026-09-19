@@ -6,14 +6,15 @@ using Microsoft.Xna.Framework.Input;
 namespace Capsule.Runtime.Input;
 
 // Turns the OS mouse into the pointer and the mouse buttons of a DeviceSnapshot. The window position
-// it reads is mapped back through the screen layer's placement, so what the simulation sees is a
-// canvas position whatever the window's size is and wherever the fit put the layer. The OS reports
-// the mouse whether or not the window has focus, so an unfocused window is sampled as a pointer
-// standing still with nothing held — one host's window never moves another's menu focus — and a
-// button still held when focus returns stays unreported until it is released, so the return itself
-// is never a click. The wheel is reported the same way: nothing while unfocused, and the cumulative
-// baseline is re-seeded on the first active sample, so a wheel turned away from the window does not
-// arrive as one enormous notch on the way back.
+// it reads is mapped back through the screen layer's placement, so the simulation sees a canvas
+// position whatever the window's size and wherever the fit put the layer.
+//
+// The OS reports the mouse whether or not the window has focus. An unfocused window is sampled as a
+// pointer standing still with nothing held, and one host's window never moves another's menu focus. A
+// button still held when focus returns stays unreported until it is released, so the return is not a
+// click. The wheel behaves the same way: nothing while unfocused, and the cumulative baseline is
+// re-seeded on the first active sample, and a wheel turned away from the window does not arrive as one
+// enormous notch.
 internal sealed class MouseSampler
 {
     // MonoGame's SDL platform adds 120 per notch to each cumulative wheel value, positive away from
@@ -23,17 +24,17 @@ internal sealed class MouseSampler
     private static readonly MouseButton[] Buttons =
         [MouseButton.Left, MouseButton.Right, MouseButton.Middle, MouseButton.X1, MouseButton.X2];
 
-    // Canvas pixels, as last sampled while the window was active; the canvas origin until one was.
+    // Canvas pixels, as last sampled while the window was active. The canvas origin until then.
     private Vector2 _pointer;
 
-    // MonoGame's cumulative wheel values as last sampled while active; differences of these are the
+    // MonoGame's cumulative wheel values as last sampled while active. Differences of these are the
     // notches a step sees.
     private int _wheelHorizontal;
     private int _wheelVertical;
 
     // Buttons held when the window came back into focus, each masked until it is seen released.
-    // Everything is masked until the first active sample, so a button held through the launch
-    // does not click either.
+    // Everything is masked until the first active sample, and a button held through the launch does not
+    // click either.
     private bool _active;
     private uint _masked;
 
@@ -69,8 +70,8 @@ internal sealed class MouseSampler
         return snapshot.WithPointer(_pointer);
     }
 
-    // horizontal and vertical are the OS wheel's cumulative values; repeating the pair this sample
-    // was last given turns the wheel nothing.
+    // horizontal and vertical are the OS wheel's cumulative values. Repeating the last pair turns the
+    // wheel not at all.
     internal DeviceSnapshot Resume(
         DeviceSnapshot snapshot,
         Vector2 pointer,

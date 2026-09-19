@@ -42,8 +42,8 @@ public sealed class SceneWorldTests
         Assert.Contains("first-", log);
         Assert.Contains("second-", log);
         Assert.Empty(scene.Entities.ToArray());
-        Assert.Null(first.Scene);
-        Assert.Null(second.Scene);
+        Assert.Null(first.SceneOrNull);
+        Assert.Null(second.SceneOrNull);
         Assert.Throws<ObjectDisposedException>(() => simulation.Step(SceneFixtures.Step()));
     }
 
@@ -61,8 +61,8 @@ public sealed class SceneWorldTests
 
         Assert.Equal(2, failure.InnerExceptions.Count);
         Assert.Empty(scene.Entities.ToArray());
-        Assert.Null(ordinary.Scene);
-        Assert.Null(throwing.Scene);
+        Assert.Null(ordinary.SceneOrNull);
+        Assert.Null(throwing.SceneOrNull);
     }
 
     [Theory]
@@ -113,7 +113,7 @@ public sealed class SceneWorldTests
         }
 
         Assert.Equal(1, component.Removals);
-        Assert.Null(entity.Scene);
+        Assert.Null(entity.SceneOrNull);
         Assert.Null(collider.World);
         Assert.False(notifier.IsOnScreen);
         Assert.Equal(1, exited);

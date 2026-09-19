@@ -7,12 +7,8 @@ namespace MinimalGame.Game.Drivers;
 /// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard
 /// and under the first ledge, jumps up through it and lands on top, walks on a little, fires a
 /// bolt, then presses Quit so the run ends by the game's own exit route. Every count is in fixed
-/// steps.
-/// <para>
-/// Run it windowed with <c>--scene Room --driver Walkthrough</c> and without a window by adding
-/// <c>--headless</c>; either way the run plays the same steps and closes itself. It lives under a
-/// <c>.capsuleignore</c> directory, so it is part of every ordinary build and of no publish.
-/// </para>
+/// steps. Run it with <c>--scene Room --driver Walkthrough</c>, with or without <c>--headless</c>; it
+/// plays the same steps either way and closes itself.
 /// </summary>
 public sealed class Walkthrough : IInputDriver
 {

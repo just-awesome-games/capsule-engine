@@ -5,14 +5,12 @@ using Capsule.Physics;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
+using static Capsule.Tests.Packaging.Surface;
 
 namespace Capsule.Tests.Packaging;
 
 public sealed class ApiReferenceTests
 {
-    private const BindingFlags DeclaredMembers =
-        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-
     public static TheoryData<string> ShippedAssemblies { get; } = new(
         typeof(AssetCollection).Assembly.GetName().Name!,
         typeof(Aabb2D).Assembly.GetName().Name!,
@@ -24,7 +22,7 @@ public sealed class ApiReferenceTests
     [MemberData(nameof(ShippedAssemblies))]
     public void TheShippedDocumentation_ListsOnlyThePublicSurface(string assemblyName)
     {
-        Dictionary<string, MemberInfo> surface = Surface(Assembly.Load(assemblyName));
+        Dictionary<string, MemberInfo> surface = Members(Assembly.Load(assemblyName));
         List<string> hidden = [];
 
         foreach (string identifier in DocumentedMembers(assemblyName))
@@ -34,7 +32,7 @@ public sealed class ApiReferenceTests
                 // An identifier this builder cannot spell is reported, never assumed public.
                 hidden.Add($"{identifier} (unresolved)");
             }
-            else if (!IsVisibleOutsideTheAssembly(member))
+            else if (!IsReachable(member))
             {
                 hidden.Add(identifier);
             }
@@ -59,7 +57,7 @@ public sealed class ApiReferenceTests
 
     // Every declared type and member under the identifier the compiler writes for it, so an entry
     // resolves to the one overload it names rather than to any sibling sharing its name.
-    private static Dictionary<string, MemberInfo> Surface(Assembly assembly)
+    private static Dictionary<string, MemberInfo> Members(Assembly assembly)
     {
         Dictionary<string, MemberInfo> surface = new(StringComparer.Ordinal);
 
@@ -162,25 +160,7 @@ public sealed class ApiReferenceTests
 
     private static int TypeArity(Type? type) => type is { IsGenericType: true } ? type.GetGenericArguments().Length : 0;
 
-    private static bool IsVisibleOutsideTheAssembly(MemberInfo member)
-    {
-        if (member is Type type)
-        {
-            return type.IsVisible;
-        }
-
-        if (!member.DeclaringType!.IsVisible)
-        {
-            return false;
-        }
-
-        return member switch
-        {
-            MethodBase method => method.IsPublic || method.IsFamily || method.IsFamilyOrAssembly,
-            FieldInfo field => field.IsPublic || field.IsFamily || field.IsFamilyOrAssembly,
-            PropertyInfo property => property.GetAccessors(nonPublic: true).Any(IsVisibleOutsideTheAssembly),
-            EventInfo declaration => declaration.GetAddMethod(nonPublic: true) is { } add && IsVisibleOutsideTheAssembly(add),
-            _ => false,
-        };
-    }
+    // A member is no more reachable than the type declaring it.
+    private static bool IsReachable(MemberInfo member) =>
+        (member.DeclaringType?.IsVisible ?? true) && IsVisibleOutsideTheAssembly(member);
 }

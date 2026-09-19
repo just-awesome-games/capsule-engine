@@ -1,11 +1,11 @@
 namespace Capsule.Runtime.Audio;
 
-// A cursor over one resident clip's decoded samples: what a streamed voice reads when the clip is
-// already in memory. Owns nothing but a position and the clip it points at, so several voices read
-// one clip at once and letting go of one frees neither the samples nor the others.
+// A cursor over one resident clip's decoded samples, which a streamed voice reads when the clip is
+// already in memory. It owns a position and the clip it points at, so several voices read one clip at
+// once and letting go of one frees neither the samples nor the others.
 //
-// The cursor belongs to the voice, like the loop reader over it: a voice played again is pointed at
-// the new clip's samples in place rather than handed another cursor.
+// The cursor belongs to the voice, like the loop reader over it. A voice played again is pointed at the
+// new clip's samples in place.
 internal sealed class MemoryPcmSource : IPcmSource
 {
     private PcmAudio _samples = PcmAudio.None;
@@ -37,7 +37,7 @@ internal sealed class MemoryPcmSource : IPcmSource
         return read;
     }
 
-    // Lets go of the clip without giving up the cursor: a pooled voice still pointing at a retired
-    // clip would keep it decoded for the rest of the run.
+    // Lets go of the clip without giving up the cursor. A pooled voice still pointing at an ended clip
+    // would keep it decoded for the rest of the run.
     public void Dispose() => Arm(PcmAudio.None);
 }

@@ -19,8 +19,8 @@ public enum LogLevel
 }
 
 /// <summary>
-/// Where log lines go. The host installs one before the simulation runs; a game implements it only
-/// to capture output in its own tests.
+/// Where log lines go. The host installs one before the simulation runs. A game implements it to
+/// capture output in its own tests.
 /// </summary>
 public interface ILogSink
 {
@@ -28,27 +28,21 @@ public interface ILogSink
     /// Writes one line, on the simulation thread and synchronously. A sink that throws is detached,
     /// and everything it would have received afterwards is lost.
     /// </summary>
-    /// <param name="level">How much attention the line is asking for.</param>
-    /// <param name="message">The line, already formatted; never null.</param>
     void Write(LogLevel level, string message);
 }
 
 /// <summary>
-/// How game logic says something out loud. Write-only telemetry: nothing reads back, so a run with
-/// a sink installed reaches the same state as a run without one. A sink that throws is detached
-/// rather than allowed to end the step; its line and everything after it are lost.
-/// <para>
-/// Silent until a sink is installed, which the runtime does at boot; a headless harness installs
-/// its own or leaves it silent.
-/// </para>
+/// How game logic says something out loud. It is write-only telemetry, so installing a sink does not
+/// change the state a run reaches. Logging is silent until a sink is installed, which the runtime does
+/// at boot. A sink that throws is detached, and its line and everything after it are lost.
 /// </summary>
 public static class Log
 {
-    // Private: a reader would let a game call a sink directly, past the containment below, and a
-    // presence query would let one branch on how the host was configured.
+    // Private, because a reader would let a game call a sink directly and bypass the containment below,
+    // and a presence query would let a game branch on how the host was configured.
     private static ILogSink? Sink { get; set; }
 
-    /// <summary>Installs <paramref name="sink"/>, replacing whatever was there; null silences logging.</summary>
+    /// <summary>Installs <paramref name="sink"/>, replacing whatever was there. Null silences logging.</summary>
     public static void UseSink(ILogSink? sink) => Sink = sink;
 
     /// <summary>
@@ -67,9 +61,7 @@ public static class Log
     /// <summary>Writes one line about something that went wrong.</summary>
     public static void Error(string? message) => Write(LogLevel.Error, message);
 
-    /// <summary>Writes one line at <paramref name="level"/>.</summary>
-    /// <param name="level">How much attention the line is asking for.</param>
-    /// <param name="message">The line; a null reads as an empty one, because a log call is never worth an exception.</param>
+    /// <summary>Writes one line at <paramref name="level"/>. A null message writes as an empty one.</summary>
     public static void Write(LogLevel level, string? message)
     {
         if (Sink is not { } sink)
@@ -83,8 +75,8 @@ public static class Log
         }
         catch
         {
-            // Telemetry does not get to decide whether a step completes. Dropped rather than left
-            // installed: a sink that failed once fails on every line after it.
+            // Telemetry does not decide whether a step completes, and a sink that failed once will fail on
+            // every line after it.
             if (ReferenceEquals(Sink, sink))
             {
                 Sink = null;

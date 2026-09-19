@@ -1,4 +1,3 @@
-using System.Numerics;
 using Capsule.Audio;
 
 namespace Capsule.Runtime.Audio;
@@ -6,21 +5,17 @@ namespace Capsule.Runtime.Audio;
 // The host's voice table: one entry per mixer slot, holding the generation the slot was last played
 // at and the voice sounding for it.
 //
-// The mixer is the authority on what is playing; nothing here is ever read back into it. A command
-// naming a generation the table does not hold addresses a voice that has since been stolen, expired
-// or stopped, and is dropped — the mixer raises no Stop for a one-shot that simply ran out, so a
-// finished voice is retired here instead.
+// The mixer is the authority on what is playing, and nothing here is read back into it. A command
+// naming a generation the table does not hold addresses a voice that has been stolen, expired or
+// stopped, and is dropped. The mixer raises no Stop for a one-shot that ran out, and a finished voice
+// is retired here instead.
 internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
 {
     private readonly Entry[] _slots = new Entry[AudioMixer.MaxVoices];
 
-    // One bit per slot holding a voice, so the per-frame walks touch only the slots that sound
-    // rather than the whole table; the mask is exactly as wide as AudioMixer.MaxVoices.
-    private ulong _live;
-
-    // The host's suspension, a layer over each voice's own pause: while on, every voice is held
-    // whatever the game asked, and what the game asks meanwhile is remembered, not applied, so a
-    // resume restores exactly the voices the game has playing.
+    // The host's suspension, a layer over each voice's own pause. While it is on, every voice is held
+    // whatever the game asked, and what the game asks meanwhile is remembered instead of applied, so a
+    // resume restores the voices the game has playing.
     private bool _suspended;
 
     // Holds every voice, including one the game paused, whose pause outlives the suspension. A
@@ -33,9 +28,8 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
 
         _suspended = true;
-        for (ulong live = _live; live != 0; live &= live - 1)
+        foreach (ref Entry entry in _slots.AsSpan())
         {
-            ref Entry entry = ref _slots[BitOperations.TrailingZeroCount(live)];
             if (entry.Voice is { } voice && !entry.Paused)
             {
                 voice.Pause();
@@ -43,7 +37,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
     }
 
-    // Lets every voice the game has playing sound again; one the game paused stays paused.
+    // Lets every voice the game has playing sound again. A voice the game paused stays paused.
     internal void Resume()
     {
         if (!_suspended)
@@ -52,9 +46,8 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
 
         _suspended = false;
-        for (ulong live = _live; live != 0; live &= live - 1)
+        foreach (ref Entry entry in _slots.AsSpan())
         {
-            ref Entry entry = ref _slots[BitOperations.TrailingZeroCount(live)];
             if (entry.Voice is { } voice && !entry.Paused)
             {
                 voice.Resume();
@@ -86,7 +79,6 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
                     command.Loop,
                     command.StartSeconds);
                 _slots[slot] = new Entry(command.Voice.Generation, started);
-                _live |= 1UL << slot;
                 if (_suspended)
                 {
                     started.Pause();
@@ -139,24 +131,19 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         }
     }
 
-    // Every frame, including one that runs no step: a streaming voice hands the device its next
-    // buffers here, and the queue it feeds drains at display rate rather than at step rate.
+    // Every frame, including one that runs no step. A streaming voice hands the device its next buffers
+    // here, and the queue it feeds drains at display rate, not step rate.
     internal void Update()
     {
-        for (ulong live = _live; live != 0; live &= live - 1)
+        foreach (ref Entry entry in _slots.AsSpan())
         {
-            int slot = BitOperations.TrailingZeroCount(live);
-            if (_slots[slot].Voice is { } voice)
-            {
-                voice.Update();
-            }
+            entry.Voice?.Update();
         }
 
-        // Here rather than on each step's Apply: a voice the device finished is retired on the
+        // Done here instead of on each step's Apply. A voice the device finished is retired on the
         // frame that noticed, and a frame that ran eight steps walks the table once.
-        for (ulong live = _live; live != 0; live &= live - 1)
+        for (int slot = 0; slot < _slots.Length; slot++)
         {
-            int slot = BitOperations.TrailingZeroCount(live);
             if (_slots[slot].Voice is { Finished: true })
             {
                 Retire(slot);
@@ -166,9 +153,9 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
 
     public void Dispose()
     {
-        for (ulong live = _live; live != 0; live &= live - 1)
+        for (int slot = 0; slot < _slots.Length; slot++)
         {
-            Retire(BitOperations.TrailingZeroCount(live));
+            Retire(slot);
         }
     }
 
@@ -177,7 +164,6 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
         ref Entry entry = ref _slots[slot];
         IAudioVoice? voice = entry.Voice;
         entry = default;
-        _live &= ~(1UL << slot);
         voice?.Dispose();
     }
 
@@ -187,7 +173,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
 
         internal IAudioVoice? Voice = voice;
 
-        // Whether the game itself paused this voice; the host's suspension is layered over it.
+        // Whether the game itself paused this voice. The host's suspension is layered over it.
         internal bool Paused;
     }
 }

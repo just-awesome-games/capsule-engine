@@ -61,7 +61,7 @@ public sealed class KinematicBodyTests
     }
 
     // The resting case gravity relies on: the landing step stops a slop short of the floor, and the
-    // next step down — already flush — has to report the floor again rather than reading as air.
+    // next step down is already flush and has to report the floor again rather than reading as air.
     [Fact]
     public void ABodySteppingDownOntoAFloor_ReportsItOnTheLandingStepAndOnTheFlushOneAfter()
     {
@@ -216,7 +216,7 @@ public sealed class KinematicBodyTests
 
         Assert.True(result.BlockedX);
         Assert.False(result.BlockedY);
-        Assert.Equal(1, result.XContactCount);
+        Assert.Equal(1, result.ContactsAlongX);
         Assert.Equal(1, result.ContactCount);
 
         Assert.True(body.Mover.IsOnFloor);
@@ -227,7 +227,7 @@ public sealed class KinematicBodyTests
     }
 
     // The three answers the query exists to give, from one resting position: into the floor,
-    // away from it, and along it. The sideways case is the one a wall probe rests on — a body
+    // away from it, and along it. The sideways case is the one a wall probe rests on: a body
     // standing on solid tiles is not blocked by them when it moves parallel to their faces.
     [Theory]
     [InlineData(0f, 4f, true)]

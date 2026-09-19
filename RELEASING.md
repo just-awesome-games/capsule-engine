@@ -66,7 +66,7 @@ NuGet.org indexes a pushed package minutes after the workflow reports success. C
 package is downloadable before pointing a consumer at it (HTTP 200; 404 means still indexing):
 
 ```bash
-for p in jag.capsule jag.capsule.build jag.capsule.runtime; do
+for p in jag.capsule jag.capsule.build jag.capsule.runtime jag.capsule.runtime.desktop; do
   curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/$VERSION/$p.$VERSION.nupkg"
 done
 ```

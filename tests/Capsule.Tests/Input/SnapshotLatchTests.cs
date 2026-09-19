@@ -14,7 +14,7 @@ public sealed class SnapshotLatchTests
         latch.Observe(DeviceSnapshot.Of(Key.W));
         latch.Observe(DeviceSnapshot.Of(Key.A));
 
-        Assert.Equal(DeviceSnapshot.Of(Key.Space, Key.W, Key.A), latch.ConsumeStepSnapshot());
+        Assert.Equal(DeviceSnapshot.Of(Key.Space, Key.W, Key.A), latch.Consume());
     }
 
     [Fact]
@@ -25,8 +25,8 @@ public sealed class SnapshotLatchTests
         latch.Observe(DeviceSnapshot.Of(Key.Space));
         latch.Observe(DeviceSnapshot.Empty);
 
-        Assert.True(latch.ConsumeStepSnapshot().IsDown(Key.Space));
-        Assert.True(latch.ConsumeStepSnapshot().IsEmpty);
+        Assert.True(latch.Consume().IsDown(Key.Space));
+        Assert.True(latch.Consume().IsEmpty);
     }
 
     [Fact]
@@ -37,9 +37,9 @@ public sealed class SnapshotLatchTests
 
         latch.Observe(down);
 
-        Assert.Equal(down, latch.ConsumeStepSnapshot());
-        Assert.Equal(down, latch.ConsumeStepSnapshot());
-        Assert.Equal(down, latch.ConsumeStepSnapshot());
+        Assert.Equal(down, latch.Consume());
+        Assert.Equal(down, latch.Consume());
+        Assert.Equal(down, latch.Consume());
     }
 
     [Fact]
@@ -50,9 +50,9 @@ public sealed class SnapshotLatchTests
 
         latch.Observe(flick);
 
-        Assert.Equal(new Vector2(0f, 3f), latch.ConsumeStepSnapshot().Scroll);
+        Assert.Equal(new Vector2(0f, 3f), latch.Consume().Scroll);
 
-        DeviceSnapshot second = latch.ConsumeStepSnapshot();
+        DeviceSnapshot second = latch.Consume();
         Assert.Equal(Vector2.Zero, second.Scroll);
         Assert.True(second.IsDown(Key.Space));
     }
@@ -63,11 +63,11 @@ public sealed class SnapshotLatchTests
         SnapshotLatch latch = new();
 
         latch.Observe(DeviceSnapshot.Of(Key.Space));
-        latch.ConsumeStepSnapshot();
+        latch.Consume();
 
         latch.Observe(DeviceSnapshot.Empty);
 
-        Assert.True(latch.ConsumeStepSnapshot().IsEmpty);
+        Assert.True(latch.Consume().IsEmpty);
     }
 
     [Fact]
@@ -79,6 +79,6 @@ public sealed class SnapshotLatchTests
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 0.25f));
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.5f));
 
-        Assert.Equal(-0.5f, latch.ConsumeStepSnapshot().Axis(PadAxis.LeftStickX), 1e-6f);
+        Assert.Equal(-0.5f, latch.Consume().Axis(PadAxis.LeftStickX), 1e-6f);
     }
 }

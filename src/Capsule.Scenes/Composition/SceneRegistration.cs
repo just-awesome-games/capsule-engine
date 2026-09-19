@@ -2,34 +2,19 @@ using System.ComponentModel;
 
 namespace Capsule.Scenes;
 
-/// <summary>Constructs one scene from the scene document that backs it.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public delegate Scene DocumentSceneFactory(SceneContent content);
-
-/// <summary>Constructs one scene that no document backs.</summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public delegate Scene SceneFactory();
-
 /// <summary>
-/// One scene as a <see cref="SceneRegistry"/> entry: the class, what constructs it, and the
-/// document backing it when one does. Built through <see cref="FromDocument"/> or
-/// <see cref="Plain"/>.
+/// One <see cref="SceneRegistry"/> entry: the scene class, the factory that constructs it, and the document
+/// backing it when one does. Build one through <see cref="FromDocument"/> or <see cref="Plain"/>.
 /// </summary>
 public readonly record struct SceneRegistration
 {
-    private readonly DocumentSceneFactory? _fromDocument;
-    private readonly SceneFactory? _plain;
+    private readonly Func<SceneContent?, Scene> _factory;
 
-    private SceneRegistration(
-        Type sceneType,
-        string? documentName,
-        DocumentSceneFactory? fromDocument,
-        SceneFactory? plain)
+    private SceneRegistration(Type sceneType, string? documentName, Func<SceneContent?, Scene> factory)
     {
         SceneType = sceneType;
         DocumentName = documentName;
-        _fromDocument = fromDocument;
-        _plain = plain;
+        _factory = factory;
     }
 
     /// <summary>The class registered.</summary>
@@ -38,41 +23,31 @@ public readonly record struct SceneRegistration
     /// <summary>The scene document backing it, or null when none does.</summary>
     public string? DocumentName { get; }
 
-    /// <summary>A scene composed from the scene document named.</summary>
+    /// <summary>Registers a scene composed from the named scene document.</summary>
     /// <param name="sceneType">The class registered.</param>
     /// <param name="name">The scene document backing it.</param>
-    /// <param name="factory">What constructs it from that document's content.</param>
-    /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
-    /// <exception cref="ArgumentException">The document name is blank.</exception>
+    /// <param name="factory">The factory that constructs it. The content is never null for this kind.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static SceneRegistration FromDocument(
-        Type sceneType,
-        string name,
-        DocumentSceneFactory factory)
+    public static SceneRegistration FromDocument(Type sceneType, string name, Func<SceneContent?, Scene> factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(factory);
 
-        return new SceneRegistration(sceneType, name, factory, null);
+        return new SceneRegistration(sceneType, name, factory);
     }
 
-    /// <summary>A scene no document backs.</summary>
+    /// <summary>Registers a scene that no document backs.</summary>
     /// <param name="sceneType">The class registered.</param>
-    /// <param name="factory">What constructs it.</param>
-    /// <exception cref="ArgumentNullException">The class or the factory is null.</exception>
+    /// <param name="factory">The factory that constructs it. The content is always null for this kind.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static SceneRegistration Plain(Type sceneType, SceneFactory factory)
+    public static SceneRegistration Plain(Type sceneType, Func<SceneContent?, Scene> factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
         ArgumentNullException.ThrowIfNull(factory);
 
-        return new SceneRegistration(sceneType, null, null, factory);
+        return new SceneRegistration(sceneType, null, factory);
     }
 
-    // Reached only through SceneRegistry, which has already read DocumentName to tell the kinds
-    // apart, so the factory for that kind is the one present.
-    internal Scene Create(SceneContent content) => _fromDocument!(content);
-
-    internal Scene Create() => _plain!();
+    internal Scene Create(SceneContent? content = null) => _factory(content);
 }

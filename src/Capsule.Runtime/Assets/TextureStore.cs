@@ -3,13 +3,13 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Assets;
 
-// A resolved handle: the texture to sample and where the handle's texel (0, 0) is on it. Zero
-// offsets for a texture served from its own file; a page's offset for one the build packed.
+// A resolved handle: the texture to sample and where the handle's texel (0, 0) is on it. Offsets are
+// zero for a texture served from its own file, and the page's offset for one the build packed.
 internal readonly record struct TextureSlice(Texture2D Texture, int OffsetX, int OffsetY);
 
 // The textures owned by the current scene, preloaded where declared and otherwise loaded on first
-// draw. Residency is per file: a packed handle's file is its page, so a page loads once for any
-// member and stays while any member of the incoming scene wants it.
+// draw. Residency is per file. A packed handle's file is its page, which loads once for any member and
+// stays while any member of the incoming scene wants it.
 internal sealed class TextureStore : IDisposable
 {
     private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
@@ -23,8 +23,8 @@ internal sealed class TextureStore : IDisposable
 
         Texture2D Load(TextureHandle handle)
         {
-            // The batch blends premultiplied, so a straight-alpha texture would fringe dark along
-            // every soft edge — a packed page included, which ships straight like any other file.
+            // The batch blends premultiplied, and a straight-alpha texture would fringe dark along
+            // every soft edge. A packed page ships straight like any other file.
             using Stream file = TextureFiles.Open(platform, handle);
             return Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
         }

@@ -21,7 +21,7 @@ internal static class CollisionFixtures
     /// What a move is allowed to land short of a surface by: the mover stops a slop clear of what
     /// blocked it, and a two-axis move can spend that twice.
     /// </summary>
-    internal const float Tolerance = 2f * CollisionWorld2D.LinearSlop;
+    internal const float Tolerance = 2f * CollisionTolerance.LinearSlop;
 
     /// <summary>A grid painted from rows of characters: '.' empty, '#' solid, '-' top-face only, '=' climbable.</summary>
     internal static GridCollider2D Paint(CollisionWorld2D world, params string[] rows)

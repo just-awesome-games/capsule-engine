@@ -175,19 +175,26 @@ public sealed class EntityGeneratorTests
     [Fact]
     public void ASpawnConstructorThatDropsItsSpawn_FailsTheBuild()
     {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
+        string source = $$"""
             {{GeneratorHarness.Preamble}}
 
             public sealed class Player : Entity
             {
                 public Player(EntitySpawn spawn) : base(spawn.Position) { }
             }
-            """).Diagnostics;
+            """;
 
-        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(GeneratorHarness.Compile(source).Diagnostics));
+
         Assert.Equal("CAP026", error.Id);
         Assert.Contains("'Game.Player'", error.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains("public Player(EntitySpawn spawn)", error.Location.SourceTree!.GetText().Lines[error.Location.GetLineSpan().StartLinePosition.Line].ToString(), StringComparison.Ordinal);
+
+        // The constructor itself, by file and line: a cached model carries a position, never a tree.
+        Assert.Equal(
+            Array.FindIndex(
+                source.Split('\n'),
+                static line => line.Contains("public Player(EntitySpawn spawn)", StringComparison.Ordinal)),
+            error.Location.GetLineSpan().StartLinePosition.Line);
     }
 
     [Theory]

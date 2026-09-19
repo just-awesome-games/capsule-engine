@@ -5,8 +5,8 @@ using Capsule.Diagnostics;
 namespace Capsule.Runtime.Desktop;
 
 // The SDL calls the host makes for itself. The graphics backend keeps its own binding internal and
-// initialises a fixed set of subsystems, so both of these have to be made here; the library is the
-// backend's own, already resident beside the executable.
+// initialises a fixed set of subsystems, so these calls are made here against the library the backend
+// already ships beside the executable.
 internal static class SdlPlatform
 {
     private const string LibraryName = "SDL2";
@@ -16,33 +16,27 @@ internal static class SdlPlatform
     private const byte WindowExposed = 3;
     private const byte WindowSizeChanged = 6;
 
-    // Byte offsets into SDL_WindowEvent, which SDL2's ABI fixes: the union's type, then the
-    // per-window event id after the timestamp and window id.
+    // Byte offsets into SDL_WindowEvent, fixed by SDL2's ABI: the union's type, then the per-window
+    // event id after the timestamp and window id.
     private const int TypeOffset = 0;
     private const int WindowEventIdOffset = 12;
-
-    // Rooted for the watch's lifetime. SDL holds the thunk this marshals to, which the collector
-    // cannot see, and removing the watch needs the same delegate the install used.
-    private static SdlEventFilter? Watch;
-    private static Action? Redraw;
-    private static int WatchThread;
 
     static SdlPlatform() => NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
 
     private delegate int SdlEventFilter(nint userData, nint sdlEvent);
 
     // Brings the window to the front and asks for keyboard focus. Windows grants foreground
-    // activation only to a process that already holds it, so a launch from a busy terminal can
-    // still leave the window behind that terminal.
+    // activation only to a process that already holds it, and a launch from a busy terminal can still
+    // leave the window behind that terminal.
     internal static void RaiseWindow(nint window) => SDL_RaiseWindow(window);
 
     // SDL's own keyboard-focus flag, false from creation until the OS grants focus. The backend's
-    // IsActive reports true from construction until the first focus event, so a window that never
-    // gained focus would read the global mouse as its own and play at full volume.
+    // IsActive reports true from construction until the first focus event, and a window that never
+    // gained focus would claim the global mouse and play at full volume.
     internal static bool HasInputFocus(nint window) => (SDL_GetWindowFlags(window) & InputFocusFlag) != 0;
 
-    // The operating system's own handle for the window — an HWND on Windows — or zero when SDL
-    // will not report one. A backend window handle is SDL's own opaque pointer, not this.
+    // The operating system's own handle for the window, an HWND on Windows, or zero when SDL will
+    // not report one. A backend window handle is SDL's own opaque pointer, not this.
     internal static nint NativeWindowHandle(nint window)
     {
         SdlWindowInfo info = default;
@@ -51,82 +45,13 @@ internal static class SdlPlatform
         return SDL_GetWindowWMInfo(window, ref info) == 1 ? info.NativeWindow : nint.Zero;
     }
 
-    // The window's current extent in screen coordinates, which SDL updates as the OS reports it —
-    // during a modal resize, ahead of the event announcing the new size.
+    // The window's current extent in screen coordinates, which SDL updates as the OS reports it,
+    // during a modal resize and ahead of the event announcing the new size.
     internal static void WindowSize(nint window, out int width, out int height) =>
         SDL_GetWindowSize(window, out width, out height);
 
-    // Calls redraw whenever the window is resized or exposed, from inside SDL's own event handling
-    // rather than from the next pumped frame. Windows runs a window drag in an OS modal loop that
-    // blocks the game loop for its whole duration, and a watch is the one callback SDL still
-    // delivers there — synchronously, on the thread that installed it, which is why a redraw from
-    // here reaches the same device the frame loop owns. The callback is told nothing about the
-    // event: it reads the window's extent itself, so a redraw already in flight may drop the event
-    // that arrives during it without the view going stale. Called once, from the thread that owns
-    // the window.
-    internal static void WatchWindowRedraw(Action redraw)
-    {
-        if (Watch is not null)
-        {
-            return;
-        }
-
-        Redraw = redraw;
-        WatchThread = Environment.CurrentManagedThreadId;
-        Watch = OnSdlEvent;
-        SDL_AddEventWatch(Watch, nint.Zero);
-    }
-
-    // Releases the watch. Idempotent, and safe to call when none was installed.
-    internal static void StopWatchingWindowRedraw()
-    {
-        if (Watch is not { } watch)
-        {
-            return;
-        }
-
-        SDL_DelEventWatch(watch, nint.Zero);
-        Watch = null;
-        Redraw = null;
-    }
-
-    // The return value is ignored for a watch; SDL only consults it for the event filter proper.
-    private static int OnSdlEvent(nint userData, nint sdlEvent)
-    {
-        // SDL delivers a watch on whichever thread pushed the event, and only the installing thread
-        // owns the window and the graphics device.
-        if (Redraw is not { } redraw || sdlEvent == nint.Zero || Environment.CurrentManagedThreadId != WatchThread)
-        {
-            return 0;
-        }
-
-        try
-        {
-            if ((uint)Marshal.ReadInt32(sdlEvent, TypeOffset) != WindowEventType)
-            {
-                return 0;
-            }
-
-            byte id = Marshal.ReadByte(sdlEvent, WindowEventIdOffset);
-            if (id is not (WindowSizeChanged or WindowExposed))
-            {
-                return 0;
-            }
-
-            redraw();
-        }
-        catch (Exception error)
-        {
-            // An exception unwinding into SDL's own stack terminates the process, so a redraw that
-            // fails costs the frame it was drawing and nothing more.
-            Log.Warning($"Redrawing during a window resize failed: {error.Message}");
-        }
-
-        return 0;
-    }
-
-    // The default probe derives no candidate that matches the versioned sonames the backend ships,
-    // so the file is named outright, per platform, as the backend's own loader names it.
+    // The default probe derives no candidate matching the versioned sonames the backend ships, so the
+    // file is named per platform, as the backend's own loader names it.
     private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
         if (libraryName != LibraryName)
@@ -150,8 +75,72 @@ internal static class SdlPlatform
         return nint.Zero;
     }
 
-    // LibraryImport generates unsafe marshalling stubs, and these do not justify opening the whole
-    // assembly to unsafe code: a window and an event are opaque handles, pointers already, and the
+    // An installed SDL event watch, which calls back whenever its window is resized or exposed.
+    // Windows runs a window drag in an OS modal loop that blocks the game loop for its duration, and a
+    // watch is the only callback SDL still delivers there. SDL delivers it synchronously on whichever
+    // thread pushed the event, and a call from a thread other than the installing one, which owns the
+    // window and the graphics device, is dropped.
+    internal sealed class RedrawWatch : IDisposable
+    {
+        // Rooted for the watch's lifetime. SDL holds the thunk this marshals to, which the
+        // collector cannot see, and removing the watch needs the delegate the install used.
+        private readonly SdlEventFilter _filter;
+        private readonly Action _redraw;
+        private readonly int _thread;
+        private bool _disposed;
+
+        internal RedrawWatch(Action redraw)
+        {
+            _redraw = redraw;
+            _thread = Environment.CurrentManagedThreadId;
+            _filter = OnSdlEvent;
+            SDL_AddEventWatch(_filter, nint.Zero);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            SDL_DelEventWatch(_filter, nint.Zero);
+        }
+
+        // The return value is ignored for a watch. SDL consults it only for the event filter proper.
+        private int OnSdlEvent(nint userData, nint sdlEvent)
+        {
+            if (_disposed || sdlEvent == nint.Zero || Environment.CurrentManagedThreadId != _thread)
+            {
+                return 0;
+            }
+
+            try
+            {
+                if ((uint)Marshal.ReadInt32(sdlEvent, TypeOffset) != WindowEventType)
+                {
+                    return 0;
+                }
+
+                if (Marshal.ReadByte(sdlEvent, WindowEventIdOffset) is WindowSizeChanged or WindowExposed)
+                {
+                    _redraw();
+                }
+            }
+            catch (Exception error)
+            {
+                // An exception unwinding into SDL's own stack terminates the process. A failed redraw
+                // costs only the frame it was drawing.
+                Log.Warning($"Redrawing during a window resize failed: {error.Message}");
+            }
+
+            return 0;
+        }
+    }
+
+    // LibraryImport generates unsafe marshalling stubs, and these calls do not justify opening the
+    // assembly to unsafe code. A window and an event are opaque handles, already pointers, and the
     // filter is a non-generic delegate of blittable arguments, which marshals ahead of time.
 #pragma warning disable SYSLIB1054
     [DllImport(LibraryName, EntryPoint = "SDL_RaiseWindow")]
@@ -172,8 +161,8 @@ internal static class SdlPlatform
     [DllImport(LibraryName, EntryPoint = "SDL_GetVersion")]
     private static extern void SDL_GetVersion(out SdlVersion version);
 
-    // Refuses the call outright unless the version field names a release it can answer for, which
-    // is why the struct is stamped from SDL_GetVersion before every call.
+    // SDL refuses the call unless the version field names a release it can answer for, so the struct
+    // is stamped from SDL_GetVersion before every call.
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowWMInfo")]
     private static extern int SDL_GetWindowWMInfo(nint window, ref SdlWindowInfo info);
 #pragma warning restore SYSLIB1054
@@ -186,9 +175,9 @@ internal static class SdlPlatform
         internal byte Patch;
     }
 
-    // SDL_SysWMinfo. The first member of its per-platform union is the native window on every
-    // platform that has one; the declared size covers the whole union, which SDL writes through
-    // regardless of which driver answered.
+    // SDL_SysWMinfo. The first member of its per-platform union is the native window on every platform
+    // that has one. The declared size covers the union, which SDL writes through whichever driver
+    // answered.
     [StructLayout(LayoutKind.Sequential, Size = 128)]
     private struct SdlWindowInfo
     {
