@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Audio;
+using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -48,6 +49,7 @@ public sealed class Run
 
         Random = random;
         Audio = new AudioMixer();
+        Rumble = new Rumble();
         Saves = new SaveStore();
     }
 
@@ -111,6 +113,15 @@ public sealed class Run
     /// level a bus.
     /// </summary>
     public AudioMixer Audio { get; }
+
+    /// <summary>
+    /// The run's gamepad rumble, owned by the engine and the same instance for the whole run. A pulse
+    /// an outgoing scene starts keeps playing across a transition until it ends or its starter stops
+    /// it. A settings screen writes <see cref="Capsule.Input.Rumble.Volume"/>, and a pause menu calls
+    /// <see cref="Capsule.Input.Rumble.Stop()"/> when it opens. The host reads the level after each
+    /// step and writes it to the pad, and a headless run reaches the same level with no pad.
+    /// </summary>
+    public Rumble Rumble { get; }
 
     /// <summary>
     /// The run's save documents, one store shared by every scene it opens. The host restores it before

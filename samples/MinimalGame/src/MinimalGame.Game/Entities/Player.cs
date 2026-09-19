@@ -127,6 +127,7 @@ public sealed class Player : Entity
             {
                 LandedThisStep = true;
                 _footfall.Play();
+                Run.Rumble.Play(_tuning.LandRumbleLow, _tuning.LandRumbleHigh, _tuning.LandRumbleSeconds);
             }
         }
 
@@ -161,6 +162,7 @@ public sealed class Player : Entity
     private void OnHurtboxEntered(ColliderContact2D contact)
     {
         Health = Math.Max(Health - 1, 0);
+        Run.Rumble.Play(_tuning.HurtRumble);
         Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
     }
 

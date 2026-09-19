@@ -34,7 +34,7 @@ Press `` ` `` in any windowed run for the development overlay. A trimmed publish
 Four packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (the neutral host), `JAG.Capsule.Runtime.Desktop` (the desktop platform module a shell references), and `JAG.Capsule.Build` (build tooling). [`PACKAGE.md`](PACKAGE.md) lists their contents. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
 
 - [`docs/getting-started.md`](docs/getting-started.md): clone, wire three projects, put one entity on screen, run it.
-- [`docs/input.md`](docs/input.md): actions, axes, the pointer, input drivers, the standard command line.
+- [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, input drivers, the standard command line.
 - [`docs/rendering.md`](docs/rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
 - [`docs/collision.md`](docs/collision.md): colliders, layers, contacts, kinematic movement, queries.

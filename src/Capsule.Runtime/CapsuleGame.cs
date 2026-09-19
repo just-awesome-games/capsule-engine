@@ -27,6 +27,9 @@ internal sealed class CapsuleGame : Game
     private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
 
+    // Null when the simulation is not a run of scenes, which has no rumble to apply.
+    private readonly GamepadRumble? _rumble;
+
     // Null unless the builder opted in, and owned by the builder. The frame path guards every use
     // with a null check.
     private readonly FrameDiagnostics? _diagnostics;
@@ -54,6 +57,7 @@ internal sealed class CapsuleGame : Game
     private IDisposable? _redrawWatch;
 
     private bool _windowRaised;
+    private bool _deviceSeeded;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
     // window events such an operation raises, so it stands off instead of reaching a half-applied
@@ -70,6 +74,7 @@ internal sealed class CapsuleGame : Game
         _scenes = scenes;
         _padFilter = new PadFilter(builder.Input.StickDeadzone, builder.Input.TriggerDeadzone);
         _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
+        _rumble = scenes is null ? null : new GamepadRumble(GamepadRumble.WriteToPad);
 
         if (Development.IsSupported)
         {
@@ -192,6 +197,15 @@ internal sealed class CapsuleGame : Game
             _renderer.ScreenLayer,
             active);
 
+        // The first sample decides the run's initial active device: a pad found before the first step
+        // seeds Gamepad. A driven run seeds the keyboard, as a headless one does, and the driver's
+        // snapshots move it from there.
+        if (!_deviceSeeded)
+        {
+            _deviceSeeded = true;
+            _scheduler.SeedDevice(_builder.Driver is null && _pad.IsConnected ? InputDevice.Gamepad : InputDevice.KeyboardMouse);
+        }
+
         // Alt+Enter belongs to the host and is not bindable. It is withheld for the whole gesture,
         // or a game that binds Enter reads a press out of it.
         if (ConsumeFullscreenChord(sampled))
@@ -229,10 +243,26 @@ internal sealed class CapsuleGame : Game
             }
         }
 
+        // Every frame, after the steps: the level is the run's settled output, and focus and the pad's
+        // slot are the host's. The applier rests the motors while the window is inactive and rewrites
+        // the level when focus returns, and the simulation sees neither.
+        if (_rumble is { } rumble && _scenes is { } rumbled)
+        {
+            rumble.Apply(
+                rumbled.Run.Rumble.Level,
+                active,
+                _pad.IsConnected,
+                _scheduler.ActiveDevice == InputDevice.Gamepad,
+                _pad.ConnectedPlayer,
+                gameTime.ElapsedGameTime.TotalSeconds);
+        }
+
         _audio?.Update();
 
         if (exiting)
         {
+            // The motors are rested before the window goes, and Dispose repeats it harmlessly.
+            _rumble?.Silence();
             Exit();
         }
 
@@ -273,6 +303,7 @@ internal sealed class CapsuleGame : Game
 
         if (budgetSpent)
         {
+            _rumble?.Silence();
             Exit();
         }
     }
@@ -281,6 +312,10 @@ internal sealed class CapsuleGame : Game
     {
         if (disposing)
         {
+            // First, and on every path out of the host: a crash disposes the host before the crash
+            // log is written, and a pad left buzzing is what the player would notice.
+            _rumble?.Silence();
+
             _overlayHost?.Dispose();
 
             // Disposed ahead of the renderer, which the watch draws through.

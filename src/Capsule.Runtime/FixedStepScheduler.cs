@@ -52,6 +52,12 @@ internal sealed class FixedStepScheduler
 
     internal long Tick { get; private set; }
 
+    // The device the last consumed step read as active, for the host's pad-facing output.
+    internal InputDevice ActiveDevice => _input.ActiveDevice;
+
+    // Seeds the run's initial active device. Called before the first step.
+    internal void SeedDevice(InputDevice device) => _input.Seed(device);
+
     internal bool Held
     {
         get => _held;

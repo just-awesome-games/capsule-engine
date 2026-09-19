@@ -63,12 +63,32 @@ in canvas pixels and `Scroll` in wheel notches.
 
 One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
 
+`ActiveDevice` is the device the player last used: the pad on a step a pad button goes down or a
+stick leaves centre, the keyboard and mouse on a step a key or mouse button goes down, the wheel
+turns or the pointer moves more than two canvas pixels. It is seeded from a pad found at boot and
+is what a button prompt reads, on the step `ActiveDeviceChanged` is true.
+
 ## Gamepad deadzones and the overlay key
 
 `InputConfiguration.GamepadDeadzones(stick, trigger)` filters the sampled pad. A run played by a
 driver takes its snapshots as already filtered. `InputConfiguration.DebugMenu(button)` moves the
 button that opens the development overlay, and `InputButton.None` removes it
 ([`debugging.md`](debugging.md)).
+
+## Rumble
+
+`Run.Rumble` is the run's gamepad rumble, shaped like `Run.Audio`: a step plays pulses on it, and the
+host writes the mixed level to the pad after the step.
+
+```csharp
+Run.Rumble.Play(low: 0.5f, high: 0.15f, seconds: 0.12f);
+Run.Rumble.Volume = settings.RumbleStrength;
+```
+
+The composed `RumblePulse`, `Hold` and `Set`, and the mixing rule are the XML reference. The host
+rests the motors on focus loss, disconnect, exit and crash, and while the keyboard or mouse is the
+active device. A headless run rumbles nothing, and a driven run steps identically with or without a
+pad.
 
 ## Play a run with no one at the keyboard
 

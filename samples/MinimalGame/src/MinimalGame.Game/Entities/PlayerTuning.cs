@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Input;
 
 namespace MinimalGame.Game.Entities;
 
@@ -26,6 +27,14 @@ namespace MinimalGame.Game.Entities;
 /// world units. A hurtbox smaller than the drawn frame is the grace 2D games give the player: a near
 /// miss reads as a miss. Widen it towards zero to make hits generous, inset it further to make them
 /// forgiving.</param>
+/// <param name="LandRumbleLow">The low-frequency motor's amplitude on landing, in [0, 1]. The heavy
+/// motor is the thump. Raise it for a weightier body, or drop it to zero for a light one.</param>
+/// <param name="LandRumbleHigh">The high-frequency motor's amplitude on landing, in [0, 1]. The
+/// light motor is the click at the top of the thump. Keep it below the low.</param>
+/// <param name="LandRumbleSeconds">How long the landing pulse decays over. Shorter reads as a tap,
+/// longer as a heavy body settling.</param>
+/// <param name="HurtRumble">The pulse a hazard contact plays: both motors and both impulse triggers,
+/// decaying. Raise the amplitudes or the seconds to make a hit land harder.</param>
 public readonly record struct PlayerTuning(
     float WalkSpeed,
     float Gravity,
@@ -34,7 +43,11 @@ public readonly record struct PlayerTuning(
     Vector2 LandSquash,
     float ScaleRecovery,
     int MaxHealth,
-    int HurtboxInset)
+    int HurtboxInset,
+    float LandRumbleLow,
+    float LandRumbleHigh,
+    float LandRumbleSeconds,
+    RumblePulse HurtRumble)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -45,5 +58,9 @@ public readonly record struct PlayerTuning(
         LandSquash: new Vector2(1.4f, 0.6f),
         ScaleRecovery: 1.6f,
         MaxHealth: 4,
-        HurtboxInset: 1);
+        HurtboxInset: 1,
+        LandRumbleLow: 0.5f,
+        LandRumbleHigh: 0.15f,
+        LandRumbleSeconds: 0.12f,
+        HurtRumble: new RumblePulse(0.8f, 0.5f, 0.3f) { LeftTrigger = 0.6f, RightTrigger = 0.6f });
 }

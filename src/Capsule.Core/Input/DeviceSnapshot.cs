@@ -123,6 +123,30 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     internal static uint MaskOf(MouseButton button) => MouseBit(button);
 
+    // Whether a pad button is down here that was not down in the older snapshot.
+    internal bool AnyPadButtonNewlyDown(in DeviceSnapshot older) => (_padDown & ~older._padDown) != 0;
+
+    // Whether a key or mouse button is down here that was not down in the older snapshot.
+    internal bool AnyKeyOrMouseButtonNewlyDown(in DeviceSnapshot older) =>
+        (_down & ~older._down) != UInt128.Zero || (_mouseDown & ~older._mouseDown) != 0;
+
+    // Whether any pad axis is off centre. Snapshots are deadzone filtered, so any value is a push.
+    internal bool AnyPadAxisActive
+    {
+        get
+        {
+            for (int i = 0; i < AxisCount; i++)
+            {
+                if (_axes[i] != 0f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     internal DeviceSnapshot WithKeys(UInt128 keys) => new(_down | keys, _padDown, _mouseDown, _pointer, _scroll, _axes);
 
     internal DeviceSnapshot WithPadButtons(uint buttons) => new(_down, _padDown | buttons, _mouseDown, _pointer, _scroll, _axes);

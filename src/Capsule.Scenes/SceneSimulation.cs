@@ -78,9 +78,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Runs before everything else in the step. A sound played during it expires against this
-        // step's tick, and its commands belong to this step instead of the previous one.
+        // Runs before everything else in the step. A sound or a rumble pulse played during it expires
+        // against this step's tick, and the sound's commands belong to this step instead of the
+        // previous one.
         Run.Audio.BeginStep(in context);
+        Run.Rumble.BeginStep(in context);
 
         before?.Invoke();
 

@@ -18,12 +18,21 @@ internal sealed class GamepadSampler
     // The player index the last connected pad was found on, tried first every sample.
     private PlayerIndex _connectedPlayer = PlayerIndex.One;
     private int _sweepCountdown;
+    private bool _connected;
+
+    // The backend slot of the pad the last sample found, 0 to 3, or of the last pad found when none is
+    // connected now. The rumble applier drives this slot.
+    internal int ConnectedPlayer => (int)_connectedPlayer;
+
+    // Whether the last sample found a pad.
+    internal bool IsConnected => _connected;
 
     // snapshot with this frame's pad buttons also held and its axes set through filter. With no pad
     // connected it is returned untouched.
     internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
     {
         GamePadState pad = FirstConnected();
+        _connected = pad.IsConnected;
         if (!pad.IsConnected)
         {
             return snapshot;
