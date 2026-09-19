@@ -2,8 +2,7 @@ namespace Capsule.Animation;
 
 /// <summary>
 /// A tick cursor over one eased run from 0 to 1. Its owner holds it, steps it each step, and writes
-/// <see cref="Value"/> wherever it belongs. Left on <see cref="Ease.Linear"/> with nothing reading
-/// <see cref="Value"/>, it serves as a countdown for a cooldown, a delay or a lockout.
+/// <see cref="Value"/> wherever it belongs.
 /// <para>
 /// This is a mutable value. Copying it copies the position, and the copy steps independently.
 /// </para>
@@ -31,9 +30,6 @@ public struct Tween
 
     /// <summary>The ticks the run takes end to end, as <see cref="Start"/> was last given. Zero before the first start.</summary>
     public int Duration { get; private set; }
-
-    /// <summary>Ticks still to spend. Zero once the run has finished or been stopped.</summary>
-    public readonly int TicksLeft => Math.Max(Duration - TicksElapsed, 0);
 
     /// <summary>The curve <see cref="Value"/> is read through, as <see cref="Start"/> was last given it.</summary>
     public Ease Ease { get; private set; }
@@ -173,7 +169,7 @@ public struct Tween
     }
 
     /// <summary>
-    /// Ends the run without finishing it. <see cref="TicksLeft"/> drops to zero, no step reports a
+    /// Ends the run at once. <see cref="Value"/> reads the end of the curve, no step reports a
     /// finish, and <see cref="Duration"/> is kept for a restart.
     /// </summary>
     public void Stop()

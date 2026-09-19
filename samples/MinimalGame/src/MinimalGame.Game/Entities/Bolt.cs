@@ -19,7 +19,7 @@ public sealed class Bolt : Entity
     private static readonly Sprite Centred = new(TextureHandle.White, new TextureRegion(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
 
     private readonly Vector2 _velocity;
-    private Tween _life;
+    private Countdown _life;
 
     /// <param name="position">Where the bolt starts: the muzzle, in world units.</param>
     /// <param name="direction">The sign of the X the bolt travels along; negative is left.</param>

@@ -47,8 +47,8 @@ public sealed class TweenTests
         Assert.False(tween.JustFinished);
     }
 
-    // The countdown case: a run cancelled mid-flight reports no finish on the step that would have
-    // ended it, and keeps its duration for a restart.
+    // A run cancelled mid-flight reports no finish on the step that would have ended it, and keeps
+    // its duration for a restart.
     [Fact]
     public void AStoppedRun_ReportsNoFinishAndLeavesItsDurationToRestartOn()
     {
@@ -61,12 +61,11 @@ public sealed class TweenTests
 
         Assert.False(tween.JustFinished);
         Assert.False(tween.IsRunning);
-        Assert.Equal(0, tween.TicksLeft);
         Assert.Equal(2, tween.Duration);
 
         tween.Start(3);
 
-        Assert.Equal(3, tween.TicksLeft);
+        Assert.Equal(0, tween.TicksElapsed);
         Assert.True(tween.IsRunning);
     }
 

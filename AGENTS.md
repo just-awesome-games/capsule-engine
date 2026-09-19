@@ -29,8 +29,10 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - Argument validation follows .NET conventions: null, non-finite and out-of-range arguments throw the `ArgumentException` family and are not documented per member. An `<exception>` tag is for a state rule a caller can violate. Every throw's message names the defect and the fix.
 - Markdown holds what spans many types, one idea once: the task pages under [`docs/`](docs/). [`PACKAGE.md`](PACKAGE.md) is every package's README, and no module carries a second one.
 - A comment states an invariant or a why. Delete one that restates the line below it or addresses a reviewer.
+- Plain sentences, subject then verb. No em-dashes, no consequence chains ("X, so a Y can Z"), no inversions ("Idempotent, because..."), no semicolon-joined clauses.
 
 ## Tests
 
 - Test contracts, invariants, boundaries and failure modes. A behaviour change ships with the test that would have caught its absence, a fix with the test that would have caught the bug.
 - No test of an obvious implementation step, no coverage target, and no game's content or tuning in the engine suite.
+- One canonical test per contract. Permutations of the same guard are one theory or none; a test file stays under 400 lines.

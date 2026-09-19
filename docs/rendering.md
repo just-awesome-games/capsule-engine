@@ -90,8 +90,9 @@ already playing, so a step may ask for the clip the state implies without restar
 _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
 ```
 
-A `Tween` is the timer beside all this. It counts a duration in whole fixed steps, carries an optional
-easing curve, and drives a lifetime, a flash or a one-off eased value.
+A `Tween` is the eased value beside all this. It counts a duration in whole fixed steps, reads through
+an easing curve, and drives a flash, a slide or a one-off eased value. A `Countdown` is the same timer
+with no value to read, for a cooldown, a delay or a lifetime.
 
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
 is handed. The sheet format, atlases and where sprites come from are [`assets.md`](assets.md).
