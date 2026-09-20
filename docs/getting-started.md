@@ -44,7 +44,7 @@ try
 {
     return CapsuleBoot.Configure("My Game", new DesktopPlatform())
         .WithCommandLine(args)
-        .WithInput(GameInput.Configure)
+        .WithRunStart(GameBoot.Start)
         .RunScene<PlayField>();
 }
 catch (CommandLineException failure)

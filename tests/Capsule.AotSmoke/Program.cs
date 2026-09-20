@@ -125,7 +125,7 @@ internal static class Program
     private static HeadlessRunResult Play(string[] args) =>
         CapsuleEngine.Configure("Capsule AOT Smoke", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithCommandLine(args)
-            .WithInput(FixtureInput.Configure)
+            .WithRunStart(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
             .WithoutLogging()

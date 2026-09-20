@@ -5,8 +5,9 @@ namespace MinimalGame.Game;
 
 /// <summary>
 /// The game's actions, and the one place devices are named. An action is the seam between a device
-/// and the logic that reacts to it: the shell installs this configuration once through
-/// <c>WithInput</c>, and everything else in the game reads actions, never keys or pad buttons.
+/// and the logic that reacts to it: <see cref="GameBoot.Start"/> installs this configuration once
+/// through <c>WithRunStart</c>, and everything else in the game reads actions, never keys or pad
+/// buttons.
 /// </summary>
 public static class GameInput
 {
@@ -40,6 +41,9 @@ public static class GameInput
     /// <summary>Leaves the game.</summary>
     public static readonly InputAction Quit = new("quit");
 
+    /// <summary>Cancels a rebinding capture, or leaves the options screen.</summary>
+    public static readonly InputAction Back = new("back");
+
     /// <summary>
     /// What drives a menu's focus, declared here beside the actions it names so every menu the game
     /// opens is navigated the same way.
@@ -47,9 +51,10 @@ public static class GameInput
     public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Click);
 
     /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
-    public static void Configure(InputConfiguration input)
+    public static void Configure(InputConfiguration input, GameSettings settings)
     {
         ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(settings);
 
         input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
@@ -61,10 +66,6 @@ public static class GameInput
         bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
-        bindings.Bind(Jump, Key.Space, PadButton.South);
-
-        // The mouse button Click takes: the room reads Shoot and the menu reads Click, never both.
-        bindings.Bind(Shoot, MouseButton.Left, PadButton.West);
         bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
         bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 
@@ -75,5 +76,11 @@ public static class GameInput
 
         bindings.Bind(Click, MouseButton.Left);
         bindings.Bind(Quit, Key.Escape, PadButton.Start);
+        bindings.Bind(Back, Key.Escape, PadButton.East);
+
+        // Jump and Shoot are the player's. Their defaults sit on InputSettings, and a saved document
+        // replaces them before this runs.
+        bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
+        bindings.Bind(Shoot, settings.Input.Shoot.Key, settings.Input.Shoot.Pad);
     }
 }

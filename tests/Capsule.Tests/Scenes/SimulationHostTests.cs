@@ -86,13 +86,37 @@ public sealed class SimulationHostTests
         List<bool> presses = [];
         void Hook(Scene scene, in StepContext context) => presses.Add(context.Input.WasPressed(Jump));
 
-        using SimulationHost run = new(
-            new SceneFixtures.HookScene(step: Hook),
-            new InputState(new ActionBindings().Bind(Jump, Key.Space)));
+        Run configured = new();
+        configured.Input.Bindings.Bind(Jump, Key.Space);
+
+        using SimulationHost run = new(new SceneFixtures.HookScene(step: Hook), run: configured);
 
         run.Step(3, DeviceSnapshot.Of(Key.Space));
 
         Assert.Equal([true, false, false], presses);
+    }
+
+    // The done-when for runtime rebinding: a write to Run.Input.Bindings reaches the very next
+    // snapshot, because the host's InputState and the run share one ActionBindings instance.
+    [Fact]
+    public void RebindingMidRun_IsHonouredByTheNextSnapshot()
+    {
+        List<bool> presses = [];
+        void Hook(Scene scene, in StepContext context) => presses.Add(context.Input.WasPressed(Jump));
+
+        Run configured = new();
+        configured.Input.Bindings.Bind(Jump, Key.Space);
+
+        using SimulationHost run = new(new SceneFixtures.HookScene(step: Hook), run: configured);
+
+        run.Step(DeviceSnapshot.Of(Key.Space));
+
+        run.Run.Input.Bindings.Rebind(Jump, Key.F);
+
+        run.Step(DeviceSnapshot.Of(Key.F));
+        run.Step(DeviceSnapshot.Of(Key.Space));
+
+        Assert.Equal([true, true, false], presses);
     }
 
     [Fact]

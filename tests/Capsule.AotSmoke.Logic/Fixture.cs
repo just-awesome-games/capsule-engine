@@ -28,10 +28,10 @@ public static class FixtureInput
 {
     public static readonly InputAction Quit = new("quit");
 
-    public static void Configure(InputConfiguration input)
+    public static void Configure(Run run)
     {
-        ArgumentNullException.ThrowIfNull(input);
-        input.Bindings.Bind(Quit, Key.Escape);
+        ArgumentNullException.ThrowIfNull(run);
+        run.Input.Bindings.Bind(Quit, Key.Escape);
     }
 }
 

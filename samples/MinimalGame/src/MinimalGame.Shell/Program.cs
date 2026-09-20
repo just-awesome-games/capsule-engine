@@ -11,7 +11,7 @@ try
     // lands on the grid the room is drawn on unscaled.
     return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
         .WithCommandLine(args)
-        .WithInput(GameInput.Configure)
+        .WithRunStart(GameBoot.Start)
         .WithRenderResolution(320, 180)
         .WithSampling(TextureSampling.Point)
         .RunScene<MainMenu>();

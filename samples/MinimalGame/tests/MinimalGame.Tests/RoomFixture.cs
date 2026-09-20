@@ -1,4 +1,4 @@
-using Capsule.Input;
+using Capsule;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Generated;
@@ -27,12 +27,12 @@ public static class RoomFixture
 
     public static SimulationHost Simulate()
     {
-        InputConfiguration input = new();
-        GameInput.Configure(input);
-
         SceneDocument document = SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, RoomDocument));
 
-        return new SimulationHost(new Room(new SceneContent(document, CapsuleEntities.Registry)), new InputState(input.Bindings));
+        Run run = new();
+        GameBoot.Start(run);
+
+        return new SimulationHost(new Room(new SceneContent(document, CapsuleEntities.Registry)), run: run);
     }
 
     public static Player PlayerOf(SimulationHost room)

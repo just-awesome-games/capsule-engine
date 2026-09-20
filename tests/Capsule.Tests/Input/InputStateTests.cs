@@ -70,4 +70,30 @@ public sealed class InputStateTests
 
         Assert.Equal(0f, input.Axis(Move), InputFixtures.Tolerance);
     }
+
+    [Fact]
+    public void WasAnyPressed_ReadsTheEdgeAndTheDocumentedOrder()
+    {
+        InputState input = new(new ActionBindings());
+
+        input.Advance(DeviceSnapshot.Empty);
+
+        Assert.False(input.WasAnyPressed(out InputButton none));
+        Assert.Equal(InputButton.None, none);
+
+        input.Advance(DeviceSnapshot.Of(Key.Space));
+
+        Assert.True(input.WasAnyPressed(out InputButton pressed));
+        Assert.Equal((InputButton)Key.Space, pressed);
+
+        input.Advance(DeviceSnapshot.Of(Key.Space));
+
+        Assert.False(input.WasAnyPressed(out _));
+
+        input.Advance(DeviceSnapshot.Empty);
+        input.Advance(DeviceSnapshot.Of(Key.Space).With(PadButton.South));
+
+        Assert.True(input.WasAnyPressed(out InputButton both));
+        Assert.Equal((InputButton)Key.Space, both);
+    }
 }

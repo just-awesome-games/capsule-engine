@@ -16,15 +16,10 @@ public sealed class SimulationHost : IDisposable
     /// constructor.
     /// </summary>
     /// <param name="scene">The scene to start and advance, under <see cref="SceneSimulation"/>'s rules. Disposing the host stops it.</param>
-    /// <param name="input">
-    /// The action-level input every step advances, held for the host's life. Omit it for a state over empty
-    /// <see cref="ActionBindings"/>, which reads every action as unbound.
-    /// </param>
     /// <param name="stepHertz">Simulation steps per second of simulated time. Positive, 60 by default.</param>
     /// <param name="run">The run to install on the scene. Omit it for a new run with default settings.</param>
     public SimulationHost(
         Scene scene,
-        InputState? input = null,
         int stepHertz = StepContext.DefaultStepHertz,
         Run? run = null)
     {
@@ -33,26 +28,22 @@ public sealed class SimulationHost : IDisposable
 
         // Check every argument before building the simulation, because building it starts the scene and a
         // rejected host would leave a started scene with nothing to stop it.
-        Input = input ?? new InputState(new ActionBindings());
         StepSeconds = 1.0 / stepHertz;
         Simulation = new SceneSimulation(scene, run: run);
+        Input = new InputState(Simulation.Run.Input.Bindings);
     }
 
     /// <summary>Runs <paramref name="simulation"/> from tick 0 and takes over disposing it.</summary>
     /// <param name="simulation">The simulation to advance. <see cref="Dispose"/> disposes it.</param>
-    /// <param name="input">
-    /// The action-level input every step advances, held for the host's life. Omit it for a state over empty
-    /// <see cref="ActionBindings"/>, which reads every action as unbound.
-    /// </param>
     /// <param name="stepHertz">Simulation steps per second of simulated time. Positive, 60 by default.</param>
-    public SimulationHost(SceneSimulation simulation, InputState? input = null, int stepHertz = StepContext.DefaultStepHertz)
+    public SimulationHost(SceneSimulation simulation, int stepHertz = StepContext.DefaultStepHertz)
     {
         ArgumentNullException.ThrowIfNull(simulation);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepHertz);
 
         Simulation = simulation;
-        Input = input ?? new InputState(new ActionBindings());
         StepSeconds = 1.0 / stepHertz;
+        Input = new InputState(simulation.Run.Input.Bindings);
     }
 
     /// <summary>The simulation being advanced, for the lifetime of this host.</summary>

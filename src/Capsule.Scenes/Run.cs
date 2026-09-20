@@ -130,6 +130,13 @@ public sealed class Run
     public SaveStore Saves { get; }
 
     /// <summary>
+    /// The run's input configuration, the one the shell built through
+    /// <c>EngineBuilder.WithRunStart</c>. It stays live: a rebind applies from the next read and a
+    /// deadzone change from the next sampled frame.
+    /// </summary>
+    public InputConfiguration Input { get; init; } = new();
+
+    /// <summary>
     /// How many simulation seconds one wall second is worth. One by default. Changing it makes the run
     /// step more or less often per wall second, and the simulation sees no difference, because the fixed
     /// step, each step's tick and each step's time are identical at any pace. A run at 0.25x is the same

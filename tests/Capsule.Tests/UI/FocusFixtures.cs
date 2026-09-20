@@ -231,7 +231,9 @@ internal static class FocusFixtures
         /// <summary>Starts the scene, which is where the navigator's starting item takes the focus.</summary>
         internal Menu Open()
         {
-            _run = new SimulationHost(_scene, new InputState(Bound()), run: new Run { Canvas = Canvas });
+            Run run = new() { Canvas = Canvas };
+            Bound(run.Input.Bindings);
+            _run = new SimulationHost(_scene, run: run);
 
             return this;
         }
@@ -297,8 +299,8 @@ internal static class FocusFixtures
 
         public void Dispose() => _run?.Dispose();
 
-        private static ActionBindings Bound() =>
-            new ActionBindings()
+        private static ActionBindings Bound(ActionBindings bindings) =>
+            bindings
                 .Bind(Up, Key.Up)
                 .Bind(Down, Key.Down)
                 .Bind(Left, Key.Left)

@@ -130,6 +130,26 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     internal bool AnyKeyOrMouseButtonNewlyDown(in DeviceSnapshot older) =>
         (_down & ~older._down) != UInt128.Zero || (_mouseDown & ~older._mouseDown) != 0;
 
+    // The lowest-valued key, pad button or mouse button newly down here, or null. The trailing zero
+    // count of the newly-pressed mask is that lowest value's index, so no loop is needed.
+    internal Key? NewlyDownKey(in DeviceSnapshot older)
+    {
+        UInt128 pressed = _down & ~older._down;
+        return pressed == 0 ? null : (Key)(int)UInt128.TrailingZeroCount(pressed);
+    }
+
+    internal MouseButton? NewlyDownMouseButton(in DeviceSnapshot older)
+    {
+        uint pressed = _mouseDown & ~older._mouseDown;
+        return pressed == 0 ? null : (MouseButton)BitOperations.TrailingZeroCount(pressed);
+    }
+
+    internal PadButton? NewlyDownPadButton(in DeviceSnapshot older)
+    {
+        uint pressed = _padDown & ~older._padDown;
+        return pressed == 0 ? null : (PadButton)BitOperations.TrailingZeroCount(pressed);
+    }
+
     // Whether any pad axis is off centre. Snapshots are deadzone filtered, so any value is a push.
     internal bool AnyPadAxisActive
     {

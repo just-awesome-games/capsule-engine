@@ -67,7 +67,7 @@ public sealed class FrameCaptureTests : IDisposable
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(BoundCaptureScene), static _ => new BoundCaptureScene())]))
             .WithFixedStep(10)
-            .WithInput(static input => input.Bindings.Bind(Shoot, Key.Space))
+            .WithRunStart(static run => run.Input.Bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging()
             .RunHeadless<BoundCaptureScene>(driver);
@@ -94,7 +94,7 @@ public sealed class FrameCaptureTests : IDisposable
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(BoundCaptureScene), _ => scene = new BoundCaptureScene())]))
             .WithFixedStep(10)
-            .WithInput(static input => input.Bindings.Bind(Shoot, Key.Space))
+            .WithRunStart(static run => run.Input.Bindings.Bind(Shoot, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging()
             .RunHeadless<BoundCaptureScene>(driver);

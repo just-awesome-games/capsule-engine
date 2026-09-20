@@ -40,8 +40,9 @@ until the compiler must enforce a reference direction.
 
 The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), a direct MonoGame
 reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
-execution (`CAP103`), process or wall-clock time (`CAP104`), and randomness outside the seeded
-`RandomSource`, `System.Random` included (`CAP105`).
+execution (`CAP103`), process or wall-clock time (`CAP104`), randomness outside the seeded
+`RandomSource`, `System.Random` included (`CAP105`), and a save document property declared `init`
+instead of `set` (`CAP106`).
 
 ## Argument validation
 

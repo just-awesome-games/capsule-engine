@@ -101,4 +101,43 @@ public sealed class InputState(ActionBindings bindings)
     /// <summary>Whether <paramref name="action"/> came up on the edge into this step.</summary>
     public bool WasReleased(InputAction action) =>
         !_bindings.IsAnyDown(action, _current) && _bindings.IsAnyDown(action, _previous);
+
+    /// <summary>
+    /// Whether any button went down on the edge into this step, and which. When several did, a key
+    /// wins over a mouse button, then a pad button, then a stick direction, lowest value first.
+    /// </summary>
+    /// <param name="button">The button that went down, or <see cref="InputButton.None"/> when none did.</param>
+    public bool WasAnyPressed(out InputButton button)
+    {
+        if (_current.NewlyDownKey(in _previous) is { } key)
+        {
+            button = key;
+            return true;
+        }
+
+        if (_current.NewlyDownMouseButton(in _previous) is { } mouseButton)
+        {
+            button = mouseButton;
+            return true;
+        }
+
+        if (_current.NewlyDownPadButton(in _previous) is { } padButton)
+        {
+            button = padButton;
+            return true;
+        }
+
+        for (StickDirection direction = StickDirection.LeftStickUp; direction <= StickDirection.RightStickRight; direction++)
+        {
+            InputButton candidate = direction;
+            if (candidate.IsDown(_current) && !candidate.IsDown(_previous))
+            {
+                button = candidate;
+                return true;
+            }
+        }
+
+        button = InputButton.None;
+        return false;
+    }
 }

@@ -28,6 +28,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene = scene;
         Run = run ?? new Run();
         scene.Run = Run;
+
+        // The run boots here, whichever host built it. A scene's start hook already sees a booted run,
+        // so the debug-menu button is fixed before it can be reached.
+        Run.Input.Started = true;
         try
         {
             scene.Start(entryPayload);

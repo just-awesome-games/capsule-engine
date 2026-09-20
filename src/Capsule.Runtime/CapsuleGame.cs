@@ -22,7 +22,7 @@ internal sealed class CapsuleGame : Game
     // Null when the simulation is not a run of scenes, as in the specs.
     private readonly SceneHost? _scenes;
 
-    private readonly PadFilter _padFilter;
+    private readonly InputConfiguration _configuration;
     private readonly MouseSampler _mouse = new();
     private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
@@ -72,7 +72,7 @@ internal sealed class CapsuleGame : Game
         _diagnostics = diagnostics;
         _simulation = simulation;
         _scenes = scenes;
-        _padFilter = new PadFilter(builder.Input.StickDeadzone, builder.Input.TriggerDeadzone);
+        _configuration = builder.Input;
         _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
         _rumble = scenes is null ? null : new GamepadRumble(GamepadRumble.WriteToPad);
 
@@ -192,8 +192,9 @@ internal sealed class CapsuleGame : Game
         // placement, so it reaches the simulation as a canvas position. IsActive is unusable here
         // because it reads true before focus is granted.
         bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
+        PadFilter padFilter = new(_configuration.StickDeadzone, _configuration.TriggerDeadzone);
         DeviceSnapshot sampled = _mouse.SampleOnto(
-            _pad.SampleOnto(KeyboardSampler.Sample(), _padFilter),
+            _pad.SampleOnto(KeyboardSampler.Sample(), padFilter),
             _renderer.ScreenLayer,
             active);
 

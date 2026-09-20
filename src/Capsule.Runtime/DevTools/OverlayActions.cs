@@ -53,5 +53,5 @@ internal static class OverlayActions
 
     internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
 
-    internal static string KeyName(InputButton button) => button == Key.Grave ? "~" : button.ToString();
+    internal static string KeyName(InputButton button) => button == Key.Grave ? "~" : button.Name;
 }

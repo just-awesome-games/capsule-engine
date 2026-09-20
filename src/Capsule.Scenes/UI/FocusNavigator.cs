@@ -39,6 +39,11 @@ public sealed class FocusNavigator : Component
 
     private bool _started;
     private bool _raising;
+    private bool _interactable = true;
+
+    // Set by the Interactable setter on a false-to-true transition, and cleared by the next OnStep,
+    // whose read this navigator then skips.
+    private bool _justTurnedInteractable;
 
     // How many steps a direction has been held since its press. Counts up while any direction is held
     // and none was pressed this step, and a press edge resets it to zero.
@@ -83,6 +88,26 @@ public sealed class FocusNavigator : Component
     /// starts, this names the item that will take the focus at start.
     /// </summary>
     public Focusable? Focused { get; private set; }
+
+    /// <summary>
+    /// Whether this navigator reads input. False holds the focus where it is and ignores every action
+    /// and the pointer, which is what a menu sets while a rebinding prompt owns the input. The step on
+    /// which it turns true reads nothing either, so the press that ended the prompt never lands on the
+    /// menu.
+    /// </summary>
+    public bool Interactable
+    {
+        get => _interactable;
+        set
+        {
+            if (value && !_interactable)
+            {
+                _justTurnedInteractable = true;
+            }
+
+            _interactable = value;
+        }
+    }
 
     /// <summary>
     /// How many steps a direction must be held after its press before it first repeats. Defaults to
@@ -238,6 +263,16 @@ public sealed class FocusNavigator : Component
     /// </summary>
     protected internal override void OnStep(in StepContext context)
     {
+        bool justTurnedInteractable = _justTurnedInteractable;
+        _justTurnedInteractable = false;
+
+        if (!Interactable || justTurnedInteractable)
+        {
+            _heldSteps = 0;
+
+            return;
+        }
+
         InputState input = context.Input;
 
         Side? pressedSide = Direction(input, pressed: true);

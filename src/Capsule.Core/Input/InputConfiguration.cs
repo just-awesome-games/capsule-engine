@@ -11,12 +11,12 @@ namespace Capsule.Input;
 /// public static readonly AxisAction Move = new("move");
 /// public static readonly InputAction Jump = new("jump");
 ///
-/// public static void Configure(InputConfiguration input)
+/// public static void Configure(InputConfiguration input, GameSettings settings)
 /// {
 ///     input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 ///     input.Bindings.BindAxis(Move, Key.A, Key.D);
 ///     input.Bindings.BindAxis(Move, PadAxis.LeftStickX);
-///     input.Bindings.Bind(Jump, Key.Space, PadButton.South);
+///     input.Bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
 /// }
 /// </code>
 /// </example>
@@ -47,6 +47,10 @@ public sealed class InputConfiguration
     /// </summary>
     public InputButton DebugMenuButton { get; private set; } = Key.Grave;
 
+    // Set when the run's first scene starts. The overlay reads DebugMenuButton once at construction,
+    // so a write after that would silently do nothing.
+    internal bool Started { get; set; }
+
     /// <summary>
     /// A stick reading inside <paramref name="stick"/> radially reads centred, and a trigger pull
     /// below <paramref name="trigger"/> reads released. Past either threshold, the remainder is
@@ -73,8 +77,14 @@ public sealed class InputConfiguration
     /// </summary>
     /// <param name="button">The button that toggles the menu on its leading edge.</param>
     /// <returns>This configuration.</returns>
+    /// <exception cref="InvalidOperationException">The run has already booted.</exception>
     public InputConfiguration DebugMenu(InputButton button)
     {
+        if (Started)
+        {
+            throw new InvalidOperationException("The debug-menu button is read at boot. Set it from WithRunStart.");
+        }
+
         DebugMenuButton = button;
 
         return this;

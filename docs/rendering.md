@@ -19,7 +19,7 @@ the same pixels as the world:
 ```csharp
 return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
     .WithCommandLine(args)
-    .WithInput(GameInput.Configure)
+    .WithRunStart(GameBoot.Start)
     .WithRenderResolution(320, 180)
     .WithSampling(TextureSampling.Point)
     .RunScene<MainMenu>();

@@ -14,7 +14,7 @@ namespace Capsule.Runtime;
 
 /// <summary>
 /// Fluent, eagerly validated host configuration for a game's generated scene registry. Every setting
-/// has a default, and a game that never calls <see cref="WithInput"/> reads every action as unbound.
+/// has a default, and a game that binds nothing reads every action as unbound.
 /// A <c>RunScene</c> blocks until the game requests exit, then returns the process's exit code.
 /// </summary>
 public sealed class EngineBuilder
@@ -39,6 +39,7 @@ public sealed class EngineBuilder
     private ulong _randomSeed = RandomSource.DefaultSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
+    private Action<Run>? _runStart;
 
     // What the command line asked for: the scene to boot in place of the RunScene call's, the
     // document backing that scene, and whether to run with no window.
@@ -269,14 +270,15 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Registers the game's input: its bindings, its gamepad deadzones and the debug-menu button.
-    /// Repeated calls accumulate.
+    /// Runs <paramref name="start"/> once when the run starts, after saves are restored and before
+    /// the first scene starts. A game binds its input and applies its saved settings here. Repeated
+    /// calls run in order.
     /// </summary>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>
-    public EngineBuilder WithInput(Action<InputConfiguration> configure)
+    public EngineBuilder WithRunStart(Action<Run> start)
     {
-        ArgumentNullException.ThrowIfNull(configure);
-        configure(Input);
+        ArgumentNullException.ThrowIfNull(start);
+        _runStart += start;
         return this;
     }
 
@@ -517,8 +519,9 @@ public sealed class EngineBuilder
         using SceneHost host = new(
             opening,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling },
-            storage);
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input },
+            storage,
+            _runStart);
 
         RunHost(host, host);
 
@@ -586,8 +589,9 @@ public sealed class EngineBuilder
         using SceneHost host = new(
             initialTarget,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling },
-            storage);
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input },
+            storage,
+            _runStart);
 
         FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host);
 

@@ -21,17 +21,7 @@ public sealed class ActionBindings
     /// </exception>
     public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
-        RequireName(action.Index, nameof(action));
-
-        if (buttons.IsEmpty)
-        {
-            throw new ArgumentException("An action must be bound to at least one button.", nameof(buttons));
-        }
-
-        for (int i = 0; i < buttons.Length; i++)
-        {
-            RequireButton(buttons[i], action.Name, nameof(buttons));
-        }
+        Require(action, buttons);
 
         ref InputButton[]? bound = ref Row(ref _buttons, action.Index);
         List<InputButton> merged = bound is { } existing ? [.. existing] : [];
@@ -101,6 +91,42 @@ public sealed class ActionBindings
         return Accumulate(action, new AxisSource(PadAxis.None, null, negative, positive));
     }
 
+    /// <summary>
+    /// Replaces every button bound to <paramref name="action"/> with <paramref name="buttons"/>,
+    /// effective from the next read.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// The action is unnamed, or a button is <see cref="InputButton.None"/> or outside its device's
+    /// capacity.
+    /// </exception>
+    public ActionBindings Rebind(InputAction action, params ReadOnlySpan<InputButton> buttons)
+    {
+        Require(action, buttons);
+        Row(ref _buttons, action.Index) = null;
+
+        return Bind(action, buttons);
+    }
+
+    /// <summary>Removes every button bound to <paramref name="action"/>, which then reads as unbound.</summary>
+    /// <exception cref="ArgumentException">The action is unnamed.</exception>
+    public ActionBindings Unbind(InputAction action)
+    {
+        RequireName(action.Index, nameof(action));
+        Row(ref _buttons, action.Index) = null;
+
+        return this;
+    }
+
+    /// <summary>Removes every source bound to <paramref name="action"/>, which then reads as unbound.</summary>
+    /// <exception cref="ArgumentException">The action is unnamed.</exception>
+    public ActionBindings Unbind(AxisAction action)
+    {
+        RequireName(action.Index, nameof(action));
+        Row(ref _sources, action.Index) = null;
+
+        return this;
+    }
+
     /// <summary>Buttons bound to <paramref name="action"/>. Empty when the action is unbound.</summary>
     public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
 
@@ -159,6 +185,22 @@ public sealed class ActionBindings
         }
 
         return ref rows[index];
+    }
+
+    // The checks Bind and Rebind share: a named action and at least one representable button.
+    private static void Require(InputAction action, ReadOnlySpan<InputButton> buttons)
+    {
+        RequireName(action.Index, nameof(action));
+
+        if (buttons.IsEmpty)
+        {
+            throw new ArgumentException("An action must be bound to at least one button.", nameof(buttons));
+        }
+
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            RequireButton(buttons[i], action.Name, nameof(buttons));
+        }
     }
 
     private static void RequireName(int index, string parameterName)

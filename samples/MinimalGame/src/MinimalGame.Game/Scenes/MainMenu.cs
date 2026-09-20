@@ -14,12 +14,6 @@ public sealed class MainMenu : Scene
 {
     public MainMenu() => Add(new TitleMenu());
 
-    // The saved settings are restored before the first scene composes, so the bus is levelled from the
-    // document here and stands for the whole run.
-    /// <inheritdoc/>
-    protected override void OnStart() =>
-        Run.Audio.SetVolume(AudioBuses.Sfx, Run.Saves.Read(GameSaves.Settings).SoundOn ? 1f : 0f);
-
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {

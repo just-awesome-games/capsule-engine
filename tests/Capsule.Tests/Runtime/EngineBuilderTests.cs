@@ -30,8 +30,6 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithCanvas(640, 0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
-        yield return [new Action<EngineBuilder>(b => b.WithInput(i => i.GamepadDeadzones(float.NaN, 0.12f)))];
-        yield return [new Action<EngineBuilder>(b => b.WithInput(i => i.GamepadDeadzones(0.25f, float.NaN)))];
         yield return [new Action<EngineBuilder>(b => b.WithWindowTitle("  "))];
         yield return [new Action<EngineBuilder>(b => b.WithSampling((TextureSampling)99))];
     }
@@ -125,7 +123,7 @@ public sealed class EngineBuilderTests
             .WithRandomSeed(7)
             .WithoutCrashLog()
             .WithoutLogging()
-            .WithInput(static input => input.GamepadDeadzones(0.25f, 0.12f));
+            .WithRunStart(static run => run.Input.GamepadDeadzones(0.25f, 0.12f));
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static _ => new Menu());

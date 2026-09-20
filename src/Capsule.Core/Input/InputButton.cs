@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Capsule.Input;
 
 /// <summary>
@@ -5,7 +7,8 @@ namespace Capsule.Input;
 /// <see cref="MouseButton"/> or a <see cref="StickDirection"/>. It converts implicitly from any of
 /// them. The default is <see cref="None"/>, which no snapshot holds down.
 /// </summary>
-public readonly struct InputButton : IEquatable<InputButton>
+[JsonConverter(typeof(InputButtonJsonConverter))]
+public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputButton>
 {
     /// <summary>
     /// How far a stick must be pushed, in [0, 1] along the direction's axis, for a
@@ -65,6 +68,16 @@ public readonly struct InputButton : IEquatable<InputButton>
         : _stickDirection != StickDirection.None ? IsPushed(snapshot)
         : snapshot.IsDown(_mouseButton);
 
+    /// <summary>The device this button is on: keyboard and mouse together, or the gamepad.</summary>
+    /// <exception cref="InvalidOperationException"><see cref="None"/> names no device.</exception>
+    public InputDevice Device =>
+        IsNone ? throw new InvalidOperationException($"{nameof(InputButton)}.{nameof(None)} names no device. Test {nameof(IsNone)} first.")
+        : _key != Key.None || _mouseButton != MouseButton.None ? InputDevice.KeyboardMouse
+        : InputDevice.Gamepad;
+
+    /// <summary>The device constant's bare name, what a caption shows, or <c>None</c> for none.</summary>
+    public string Name => IsNone ? nameof(None) : Qualified.Name;
+
     /// <summary>Whether both name the same device constant.</summary>
     public bool Equals(InputButton other) =>
         _key == other._key && _padButton == other._padButton && _mouseButton == other._mouseButton &&
@@ -76,13 +89,81 @@ public readonly struct InputButton : IEquatable<InputButton>
     /// <inheritdoc/>
     public override int GetHashCode() => HashCode.Combine(_key, _padButton, _mouseButton, _stickDirection);
 
-    /// <summary>The device constant's name, or <c>None</c>.</summary>
-    public override string ToString() =>
-        IsNone ? nameof(None)
-        : _key != Key.None ? _key.ToString()
-        : _padButton != PadButton.None ? _padButton.ToString()
-        : _stickDirection != StickDirection.None ? _stickDirection.ToString()
-        : _mouseButton.ToString();
+    /// <summary>The qualified, parseable form, such as <c>Key.Space</c>, or <c>None</c>.</summary>
+    public override string ToString() => IsNone ? nameof(None) : $"{Qualified.Device}.{Qualified.Name}";
+
+    // The device constant's own type name and bare name, shared by Name and ToString. Not called
+    // when IsNone; callers guard that first.
+    private (string Device, string Name) Qualified =>
+        _key != Key.None ? (nameof(Key), _key.ToString())
+        : _padButton != PadButton.None ? (nameof(PadButton), _padButton.ToString())
+        : _stickDirection != StickDirection.None ? (nameof(StickDirection), _stickDirection.ToString())
+        : (nameof(MouseButton), _mouseButton.ToString());
+
+    // The accepted-shape text, shared by Parse and InputButtonJsonConverter so it exists once.
+    internal const string ExpectedShape =
+        "Expected 'None' or '<Device>.<Name>', such as 'Key.Space', 'PadButton.South', " +
+        "'MouseButton.Left' or 'StickDirection.LeftStickUp'.";
+
+    /// <summary>Parses the form <see cref="ToString"/> writes, such as <c>Key.Space</c> or <c>None</c>.</summary>
+    /// <exception cref="FormatException"><paramref name="s"/> is not that shape.</exception>
+    public static InputButton Parse(string s)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+
+        if (TryParse(s, out InputButton result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"'{s}' is not a valid {nameof(InputButton)}. {ExpectedShape}");
+    }
+
+    static InputButton IParsable<InputButton>.Parse(string s, IFormatProvider? provider) => Parse(s);
+
+    /// <summary>Tries to parse the form <see cref="ToString"/> writes. Ordinal and exact, no numeric enum strings.</summary>
+    public static bool TryParse(string? s, out InputButton result)
+    {
+        result = None;
+
+        if (string.IsNullOrEmpty(s))
+        {
+            return false;
+        }
+
+        if (s == nameof(None))
+        {
+            return true;
+        }
+
+        int dot = s.IndexOf('.');
+        if (dot < 0)
+        {
+            return false;
+        }
+
+        string device = s[..dot];
+        string name = s[(dot + 1)..];
+
+        result = device switch
+        {
+            nameof(Key) when TryParseDefined(name, out Key key) => key,
+            nameof(PadButton) when TryParseDefined(name, out PadButton padButton) => padButton,
+            nameof(MouseButton) when TryParseDefined(name, out MouseButton mouseButton) => mouseButton,
+            nameof(StickDirection) when TryParseDefined(name, out StickDirection stickDirection) => stickDirection,
+            _ => None,
+        };
+
+        return !result.IsNone;
+    }
+
+    static bool IParsable<InputButton>.TryParse(string? s, IFormatProvider? provider, out InputButton result) =>
+        TryParse(s, out result);
+
+    // Ordinal and exact: a numeric string Enum.TryParse accepts but IsDefined does not is rejected.
+    private static bool TryParseDefined<T>(string name, out T value)
+        where T : struct, Enum =>
+        Enum.TryParse(name, ignoreCase: false, out value) && Enum.IsDefined(value);
 
     /// <summary>Whether both name the same device constant.</summary>
     public static bool operator ==(InputButton left, InputButton right) => left.Equals(right);

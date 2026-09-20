@@ -19,7 +19,7 @@ public static class GameInput
     public static readonly InputAction Jump = new("jump");
 
     /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
-    public static void Configure(InputConfiguration input)
+    public static void Configure(InputConfiguration input, GameSettings settings)
     {
         input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
@@ -30,13 +30,13 @@ public static class GameInput
         bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
-        bindings.Bind(Jump, Key.Space, PadButton.South);
+        bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
     }
 }
 ```
 
-The shell installs it once, with `.WithInput(GameInput.Configure)`. A game that installs nothing reads
-every action unbound.
+The shell runs `GameBoot.Start` once per run through `WithRunStart`, after saves are restored and
+before the first scene. It reads the settings, hands them to `Configure`, and levels the audio.
 
 Constructing an `InputAction` or an `AxisAction` resolves its name to a dense index, and a binding
 lookup is an array read that allocates nothing. Declare each action once as a static field. Building
@@ -74,6 +74,27 @@ is what a button prompt reads, on the step `ActiveDeviceChanged` is true.
 driver takes its snapshots as already filtered. `InputConfiguration.DebugMenu(button)` moves the
 button that opens the development overlay, and `InputButton.None` removes it
 ([`debugging.md`](debugging.md)).
+
+## Rebind at a settings screen
+
+`Run.Input` is the configuration the shell installed, and it stays live. A settings screen replaces
+what an action is bound to, and the next read sees it:
+
+```csharp
+if (context.Input.WasAnyPressed(out InputButton button))
+{
+    Run.Input.Bindings.Rebind(GameInput.Jump, button);
+}
+```
+
+`WasAnyPressed` reports the first key, mouse button, pad button or stick direction that went down this
+step, which is what a "press a button" prompt waits for. Set `FocusNavigator.Interactable` false while
+it waits, so the menu behind it holds still. `InputButton.Name` is the bare name a caption shows, and
+`InputButton.Device` says which slot a captured button belongs in.
+
+Persisting a rebinding is the game's job: keep the buttons the player may change in the settings
+document, where an `InputButton` field saves as `"Key.Space"`, and re-apply them at boot. A headless
+run restores that document only under a named save storage; without one it plays the defaults.
 
 ## Rumble
 

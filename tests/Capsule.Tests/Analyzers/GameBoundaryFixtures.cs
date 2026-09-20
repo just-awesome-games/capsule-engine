@@ -21,7 +21,8 @@ internal static class GameBoundaryFixtures
         string source,
         bool logic = false,
         bool shell = false,
-        ImmutableArray<MetadataReference> extraReferences = default)
+        ImmutableArray<MetadataReference> extraReferences = default,
+        DiagnosticAnalyzer? analyzer = null)
     {
         ImmutableArray<MetadataReference> references = extraReferences.IsDefaultOrEmpty
             ? References
@@ -33,7 +34,7 @@ internal static class GameBoundaryFixtures
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         CompilationWithAnalyzers analyzed = compilation.WithAnalyzers(
-            [new GameBoundaryAnalyzer()],
+            [analyzer ?? new GameBoundaryAnalyzer()],
             new CompilationWithAnalyzersOptions(
                 new AnalyzerOptions([], new GeneratorHarness.DeclaredRole(logic, shell)),
                 onAnalyzerException: null,

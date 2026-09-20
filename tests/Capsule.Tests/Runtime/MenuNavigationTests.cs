@@ -54,7 +54,7 @@ public sealed class MenuNavigationTests
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))
             .WithRenderResolution((int)Canvas.X, (int)Canvas.Y)
-            .WithInput(Bind)
+            .WithRunStart(Bind)
             .WithoutCrashLog()
             .WithoutLogging()
             .RunHeadless<Menu>(ByPointer());
@@ -66,11 +66,10 @@ public sealed class MenuNavigationTests
     private static string? Play(IInputDriver driver)
     {
         Menu menu = new();
+        Run configured = new() { Canvas = Canvas };
+        Bound(configured.Input.Bindings);
 
-        using SimulationHost run = new(
-            menu,
-            new InputState(Bound(new ActionBindings())),
-            run: new Run { Canvas = Canvas });
+        using SimulationHost run = new(menu, run: configured);
         run.Play(driver);
 
         Assert.True(menu.SecondIsFocused);
@@ -86,7 +85,7 @@ public sealed class MenuNavigationTests
     private static IInputDriver ByPointer() =>
         new InputScript().MoveTo(OnTheSecondItem).Wait(1).Tap(MouseButton.Left).Build();
 
-    private static void Bind(InputConfiguration input) => Bound(input.Bindings);
+    private static void Bind(Run run) => Bound(run.Input.Bindings);
 
     private static ActionBindings Bound(ActionBindings bindings) =>
         bindings

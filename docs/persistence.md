@@ -12,7 +12,7 @@ assembly root:
 ```csharp
 public sealed record GameSettings
 {
-    public bool SoundOn { get; init; } = true;
+    public bool SoundOn { get; set; } = true;
 }
 
 public static class GameSaves
@@ -22,10 +22,12 @@ public static class GameSaves
         new("settings", GameSaveContext.Default.GameSettings, new GameSettings());
 }
 
-[JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(GameSettings))]
 internal sealed partial class GameSaveContext : JsonSerializerContext;
 ```
+
+That context is the one every NativeAOT application declares for its JSON; Capsule adds nothing to
+it.
 
 The two-argument constructor declares a key whose absent document throws on read. The three-argument one
 gives it a fallback, serialized once and deserialized afresh on each such read, so the instance is not
@@ -80,8 +82,12 @@ indent, and whatever formatting the game's context declares:
 `metadata` is the engine's half and `document` the game's JSON verbatim, hand-editable. A write is staged
 as `.save.json.tmp` and swapped in, keeping the previous file as `.save.json.bak`. At restore, a file that
 does not parse is set aside as `.save.json.corrupt` and its backup restored in its place, with a warning
-either way. A field the document does not carry reads as its own default, and one the game no longer
-declares is ignored, so a save written by an older build still loads.
+either way. A field the document does not carry reads as its property's initializer, and one the game no longer
+declares is ignored. A save written by an older build still loads. Declare document properties with
+`set`. Source generation fills an `init` property from the document, and a field an older save lacks
+then reads as `default` instead of its initializer. The compiler refuses one as `CAP106`. A
+`required` member and a positional record parameter pass, because a missing field fails the read or
+takes the parameter's default, and neither is silent.
 
 ## Where the files go
 

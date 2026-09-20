@@ -21,7 +21,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private SceneSimulation _current;
     private bool _disposed;
 
-    internal SceneHost(in SceneTransition initialTarget, SceneResolver resolve, Run run, ISaveStorage? saveStorage = null)
+    internal SceneHost(
+        in SceneTransition initialTarget,
+        SceneResolver resolve,
+        Run run,
+        ISaveStorage? saveStorage = null,
+        Action<Run>? onRunStart = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
         ArgumentNullException.ThrowIfNull(run);
@@ -36,6 +41,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         {
             run.Saves.Restore(saveStorage);
         }
+
+        onRunStart?.Invoke(run);
 
         _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, _run);
     }

@@ -17,6 +17,11 @@ public sealed class SavePersistenceTests : IDisposable
 {
     private static readonly SaveKey<int> Visits = new("visits", SaveTestJsonContext.Default.Int32, 0);
 
+    private static readonly SaveKey<ButtonHolder> JumpBinding =
+        new("jump-binding", SaveTestJsonContext.Default.ButtonHolder, new ButtonHolder());
+
+    private static readonly InputAction Jump = new("jump");
+
     private readonly TempWorkspace _workspace = new(nameof(SavePersistenceTests));
     private readonly CollectingLogSink _log = new();
 
@@ -58,6 +63,34 @@ public sealed class SavePersistenceTests : IDisposable
         Assert.Equal([0, 2], seen);
         Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(saves, "visits.save.json")));
         Assert.Empty(_log.Entries);
+    }
+
+    // The hook binds from a document a storage already holds, and the run's first step already reads
+    // the binding it made: the run-start hook runs after saves are restored and before that step.
+    [Fact]
+    public void AHeadlessRunWithAStorageHoldingADocument_TheRunStartHookBindsFromIt_AndTheFirstStepReadsTheAction()
+    {
+        MemorySaveStorage storage = new();
+        storage.Documents["jump-binding"] = "{\"Button\":\"Key.F\"}";
+        storage.Metadata["jump-binding"] = new SaveMetadata(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+
+        bool pressedOnFirstStep = false;
+
+        HeadlessRunResult result = CapsuleEngine.Configure(
+                "Save Game",
+                new DesktopPlatform(),
+                new SceneRegistry(
+                    new EntityRegistry([]),
+                    [SceneRegistration.Plain(typeof(Jumping), _ => new Jumping(pressed => pressedOnFirstStep = pressed))]))
+            .WithFixedStep(10)
+            .WithSaveStorage(storage)
+            .WithRunStart(run => run.Input.Bindings.Bind(Jump, run.Saves.Read(JumpBinding).Button))
+            .WithoutCrashLog()
+            .WithLogSink(_log)
+            .RunHeadless<Jumping>(new InputScript().Tap(Key.F).Build());
+
+        Assert.Equal(1, result.Steps);
+        Assert.True(pressedOnFirstStep);
     }
 
     // The stamp is host state: unstamped through the step that wrote it, stamped once the flush
@@ -124,6 +157,24 @@ public sealed class SavePersistenceTests : IDisposable
         Assert.Equal("7", storage.Documents["visits"]);
     }
 
+    // The document an older build wrote carries no Volume. It reads as the property's initializer,
+    // which is what lets a game add a setting without breaking the saves already on disk.
+    [Fact]
+    public void AFieldAnOlderDocumentDoesNotCarry_ReadsAsItsInitializer()
+    {
+        MemorySaveStorage storage = new();
+        storage.Documents["settings"] = "{\"Name\": \"old\"}";
+        storage.Metadata["settings"] = new SaveMetadata(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+
+        using SimulationHost host = new(new Scene());
+        host.Run.Saves.Restore(storage);
+
+        Settings settings = host.Run.Saves.Read(new SaveKey<Settings>("settings", SaveTestJsonContext.Default.Settings));
+
+        Assert.Equal("old", settings.Name);
+        Assert.Equal(7, settings.Volume);
+    }
+
     private static SceneTransition ToScene<TScene>()
         where TScene : Scene
         => SceneTransition.ToScene(typeof(TScene), null);
@@ -146,6 +197,12 @@ public sealed class SavePersistenceTests : IDisposable
             Run.Saves.Write(Visits, Run.Saves.Read(Visits) + 1);
             metadataSeen?.Invoke(Run.Saves.Metadata(Visits));
         }
+    }
+
+    // The run-start hook's bind is already live for this scene's first step, not just its second.
+    private sealed class Jumping(Action<bool> pressed) : Scene
+    {
+        protected override void OnStep(in StepContext context) => pressed(context.Input.WasPressed(Jump));
     }
 
     private sealed class SavingOnStop : Scene

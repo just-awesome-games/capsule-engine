@@ -20,9 +20,9 @@ public sealed class TitleMenu : ScreenEntity
     // Canvas pixels between neighbouring items' centres.
     private const float ItemSpacing = 20f;
 
-    private readonly TitleMenuItem _start = new(Anchor.Center, new Vector2(0f, -ItemSpacing), "Start");
-    private readonly TitleMenuItem _sound = new(Anchor.Center, Vector2.Zero, "Sound");
-    private readonly TitleMenuItem _exit = new(Anchor.Center, new Vector2(0f, ItemSpacing), "Exit");
+    private readonly MenuItem _start = new(Anchor.Center, new Vector2(0f, -ItemSpacing), "Start");
+    private readonly MenuItem _options = new(Anchor.Center, Vector2.Zero, "Options");
+    private readonly MenuItem _exit = new(Anchor.Center, new Vector2(0f, ItemSpacing), "Exit");
 
     public TitleMenu()
         : base(Anchor.Top, new Vector2(0f, TitleMargin))
@@ -35,10 +35,10 @@ public sealed class TitleMenu : ScreenEntity
 
         // The items' order carries no layout: the navigator reads each direction from where the items
         // sit, so Up and Down walk this column and a grid needs no more than its cells listed.
-        Add(new FocusNavigator(GameInput.MenuFocus, _start.Focusable, _sound.Focusable, _exit.Focusable));
+        Add(new FocusNavigator(GameInput.MenuFocus, _start.Focusable, _options.Focusable, _exit.Focusable));
 
         _start.Pressed += StartGame;
-        _sound.Pressed += ToggleSound;
+        _options.Pressed += OpenOptions;
         _exit.Pressed += Quit;
     }
 
@@ -48,22 +48,13 @@ public sealed class TitleMenu : ScreenEntity
     protected override void OnAddedToScene()
     {
         Scene.Add(_start);
-        Scene.Add(_sound);
+        Scene.Add(_options);
         Scene.Add(_exit);
     }
 
     private void StartGame() => Run.RequestScene<Room>();
 
-    // A save moment: the document is written where the player changed it, and the bus is levelled from
-    // the same value so the run does not wait for a restart.
-    private void ToggleSound()
-    {
-        GameSettings stored = Run.Saves.Read(GameSaves.Settings);
-        GameSettings settings = stored with { SoundOn = !stored.SoundOn };
-
-        Run.Saves.Write(GameSaves.Settings, settings);
-        Run.Audio.SetVolume(AudioBuses.Sfx, settings.SoundOn ? 1f : 0f);
-    }
+    private void OpenOptions() => Run.RequestScene<Options>();
 
     private void Quit() => Run.RequestExit();
 }

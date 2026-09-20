@@ -92,4 +92,25 @@ public sealed class InputButtonTests
         Assert.False(((InputButton)StickDirection.LeftStickRight).IsDown(released));
         Assert.True(((InputButton)StickDirection.LeftStickLeft).IsDown(released));
     }
+
+    [Theory]
+    [MemberData(nameof(RoundTripButtons))]
+    public void ToStringAndParse_RoundTrip(InputButton button) =>
+        Assert.Equal(button, InputButton.Parse(button.ToString()));
+
+    public static IEnumerable<object[]> RoundTripButtons()
+    {
+        yield return [InputButton.None];
+        yield return [(InputButton)Key.Space];
+        yield return [(InputButton)PadButton.South];
+        yield return [(InputButton)MouseButton.Left];
+        yield return [(InputButton)StickDirection.LeftStickUp];
+    }
+
+    [Fact]
+    public void Parse_RejectsANumericEnumString()
+    {
+        Assert.False(InputButton.TryParse("Key.999", out _));
+        Assert.Throws<FormatException>(() => InputButton.Parse("Key.999"));
+    }
 }

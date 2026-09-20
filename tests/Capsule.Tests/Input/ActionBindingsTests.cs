@@ -129,6 +129,40 @@ public sealed class ActionBindingsTests
     }
 
     [Fact]
+    public void Rebind_DropsThePreviousButtons()
+    {
+        ActionBindings bindings = new ActionBindings().Bind(Jump, Key.Space, PadButton.South);
+
+        bindings.Rebind(Jump, Key.F);
+
+        InputButton[] expected = [Key.F];
+        Assert.Equal(expected, bindings.ButtonsFor(Jump).ToArray());
+        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+        Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.F)));
+    }
+
+    [Fact]
+    public void Unbind_LeavesTheActionUnbound()
+    {
+        ActionBindings bindings = new ActionBindings().Bind(Jump, Key.Space);
+
+        bindings.Unbind(Jump);
+
+        Assert.True(bindings.ButtonsFor(Jump).IsEmpty);
+        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+    }
+
+    [Fact]
+    public void UnbindAxis_LeavesTheActionUnbound()
+    {
+        ActionBindings bindings = new ActionBindings().BindAxis(Move, PadAxis.LeftStickX);
+
+        bindings.Unbind(Move);
+
+        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
+    }
+
+    [Fact]
     public void ABooleanAndAnAxisActionOfTheSameName_DoNotCollide()
     {
         ActionBindings bindings = new ActionBindings()
