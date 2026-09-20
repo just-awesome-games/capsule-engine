@@ -96,7 +96,9 @@ layer and scroll factor, and enters and leaves the scene with it.
 
 How frames, layers, cameras and parallax are drawn is [`rendering.md`](rendering.md). Saved state is
 `Run.Saves` ([`persistence.md`](persistence.md)), sound is `Run.Audio` ([`audio.md`](audio.md)), and what a
-scene preloads and when it is released is [`assets.md`](assets.md#loading-and-residency).
+scene preloads and when it is released is [`assets.md`](assets.md#loading-and-residency). What the game
+itself keeps for a run's length is one object it attaches at run start (`Run.Attach`) and reads anywhere
+as `Run.State<T>()`.
 
 ## Platforms
 

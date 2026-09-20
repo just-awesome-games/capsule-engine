@@ -15,7 +15,6 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     /// <see cref="StickDirection"/> to read as held. It applies to the axis position the snapshot
     /// carries, which is already past the run's stick deadzone.
     /// </summary>
-    // Unity's default press point.
     public const float StickPressPoint = 0.5f;
 
     private readonly Key _key;

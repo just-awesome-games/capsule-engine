@@ -1,4 +1,5 @@
 using Capsule;
+using Capsule.Assets.Generated;
 using Capsule.Scenes;
 using MinimalGame.Game.UI;
 
@@ -13,6 +14,10 @@ namespace MinimalGame.Game.Scenes;
 public sealed class MainMenu : Scene
 {
     public MainMenu() => Add(new TitleMenu());
+
+    // A track already playing is left alone, so a trip through Options and back does not restart it.
+    /// <inheritdoc/>
+    protected override void OnStart() => Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)

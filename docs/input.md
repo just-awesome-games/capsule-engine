@@ -36,7 +36,8 @@ public static class GameInput
 ```
 
 The shell runs `GameBoot.Start` once per run through `WithRunStart`, after saves are restored and
-before the first scene. It reads the settings, hands them to `Configure`, and levels the audio.
+before the first scene. It attaches its run object, reads the settings, hands them to `Configure`, and
+levels the audio.
 
 Constructing an `InputAction` or an `AxisAction` resolves its name to a dense index, and a binding
 lookup is an array read that allocates nothing. Declare each action once as a static field. Building

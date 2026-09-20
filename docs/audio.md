@@ -75,6 +75,30 @@ Up to `AudioMixer.MaxVoices` voices sound at once, and a further play steals the
 voice is a live loop, nothing starts. `UnfocusedVolume` is the master scale applied while the window
 has no input focus.
 
+## Fades
+
+A fade is a ramp the mixer steps on its own tick, through a pause and past the scene that started it. A
+crossfade composes two ramps: the incoming voice eases in while the outgoing one eases out, holding one
+voice's worth of power throughout.
+
+```csharp
+Music = Run.Audio.CrossFade(
+    menuTheme,
+    new AudioPlayback(CapsuleAssets.Audio.Music.Room) { Bus = AudioBuses.Music, Loop = true },
+    seconds: 2f);
+```
+
+A fade-out cues the next sound once the old one has cleared the mix. A bus fade ducks under dialogue
+the way `SetVolume` levels a bus, only smoothed:
+
+```csharp
+Run.Audio.Stop(Music, seconds: 0.5f);
+Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
+```
+
+Ramps step on the mixer's own tick. A held voice still ramps. `SetVolume` cancels a ramp in progress.
+There is no completion callback. Poll `IsLive` for the edge. A crossfade is equal-power.
+
 ## Formats and streaming
 
 `.wav` and `.ogg` are admitted, and MP3 is not. The host holds a `.wav` clip resident for every scene

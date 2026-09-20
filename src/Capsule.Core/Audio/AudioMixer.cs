@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Capsule.Animation;
 
 namespace Capsule.Audio;
 
@@ -78,16 +79,58 @@ public sealed class AudioMixer
 
     /// <summary>
     /// Sets this bus's linear amplitude in [0, 1], registering the bus if it is new, and raises
-    /// <see cref="AudioCommandKind.SetGain"/> for every live voice on it.
-    /// <see cref="AudioBus.Master"/> covers every live voice. Bus volumes belong to the run and
-    /// stand until they are set again.
+    /// <see cref="AudioCommandKind.SetGain"/> for every live voice on it. <see cref="AudioBus.Master"/>
+    /// covers every live voice. Bus volumes belong to the run and stand until they are set again. This
+    /// cancels any ramp <see cref="FadeVolume(AudioBus, float, float, Ease)"/> started on the bus.
     /// </summary>
     public void SetVolume(AudioBus bus, float volume)
     {
         Guard.InUnit(volume, nameof(volume));
 
         int index = Register(bus);
-        CollectionsMarshal.AsSpan(_buses)[index].Volume = volume;
+        ref Bus bus0 = ref CollectionsMarshal.AsSpan(_buses)[index];
+        bus0.Volume = volume;
+        bus0.Ramp.Active = false;
+
+        Span<Slot> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (!ReclaimIfExpired(ref slots[i]) && (index == 0 || slots[i].Bus == index))
+            {
+                Raise(AudioCommandKind.SetGain, i, in slots[i], Gain(in slots[i]), 0f);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ramps this bus's own linear amplitude from where it is to <paramref name="volume"/> over
+    /// <paramref name="seconds"/> on <paramref name="ease"/>, registering the bus if it is new. A
+    /// duration of zero sets the volume at once, exactly as <see cref="SetVolume(AudioBus, float)"/> does.
+    /// </summary>
+    /// <remarks>
+    /// Each step the ramp moves, this raises <see cref="AudioCommandKind.SetGain"/> for every live
+    /// voice on the bus.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
+    /// finite, or <paramref name="ease"/> is not a declared curve.
+    /// </exception>
+    public void FadeVolume(AudioBus bus, float volume, float seconds, Ease ease = Ease.Linear)
+    {
+        Guard.InUnit(volume, nameof(volume));
+        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.RequireEase(ease, nameof(ease));
+
+        int index = Register(bus);
+        ref Bus bus0 = ref CollectionsMarshal.AsSpan(_buses)[index];
+        StartRamp(ref bus0.Ramp, bus0.Volume, volume, seconds, ease);
+
+        if (bus0.Ramp.Active)
+        {
+            return;
+        }
+
+        bus0.Volume = volume;
 
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
@@ -185,6 +228,39 @@ public sealed class AudioMixer
         return Voice.Of(index, slot.Generation);
     }
 
+    /// <summary>
+    /// Plays <paramref name="to"/> with its own volume forced to 0, ramps it up to
+    /// <see cref="AudioPlayback.Volume"/> over <paramref name="seconds"/> on <see cref="Ease.OutSine"/>,
+    /// and fades <paramref name="from"/> out over the same span on <see cref="Ease.InSine"/>. A
+    /// <paramref name="from"/> that is <see cref="Voice.None"/> or already ended is a plain fade-in.
+    /// </summary>
+    /// <remarks>The two hold equal power throughout.</remarks>
+    /// <returns>The voice <paramref name="to"/> started, or <see cref="Voice.None"/> when the mixer had none to give, leaving <paramref name="from"/> untouched.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The playback's volume, pitch, pan or start is outside its range, its clip carries a loop region
+    /// that does not fit it, or <paramref name="seconds"/> is negative or not finite.
+    /// </exception>
+    public Voice CrossFade(Voice from, in AudioPlayback to, float seconds)
+    {
+        Guard.InUnit(to.Volume, nameof(to));
+        Guard.RequireSeconds(seconds, nameof(seconds));
+
+        Voice started = Play(to with { Volume = 0f });
+        if (started.IsNone)
+        {
+            return Voice.None;
+        }
+
+        FadeVolume(started, to.Volume, seconds, Ease.OutSine);
+
+        if (TryResolve(from, out int fromIndex))
+        {
+            FadeStop(fromIndex, seconds, Ease.InSine);
+        }
+
+        return started;
+    }
+
     /// <summary>Ends <paramref name="voice"/>, raising <see cref="AudioCommandKind.Stop"/> and freeing its slot.</summary>
     public void Stop(Voice voice)
     {
@@ -196,6 +272,26 @@ public sealed class AudioMixer
         ref Slot slot = ref _slots[index];
         Raise(AudioCommandKind.Stop, index, in slot, 0f, 0f);
         Free(ref slot);
+    }
+
+    /// <summary>
+    /// Ramps this voice's own amplitude to 0 on <see cref="Ease.Linear"/> over <paramref name="seconds"/>,
+    /// then raises <see cref="AudioCommandKind.Stop"/> alone on the landing tick and frees the slot. A
+    /// duration of zero stops the voice at once, as <see cref="Stop(Voice)"/> does.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IsLive(Voice)"/> reads true until the landing tick. <see cref="Stop(Voice)"/> during
+    /// the fade stops at once instead.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="seconds"/> is negative or not finite.</exception>
+    public void Stop(Voice voice, float seconds)
+    {
+        Guard.RequireSeconds(seconds, nameof(seconds));
+
+        if (TryResolve(voice, out int index))
+        {
+            FadeStop(index, seconds, Ease.Linear);
+        }
     }
 
     /// <summary>
@@ -237,7 +333,9 @@ public sealed class AudioMixer
 
     /// <summary>
     /// Sets this voice's own linear amplitude in [0, 1] and raises
-    /// <see cref="AudioCommandKind.SetGain"/> with the gain that resolves to.
+    /// <see cref="AudioCommandKind.SetGain"/> with the gain that resolves to. This cancels any ramp
+    /// <see cref="FadeVolume(Voice, float, float, Ease)"/> or <see cref="Stop(Voice, float)"/> started
+    /// on the voice, including a pending fade-stop.
     /// </summary>
     public void SetVolume(Voice voice, float volume)
     {
@@ -250,7 +348,45 @@ public sealed class AudioMixer
 
         ref Slot slot = ref _slots[index];
         slot.Volume = volume;
+        slot.Ramp.Active = false;
+        slot.FadeStops = false;
         Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+    }
+
+    /// <summary>
+    /// Ramps this voice's own linear amplitude from where it is to <paramref name="volume"/> over
+    /// <paramref name="seconds"/> on <paramref name="ease"/>, replacing any ramp already on the voice,
+    /// including a pending fade-stop. A voice that resolves to nothing does nothing, and a duration of
+    /// zero sets the volume at once, exactly as <see cref="SetVolume(Voice, float)"/> does.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is raised by this call. The first ramped <see cref="AudioCommandKind.SetGain"/> lands on
+    /// the next step.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
+    /// finite, or <paramref name="ease"/> is not a declared curve.
+    /// </exception>
+    public void FadeVolume(Voice voice, float volume, float seconds, Ease ease = Ease.Linear)
+    {
+        Guard.InUnit(volume, nameof(volume));
+        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.RequireEase(ease, nameof(ease));
+
+        if (!TryResolve(voice, out int index))
+        {
+            return;
+        }
+
+        ref Slot slot = ref _slots[index];
+        slot.FadeStops = false;
+        StartRamp(ref slot.Ramp, slot.Volume, volume, seconds, ease);
+
+        if (!slot.Ramp.Active)
+        {
+            slot.Volume = volume;
+            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+        }
     }
 
     /// <summary>
@@ -346,6 +482,10 @@ public sealed class AudioMixer
 
     // Clears the previous step's commands and moves the mixer's clock onto this step. A voice started
     // during the step expires against this step's tick and step length.
+    // The mixer used to be lazy: BeginStep cleared the commands and moved the clock, and everything
+    // else was derived when something asked. It now does one allocation-free walk over the bus table
+    // and the slots every step, advancing whatever ramp is active and raising the gain a moved one
+    // lands on.
     internal void BeginStep(in StepContext context)
     {
         _commands.Clear();
@@ -355,10 +495,46 @@ public sealed class AudioMixer
         {
             ChangeStepLength(context.StepSeconds);
         }
+
+        Span<Bus> buses = CollectionsMarshal.AsSpan(_buses);
+        for (int i = 0; i < buses.Length; i++)
+        {
+            buses[i].Moved = AdvanceRamp(ref buses[i].Ramp, ref buses[i].Volume, _tick);
+        }
+
+        bool masterMoved = buses[0].Moved;
+
+        Span<Slot> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (ReclaimIfExpired(ref slots[i]))
+            {
+                continue;
+            }
+
+            ref Slot slot = ref slots[i];
+            bool slotMoved = AdvanceRamp(ref slot.Ramp, ref slot.Volume, _tick);
+            bool landed = slotMoved && !slot.Ramp.Active;
+
+            if (slot.FadeStops && landed)
+            {
+                Raise(AudioCommandKind.Stop, i, in slot, 0f, 0f);
+                Free(ref slot);
+                continue;
+            }
+
+            bool busMoved = masterMoved || (slot.Bus != 0 && buses[slot.Bus].Moved);
+            if (slotMoved || busMoved)
+            {
+                Raise(AudioCommandKind.SetGain, i, in slot, Gain(in slot), 0f);
+            }
+        }
     }
 
     // A live one-shot was armed against the step length in force when it started. Bank its remaining clip
-    // time at the old length and re-arm at the new one, so the voice still lasts its clip's duration.
+    // time at the old length and re-arm at the new one, so the voice still lasts its clip's duration. A
+    // ramp is rebased the same way, to elapsed and remaining wall-clock seconds at the old length and
+    // back to ticks at the new one. This preserves the eased fraction it has reached.
     private void ChangeStepLength(double stepSeconds)
     {
         Span<Slot> slots = _slots;
@@ -367,7 +543,14 @@ public sealed class AudioMixer
             if (!ReclaimIfExpired(ref slots[i]))
             {
                 Rebase(ref slots[i]);
+                RebaseRamp(ref slots[i].Ramp, _stepSeconds, stepSeconds);
             }
+        }
+
+        Span<Bus> buses = CollectionsMarshal.AsSpan(_buses);
+        for (int i = 0; i < buses.Length; i++)
+        {
+            RebaseRamp(ref buses[i].Ramp, _stepSeconds, stepSeconds);
         }
 
         _stepSeconds = stepSeconds;
@@ -379,6 +562,76 @@ public sealed class AudioMixer
                 Arm(ref slots[i]);
             }
         }
+    }
+
+    // Starts a ramp from its current value to a new one, TicksFor(seconds) ticks from the current tick.
+    // A zero-tick ramp leaves Active false. The caller applies the target at once instead.
+    private void StartRamp(ref Ramp ramp, float from, float to, float seconds, Ease ease)
+    {
+        long ticks = TicksFor(seconds);
+        ramp.From = from;
+        ramp.To = to;
+        ramp.StartTick = _tick;
+        ramp.EndTick = _tick + ticks;
+        ramp.Ease = ease;
+        ramp.Active = ticks > 0;
+    }
+
+    // Moves an active ramp to this tick, writing the eased value into the field it owns, and clears the
+    // ramp on the tick it lands. Returns whether the value changed, which is false for an inactive ramp.
+    private static bool AdvanceRamp(ref Ramp ramp, ref float value, long tick)
+    {
+        if (!ramp.Active)
+        {
+            return false;
+        }
+
+        if (tick >= ramp.EndTick)
+        {
+            value = ramp.To;
+            ramp.Active = false;
+
+            return true;
+        }
+
+        float fraction = (float)(tick - ramp.StartTick) / (ramp.EndTick - ramp.StartTick);
+        value = ramp.From + ((ramp.To - ramp.From) * Easing.Apply(ramp.Ease, fraction));
+
+        return true;
+    }
+
+    // Rebases an active ramp's ticks from the old step length to the new one, at the current tick,
+    // preserving the wall-clock seconds elapsed and remaining.
+    private void RebaseRamp(ref Ramp ramp, double oldStepSeconds, double newStepSeconds)
+    {
+        if (!ramp.Active)
+        {
+            return;
+        }
+
+        double elapsed = (_tick - ramp.StartTick) * oldStepSeconds;
+        double remaining = (ramp.EndTick - _tick) * oldStepSeconds;
+
+        ramp.EndTick = _tick + TicksAt(remaining, newStepSeconds);
+        ramp.StartTick = _tick - TicksAt(elapsed, newStepSeconds);
+    }
+
+    // Ramps a voice to 0 over seconds on ease, then stops it on the landing tick. Shared by Stop(Voice,
+    // float) and the outgoing half of CrossFade, which differ only in the curve.
+    private void FadeStop(int index, float seconds, Ease ease)
+    {
+        ref Slot slot = ref _slots[index];
+
+        if (TicksFor(seconds) == 0)
+        {
+            Raise(AudioCommandKind.Stop, index, in slot, 0f, 0f);
+            Free(ref slot);
+
+            return;
+        }
+
+        StartRamp(ref slot.Ramp, slot.Volume, 0f, seconds, ease);
+        slot.FadeStops = true;
     }
 
     private void SetBusPaused(AudioBus bus, bool paused)
@@ -551,6 +804,8 @@ public sealed class AudioMixer
     {
         slot.Live = false;
         slot.Clip = default;
+        slot.Ramp.Active = false;
+        slot.FadeStops = false;
         slot.Generation = slot.Generation >= MaxGeneration ? 1 : slot.Generation + 1;
     }
 
@@ -607,14 +862,16 @@ public sealed class AudioMixer
         return _buses.Count - 1;
     }
 
-    private long TicksFor(double seconds)
+    private long TicksFor(double seconds) => TicksAt(seconds, _stepSeconds);
+
+    private static long TicksAt(double seconds, double stepSeconds)
     {
         if (!(seconds > 0.0))
         {
             return 0;
         }
 
-        double exact = seconds / _stepSeconds;
+        double exact = seconds / stepSeconds;
 
         return (long)Math.Ceiling(exact - (exact * TickTolerance));
     }
@@ -660,6 +917,12 @@ public sealed class AudioMixer
         internal float Volume = 1f;
 
         internal bool Paused;
+
+        internal Ramp Ramp;
+
+        // Whether this step's BeginStep walk moved Volume, by SetVolume or by the ramp. Recomputed every
+        // step, never accumulated.
+        internal bool Moved;
     }
 
     private struct Slot
@@ -701,5 +964,27 @@ public sealed class AudioMixer
         // Unwrapped clip time reached at Clock, kept unrounded so pitch changes neither add nor lose
         // playback time.
         internal double TimeAtClock;
+
+        internal Ramp Ramp;
+
+        // Whether the active ramp is a fade to 0 that stops and frees this slot on its landing tick.
+        internal bool FadeStops;
+    }
+
+    // A linear-time ramp on one float field, stepped by BeginStep. From and To are the values at
+    // StartTick and EndTick; between them the field holds From plus the eased fraction of their span.
+    private struct Ramp
+    {
+        internal float From;
+
+        internal float To;
+
+        internal long StartTick;
+
+        internal long EndTick;
+
+        internal Ease Ease;
+
+        internal bool Active;
     }
 }

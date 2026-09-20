@@ -1,3 +1,4 @@
+using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
@@ -53,6 +54,26 @@ public sealed class AudioSource(AudioClip clip) : Component
             _volume = value;
             _playing?.SetVolume(_voice, value);
         }
+    }
+
+    /// <summary>
+    /// Ramps <see cref="Volume"/> from where the live voice is to <paramref name="volume"/> over
+    /// <paramref name="seconds"/> on <paramref name="ease"/>. <see cref="Volume"/> reads
+    /// <paramref name="volume"/> at once, the target, not the ramp.
+    /// </summary>
+    /// <remarks>Does nothing to the mixer when this source owns no voice.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
+    /// finite, or <paramref name="ease"/> is not a declared curve.
+    /// </exception>
+    public void FadeVolume(float volume, float seconds, Ease ease = Ease.Linear)
+    {
+        Guard.InUnit(volume, nameof(volume));
+        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.RequireEase(ease, nameof(ease));
+
+        _volume = volume;
+        _playing?.FadeVolume(_voice, volume, seconds, ease);
     }
 
     /// <summary>
@@ -187,6 +208,19 @@ public sealed class AudioSource(AudioClip clip) : Component
         _playing?.Stop(_voice);
         _playing = null;
         _voice = Voice.None;
+    }
+
+    /// <summary>
+    /// Ramps this source's voice to 0 over <paramref name="seconds"/> and stops it on the landing tick.
+    /// The source must outlive the fade: <see cref="Component.OnRemovedFromScene"/> still stops at once.
+    /// </summary>
+    /// <remarks><see cref="IsLive"/> follows the ramp. Poll it for the edge. Does nothing when this source owns no voice.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="seconds"/> is negative or not finite.</exception>
+    public void Stop(float seconds)
+    {
+        Guard.RequireSeconds(seconds, nameof(seconds));
+
+        _playing?.Stop(_voice, seconds);
     }
 
     /// <summary>Holds this source's voice where it is. Does nothing when the source owns no voice.</summary>

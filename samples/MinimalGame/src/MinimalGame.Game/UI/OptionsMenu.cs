@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Scenes;
 using Capsule.UI;
@@ -60,6 +61,7 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _settings = Run.Saves.Read(GameSaves.Settings);
         Refresh(InputDevice.KeyboardMouse);
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
     }
 
     /// <inheritdoc/>
@@ -129,7 +131,10 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _settings.SoundOn = !_settings.SoundOn;
         Run.Saves.Write(GameSaves.Settings, _settings);
+
+        // A click must not ramp; music must not pop.
         Run.Audio.SetVolume(AudioBuses.Sfx, _settings.SoundOn ? 1f : 0f);
+        Run.Audio.FadeVolume(AudioBuses.Music, _settings.SoundOn ? 1f : 0f, 0.2f);
 
         _sound.Caption = _settings.SoundOn ? "Sound: On" : "Sound: Off";
     }

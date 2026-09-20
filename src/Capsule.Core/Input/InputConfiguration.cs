@@ -23,7 +23,6 @@ namespace Capsule.Input;
 public sealed class InputConfiguration
 {
     /// <summary>The stick radius a game that never sets one is filtered by.</summary>
-    // Unreal's own stick deadzone, shipped in BaseInput.ini.
     public const float DefaultStickDeadzone = 0.25f;
 
     /// <summary>The trigger pull a game that never sets one is filtered by.</summary>

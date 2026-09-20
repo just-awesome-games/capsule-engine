@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Animation;
 
 namespace Capsule;
 
@@ -37,6 +38,22 @@ internal static class Guard
         if (!(value >= low && value <= high))
         {
             throw new ArgumentOutOfRangeException(parameterName, value, $"Expected a number in [{low}, {high}].");
+        }
+    }
+
+    internal static void RequireSeconds(float seconds, string parameterName)
+    {
+        if (!(seconds >= 0f) || float.IsInfinity(seconds))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, seconds, "Expected a finite, non-negative number.");
+        }
+    }
+
+    internal static void RequireEase(Ease ease, string parameterName)
+    {
+        if (ease is < Ease.Linear or > Ease.InOutBounce)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, ease, "No such easing curve.");
         }
     }
 }

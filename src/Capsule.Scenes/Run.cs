@@ -27,6 +27,7 @@ public sealed class Run
     private bool _exitRequested;
     private string? _frameCapturePath;
     private SceneTransition? _transition;
+    private object? _state;
 
     /// <summary>The canvas a run uses when none is supplied, 1280 by 720 pixels.</summary>
     public static Vector2 StandardCanvas { get; } = new(1280f, 720f);
@@ -128,6 +129,43 @@ public sealed class Run
     /// the first scene composes, so settings are readable from the first start hook.
     /// </summary>
     public SaveStore Saves { get; }
+
+    /// <summary>Attaches the game's one run-scoped object.</summary>
+    /// <param name="state">The object to attach.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">A run already holds one attached object.</exception>
+    public void Attach<TState>(TState state)
+        where TState : class
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        if (_state is not null)
+        {
+            throw new InvalidOperationException("A run holds one attached object. Attach it once, at run start.");
+        }
+
+        _state = state;
+    }
+
+    /// <summary>The object <see cref="Attach{TState}"/> attached, as <typeparamref name="TState"/>.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// Nothing is attached, or the attached object is not a <typeparamref name="TState"/>.
+    /// </exception>
+    public TState State<TState>()
+        where TState : class
+    {
+        if (_state is null)
+        {
+            throw new InvalidOperationException("Nothing is attached to this run. Attach the game's object at run start.");
+        }
+
+        if (_state is not TState state)
+        {
+            throw new InvalidOperationException($"The run's attached object is a {_state.GetType()}, not a {typeof(TState)}.");
+        }
+
+        return state;
+    }
 
     /// <summary>
     /// The run's input configuration, the one the shell built through

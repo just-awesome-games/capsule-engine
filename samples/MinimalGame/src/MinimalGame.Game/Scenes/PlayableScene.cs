@@ -1,4 +1,5 @@
 using Capsule;
+using Capsule.Assets.Generated;
 using Capsule.Scenes;
 using MinimalGame.Game.Cameras;
 using MinimalGame.Game.Entities;
@@ -26,7 +27,13 @@ public abstract class PlayableScene : Scene
     }
 
     /// <inheritdoc/>
-    protected override void OnStart() => Player = FindSingle<Player>();
+    protected override void OnStart()
+    {
+        Player = FindSingle<Player>();
+
+        // Crossfades from whatever was playing, or fades in alone under --scene Room.
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Room);
+    }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
@@ -44,6 +51,7 @@ public abstract class PlayableScene : Scene
     {
         if (Player.Health == 0)
         {
+            Run.Game.Music.Stop(seconds: 0.5f);
             Run.RequestScene<MainMenu>();
         }
     }
