@@ -22,6 +22,12 @@
           "Microsoft.TestPlatform.TestHost": "17.14.1"
         }
       },
+      "NVorbis": {
+        "type": "Direct",
+        "requested": "[0.10.4, )",
+        "resolved": "0.10.4",
+        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
+      },
       "xunit": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -95,11 +101,6 @@
         "type": "Transitive",
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
-      },
-      "NVorbis": {
-        "type": "Transitive",
-        "resolved": "0.10.4",
-        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
       "StbImageSharp": {
         "type": "Transitive",
@@ -190,8 +191,7 @@
         "type": "Project",
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
-          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
-          "NVorbis": "[0.10.4, )"
+          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )"
         }
       },
       "JAG.Capsule.Runtime.Desktop": {

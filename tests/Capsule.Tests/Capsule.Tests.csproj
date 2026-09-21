@@ -21,6 +21,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <!-- The reference decoder VorbisDecodeTests checks the vendored one against. MonoGame carries
+         NVorbis as a runtime dependency only, so it does not flow as a compile reference here. -->
+    <PackageReference Include="NVorbis" Version="0.10.4" />
   </ItemGroup>
 
   <!-- Referencing the runtime through its desktop module also makes this project a live probe
@@ -39,6 +42,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A copy of samples/MinimalGame's room.ogg, mono 44.1 kHz, 176 400 frames; the fixture
+         VorbisAllocationTests plays and loops. -->
+    <None Include="Audio/Fixtures/loop.ogg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

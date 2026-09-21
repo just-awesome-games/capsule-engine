@@ -345,10 +345,16 @@ public sealed class OverlayPageTests
 
         AssertLadder(overlay, host.Run.TimeScale);
 
-        // Set off the ladder while the page is open: the marks follow it on the very next frame,
-        // because the page is rebuilt from the run every frame.
+        // Set off the ladder by a hand outside the overlay, bypassing SetTimeScale: the page holds
+        // its last marks on an idle frame, since nothing here told it the run had changed, and
+        // catches up the next time a host act rebuilds it, here by leaving and reopening the page.
         host.Run.TimeScale = 1.5;
         Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+
+        AssertLadder(overlay, 2);
+
+        Press(overlay, scheduler, host, Key.Backspace);
+        Press(overlay, scheduler, host, Key.T);
 
         AssertLadder(overlay, 1.5);
 

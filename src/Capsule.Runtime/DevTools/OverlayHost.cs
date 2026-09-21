@@ -10,8 +10,9 @@ using Capsule.Scenes;
 namespace Capsule.Runtime.DevTools;
 
 // The development overlay beside the game: the toggle, the input quarantine, the hold, and the page
-// of rows it draws. The current page's rows are rebuilt from the run every overlay frame, so nothing
-// here goes stale or needs invalidating.
+// of rows it draws. The overlay holds the run while open, so its page can change only through the
+// host's own acts; the current page's rows, the root's hotkey rows and the readout are rebuilt from
+// the run only when an act since the last rebuild could have changed them, never on an idle frame.
 internal sealed class OverlayHost : IDisposable
 {
     // The paces the Time Scale page offers, slowest first. 4x is the top, because the default frame
@@ -63,6 +64,25 @@ internal sealed class OverlayHost : IDisposable
     private int _first;
     private int _heldFrames;
     private bool _repeating;
+
+    // Set by every host act that could change the current page, the root's hotkey rows or the
+    // readout, and cleared once each open frame after everything that reads it this frame has.
+    // An idle frame, with nothing set it, rebuilds nothing.
+    private bool _pageStale = true;
+
+    // Whether _rootRows still matches the run. Paired with _pageStale rather than folded into it:
+    // the current page is rebuilt by the one place that reads _pageStale for it, but HotkeyRows is
+    // reached at whatever depth the frame is at when a hotkey is checked, which is depth one (no
+    // _rootRows involved at all) on the very frame a submenu is pushed. A cache keyed on _pageStale
+    // alone would then find the flag already spent by the current page's own rebuild and never fill
+    // _rootRows for the submenu that just opened. Both bits go stale together; only this one is
+    // consumed at its own point of use.
+    private bool _rootRowsValid;
+
+    // The focus and window as Scene.Show last drew them, so a frame that neither rebuilt the page
+    // nor moved either one skips the draw. -1 forces the first open frame to draw regardless.
+    private int _shownFocus = -1;
+    private int _shownFirst = -1;
 
     // Wheel notches not yet applied to the window: a fine wheel or a touchpad reports fractions of a
     // notch, which add up here until they make a whole one.
@@ -245,6 +265,13 @@ internal sealed class OverlayHost : IDisposable
                 _scheduler.Held = held;
                 HoldChanged?.Invoke(held);
             }
+
+            // Entering Open from Closed or Hidden: the run stepped freely while this was shut, so
+            // the page it shows next may be stale even though nothing here changed it.
+            if (_state == OverlayState.Open && !wasOpen)
+            {
+                SetStale();
+            }
         }
 
         _toggleDown = toggleDown;
@@ -257,6 +284,7 @@ internal sealed class OverlayHost : IDisposable
         {
             _state = OverlayState.Open;
             _hidePressConsumed = true;
+            SetStale();
         }
 
         _hideDown = hideDown;
@@ -349,15 +377,27 @@ internal sealed class OverlayHost : IDisposable
         {
             _input.Advance(in _sampled);
             ReadRows();
-            RefreshReadout();
+
+            // The readout changes only on a step or a transition, both of which set _pageStale, so
+            // an idle frame between them reads it here and does nothing.
+            if (_pageStale)
+            {
+                RefreshReadout();
+            }
 
             if (_state == OverlayState.Open)
             {
                 // The rows are rebuilt after the input as well as before it, because an act may have
                 // stepped the run, changed the scene or opened a page. The frame that did so shows
-                // the result.
-                BuildRows();
-                Scene.Show(_title, _rows, _focus, _first);
+                // the result. An idle frame rebuilds nothing, and draws again only if the pointer or
+                // the keys moved the focus or the window since the last draw.
+                bool rebuilt = BuildRows();
+                if (rebuilt || _focus != _shownFocus || _first != _shownFirst)
+                {
+                    Scene.Show(_title, _rows, _focus, _first);
+                    _shownFocus = _focus;
+                    _shownFirst = _first;
+                }
             }
             else
             {
@@ -366,6 +406,11 @@ internal sealed class OverlayHost : IDisposable
                 Scene.ShowMenu(false);
                 _scrollRemainder = 0f;
             }
+
+            // Every consumer of this frame's staleness (RefreshReadout, BuildRows) has now run, so
+            // the current page goes stale again only on the next act. HotkeyRows keeps _rootRows
+            // valid on its own, since it is reached at whatever depth a hotkey is checked at.
+            _pageStale = false;
 
             _overlay.RewriteView();
         }
@@ -402,6 +447,7 @@ internal sealed class OverlayHost : IDisposable
         }
 
         Scene.ShowFramePane(_framePaneOn);
+        SetStale();
     }
 
     // Flips a channel for the rest of the play session. Draws follow on the overlay's next frame
@@ -418,6 +464,7 @@ internal sealed class OverlayHost : IDisposable
 
         AttachBuffer();
         EmitDraws();
+        SetStale();
     }
 
     // Whether scale is the pace in force. A pace a game set off the ladder matches no row.
@@ -425,7 +472,11 @@ internal sealed class OverlayHost : IDisposable
 
     // Sets the pace for the rest of the run. The overlay never resets it, the simulation is unchanged,
     // and no tick is stepped.
-    internal void SetTimeScale(double scale) => Pace = scale;
+    internal void SetTimeScale(double scale)
+    {
+        Pace = scale;
+        SetStale();
+    }
 
     internal void Hide() => _state = OverlayState.Hidden;
 
@@ -556,7 +607,8 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    // The root's rows, which are the current ones at the root and a freshly built list below it.
+    // The root's rows, which are the current ones at the root and a cached list below it, rebuilt
+    // whenever the same act that stales the current page has also invalidated the cache.
     private List<OverlayRow> HotkeyRows()
     {
         if (_pages.Count == 1)
@@ -564,10 +616,23 @@ internal sealed class OverlayHost : IDisposable
             return _rows;
         }
 
-        _rootRows.Clear();
-        BuildRoot(_rootRows);
+        if (!_rootRowsValid)
+        {
+            _rootRows.Clear();
+            BuildRoot(_rootRows);
+            _rootRowsValid = true;
+        }
 
         return _rootRows;
+    }
+
+    // Marks the current page, the readout and the root's hotkey rows stale: called by every host act
+    // that could change what any of them show. A rebuild each then runs at its own point of use on
+    // the frame that follows, and not before.
+    private void SetStale()
+    {
+        _pageStale = true;
+        _rootRowsValid = false;
     }
 
     // True on the press edge, and again every RepeatIntervalFrames while the key is held past the
@@ -623,10 +688,17 @@ internal sealed class OverlayHost : IDisposable
         _first = Math.Clamp(_first + rows, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
     }
 
-    // Rebuilds the current page's rows from the run as it stands, dropping an entity panel whose
-    // subject has left the scene, and brings the focus and the window to them.
-    private void BuildRows()
+    // Rebuilds the current page's rows from the run as it stands when a host act has made them
+    // stale, dropping an entity panel whose subject has left the scene, and brings the focus and
+    // the window to them. Returns at once, doing nothing, on a frame nothing set stale. Returns
+    // whether it rebuilt.
+    private bool BuildRows()
     {
+        if (!_pageStale)
+        {
+            return false;
+        }
+
         while (true)
         {
             _rows.Clear();
@@ -665,6 +737,8 @@ internal sealed class OverlayHost : IDisposable
         // Clamped to the page alone, not to the focus: the wheel moves this away from the focus, and
         // Move is what brings it back once a direction press changes which row is focused.
         _first = Math.Clamp(_first, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
+
+        return true;
     }
 
     // The interactive row nearest index, searched outward and preferring the earlier row at a tie,
@@ -785,6 +859,7 @@ internal sealed class OverlayHost : IDisposable
         _focus = 0;
         _first = 0;
         _scrollRemainder = 0f;
+        SetStale();
     }
 
     // Returns to the page beneath, focused on the row that opened this one. Does nothing at the root.
@@ -799,13 +874,16 @@ internal sealed class OverlayHost : IDisposable
         _first = 0;
         _scrollRemainder = 0f;
         _pages.RemoveAt(_pages.Count - 1);
+        SetStale();
     }
 
     // A request the run declines, because a transition is already pending, is shown on the status line
     // and not stepped, or the pending transition would be stepped in its place. A request the run or
     // the host refuses is shown and logged in full. Either way the run stays held on its current scene.
+    // Refused or not, the request is the act: either path can leave something for the page to show.
     private void Request(string action, in SceneTransition transition)
     {
+        SetStale();
         try
         {
             if (!GameRun.TryRequest(in transition))
@@ -850,6 +928,7 @@ internal sealed class OverlayHost : IDisposable
         _steppedTicks += _scheduler.StepsThisFrame;
         SettleDraws();
         RefreshReadout();
+        SetStale();
     }
 
     private void Report(string action, Exception failure)

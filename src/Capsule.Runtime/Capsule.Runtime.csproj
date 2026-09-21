@@ -26,12 +26,6 @@
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
 
-    <!-- Already in the graph as MonoGame's dependency; named here because the streaming voice
-         decodes against it directly. Pinned to the version MonoGame resolves. -->
-    <PackageReference Include="NVorbis" Version="0.10.4">
-      <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
-    </PackageReference>
-
     <!-- The neutral host holds no implicit location and no native binding; BannedSymbols.txt is
          the list, each entry with its reason. A site that seems to need one belongs in a platform
          module, never under a suppression. -->

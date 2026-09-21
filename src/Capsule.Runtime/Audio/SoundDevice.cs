@@ -1,7 +1,7 @@
 using Capsule.Audio;
 using Capsule.Diagnostics;
+using Capsule.Runtime.Audio.Vorbis;
 using Microsoft.Xna.Framework.Audio;
-using NVorbis;
 
 namespace Capsule.Runtime.Audio;
 
