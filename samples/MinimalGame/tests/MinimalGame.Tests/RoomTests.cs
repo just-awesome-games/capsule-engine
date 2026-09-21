@@ -188,6 +188,34 @@ public sealed class RoomTests
         Assert.Equal(player.Muzzle.WorldPosition, second.Position);
     }
 
+    // Once a bolt has run its lifetime and returned to the pool, the next shot reuses that same
+    // instance rather than building another, and it draws at the muzzle with no smear from where it
+    // last flew.
+    [Fact]
+    public void FiringAgainAfterABoltExpires_ReusesItFromTheMuzzleWithNoSmear()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+
+        room.Step(20);
+        room.Step(DeviceSnapshot.Empty.With(MouseButton.Left));
+        Bolt first = room.Scene.FindSingle<Bolt>();
+
+        room.Step(BoltTuning.Default.LifetimeTicks + 1);
+        Assert.Empty(room.Scene.Entities.ToArray().OfType<Bolt>());
+
+        room.Step(DeviceSnapshot.Empty.With(MouseButton.Left));
+        Bolt second = room.Scene.FindSingle<Bolt>();
+
+        Assert.Same(first, second);
+        Assert.Equal(player.Muzzle.WorldPosition, second.Position);
+
+        SpriteIntent frame = Assert.Single(
+            room.Simulation.View.Sprites.ToArray(),
+            sprite => sprite.Position == second.Position);
+        Assert.Equal(frame.Position, frame.PreviousPosition);
+    }
+
     // Position is the body's top-left corner; the feet are its bottom edge.
     private static float PlayerFeet(Player player) => player.Position.Y + 8f;
 

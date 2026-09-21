@@ -10,7 +10,8 @@ namespace MinimalGame.Game.Entities;
 /// <summary>
 /// What the <see cref="Player"/> fires: a flat tinted rect flying in one direction at a constant
 /// speed until its lifetime is spent, then gone. <see cref="Entity.Position"/> is its centre. It
-/// collides with nothing. Its levers live in <see cref="BoltTuning"/>.
+/// collides with nothing. Its levers live in <see cref="BoltTuning"/>. Pooled by the player, so its
+/// per-life state is set in <see cref="Fire"/> rather than the constructor.
 /// </summary>
 public sealed class Bolt : Entity
 {
@@ -18,20 +19,36 @@ public sealed class Bolt : Entity
     // position rather than from a corner.
     private static readonly Sprite Centred = new(TextureHandle.White, new TextureRegion(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
 
-    private readonly Vector2 _velocity;
+    private readonly SpriteRenderer _sprite;
+    private readonly EntityPool<SparkBurst> _sparks;
+
+    private Vector2 _velocity;
     private Countdown _life;
 
+    /// <param name="sparks">The pool <see cref="SparkBurst"/> is taken from when this bolt's life ends.</param>
+    public Bolt(EntityPool<SparkBurst> sparks)
+        : base(Vector2.Zero)
+    {
+        _sparks = sparks;
+
+        _sprite = new SpriteRenderer(Centred);
+        Add(_sprite);
+    }
+
+    /// <summary>Places and arms the bolt for one life: where it starts, which way it flies and how.</summary>
     /// <param name="position">Where the bolt starts: the muzzle, in world units.</param>
     /// <param name="direction">The sign of the X the bolt travels along; negative is left.</param>
     /// <param name="tuning">The levers the bolt flies on.</param>
-    public Bolt(Vector2 position, float direction, in BoltTuning tuning)
-        : base(position)
+    /// <returns>This bolt, so the caller can add it to the scene in one expression.</returns>
+    public Bolt Fire(Vector2 position, float direction, in BoltTuning tuning)
     {
+        Position = position;
         _velocity = new Vector2(direction < 0f ? -tuning.Speed : tuning.Speed, 0f);
         _life.Start(tuning.LifetimeTicks);
         Scale = tuning.Size;
+        _sprite.Color = tuning.Tint;
 
-        Add(new SpriteRenderer(Centred) { Color = tuning.Tint });
+        return this;
     }
 
     /// <inheritdoc/>
@@ -42,8 +59,7 @@ public sealed class Bolt : Entity
         _life.Step();
         if (!_life.IsRunning)
         {
-            // Its own entity, so it outlives this one without a cast or a scene type check.
-            Scene.Add(new SparkBurst(Position));
+            Scene.Add(_sparks.Take().Burst(Position));
             Scene.Remove(this);
         }
     }

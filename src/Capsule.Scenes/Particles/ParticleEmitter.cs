@@ -217,7 +217,7 @@ public sealed class ParticleEmitter : Renderer
         SpawnImmediate(count, at);
     }
 
-    /// <summary>Frees every slot and zeroes the accumulators.</summary>
+    /// <summary>Frees every slot, zeroes the accumulators, and restarts the slot cursor from 0.</summary>
     public void Clear()
     {
         Array.Clear(_particles);
@@ -225,6 +225,7 @@ public sealed class ParticleEmitter : Renderer
         _rateAccumulator = 0f;
         _distanceAccumulator = 0f;
         _hasBounds = false;
+        _cursor = 0;
     }
 
     /// <inheritdoc/>
@@ -253,6 +254,18 @@ public sealed class ParticleEmitter : Renderer
             _pendingCount = 0;
             SpawnImmediate(count, at);
         }
+    }
+
+    /// <summary>Clears every particle and the prewarm flag, so a reused emitter starts its next life as a new one would.</summary>
+    /// <inheritdoc/>
+    protected internal override void OnRemovedFromScene()
+    {
+        base.OnRemovedFromScene();
+
+        Clear();
+        _pendingCount = 0;
+        _prewarmed = false;
+        _lastDeltaSeconds = 1f / StepContext.DefaultStepHertz;
     }
 
     /// <inheritdoc/>

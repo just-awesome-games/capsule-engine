@@ -1,4 +1,4 @@
-# Scenes
+\# Scenes
 
 A scene is one world: its ordered contents and a camera. A `*.scene.json` scene document is its serialized
 form, data carrying no behaviour. Tile maps are one engine-native entry type, not a separate kind of scene.
@@ -17,10 +17,6 @@ The `SceneContent` constructor is the opt-in. Taking one and handing it to `base
 as the class's namespace names ([Entries and composition](#entries-and-composition)), unless
 `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A
 composed scene's assets are collected before `OnStart` ([`assets.md`](assets.md#loading-and-residency)).
-
-`Entity.Scene`, `Component.Run` and `Camera.Scene` are non-null accessors and throw before the object is in a
-started scene, so an entity can write `Scene.Add(...)` from its own step. Read `SceneOrNull` when an entity
-may not be in a scene yet.
 
 ## Format
 

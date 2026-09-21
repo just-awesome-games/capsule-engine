@@ -40,6 +40,7 @@ Four packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (the neutra
 - [`docs/collision.md`](docs/collision.md): colliders, layers, contacts, kinematic movement, queries.
 - [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, atlases, audio, fonts, preloading.
 - [`docs/scenes.md`](docs/scenes.md): the scene authoring model and the `*.scene.json` format.
+- [`docs/entities.md`](docs/entities.md): building, lifecycle, parenting, interpolation, pooling.
 - [`docs/persistence.md`](docs/persistence.md): save documents, the file format, and where they go.
 - [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, build properties, publishing, platform modules.
 - [`docs/testing.md`](docs/testing.md): which boundary to test a game at.

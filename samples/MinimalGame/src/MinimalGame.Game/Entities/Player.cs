@@ -9,6 +9,7 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
+using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.Entities;
 
@@ -64,6 +65,7 @@ public sealed class Player : Entity
     private readonly ParticleEmitter _dust;
     private readonly PlayerTuning _tuning = PlayerTuning.Default;
     private readonly BoltTuning _bolt = BoltTuning.Default;
+    private EntityPool<Bolt> _bolts = null!;
 
     private Vector2 _velocity;
 
@@ -110,6 +112,14 @@ public sealed class Player : Entity
             Color = new ColorRgba(160, 150, 130),
         };
         Add(_dust);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnStart()
+    {
+        // A player only ever lives in a PlayableScene, so the cast is safe and the pool it borrows
+        // sparks from is the room's, not this player's own.
+        _bolts = new EntityPool<Bolt>(() => new Bolt(((PlayableScene)Scene).Sparks), capacity: 8);
     }
 
     /// <inheritdoc/>
@@ -166,13 +176,14 @@ public sealed class Player : Entity
             return;
         }
 
-        Scene.Add(new Bolt(Muzzle.WorldPosition, _visual.Facing, _bolt));
+        Scene.Add(_bolts.Take().Fire(Muzzle.WorldPosition, _visual.Facing, _bolt));
         Log.Info("shot");
     }
 
     protected override void OnDebugPanel(DebugPanel panel)
     {
         panel.Field("Current Health", Health);
+        panel.Field("Bolts active", _bolts.Active);
         panel.Command("Heal", () => Health++);
     }
 

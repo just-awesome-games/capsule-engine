@@ -69,8 +69,8 @@ public partial class Entity
     /// <summary>
     /// <see cref="Transform"/> as of the previous step. The engine manages it: the scene saves it, and
     /// the world transform it composes, at the top of every step, and every renderer interpolates from it
-    /// by the frame alpha. <see cref="Teleport"/>, and a turn or scale written outside a step, collapse it
-    /// onto the current value.
+    /// by the frame alpha. <see cref="Teleport"/>, a turn or scale written outside a step, and a join
+    /// collapse it onto the current value.
     /// </summary>
     public Transform2D PreviousTransform => _previousLocal;
 

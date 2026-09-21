@@ -41,6 +41,15 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
             maxPerRun: SparksSpawned * SpawnBytesEach);
     }
 
+    [Fact]
+    public void AStageSpawningFromAPool_AllocatesNothing()
+    {
+        Report(
+            "20 spawns and despawns a second, from a pool",
+            Measure(StageWorkload.Build(), StageChurn.Pooled),
+            maxPerRun: 0);
+    }
+
     // A wave spawned in one step is queued and drained at the end of it. The queue and its
     // membership index are the only things the drain itself keeps, so the step allocates what the
     // entities cost and little more; how long the drain takes is the bench's to measure.

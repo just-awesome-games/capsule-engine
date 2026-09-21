@@ -657,6 +657,12 @@ public class Scene
     {
         ThrowIfStopped();
 
+        if (entity.IdleInPool)
+        {
+            throw new InvalidOperationException(
+                $"This {entity.GetType().Name} is idle in its pool. Take it from the pool instead of adding it.");
+        }
+
         if (entity.SceneOrNull is not null || _pendingAddSet.Contains(entity))
         {
             throw new InvalidOperationException(
@@ -714,6 +720,10 @@ public class Scene
         _renderIndex.Invalidate(_drawing);
         entity.SceneOrNull = this;
         entity.PendingScene = null;
+
+        // A join never interpolates. Parent first, so a child's World composes against a parent
+        // already collapsed onto its current transform.
+        entity.SavePrevious();
 
         // Enter components before the entity hook. Components attached from OnAddedToScene notify separately.
         entity.EnterScene();
@@ -840,7 +850,20 @@ public class Scene
 
         _renderIndex.Invalidate(_drawing);
         entity.SceneOrNull = null;
-        entity.LeaveScene();
+
+        try
+        {
+            entity.LeaveScene();
+        }
+        finally
+        {
+            // Returns even when a removal hook throws. A hook that re-added the entity leaves it
+            // taken, and it returns on its next detach.
+            if (entity.Pool is { } pool && entity.SceneOrNull is null && entity.PendingScene is null)
+            {
+                pool.Return(entity);
+            }
+        }
     }
 
     // Find by reference identity, not by Equals.

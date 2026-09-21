@@ -9,15 +9,14 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// The effect shape Unity and Godot use: an effect that outlives what asked for it is its own entity,
-/// removed once its last particle dies.
+/// removed once its last particle dies, and returned to its pool.
 /// </summary>
 public sealed class SparkBurst : Entity
 {
     private readonly ParticleEmitter _emitter;
 
-    /// <param name="position">Where the burst starts, in world units.</param>
-    public SparkBurst(Vector2 position)
-        : base(position)
+    public SparkBurst()
+        : base(Vector2.Zero)
     {
         _emitter = new ParticleEmitter(Sprite.White, capacity: 8)
         {
@@ -31,7 +30,17 @@ public sealed class SparkBurst : Entity
             Blend = BlendMode.Additive,
         };
         Add(_emitter);
+    }
+
+    /// <summary>Places the burst and emits its particles.</summary>
+    /// <param name="position">Where the burst starts, in world units.</param>
+    /// <returns>This burst, so the caller can add it to the scene in one expression.</returns>
+    public SparkBurst Burst(Vector2 position)
+    {
+        Position = position;
         _emitter.Emit(6);
+
+        return this;
     }
 
     /// <inheritdoc/>

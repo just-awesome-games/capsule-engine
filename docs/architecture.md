@@ -87,13 +87,6 @@ Every thread the engine runs is the host's, and each has one shape: a step emits
 it, a worker fulfils it, and only the hand-off touches a device or the file system. A headless run runs no
 worker.
 
-A parented entity's position, rotation and scale are local. Its world transform is the parent's applied to
-them: position through the parent's scale, rotation and offset, rotation summed, scale multiplied per axis,
-no shear. The transform is cached and recomposed lazily after a write anywhere above. Renderers under the
-entity are placed, turned and sized by it, interpolated from the transform the step began with. Colliders
-follow world position alone and refuse a turned or scaled ancestry. A subtree shares its root's scene, draw
-layer and scroll factor, and enters and leaves the scene with it.
-
 How frames, layers, cameras and parallax are drawn is [`rendering.md`](rendering.md). Saved state is
 `Run.Saves` ([`persistence.md`](persistence.md)), sound is `Run.Audio` ([`audio.md`](audio.md)), and what a
 scene preloads and when it is released is [`assets.md`](assets.md#loading-and-residency). What the game

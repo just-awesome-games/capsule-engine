@@ -138,14 +138,20 @@ internal static class StageWorkload
 
     internal sealed class Spark : Entity
     {
-        private readonly Vector2 _velocity;
-        private int _life = SparkLifeSteps;
+        private Vector2 _velocity;
+        private int _life;
 
-        internal Spark(Vector2 origin, Vector2 velocity)
-            : base(origin)
-        {
-            _velocity = velocity;
+        internal Spark()
+            : base(Vector2.Zero) =>
             Add(new SpriteRenderer(SparkFrame));
+
+        internal Spark Fire(Vector2 origin, Vector2 velocity)
+        {
+            Position = origin;
+            _velocity = velocity;
+            _life = SparkLifeSteps;
+
+            return this;
         }
 
         protected internal override void OnStep(in StepContext context)
@@ -164,6 +170,7 @@ internal static class StageWorkload
         private readonly Hero _hero;
         private readonly StageChurn _churn;
         private readonly Entity _flicker;
+        private readonly EntityPool<Spark>? _sparkPool;
         private int _spawned;
 
         internal StageScene(SceneContent content, StageChurn churn = StageChurn.Spawning)
@@ -172,6 +179,13 @@ internal static class StageWorkload
             _churn = churn;
             _hero = FindSingle<Hero>();
             _flicker = Entities[^1];
+
+            if (_churn == StageChurn.Pooled)
+            {
+                // The steady-state population plus the drain's one-step lag, the same shape the
+                // bench's Spawner pool sizes to.
+                _sparkPool = new EntityPool<Spark>(() => new Spark(), capacity: (SparkLifeSteps / StepsBetweenSpawns) + 2);
+            }
         }
 
         protected override void OnStart()
@@ -201,7 +215,15 @@ internal static class StageWorkload
                 case StageChurn.Spawning:
                     if (context.Tick % StepsBetweenSpawns == 0)
                     {
-                        Add(new Spark(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
+                        Add(new Spark().Fire(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
+                    }
+
+                    break;
+
+                case StageChurn.Pooled:
+                    if (context.Tick % StepsBetweenSpawns == 0)
+                    {
+                        Add(_sparkPool!.Take().Fire(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
                     }
 
                     break;

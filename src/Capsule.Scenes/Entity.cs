@@ -40,6 +40,12 @@ public partial class Entity
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
+    // The pool that owns this entity for life, or null when the entity was never built by one.
+    internal IEntityPool? Pool { get; set; }
+
+    // Whether this entity is idle in Pool right now, refused by Scene.Add until it is taken.
+    internal bool IdleInPool { get; set; }
+
     /// <summary>
     /// A marker or pivot at <paramref name="parent"/>'s origin. It has a place in the world and no
     /// behaviour of its own. It joins the parent's scene as <see cref="Parent"/> describes.

@@ -16,6 +16,9 @@ namespace MinimalGame.Game.Scenes;
 /// </summary>
 public abstract class PlayableScene : Scene
 {
+    /// <summary>The room's spark pool, as far up as sparks reach and no further.</summary>
+    public EntityPool<SparkBurst> Sparks { get; } = new(() => new SparkBurst(), capacity: 8);
+
     /// <summary>The body the document placed, for the level that wants to reach it.</summary>
     protected Player Player { get; private set; } = null!;
 

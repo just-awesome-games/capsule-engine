@@ -7,4 +7,6 @@ internal enum StageChurn
     DrawListOnly,
 
     Spawning,
+
+    Pooled,
 }

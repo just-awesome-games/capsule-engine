@@ -133,6 +133,21 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
+    /// <summary>Rewinds to <see cref="Clip"/>'s first frame and keeps the clip, so a reused entity replays it as a new one would.</summary>
+    /// <inheritdoc/>
+    protected internal override void OnRemovedFromScene()
+    {
+        if (Clip is not { } clip)
+        {
+            return;
+        }
+
+        _playback.Restart();
+        _pendingStart = true;
+        _startedOnTick = null;
+        _renderer.Sprite = clip.Frames[0];
+    }
+
     /// <inheritdoc/>
     protected internal override void OnStep(in StepContext context)
     {
