@@ -54,9 +54,10 @@ internal sealed class SpriteBatcher : IDisposable
     private float _texelWidth;
     private float _texelHeight;
 
-    // The last colour converted and its packed form. Premultiplying costs three divisions, and a run
-    // sharing one tint converts once.
+    // The last colour and blend converted and their packed form. Premultiplying costs three divisions,
+    // and a run sharing one tint and blend converts once.
     private ColorRgba _lastColor;
+    private BlendMode _lastBlend;
     private Color _lastPacked;
 
     internal SpriteBatcher(GraphicsDevice device)
@@ -131,7 +132,8 @@ internal sealed class SpriteBatcher : IDisposable
         float rotation,
         bool flipX,
         bool flipY,
-        ColorRgba color)
+        ColorRgba color,
+        BlendMode blend)
     {
         OpenRun(texture);
 
@@ -149,17 +151,18 @@ internal sealed class SpriteBatcher : IDisposable
             flipX,
             flipY);
 
-        Stage(in quad, color);
+        Stage(in quad, color, blend);
     }
 
-    // The entire texture, as SpriteBatch draws a null source rectangle.
+    // The entire texture, as SpriteBatch draws a null source rectangle. Always alpha: nothing here draws
+    // from a SpriteIntent, so nothing here carries a blend of its own.
     internal void DrawWhole(Texture2D texture, Vector2 position, Vector2 origin, Vector2 scale, float rotation, ColorRgba color)
     {
         OpenRun(texture);
 
         SpriteQuad quad = SpriteQuad.PlaceWhole(position, origin, scale, texture.Width, texture.Height, rotation);
 
-        Stage(in quad, color);
+        Stage(in quad, color, BlendMode.Alpha);
     }
 
     internal void End() => Flush();
@@ -191,9 +194,9 @@ internal sealed class SpriteBatcher : IDisposable
     // sprites an indexed write per vertex measures seven percent slower, a span five, and staging a
     // whole vertex at a time twenty.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void Stage(in SpriteQuad quad, ColorRgba color)
+    private void Stage(in SpriteQuad quad, ColorRgba color, BlendMode blend)
     {
-        Color packed = Pack(color);
+        Color packed = Pack(color, blend);
         ref SpriteVertex vertex = ref MemoryMarshal.GetArrayDataReference(_staging);
         vertex = ref Unsafe.Add(ref vertex, _count * 4);
 
@@ -219,17 +222,32 @@ internal sealed class SpriteBatcher : IDisposable
         _count++;
     }
 
-    // ColorRgba is straight alpha and the backend blend convention is premultiplied.
-    private Color Pack(ColorRgba color)
+    // ColorRgba is straight alpha and the backend blend convention is premultiplied, so an alpha
+    // intent is premultiplied here. Additive draws with no state change against the same premultiplied
+    // pipeline: an alpha of zero contributes nothing to cover and the colour adds unpremultiplied,
+    // src.rgb + dst.rgb x (1 - 0).
+    private Color Pack(ColorRgba color, BlendMode blend)
     {
-        if (color != _lastColor)
+        if (color != _lastColor || blend != _lastBlend)
         {
             _lastColor = color;
-            _lastPacked = Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
+            _lastBlend = blend;
+
+            (byte r, byte g, byte b, byte a) = PackInput(color, blend);
+            _lastPacked = blend == BlendMode.Additive
+                ? new Color(r, g, b, a)
+                : Color.FromNonPremultiplied(r, g, b, a);
         }
 
         return _lastPacked;
     }
+
+    // The bytes Pack hands to the backend's colour constructor, with no MonoGame type so a test can
+    // assert on it. Additive hands zero alpha with the colour untouched, for no premultiply and no
+    // state change. Alpha hands the intent's colour and alpha through exactly, for
+    // Color.FromNonPremultiplied to premultiply as it always has (D-capsule-109).
+    internal static (byte R, byte G, byte B, byte A) PackInput(ColorRgba color, BlendMode blend) =>
+        blend == BlendMode.Additive ? (color.R, color.G, color.B, (byte)0) : (color.R, color.G, color.B, color.A);
 
     private void Flush()
     {

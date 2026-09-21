@@ -42,6 +42,8 @@ public sealed class Bolt : Entity
         _life.Step();
         if (!_life.IsRunning)
         {
+            // Its own entity, so it outlives this one without a cast or a scene type check.
+            Scene.Add(new SparkBurst(Position));
             Scene.Remove(this);
         }
     }

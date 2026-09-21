@@ -1,6 +1,8 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Animation;
 using Capsule.Assets.Generated;
+using Capsule.Particles;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -57,19 +59,46 @@ public sealed class Hazard : Entity
         /// <summary>Radians per second: one orbit every three seconds, against the spin.</summary>
         private const float OrbitSpeed = -MathF.Tau / 3f;
 
-        /// <summary>World units from the centre.</summary>
+        internal Orbit(Entity parent, Vector2 centre)
+            : base(parent, centre) =>
+            _ = new Spark(this);
+
+        protected override void OnStep(in StepContext context) =>
+            Rotation = (Rotation + (OrbitSpeed * context.DeltaSeconds)) % MathF.Tau;
+    }
+
+    // A world-space trail from a moving emitter, and the frame it trails behind, at the orbit radius.
+    // A child of Orbit rather than the hazard, which holds a collider and so cannot turn.
+    private sealed class Spark : Entity
+    {
+        /// <summary>World units from the centre: where <see cref="Orbit"/> carries <see cref="Spark"/>.</summary>
         private const float OrbitRadius = 20f;
 
         private static readonly Sprite SparkFrame = new(CapsuleAssets.Textures.Hazard, new TextureRegion(6, 10, 4, 4), new Vector2(2f, 2f));
 
-        internal Orbit(Entity parent, Vector2 centre)
-            : base(parent, centre)
-        {
-            Entity spark = new(this, new Vector2(0f, -OrbitRadius)) { Name = "Spark" };
-            spark.Add(new SpriteRenderer(SparkFrame));
-        }
+        // The trail's colour: a warm orange fading to nothing.
+        private static readonly ColorRgba SparkOrange = new(255, 150, 40);
 
-        protected override void OnStep(in StepContext context) =>
-            Rotation = (Rotation + (OrbitSpeed * context.DeltaSeconds)) % MathF.Tau;
+
+        internal Spark(Entity parent)
+            : base(parent, new Vector2(0f, -OrbitRadius))
+        {
+            // Added before the frame, so the trail draws under the spark and, at the room's shared
+            // ZIndex, over the tiles.
+            Add(new ParticleEmitter(SparkFrame, capacity: 48)
+            {
+                // Emits as the spark moves, half a particle per unit; Emitting is on by default.
+                RateOverDistance = 0.5f,
+                Lifetime = (0.3f, 0.5f),
+                Speed = (0f, 10f),
+                Spread = 360f,
+                InheritVelocity = 0.2f,
+                Scale = (1f, 1f),
+                ScaleOverLifetime = Curve.Linear(1f, 0f),
+                Color = Gradient.Linear(SparkOrange, SparkOrange with { A = 0 }),
+                Blend = BlendMode.Additive,
+            });
+            Add(new SpriteRenderer(SparkFrame));
+        }
     }
 }

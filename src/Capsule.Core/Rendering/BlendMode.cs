@@ -1,0 +1,11 @@
+namespace Capsule.Rendering;
+
+/// <summary>How a sprite's colour combines with what is already drawn.</summary>
+public enum BlendMode : byte
+{
+    /// <summary>The sprite covers what is behind it by its alpha.</summary>
+    Alpha,
+
+    /// <summary>The sprite adds its colour and covers nothing behind it, for glow, sparks and fire.</summary>
+    Additive,
+}

@@ -147,6 +147,10 @@ public sealed class RandomSource
         return value < maxExclusive ? value : MathF.BitDecrement(maxExclusive);
     }
 
+    /// <summary>Draws a float in [<see cref="FloatRange.Min"/>, <see cref="FloatRange.Max"/> ). One draw.</summary>
+    /// <param name="range">The span to draw from. A constant range returns <see cref="FloatRange.Min"/> and draws nothing.</param>
+    public float Range(FloatRange range) => Range(range.Min, range.Max);
+
     /// <summary>Draws a float in [0, 1). One draw.</summary>
     /// <returns>A uniformly distributed value on a grid of 2^-24, so every result is exact in float.</returns>
     public float NextFloat() => (NextUInt64() >> 40) * (1.0f / (1 << 24));

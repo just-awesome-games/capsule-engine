@@ -145,6 +145,24 @@ public sealed class FrameView
         _submitted,
         _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count);
 
+    // The region the running renderer's space culls against, and whether it culls at all. A
+    // bulk-drawing renderer tests its own bounds against this once instead of paying an Add
+    // overload's per-sprite test.
+    internal bool TryGetCullRegion(out Rect region)
+    {
+        Layer layer = Of(Space);
+        region = layer.Bounds;
+
+        return layer.Culls;
+    }
+
+    // Adds a sprite with no bounds test, for a caller that already tested its own bounds.
+    internal void AddUnculled(in SpriteIntent sprite)
+    {
+        _submitted++;
+        Of(Space).Sprites.Add(sprite);
+    }
+
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
     public void Add(in SpriteIntent sprite) => Add(in sprite, Space);
 

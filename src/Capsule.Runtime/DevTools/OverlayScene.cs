@@ -23,7 +23,12 @@ internal sealed class OverlayScene : Scene
     // Rows under the last one: blank, status, legend.
     private const int RowsBelowItems = 3;
 
+    // The scrollbar's width in panel pixels, set inside the right padding.
+    private const int ScrollbarWidth = 2;
+
     private static readonly BitmapFont Font = BitmapFont.Default;
+    private static readonly ColorRgba TrackColor = ColorRgba.White with { A = 48 };
+    private static readonly ColorRgba ThumbColor = ColorRgba.White with { A = 160 };
 
     private readonly ScreenEntity _panel;
     private readonly ColorRect _backdrop;
@@ -32,6 +37,8 @@ internal sealed class OverlayScene : Scene
     private readonly Label _title;
     private readonly Label _status;
     private readonly Label _legend;
+    private readonly ColorRect _track;
+    private readonly ColorRect _thumb;
     private readonly Label[] _rows = new Label[MaxRows];
 
     // One row's text as drawn: its label padded to the hotkey column, then the key's name.
@@ -60,6 +67,8 @@ internal sealed class OverlayScene : Scene
         _title = new Label(Font);
         _status = new Label(Font);
         _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
+        _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
+        _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };
 
         _panel.Add(_backdrop);
         _panel.Add(_highlight);
@@ -76,6 +85,8 @@ internal sealed class OverlayScene : Scene
 
         _panel.Add(_status);
         _panel.Add(_legend);
+        _panel.Add(_track);
+        _panel.Add(_thumb);
         Add(_panel);
     }
 
@@ -84,6 +95,11 @@ internal sealed class OverlayScene : Scene
     internal string Readout => _readout.Text;
 
     internal string Status => _status.Text;
+
+    // The scrollbar's track and thumb as drawn; each empty while the page fits its window.
+    internal Rect ScrollTrack => _track.Bounds;
+
+    internal Rect ScrollThumb => _thumb.Bounds;
 
     // The rows as drawn, top to bottom, hotkey column and all.
     internal string[] ShownRows()
@@ -217,6 +233,24 @@ internal sealed class OverlayScene : Scene
         int statusRow = _rowsAbove + _shown + 1;
         _status.Offset = new Vector2(Padding, RowTop(statusRow));
         _legend.Offset = new Vector2(Padding, RowTop(statusRow + 1));
+
+        // The scrollbar spans the row window, shown only past it: the thumb is the window's share of
+        // the page, and sits where First is along it.
+        if (rows.Count > MaxRows)
+        {
+            float top = RowTop(_rowsAbove);
+            float height = MaxRows * Font.LineHeight;
+            float left = _width - Padding + ((Padding - ScrollbarWidth) / 2f);
+            _track.Offset = new Vector2(left, top);
+            _track.Size = new Vector2(ScrollbarWidth, height);
+            _thumb.Offset = new Vector2(left, top + (height * _first / rows.Count));
+            _thumb.Size = new Vector2(ScrollbarWidth, height * _shown / rows.Count);
+        }
+        else
+        {
+            _track.Size = Vector2.Zero;
+            _thumb.Size = Vector2.Zero;
+        }
     }
 
     // The page row a canvas position is over, or -1 for a position off the rows. The panel hangs from

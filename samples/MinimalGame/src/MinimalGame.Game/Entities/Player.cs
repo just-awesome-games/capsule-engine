@@ -4,6 +4,7 @@ using Capsule.Animation;
 using Capsule.Assets.Generated;
 using Capsule.Audio;
 using Capsule.Diagnostics;
+using Capsule.Particles;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -60,6 +61,7 @@ public sealed class Player : Entity
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
+    private readonly ParticleEmitter _dust;
     private readonly PlayerTuning _tuning = PlayerTuning.Default;
     private readonly BoltTuning _bolt = BoltTuning.Default;
 
@@ -92,6 +94,22 @@ public sealed class Player : Entity
 
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft) { Bus = AudioBuses.Sfx };
         Add(_footfall);
+
+        // A burst on landing, from the body's bottom centre: the pattern for a one-shot effect tied
+        // to an entity's own lifetime. On the root, it draws under the Visual child at the same key.
+        _dust = new ParticleEmitter(Sprite.White, capacity: 32)
+        {
+            Offset = new Vector2(BodyPixels / 2f, BodyPixels),
+            Lifetime = (0.2f, 0.4f),
+            Speed = (20f, 40f),
+            Direction = -Vector2.UnitY,
+            Spread = 120f,
+            Gravity = new Vector2(0f, 120f),
+            Scale = (1f, 2f),
+            ScaleOverLifetime = Curve.Linear(1f, 0f),
+            Color = new ColorRgba(160, 150, 130),
+        };
+        Add(_dust);
     }
 
     /// <inheritdoc/>
@@ -128,6 +146,7 @@ public sealed class Player : Entity
                 LandedThisStep = true;
                 _footfall.Play();
                 Run.Rumble.Play(_tuning.LandRumbleLow, _tuning.LandRumbleHigh, _tuning.LandRumbleSeconds);
+                _dust.Emit(6);
             }
         }
 

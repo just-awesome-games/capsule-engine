@@ -498,7 +498,8 @@ internal sealed class FrameRenderer : IDisposable
             StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, pass.Alpha),
             sprite.FlipX,
             sprite.FlipY,
-            sprite.Color);
+            sprite.Color,
+            sprite.Blend);
     }
 
     private Texture2D EngineTexture(in TextureHandle handle) =>

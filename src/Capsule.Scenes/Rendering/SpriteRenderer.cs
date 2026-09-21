@@ -94,6 +94,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// <summary>A tint multiplied into every texel. White by default, which draws the texture unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
+    /// <summary>How the frame's colour combines with what is already drawn. Alpha by default.</summary>
+    public BlendMode Blend { get; set; }
+
     /// <summary>
     /// The rect the frame covers: its region at the entity's world scale, placed by the mirrored pivot
     /// and extended to a finite <see cref="Tiling"/>, in the space and under the rules
@@ -211,7 +214,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             Vector2.Abs(size),
             FlipX ^ (size.X < 0f),
             FlipY ^ (size.Y < 0f),
-            Color);
+            Color,
+            Blend);
     }
 
     // Re-reads every binding's point from the new frame and places it. Called on a frame write.
@@ -291,6 +295,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         panel.Field("Offset", Offset);
         panel.Field("Tiling", Tiling);
         panel.Field("Color", Color);
+        panel.Field("Blend", Blend.ToString());
         panel.Toggle("FlipX", FlipX, on => FlipX = on);
         panel.Toggle("FlipY", FlipY, on => FlipY = on);
 

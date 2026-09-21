@@ -32,6 +32,9 @@ public sealed class ColorRect(Vector2 size) : Renderer
     /// <summary>The fill colour, in straight alpha. White and opaque by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
+    /// <summary>How the rectangle's colour combines with what is already drawn. Alpha by default.</summary>
+    public BlendMode Blend { get; set; }
+
     /// <summary>
     /// The rect the rectangle covers, under the rules <see cref="Renderer.Bounds"/> states. With a non-zero
     /// world rotation it reports the box of the rectangle's bounding circle about the corner. Reads empty
@@ -54,7 +57,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
     {
         Vector2 size = Size * current.Scale;
 
-        return new SpriteIntent(Sprite.White, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, Vector2.Abs(size), size.X < 0f, size.Y < 0f, Color);
+        return new SpriteIntent(Sprite.White, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, Vector2.Abs(size), size.X < 0f, size.Y < 0f, Color, Blend);
     }
 
     /// <inheritdoc/>
@@ -64,5 +67,6 @@ public sealed class ColorRect(Vector2 size) : Renderer
         panel.Field("Size", Size);
         panel.Field("Offset", Offset);
         panel.Field("Color", Color);
+        panel.Field("Blend", Blend.ToString());
     }
 }

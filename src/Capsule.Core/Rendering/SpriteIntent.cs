@@ -23,6 +23,7 @@ namespace Capsule.Rendering;
 /// <param name="FlipX">Whether the region is mirrored horizontally about the pivot.</param>
 /// <param name="FlipY">Whether the region is mirrored vertically about the pivot.</param>
 /// <param name="Color">Multiplied into every texel. <see cref="ColorRgba.White"/> draws the texture unchanged.</param>
+/// <param name="Blend">How the sprite's colour combines with what is already drawn.</param>
 public readonly record struct SpriteIntent(
     Sprite Sprite,
     Vector2 PreviousPosition,
@@ -32,7 +33,8 @@ public readonly record struct SpriteIntent(
     Vector2 Size,
     bool FlipX,
     bool FlipY,
-    ColorRgba Color)
+    ColorRgba Color,
+    BlendMode Blend = BlendMode.Alpha)
 {
     // The anchor a backend draws from, in region texels. It mirrors on a flipped axis, so the pivot texel
     // stays on the position whichever way the frame faces.

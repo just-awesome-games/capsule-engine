@@ -57,6 +57,10 @@ public class Scene
     private bool _drawing;
     private TextureSampling? _sampling;
 
+    // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
+    // own randomness stream. A new scene instance starts at 0.
+    private ulong _nextParticleStream;
+
     /// <summary>An empty world, for a scene that builds itself in code.</summary>
     public Scene()
     {
@@ -155,6 +159,11 @@ public class Scene
 
     // The run or null for components that start before the scene does.
     internal Run? RunOrNull => _run;
+
+    // The ordinal the next particle emitter added to this scene draws its randomness stream from: a
+    // static counter is not deterministic across runs, and a draw from Run.Random would shift gameplay
+    // whenever an effect is added.
+    internal ulong NextParticleStream() => _nextParticleStream++;
 
     /// <summary>
     /// World units the scene spans from its origin at (0, 0). Zero unless the scene sets it.

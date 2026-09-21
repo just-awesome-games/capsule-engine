@@ -24,7 +24,7 @@ public readonly record struct BoltTuning(
     /// <summary>The bolt the sample ships with: a short yellow dash that crosses the room in a second.</summary>
     public static readonly BoltTuning Default = new(
         Speed: 240f,
-        LifetimeTicks: 60,
+        LifetimeTicks: 30,
         Size: new Vector2(4f, 2f),
         Tint: new ColorRgba(255, 224, 64));
 }

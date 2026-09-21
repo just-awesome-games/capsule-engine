@@ -64,6 +64,14 @@ internal sealed class OverlayHost : IDisposable
     private int _heldFrames;
     private bool _repeating;
 
+    // Wheel notches not yet applied to the window: a fine wheel or a touchpad reports fractions of a
+    // notch, which add up here until they make a whole one.
+    private float _scrollRemainder;
+
+    // Where the pointer sat last frame, so it only takes the focus by moving onto a row, not by
+    // resting on one the keys just moved off of.
+    private Vector2 _lastPointer;
+
     // Ticks the overlay stepped by hand since the last sample. They run after the frame is sampled and
     // the next advance clears the scheduler's count, so they are counted on the frame that follows.
     private int _steppedTicks;
@@ -332,6 +340,10 @@ internal sealed class OverlayHost : IDisposable
 
         bool open = _state == OverlayState.Open;
         bool menuChanged = Scene.ShowMenu(open);
+        if (menuChanged && !open)
+        {
+            _scrollRemainder = 0f;
+        }
 
         if (open)
         {
@@ -352,6 +364,7 @@ internal sealed class OverlayHost : IDisposable
                 // Hidden or closed from inside its own frame, so the panel leaves before this frame
                 // is drawn.
                 Scene.ShowMenu(false);
+                _scrollRemainder = 0f;
             }
 
             _overlay.RewriteView();
@@ -502,12 +515,23 @@ internal sealed class OverlayHost : IDisposable
             Move(-1);
         }
 
-        // The pointer focuses whatever row it rests on, and a click activates that row.
+        Scroll(_input.Axis(OverlayActions.Scroll));
+
+        // The pointer takes the focus by moving onto a row or by a click landing on one; resting
+        // still, the keys own the focus and are not overwritten by the row the pointer already sat on.
+        bool pointerMoved = _sampled.Pointer != _lastPointer;
+        _lastPointer = _sampled.Pointer;
+
         int hovered = Scene.RowAt(_sampled.Pointer);
         if (hovered >= 0 && hovered < _rows.Count && _rows[hovered].Activate is not null)
         {
-            _focus = hovered;
-            if (_input.WasPressed(OverlayActions.Click))
+            bool clicked = _input.WasPressed(OverlayActions.Click);
+            if (pointerMoved || clicked)
+            {
+                _focus = hovered;
+            }
+
+            if (clicked)
             {
                 Activate(_rows[hovered]);
             }
@@ -560,7 +584,8 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    // Moves the focus by step over the interactive rows, wrapping at either end.
+    // Moves the focus by step over the interactive rows, wrapping at either end, then brings the
+    // window to it: the least the wheel left it that still shows the new focus.
     private void Move(int step)
     {
         if (_rows.Count == 0)
@@ -574,10 +599,28 @@ internal sealed class OverlayHost : IDisposable
             if (_rows[index].Activate is not null)
             {
                 _focus = index;
+                _first = Math.Clamp(_first, _focus - OverlayScene.MaxRows + 1, _focus);
 
                 return;
             }
         }
+    }
+
+    // Moves the window three rows per whole notch turned, up for a positive notch (away from the
+    // user) and down for a negative one, as the pre-audit overlay did; the focus stays where it is.
+    // The fraction of a notch that does not make a whole one carries to the next frame.
+    private void Scroll(float notches)
+    {
+        if (notches == 0f)
+        {
+            return;
+        }
+
+        _scrollRemainder -= notches * 3f;
+        int rows = (int)MathF.Truncate(_scrollRemainder);
+        _scrollRemainder -= rows;
+
+        _first = Math.Clamp(_first + rows, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
     }
 
     // Rebuilds the current page's rows from the run as it stands, dropping an entity panel whose
@@ -618,10 +661,10 @@ internal sealed class OverlayHost : IDisposable
         }
 
         _focus = Nearest(Math.Clamp(_focus, 0, Math.Max(0, _rows.Count - 1)));
-        _first = Math.Clamp(
-            Math.Clamp(_first, _focus - OverlayScene.MaxRows + 1, _focus),
-            0,
-            Math.Max(0, _rows.Count - OverlayScene.MaxRows));
+
+        // Clamped to the page alone, not to the focus: the wheel moves this away from the focus, and
+        // Move is what brings it back once a direction press changes which row is focused.
+        _first = Math.Clamp(_first, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
     }
 
     // The interactive row nearest index, searched outward and preferring the earlier row at a tie,
@@ -741,6 +784,7 @@ internal sealed class OverlayHost : IDisposable
         _pages.Add(page);
         _focus = 0;
         _first = 0;
+        _scrollRemainder = 0f;
     }
 
     // Returns to the page beneath, focused on the row that opened this one. Does nothing at the root.
@@ -753,6 +797,7 @@ internal sealed class OverlayHost : IDisposable
 
         _focus = _pages[^1].ReturnFocus;
         _first = 0;
+        _scrollRemainder = 0f;
         _pages.RemoveAt(_pages.Count - 1);
     }
 

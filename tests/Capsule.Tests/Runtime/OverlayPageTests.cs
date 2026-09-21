@@ -6,6 +6,7 @@ using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 using static Capsule.Tests.Runtime.OverlayFixtures;
 using static Capsule.Tests.Runtime.OverlayRig;
 
@@ -168,6 +169,40 @@ public sealed class OverlayPageTests
         overlay.Step();
 
         Assert.Equal(1, scheduler.Tick);
+    }
+
+    // The pointer takes the focus only by moving onto a row, not by resting on one the keys just
+    // moved off of: Up/Dn would otherwise be overwritten the very next frame by the row still under
+    // an unmoved pointer.
+    [Fact]
+    public void APointerRestingOnARow_DoesNotOverwriteTheFocusTheKeysMoved()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+
+        float lineHeight = BitmapFont.Default.LineHeight;
+        Vector2 firstRow = new(6f, 4f + (2f * lineHeight) + (lineHeight / 2f));
+
+        overlay.Observe(DeviceSnapshot.Of(Key.Grave).WithPointer(firstRow));
+        scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host);
+        overlay.Step();
+        Assert.True(overlay.IsOpen);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithPointer(firstRow));
+        Assert.Equal(0, overlay.Focus);
+
+        // The key moves the focus while the pointer keeps resting on the row it started on.
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Down).WithPointer(firstRow));
+        Assert.Equal(1, overlay.Focus);
+
+        // The pointer still has not moved, so it does not claim the focus back on the frame after.
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithPointer(firstRow));
+        Assert.Equal(1, overlay.Focus);
+
+        // Moving the pointer, even within the same row, takes the focus back.
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithPointer(firstRow + new Vector2(1f, 0f)));
+        Assert.Equal(0, overlay.Focus);
     }
 
     [Fact]
@@ -363,6 +398,155 @@ public sealed class OverlayPageTests
     [InlineData(2160, 3)]
     public void TheOverlaysScale_StepsWithTheBackBuffersHeight(int height, int scale) =>
         Assert.Equal(scale, OverlayHost.ScaleFor(height));
+
+    // ScrollY reads positive away from the user (MouseAxis.ScrollY), so a negative notch is the wheel
+    // turned toward the user: scrolling down. The wheel moves the window, three rows a notch, and
+    // leaves the focus alone; a direction press afterwards is what brings the window back to the
+    // focus, snapping it to show the row that press just moved to.
+    [Fact]
+    public void AWheelNotchDown_MovesTheWindowThreeRowsThenMenuDownSnapsItBackToTheFocus()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(
+            Key.Grave,
+            scheduler,
+            host,
+            host,
+            registry: LongLoadSceneRegistry(OverlayScene.MaxRows + 4));
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.L);
+
+        Assert.Equal("Load Scene", overlay.Title);
+        Assert.True(overlay.Rows.Count > OverlayScene.MaxRows);
+
+        string[] labels = Rows(overlay);
+
+        Assert.Equal(0, overlay.Focus);
+        Assert.Equal(labels[0], overlay.Scene.ShownRows()[0]);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f)));
+
+        Assert.Equal(0, overlay.Focus);
+        Assert.Equal(labels[3], overlay.Scene.ShownRows()[0]);
+
+        Press(overlay, scheduler, host, Key.Down);
+
+        Assert.Equal(1, overlay.Focus);
+        Assert.Equal(labels[1], overlay.Scene.ShownRows()[0]);
+    }
+
+    [Fact]
+    public void TheScrollbarsThumb_SitsInsideTheTrackShrinksReachesItsEndAndIsEmptyWhenThePageFits()
+    {
+        (Rect Track, Rect Thumb) shorter = ScrollbarForALoadScenePageOf(OverlayScene.MaxRows + 2);
+        (Rect Track, Rect Thumb) longer = ScrollbarForALoadScenePageOf(OverlayScene.MaxRows + 20);
+
+        Assert.True(shorter.Thumb.Left >= shorter.Track.Left && shorter.Thumb.Right <= shorter.Track.Right);
+        Assert.True(shorter.Thumb.Top >= shorter.Track.Top && shorter.Thumb.Bottom <= shorter.Track.Bottom);
+        Assert.True(longer.Thumb.Size.Y < shorter.Thumb.Size.Y);
+
+        (Rect Track, Rect Thumb) atEnd = ScrollbarAtTheLastRowOfALoadScenePageOf(OverlayScene.MaxRows + 2);
+        Assert.Equal(atEnd.Track.Bottom, atEnd.Thumb.Bottom);
+
+        (Rect Track, Rect Thumb) fitting = ScrollbarForALoadScenePageOf(OverlayScene.MaxRows);
+        Assert.True(fitting.Track.IsEmpty);
+        Assert.True(fitting.Thumb.IsEmpty);
+    }
+
+    // Two frames of a sixth of a notch each (half a row, since a whole notch moves three) carry the
+    // fraction that does not yet make a whole row: the window moves only on the second frame, where
+    // the halves add to one. A sixth left over when the overlay closes is discarded, not carried into
+    // the next time it opens.
+    [Fact]
+    public void TheScrollRemainder_CarriesAcrossFramesAndIsDiscardedWhenTheOverlayCloses()
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(
+            Key.Grave,
+            scheduler,
+            host,
+            host,
+            registry: LongLoadSceneRegistry(OverlayScene.MaxRows + 4));
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.L);
+
+        string[] labels = Rows(overlay);
+
+        Assert.Equal(labels[0], overlay.Scene.ShownRows()[0]);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f / 6f)));
+
+        Assert.Equal(labels[0], overlay.Scene.ShownRows()[0]);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f / 6f)));
+
+        Assert.Equal(labels[1], overlay.Scene.ShownRows()[0]);
+
+        // A sixth of a notch left unfinished as the overlay closes.
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f / 6f)));
+
+        Assert.Equal(labels[1], overlay.Scene.ShownRows()[0]);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
+
+        Assert.False(overlay.IsOpen);
+
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        Open(overlay, scheduler, host);
+        Frame(overlay, scheduler, host, DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f / 6f)));
+
+        Assert.Equal(labels[1], overlay.Scene.ShownRows()[0]);
+    }
+
+    // A registry of rowCount plain scenes, distinct classes borrowed from the runtime so the page lists
+    // more rows than the window shows.
+    private static SceneRegistry LongLoadSceneRegistry(int rowCount)
+    {
+        Type[] types = typeof(object).Assembly.GetExportedTypes();
+        List<SceneRegistration> registrations = [];
+        for (int index = 0; index < rowCount; index++)
+        {
+            registrations.Add(SceneRegistration.Plain(types[index], static _ => new PlainScene()));
+        }
+
+        return new SceneRegistry(new EntityRegistry([]), registrations);
+    }
+
+    // Opens a Load Scene page of rowCount rows and reads its scrollbar back.
+    private static (Rect Track, Rect Thumb) ScrollbarForALoadScenePageOf(int rowCount)
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: LongLoadSceneRegistry(rowCount));
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.L);
+
+        return (overlay.Scene.ScrollTrack, overlay.Scene.ScrollThumb);
+    }
+
+    // Opens a Load Scene page of rowCount rows, walks the focus down to its last row, and reads the
+    // scrollbar back.
+    private static (Rect Track, Rect Thumb) ScrollbarAtTheLastRowOfALoadScenePageOf(int rowCount)
+    {
+        using SceneHost host = CreateHost();
+        FixedStepScheduler scheduler = CreateScheduler();
+        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: LongLoadSceneRegistry(rowCount));
+
+        Open(overlay, scheduler, host);
+        Press(overlay, scheduler, host, Key.L);
+
+        for (int row = 0; row < rowCount - 1; row++)
+        {
+            Press(overlay, scheduler, host, Key.Down);
+        }
+
+        return (overlay.Scene.ScrollTrack, overlay.Scene.ScrollThumb);
+    }
 
     // One row per pace on the host's ladder, in its order, and a mark on exactly the row whose pace is
     // the one in force: none, where the game set one off the ladder.

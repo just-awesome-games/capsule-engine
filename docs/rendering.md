@@ -139,6 +139,54 @@ public Sky(EntitySpawn spawn)
 A document may author the factor instead, as `scrollFactor` on an entry ([`scenes.md`](scenes.md)). A
 `Tiling` of positive infinity on an axis repeats the frame without bound along it.
 
+## Particles
+
+A `ParticleEmitter` is a `Renderer` stepped on the fixed tick over a fixed pool of particles, each
+emitting one sprite through the same path any other renderer draws through. An effect that outlives
+what asked for it is its own entity, removed once its last particle dies:
+
+```csharp
+public sealed class SparkBurst : Entity
+{
+    private readonly ParticleEmitter _emitter;
+
+    public SparkBurst(Vector2 position)
+        : base(position)
+    {
+        _emitter = new ParticleEmitter(Sprite.White, capacity: 8)
+        {
+            Lifetime = (0.15f, 0.35f),
+            Speed = (60f, 140f),
+            Spread = 360f,
+            Gravity = new Vector2(0f, 300f),
+            Scale = (1f, 2f),
+            ScaleOverLifetime = Curve.Linear(1f, 0f),
+            Color = Gradient.Linear(ColorRgba.Yellow, new ColorRgba(255, 255, 0, 0)),
+            Blend = BlendMode.Additive,
+        };
+        Add(_emitter);
+        _emitter.Emit(6);
+    }
+
+    protected override void OnStep(in StepContext context)
+    {
+        if (_emitter.Alive == 0)
+        {
+            Scene.Remove(this);
+        }
+    }
+}
+```
+
+A `ParticleEmitter` is a `Renderer` stepped on the fixed tick over a fixed pool of particles. A
+continuous emitter sets `Rate` or `RateOverDistance`; a burst calls `Emit` directly, as `SparkBurst`
+does above. Particles are simulation state. A headless run reproduces a burst exactly, and a test can
+assert on one. The pool is fixed at construction. The particle nearest the end of its life is recycled
+when a spawn finds none free. Randomness is a stream per emitter, never the game's `Run.Random`.
+Additive draws through `Blend`, for glow, sparks and fire. A game that pools effects instead keeps one
+emitter on a root entity and calls `Emit(count, at)`. Local space, noise, sub-emission, collision and
+trails are not built.
+
 ## Text
 
 Capsule draws text from a bitmap font: a font baked to texture pages with a glyph rectangle per
