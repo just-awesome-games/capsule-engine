@@ -175,6 +175,13 @@ public class Scene
     public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
 
     /// <summary>
+    /// The colour the world is lit by where no light reaches, white by default, which is the world at
+    /// its authored colour. A light adds to it and brightens up to twice that colour. The screen layer
+    /// is never lit.
+    /// </summary>
+    public ColorRgba Ambient { get; protected set; } = ColorRgba.White;
+
+    /// <summary>
     /// The sampling policy for world-space textures. Defaults to the game's setting, or to
     /// <see cref="TextureSampling.Linear"/> when the game has none, until the scene sets its own.
     /// </summary>
@@ -332,8 +339,8 @@ public class Scene
     /// <summary>
     /// Fills the scene's section of the development overlay's scene page, as
     /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default. The run's seed,
-    /// <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Sampling"/> and the camera's centre
-    /// are written before this call, and the scene's entities are listed after it.
+    /// <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>, <see cref="Sampling"/> and
+    /// the camera's centre are written before this call, and the scene's entities are listed after it.
     /// </summary>
     protected virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -568,6 +575,7 @@ public class Scene
         panel.Field("Seed", Run.Random.Seed.ToString(CultureInfo.InvariantCulture));
         panel.Field("Size", Size);
         panel.Field("ClearColor", ClearColor);
+        panel.Field("Ambient", Ambient);
         panel.Field("Sampling", Sampling);
         panel.Field("Camera", Camera.Center);
 

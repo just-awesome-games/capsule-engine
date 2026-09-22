@@ -22,6 +22,9 @@ public readonly record struct TextureHandle(string Name, string Extension)
     /// </summary>
     public static TextureHandle White => new("white", ".engine") { Domain = TextureDomain.Engine };
 
+    /// <summary>The engine's radial light falloff. Drawn from it, an ordinary sprite is a light of any other shape. Names no file and an <see cref="AssetCollection"/> ignores it.</summary>
+    public static TextureHandle Light => new("light", ".engine") { Domain = TextureDomain.Engine };
+
     internal static TextureHandle DefaultFontPage =>
         new("default-font", ".engine") { Domain = TextureDomain.Engine };
 

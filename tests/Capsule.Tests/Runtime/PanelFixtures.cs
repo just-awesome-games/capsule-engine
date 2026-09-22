@@ -21,13 +21,14 @@ internal static class PanelFixtures
         "Seed",
         "Size",
         "ClearColor",
+        "Ambient",
         "Sampling",
         "Camera",
         "",
         "[Entities]",
     ];
 
-    internal const int FirstEntity = 8;
+    internal const int FirstEntity = 9;
 
     // Every row named rather than read: its heading, its command, or the field's name without the
     // column the panel pads it into.

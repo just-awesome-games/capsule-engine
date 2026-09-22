@@ -165,6 +165,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             Scene.Camera.ScrollOrigin);
         _view.Canvas = Run.Canvas;
         _view.ClearColor = Scene.ClearColor;
+        _view.Ambient = Scene.Ambient;
         _view.Sampling = Scene.Sampling;
 
         // Drawing runs after EndStep. A key written, a renderer detached or an entity removed from

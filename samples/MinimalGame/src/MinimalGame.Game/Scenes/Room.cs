@@ -1,3 +1,4 @@
+using Capsule.Rendering;
 using Capsule.Scenes;
 
 namespace MinimalGame.Game.Scenes;
@@ -9,4 +10,9 @@ namespace MinimalGame.Game.Scenes;
 /// contrasting case, a document no class claims.
 /// </summary>
 [SceneDocument("room")]
-public sealed class Room(SceneContent content) : PlayableScene(content);
+public sealed class Room : PlayableScene
+{
+    public Room(SceneContent content)
+        : base(content) =>
+        Ambient = new ColorRgba(72, 76, 104); // The room is dusk.
+}

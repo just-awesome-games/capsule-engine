@@ -6,6 +6,6 @@ public enum BlendMode : byte
     /// <summary>The sprite covers what is behind it by its alpha.</summary>
     Alpha,
 
-    /// <summary>The sprite adds its colour and covers nothing behind it, for glow, sparks and fire.</summary>
+    /// <summary>The sprite adds its colour and covers nothing behind it, for glow, sparks and fire, and is a light in a lit scene.</summary>
     Additive,
 }

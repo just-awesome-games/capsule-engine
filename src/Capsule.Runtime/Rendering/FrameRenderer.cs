@@ -29,6 +29,9 @@ internal sealed class FrameRenderer : IDisposable
     // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
 
+    // The engine's radial light falloff, computed once at startup. Registered under TextureHandle.Light.
+    private readonly Texture2D _light;
+
     private readonly Texture2D _defaultFontPage;
 
     // Every engine-owned texture, so the draw path resolves a handle through a single table.
@@ -41,6 +44,10 @@ internal sealed class FrameRenderer : IDisposable
     // Null when no canvas is declared. Its extent is the canvas under Letterbox and grows with the
     // resolved world rect under a fit that reveals more of it.
     private RenderTarget2D? _target;
+
+    // The frame's light map, allocated at the surface's size on the first frame that lights and
+    // reallocated when that size changes. Null while no frame has lit.
+    private RenderTarget2D? _lightMap;
 
     // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
     // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
@@ -60,10 +67,12 @@ internal sealed class FrameRenderer : IDisposable
         _textures = textures;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
+        _light = BuildLightTexture(device);
         _defaultFontPage = LoadDefaultFontPage(device);
         _engineTextures = new Dictionary<TextureHandle, Texture2D>
         {
             [TextureHandle.White] = _white,
+            [TextureHandle.Light] = _light,
             [TextureHandle.DefaultFontPage] = _defaultFontPage,
         };
         _canvas = renderResolution;
@@ -82,6 +91,35 @@ internal sealed class FrameRenderer : IDisposable
 
             return (backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
         }
+    }
+
+    // The engine's radial light: full at the centre, falling to nothing at the edge on a squared
+    // falloff. Computed once, so the engine ships no PNG and no byte table for it.
+    private static Texture2D BuildLightTexture(GraphicsDevice device)
+    {
+        const int Size = 128;
+        const float Center = 64f;
+
+        Texture2D texture = new(device, Size, Size);
+        Color[] texels = new Color[Size * Size];
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                float dx = (x + 0.5f) - Center;
+                float dy = (y + 0.5f) - Center;
+                float d = MathF.Sqrt((dx * dx) + (dy * dy)) / Center;
+                float v = d >= 1f ? 0f : (1f - d) * (1f - d);
+                byte b = (byte)MathF.Round(v * 255f);
+
+                texels[(y * Size) + x] = new Color(b, b, b, b);
+            }
+        }
+
+        texture.SetData(texels);
+
+        return texture;
     }
 
     private static Texture2D LoadDefaultFontPage(GraphicsDevice device)
@@ -115,12 +153,22 @@ internal sealed class FrameRenderer : IDisposable
 
         if (_canvas is null)
         {
+            if (view.LitWorld)
+            {
+                DrawLightMap(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight);
+            }
+
             DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
             DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling);
         }
         else
         {
             RenderTarget2D target = Surface(layout.Surface);
+
+            if (view.LitWorld)
+            {
+                DrawLightMap(view, alpha, world, layout.Span, layout.World, target.Width, target.Height);
+            }
 
             _device.SetRenderTarget(target);
             DrawWorld(view, alpha, world, layout.Span, layout.World, target.Width, target.Height, layout.Present);
@@ -250,6 +298,151 @@ internal sealed class FrameRenderer : IDisposable
         }
     }
 
+    // Modulates the world's colour by twice the light map: source * destination + destination * source.
+    // The map is drawn at half scale (an ambient of white is stored as 128), so its 8 bits span a light of
+    // zero to two, and a light on a white ambient brightens the world towards white as Godot's Add lights
+    // do. Both factors stay inside [0, 1], where every desktop API blends exactly.
+    private static readonly BlendState Modulate2x = new()
+    {
+        ColorSourceBlend = Blend.DestinationColor,
+        ColorDestinationBlend = Blend.SourceColor,
+        AlphaSourceBlend = Blend.Zero,
+        AlphaDestinationBlend = Blend.One,
+    };
+
+    // Gets or (re)allocates the light map at width x height, disposing a stale one as Surface does.
+    private RenderTarget2D LightMap(int width, int height)
+    {
+        if (_lightMap is { } map && map.Width == width && map.Height == height)
+        {
+            return map;
+        }
+
+        _device.SetRenderTarget(null);
+        _lightMap?.Dispose();
+        _lightMap = new RenderTarget2D(_device, width, height, false, SurfaceFormat.Color, DepthFormat.None);
+
+        return _lightMap;
+    }
+
+    // Draws every light and every additive world sprite into the light map, cleared to the scene's
+    // ambient colour. Mirrors DrawWorld's preamble, on the light map instead of the world's surface.
+    private void DrawLightMap(FrameView view, float alpha, in Rect world, Vector2 span, in Letterbox fit, int surfaceWidth, int surfaceHeight)
+    {
+        if (surfaceWidth <= 0 || surfaceHeight <= 0)
+        {
+            return;
+        }
+
+        RenderTarget2D map = LightMap(surfaceWidth, surfaceHeight);
+        _device.SetRenderTarget(map);
+        _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
+        ColorRgba ambient = Scaled(view.Ambient, MapScale);
+        _device.Clear(Color.FromNonPremultiplied(ambient.R, ambient.G, ambient.B, view.Ambient.A));
+
+        if (world.IsEmpty || fit.IsEmpty)
+        {
+            _device.SetRenderTarget(null);
+            return;
+        }
+
+        _device.Viewport = new Viewport(fit.X, fit.Y, fit.Width, fit.Height);
+
+        Vector2 topLeft = new(world.Left, world.Top);
+        bool snap = view.Sampling == TextureSampling.Point;
+
+        Matrix worldToScreen =
+            Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
+            Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
+
+        Pass pass = new()
+        {
+            Alpha = alpha,
+            Snap = snap,
+            Scale = fit.Scale,
+            SnapLines = snap,
+            LineScale = fit.Scale,
+            LayerCorner = topLeft,
+            FrameCorner = topLeft,
+        };
+
+        // The premultiplied state, not BlendState.Additive: that one scales the source by its alpha, and
+        // an additive intent packs alpha zero (D-capsule-109), which under One/InverseSourceAlpha is
+        // exactly One/One. Every quad here is additive.
+        _batcher.Begin(in worldToScreen, Sampler(view.Sampling), BlendState.AlphaBlend);
+
+        DrawLights(view.Lights, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
+        DrawAdditiveSprites(view.Sprites, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
+
+        _batcher.End();
+        _device.SetRenderTarget(null);
+    }
+
+    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<ParallaxLayer> layers, Vector2 scrollOrigin, ref Pass pass)
+    {
+        Vector2 frameCorner = pass.FrameCorner;
+        int next = 0;
+        for (int index = 0; index < lights.Length; index++)
+        {
+            while (next < layers.Length && layers[next].FirstLight <= index)
+            {
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            LightIntent light = lights[index];
+            if (!(light.Intensity > 0f))
+            {
+                continue;
+            }
+
+            int quads = Math.Min(16, (int)MathF.Ceiling(light.Intensity));
+            for (int quad = 0; quad < quads; quad++)
+            {
+                bool last = quad == quads - 1;
+                float fraction = light.Intensity - quad;
+                ColorRgba color = Scaled(light.Color, last && fraction < 1f ? MapScale * fraction : MapScale);
+                SpriteIntent intent = light.ToSprite(color);
+                DrawSprite(in intent, ref pass);
+            }
+        }
+
+        pass.LayerCorner = frameCorner;
+    }
+
+    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<ParallaxLayer> layers, Vector2 scrollOrigin, ref Pass pass)
+    {
+        Vector2 frameCorner = pass.FrameCorner;
+        int next = 0;
+        for (int index = 0; index < sprites.Length; index++)
+        {
+            while (next < layers.Length && layers[next].FirstSprite <= index)
+            {
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                next++;
+            }
+
+            if (sprites[index].Blend == BlendMode.Additive)
+            {
+                SpriteIntent halved = sprites[index] with { Color = Scaled(sprites[index].Color, MapScale) };
+                DrawSprite(in halved, ref pass);
+            }
+        }
+
+        pass.LayerCorner = frameCorner;
+    }
+
+    // Scales a colour's RGB by fraction, for a light's fractional last quad. Additive accumulation
+    // saturates and is order-free, so this stays exact and deterministic.
+    // The light map's scale: a light of one is stored as half of full, so the map holds zero to two.
+    private const float MapScale = 0.5f;
+
+    private static ColorRgba Scaled(ColorRgba color, float fraction) => new(
+        (byte)Math.Clamp(MathF.Round(color.R * fraction), 0f, 255f),
+        (byte)Math.Clamp(MathF.Round(color.G * fraction), 0f, 255f),
+        (byte)Math.Clamp(MathF.Round(color.B * fraction), 0f, 255f),
+        color.A);
+
     private RenderTarget2D Surface((int Width, int Height) extent)
     {
         RenderTarget2D target = _target!;
@@ -341,6 +534,14 @@ internal sealed class FrameRenderer : IDisposable
 
         DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
         _batcher.End();
+
+        if (view.LitWorld && _lightMap is { } map)
+        {
+            _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
+            _batcher.Begin(Matrix.Identity, SamplerState.PointClamp, Modulate2x);
+            _batcher.DrawWhole(map, Vector2.Zero, Vector2.Zero, Vector2.One, rotation: 0f, ColorRgba.White);
+            _batcher.End();
+        }
     }
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
@@ -553,5 +754,6 @@ internal sealed class FrameRenderer : IDisposable
         }
 
         _target?.Dispose();
+        _lightMap?.Dispose();
     }
 }

@@ -187,6 +187,24 @@ Additive draws through `Blend`, for glow, sparks and fire. A game that pools eff
 emitter on a root entity and calls `Emit(count, at)`. Local space, noise, sub-emission, collision and
 trails are not built.
 
+## Lighting
+
+```csharp
+Add(new ColorRect(HeadSize) { Color = HeadColor, Blend = BlendMode.Additive, Offset = HeadOffset });
+Add(new PointLight { Radius = 56f, Color = HeadColor, Offset = new Vector2(0f, -PostSize.Y) });
+```
+
+A scene lowers the light with one property, `Scene.Ambient`, white by default and set nowhere else. A
+`PointLight` draws its sprite additively into the frame's light map, which the host multiplies over the
+world in one pass; two lights add, a light lights the sprite it sits on, and a light on a white ambient
+brightens what it reaches, up to twice the authored colour, so a light shows in a room that set nothing. In a lit frame a world
+`SpriteIntent` drawn with `Blend == Additive` is a light too, so a glow sprite never goes dark in a dim room. An
+`Intensity` above one adds the colour more than once, widening the bright core. The screen layer is
+never lit: a `PointLight` under a `ScreenEntity` throws. A cone or any other shape is a `Sprite` from a
+sheet, turned by the entity, in place of the engine's radial falloff. A scene with white ambient and no
+light runs no pass, because a white map changes nothing. Not built: shadows, normal maps, bloom, a light-map
+scale, a per-renderer opt-out.
+
 ## Text
 
 Capsule draws text from a bitmap font: a font baked to texture pages with a glyph rectangle per

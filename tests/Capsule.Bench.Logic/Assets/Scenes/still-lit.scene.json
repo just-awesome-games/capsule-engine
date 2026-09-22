@@ -1,0 +1,10 @@
+{
+  "formatVersion": 5,
+  "scrollOrigin": [-100, -50],
+  "entities": [
+    { "id": 1, "type": "still-field", "x": 0, "y": 0 },
+    { "id": 2, "type": "ruler", "x": 0, "y": 0 },
+    { "id": 3, "type": "backdrop", "x": 0, "y": 0, "scrollFactor": [0.5, 0.5] }
+  ],
+  "nextEntityId": 4
+}

@@ -112,8 +112,11 @@ internal static class StageWorkload
     internal sealed class Hero : Entity
     {
         internal Hero(EntitySpawn spawn)
-            : base(spawn) =>
+            : base(spawn)
+        {
             Add(new SpriteRenderer(HeroFrame));
+            Add(new PointLight { Radius = 40f, Color = ColorRgba.Orange });
+        }
 
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }

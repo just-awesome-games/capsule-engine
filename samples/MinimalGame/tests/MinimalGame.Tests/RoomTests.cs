@@ -220,7 +220,9 @@ public sealed class RoomTests
     private static float PlayerFeet(Player player) => player.Position.Y + 8f;
 
     private static SpriteIntent Spark(SimulationHost room) =>
-        Assert.Single(room.Simulation.View.Sprites.ToArray(), sprite => sprite.Size == new Vector2(4f, 4f));
+        Assert.Single(
+            room.Simulation.View.Sprites.ToArray(),
+            sprite => sprite.Size == new Vector2(4f, 4f) && sprite.Sprite.Texture == CapsuleAssets.Textures.Hazard);
 
     // The one frame drawn from the player's sheet.
     private static SpriteIntent PlayerFrame(SimulationHost room) =>

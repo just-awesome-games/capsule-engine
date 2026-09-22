@@ -31,8 +31,9 @@ public sealed class Bolt : Entity
     {
         _sparks = sparks;
 
-        _sprite = new SpriteRenderer(Centred);
+        _sprite = new SpriteRenderer(Centred) { Blend = BlendMode.Additive };
         Add(_sprite);
+        Add(new PointLight { Radius = 5f, Color = ColorRgba.Yellow, Intensity = 0.75f });
     }
 
     /// <summary>Places and arms the bolt for one life: where it starts, which way it flies and how.</summary>

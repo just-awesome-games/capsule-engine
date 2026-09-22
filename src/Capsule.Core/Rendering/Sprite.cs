@@ -28,4 +28,7 @@ public readonly record struct Sprite(
     /// stretched to whatever extent the intent asks for and tinted by its colour.
     /// </summary>
     public static Sprite White => new(TextureHandle.White, new TextureRegion(0, 0, 1, 1));
+
+    /// <summary>The engine's radial light: full at the centre, falling to nothing at the edge, anchored at its centre. A <see cref="LightIntent"/> with no other sprite draws this one.</summary>
+    public static Sprite Light => new(TextureHandle.Light, new TextureRegion(0, 0, 128, 128), new Vector2(64f, 64f));
 }

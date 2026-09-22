@@ -21,6 +21,9 @@ public sealed class FrameView
     private readonly Layer _world = new();
     private readonly Layer _screen = new();
     private readonly List<ParallaxLayer> _parallax = [];
+    private readonly List<LightIntent> _lights = [];
+
+    private ColorRgba _ambient = ColorRgba.White;
 
     private int _submitted;
 
@@ -65,7 +68,7 @@ public sealed class FrameView
             }
 
             _scrollFactor = value;
-            _parallax.Add(new ParallaxLayer(_world.Sprites.Count, _world.Lines.Count, value));
+            _parallax.Add(new ParallaxLayer(_world.Sprites.Count, _world.Lines.Count, value, _lights.Count));
             UpdateCullBounds();
         }
     }
@@ -92,6 +95,31 @@ public sealed class FrameView
     /// <summary>The colour behind world render intent. Black by default.</summary>
     public ColorRgba ClearColor { get; internal set; } = ColorRgba.Black;
 
+    /// <summary>
+    /// The colour the world is lit by where no light reaches. White by default, the world at its
+    /// authored colour. A frame with white ambient and no light in <see cref="Lights"/> runs no
+    /// lighting pass.
+    /// </summary>
+    public ColorRgba Ambient
+    {
+        get => _ambient;
+        internal set
+        {
+            _ambient = value;
+
+            if (value != ColorRgba.White)
+            {
+                LitWorld = true;
+            }
+        }
+    }
+
+    // Whether this frame runs the lighting pass: a non-white ambient or a light added. Rewritten from
+    // false by every Clear, so a frame whose last light left runs none. An additive sprite alone does
+    // not open the pass: it is a light only in a frame that lights, so a scene that set up no
+    // lighting keeps its unlit look and pays nothing.
+    internal bool LitWorld { get; private set; }
+
     /// <summary>How world textures are filtered. Linear by default.</summary>
     public TextureSampling Sampling
     {
@@ -109,6 +137,12 @@ public sealed class FrameView
 
     /// <summary>The world-space sprites to draw, in the order added, under the screen sprites. Invalidated by the next mutation.</summary>
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_world.Sprites);
+
+    /// <summary>
+    /// The lights to draw into the frame's light map, in the order added. World-only: the screen layer
+    /// is never lit. Invalidated by the next mutation.
+    /// </summary>
+    public ReadOnlySpan<LightIntent> Lights => CollectionsMarshal.AsSpan(_lights);
 
     /// <summary>
     /// The screen-space sprites to draw, in canvas pixels and in the order added, over every sprite
@@ -143,7 +177,8 @@ public sealed class FrameView
     /// </summary>
     public RenderMetrics Metrics => new(
         _submitted,
-        _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count);
+        _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count,
+        _lights.Count);
 
     // The region the running renderer's space culls against, and whether it culls at all. A
     // bulk-drawing renderer tests its own bounds against this once instead of paying an Add
@@ -178,6 +213,38 @@ public sealed class FrameView
         }
 
         layer.Sprites.Add(sprite);
+    }
+
+    /// <summary>
+    /// Adds a light, culled through its swept region against the world layer as a sprite is. World-only:
+    /// attach a <c>PointLight</c> to a world entity.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The running renderer's space is the screen layer.</exception>
+    public void Add(in LightIntent light)
+    {
+        if (Space == RenderSpace.Screen)
+        {
+            throw new InvalidOperationException(
+                "A light is world-only: the screen layer is never lit. Attach the PointLight to a world entity.");
+        }
+
+        if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity))
+        {
+            return;
+        }
+
+        if (!light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept))
+        {
+            return;
+        }
+
+        if (_world.Culls && !swept.Intersects(_world.Bounds))
+        {
+            return;
+        }
+
+        _lights.Add(light);
+        LitWorld = true;
     }
 
     /// <summary>
@@ -260,7 +327,8 @@ public sealed class FrameView
                         new Vector2(sourceWidth * texelSize.X, sourceHeight * texelSize.Y),
                         sprite.FlipX,
                         sprite.FlipY,
-                        sprite.Color),
+                        sprite.Color,
+                        sprite.Blend),
                     space);
             }
         }
@@ -413,9 +481,12 @@ public sealed class FrameView
         _screen.Sprites.Clear();
         _screen.Lines.Clear();
         _parallax.Clear();
+        _lights.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
         _scrollFactor = Vector2.One;
+        LitWorld = false;
+        _ambient = ColorRgba.White;
         UpdateCullBounds();
     }
 
