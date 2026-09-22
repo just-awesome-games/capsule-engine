@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -19,6 +20,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     private SceneTransition _target;
     private SceneSimulation _current;
+
+    // The prefetch no boundary has consumed yet, which a repeat of it leaves alone.
+    private SceneTransition? _prefetched;
     private bool _disposed;
 
     internal SceneHost(
@@ -58,6 +62,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // Null until the device is ready. Later transitions prepare their incoming scene through it.
     internal Action<AssetCollection>? PrepareAssets { get; set; }
 
+    // Null until the device is ready, and for a run with none.
+    internal Action<AssetCollection>? PrefetchAssets { get; set; }
+
     // Whether the last step's transition failed to bring its incoming scene up, because resolving,
     // preparing or starting it threw. The run stays on the scene it was on and steps as before. The
     // exception still propagated, and this reports where it came from. A step's own failure, after
@@ -73,6 +80,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         _current.Step(context);
         Consume();
+        TakePrefetch();
     }
 
     // Step with the host's before-step act inside the current scene's step. A scene the act asks for
@@ -86,6 +94,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         ((ISimulation)_current).Step(context, before);
         Consume();
+        TakePrefetch();
     }
 
     // Opens a step and returns whether there is one to run. An exit already tore the current scene
@@ -135,6 +144,37 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 throw new InvalidOperationException($"Unknown scene transition kind '{transition.Kind}'.");
         }
     }
+
+    // The target is built and abandoned in every mode. A run with a device and one without construct
+    // the same scenes.
+    private void TakePrefetch()
+    {
+        if (ExitRequested || !_run.TryTakePrefetch(out SceneTransition target) || _prefetched == target)
+        {
+            return;
+        }
+
+        Scene throwaway = _resolve(target);
+        AssetCollection preloads;
+        try
+        {
+            preloads = throwaway.CollectAssetPreloads();
+        }
+        finally
+        {
+            throwaway.Abandon();
+        }
+
+        if (_prefetched is { } replaced)
+        {
+            Log.Debug($"prefetch of {NameOf(replaced)} replaced by {NameOf(target)} before use");
+        }
+
+        _prefetched = target;
+        PrefetchAssets?.Invoke(preloads);
+    }
+
+    private static string NameOf(in SceneTransition target) => target.SceneType?.Name ?? target.DocumentName ?? "";
 
     // Runs the current scene's debug pass outside a step, as SceneSimulation.EmitDebugDraws defines
     // it. Nothing runs after an exit, which has nothing left to draw.
@@ -238,6 +278,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // its simulation.
     private SceneSimulation Bring(in SceneTransition target)
     {
+        // The boundary consumes any prefetch, whether or not it named this scene.
+        _prefetched = null;
         Scene next = _resolve(target);
 
         try
@@ -268,6 +310,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     {
         Action<AssetCollection>? prepare = PrepareAssets;
         PrepareAssets = null;
+        PrefetchAssets = null;
         prepare?.Invoke(new AssetCollection());
     }
 }

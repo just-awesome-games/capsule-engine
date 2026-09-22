@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using Capsule.AotSmoke.Logic;
 using Capsule.Assets;
 using Capsule.Diagnostics;
@@ -6,6 +7,7 @@ using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
+using Capsule.Runtime.Assets;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes.Documents;
 
@@ -26,6 +28,9 @@ internal static class Program
     private const int MinimumVisible = DocumentSprites + FixtureLabel.Glyphs;
 
     private const string DevelopmentTexturePath = "assets/textures/development/scratch.png";
+
+    // SHA-256 of the menu font page's premultiplied texels, as Texture2D.FromStream uploads them.
+    private const string FontPageTexelsSha256 = "4F13FA9BDBEB25D496632C2E31133CF54C61C2593323F881F6B114384BAF7D4E";
 
     public static int Main(string[] args)
     {
@@ -86,6 +91,16 @@ internal static class Program
             return 5;
         }
 
+        // The half of a texture load that runs off the game thread needs no device, so the published
+        // decoder is proved here although the run below is headless.
+        string texels = FontPageTexels();
+        if (texels != FontPageTexelsSha256)
+        {
+            Console.Error.WriteLine($"AOT smoke failed (6): the menu font page decodes to texels hashing {texels}, not {FontPageTexelsSha256}.");
+
+            return 6;
+        }
+
         // Twice in one process: each run builds a fresh store, so the second read comes back from
         // the file the first run wrote.
         HeadlessRunResult result = Play(args);
@@ -117,6 +132,13 @@ internal static class Program
                 $"AOT smoke passed (shipping {shipping}): {result.Steps} steps, {result.Metrics.Visible}/{result.Metrics.Submitted} commands, content shipped, runs read {firstRead} then {secondRead}."));
 
         return 0;
+    }
+
+    private static string FontPageTexels()
+    {
+        using Stream file = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "assets", "fonts", "menu.png"));
+
+        return Convert.ToHexString(SHA256.HashData(TextureDecoder.Decode(file, new TexelPool(), "menu").Texels));
     }
 
     private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;

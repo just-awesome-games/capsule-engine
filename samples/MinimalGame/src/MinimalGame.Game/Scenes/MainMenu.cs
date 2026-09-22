@@ -15,8 +15,13 @@ public sealed class MainMenu : Scene
     public MainMenu() => Add(new TitleMenu());
 
     // A track already playing is left alone, so a trip through Options and back does not restart it.
+    // Start is the item highlighted on arrival. The room it opens loads behind the menu.
     /// <inheritdoc/>
-    protected override void OnStart() => Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
+    protected override void OnStart()
+    {
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
+        Run.PrefetchScene(CapsuleAssets.Scenes.Room);
+    }
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)

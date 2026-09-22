@@ -27,6 +27,7 @@ public sealed class Run
     private bool _exitRequested;
     private string? _frameCapturePath;
     private SceneTransition? _transition;
+    private SceneTransition? _prefetch;
     private object? _state;
 
     /// <summary>The canvas a run uses when none is supplied, 1280 by 720 pixels.</summary>
@@ -226,6 +227,23 @@ public sealed class Run
         TryRequest(SceneTransition.ToName(name, payload));
     }
 
+    /// <summary>Starts loading the media <typeparamref name="TScene"/> preloads after the current step.</summary>
+    /// <remarks>
+    /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. The scene's
+    /// constructor runs twice. At most one scene is prefetched, and a repeat does nothing.
+    /// </remarks>
+    public void PrefetchScene<TScene>()
+        where TScene : Scene =>
+        Prefetch(SceneTransition.ToScene(typeof(TScene), null));
+
+    /// <summary>Prefetches the named document's scene, as <see cref="PrefetchScene{TScene}"/> does for a class.</summary>
+    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    public void PrefetchScene(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        Prefetch(SceneTransition.ToName(name, null));
+    }
+
     /// <summary>Asks the host to reconstruct the current scene after the current step.</summary>
     public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));
 
@@ -238,7 +256,7 @@ public sealed class Run
 
     /// <summary>
     /// Asks the host to shut down after the current step. It replaces any pending transition, drops any
-    /// pending frame capture, does nothing on a second call, and cannot be cancelled.
+    /// pending frame capture and prefetch, does nothing on a second call, and cannot be cancelled.
     /// </summary>
     public void RequestExit()
     {
@@ -250,6 +268,7 @@ public sealed class Run
         _exitRequested = true;
         _transition = SceneTransition.Exit();
         _frameCapturePath = null;
+        _prefetch = null;
     }
 
     /// <summary>Whether game code has asked this run to end. Once true, it stays true.</summary>
@@ -300,6 +319,19 @@ public sealed class Run
         return true;
     }
 
+    internal bool TryTakePrefetch(out SceneTransition target)
+    {
+        if (_prefetch is not { } requested)
+        {
+            target = default;
+            return false;
+        }
+
+        _prefetch = null;
+        target = requested;
+        return true;
+    }
+
     internal bool TryTakeFrameCapture(out string path)
     {
         if (_frameCapturePath is not { } requested)
@@ -326,6 +358,14 @@ public sealed class Run
 
         _transition = transition;
         return true;
+    }
+
+    // A later prefetch in the same step replaces an earlier one, as the host would.
+    private void Prefetch(in SceneTransition target)
+    {
+        ThrowIfExitRequested();
+
+        _prefetch = target;
     }
 
     private void ThrowIfExitRequested()

@@ -9,6 +9,8 @@
          source checkout without editing it. -->
     <CapsuleSubstratePackage Condition="'$(CapsuleSubstratePackage)' == ''">MonoGame.Framework.DesktopGL</CapsuleSubstratePackage>
     <CapsuleSubstrateVersion Condition="'$(CapsuleSubstrateVersion)' == ''">3.8.5.1</CapsuleSubstrateVersion>
+    <!-- The texture decoder's entry point takes and returns pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,6 +31,12 @@
     <!-- The neutral host holds no implicit location and no native binding; BannedSymbols.txt is
          the list, each entry with its reason. A site that seems to need one belongs in a platform
          module, never under a suppression. -->
+    <!-- The decoder MonoGame bundles internally, referenced so a texture decodes off the game
+         thread into memory the runtime owns. Hidden from games like the substrate. -->
+    <PackageReference Include="StbImageSharp" Version="2.30.16">
+      <PrivateAssets>compile</PrivateAssets>
+    </PackageReference>
+
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -45,6 +53,8 @@
   <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
+    <InternalsVisibleTo Include="Capsule.DeviceTests" />
+    <InternalsVisibleTo Include="Capsule.AotSmoke" />
   </ItemGroup>
 
   <ItemGroup>

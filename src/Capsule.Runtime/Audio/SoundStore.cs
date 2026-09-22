@@ -1,5 +1,6 @@
 using Capsule.Assets;
 using Capsule.Audio;
+using Capsule.Diagnostics;
 using Capsule.Runtime.Assets;
 
 namespace Capsule.Runtime.Audio;
@@ -17,24 +18,16 @@ internal sealed class SoundStore : IDisposable
     internal SoundStore(IAudioBackend backend)
     {
         _backend = backend;
-        _resident = new(clip => new RetainedSound(backend.Load(clip)));
+        _resident = new(clip => new PendingClip(backend, clip, backend.Read(clip)), long.MaxValue);
     }
 
     // Missing preloads are decoded before the prior scene's sounds are released. Streamed clips are
     // dropped here instead of loaded. Declaring one is not an error and reserves nothing.
-    internal void ChangeScene(AssetCollection preloads)
-    {
-        List<AudioClip> resident = [];
-        foreach (AudioClip clip in preloads.Clips)
-        {
-            if (!AudioFiles.IsStreamed(clip))
-            {
-                resident.Add(clip);
-            }
-        }
+    internal void ChangeScene(AssetCollection preloads) => _resident.ChangeScene(ResidentOf(preloads));
 
-        _resident.ChangeScene(resident);
-    }
+    internal void Prefetch(AssetCollection preloads) => _resident.Prefetch(ResidentOf(preloads));
+
+    internal void Pump() => _resident.Pump();
 
     // Loads on first use when the scene did not preload the clip. A resident clip streams its own
     // samples instead of being queued whole when it must repeat a loop region or begin mid-clip,
@@ -42,7 +35,7 @@ internal sealed class SoundStore : IDisposable
     internal IAudioVoice Play(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds) =>
         AudioFiles.IsStreamed(clip)
             ? _backend.Stream(clip, gain, pitch, pan, loop, startSeconds)
-            : _resident.Get(clip).Play(
+            : Get(clip).Play(
                 gain,
                 pitch,
                 pan,
@@ -60,6 +53,42 @@ internal sealed class SoundStore : IDisposable
         {
             _backend.Dispose();
         }
+    }
+
+    private static List<AudioClip> ResidentOf(AssetCollection preloads)
+    {
+        List<AudioClip> resident = [];
+        foreach (AudioClip clip in preloads.Clips)
+        {
+            if (!AudioFiles.IsStreamed(clip))
+            {
+                resident.Add(clip);
+            }
+        }
+
+        return resident;
+    }
+
+    private RetainedSound Get(in AudioClip clip)
+    {
+        if (_resident.TryGet(clip, out RetainedSound sound))
+        {
+            return sound;
+        }
+
+        sound = _resident.Load(clip);
+        Log.Info($"'{clip.Name}' loaded on first play; declare it to preload it");
+
+        return sound;
+    }
+
+    private sealed class PendingClip(IAudioBackend backend, AudioClip clip, MemoryStream file) : IPendingAsset<RetainedSound>
+    {
+        public bool Advance(ref long budget) => true;
+
+        public RetainedSound Finish() => new(backend.Load(clip, file));
+
+        public void Discard() => file.Dispose();
     }
 
     // One resident sound plus the count of live voices playing it. The scene's release and the last

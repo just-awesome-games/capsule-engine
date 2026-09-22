@@ -142,8 +142,8 @@ runtime and needs no asset. Drawing text is [`rendering.md`](rendering.md#text).
 
 ## Loading and residency
 
-A scene collects what it needs before it starts, and the runtime preloads it synchronously at the scene
-boundary:
+A scene collects what it needs before it starts, and the runtime preloads it at the scene boundary. Files
+are read and decoded on worker threads, and the scene starts once the last has landed:
 
 ```csharp
 protected internal override void CollectAssets(AssetCollection assets) => assets.Add(_texture);
@@ -152,9 +152,12 @@ protected internal override void CollectAssets(AssetCollection assets) => assets
 `Scene.CollectAssets`, `Entity.CollectAssets` and `Component.CollectAssets` are the hooks. The engine's
 renderers, audio sources and labels declare what they hold, so an entity that attaches its components in
 its constructor is preloaded with them. A resource the scene did not collect loads on first rendered or
-audible use and is cached for the rest of that scene. The outgoing scene's resources are released at
-transition or exit, except those the incoming preload also uses. A packed texture is resident as its atlas
-page, so one page covers any number of its members. A headless run loads no media.
+audible use, logs that at info, and is cached for the rest of that scene. The outgoing scene's resources
+are released at transition or exit, except those the incoming preload also uses. A packed texture is
+resident as its atlas page, so one page covers any number of its members. A headless run loads no media.
+
+`Run.PrefetchScene<TScene>()` starts loading a scene's preloads before it is requested, and the request
+then waits only for what has not landed.
 
 ## Authoring tools
 

@@ -1,5 +1,6 @@
 using Capsule.Assets;
 using Capsule.Runtime.Assets;
+using Capsule.Tests.Runtime;
 
 namespace Capsule.Tests.Allocation;
 
@@ -10,7 +11,7 @@ public sealed class AssetAllocationTests
     public void SceneAssetCacheHits_AllocateNothing()
     {
         TextureHandle handle = new("hero", ".png");
-        using SceneAssetStore<TextureHandle, FakeAsset> store = new(
+        using SceneAssetStore<TextureHandle, FakeAsset> store = SyncStore.Over<TextureHandle, FakeAsset>(
             static _ => new FakeAsset());
 
         FakeAsset asset = store.Get(handle);

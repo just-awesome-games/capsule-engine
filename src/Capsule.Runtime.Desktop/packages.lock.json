@@ -27,6 +27,11 @@
         "resolved": "0.10.4",
         "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
+      "StbImageSharp": {
+        "type": "Transitive",
+        "resolved": "2.30.16",
+        "contentHash": "qg1i+NHihXVKLKYacGKrauhSQIGL31eBWcTC4Vc7jnGmBFj87LkRuCdXB5aDZisWMRnB6x2mcfwYXQxMWEG/lw=="
+      },
       "capsule.core": {
         "type": "Project"
       },
@@ -56,7 +61,7 @@
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
           "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
-          "NVorbis": "[0.10.4, )"
+          "StbImageSharp": "[2.30.16, )"
         }
       }
     }

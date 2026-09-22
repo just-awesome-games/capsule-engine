@@ -77,7 +77,7 @@ public sealed class TextureResidencyTests
     public void Get_LoadsOnceAndReusesTheAssetOnHits()
     {
         int loads = 0;
-        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
+        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
         {
             loads++;
             return new FakeTexture(handle.Name);
@@ -95,7 +95,7 @@ public sealed class TextureResidencyTests
     {
         TextureHandle sharedHandle = new("shared", ".png");
         TextureHandle nextHandle = new("next", ".png");
-        using SceneAssetStore<TextureHandle, FakeTexture> store = new(
+        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(
             static handle => new FakeTexture(handle.Name));
         store.ChangeScene([Hero, sharedHandle]);
         FakeTexture hero = store.Get(Hero);
@@ -117,7 +117,7 @@ public sealed class TextureResidencyTests
     public void AHundredTransitionsBetweenTwoScenes_LeaveResidencyWhereTheFirstTransitionPutIt()
     {
         List<FakeTexture> loaded = [];
-        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
+        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
         {
             FakeTexture texture = new(handle.Name);
             loaded.Add(texture);
@@ -145,7 +145,7 @@ public sealed class TextureResidencyTests
         TextureHandle stagedHandle = new("staged", ".png");
         FakeTexture? staged = null;
         bool fail = false;
-        using SceneAssetStore<TextureHandle, FakeTexture> store = new(handle =>
+        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
         {
             if (fail && handle == Tiles)
             {
@@ -179,7 +179,7 @@ public sealed class TextureResidencyTests
     public void AFailureInAnotherStore_RollsBackAllStagedAssets()
     {
         FakeTexture? staged = null;
-        using SceneAssetStore<TextureHandle, FakeTexture> textures = new(handle =>
+        using SceneAssetStore<TextureHandle, FakeTexture> textures = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
         {
             FakeTexture texture = new(handle.Name);
             if (handle == Tiles)
@@ -189,7 +189,7 @@ public sealed class TextureResidencyTests
 
             return texture;
         });
-        using SceneAssetStore<string, FakeTexture> sounds = new(name =>
+        using SceneAssetStore<string, FakeTexture> sounds = SyncStore.Over<string, FakeTexture>(name =>
             name == "broken" ? throw new InvalidDataException("audio decode failed") : new FakeTexture(name));
         FakeTexture hero = textures.Get(Hero);
         FakeTexture sound = sounds.Get("current");
@@ -214,7 +214,7 @@ public sealed class TextureResidencyTests
     [Fact]
     public void Dispose_ReleasesEveryAssetOwnedByTheScene()
     {
-        SceneAssetStore<TextureHandle, FakeTexture> store = new(
+        SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(
             static handle => new FakeTexture(handle.Name));
         store.ChangeScene([Hero]);
         FakeTexture preload = store.Get(Hero);
@@ -224,6 +224,26 @@ public sealed class TextureResidencyTests
 
         Assert.True(preload.Disposed);
         Assert.True(lazy.Disposed);
+    }
+
+    [Fact]
+    public void TheTexelPool_KeepsItsLargestBuffersUpToTheDecodeConcurrency()
+    {
+        TexelPool pool = new();
+        byte[][] pages = [.. Enumerable.Range(1, AssetDecodes.Concurrency).Select(static size => new byte[100_000 * size])];
+        foreach (byte[] page in pages)
+        {
+            pool.Return(page);
+        }
+
+        pool.Return(new byte[84_999]);
+        pool.Return(new byte[99_999]);
+        byte[] largest = new byte[1_000_000];
+        pool.Return(largest);
+
+        Assert.Equal(AssetDecodes.Concurrency, pool.Count);
+        Assert.Same(largest, pool.Rent(largest.Length));
+        Assert.NotSame(pages[0], pool.Rent(pages[0].Length));
     }
 
     private sealed class Shipped : IDisposable

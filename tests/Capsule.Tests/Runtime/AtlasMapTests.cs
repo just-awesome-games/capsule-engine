@@ -42,7 +42,7 @@ public sealed class AtlasMapTests
     {
         AtlasMap map = Parse(Map);
         int loads = 0;
-        using SceneAssetStore<TextureHandle, FakePage> store = new(handle =>
+        using SceneAssetStore<TextureHandle, FakePage> store = SyncStore.Over<TextureHandle, FakePage>(handle =>
         {
             loads++;
             return new FakePage();

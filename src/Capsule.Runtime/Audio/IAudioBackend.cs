@@ -6,9 +6,13 @@ namespace Capsule.Runtime.Audio;
 // scene residency, retention and command translation are exercised with no device open.
 internal interface IAudioBackend : IDisposable
 {
-    // The sound for a resident clip, loaded whole. Throws when the shipped file is missing or
-    // unreadable, which is a build fault and not a device one.
-    IResidentSound Load(in AudioClip clip);
+    // A resident clip's file read whole into memory, on any thread. Throws when the shipped file is
+    // missing, which is a build fault and not a device one.
+    MemoryStream Read(in AudioClip clip);
+
+    // The sound for a resident clip from the bytes Read returned, on the game thread. Throws when the
+    // file is unreadable.
+    IResidentSound Load(in AudioClip clip, MemoryStream file);
 
     // A voice decoding its clip as it plays, beginning at startSeconds. Nothing is resident, so the
     // clip is opened per play and closed when the voice ends.

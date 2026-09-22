@@ -78,7 +78,9 @@ internal static class AudioPlaybackFixtures
 
         internal List<FakeVoice> Voices { get; } = [];
 
-        public IResidentSound Load(in AudioClip clip)
+        public MemoryStream Read(in AudioClip clip) => new();
+
+        public IResidentSound Load(in AudioClip clip, MemoryStream file)
         {
             FakeSound sound = new(this, clip);
             Loaded.Add(sound);

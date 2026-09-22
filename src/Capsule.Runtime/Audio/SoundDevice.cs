@@ -56,11 +56,23 @@ internal sealed class SoundDevice : IAudioBackend
     // SoundEffectInstance, so the host applies one gain across the output.
     internal void SetOutputGain(float gain) => SoundEffect.MasterVolume = gain;
 
-    public IResidentSound Load(in AudioClip clip)
+    public MemoryStream Read(in AudioClip clip)
     {
         using Stream file = AudioFiles.Open(_platform, clip);
+        MemoryStream bytes = file.CanSeek ? new((int)file.Length) : new();
+        file.CopyTo(bytes);
 
-        return new ResidentSoundEffect(SoundEffect.FromStream(file), clip, _streamer, _platform);
+        return bytes;
+    }
+
+    public IResidentSound Load(in AudioClip clip, MemoryStream file)
+    {
+        using (file)
+        {
+            file.Position = 0;
+
+            return new ResidentSoundEffect(SoundEffect.FromStream(file), clip, _streamer, _platform);
+        }
     }
 
     public IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds)

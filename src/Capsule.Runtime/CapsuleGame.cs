@@ -143,6 +143,7 @@ internal sealed class CapsuleGame : Game
         if (_scenes is { } scenes)
         {
             scenes.PrepareAssets = PrepareAssets;
+            scenes.PrefetchAssets = PrefetchAssets;
             PrepareAssets(scenes.Scene.CollectAssetPreloads());
 
             if (_audio is { } audio)
@@ -230,6 +231,10 @@ internal sealed class CapsuleGame : Game
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
         _stepOverlay?.Invoke(_renderer);
+
+        // After the steps that may have asked for a prefetch.
+        _textures.Pump();
+        _sounds?.Pump();
 
         // Every frame, including one that drained no step. The device follows the system's default
         // output, and a streamed voice hands it the next buffers.
@@ -344,6 +349,12 @@ internal sealed class CapsuleGame : Game
     private void PrepareAssets(AssetCollection preloads)
     {
         _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
+    }
+
+    private void PrefetchAssets(AssetCollection preloads)
+    {
+        _textures.Prefetch(preloads);
+        _sounds?.Prefetch(preloads);
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event

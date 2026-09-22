@@ -2,16 +2,6 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "Microsoft.CodeAnalysis.CSharp": {
-        "type": "Direct",
-        "requested": "[4.14.0, )",
-        "resolved": "4.14.0",
-        "contentHash": "568a6wcTivauIhbeWcCwfWwIn7UV7MeHEBvFB2uzGIpM2OhJ4eM/FZ8KS0yhPoNxnSpjGzz7x7CIjTxhslojQA==",
-        "dependencies": {
-          "Microsoft.CodeAnalysis.Analyzers": "3.11.0",
-          "Microsoft.CodeAnalysis.Common": "[4.14.0]"
-        }
-      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.14.1, )",
@@ -22,11 +12,16 @@
           "Microsoft.TestPlatform.TestHost": "17.14.1"
         }
       },
-      "NVorbis": {
+      "MonoGame.Framework.DesktopGL": {
         "type": "Direct",
-        "requested": "[0.10.4, )",
-        "resolved": "0.10.4",
-        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
+        "requested": "[3.8.5.1, )",
+        "resolved": "3.8.5.1",
+        "contentHash": "za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
+        "dependencies": {
+          "MonoGame.Library.OpenAL": "1.24.3.4",
+          "MonoGame.Library.SDL": "2.32.10.2",
+          "NVorbis": "0.10.4"
+        }
       },
       "xunit": {
         "type": "Direct",
@@ -44,19 +39,6 @@
         "requested": "[3.1.4, )",
         "resolved": "3.1.4",
         "contentHash": "5mj99LvCqrq3CNi06xYdyIAXOEh+5b33F2nErCzI5zWiDdLHXiPXEWFSUAF8zlIv0ZWqjZNCwHTQeAPYbF3pCg=="
-      },
-      "Microsoft.CodeAnalysis.Analyzers": {
-        "type": "Transitive",
-        "resolved": "3.11.0",
-        "contentHash": "v/EW3UE8/lbEYHoC2Qq7AR/DnmvpgdtAMndfQNmpuIMx/Mto8L5JnuCfdBYtgvalQOtfNCnxFejxuRrryvUTsg=="
-      },
-      "Microsoft.CodeAnalysis.Common": {
-        "type": "Transitive",
-        "resolved": "4.14.0",
-        "contentHash": "PC3tuwZYnC+idaPuoC/AZpEdwrtX7qFpmnrfQkgobGIWiYmGi5MCRtl5mx6QrfMGQpK78X2lfIEoZDLg/qnuHg==",
-        "dependencies": {
-          "Microsoft.CodeAnalysis.Analyzers": "3.11.0"
-        }
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -77,16 +59,6 @@
           "Newtonsoft.Json": "13.0.3"
         }
       },
-      "MonoGame.Framework.DesktopGL": {
-        "type": "Transitive",
-        "resolved": "3.8.5.1",
-        "contentHash": "za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
-        "dependencies": {
-          "MonoGame.Library.OpenAL": "1.24.3.4",
-          "MonoGame.Library.SDL": "2.32.10.2",
-          "NVorbis": "0.10.4"
-        }
-      },
       "MonoGame.Library.OpenAL": {
         "type": "Transitive",
         "resolved": "1.24.3.4",
@@ -102,15 +74,15 @@
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
+      "NVorbis": {
+        "type": "Transitive",
+        "resolved": "0.10.4",
+        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
+      },
       "StbImageSharp": {
         "type": "Transitive",
         "resolved": "2.30.16",
         "contentHash": "qg1i+NHihXVKLKYacGKrauhSQIGL31eBWcTC4Vc7jnGmBFj87LkRuCdXB5aDZisWMRnB6x2mcfwYXQxMWEG/lw=="
-      },
-      "StbImageWriteSharp": {
-        "type": "Transitive",
-        "resolved": "1.16.7",
-        "contentHash": "NF9kOxi0iS9VunklnRKgOpAWC2knCGKRjdy7RT6XAqYNyb7LQfyPHPdl4l1fJw7TFYKrGQzQOmK1XpBONC2MoA=="
       },
       "xunit.abstractions": {
         "type": "Transitive",
@@ -155,9 +127,6 @@
       "capsule.core": {
         "type": "Project"
       },
-      "capsule.generators": {
-        "type": "Project"
-      },
       "capsule.physics": {
         "type": "Project",
         "dependencies": {
@@ -177,14 +146,6 @@
           "Capsule.Core": "[0.0.0, )",
           "Capsule.Physics": "[0.0.0, )",
           "Capsule.Scenes": "[0.0.0, )"
-        }
-      },
-      "JAG.Capsule.Build": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Scenes": "[0.0.0, )",
-          "StbImageSharp": "[2.30.16, )",
-          "StbImageWriteSharp": "[1.16.7, )"
         }
       },
       "JAG.Capsule.Runtime": {

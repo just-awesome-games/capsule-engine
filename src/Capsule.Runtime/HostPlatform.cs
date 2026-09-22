@@ -16,7 +16,7 @@ public abstract class HostPlatform
     /// <summary>
     /// Opens shipped content for reading. A path is the build's own, relative to the publish root
     /// with forward slashes and no leading separator, and is validated before it arrives here. The
-    /// caller disposes the stream.
+    /// caller disposes the stream. It may be called from any thread, several calls at once.
     /// </summary>
     /// <exception cref="FileNotFoundException">Nothing ships at that path.</exception>
     public abstract Stream OpenContent(string relativePath);

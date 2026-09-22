@@ -1,4 +1,6 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Assets;
@@ -12,6 +14,10 @@ internal readonly record struct TextureSlice(Texture2D Texture, int OffsetX, int
 // stays while any member of the incoming scene wants it.
 internal sealed class TextureStore : IDisposable
 {
+    // The texel bytes a prefetch uploads a frame, in whole rows of one page. Lower it if upload frames
+    // show in intervalMs max, and raise it if prefetched pages are not ready by their boundary.
+    private const long UploadBytesPerFrame = 4 * 1024 * 1024;
+
     private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
 
     private readonly AtlasMap _atlases;
@@ -19,14 +25,15 @@ internal sealed class TextureStore : IDisposable
     internal TextureStore(GraphicsDevice device, HostPlatform platform)
     {
         _atlases = AtlasMap.Load(platform);
-        _textures = new(Load);
+        TexelPool pool = new();
+        _textures = new(Decode, UploadBytesPerFrame);
 
-        Texture2D Load(TextureHandle handle)
+        // The batch blends premultiplied, and a straight-alpha texture would fringe dark along
+        // every soft edge. A packed page ships straight like any other file.
+        TextureUpload Decode(TextureHandle handle)
         {
-            // The batch blends premultiplied, and a straight-alpha texture would fringe dark along
-            // every soft edge. A packed page ships straight like any other file.
             using Stream file = TextureFiles.Open(platform, handle);
-            return Texture2D.FromStream(device, file, DefaultColorProcessors.PremultiplyAlpha);
+            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name));
         }
     }
 
@@ -34,11 +41,88 @@ internal sealed class TextureStore : IDisposable
     internal void ChangeScene(AssetCollection preloads, Action prepareRemainingAssets) =>
         _textures.ChangeScene(_atlases.Residency(preloads.Textures), prepareRemainingAssets);
 
+    internal void Prefetch(AssetCollection preloads) => _textures.Prefetch(_atlases.Residency(preloads.Textures));
+
+    internal void Pump() => _textures.Pump();
+
     // Loads on first use when the scene did not preload the handle.
     internal TextureSlice Get(in TextureHandle handle) =>
         _atlases.TryGet(handle, out AtlasSlot slot)
-            ? new TextureSlice(_textures.Get(slot.Page), slot.X, slot.Y)
-            : new TextureSlice(_textures.Get(handle), 0, 0);
+            ? new TextureSlice(Get(slot.Page, handle), slot.X, slot.Y)
+            : new TextureSlice(Get(handle, handle), 0, 0);
 
     public void Dispose() => _textures.Dispose();
+
+    private Texture2D Get(in TextureHandle file, in TextureHandle drawn)
+    {
+        if (_textures.TryGet(file, out Texture2D texture))
+        {
+            return texture;
+        }
+
+        texture = _textures.Load(file);
+        Log.Info($"'{drawn.Name}' loaded on first draw; declare it to preload it");
+
+        return texture;
+    }
+
+    // One decoded page on its way to the device, top rows first.
+    internal sealed class TextureUpload(GraphicsDevice device, TexelPool pool, DecodedTexture decoded) : IPendingAsset<Texture2D>
+    {
+        private Texture2D? _texture;
+        private int _rows;
+
+        public bool Advance(ref long budget)
+        {
+            int rowBytes = decoded.Width * 4;
+            int rows = (int)Math.Clamp(budget / rowBytes, 0, decoded.Height - _rows);
+            if (rows == 0)
+            {
+                return false;
+            }
+
+            Upload(rows);
+            budget -= (long)rows * rowBytes;
+
+            return _rows == decoded.Height;
+        }
+
+        public Texture2D Finish()
+        {
+            try
+            {
+                if (_rows < decoded.Height)
+                {
+                    Upload(decoded.Height - _rows);
+                }
+            }
+            catch
+            {
+                Discard();
+                throw;
+            }
+
+            Texture2D texture = _texture!;
+            _texture = null;
+            pool.Return(decoded.Texels);
+
+            return texture;
+        }
+
+        public void Discard()
+        {
+            _texture?.Dispose();
+            _texture = null;
+            pool.Return(decoded.Texels);
+        }
+
+        // A whole-texture SetData of a 4096-texel page measured twice its rows written as slices.
+        private void Upload(int rows)
+        {
+            _texture ??= new Texture2D(device, decoded.Width, decoded.Height);
+            int rowBytes = decoded.Width * 4;
+            _texture.SetData(0, new Rectangle(0, _rows, decoded.Width, rows), decoded.Texels, _rows * rowBytes, rows * rowBytes);
+            _rows += rows;
+        }
+    }
 }

@@ -21,6 +21,7 @@ internal sealed record SuiteRecord(
     private static readonly JsonSerializerOptions Options = new(SuiteRecordJson.Default.Options)
     {
         WriteIndented = true,
+        NewLine = "\n",
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
