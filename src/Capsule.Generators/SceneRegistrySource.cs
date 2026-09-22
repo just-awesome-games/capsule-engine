@@ -16,6 +16,9 @@ internal static class SceneRegistrySource
     // Scene keys drop this namespace segment, since it repeats the domain.
     private const string DomainSegment = "Scenes";
 
+    /// <summary>The asset domain a shipped scene document is authored under.</summary>
+    internal const string Domain = "scenes";
+
     internal static SceneModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
         Location location = declaration.Identifier.GetLocation();
@@ -77,7 +80,8 @@ internal static class SceneRegistrySource
         SourceProductionContext context,
         ImmutableArray<SceneModel> models,
         bool enginePresent,
-        string rootNamespace)
+        string rootNamespace,
+        ImmutableArray<string> documents)
     {
         if (!enginePresent)
         {
@@ -109,7 +113,27 @@ internal static class SceneRegistrySource
             static entry => entry.Model.At,
             RegistryDiagnostics.DuplicateSceneDocumentName);
 
-        context.AddSource(FileName, SourceText.From(Render(registered), Encoding.UTF8));
+        HashSet<string> claimed = new(StringComparer.Ordinal);
+        foreach (Registration entry in registered)
+        {
+            if (entry.DocumentName is { } name)
+            {
+                claimed.Add(name);
+            }
+        }
+
+        List<string> unclaimed = [];
+        foreach (string document in documents)
+        {
+            if (!claimed.Contains(document))
+            {
+                unclaimed.Add(document);
+            }
+        }
+
+        unclaimed.Sort(StringComparer.Ordinal);
+
+        context.AddSource(FileName, SourceText.From(Render(registered, unclaimed), Encoding.UTF8));
     }
 
     private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
@@ -170,7 +194,7 @@ internal static class SceneRegistrySource
         return null;
     }
 
-    private static string Render(List<Registration> registered)
+    private static string Render(List<Registration> registered, List<string> unclaimed)
     {
         StringBuilder claims = new();
         StringBuilder registrations = new();
@@ -196,6 +220,14 @@ internal static class SceneRegistrySource
                 .Append(SymbolDisplay.FormatLiteral(entry.DocumentName, quote: true))
                 .Append(", static content => new ").Append(entry.Model.QualifiedName)
                 .AppendLine("(content!.Value)),");
+        }
+
+        foreach (string document in unclaimed)
+        {
+            registrations.Append("                global::Capsule.Scenes.SceneRegistration.DocumentOnly(")
+                .Append(SymbolDisplay.FormatLiteral(document, quote: true))
+                .Append(", static content => new global::Capsule.Scenes.Scene(content!.Value)),")
+                .AppendLine();
         }
 
         if (claims.Length > 0)

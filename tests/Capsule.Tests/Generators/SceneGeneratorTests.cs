@@ -203,6 +203,27 @@ public sealed class SceneGeneratorTests
         Assert.Contains("'room-01'", message, StringComparison.Ordinal);
     }
 
+    // The build hands every shipped document to the generator the way it hands textures, audio and
+    // fonts. One a class claims emits FromDocument; one no class claims emits DocumentOnly.
+    [Fact]
+    public void AShippedSceneDocumentNoClassClaims_EmitsADocumentOnlyRegistration()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
+            $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Room01(SceneContent content) : Scene(content);
+            """,
+            logic: true,
+            ("scenes/room-01.scene.json", null),
+            ("scenes/halls/hall.scene.json", null));
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
+        Assert.Contains("SceneRegistration.FromDocument(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
+        Assert.Contains("SceneRegistration.DocumentOnly(\"halls/hall\"", generated, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BothRegistriesAreEmitted_WhenTheAssemblyDeclaresNothingToRegister()
     {

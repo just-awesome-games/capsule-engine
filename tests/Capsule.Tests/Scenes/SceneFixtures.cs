@@ -107,8 +107,8 @@ internal static class SceneFixtures
         return new SceneSimulation(scene);
     }
 
-    internal static StepContext Step(long tick = 0) =>
-        new(1.0 / 60.0, new InputState(new ActionBindings()), tick);
+    internal static StepContext Step(long tick = 0, Vector2 output = default) =>
+        new(1.0 / 60.0, new InputState(new ActionBindings()), tick, output);
 
     /// <summary>Opens <paramref name="scene"/>'s camera on a centre, spanning <paramref name="size"/>.</summary>
     internal static void Open(Scene scene, Vector2 center, Vector2 size)

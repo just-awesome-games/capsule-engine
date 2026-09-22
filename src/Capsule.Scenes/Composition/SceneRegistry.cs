@@ -13,11 +13,14 @@ public sealed class SceneRegistry
 {
     private readonly Dictionary<Type, SceneRegistration> _byType = [];
     private readonly Dictionary<string, SceneRegistration> _byDocumentName = new(StringComparer.Ordinal);
+    private readonly List<SceneRegistration> _registrations = [];
     private readonly EntityRegistry _entities;
 
     /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
-    /// <exception cref="ArgumentException">A registration names no class, or a class or a document is registered twice.</exception>
+    /// <exception cref="ArgumentException">
+    /// A registration names no class and no document, or a class or a document is registered twice.
+    /// </exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
     {
@@ -27,24 +30,31 @@ public sealed class SceneRegistry
         _entities = entities;
         foreach (SceneRegistration registration in scenes)
         {
-            if (registration.SceneType is null)
+            if (registration.SceneType is null && registration.DocumentName is null)
             {
-                throw new ArgumentException("A scene registration names no class. Set its SceneType.", nameof(scenes));
+                throw new ArgumentException(
+                    "A scene registration names neither a class nor a document. Build one through "
+                    + "SceneRegistration.Plain, FromDocument or DocumentOnly.", nameof(scenes));
             }
 
-            if (!_byType.TryAdd(registration.SceneType, registration))
+            if (registration.SceneType is { } sceneType)
             {
-                throw new ArgumentException($"The scene '{registration.SceneType}' is registered more than once.", nameof(scenes));
+                if (!_byType.TryAdd(sceneType, registration))
+                {
+                    throw new ArgumentException($"The scene '{sceneType}' is registered more than once.", nameof(scenes));
+                }
             }
 
             if (registration.DocumentName is { } name && !_byDocumentName.TryAdd(name, registration))
             {
                 throw new ArgumentException($"The scene document '{name}' backs more than one scene.", nameof(scenes));
             }
+
+            _registrations.Add(registration);
         }
     }
 
-    internal Dictionary<Type, SceneRegistration>.ValueCollection Registrations => _byType.Values;
+    internal IReadOnlyList<SceneRegistration> Registrations => _registrations;
 
     // Returns the scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Find(sceneType).DocumentName;
@@ -86,8 +96,9 @@ public sealed class SceneRegistry
         return registration.Create();
     }
 
-    // Builds the scene name composes into: the class claiming that name, or a plain Scene when none
-    // does.
+    // Builds the scene the document composes into: the registration claiming that key, or a plain
+    // Scene when none does. A generated registry always registers every shipped document, so the
+    // fallback is reached only by a hand-built registry that names no registration for it.
     internal Scene CreateFromDocument(string name, SceneDocument document)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -120,6 +131,6 @@ public sealed class SceneRegistry
         return registration;
     }
 
-    // Every registered scene class, for a message naming what a caller could have asked for.
+    // Every registered class, for a message naming what a caller could ask for by class.
     internal string RegisteredTypes() => Registered.Names(_byType.Keys);
 }

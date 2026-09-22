@@ -79,9 +79,36 @@ public sealed class SceneRegistryTests
     }
 
     [Fact]
-    public void ARegistrationNamingNoClass_IsRejectedWhereTheRegistryIsBuilt()
+    public void ARegistrationNamingNeitherAClassNorADocument_IsRejectedWhereTheRegistryIsBuilt()
     {
-        Assert.Throws<ArgumentException>(() => Registry(default(SceneRegistration)));
+        ArgumentException failure = Assert.Throws<ArgumentException>(() => Registry(default(SceneRegistration)));
+
+        Assert.Contains("names neither a class nor a document", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADocumentOnlyRegistration_IsRegisteredAndComposesAPlainScene()
+    {
+        SceneRegistration attic = SceneRegistration.DocumentOnly(
+            "attic", static content => new Scene(content!.Value));
+        SceneRegistry scenes = Registry(attic);
+
+        Assert.Equal(attic, Assert.Single(scenes.Registrations));
+        Assert.IsType<TileMap>(scenes.CreateFromDocument("attic", SceneFixtures.Room()).Entities[0]);
+    }
+
+    [Fact]
+    public void AnUnregisteredClass_NamesWhatIsRegisteredByClassAlone_NotADocumentOnlyRegistration()
+    {
+        SceneRegistration attic = SceneRegistration.DocumentOnly(
+            "attic", static content => new Scene(content!.Value));
+        SceneRegistry scenes = Registry(Menu, attic);
+
+        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
+            () => scenes.Create(typeof(SceneFixtures.SpawnScene)));
+
+        Assert.Contains("HookScene", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("attic", failure.Message, StringComparison.Ordinal);
     }
 
     private static SceneRegistration Menu => SceneRegistration.Plain(

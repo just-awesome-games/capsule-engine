@@ -43,7 +43,7 @@ public sealed class SceneVisibilityTests
     }
 
     [Fact]
-    public void EveryFit_ResolvesToTheDeclaredSpan_BecauseNoOutputReachesTheSimulation()
+    public void WithNoOutputOnTheStep_EveryFitResolvesToTheDeclaredSpan()
     {
         Rect letterboxed = Run(scene =>
         {
@@ -59,6 +59,27 @@ public sealed class SceneVisibilityTests
 
         Assert.Equal(new Rect(-16f, -9f, 16f, 9f), letterboxed);
         Assert.Equal(letterboxed, expanded);
+    }
+
+    [Fact]
+    public void WithAnOutputOnTheStep_ExpandWidensToItWhileLetterboxHoldsTheDeclaredSpan()
+    {
+        Vector2 output = new(1000f, 500f);
+
+        Rect letterboxed = Run(scene =>
+        {
+            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
+            scene.Camera.Fit = ViewportFit.Letterbox;
+        }, output).Scene.Camera.VisibleRegion;
+
+        Rect expanded = Run(scene =>
+        {
+            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
+            scene.Camera.Fit = ViewportFit.Expand;
+        }, output).Scene.Camera.VisibleRegion;
+
+        Assert.Equal(new Rect(-16f, -9f, 16f, 9f), letterboxed);
+        Assert.Equal(new Rect(-18f, -9f, 18f, 9f), expanded);
     }
 
     [Fact]
@@ -288,16 +309,40 @@ public sealed class SceneVisibilityTests
     }
 
     [Fact]
+    public void ANotifierPastTheDeclaredSpan_EntersOnlyOnceTheStepWidensTheOutput()
+    {
+        List<string> log = [];
+        Watched marker = new(new Vector2(17f, 0f), log);
+
+        SceneFixtures.HookScene scene = new(start: scene =>
+        {
+            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
+            scene.Camera.Fit = ViewportFit.Expand;
+        });
+        scene.Add(marker);
+
+        SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+        Assert.Empty(log);
+        Assert.False(marker.Notifier.IsOnScreen);
+
+        simulation.Step(SceneFixtures.Step(output: new Vector2(1000f, 500f)));
+        Assert.Equal(["entered"], log);
+        Assert.True(marker.Notifier.IsOnScreen);
+    }
+
+    [Fact]
     public void ANotifierSizedToNothing_IsRefused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new VisibleOnScreenNotifier2D(new Vector2(1f, 0f)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new VisibleOnScreenNotifier2D(new Vector2(float.NaN, 1f)));
     }
 
-    private static SceneSimulation Run(Action<Scene> open)
+    private static SceneSimulation Run(Action<Scene> open, Vector2 output = default)
     {
         SceneSimulation simulation = new(new SceneFixtures.HookScene(start: open));
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step(SceneFixtures.Step(output: output));
         return simulation;
     }
 

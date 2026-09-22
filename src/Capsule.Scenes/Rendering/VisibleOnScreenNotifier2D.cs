@@ -10,13 +10,10 @@ namespace Capsule.Rendering;
 /// <see cref="Physics.BoxCollider2D"/>: its corner sits at the entity's position plus <see cref="Offset"/>
 /// and it spans <see cref="Size"/> world units from there.
 /// <para>
-/// This is simulation state only. Nothing here reads the renderer, the window or the output, so headless
-/// and windowed runs answer alike. Every notifier settles once per step, after the step's deferred
-/// adds have landed, against the region the frame for that step was framed with, so from its entity's first
-/// step <see cref="IsOnScreen"/> and the events describe that frame. Sharing an edge with the visible region
-/// does not count as being on screen, and a region spanning nothing puts everything off screen. A notifier
-/// registered from inside another notifier's handler first settles on the next step. The rect is in authored
-/// space, and an entity whose <see cref="Entity.ScrollFactor"/> is not one rejects this component.
+/// This is simulation state, settled once per step after the step's deferred adds land, so from its
+/// entity's first step <see cref="IsOnScreen"/> and the events describe that step's frame. Sharing an
+/// edge with the region is not being on screen. An entity whose <see cref="Entity.ScrollFactor"/> is
+/// not one rejects this component: it would draw somewhere other than the rect this measures.
 /// </para>
 /// </summary>
 public sealed class VisibleOnScreenNotifier2D : Component

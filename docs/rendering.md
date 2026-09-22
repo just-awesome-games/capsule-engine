@@ -229,9 +229,6 @@ sprites enumerates the geometry the engine draws and measures. Fonts are authore
 
 ## Visibility
 
-A `VisibleOnScreenNotifier2D` watches a rect on its entity against the camera's visible region and
-raises `ScreenEntered` and `ScreenExited`. It is simulation only, so a headless run answers as a
-windowed one does. Every notifier settles once a step, after the step's deferred adds have landed and
-against the region that step's frame was framed with, so the events describe that frame from the
-entity's first step. One registered from inside another notifier's handler first settles on the next
-step.
+A `VisibleOnScreenNotifier2D` raises `ScreenEntered` and `ScreenExited` as a rect on its entity meets
+the camera's visible region, settled once a step against the region that step's frame drew. It is how
+a bullet despawns when it leaves the screen.

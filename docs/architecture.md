@@ -53,8 +53,8 @@ from inside its own handler.
 
 ## Determinism contract
 
-Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values, a simulation
-produces the same state transitions and render intents.
+Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values and output
+extents, a simulation produces the same state transitions and render intents.
 
 - Simulation is single-threaded. Work too large for one step is sliced across steps by its owner. Input
   edges are differences between snapshots, and the host preserves edges sampled between fixed steps.

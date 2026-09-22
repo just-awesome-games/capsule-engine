@@ -226,6 +226,7 @@ internal sealed class CapsuleGame : Game
             _scheduler.TimeScale = paced.Run.TimeScale;
         }
 
+        _scheduler.Output = new System.Numerics.Vector2(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
 
         _stepOverlay?.Invoke(_renderer);

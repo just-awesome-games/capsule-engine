@@ -209,13 +209,14 @@ internal sealed class OverlayHost : IDisposable
     // presentation that follows the simulation's standstill.
     internal Action<bool>? HoldChanged { get; set; }
 
-    // Every channel a DebugDraw call has named since the overlay was attached, sorted.
+    // Every channel a DebugDraw call has named since the overlay was attached, sorted the way a
+    // reader reads it.
     internal string[] Channels
     {
         get
         {
             string[] channels = [.. _buffer.Channels];
-            Array.Sort(channels, StringComparer.Ordinal);
+            Array.Sort(channels, CompareLabels);
 
             return channels;
         }
@@ -822,19 +823,35 @@ internal sealed class OverlayHost : IDisposable
         return "Time Scale";
     }
 
-    // Every registered class by name. A document-backed class is requested by its document's name, the
-    // form the registry composes it from.
+    // Orders labels the way a reader reads them: case-insensitive, falling back to ordinal when
+    // two labels differ only by case. The fallback is load-bearing. A scene class "Room" and an
+    // unclaimed document "room" are two labels equal under ignore-case. List<T>.Sort is unstable.
+    private static int CompareLabels(string a, string b)
+    {
+        int result = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+
+        return result != 0 ? result : string.CompareOrdinal(a, b);
+    }
+
+    // Every registration by its name, sorted the way a reader reads it: a registered class by its
+    // class name, a document-only registration by its document's key.
     private string BuildLoadScene(List<OverlayRow> rows)
     {
-        List<SceneRegistration> registrations = [.. Registrations];
-        registrations.Sort(static (a, b) => string.CompareOrdinal(a.SceneType.Name, b.SceneType.Name));
+        List<(string Label, SceneTransition Target)> entries = [];
 
-        foreach (SceneRegistration registration in registrations)
+        foreach (SceneRegistration registration in Registrations)
         {
             SceneTransition target = registration.DocumentName is { } name
                 ? SceneTransition.ToName(name, null)
-                : SceneTransition.ToScene(registration.SceneType, null);
-            rows.Add(new OverlayRow(registration.SceneType.Name, () => Load(in target)));
+                : SceneTransition.ToScene(registration.SceneType!, null);
+            entries.Add((registration.Name, target));
+        }
+
+        entries.Sort(static (a, b) => CompareLabels(a.Label, b.Label));
+
+        foreach ((string label, SceneTransition target) in entries)
+        {
+            rows.Add(new OverlayRow(label, () => Load(in target)));
         }
 
         return "Load Scene";

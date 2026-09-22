@@ -108,8 +108,7 @@ internal static class KeyTool
         {
             if (entry.Group == "scenes")
             {
-                sceneContent.Add(
-                    $"assets/scenes/{entry.Key}{Document}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
+                sceneContent.Add($"{entry.Key}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
             }
             // An atlas manifest and a sprite sheet are compiled in, not shipped, and a texture an
             // atlas packed ships as part of that atlas page.

@@ -86,10 +86,10 @@ public class Camera
     /// region of the frame last drawn. It reads empty before the first late step of the scene this camera
     /// frames, and whenever <see cref="ViewportSize"/> is not positive on both axes.
     /// <para>
-    /// This is the settled framing. The renderer interpolates between the previous step's region and this
-    /// one, and a <see cref="Fit"/> other than <see cref="ViewportFit.Letterbox"/> can reveal world beyond
-    /// it on an output whose aspect ratio calls for that. The output's aspect ratio never reaches the
-    /// simulation.
+    /// This is the settled framing, resolved against the output the host hands each step: under every
+    /// <see cref="Fit"/> it is that frame's region, and a step handed no output resolves the declared
+    /// span. The renderer interpolates between the previous step's region and this one and quantises a
+    /// grown span to whole surface pixels, so it can draw under a pixel short of this rect.
     /// </para>
     /// </summary>
     public Rect VisibleRegion { get; private set; }
@@ -157,9 +157,9 @@ public class Camera
     // What the renderer draws this camera as, and what the simulation measures visibility against.
     internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize, Fit, Bounds, ScrollOrigin);
 
-    // The drawing derivation itself, asked at the end of the step and with no output to measure, so
-    // the span is the declared one and every fit resolves to it.
-    internal void SettleVisibleRegion() => VisibleRegion = ToView().Resolve(1f, default);
+    // The drawing derivation itself, asked at the end of the step against the step's output. An
+    // empty output measures the declared span, and every fit resolves to it.
+    internal void SettleVisibleRegion(Vector2 output) => VisibleRegion = ToView().Resolve(1f, output);
 
     internal void RunStart()
     {

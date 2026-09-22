@@ -106,7 +106,7 @@ public sealed class EngineDebugDrawTests
     [Fact]
     public void AHeldRun_ListsItsChannelsAndDrawsAToggleWithoutAStep()
     {
-        Physical scene = new();
+        Physical scene = new(withLowercaseChannel: true);
         using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
         FixedStepScheduler scheduler = CreateScheduler();
         using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
@@ -116,7 +116,10 @@ public sealed class EngineDebugDrawTests
         Press(overlay, scheduler, host, Key.D);
 
         Assert.Equal("Debug Draw", overlay.Title);
-        Assert.Equal(["Camera", "Colliders", "Origins"], overlay.Channels);
+
+        // Ordinal would sort every capitalized channel above "extra". The overlay reads channel
+        // names the way a person does.
+        Assert.Equal(["Camera", "Colliders", "extra", "Origins"], overlay.Channels);
         Assert.Equal(0, scheduler.Tick);
 
         overlay.ToggleChannel("Colliders");
@@ -218,7 +221,9 @@ public sealed class EngineDebugDrawTests
 
     private sealed class Physical : Scene
     {
-        internal Physical()
+        // withLowercaseChannel names a channel a game's own debug draw might: this is the channel
+        // list's mixed-case ordering test, not a shape to render.
+        internal Physical(bool withLowercaseChannel = false)
         {
             Camera.ViewportSize = new Vector2(32f, 32f);
             Camera.Center = new Vector2(16f, 40f);
@@ -246,6 +251,11 @@ public sealed class EngineDebugDrawTests
             Add(Disabled);
             Add(Map);
             Add(new ScreenEntity(Anchor.Center, new Vector2(500f, 500f)));
+
+            if (withLowercaseChannel)
+            {
+                Add(new LowercaseChannel(new Vector2(120f, 40f)));
+            }
         }
 
         internal Holder<BoxCollider2D> Box { get; }
@@ -279,6 +289,13 @@ public sealed class EngineDebugDrawTests
     private sealed class Silent(Vector2 position) : Entity(position)
     {
         protected internal override void OnDebugDraw() => DebugDraw.Line("Own", Position, Position + Vector2.One);
+    }
+
+    // A game names its own channels however it likes. This one is lowercase. It shows the overlay
+    // reading it alongside the engine's capitalized channels the way a reader would.
+    private sealed class LowercaseChannel(Vector2 position) : Entity(position)
+    {
+        protected internal override void OnDebugDraw() => DebugDraw.Line("extra", Position, Position + Vector2.One);
     }
 
     private sealed class Hooked(List<string> log) : Component

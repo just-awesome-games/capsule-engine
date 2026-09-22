@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime.Scenes;
 
@@ -98,6 +99,10 @@ internal sealed class FixedStepScheduler
         }
     }
 
+    // The extent in pixels of the output the host draws this run to. Driven runs get it too: a
+    // driver scripts input, the host still owns the output.
+    internal Vector2 Output { get; set; }
+
     // Raised after each step completes, before the next is scheduled. A step rewrites what the host
     // acts on and a frame may run several, and a per-frame call would lose all but the last. Null
     // unless the host set one.
@@ -171,7 +176,7 @@ internal sealed class FixedStepScheduler
             }
 
             _input.Advance(stepped);
-            simulation.Step(new StepContext(_stepSeconds, _input, Tick));
+            simulation.Step(new StepContext(_stepSeconds, _input, Tick, Output));
             StepCompleted?.Invoke();
 
             _accumulatorSeconds -= _stepSeconds;
@@ -224,7 +229,7 @@ internal sealed class FixedStepScheduler
         }
 
         _input.Advance(stepped);
-        StepContext context = new(_stepSeconds, _input, Tick);
+        StepContext context = new(_stepSeconds, _input, Tick, Output);
         if (before is null)
         {
             simulation.Step(in context);

@@ -1,9 +1,10 @@
+using System.Numerics;
 using Capsule.Input;
 
 namespace Capsule;
 
 /// <summary>Everything the runtime hands a simulation for one fixed step.</summary>
-public readonly struct StepContext(double stepSeconds, InputState input, long tick)
+public readonly struct StepContext(double stepSeconds, InputState input, long tick, Vector2 output = default)
 {
     /// <summary>The fixed step rate a run uses unless the host configures another, at 60 steps per second.</summary>
     public const int DefaultStepHertz = 60;
@@ -20,6 +21,10 @@ public readonly struct StepContext(double stepSeconds, InputState input, long ti
 
     /// <summary>Index of this step. The first step ever delivered is 0.</summary>
     public long Tick { get; } = tick;
+
+    // The extent in pixels of the output this step's frame draws to. Only its aspect is read, by the
+    // camera settling the region that frame shows; zero headless, where every fit is the declared span.
+    internal Vector2 Output { get; } = output;
 
     /// <summary>
     /// Simulated seconds at the start of this step, not wall clock. It is computed from

@@ -288,7 +288,8 @@
       <Output TaskParameter="Lines" ItemName="_CapsuleSceneContentLine" />
     </ReadLinesFromFile>
 
-    <!-- Each line is the shipped path, a '|', and the file it comes from. -->
+    <!-- A shipped-assets.txt line is the shipped path, a '|', and the file it comes from. A
+         scene-content.txt line is the bare key instead of the shipped path. -->
     <ItemGroup>
       <_CapsuleShippedAsset Condition="'@(_CapsuleShippedAssetLine)' != ''"
                             Include="$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Substring($([MSBuild]::Add(1, $([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').IndexOf('|'))))))">
@@ -297,7 +298,7 @@
 
       <_CapsuleDerivedScene Condition="'@(_CapsuleSceneContentLine)' != ''"
                             Include="$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Substring($([MSBuild]::Add(1, $([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').IndexOf('|'))))))">
-        <ShippedPath>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Substring(0, $([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').IndexOf('|'))))</ShippedPath>
+        <Key>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Substring(0, $([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').IndexOf('|'))))</Key>
       </_CapsuleDerivedScene>
     </ItemGroup>
 
@@ -312,10 +313,16 @@
 
     <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
       <Content Include="@(_CapsuleDerivedScene)">
-        <Link>%(_CapsuleDerivedScene.ShippedPath)</Link>
+        <Link>assets/scenes/%(_CapsuleDerivedScene.Key).scene.json</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <Visible>false</Visible>
       </Content>
+
+      <!-- Every shipped document reaches the generator the way textures, audio and fonts do. -->
+      <AdditionalFiles Condition="'$(CapsuleGameLogic)' == 'true'" Include="@(_CapsuleDerivedScene)">
+        <CapsuleAssetDomain>scenes</CapsuleAssetDomain>
+        <CapsuleAssetPath>%(_CapsuleDerivedScene.Key)</CapsuleAssetPath>
+      </AdditionalFiles>
     </ItemGroup>
 
     <ItemGroup Condition="'$(CapsuleImportAudio)' == 'true' and '@(_CapsuleAudioSource)' != '' and Exists('$(CapsuleAudioRegistryFile)')">

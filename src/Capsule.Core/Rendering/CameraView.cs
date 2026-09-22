@@ -26,8 +26,8 @@ public readonly record struct CameraView(
     Vector2 ScrollOrigin = default)
 {
     // How far from square an output may be before a fit that follows its aspect reveals world this view
-    // culled. The output never reaches the simulation, so culling has no window to measure and a fit
-    // other than Letterbox is culled against this ceiling.
+    // culled. A step's render intent is drawn on whatever output the frame has by then, so a fit other
+    // than Letterbox is culled against this ceiling rather than any one output.
     private const float CullAspectCeiling = 4f;
 
     /// <summary>A view that does not interpolate, with the previous and current centre at one point.</summary>
@@ -71,7 +71,6 @@ public readonly record struct CameraView(
     /// The world rect this view shows on an output of <paramref name="outputSize"/> pixels. The centre
     /// is interpolated by <paramref name="alpha"/>, <see cref="Size"/> is resolved against the
     /// output's aspect per <see cref="Fit"/>, and the result is confined to <see cref="Bounds"/>.
-    /// Nothing here reaches the simulation, so the output does not change what a run computes.
     /// </summary>
     /// <param name="alpha">Fraction of a fixed step not yet simulated, in [0, 1]. 0 draws the previous centre and 1 the current one.</param>
     /// <param name="outputSize">

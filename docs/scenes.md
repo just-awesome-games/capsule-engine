@@ -9,7 +9,7 @@ Data and behaviour are separate halves, and a game takes either or both:
 
 | Combination | What the game writes | How it boots |
 | --- | --- | --- |
-| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `RunScene("test")` composes a plain `Scene` from it |
+| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `test` registers itself and `RunScene("test")` composes a plain `Scene` from it |
 | Document and class | that document, plus `class Test : Scene` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene<Test>()` or `RunScene("test")`, either of which loads the document and then constructs `Test` |
 | Class only | `class Test : Scene` with a public parameterless constructor | `RunScene<Test>()` runs the scene as it builds itself |
 
@@ -124,7 +124,8 @@ not pass its spawn to a base constructor taking one is `CAP026` at that construc
 Documents are authored under the logic project's `Assets/Scenes/`. The build validates each, re-emits it
 canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the
 executable. A document's key is its path under the scenes root without either extension, normalized as
-[named assets](assets.md#named-assets) defines, and the class whose own key matches composes it. Two sources
+[named assets](assets.md#named-assets) defines. A document registers itself: the class whose own key matches
+composes it, and one no class claims composes a plain `Scene`. Two sources
 sharing a key fail the build, and derived documents are not committed. The logic role imports scenes on its
 own, and any other project opts in with `CapsuleImportScenes`. `CapsuleTileSize` declares the tile size every
 scene must match ([`build-and-publish.md`](build-and-publish.md#build-properties)).

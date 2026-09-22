@@ -173,19 +173,34 @@ internal static class GeneratorHarness
     private static (ImmutableArray<AdditionalText> Texts, Dictionary<string, (string Domain, string Path)> Assets) Assets(
         (string Path, string? Content)[] assetPaths)
     {
+        const string SceneDocumentExtension = ".scene.json";
+
         Dictionary<string, (string Domain, string Path)> assets = new(StringComparer.Ordinal);
         ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
         foreach ((string path, string? content) in assetPaths)
         {
             int separator = path.IndexOf('/', StringComparison.Ordinal);
             string relative = path[(separator + 1)..];
-            int dot = relative.LastIndexOf('.');
+            string domain = path[..separator];
 
-            assets[path] = (path[..separator], dot < 0 ? relative : relative[..dot]);
+            // A scene document's metadata is its key, the build's own derivation: the fixed
+            // '.scene.json' suffix comes off whole, not just the file's last extension.
+            string metadataPath = domain == "scenes" && relative.EndsWith(SceneDocumentExtension, StringComparison.Ordinal)
+                ? relative[..^SceneDocumentExtension.Length]
+                : StripLastExtension(relative);
+
+            assets[path] = (domain, metadataPath);
             texts.Add(new AssetText(path, content));
         }
 
         return (texts.ToImmutable(), assets);
+
+        static string StripLastExtension(string relative)
+        {
+            int dot = relative.LastIndexOf('.');
+
+            return dot < 0 ? relative : relative[..dot];
+        }
     }
 
     /// <summary>
@@ -228,7 +243,7 @@ internal static class GeneratorHarness
 
     private static MetadataReference LogicAssembly(string assemblyName, string source)
     {
-        Compilation logic = Run(Created(assemblyName, source, References), Role.Logic).Updated;
+        Compilation logic = Run(Created(assemblyName, source, References), logic: true, shell: false).Updated;
 
         using MemoryStream image = new();
         EmitResult emitted = logic.Emit(image);

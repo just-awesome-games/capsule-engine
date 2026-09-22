@@ -88,6 +88,14 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static candidate => candidate.Driver is not null)
             .Select(static (candidate, _) => candidate.Driver!.Value);
 
+        // Every scene document the build shipped, whether or not a class claims it. Projected to
+        // the authored key alone, so the node caches across a run that changed no scene source.
+        IncrementalValuesProvider<string> documents = context.AdditionalTextsProvider
+            .Combine(context.AnalyzerConfigOptionsProvider)
+            .Select(static (input, _) => AssetFile.From(input.Left, input.Right))
+            .Where(static file => file.InDomain(SceneRegistrySource.Domain))
+            .Select(static (file, _) => file.Authored);
+
         // Keys are measured against the declared root namespace, or the assembly name when the
         // project leaves it to MSBuild's default.
         IncrementalValueProvider<string> rootNamespace = context.AnalyzerConfigOptionsProvider
@@ -104,9 +112,10 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 EntityRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(
-            scenes.Collect().Combine(registries).Combine(rootNamespace),
+            scenes.Collect().Combine(registries).Combine(rootNamespace).Combine(documents.Collect()),
             static (production, input) =>
-                SceneRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
+                SceneRegistrySource.Emit(
+                    production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 
         // A logic assembly hands its drivers to the shell through its registry provider. A driver
         // the shell declares itself is emitted straight into the entry point.

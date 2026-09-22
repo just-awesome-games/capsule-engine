@@ -28,7 +28,7 @@ public sealed class BuildRunTests
         Assert.Equal(0, exitCode);
         Assert.True(File.Exists(Out + "/scenes/stage-1/room-01.scene.json"));
         Assert.Equal(
-            [$"assets/scenes/stage-1/room-01.scene.json|{Out}/scenes/stage-1/room-01.scene.json"],
+            [$"stage-1/room-01|{Out}/scenes/stage-1/room-01.scene.json"],
             File.ReadAllLines(Out + "/scene-content.txt"));
         Assert.Empty(File.ReadAllLines(Out + "/shipped-assets.txt"));
         Assert.True(File.Exists(Stamp));

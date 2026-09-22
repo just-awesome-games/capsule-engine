@@ -548,7 +548,7 @@ public class Scene
         Camera.OnLateStep(context);
 
         // The frame's visible region is final. Notifiers settle against it after deferred adds land.
-        Camera.SettleVisibleRegion();
+        Camera.SettleVisibleRegion(context.Output);
         _settledRegion = Camera.VisibleRegion;
     }
 
