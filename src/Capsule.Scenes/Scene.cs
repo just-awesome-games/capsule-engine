@@ -47,7 +47,7 @@ public class Scene
     private Run? _run;
 
     // The scroll origin authored in the document, written to each camera installed.
-    private readonly Vector2? _scrollOrigin;
+    private Vector2? _scrollOrigin;
 
     private bool _stepping;
     private bool _starting;
@@ -107,7 +107,7 @@ public class Scene
             }
         }
 
-        _scrollOrigin = content.Document.ScrollOrigin;
+        Apply(content);
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public class Scene
 
     /// <summary>
     /// World units the scene spans from its origin at (0, 0). Zero unless the scene sets it.
-    /// A scene composed from a document with tile maps spans their largest dimensions.
+    /// A scene composed from a document spans its authored size, or else its tile maps' largest dimensions.
     /// </summary>
     public Vector2 Size { get; protected set; }
 
@@ -578,6 +578,8 @@ public class Scene
         panel.Field("Ambient", Ambient);
         panel.Field("Sampling", Sampling);
         panel.Field("Camera", Camera.Center);
+        panel.Field("Camera Type", Camera.GetType().Name);
+        panel.Field("Camera Viewport", Camera.ViewportSize);
 
         if (_started)
         {
@@ -800,6 +802,41 @@ public class Scene
         finally
         {
             _starting = false;
+        }
+    }
+
+    // Writes the document's authored settings over the defaults. This runs inside the base constructor.
+    // A subclass assigning Size, ClearColor, Ambient, Sampling or Camera in its own constructor body
+    // runs after it and still wins.
+    private void Apply(SceneContent content)
+    {
+        SceneSettings settings = content.Document.Settings;
+        _scrollOrigin = settings.ScrollOrigin;
+
+        // Installation into the scene happens at start, so this only picks which camera that is.
+        if (content.Camera is { } camera)
+        {
+            _camera = camera();
+        }
+
+        if (settings.Size is { } size)
+        {
+            Size = size;
+        }
+
+        if (settings.ClearColor is { } clearColor)
+        {
+            ClearColor = clearColor;
+        }
+
+        if (settings.Ambient is { } ambient)
+        {
+            Ambient = ambient;
+        }
+
+        if (settings.Sampling is { } sampling)
+        {
+            _sampling = sampling;
         }
     }
 

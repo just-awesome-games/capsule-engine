@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Assets;
-using Capsule.Assets.Generated;
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Components;
 using Capsule.Bench.Logic.Entities;

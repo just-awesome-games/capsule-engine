@@ -86,15 +86,18 @@ internal static class KeyTool
     /// <param name="derivedScenesDirectory">Where the scene importer writes its documents.</param>
     /// <param name="packedTextures">The texture keys an atlas packed. Those textures do not ship on their own.</param>
     /// <param name="atlasLines">The shipped-asset lines for every atlas page and map.</param>
+    /// <param name="sceneFields">Every scene's baseScene and camera, keyed the way the scene itself is.</param>
     internal static void WriteManifests(
         IReadOnlyList<KeyedAsset> keyed,
         string outputDirectory,
         string derivedScenesDirectory,
         HashSet<string> packedTextures,
-        List<string> atlasLines)
+        List<string> atlasLines,
+        IReadOnlyDictionary<string, (string? BaseScene, string? Camera)> sceneFields)
     {
         ArgumentNullException.ThrowIfNull(keyed);
         ArgumentNullException.ThrowIfNull(derivedScenesDirectory);
+        ArgumentNullException.ThrowIfNull(sceneFields);
 
         List<string> shipped = [];
         List<string> sceneContent = [];
@@ -108,7 +111,11 @@ internal static class KeyTool
         {
             if (entry.Group == "scenes")
             {
-                sceneContent.Add($"{entry.Key}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
+                // An absent baseScene or camera is an empty field, not a missing one, so every line
+                // the targets read back splits into the same four parts.
+                (string? baseScene, string? camera) = sceneFields.TryGetValue(entry.Key, out var found) ? found : (null, null);
+                sceneContent.Add(
+                    $"{entry.Key}{BuildRequests.Separator}{baseScene}{BuildRequests.Separator}{camera}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
             }
             // An atlas manifest and a sprite sheet are compiled in, not shipped, and a texture an
             // atlas packed ships as part of that atlas page.

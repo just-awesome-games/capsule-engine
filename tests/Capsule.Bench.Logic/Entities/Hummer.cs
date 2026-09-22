@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Assets.Generated;
 using Capsule.Audio;
 using Capsule.Scenes;
 

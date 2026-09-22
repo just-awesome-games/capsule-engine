@@ -9,6 +9,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();
     private bool _disposed;
+    private bool _warnedOnUndrawnWorldLayer;
 
     /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/> and builds its first frame.</summary>
     /// <param name="scene">The scene to run.</param>
@@ -198,5 +199,35 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             _view.ScrollFactor = Vector2.One;
             Scene.EndDraw();
         }
+
+        WarnOnUndrawnWorldLayer();
+    }
+
+    // The world layer can have content and still draw nothing, because the camera has no positive
+    // span. A screen-only scene such as a boot menu never touches the camera and must not warn, so
+    // this reads what the frame just built rather than whether a camera was configured. Latched to
+    // the instance so a scene that never fixes it hears about it once, not every frame.
+    private void WarnOnUndrawnWorldLayer()
+    {
+        if (_warnedOnUndrawnWorldLayer)
+        {
+            return;
+        }
+
+        if (_view.Sprites.Length == 0 && _view.Lines.Length == 0)
+        {
+            return;
+        }
+
+        Vector2 viewport = Scene.Camera.ViewportSize;
+        if (viewport.X > 0f && viewport.Y > 0f)
+        {
+            return;
+        }
+
+        _warnedOnUndrawnWorldLayer = true;
+        Log.Warning(
+            "the world layer has content but the scene's Camera.ViewportSize is not positive on both "
+            + "axes. The scene renders black. Set the scene's camera to a positive ViewportSize");
     }
 }

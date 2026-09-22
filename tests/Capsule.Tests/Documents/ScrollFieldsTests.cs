@@ -14,7 +14,7 @@ public sealed class ScrollFieldsTests
     {
         string json = """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "scrollOrigin": [
                 160,
                 90
@@ -83,7 +83,7 @@ public sealed class ScrollFieldsTests
 
         SceneDocument document = SceneDocumentFile.Parse(json);
 
-        Assert.Equal(new Vector2(160, 90), document.ScrollOrigin);
+        Assert.Equal(new Vector2(160, 90), document.Settings.ScrollOrigin);
         Assert.Equal(new Vector2(0.5f, 1f), document.Entries[0].TileMap!.Value.ScrollFactor);
         Assert.Equal(new EntityPlacement(2, "sky", 8f, 0f, ScrollFactor: Vector2.Zero), document.Entries[1].Entity);
 
@@ -103,7 +103,7 @@ public sealed class ScrollFieldsTests
 
         Assert.DoesNotContain("scrollOrigin", json, StringComparison.Ordinal);
         Assert.DoesNotContain("scrollFactor", json, StringComparison.Ordinal);
-        Assert.Null(SceneDocumentFile.Parse(json).ScrollOrigin);
+        Assert.Null(SceneDocumentFile.Parse(json).Settings.ScrollOrigin);
     }
 
     [Theory]
@@ -114,7 +114,7 @@ public sealed class ScrollFieldsTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$"""
                 {
-                  "formatVersion": 5,
+                  "formatVersion": 6,
                   "entities": [
                     { "id": 1, "type": "coin", "x": 0, "y": 0, "scrollFactor": {{factor}} }
                   ],
@@ -133,7 +133,7 @@ public sealed class ScrollFieldsTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$"""
                 {
-                  "formatVersion": 5,
+                  "formatVersion": 6,
                   "scrollOrigin": {{origin}},
                   "entities": [],
                   "nextEntityId": 1
@@ -151,7 +151,7 @@ public sealed class ScrollFieldsTests
         ArgumentException factor = Assert.Throws<ArgumentException>(
             () => new SceneDocument([new EntityPlacement(1, "coin", 0f, 0f, ScrollFactor: new Vector2(float.NaN, 1f))], 2));
         ArgumentException origin = Assert.Throws<ArgumentException>(
-            () => new SceneDocument([], 1, scrollOrigin: new Vector2(0f, float.PositiveInfinity)));
+            () => new SceneDocument([], 1, settings: new SceneSettings { ScrollOrigin = new Vector2(0f, float.PositiveInfinity) }));
 
         Assert.Contains("not a scroll factor", factor.Message, StringComparison.Ordinal);
         Assert.Contains("scrollOrigin", origin.Message, StringComparison.Ordinal);

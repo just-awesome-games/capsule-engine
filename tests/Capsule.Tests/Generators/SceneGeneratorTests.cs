@@ -1,4 +1,8 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using Capsule.Scenes;
+using Capsule.Scenes.Documents;
+using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -17,7 +21,7 @@ public sealed class SceneGeneratorTests
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleScenes"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleScenes"));
 
         // The document names are the registry's contract with scene sources.
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
@@ -203,6 +207,71 @@ public sealed class SceneGeneratorTests
         Assert.Contains("'room-01'", message, StringComparison.Ordinal);
     }
 
+    // A baseScene resolves against every Scene subclass, abstract included, the same key space a
+    // document-backed scene claims. Two abstract classes sharing that key used to pick the first by
+    // declaration order in silence.
+    [Fact]
+    public void TwoAbstractScenesClaimingOneBaseSceneKey_FailTheBuildNamingBoth()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile("""
+            using Capsule.Scenes;
+
+            namespace Game
+            {
+                public abstract class PlayableRoom(SceneContent content) : Scene(content);
+            }
+
+            namespace Game.Deep
+            {
+                public abstract class PlayableRoom(SceneContent content) : Scene(content);
+            }
+            """).Diagnostics;
+
+        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP032", collision.Id);
+
+        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Contains("Game.PlayableRoom", message, StringComparison.Ordinal);
+        Assert.Contains("Game.Deep.PlayableRoom", message, StringComparison.Ordinal);
+        Assert.Contains("'playable-room'", message, StringComparison.Ordinal);
+    }
+
+    // Whichever class declares first among two sharing a key must not decide which a baseScene
+    // resolves to: a class that could actually serve as a base always wins the key over one that
+    // never could. "Game.PlayableRoom" sorts ahead of "Game.Z.PlayableRoom" in declaration order, the
+    // order that picked the ineligible class before this was fixed.
+    [Fact]
+    public void AnEligibleBaseScene_ResolvesOverASameKeyedIneligibleClassDeclaredFirst()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
+            """
+            using Capsule.Scenes;
+
+            namespace Game
+            {
+                public sealed class PlayableRoom(SceneContent content) : Scene(content);
+            }
+
+            namespace Game.Z
+            {
+                public abstract class PlayableRoom(SceneContent content) : Scene(content);
+            }
+            """,
+            logic: true,
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+
+        Assembly assembly = GeneratorHarness.Loaded(compiled);
+        Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
+        SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
+
+        SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
+        Scene composed = registry.CreateFromDocument("halls/hall", document);
+
+        Assert.True(assembly.GetType("Game.Z.PlayableRoom")!.IsInstanceOfType(composed));
+    }
+
     // The build hands every shipped document to the generator the way it hands textures, audio and
     // fonts. One a class claims emits FromDocument; one no class claims emits DocumentOnly.
     [Fact]
@@ -224,6 +293,92 @@ public sealed class SceneGeneratorTests
         Assert.Contains("SceneRegistration.DocumentOnly(\"halls/hall\"", generated, StringComparison.Ordinal);
     }
 
+    // A document naming a base its own class also claims is a contradiction, not a precedence
+    // question between the two, so it refuses rather than picking one.
+    [Fact]
+    public void ADocumentNamingABaseSceneAClassAlsoClaims_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
+            $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public abstract class PlayableRoom(SceneContent content) : Scene(content);
+
+            public sealed class Room01(SceneContent content) : Scene(content);
+            """,
+            logic: true,
+            ("scenes/room-01.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP027", error.Id);
+        Assert.Contains("Game.Room01", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    // A baseScene naming a concrete class is not the template shape the format needs: the generator
+    // would have nowhere to hang the sealed class it emits.
+    [Fact]
+    public void ABaseSceneNamingAConcreteClass_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
+            $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class PlayableRoom(SceneContent content) : Scene(content);
+            """,
+            logic: true,
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP028", error.Id);
+        Assert.Contains("Game.PlayableRoom", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    // A baseScene naming a key no class claims at all is a different defect from one that claims it
+    // badly.
+    [Fact]
+    public void ABaseSceneNamingNoClass_FailsTheBuild()
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
+            $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Marker;
+            """,
+            logic: true,
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "baseScene": "missing-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP030", error.Id);
+        Assert.Contains("missing-room", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    // The template a developer no longer writes: an abstract base with no document of its own, and
+    // the document that names it composes into an instance carrying the document's entities.
+    [Fact]
+    public void ADocumentsBaseScene_ComposesAnInstanceOfItCarryingTheDocumentsEntities()
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
+            $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public abstract class PlayableRoom(SceneContent content) : Scene(content);
+            """,
+            logic: true,
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+
+        Assembly assembly = GeneratorHarness.Loaded(compiled);
+        Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
+        SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
+
+        SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
+        Scene composed = registry.CreateFromDocument("halls/hall", document);
+
+        Assert.True(assembly.GetType("Game.PlayableRoom")!.IsInstanceOfType(composed));
+        Assert.IsType<TileMap>(composed.Entities[0]);
+    }
+
     [Fact]
     public void BothRegistriesAreEmitted_WhenTheAssemblyDeclaresNothingToRegister()
     {
@@ -233,8 +388,8 @@ public sealed class SceneGeneratorTests
             public sealed class Bookkeeping;
             """).Updated;
 
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleEntities"));
-        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Scenes.Generated.CapsuleScenes"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleEntities"));
+        Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleScenes"));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 }

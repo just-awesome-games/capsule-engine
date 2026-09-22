@@ -4,7 +4,7 @@ A complete Capsule game and the engine's consumer proof, in the repository shape
 [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes. It shows each shape a game is made
 of, once:
 
-- A class-only scene (`Scenes/MainMenu.cs`), a document with a class on top (`Scenes/Room.cs` over `Assets/Scenes/room.scene.json`), and a document claimed by no class (`Assets/Scenes/halls/hall.scene.json`), with the shared base `Scenes/PlayableScene.cs` between play and level.
+- A class-only scene (`Scenes/MainMenu.cs`), and documents naming a base and a camera (`Assets/Scenes/room.scene.json`, `Assets/Scenes/halls/hall.scene.json`), with the shared base `Scenes/PlayableScene.cs` between play and level. The room document also authors its dusk `ambient`.
 - A `Camera` subclass (`Cameras/GameCamera.cs`) that finds its subject and follows it, and a parallax background under the room: a screen-fixed layer whose factor and tiling are its own (`Entities/Sky.cs`) and a distant one whose `scrollFactor` the document authors (`Entities/Hills.cs`). Every texture packs onto one atlas page through `Assets/Atlases/game.atlas.json` with no call site knowing.
 - A spawnable entity (`Entities/Player.cs`) walking and jumping through a `KinematicBody2D` over two colliders, one the sweep stops on and one that only reports, animated from the sheet `Assets/Sprites/actors/player.sheet.json` and firing a bolt (`Entities/Bolt.cs`) from that sheet's `muzzle` socket, with its designer-owned levers in `Entities/PlayerTuning.cs` and `Entities/BoltTuning.cs`. An entity that collides without blocking (`Entities/Hazard.cs`).
 - A screen-space interface: a title menu and an options screen a pointer or a gamepad drives (`UI/TitleMenu.cs`, `UI/OptionsMenu.cs`, `UI/MenuItem.cs`) and a head-up display bound to simulation state (`UI/PlayerHud.cs`, `UI/HealthBar.cs`), on a font from `Assets/Fonts/`.
@@ -22,7 +22,8 @@ From the engine repository root, where the sample builds from engine source by d
 
 ```sh
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
-dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene Room --driver Walkthrough --headless
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene room --driver Walkthrough --headless
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene halls/hall --driver Walkthrough --headless
 dotnet test samples/MinimalGame/MinimalGame.slnx
 ```
 

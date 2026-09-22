@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Animation;
-using Capsule.Assets.Generated;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;

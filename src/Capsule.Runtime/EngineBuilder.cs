@@ -41,8 +41,9 @@ public sealed class EngineBuilder
     private double? _frameDiagnosticsExitAfterSeconds;
     private Action<Run>? _runStart;
 
-    // What the command line asked for: the scene to boot in place of the RunScene call's, the
-    // document backing that scene, and whether to run with no window.
+    // What the command line asked for: the scene class to boot in place of the RunScene call's, the
+    // document to compose it from (or the only thing named, for a document no class claims), and
+    // whether to run with no window.
     private Type? _commandLineScene;
     private string? _commandLineDocument;
     private bool _headless;
@@ -94,10 +95,10 @@ public sealed class EngineBuilder
     internal IInputDriver? Driver { get; private set; }
 
     /// <summary>
-    /// The scene class name <c>--scene</c> named, or null. <see cref="WithCommandLine"/> sets it and
-    /// resolves it against the registry, which lets a shell choose boot options before it boots.
+    /// The scene class name or scene document key <c>--scene</c> resolved to, or null. <see cref="WithCommandLine"/>
+    /// sets it, which lets a shell choose boot options before it boots.
     /// </summary>
-    public string? SceneOverride => _commandLineScene?.Name;
+    public string? SceneOverride => _commandLineScene?.Name ?? _commandLineDocument;
 
     // The canvas the run's screen layer is laid out in: the declared canvas, else the declared render
     // resolution, else the window size the run was configured with.
@@ -366,7 +367,8 @@ public sealed class EngineBuilder
     /// <c>--driver</c> on its own opens the window and plays that driver in it, and a later
     /// <see cref="WithInputDriver"/> replaces it. <c>--headless</c> alongside it opens no window.
     /// <c>--scene</c> replaces the scene the <c>RunScene</c> call names and keeps that call's boot
-    /// payload. A scene a document backs is opened through that document.
+    /// payload. It takes a registered scene class name, else a scene document key such as
+    /// <c>halls/hall</c>. A scene a document backs is opened through that document.
     /// </para>
     /// </summary>
     /// <param name="args">
@@ -405,10 +407,13 @@ public sealed class EngineBuilder
 
         if (parsed.SceneName is { } sceneName)
         {
-            _commandLineScene = Scenes.SceneNamed(sceneName)
-                ?? throw CommandLine.Refuse(_gameName, $"no registered scene is named '{sceneName}'. Registered: {Scenes.RegisteredTypes()}.");
-
-            _commandLineDocument = Scenes.DocumentNameOf(_commandLineScene);
+            if (!Scenes.TryResolveName(sceneName, out _commandLineScene, out _commandLineDocument))
+            {
+                throw CommandLine.Refuse(
+                    _gameName,
+                    $"no registered scene class is named '{sceneName}' and no scene document has that key. "
+                    + $"Name a class ({Scenes.RegisteredClassNames()}) or a document key ({Scenes.RegisteredDocumentKeys()}).");
+            }
         }
 
         _headless = parsed.Headless;

@@ -36,7 +36,6 @@ The shell's only hand-written code is its entry point, against the generated `Ca
 ```csharp
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
-using Capsule.Runtime.Generated;
 using MyGame;
 using MyGame.Scenes;
 
@@ -53,10 +52,11 @@ catch (CommandLineException failure)
 }
 ```
 
-`CapsuleBoot` is generated into the shell project from its role. `WithCommandLine(args)` installs
-the engine's standard command line and throws `CommandLineException` for `--help` and for a flag it
-refuses, which the `catch` turns into the process's exit code. Every other boot lever is on
-`EngineBuilder`, and each documents its default.
+`CapsuleBoot` is generated into the shell project from its role. Every generated class lives in
+`Capsule.Generated`. The build imports it into the logic and shell projects, and a test project writes
+`using Capsule.Generated;` itself. `WithCommandLine(args)` installs the engine's standard command line
+and throws `CommandLineException` for `--help` and for a flag it refuses, which the `catch` turns into
+the process's exit code. Every other boot lever is on `EngineBuilder`, and each documents its default.
 
 ## The game's actions
 

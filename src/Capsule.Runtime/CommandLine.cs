@@ -12,7 +12,7 @@ internal sealed class CommandLine
     private const string DevelopmentFlags = """
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, which needs a driver
-          --scene <Name>             boot the registered scene of that class name
+          --scene <Name>             boot the scene of that class name, else of that document key
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
 
         """;
@@ -82,7 +82,7 @@ internal sealed class CommandLine
                     break;
 
                 case "--scene" when development:
-                    parsed.SceneName = Value(args, ref index, gameName, development, "--scene needs a scene class name.");
+                    parsed.SceneName = Value(args, ref index, gameName, development, "--scene needs a scene class name or a scene document key.");
                     break;
 
                 case "--frames" when development:

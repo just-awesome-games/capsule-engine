@@ -1,5 +1,5 @@
 using System.Numerics;
-using Capsule.Assets.Generated;
+using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;

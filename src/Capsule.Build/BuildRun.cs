@@ -70,9 +70,12 @@ internal static class BuildRun
 
         int failed = 0;
 
+        // Every scene's baseScene and camera, keyed the way the derived document itself is, so the
+        // manifest pass can carry them out to the generator beside the key.
+        Dictionary<string, (string? BaseScene, string? Camera)> sceneFields = new(StringComparer.Ordinal);
         if (scenes.Length > 0)
         {
-            failed += SceneDocumentTool.Import(scenesDirectory, scenes, requests.TileSize, output, error);
+            failed += SceneDocumentTool.Import(scenesDirectory, scenes, requests.TileSize, sceneFields, output, error);
         }
 
         // Left alone when nothing asked for audio. A game with no clips keeps the registry it
@@ -108,7 +111,7 @@ internal static class BuildRun
 
         try
         {
-            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory, packedTextures, atlasLines);
+            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory, packedTextures, atlasLines, sceneFields);
 
             if (failed == 0)
             {

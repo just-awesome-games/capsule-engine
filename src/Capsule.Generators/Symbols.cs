@@ -16,10 +16,11 @@ internal static class Symbols
     internal const string Scene = "Capsule.Scenes.Scene";
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
     internal const string SceneDocumentAttribute = "Capsule.Scenes.SceneDocumentAttribute";
+    internal const string Camera = "Capsule.Scenes.Camera";
     internal const string InputDriver = "Capsule.Input.IInputDriver";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
-    internal const string RegistryProviderAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryProviderAttribute";
-    internal const string RegistryClaimAttribute = "Capsule.Scenes.Generated.CapsuleGeneratedRegistryClaimAttribute";
+    internal const string RegistryProviderAttribute = "Capsule.Generated.CapsuleGeneratedRegistryProviderAttribute";
+    internal const string RegistryClaimAttribute = "Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute";
     internal const string TextureHandle = "Capsule.Assets.TextureHandle";
 
     // MSBuild passes a boolean property through verbatim, so compare it case-insensitively.

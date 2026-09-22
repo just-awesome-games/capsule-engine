@@ -35,4 +35,30 @@ public sealed class ColorRgbaTests
             new ColorRgba(255, 255, 255, 64),
             ColorRgba.Lerp(new ColorRgba(255, 255, 255, 0), ColorRgba.White, 0.25f));
     }
+
+    [Theory]
+    [InlineData("#484c68", 72, 76, 104, 255)]
+    [InlineData("#484c6880", 72, 76, 104, 128)]
+    [InlineData("#484C68FF", 72, 76, 104, 255)]
+    public void FromHex_ReadsBothFormsWithTheAlphaLast(string hex, byte r, byte g, byte b, byte a)
+    {
+        Assert.Equal(new ColorRgba(r, g, b, a), ColorRgba.FromHex(hex));
+    }
+
+    [Theory]
+    [InlineData("#fff")]
+    [InlineData("484c68")]
+    [InlineData("#484c68f")]
+    [InlineData("#484c68ff0")]
+    [InlineData("#484c6g")]
+    [InlineData(" #484c68")]
+    [InlineData("")]
+    public void FromHex_RefusesAnyOtherSpellingAndNamesBothForms(string hex)
+    {
+        FormatException error = Assert.Throws<FormatException>(() => ColorRgba.FromHex(hex));
+
+        Assert.Contains($"\"{hex}\"", error.Message, StringComparison.Ordinal);
+        Assert.Contains("\"#rrggbb\"", error.Message, StringComparison.Ordinal);
+        Assert.Contains("\"#rrggbbaa\"", error.Message, StringComparison.Ordinal);
+    }
 }

@@ -1,7 +1,6 @@
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
-using Capsule.Runtime.Generated;
 using MinimalGame.Game;
 using MinimalGame.Game.Scenes;
 

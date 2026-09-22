@@ -14,8 +14,6 @@ public sealed class CapsuleBootGeneratorTests
         """;
 
     private const string ShellSource = """
-        using Capsule.Runtime.Generated;
-
         namespace Shell;
 
         public static class Program
@@ -40,7 +38,7 @@ public sealed class CapsuleBootGeneratorTests
         // point standing up over the referenced assembly's registry.
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
-        Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Runtime.Generated.CapsuleBoot"));
+        Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Generated.CapsuleBoot"));
 
         // The platform is a required argument of the entry point, never a lever the shell may omit.
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
@@ -130,7 +128,6 @@ public sealed class CapsuleBootGeneratorTests
             """;
         const string shell = """
             using Capsule.Input;
-            using Capsule.Runtime.Generated;
             using Capsule.Scenes;
 
             namespace Shell;

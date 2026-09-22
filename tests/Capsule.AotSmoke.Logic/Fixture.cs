@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Capsule;
-using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Rendering;

@@ -126,6 +126,36 @@ internal static class RegistryDiagnostics
         "An entity must pass its spawn to its base constructor",
         "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, so the authored zIndex and scrollFactor are dropped. Pass the spawn to base");
 
+    internal static readonly DiagnosticDescriptor DocumentBaseSceneConflictsWithAClaim = Scene(
+        "CAP027",
+        "A document cannot name a baseScene a class also claims",
+        "Scene document '{0}' names baseScene '{1}', but '{2}' already claims that document. Drop the class's claim or the document's baseScene, so the document names one base");
+
+    internal static readonly DiagnosticDescriptor InvalidBaseScene = Scene(
+        "CAP028",
+        "A baseScene must be an abstract Scene a derived type can construct",
+        "'{0}' claims baseScene key '{1}', but is not an abstract Capsule.Scenes.Scene with one constructor taking Capsule.Scenes.SceneContent that a derived type can call");
+
+    internal static readonly DiagnosticDescriptor InvalidCamera = Scene(
+        "CAP029",
+        "A camera must be a concrete Camera with an accessible parameterless constructor",
+        "'{0}' claims camera key '{1}', but is not a concrete Capsule.Scenes.Camera with an accessible parameterless constructor");
+
+    internal static readonly DiagnosticDescriptor UnclaimedSceneKey = Scene(
+        "CAP030",
+        "A baseScene or camera key must name a declared class",
+        "Scene document '{0}' names {1} '{2}', which no class claims");
+
+    internal static readonly DiagnosticDescriptor DuplicateCameraKey = Scene(
+        "CAP031",
+        "Two classes claim one camera key",
+        "'{0}' and '{1}' both claim camera key '{2}'. A camera has no attribute to override its key, so rename one class");
+
+    internal static readonly DiagnosticDescriptor DuplicateBaseSceneKey = Scene(
+        "CAP032",
+        "Two classes claim one baseScene key",
+        "'{0}' and '{1}' both claim baseScene key '{2}'. A baseScene has no attribute to override its key, so rename one class");
+
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";
 

@@ -1,5 +1,4 @@
 using Capsule.Scenes;
-using Capsule.Scenes.Generated;
 
 namespace Capsule.Bench.Logic;
 

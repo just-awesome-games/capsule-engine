@@ -4,7 +4,6 @@ using Capsule.Bench.Logic.Scenes;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
-using Capsule.Runtime.Generated;
 
 namespace Capsule.Bench;
 

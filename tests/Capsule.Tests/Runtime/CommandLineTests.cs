@@ -11,6 +11,8 @@ namespace Capsule.Tests.Runtime;
 [Collection(LogSinkCollection.Name)]
 public sealed class CommandLineTests : IDisposable
 {
+    private const string HallKey = "halls/hall";
+
     private readonly TempWorkspace _workspace = new(nameof(CommandLineTests));
 
     private readonly TextWriter _output = Console.Out;
@@ -72,13 +74,44 @@ public sealed class CommandLineTests : IDisposable
         Assert.Equal(before + 1, Selected.Openings);
     }
 
+    // A document no class claims has no class name to give, so its key is the only way to name it.
     [Fact]
-    public void ASceneNoRegistryHolds_IsReportedWithTheScenesThatAreRegistered()
+    public void Scene_BootsADocumentByItsKey()
+    {
+        string documents = Path.Combine(_workspace.Root, "assets", "scenes", "halls");
+        Directory.CreateDirectory(documents);
+        File.WriteAllText(Path.Combine(documents, "hall.scene.json"), """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+
+        int before = Hall.Openings;
+        EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root))
+            .WithCommandLine(["--headless", "--driver", "Idler", "--scene", HallKey]);
+
+        Assert.Equal(HallKey, builder.SceneOverride);
+        Assert.Equal(0, builder.RunScene<Idle>());
+        Assert.Equal(before + 1, Hall.Openings);
+    }
+
+    // The class is looked up first. The document here is never shipped, so booting it would fail.
+    [Fact]
+    public void Scene_NamingBothAClassAndADocumentKey_BootsTheClass()
+    {
+        int before = Selected.Openings;
+        EngineBuilder builder = Builder(documentKey: nameof(Selected))
+            .WithCommandLine(["--headless", "--driver", "Idler", "--scene", nameof(Selected)]);
+
+        Assert.Equal(nameof(Selected), builder.SceneOverride);
+        Assert.Equal(0, builder.RunScene<Idle>());
+        Assert.Equal(before + 1, Selected.Openings);
+    }
+
+    [Fact]
+    public void ASceneNoRegistryHolds_IsReportedWithTheClassesAndKeysThatAreRegistered()
     {
         string reported = Refused(["--headless", "--driver", "Idler", "--scene", "Nowhere"]);
 
         Assert.Contains("Nowhere", reported, StringComparison.Ordinal);
         Assert.Contains(nameof(Selected), reported, StringComparison.Ordinal);
+        Assert.Contains(HallKey, reported, StringComparison.Ordinal);
         Assert.Contains("--scene <Name>", reported, StringComparison.Ordinal);
     }
 
@@ -181,10 +214,11 @@ public sealed class CommandLineTests : IDisposable
 
     private string Captured() => _captured.ToString();
 
-    private static EngineBuilder Builder() =>
+    // Every registry holds the class-free document HallKey. A documentKey adds a second one.
+    private static EngineBuilder Builder(HostPlatform? platform = null, string? documentKey = null) =>
         CapsuleEngine.Configure(
                 "Command Line Game",
-                new DesktopPlatform(),
+                platform ?? new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [
@@ -192,6 +226,10 @@ public sealed class CommandLineTests : IDisposable
                         SceneRegistration.Plain(typeof(Exiting), static _ => new Exiting()),
                         SceneRegistration.Plain(typeof(Selected), static _ => new Selected()),
                         SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
+                        SceneRegistration.DocumentOnly(HallKey, static content => new Hall(content!.Value)),
+                        .. documentKey is null
+                            ? Array.Empty<SceneRegistration>()
+                            : [SceneRegistration.DocumentOnly(documentKey, static content => new Hall(content!.Value))],
                     ]),
                 new InputDriverRegistry(
                     [
@@ -218,6 +256,16 @@ public sealed class CommandLineTests : IDisposable
             Run.Saves.Write(Visits, Run.Saves.Read(Visits) + 1);
             Run.RequestExit();
         }
+    }
+
+    // A document no class claims, composed into this scene so a test can see it booted.
+    private sealed class Hall(SceneContent content) : Scene(content)
+    {
+        internal static int Openings { get; private set; }
+
+        protected override void OnStart() => Openings++;
+
+        protected override void OnStep(in StepContext context) => Run.RequestExit();
     }
 
     // Registered but never named by a RunScene call, so only --scene can open it.

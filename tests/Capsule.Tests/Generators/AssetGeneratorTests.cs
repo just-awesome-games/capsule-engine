@@ -10,7 +10,7 @@ public sealed class AssetGeneratorTests
     {
         Compilation compiled = GeneratorHarness.CompileWithAssets(logic: true).Updated;
 
-        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleAssets")!;
         Assert.NotNull(capsuleAssets);
         Assert.NotNull(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Textures"));
     }
@@ -65,7 +65,7 @@ public sealed class AssetGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
 
         INamedTypeSymbol textures = compiled
-            .GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!
+            .GetTypeByMetadataName("Capsule.Generated.CapsuleAssets")!
             .GetTypeMembers()
             .First(type => type.Name == "Textures");
 
@@ -161,7 +161,7 @@ public sealed class AssetGeneratorTests
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Assets.Generated.CapsuleAssets")!;
+        INamedTypeSymbol capsuleAssets = compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleAssets")!;
         Assert.Null(capsuleAssets.GetTypeMembers().FirstOrDefault(t => t.Name == "Audio"));
     }
 

@@ -28,7 +28,7 @@ public sealed class BuildRunTests
         Assert.Equal(0, exitCode);
         Assert.True(File.Exists(Out + "/scenes/stage-1/room-01.scene.json"));
         Assert.Equal(
-            [$"stage-1/room-01|{Out}/scenes/stage-1/room-01.scene.json"],
+            [$"stage-1/room-01|||{Out}/scenes/stage-1/room-01.scene.json"],
             File.ReadAllLines(Out + "/scene-content.txt"));
         Assert.Empty(File.ReadAllLines(Out + "/shipped-assets.txt"));
         Assert.True(File.Exists(Stamp));
@@ -38,7 +38,7 @@ public sealed class BuildRunTests
     public void ARunWithADefectInTwoKinds_ReportsBothAndLeavesNoStamp()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 5, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
         workspace.Write("Assets/Audio/hum.wav", "not a wav");
 
         StringWriter error = new();
@@ -50,6 +50,7 @@ public sealed class BuildRunTests
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Assets/Scenes/broken.scene.json", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("declares no properties", error.ToString(), StringComparison.Ordinal);
         Assert.Contains("Assets/Audio/hum.wav", error.ToString(), StringComparison.Ordinal);
         Assert.False(File.Exists(Stamp));
     }

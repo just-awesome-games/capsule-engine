@@ -87,7 +87,7 @@ public sealed class AssetKeyTests
             ["assets/textures/enemies/bat.png|Assets/Textures/Enemies/Bat.png", "assets/audio/music/main-theme.ogg|Assets/Audio/Music/Main_Theme.ogg"],
             workspace.Read("shipped-assets.txt"));
         Assert.Equal(
-            ["stage-1/room-01|derived/stage-1/room-01.scene.json"],
+            ["stage-1/room-01|||derived/stage-1/room-01.scene.json"],
             workspace.Read("scene-content.txt"));
     }
 
@@ -102,7 +102,7 @@ public sealed class AssetKeyTests
             return 1;
         }
 
-        KeyTool.WriteManifests(keyed, workspace.Root, "derived/", [], []);
+        KeyTool.WriteManifests(keyed, workspace.Root, "derived/", [], [], new Dictionary<string, (string? BaseScene, string? Camera)>());
 
         return 0;
     }

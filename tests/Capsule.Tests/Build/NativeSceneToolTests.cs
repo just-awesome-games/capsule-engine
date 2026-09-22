@@ -17,7 +17,7 @@ public sealed class NativeSceneToolTests
         workspace.Write("hall.scene.json", Authored);
         const string Output = "obj/capsule/scenes";
 
-        int exitCode = SceneDocumentTool.Import(Output, Sources("hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import(Output, Sources("hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         string emitted = File.ReadAllText(Path.Combine(Output, "hall.scene.json"));
@@ -37,7 +37,7 @@ public sealed class NativeSceneToolTests
             "hall.scene.json",
             Authored.Replace("\"terrain.png\"", "\"Terrain/Cave_Wall.png\"", StringComparison.Ordinal));
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
@@ -50,7 +50,7 @@ public sealed class NativeSceneToolTests
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("rooms/hall.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("rooms/hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("rooms/hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
@@ -69,7 +69,7 @@ public sealed class NativeSceneToolTests
             new SceneDocumentSource("editor", "Assets/Scenes/hall.editor", new string('a', 64)));
         workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("obj/editor/hall.scene.json"), tileSize: null, TextWriter.Null, TextWriter.Null);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("obj/editor/hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
 
         Assert.Equal(0, exitCode);
         Assert.Equal(stamped.Source, SceneDocumentFile.Load("scenes/hall.scene.json").Source);
@@ -80,13 +80,14 @@ public sealed class NativeSceneToolTests
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("hall.scene.json", Authored);
-        workspace.Write("broken.scene.json", """{ "formatVersion": 5, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("broken.scene.json", "hall.scene.json"), tileSize: null, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("broken.scene.json", "hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("broken.scene.json", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("declares no properties", error.ToString(), StringComparison.Ordinal);
         Assert.False(File.Exists("scenes/broken.scene.json"));
         Assert.True(File.Exists("scenes/hall.scene.json"));
     }
@@ -98,7 +99,7 @@ public sealed class NativeSceneToolTests
         workspace.Write("hall.scene.json", Authored);
 
         StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: 8, TextWriter.Null, error);
+        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: 8, Fields(), TextWriter.Null, error);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("hall.scene.json", error.ToString(), StringComparison.Ordinal);
@@ -116,6 +117,7 @@ public sealed class NativeSceneToolTests
             "scenes",
             [new DocumentSource("stage-1/room-01", "stage-1/room-01.scene.json")],
             tileSize: null,
+            Fields(),
             TextWriter.Null,
             TextWriter.Null);
 
@@ -127,4 +129,7 @@ public sealed class NativeSceneToolTests
     private static DocumentSource[] Sources(params string[] paths) =>
         [.. paths.Select(static path => new DocumentSource(
             Path.GetFileName(path)[..^SceneDocumentTool.DocumentExtension.Length], path))];
+
+    // No test here reads what Import resolved, only whether the derived document lands.
+    private static Dictionary<string, (string? BaseScene, string? Camera)> Fields() => new(StringComparer.Ordinal);
 }

@@ -1,10 +1,9 @@
-using Capsule.Assets.Generated;
 using Capsule.Audio;
+using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Generated;
 using MinimalGame.Game;
 using MinimalGame.Game.Drivers;
 using MinimalGame.Game.Scenes;
@@ -18,7 +17,7 @@ namespace MinimalGame.Tests;
 public sealed class HeadlessRunTests
 {
     [Fact]
-    public void ConfirmingStart_EntersTheRoomAndQuitReturnsTheExit()
+    public void ConfirmingStart_EntersPlayAndQuitReturnsTheExit()
     {
         StartThenQuit driver = new();
 
@@ -27,31 +26,32 @@ public sealed class HeadlessRunTests
             .WithoutLogging()
             .RunHeadless<MainMenu>(driver);
 
-        Assert.True(driver.EnteredRoom, "confirming Start never opened the room");
+        Assert.True(driver.EnteredPlay, "confirming Start never opened play");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on the game's exit");
         Assert.True(result.Steps < StartThenQuit.Budget);
     }
 
     // The driver `--driver Walkthrough` names is an ordinary object, so the test hands the same one
     // to the same run the shell boots. It ends on Quit rather than by running out of script, which
-    // is what closes a windowed run by itself: a run that only ran dry would report no exit.
+    // is what closes a windowed run by itself: a run that only ran dry would report no exit. The room
+    // has no class of its own. This run also proves a document naming a base and a camera loads and plays.
     [Fact]
     public void Walkthrough_PlaysTheRoomHeadlessAndEndsOnQuit()
     {
         HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
-            .RunHeadless<Room>(new Walkthrough());
+            .RunHeadless(CapsuleAssets.Scenes.Room, new Walkthrough());
 
         Assert.True(result.ExitRequested, "the walkthrough ran out of script before it pressed Quit");
     }
 
-    // Presses Confirm on the menu, then waits in the room until the crossfade the menu started has
+    // Presses Confirm on the menu, then waits in play until the crossfade the menu started has
     // taken the theme off the mixer, and presses Quit on that step.
     [Fact]
-    public void ConfirmingStart_CrossfadesTheMenuThemeIntoTheRoom()
+    public void ConfirmingStart_CrossfadesTheMenuThemeIntoTheRoomTheme()
     {
-        CrossFadesTheMenuThemeIntoTheRoom driver = new();
+        CrossFadesTheMenuThemeIntoTheRoomTheme driver = new();
 
         HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithRunStart(GameBoot.Start)
@@ -61,15 +61,15 @@ public sealed class HeadlessRunTests
         Assert.True(driver.TitleDied, "the title voice was still live when the driver gave up");
         Assert.True(driver.RoomIsPlaying, "the room's own loop was not sounding once the crossfade landed");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on Quit");
-        Assert.True(result.Steps < CrossFadesTheMenuThemeIntoTheRoom.Budget);
+        Assert.True(result.Steps < CrossFadesTheMenuThemeIntoTheRoomTheme.Budget);
     }
 
-    // Reproduces the debug overlay's jump straight from the room back to the menu, which used to
+    // Reproduces the debug overlay's jump straight from play back to the menu, which used to
     // leave the room loop playing under a fresh title, then double the room loop on the next Start.
     [Fact]
-    public void JumpingFromTheRoomToTheMenuAndBackInsideOneRun_DoesNotDoubleTheRoomLoop()
+    public void JumpingFromPlayToTheMenuAndBackInsideOneRun_DoesNotDoubleTheRoomLoop()
     {
-        JumpsFromRoomToMenuAndBack driver = new();
+        JumpsFromPlayToMenuAndBack driver = new();
 
         HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithRunStart(GameBoot.Start)
@@ -79,22 +79,22 @@ public sealed class HeadlessRunTests
         Assert.True(driver.RoomIsPlaying, "the room's own loop was not sounding after the second entry");
         Assert.True(driver.ExactlyOneVoiceIsLive, "the jump left two room voices alive, or none");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on Quit");
-        Assert.True(result.Steps < JumpsFromRoomToMenuAndBack.Budget);
+        Assert.True(result.Steps < JumpsFromPlayToMenuAndBack.Budget);
     }
 
-    // Presses Confirm on the menu, which opens focused on Start, then Quit as soon as the room is
-    // the scene about to step. The budget is a floor under a transition that never comes.
+    // Presses Confirm on the menu, which opens focused on Start, then Quit as soon as a playable scene
+    // is the scene about to step. The budget is a floor under a transition that never comes.
     private sealed class StartThenQuit : IInputDriver
     {
         public const int Budget = 60;
 
-        public bool EnteredRoom { get; private set; }
+        public bool EnteredPlay { get; private set; }
 
         public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
         {
-            if (scene is Room)
+            if (scene is PlayableScene)
             {
-                EnteredRoom = true;
+                EnteredPlay = true;
                 snapshot = DeviceSnapshot.Of(Key.Escape);
 
                 return true;
@@ -106,9 +106,9 @@ public sealed class HeadlessRunTests
         }
     }
 
-    // Confirms Start, then holds in the room polling the mixer, so the assertion tracks the
+    // Confirms Start, then holds in play polling the mixer, so the assertion tracks the
     // crossfade's own landing tick rather than one computed here.
-    private sealed class CrossFadesTheMenuThemeIntoTheRoom : IInputDriver
+    private sealed class CrossFadesTheMenuThemeIntoTheRoomTheme : IInputDriver
     {
         public const int Budget = 200;
 
@@ -150,10 +150,10 @@ public sealed class HeadlessRunTests
         }
     }
 
-    // Confirms Start, then in the room jumps straight back to the menu the way the debug overlay
+    // Confirms Start, then in play jumps straight back to the menu the way the debug overlay
     // does, bypassing the death path's own Stop. Confirms Start a second time, then waits for the
     // first room voice to die before checking the second one plays alone.
-    private sealed class JumpsFromRoomToMenuAndBack : IInputDriver
+    private sealed class JumpsFromPlayToMenuAndBack : IInputDriver
     {
         public const int Budget = 300;
 

@@ -13,10 +13,10 @@ public sealed class SceneDocumentParseTests
     [Theory]
     [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
     [InlineData("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""", "formatVersion 2 is unsupported")]
-    [InlineData("""{"formatVersion": 5, "nextEntityId": 1}""", "the scene document has no entities")]
-    [InlineData("""{"formatVersion": 5, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 6, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 6, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
     [InlineData(TileMapWithoutProperties, "declares no properties")]
-    [InlineData("""{"formatVersion": 5, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
+    [InlineData("""{"formatVersion": 6, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
     [InlineData(Grid1x1, "anchored at the world origin", "\"x\": 0", "\"x\": 8")]
     [InlineData(Grid1x1, "tileSize must be positive", "\"tileSize\": 16", "\"tileSize\": 0")]
     [InlineData(Grid1x1, "the 'tile-map' entry has no id", "\"id\": 1,", "")]
@@ -29,6 +29,23 @@ public sealed class SceneDocumentParseTests
             () => SceneDocumentFile.Parse(text));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
+    }
+
+    // A scene setting names its key, the authored value and the form the key accepts.
+    [Theory]
+    [InlineData("\"clearColor\": \"#10182g\"", "clearColor is \"#10182g\"", "\"#rrggbb\"")]
+    [InlineData("\"ambient\": \"#fff\"", "ambient is \"#fff\"", "\"#rrggbb\"")]
+    [InlineData("\"ambient\": \"#484c6880\"", "ambient has alpha 128", "opaque")]
+    [InlineData("\"size\": [0, 180]", "size is (0, 180)", "greater than zero")]
+    [InlineData("\"size\": [320, -1]", "size is (320, -1)", "greater than zero")]
+    [InlineData("\"sampling\": \"nearest\"", "sampling is \"nearest\"", "\"linear\" or \"point\"")]
+    public void Parse_RefusesAMalformedSettingWithTheKeyAndTheAcceptedForm(string field, string defect, string fix)
+    {
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
+            () => SceneDocumentFile.Parse($$"""{"formatVersion": 6, {{field}}, "entities": [], "nextEntityId": 1}"""));
+
+        Assert.Contains(defect, error.Message, StringComparison.Ordinal);
+        Assert.Contains(fix, error.Message, StringComparison.Ordinal);
     }
 
     // A field the format does not define is a typo, which no document is read past.
@@ -50,7 +67,7 @@ public sealed class SceneDocumentParseTests
 
         SceneDocument document = SceneDocumentFile.Parse($$"""
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "entities": [
                 {{first}},
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,

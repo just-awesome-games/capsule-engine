@@ -1,5 +1,5 @@
 {
-  "formatVersion": 5,
+  "formatVersion": 6,
   "entities": [
     { "id": 1, "type": "layer", "x": 0, "y": 40, "zIndex": -80, "scrollFactor": [0.1, 0.1] },
     { "id": 2, "type": "layer", "x": 0, "y": 76, "zIndex": -70, "scrollFactor": [0.2, 0.2] },

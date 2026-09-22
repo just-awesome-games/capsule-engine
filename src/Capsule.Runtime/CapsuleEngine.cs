@@ -7,7 +7,7 @@ namespace Capsule.Runtime;
 public static class CapsuleEngine
 {
     /// <summary>
-    /// Begins host configuration. Called by the <c>Capsule.Runtime.Generated.CapsuleBoot</c> the
+    /// Begins host configuration. Called by the <c>Capsule.Generated.CapsuleBoot</c> the
     /// compiler generates into a game's shell, or by a test project or CI harness passing the
     /// generated registry itself.
     /// </summary>

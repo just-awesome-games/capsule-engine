@@ -1,30 +1,39 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
 // What one type declaration was read as. A declaration can be a scene and an input driver at
-// once, so all three are described from a single symbol binding.
-internal readonly struct RegistryCandidate(EntityModel? entity, SceneModel? scene, InputDriverModel? driver)
+// once, so all four are described from a single symbol binding.
+internal readonly struct RegistryCandidate(
+    EntityModel? entity, SceneModel? scene, InputDriverModel? driver, CameraModel? camera)
     : IEquatable<RegistryCandidate>
 {
     internal EntityModel? Entity { get; } = entity;
 
+    // Every Scene-deriving class, abstract included: a document's own key can compose it, or its
+    // baseScene key can name it, and RegistryGenerator filters which at the point of use.
     internal SceneModel? Scene { get; } = scene;
 
     internal InputDriverModel? Driver { get; } = driver;
 
-    internal bool IsEmpty => Entity is null && Scene is null && Driver is null;
+    internal CameraModel? Camera { get; } = camera;
+
+    internal bool IsEmpty => Entity is null && Scene is null && Driver is null && Camera is null;
 
     public bool Equals(RegistryCandidate other) =>
         Nullable.Equals(Entity, other.Entity)
         && Nullable.Equals(Scene, other.Scene)
-        && Nullable.Equals(Driver, other.Driver);
+        && Nullable.Equals(Driver, other.Driver)
+        && Nullable.Equals(Camera, other.Camera);
 
     public override bool Equals(object? obj) => obj is RegistryCandidate other && Equals(other);
 
     public override int GetHashCode() =>
-        (Entity?.GetHashCode() ?? 0) ^ (Scene?.GetHashCode() ?? 0) ^ (Driver?.GetHashCode() ?? 0);
+        (Entity?.GetHashCode() ?? 0) ^ (Scene?.GetHashCode() ?? 0) ^ (Driver?.GetHashCode() ?? 0)
+        ^ (Camera?.GetHashCode() ?? 0);
 }
 
 [Generator(LanguageNames.CSharp)]
@@ -88,13 +97,19 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static candidate => candidate.Driver is not null)
             .Select(static (candidate, _) => candidate.Driver!.Value);
 
-        // Every scene document the build shipped, whether or not a class claims it. Projected to
-        // the authored key alone, so the node caches across a run that changed no scene source.
-        IncrementalValuesProvider<string> documents = context.AdditionalTextsProvider
+        IncrementalValuesProvider<CameraModel> cameras = candidates
+            .Where(static candidate => candidate.Camera is not null)
+            .Select(static (candidate, _) => candidate.Camera!.Value);
+
+        // Every scene document the build shipped, whether or not a class claims it, with the
+        // baseScene and camera keys it authors, resolved once by the build's own parser and handed
+        // over as build metadata. A document the metadata never reached (a binary asset never is
+        // one, but the host may still hand one over unopened) carries neither.
+        IncrementalValuesProvider<SceneDocumentInfo> documents = context.AdditionalTextsProvider
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select(static (input, _) => AssetFile.From(input.Left, input.Right))
             .Where(static file => file.InDomain(SceneRegistrySource.Domain))
-            .Select(static (file, _) => file.Authored);
+            .Select(static (file, _) => new SceneDocumentInfo(file.Authored, file.BaseScene, file.Camera));
 
         // Keys are measured against the declared root namespace, or the assembly name when the
         // project leaves it to MSBuild's default.
@@ -112,10 +127,19 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 EntityRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(
-            scenes.Collect().Combine(registries).Combine(rootNamespace).Combine(documents.Collect()),
+            scenes.Collect()
+                .Combine(registries)
+                .Combine(rootNamespace)
+                .Combine(documents.Collect())
+                .Combine(cameras.Collect()),
             static (production, input) =>
                 SceneRegistrySource.Emit(
-                    production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
+                    production,
+                    input.Left.Left.Left.Left,
+                    input.Left.Left.Left.Right,
+                    input.Left.Left.Right,
+                    input.Left.Right,
+                    input.Right));
 
         // A logic assembly hands its drivers to the shell through its registry provider. A driver
         // the shell declares itself is emitted straight into the entry point.
@@ -127,6 +151,22 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(
             boot.Combine(drivers.Collect()),
             static (production, input) => CapsuleBootSource.Emit(production, input.Left, input.Right));
+        // Every generated type lives in Capsule.Generated. A compilation that receives any of them
+        // imports that namespace here, and game code writes no using for it.
+        context.RegisterSourceOutput(configuration, static (production, configured) =>
+        {
+            bool generates = configured.Logic
+                ? configured.EnginePresent && !configured.Shell
+                : configured.Shell && configured.RuntimePresent;
+
+            if (generates)
+            {
+                production.AddSource(
+                    "CapsuleGlobalUsings.g.cs",
+                    SourceText.From("// <auto-generated/>\nglobal using global::Capsule.Generated;\n", Encoding.UTF8));
+            }
+        });
+
         context.RegisterSourceOutput(configuration, static (production, configured) =>
         {
             if (configured.Logic && configured.Shell)
@@ -157,6 +197,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         return new RegistryCandidate(
             EntityRegistrySource.Describe(type, declaration, context.SemanticModel),
             SceneRegistrySource.Describe(type, declaration, compilation),
-            InputDriverRegistrySource.Describe(type, declaration, compilation));
+            InputDriverRegistrySource.Describe(type, declaration, compilation),
+            SceneRegistrySource.DescribeCamera(type, declaration, compilation));
     }
 }

@@ -18,7 +18,7 @@ spelt however the author likes.
 
 A segment that is no C# identifier, two sources keying the same, and C# identifier collisions fail the
 build naming the files. Each generated domain and directory class exposes an allocation-free `All` span over
-the handles beneath it.
+the handles beneath it, except `CapsuleAssets.Scenes`, which holds scene document keys ([`scenes.md`](scenes.md)).
 
 ## Textures
 

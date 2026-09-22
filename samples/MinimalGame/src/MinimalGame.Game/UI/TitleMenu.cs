@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Assets.Generated;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.UI;
@@ -52,7 +51,7 @@ public sealed class TitleMenu : ScreenEntity
         Scene.Add(_exit);
     }
 
-    private void StartGame() => Run.RequestScene<Room>();
+    private void StartGame() => Run.RequestScene(CapsuleAssets.Scenes.Room);
 
     private void OpenOptions() => Run.RequestScene<Options>();
 

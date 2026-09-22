@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
 using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
@@ -15,7 +16,11 @@ namespace Capsule.Scenes.Documents;
 /// </summary>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 5;
+    private const int FormatVersion = 6;
+
+    private const string LinearSampling = "linear";
+
+    private const string PointSampling = "point";
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -109,7 +114,16 @@ public static class SceneDocumentFile
             documentEntries,
             file.NextEntityId,
             ToSource(file.Source),
-            Pair(file.ScrollOrigin, "the scene document", "scrollOrigin"));
+            new SceneSettings
+            {
+                BaseScene = file.BaseScene,
+                Camera = file.Camera,
+                Size = Pair(file.Size, "the scene document", "size"),
+                ScrollOrigin = Pair(file.ScrollOrigin, "the scene document", "scrollOrigin"),
+                ClearColor = ParseColor(file.ClearColor, "clearColor"),
+                Ambient = ParseColor(file.Ambient, "ambient"),
+                Sampling = ParseSampling(file.Sampling),
+            });
     }
 
     /// <summary>Serializes <paramref name="document"/> to its canonical text.</summary>
@@ -157,10 +171,17 @@ public static class SceneDocumentFile
             }
         }
 
+        SceneSettings settings = document.Settings;
         SceneDocumentJson file = new()
         {
             FormatVersion = FormatVersion,
-            ScrollOrigin = Pair(document.ScrollOrigin),
+            BaseScene = settings.BaseScene,
+            Camera = settings.Camera,
+            Size = Pair(settings.Size),
+            ScrollOrigin = Pair(settings.ScrollOrigin),
+            ClearColor = FormatColor(settings.ClearColor),
+            Ambient = FormatColor(settings.Ambient),
+            Sampling = FormatSampling(settings.Sampling),
             Entities = entries,
             NextEntityId = document.NextEntityId,
             Source = document.Source is { } source
@@ -291,6 +312,48 @@ public static class SceneDocumentFile
     }
 
     private static float[]? Pair(Vector2? pair) => pair is { } value ? [value.X, value.Y] : null;
+
+    // Reads a colour, returning null when the field is absent. SceneDocument refuses a translucent one,
+    // and the writer emits lowercase "#rrggbb".
+    private static ColorRgba? ParseColor(string? color, string field)
+    {
+        if (color is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ColorRgba.FromHex(color);
+        }
+        catch (FormatException ex)
+        {
+            throw new SceneDocumentFormatException(
+                $"{field} is \"{color}\", which is not a colour. Write it as \"#rrggbb\", or as \"#rrggbbaa\" with an ff alpha.",
+                ex);
+        }
+    }
+
+    private static string? FormatColor(ColorRgba? color) =>
+        color is { } value
+            ? string.Create(CultureInfo.InvariantCulture, $"#{value.R:x2}{value.G:x2}{value.B:x2}")
+            : null;
+
+    private static TextureSampling? ParseSampling(string? sampling) => sampling switch
+    {
+        null => null,
+        LinearSampling => TextureSampling.Linear,
+        PointSampling => TextureSampling.Point,
+        _ => throw new SceneDocumentFormatException(
+            $"sampling is \"{sampling}\". Write \"{LinearSampling}\" or \"{PointSampling}\", or omit it for the game's setting."),
+    };
+
+    private static string? FormatSampling(TextureSampling? sampling) => sampling switch
+    {
+        null => null,
+        TextureSampling.Point => PointSampling,
+        _ => LinearSampling,
+    };
 
     private static TileMapPlacement ReadTileMap(SceneEntryJson entry, float x, float y, int index)
     {

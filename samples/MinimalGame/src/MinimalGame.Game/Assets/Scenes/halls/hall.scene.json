@@ -1,5 +1,7 @@
 {
-  "formatVersion": 5,
+  "formatVersion": 6,
+  "baseScene": "playable-scene",
+  "camera": "game-camera",
   "entities": [
     {
       "id": 3,

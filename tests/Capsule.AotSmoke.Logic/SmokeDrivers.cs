@@ -1,5 +1,4 @@
 using Capsule.Input;
-using Capsule.Scenes.Generated;
 
 namespace Capsule.AotSmoke.Logic;
 

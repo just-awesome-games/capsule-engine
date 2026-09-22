@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Assets.Generated;
 using Capsule.Rendering;
 
 namespace Capsule.Bench.Logic.Components;

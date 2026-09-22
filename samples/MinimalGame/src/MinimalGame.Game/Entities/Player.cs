@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule;
 using Capsule.Animation;
-using Capsule.Assets.Generated;
 using Capsule.Audio;
 using Capsule.Diagnostics;
 using Capsule.Particles;
@@ -111,7 +110,7 @@ public sealed class Player : Entity
             Gravity = new Vector2(0f, 120f),
             Scale = (1f, 2f),
             ScaleOverLifetime = Curve.Linear(1f, 0f),
-            Color = new ColorRgba(160, 150, 130),
+            Color = ColorRgba.FromHex("#a09682"),
         };
         Add(_dust);
     }

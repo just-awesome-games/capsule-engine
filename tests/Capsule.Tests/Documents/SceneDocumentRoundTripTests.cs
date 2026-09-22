@@ -1,4 +1,6 @@
+using System.Numerics;
 using Capsule.Assets;
+using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
@@ -14,7 +16,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "entities": [
                 {
                   "id": 1,
@@ -34,13 +36,67 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 
+    // Every top-level key sits at its canonical place, so a document authoring all of them is a fixed
+    // point of the importer. A colour reads in either case or with an ff alpha, and writes as lowercase
+    // "#rrggbb".
+    [Fact]
+    public void EverySettingsKey_RoundTripsAtItsCanonicalFieldOrder()
+    {
+        string json = """
+            {
+              "formatVersion": 6,
+              "baseScene": "playable-room",
+              "camera": "game-camera",
+              "size": [
+                320,
+                180
+              ],
+              "scrollOrigin": [
+                160,
+                90
+              ],
+              "clearColor": "#101820",
+              "ambient": "#484c68",
+              "sampling": "point",
+              "entities": [
+                {
+                  "id": 1,
+                  "type": "coin",
+                  "x": 8,
+                  "y": 0
+                }
+              ],
+              "nextEntityId": 2
+            }
+
+            """.ReplaceLineEndings("\n");
+
+        SceneDocument document = SceneDocumentFile.Parse(json);
+
+        Assert.Equal(
+            new SceneSettings
+            {
+                BaseScene = "playable-room",
+                Camera = "game-camera",
+                Size = new Vector2(320, 180),
+                ScrollOrigin = new Vector2(160, 90),
+                ClearColor = new ColorRgba(16, 24, 32),
+                Ambient = new ColorRgba(72, 76, 104),
+                Sampling = TextureSampling.Point,
+            },
+            document.Settings);
+        Assert.Equal(json, SceneDocumentFile.ToJson(document));
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json.Replace("#484c68", "#484C68", StringComparison.Ordinal))));
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json.Replace("#484c68", "#484c68ff", StringComparison.Ordinal))));
+    }
+
     // A band is the one field both entry types carry, and an unbanded entry carries none.
     [Fact]
     public void AnAuthoredBand_RoundTripsOnBothEntryTypes()
     {
         string json = """
             {
-              "formatVersion": 5,
+              "formatVersion": 6,
               "entities": [
                 {
                   "id": 1,
@@ -191,7 +247,7 @@ public sealed class SceneDocumentRoundTripTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 5,",
+            "  \"formatVersion\": 6,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",

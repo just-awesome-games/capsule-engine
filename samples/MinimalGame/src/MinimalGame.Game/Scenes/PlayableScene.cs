@@ -1,18 +1,15 @@
 using Capsule;
-using Capsule.Assets.Generated;
 using Capsule.Scenes;
-using MinimalGame.Game.Cameras;
 using MinimalGame.Game.Entities;
 using MinimalGame.Game.UI;
 
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// What every playable scene is made of, with the level left to the subclass: the follow camera it is
-/// framed through, the head-up display over it, quitting, and returning to the <see cref="MainMenu"/>
-/// at no health. A subclass adds the document it claims and nothing else, so a level is one line. Both
-/// the camera and the display are installed in the constructor, so the scene opens on that camera and
-/// the display's contents are collected for its preload.
+/// What every playable scene is made of, with the level left to the document: the head-up display,
+/// quitting, and returning to the <see cref="MainMenu"/> at no health. A level is a document that names
+/// it as its <c>baseScene</c>. The camera comes from the document, and the
+/// display is installed in the constructor so its contents are collected for its preload.
 /// </summary>
 public abstract class PlayableScene : Scene
 {
@@ -23,18 +20,15 @@ public abstract class PlayableScene : Scene
     protected Player Player { get; private set; } = null!;
 
     protected PlayableScene(SceneContent content)
-        : base(content)
-    {
-        Camera = new GameCamera();
+        : base(content) =>
         Add(new PlayerHud());
-    }
 
     /// <inheritdoc/>
     protected override void OnStart()
     {
         Player = FindSingle<Player>();
 
-        // Crossfades from whatever was playing, or fades in alone under --scene Room.
+        // Crossfades from whatever was playing, or fades in alone under --scene room.
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.Room);
     }
 

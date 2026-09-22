@@ -209,7 +209,7 @@ public sealed class ParallaxTests
     [Fact]
     public void ADocumentsScrollOrigin_ReachesTheCameraTheSceneInstalls()
     {
-        SceneDocument document = new([], 1, scrollOrigin: new Vector2(160, 90));
+        SceneDocument document = new([], 1, settings: new SceneSettings { ScrollOrigin = new Vector2(160, 90) });
         Camera installed = new();
         Scene scene = new ComposedScene(SceneFixtures.Content(document, SceneFixtures.Registry()), installed);
 

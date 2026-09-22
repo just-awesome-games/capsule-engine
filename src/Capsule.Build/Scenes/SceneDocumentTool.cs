@@ -17,6 +17,7 @@ internal static class SceneDocumentTool
     /// <param name="outputDirectory">Where the canonical documents are written.</param>
     /// <param name="sources">The scene sources to import, each with the key it claims.</param>
     /// <param name="tileSize">The tile size every grid must be authored at, or null to impose none.</param>
+    /// <param name="fields">Receives each imported document's baseScene and camera, keyed the same way.</param>
     /// <param name="output">Progress, one line per source.</param>
     /// <param name="error">Failures, each anchored to the source that failed.</param>
     /// <returns>0 when every source succeeded, 1 when any failed.</returns>
@@ -24,10 +25,12 @@ internal static class SceneDocumentTool
         string outputDirectory,
         IReadOnlyList<DocumentSource> sources,
         int? tileSize,
+        IDictionary<string, (string? BaseScene, string? Camera)> fields,
         TextWriter output,
         TextWriter error)
     {
         ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(fields);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
@@ -52,9 +55,9 @@ internal static class SceneDocumentTool
             {
                 // A key may nest, so the directory the document lands in may not exist yet.
                 Directory.CreateDirectory(Path.GetDirectoryName(documentPath)!);
-                AtomicFile.Write(
-                    documentPath,
-                    path => SceneDocumentFile.Save(NativeSceneImporter.Import(source.Path, tileSize), path));
+                SceneDocument document = NativeSceneImporter.Import(source.Path, tileSize);
+                AtomicFile.Write(documentPath, path => SceneDocumentFile.Save(document, path));
+                fields[source.Key] = (document.Settings.BaseScene, document.Settings.Camera);
                 output.WriteLine($"{Name}: {source.Path} -> {documentPath}");
             }
             catch (Exception ex) when (IsReportable(ex))

@@ -40,7 +40,7 @@ internal static class NativeSceneImporter
             documentPath.Replace('\\', '/'),
             Convert.ToHexStringLower(SHA256.HashData(sourceBytes)));
 
-        return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source, authored.ScrollOrigin);
+        return new SceneDocument(Keyed(authored.Entries), authored.NextEntityId, source, authored.Settings);
     }
 
     // A texture is reached by its key however the document spelled it, so what is re-emitted and

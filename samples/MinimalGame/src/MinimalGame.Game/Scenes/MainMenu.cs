@@ -1,5 +1,4 @@
 using Capsule;
-using Capsule.Assets.Generated;
 using Capsule.Scenes;
 using MinimalGame.Game.UI;
 

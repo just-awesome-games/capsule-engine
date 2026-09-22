@@ -172,7 +172,7 @@ through its ordinary affordances.
 | --- | --- |
 | Clone and first run | `dotnet restore --locked-mode`, then `dotnet run --project src/MyGame.Shell`. |
 | Run | `dotnet run --project src/MyGame.Shell`. Add `--no-build` to start the last build as it stands. |
-| Run a named scene | `dotnet run --project src/MyGame.Shell -- --scene <Name>`. |
+| Run a named scene | `dotnet run --project src/MyGame.Shell -- --scene <Name>`, a scene class name or a scene document key. |
 | Run headless with a driver | `dotnet run --project src/MyGame.Shell -- --headless --driver <Name>` ([`input.md`](input.md)). |
 | Test | `dotnet test`. |
 | Format check or fix | `dotnet format --verify-no-changes`, `dotnet format`. |

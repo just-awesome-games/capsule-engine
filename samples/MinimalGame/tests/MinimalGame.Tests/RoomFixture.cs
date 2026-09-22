@@ -1,7 +1,7 @@
 using Capsule;
+using Capsule.Generated;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Generated;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
 using MinimalGame.Game.Scenes;
@@ -32,7 +32,7 @@ public static class RoomFixture
         Run run = new();
         GameBoot.Start(run);
 
-        return new SimulationHost(new Room(new SceneContent(document, CapsuleEntities.Registry)), run: run);
+        return new SimulationHost(new TestRoom(new SceneContent(document, CapsuleEntities.Registry)), run: run);
     }
 
     public static Player PlayerOf(SimulationHost room)
@@ -41,4 +41,8 @@ public static class RoomFixture
 
         return room.Scene.FindSingle<Player>();
     }
+
+    // The document names PlayableScene as its base, and the generated subclass is internal to the game.
+    // This one stands in for it, and the base constructor applies the document's settings.
+    private sealed class TestRoom(SceneContent content) : PlayableScene(content);
 }

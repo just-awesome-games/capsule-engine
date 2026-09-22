@@ -1,5 +1,6 @@
 using System.Globalization;
-using System.Numerics;
+using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes.Documents;
 
@@ -15,24 +16,27 @@ public sealed class SceneDocument
 
     private const int Sha256HexLength = 64;
 
+    private const string KeyForm =
+        "A key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name.";
+
     private readonly SceneDocumentEntry[] _entries;
 
     /// <param name="entries">Every tile map and entity placement, in composition order.</param>
     /// <param name="nextEntityId">The next id to hand out. At least 1, and greater than every entry's id.</param>
     /// <param name="source">Where a derived document came from, or null when it is hand-authored.</param>
-    /// <param name="scrollOrigin">The authored <see cref="Camera.ScrollOrigin"/>, or null when the document authors none.</param>
+    /// <param name="settings">The scene-level state the document authors, or null when it authors none.</param>
     /// <exception cref="ArgumentException">The document is malformed. The message names the defect.</exception>
     public SceneDocument(
         IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,
         SceneDocumentSource? source = null,
-        Vector2? scrollOrigin = null)
+        SceneSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
         NextEntityId = nextEntityId;
         Source = source;
-        ScrollOrigin = scrollOrigin;
+        Settings = settings ?? new SceneSettings();
         _entries = [.. entries];
 
         Validate();
@@ -50,11 +54,8 @@ public sealed class SceneDocument
     /// <summary>The authoring source this document was derived from, or null when it is hand-authored.</summary>
     public SceneDocumentSource? Source { get; }
 
-    /// <summary>
-    /// The <see cref="Camera.ScrollOrigin"/> written to every camera installed in the composed scene, or
-    /// null when the document authors none and each camera keeps its own.
-    /// </summary>
-    public Vector2? ScrollOrigin { get; }
+    /// <summary>The scene-level state the document authors, never null.</summary>
+    public SceneSettings Settings { get; }
 
     private void Validate()
     {
@@ -63,14 +64,7 @@ public sealed class SceneDocument
             throw Malformed($"nextEntityId is {NextEntityId}. Set it to at least 1.", nameof(NextEntityId));
         }
 
-        if (ScrollOrigin is { } origin && (!float.IsFinite(origin.X) || !float.IsFinite(origin.Y)))
-        {
-            throw Malformed(string.Create(
-                CultureInfo.InvariantCulture,
-                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position. Make both components finite."),
-                nameof(ScrollOrigin));
-        }
-
+        ValidateSettings();
         ValidateEntries();
         ValidateSource();
     }
@@ -147,6 +141,58 @@ public sealed class SceneDocument
             {
                 throw Malformed($"entity id {entry.Id} appears more than once. Give every entry a unique id.");
             }
+        }
+    }
+
+    private void ValidateSettings()
+    {
+        SceneSettings settings = Settings;
+
+        if (settings.BaseScene is { } baseScene && !AssetPaths.IsKey(baseScene))
+        {
+            throw Malformed(
+                $"baseScene is '{baseScene}', which is not a key. {KeyForm}",
+                nameof(Settings));
+        }
+
+        if (settings.Camera is { } camera && !AssetPaths.IsKey(camera))
+        {
+            throw Malformed(
+                $"camera is '{camera}', which is not a key. {KeyForm}",
+                nameof(Settings));
+        }
+
+        if (settings.Size is { } size && (!IsScale(size.X) || !IsScale(size.Y)))
+        {
+            throw Malformed(string.Create(
+                CultureInfo.InvariantCulture,
+                $"size is ({size.X}, {size.Y}), which is not a size. Make both components finite and greater than zero."),
+                nameof(Settings));
+        }
+
+        if (settings.ScrollOrigin is { } origin && (!float.IsFinite(origin.X) || !float.IsFinite(origin.Y)))
+        {
+            throw Malformed(string.Create(
+                CultureInfo.InvariantCulture,
+                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position. Make both components finite."),
+                nameof(Settings));
+        }
+
+        // The format writes a colour as #rrggbb, which carries no alpha. This is the one opacity check for
+        // a document read from a file as well.
+        if (settings.ClearColor is { A: not byte.MaxValue } clearColor)
+        {
+            throw Malformed($"clearColor has alpha {clearColor.A}. A scene document authors an opaque clear colour. Set its alpha to 255.", nameof(Settings));
+        }
+
+        if (settings.Ambient is { A: not byte.MaxValue } ambient)
+        {
+            throw Malformed($"ambient has alpha {ambient.A}. A scene document authors an opaque ambient colour. Set its alpha to 255.", nameof(Settings));
+        }
+
+        if (settings.Sampling is { } sampling && !Enum.IsDefined(sampling))
+        {
+            throw Malformed($"sampling is {(int)sampling}, which is not a {nameof(TextureSampling)}. Use one of its named values.", nameof(Settings));
         }
     }
 

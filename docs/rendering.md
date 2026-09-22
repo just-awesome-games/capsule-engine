@@ -34,8 +34,9 @@ integer scale when the output can hold it.
 
 ## A camera that follows
 
-A scene installs its camera and touches it no further. A camera subclass has two hooks, `OnStart` to
-find what it frames and `OnLateStep` to settle the framing once every entity has moved:
+A document's `camera` key installs it, or a scene's constructor sets it directly, and nothing touches
+it further after that. A camera subclass has two hooks, `OnStart` to find what it frames and
+`OnLateStep` to settle the framing once every entity has moved:
 
 ```csharp
 public sealed class GameCamera : Camera
@@ -194,7 +195,7 @@ Add(new ColorRect(HeadSize) { Color = HeadColor, Blend = BlendMode.Additive, Off
 Add(new PointLight { Radius = 56f, Color = HeadColor, Offset = new Vector2(0f, -PostSize.Y) });
 ```
 
-A scene lowers the light with one property, `Scene.Ambient`, white by default and set nowhere else. A
+A scene lowers the light with one property, `Scene.Ambient`, white by default and set in code or by the document's `ambient`. A
 `PointLight` draws its sprite additively into the frame's light map, which the host multiplies over the
 world in one pass; two lights add, a light lights the sprite it sits on, and a light on a white ambient
 brightens what it reaches, up to twice the authored colour, so a light shows in a room that set nothing. In a lit frame a world

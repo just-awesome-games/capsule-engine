@@ -26,5 +26,5 @@ public readonly record struct BoltTuning(
         Speed: 240f,
         LifetimeTicks: 30,
         Size: new Vector2(4f, 2f),
-        Tint: new ColorRgba(255, 224, 64));
+        Tint: ColorRgba.FromHex("#ffe040"));
 }

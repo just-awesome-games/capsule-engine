@@ -14,24 +14,54 @@ internal sealed class SceneDocumentJson
     [JsonPropertyOrder(0)]
     public int? FormatVersion { get; set; }
 
+    // Absent when the document composes a plain Scene, and WhenWritingNull keeps it out.
+    [JsonPropertyName("baseScene")]
+    [JsonPropertyOrder(1)]
+    public string? BaseScene { get; set; }
+
+    // Absent when the document installs no camera, and WhenWritingNull keeps it out.
+    [JsonPropertyName("camera")]
+    [JsonPropertyOrder(2)]
+    public string? Camera { get; set; }
+
+    // Absent when the document keeps the tile-map extent, and WhenWritingNull keeps it out. Nullable so the
+    // reader reports a wrong component count.
+    [JsonPropertyName("size")]
+    [JsonPropertyOrder(3)]
+    public float[]? Size { get; set; }
+
     // Absent when the document authors no origin, and WhenWritingNull keeps it out. Nullable so the reader
     // reports a wrong component count.
     [JsonPropertyName("scrollOrigin")]
-    [JsonPropertyOrder(1)]
+    [JsonPropertyOrder(4)]
     public float[]? ScrollOrigin { get; set; }
+
+    // A colour is "#rrggbb" or "#rrggbbaa" and sampling is "linear" or "point". The reader parses all
+    // three, and WhenWritingNull keeps an absent one out.
+    [JsonPropertyName("clearColor")]
+    [JsonPropertyOrder(5)]
+    public string? ClearColor { get; set; }
+
+    [JsonPropertyName("ambient")]
+    [JsonPropertyOrder(6)]
+    public string? Ambient { get; set; }
+
+    [JsonPropertyName("sampling")]
+    [JsonPropertyOrder(7)]
+    public string? Sampling { get; set; }
 
     // Nullable, to tell an absent list from an empty scene and to let a null entry reach the reader. An
     // initializer here would invent data the format never accepted.
     [JsonPropertyName("entities")]
-    [JsonPropertyOrder(2)]
+    [JsonPropertyOrder(8)]
     public SceneEntryJson?[]? Entities { get; set; }
 
     [JsonPropertyName("nextEntityId")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(9)]
     public int NextEntityId { get; set; }
 
     [JsonPropertyName("source")]
-    [JsonPropertyOrder(4)]
+    [JsonPropertyOrder(10)]
     public SceneDocumentSourceJson? Source { get; set; }
 }
 

@@ -1,14 +1,13 @@
 using System.Runtime.CompilerServices;
 using Capsule.AotSmoke.Logic;
 using Capsule.Assets;
-using Capsule.Assets.Generated;
 using Capsule.Diagnostics;
+using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes.Documents;
-using Capsule.Scenes.Generated;
 
 namespace Capsule.AotSmoke;
 

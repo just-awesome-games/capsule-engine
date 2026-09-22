@@ -149,8 +149,8 @@ internal static class AssetRegistrySource
         return registry;
     }
 
-    // Turns a registry refusal into the diagnostic the game sees at the asset's file.
-    private static RegistryClaimCheck<T> Refused<T>(SourceProductionContext context, Location location) =>
+    // Turns a registry refusal into the diagnostic the game sees at the source's file.
+    internal static RegistryClaimCheck<T> Refused<T>(SourceProductionContext context, Location location) =>
         RegistryClaims.Check<T>(refusal => context.ReportDiagnostic(
             refusal.Fault == RegistryFault.AlreadyDeclared
                 ? Diagnostic.Create(

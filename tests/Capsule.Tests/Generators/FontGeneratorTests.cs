@@ -257,7 +257,7 @@ public sealed class FontGeneratorTests
     // CapsuleAssets.Fonts.<path>, as the game names it.
     private static BitmapFont Font(Assembly game, params string[] path)
     {
-        Type declaring = game.GetType("Capsule.Assets.Generated.CapsuleAssets")!.GetNestedType("Fonts")!;
+        Type declaring = game.GetType("Capsule.Generated.CapsuleAssets")!.GetNestedType("Fonts")!;
 
         for (int i = 0; i < path.Length - 1; i++)
         {

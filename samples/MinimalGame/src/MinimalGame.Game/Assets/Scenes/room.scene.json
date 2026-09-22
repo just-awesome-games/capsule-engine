@@ -1,5 +1,8 @@
 {
-  "formatVersion": 5,
+  "formatVersion": 6,
+  "baseScene": "playable-scene",
+  "camera": "game-camera",
+  "ambient": "#484c68",
   "entities": [
     {
       "id": 4,

@@ -9,8 +9,9 @@ Data and behaviour are separate halves, and a game takes either or both:
 
 | Combination | What the game writes | How it boots |
 | --- | --- | --- |
-| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `test` registers itself and `RunScene("test")` composes a plain `Scene` from it |
-| Document and class | that document, plus `class Test : Scene` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene<Test>()` or `RunScene("test")`, either of which loads the document and then constructs `Test` |
+| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `test` registers itself and `RunScene(CapsuleAssets.Scenes.Test)` composes a plain `Scene` from it |
+| Document naming a `baseScene` | that document, naming an abstract `class Base : Scene` under `baseScene`, and no class of its own | The generator emits a sealed scene deriving from `Base`, and `RunScene(CapsuleAssets.Scenes.Test)` composes it from the document |
+| Document and class | that document, plus `class Test : Scene` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene(CapsuleAssets.Scenes.Test)` loads the document and then constructs `Test`. Name the document by its key even when a class claims it, because the key survives adding or removing the class. `RunScene<Test>()` also works |
 | Class only | `class Test : Scene` with a public parameterless constructor | `RunScene<Test>()` runs the scene as it builds itself |
 
 The `SceneContent` constructor is the opt-in. Taking one and handing it to `base` claims the document keyed
@@ -18,16 +19,22 @@ as the class's namespace names ([Entries and composition](#entries-and-compositi
 `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A
 composed scene's assets are collected before `OnStart` ([`assets.md`](assets.md#loading-and-residency)).
 
+Every document has a generated key constant under `CapsuleAssets.Scenes`, one nested class per directory.
+`halls/hall` is `CapsuleAssets.Scenes.Halls.Hall`. `--scene` takes a scene class name or a document key, and a
+class name wins when a value is both.
+
 ## Format
 
-`SceneDocumentFile` reads and writes format version 5 as two-space-indented UTF-8 JSON with LF endings and
+`SceneDocumentFile` reads and writes format version 6 as two-space-indented UTF-8 JSON with LF endings and
 one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform
 list of entries:
 
 ```json
 {
-  "formatVersion": 5,
+  "formatVersion": 6,
+  "size": [320, 192],
   "scrollOrigin": [0, 192],
+  "ambient": "#484c68",
   "entities": [
     {
       "id": 1,
@@ -60,10 +67,26 @@ list of entries:
 }
 ```
 
+A top-level key sets the `Scene` property of the same name before any subclass constructor body runs, and
+code assigning that property still wins. The top-level keys run in the order `formatVersion`, `baseScene`,
+`camera`, `size`, `scrollOrigin`, `clearColor`, `ambient`, `sampling`, `entities`, `nextEntityId`, `source`.
+
 - `formatVersion` is required and must be supported.
-- `scrollOrigin` is `[x, y]`, both finite, and follows `formatVersion` where the document carries it. It is
-  the camera corner at which every layer sits as authored, written as `ScrollOrigin` to every camera the
+- `baseScene` names an abstract `Scene` subclass. The generator emits the sealed scene deriving from it
+  and registers the document as that scene. Absent composes a plain `Scene`. The base must be
+  abstract because a template is never a loadable scene itself.
+- `camera` names a concrete `Camera` subclass with an accessible parameterless constructor, installed by
+  the `Scene(SceneContent)` constructor. Absent leaves the scene's default camera in place, and a
+  subclass assigning `Camera` in its own constructor body still wins.
+- `size` is `[w, h]`, both finite and greater than zero, and sets `Scene.Size`. Absent keeps the extent of the
+  document's tile maps.
+- `scrollOrigin` is `[x, y]`, both finite. It is the camera corner at which every layer sits as authored, written as `ScrollOrigin` to every camera the
   composed scene installs. Absent leaves each camera its own, zero unless it set one.
+- `clearColor` is `"#rrggbb"` or `"#rrggbbaa"` with an `ff` alpha, and sets `Scene.ClearColor`. Code spells
+  the same value `ColorRgba.FromHex("#484c68")`. Hex reads in either case and is written lowercase as
+  `"#rrggbb"`. There is no shorthand or named form.
+- `ambient` is a colour in the same form and sets `Scene.Ambient`.
+- `sampling` is `"linear"` or `"point"` and sets `Scene.Sampling`. Absent keeps the game's setting.
 - Every entry carries `id`, `type`, `x` and `y` in that order, all required. `scale`, `zIndex`,
   `scrollFactor` and then `properties` follow where the entry carries them.
 - `scale` is `[x, y]`, both finite and greater than zero, and absent is identity. It is the raw authored
@@ -111,12 +134,13 @@ Every `type` other than `tile-map` names an entity class in the game's own logic
 scene claims a document. A concrete `Entity` with one public constructor taking an `EntitySpawn` (beside any
 other constructor) claims the key its namespace names, and `[SpawnType("key")]` names another key.
 
-One rule covers scenes and entities: the type's namespace under the assembly's root namespace, minus a
-leading `Scenes` or `Entities` segment and minus a trailing segment repeating the type's own name,
-kebab-cased per segment and joined with `/`, then the kebab-cased type name. `MyGame.Entities.Enemies.Bat`
-claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`, `MyGame.Scenes.Stage1.Room01` claims
-`stage-1/room-01`, and `MyGame.Scenes.Crowd1k` claims `crowd-1k`. A type outside the root namespace claims
-its kebab-cased name. A spawn type no class claims fails the scene at load. A claiming constructor that does
+One rule covers scenes, entities and cameras: the type's namespace under the assembly's root namespace,
+minus a leading `Scenes`, `Entities` or `Cameras` segment and minus a trailing segment repeating the
+type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name.
+`MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`,
+`MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`, and `MyGame.Scenes.Crowd1k` claims `crowd-1k`.
+A type outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the
+scene at load. A claiming constructor that does
 not pass its spawn to a base constructor taking one is `CAP026` at that constructor.
 
 ## From source to game

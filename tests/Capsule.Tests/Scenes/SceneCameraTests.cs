@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 
 namespace Capsule.Tests.Scenes;
 
@@ -266,6 +267,62 @@ public sealed class SceneCameraTests
 
         // The clamp lives in resolution alone: the camera still frames where it was pointed.
         Assert.Equal(new Rect(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
+    }
+
+    // The content constructor installs the document's camera, and a subclass assigning Camera in its
+    // own constructor body runs after that and still wins, the same precedence D-capsule-102 already
+    // gives position, scale, band and scroll factor one tier down.
+    [Fact]
+    public void ADocumentsCameraInstalls_AndASubclassOverridingItInItsConstructorStillWins()
+    {
+        SceneContent content = SceneFixtures.Content(SceneFixtures.RoomWithoutTerrain(), SceneFixtures.Registry())
+            with
+        { Camera = static () => new DocumentCamera() };
+
+        Assert.IsType<DocumentCamera>(new Scene(content).Camera);
+        Assert.IsType<OverridingCamera>(new OverridingScene(content).Camera);
+    }
+
+    // The document's settings land in the base constructor, as its camera does. A subclass body runs
+    // later and outranks them. An authored size replaces the tile maps' extent.
+    [Fact]
+    public void ADocumentsSettingsReachTheScene_AndASubclassOverridingOneInItsConstructorStillWins()
+    {
+        SceneDocument document = new(
+            [new TileMapPlacement(SceneFixtures.TerrainId, SceneFixtures.RoomGrid())],
+            SceneFixtures.TerrainId + 1,
+            settings: new SceneSettings
+            {
+                Size = new Vector2(320, 180),
+                ClearColor = new ColorRgba(16, 24, 32),
+                Ambient = new ColorRgba(72, 76, 104),
+                Sampling = TextureSampling.Point,
+            });
+        SceneContent content = SceneFixtures.Content(document, SceneFixtures.Registry());
+
+        Scene scene = new(content);
+
+        Assert.Equal(new Vector2(320, 180), scene.Size);
+        Assert.Equal(new ColorRgba(16, 24, 32), scene.ClearColor);
+        Assert.Equal(new ColorRgba(72, 76, 104), scene.Ambient);
+        Assert.Equal(TextureSampling.Point, scene.Sampling);
+        Assert.Equal(ColorRgba.Red, new AmbientScene(content).Ambient);
+    }
+
+    private sealed class AmbientScene : Scene
+    {
+        internal AmbientScene(SceneContent content) : base(content) => Ambient = ColorRgba.Red;
+    }
+
+    private sealed class DocumentCamera : Camera;
+
+    private sealed class OverridingCamera : Camera;
+
+    private sealed class OverridingScene : Scene
+    {
+        // Runs after Scene(SceneContent) has installed DocumentCamera, so this assignment is the
+        // outermost one and wins.
+        internal OverridingScene(SceneContent content) : base(content) => Camera = new OverridingCamera();
     }
 
     private static Action<Scene> Install(Camera camera) =>

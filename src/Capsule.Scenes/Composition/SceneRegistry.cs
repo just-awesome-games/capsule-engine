@@ -61,7 +61,7 @@ public sealed class SceneRegistry
 
     // Returns the registered scene whose class name is className, or null when none matches. Two namespaces
     // carrying that class name also return null, because the name then picks out no single scene.
-    internal Type? SceneNamed(string className)
+    private Type? SceneNamed(string className)
     {
         Type? found = null;
 
@@ -81,6 +81,24 @@ public sealed class SceneRegistry
         }
 
         return found;
+    }
+
+    // Resolves a name the command line gave. A registered class of that name wins, found as SceneNamed
+    // finds it, and otherwise a registered document of that key. Both comparisons are ordinal. A class
+    // Room and a document room are two names. Returns false when neither matches.
+    internal bool TryResolveName(string name, out Type? sceneType, out string? documentName)
+    {
+        sceneType = SceneNamed(name);
+        if (sceneType is not null)
+        {
+            documentName = DocumentNameOf(sceneType);
+
+            return true;
+        }
+
+        documentName = _byDocumentName.ContainsKey(name) ? name : null;
+
+        return documentName is not null;
     }
 
     internal Scene Create(Type sceneType)
@@ -132,5 +150,20 @@ public sealed class SceneRegistry
     }
 
     // Every registered class, for a message naming what a caller could ask for by class.
-    internal string RegisteredTypes() => Registered.Names(_byType.Keys);
+    private string RegisteredTypes() => Registered.Names(_byType.Keys);
+
+    // Every registered class name, for a message naming what the command line could have named.
+    internal string RegisteredClassNames()
+    {
+        List<string> names = new(_byType.Count);
+        foreach (Type sceneType in _byType.Keys)
+        {
+            names.Add(sceneType.Name);
+        }
+
+        return Registered.Names(names);
+    }
+
+    // Every registered document key, for a message naming what a caller could ask for by key.
+    internal string RegisteredDocumentKeys() => Registered.Names(_byDocumentName.Keys);
 }

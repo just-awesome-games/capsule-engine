@@ -141,6 +141,8 @@
     <AdditionalFiles Include="@(CapsuleAsset)" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetDomain" />
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetPath" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetBaseScene" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CapsuleAssetCamera" />
   </ItemGroup>
 
   <!-- Logic assemblies validate assets even though they ship none. -->
@@ -288,17 +290,17 @@
       <Output TaskParameter="Lines" ItemName="_CapsuleSceneContentLine" />
     </ReadLinesFromFile>
 
-    <!-- A shipped-assets.txt line is the shipped path, a '|', and the file it comes from. A
-         scene-content.txt line is the bare key instead of the shipped path. -->
+    <!-- A shipped-assets.txt line is shippedPath|source. A scene-content.txt line is
+         key|baseScene|camera|path, where an absent baseScene or camera is an empty field. -->
     <ItemGroup>
-      <_CapsuleShippedAsset Condition="'@(_CapsuleShippedAssetLine)' != ''"
-                            Include="$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Substring($([MSBuild]::Add(1, $([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').IndexOf('|'))))))">
-        <ShippedPath>$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Substring(0, $([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').IndexOf('|'))))</ShippedPath>
+      <_CapsuleShippedAsset Condition="'@(_CapsuleShippedAssetLine)' != ''" Include="$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Split('|', 2)[1])">
+        <ShippedPath>$([System.String]::Copy('%(_CapsuleShippedAssetLine.Identity)').Split('|', 2)[0])</ShippedPath>
       </_CapsuleShippedAsset>
 
-      <_CapsuleDerivedScene Condition="'@(_CapsuleSceneContentLine)' != ''"
-                            Include="$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Substring($([MSBuild]::Add(1, $([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').IndexOf('|'))))))">
-        <Key>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Substring(0, $([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').IndexOf('|'))))</Key>
+      <_CapsuleDerivedScene Condition="'@(_CapsuleSceneContentLine)' != ''" Include="$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Split('|', 4)[3])">
+        <Key>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Split('|', 4)[0])</Key>
+        <BaseScene>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Split('|', 4)[1])</BaseScene>
+        <Camera>$([System.String]::Copy('%(_CapsuleSceneContentLine.Identity)').Split('|', 4)[2])</Camera>
       </_CapsuleDerivedScene>
     </ItemGroup>
 
@@ -318,10 +320,13 @@
         <Visible>false</Visible>
       </Content>
 
-      <!-- Every shipped document reaches the generator the way textures, audio and fonts do. -->
+      <!-- Every shipped document reaches the generator the way textures, audio and fonts do, its
+           baseScene and camera resolved once by the tool's own parser beside its key. -->
       <AdditionalFiles Condition="'$(CapsuleGameLogic)' == 'true'" Include="@(_CapsuleDerivedScene)">
         <CapsuleAssetDomain>scenes</CapsuleAssetDomain>
         <CapsuleAssetPath>%(_CapsuleDerivedScene.Key)</CapsuleAssetPath>
+        <CapsuleAssetBaseScene>%(_CapsuleDerivedScene.BaseScene)</CapsuleAssetBaseScene>
+        <CapsuleAssetCamera>%(_CapsuleDerivedScene.Camera)</CapsuleAssetCamera>
       </AdditionalFiles>
     </ItemGroup>
 

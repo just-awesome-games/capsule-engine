@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule;
-using Capsule.Assets.Generated;
 using Capsule.Input;
 using Capsule.Scenes;
 using Capsule.UI;
