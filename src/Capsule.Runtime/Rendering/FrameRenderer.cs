@@ -148,8 +148,9 @@ internal sealed class FrameRenderer : IDisposable
         int outputWidth = backBuffer.BackBufferWidth;
         int outputHeight = backBuffer.BackBufferHeight;
 
-        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
-        Rect world = view.Camera.Place(alpha, layout.Span);
+        CameraView camera = view.Camera.At(alpha);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
+        Rect world = camera.Place(1f, layout.Span);
 
         if (_canvas is null)
         {

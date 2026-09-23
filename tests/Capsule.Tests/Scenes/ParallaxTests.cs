@@ -82,8 +82,8 @@ public sealed class ParallaxTests
         Assert.Equal([176f, 192f, 208f, 224f, 240f], simulation.View.Sprites.ToArray().Select(tile => tile.Position.X));
     }
 
-    // Whatever the fit, the bounds, the alpha and the placed span, the rect a layer is drawn at
-    // lies inside the region its intent was culled against.
+    // Whatever the fit, the bounds, the alpha, a zoom, an offset and the placed span, the rect a layer
+    // is drawn at lies inside the region its intent was culled against. Factor one is the camera itself.
     [Theory]
     [InlineData(ViewportFit.Letterbox, true)]
     [InlineData(ViewportFit.Expand, false)]
@@ -91,7 +91,7 @@ public sealed class ParallaxTests
     [InlineData(ViewportFit.FixedHeight, true)]
     public void TheLayersCullRegion_CoversEveryRectTheFrameCanDrawItAt(ViewportFit fit, bool bounded)
     {
-        Vector2[] factors = [Vector2.Zero, new Vector2(0.5f, 0.5f), new Vector2(1.2f, 1.2f), new Vector2(2f, 0.5f), new Vector2(-0.5f, 1f)];
+        Vector2[] factors = [Vector2.One, Vector2.Zero, new Vector2(0.5f, 0.5f), new Vector2(1.2f, 1.2f), new Vector2(2f, 0.5f), new Vector2(-0.5f, 1f)];
         // Up to the four-to-one aspect the camera's own cull covers.
         Vector2[] outputs = [new Vector2(320, 180), new Vector2(640, 180), new Vector2(320, 400), new Vector2(720, 180)];
         Vector2 origin = new(160, 90);
@@ -101,7 +101,12 @@ public sealed class ParallaxTests
             new Vector2(320, 180),
             fit,
             bounded ? new Rect(0, 0, 1200, 600) : null,
-            origin);
+            origin)
+        {
+            PreviousSize = new Vector2(400, 225),
+            PreviousOffset = new Vector2(-6, 4),
+            Offset = new Vector2(9, -3),
+        };
 
         foreach (Vector2 factor in factors)
         {
@@ -110,10 +115,11 @@ public sealed class ParallaxTests
 
             foreach (Vector2 output in outputs)
             {
-                Vector2 span = camera.ResolveSpan(output);
                 for (float alpha = 0f; alpha <= 1f; alpha += 0.125f)
                 {
-                    Rect real = camera.Place(alpha, span);
+                    CameraView still = camera.At(alpha);
+                    Vector2 span = still.ResolveSpan(output);
+                    Rect real = still.Place(1f, span);
                     Rect drawn = new(origin + ((real.Position - origin) * factor), span);
 
                     Assert.True(

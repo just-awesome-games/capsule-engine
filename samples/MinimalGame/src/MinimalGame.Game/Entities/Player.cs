@@ -235,6 +235,7 @@ public sealed class Player : Entity
         _invulnerable.Start(_tuning.InvulnerableTicks);
         Run.Rumble.Play(_tuning.HurtRumble);
         Scene.Freeze(_tuning.HurtFreezeTicks);
+        Scene.Camera.Shake(_tuning.HurtShake);
         Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
     }
 

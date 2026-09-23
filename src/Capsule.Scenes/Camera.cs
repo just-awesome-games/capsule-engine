@@ -5,33 +5,39 @@ using Capsule.Rendering;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// A scene's world-space viewport. Movement interpolates, and <see cref="Teleport"/> cuts without
-/// interpolating. A non-positive <see cref="ViewportSize"/> draws nothing. A scene installs a subclass to
-/// keep framing in one place: the subclass finds its subject in <see cref="OnStart"/> and settles its
-/// framing in <see cref="OnLateStep"/>.
+/// A scene's world-space viewport. Its centre, zoom and offset interpolate between steps, and
+/// <see cref="Teleport"/> cuts without interpolating. A non-positive <see cref="ViewportSize"/> draws
+/// nothing. A scene installs a subclass to keep framing in one place: the subclass picks its subject in
+/// <see cref="OnStart"/> and steers the framing in <see cref="OnLateStep"/> when it needs to.
 /// </summary>
 /// <example>
 /// <code>
 /// public sealed class GameCamera : Camera
 /// {
-///     private Player _subject = null!;
-///
-///     public GameCamera() =&gt; ViewportSize = World.ViewportSize;
-///
-///     protected override void OnStart()
+///     public GameCamera()
 ///     {
-///         _subject = Scene.FindSingle&lt;Player&gt;();
-///         Teleport(_subject.Position);
+///         ViewportSize = World.ViewportSize;
+///         Deadzone = new Vector2(16f, 96f);
+///         SmoothTime = 0.25f;
 ///     }
 ///
-///     protected override void OnLateStep(in StepContext context) =&gt; Center = _subject.Position;
+///     protected override void OnStart() =&gt; Follow(Scene.FindSingle&lt;Player&gt;());
 /// }
 /// </code>
 /// </example>
-public class Camera
+public partial class Camera
 {
     private bool _started;
     private Scene? _scene;
+
+    // Whether this camera has settled in its scene. A Follow before then is a cut.
+    private bool _settled;
+
+    // Collapses the interpolated framing at the next settle.
+    private bool _cut;
+
+    private float _previousZoom = 1f;
+    private Vector2 _previousOffset;
 
     // The canvas to world conversion the last settle resolved, or null before one has.
     private CanvasMap? _canvasMap;
@@ -51,8 +57,8 @@ public class Camera
     public Vector2 ViewportSize { get; set; }
 
     /// <summary>
-    /// How <see cref="ViewportSize"/> adapts to an output whose aspect ratio differs from it. Defaults to
-    /// <see cref="ViewportFit.Letterbox"/>, which shows that span and nothing else.
+    /// How <see cref="ViewportSize"/> adapts to an output whose aspect ratio differs from it, defaulting to
+    /// <see cref="ViewportFit.Letterbox"/>.
     /// </summary>
     public ViewportFit Fit { get; set; }
 
@@ -64,12 +70,54 @@ public class Camera
     /// </summary>
     public Rect? Bounds { get; set; }
 
+    /// <summary>How many times the view magnifies the world, defaulting to 1.</summary>
+    /// <remarks>At 2 it spans half of <see cref="ViewportSize"/>.</remarks>
+    public float Zoom
+    {
+        get;
+
+        set
+        {
+            Guard.Positive(value, nameof(value));
+            field = value;
+        }
+    } = 1f;
+
+    /// <summary>
+    /// How far the drawn view is moved after <see cref="Bounds"/> confine it, in world units. The game
+    /// owns it, and the shake adds to it.
+    /// </summary>
+    /// <example>
+    /// A recoil the game builds on it, a spring that kicks and settles:
+    /// <code>
+    /// private Vector2 _kick, _kickVelocity;
+    ///
+    /// public void Recoil(Vector2 push) =&gt; _kickVelocity += push;
+    ///
+    /// protected override void OnLateStep(in StepContext context)
+    /// {
+    ///     _kickVelocity += ((-_kick * 900f) - (_kickVelocity * 40f)) * context.DeltaSeconds;
+    ///     _kick += _kickVelocity * context.DeltaSeconds;
+    ///     Offset = _kick;
+    /// }
+    /// </code>
+    /// </example>
+    public Vector2 Offset
+    {
+        get;
+
+        set
+        {
+            Guard.Finite(value, nameof(value));
+            field = value;
+        }
+    }
+
     /// <summary>
     /// The camera corner at which every entity sits where it was authored, whatever its
     /// <see cref="Entity.ScrollFactor"/>. An entity with factor <c>f</c> draws as if the camera's corner sat
     /// at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, where Corner is the top-left of the world rect
-    /// the frame places. Zero, the default, suits a room whose first screen is at the world origin. Set it
-    /// for a room elsewhere in the world.
+    /// the frame places. Set it for a room whose first screen is not at the world origin.
     /// </summary>
     public Vector2 ScrollOrigin
     {
@@ -83,11 +131,12 @@ public class Camera
     }
 
     /// <summary>
-    /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/> and
-    /// clamped to <see cref="Bounds"/>. The engine owns it and settles it once per step, right after
-    /// <see cref="OnLateStep"/>. An entity or component that reads it during its own step sees the
-    /// region the previous step settled. It reads empty before the first late step of the scene this camera
-    /// frames, and whenever <see cref="ViewportSize"/> is not positive on both axes.
+    /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred on
+    /// <see cref="Center"/>, clamped to <see cref="Bounds"/> and moved by <see cref="Offset"/> and the
+    /// shake. The engine owns it and settles it once per step, after the follow and the shake. An entity
+    /// or component that reads it during its own step sees the region the previous step settled. It reads
+    /// empty before the first late step of the scene this camera frames, and whenever
+    /// <see cref="ViewportSize"/> is not positive on both axes.
     /// <para>
     /// This is the settled framing, resolved against the output the host hands each step. Under every
     /// <see cref="Fit"/> it is the rect the host draws at the settled centre, and a step handed no
@@ -117,6 +166,7 @@ public class Camera
             _scene = value;
             VisibleRegion = default;
             _canvasMap = null;
+            _settled = false;
         }
     }
 
@@ -171,17 +221,21 @@ public class Camera
         return (worldPoint - LayerShift(map, scrollFactor) - map.Origin) / map.Scale;
     }
 
-    /// <summary>Cuts to <paramref name="center"/>, with no interpolation from the old centre.</summary>
+    /// <summary>
+    /// Cuts to <paramref name="center"/>. The frame this step draws interpolates no centre, zoom or offset.
+    /// </summary>
     public void Teleport(Vector2 center)
     {
         Center = center;
         PreviousCenter = center;
+        ResetFollow(center);
+        _cut = true;
     }
 
     /// <summary>
-    /// Settles this camera's framing for the step. Runs after every entity and component has
-    /// stepped, after contacts settle and after the scene's own <see cref="Scene.OnLateStep"/>,
-    /// before the step's deferred adds and removes land and before the frame view is rewritten.
+    /// Steers this camera's framing for the step, before the follow and the shake settle it. Runs
+    /// after every entity and component has stepped, after contacts settle and after the scene's own
+    /// <see cref="Scene.OnLateStep"/>, before the step's deferred adds and removes land.
     /// </summary>
     protected internal virtual void OnLateStep(in StepContext context)
     {
@@ -197,28 +251,48 @@ public class Camera
     {
     }
 
-    // Draws Bounds on the Camera channel when the camera has any. The visible region is the frame's
-    // own edges and says nothing.
+    // Draws Bounds and the deadzone on the Camera channel. The visible region is the frame's own edges
+    // and says nothing.
     internal void OnDebugDraw()
     {
         if (Bounds is { } bounds)
         {
             DebugDraw.Rect(DebugDraw.Camera, bounds);
         }
+
+        DrawDeadzone();
     }
 
-    internal void SavePrevious() => PreviousCenter = Center;
+    internal void SavePrevious()
+    {
+        PreviousCenter = Center;
+        _previousZoom = Zoom;
+        _previousOffset = Offset + ShakeOffset;
+    }
 
     // What the renderer draws this camera as, and what the simulation measures visibility against.
-    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize, Fit, Bounds, ScrollOrigin);
-
-    // The drawing derivation itself, asked at the end of the step against the step's output. An
-    // empty output measures the declared span, and every fit resolves to it.
-    internal void SettleVisibleRegion(Vector2 output)
+    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize / Zoom, Fit, Bounds, ScrollOrigin)
     {
-        (Rect region, CanvasMap map) = Frame(output);
-        VisibleRegion = region;
-        _canvasMap = map;
+        PreviousSize = ViewportSize / _previousZoom,
+        PreviousOffset = _previousOffset,
+        Offset = Offset + ShakeOffset,
+    };
+
+    // The engine's half of the late step: the follow, the shake, then the region the frame will use,
+    // measured against the step's output. An empty output measures the declared span.
+    internal void Settle(in StepContext context)
+    {
+        StepFollow(context.DeltaSeconds, context.Output);
+        StepShake(context.DeltaSeconds);
+
+        if (_cut)
+        {
+            _cut = false;
+            SavePrevious();
+        }
+
+        _settled = true;
+        (VisibleRegion, _canvasMap) = Frame(context.Output);
     }
 
     private CanvasMap CurrentCanvasMap() => _canvasMap ?? Frame(Vector2.Zero).Map;
@@ -241,38 +315,54 @@ public class Camera
         }
 
         CameraView view = ToView();
-        Run? run = _scene?.RunOrNull;
-        Vector2 canvas = run?.Canvas ?? Run.StandardCanvas;
-        TextureSampling sampling = _scene?.Sampling ?? TextureSampling.Linear;
-        int width = (int)output.X;
-        int height = (int)output.Y;
 
-        if (width <= 0 || height <= 0)
+        if (HostLayout(view, output) is not { } layout)
         {
-            return Declared(view, canvas, sampling);
+            return Declared(view);
         }
 
         // An output too small to place the world on falls back to the declared letterbox for the map.
-        ScreenLayout layout = FrameLayout.Layout(run?.RenderResolution, view, canvas, sampling, width, height);
         Rect region = view.Place(1f, layout.Span);
 
-        return (region, CanvasMap.Resolve(layout, region, ScrollOrigin) ?? Declared(view, canvas, sampling).Map);
+        return (region, CanvasMap.Resolve(layout, region, ScrollOrigin) ?? Declared(view).Map);
+    }
+
+    // The host's layout of the frame on an output of this extent, or null when the output or the
+    // viewport has no area. Its span is quantised to whole surface pixels.
+    private ScreenLayout? HostLayout(in CameraView view, Vector2 output)
+    {
+        int width = (int)output.X;
+        int height = (int)output.Y;
+
+        if (width <= 0 || height <= 0 || !(view.Size.X > 0f) || !(view.Size.Y > 0f))
+        {
+            return null;
+        }
+
+        Run? run = _scene?.RunOrNull;
+
+        return FrameLayout.Layout(run?.RenderResolution, view, Canvas, Sampling, width, height);
     }
 
     // The declared span, with the canvas letterboxed over it.
-    private (Rect Region, CanvasMap Map) Declared(in CameraView view, Vector2 canvas, TextureSampling sampling)
+    private (Rect Region, CanvasMap Map) Declared(in CameraView view)
     {
+        Vector2 canvas = Canvas;
         ScreenLayout fitted = FrameLayout.Layout(
             null,
             view with { Fit = ViewportFit.Letterbox },
             canvas,
-            sampling,
+            Sampling,
             Pixels(canvas.X),
             Pixels(canvas.Y));
         Rect region = view.Place(1f, fitted.Span);
 
         return (region, CanvasMap.Resolve(fitted, region, ScrollOrigin) ?? CanvasMap.Identity);
     }
+
+    private Vector2 Canvas => _scene?.RunOrNull?.Canvas ?? Run.StandardCanvas;
+
+    private TextureSampling Sampling => _scene?.Sampling ?? TextureSampling.Linear;
 
     private static int Pixels(float extent) => Math.Max(1, (int)MathF.Round(extent));
 

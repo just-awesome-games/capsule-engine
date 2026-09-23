@@ -46,6 +46,8 @@ namespace MinimalGame.Game.Entities;
 /// <param name="HurtFreezeTicks">Steps the room holds still when a hit lands, the hitstop that sells
 /// its weight. Raise it for a heavier hit, lower it towards zero for one that barely interrupts
 /// the run.</param>
+/// <param name="HurtShake">How hard the camera shakes when a hit lands, from 0 to 1. Raise it for a
+/// heavier hit, lower it towards zero to let the freeze carry the hit alone.</param>
 public readonly record struct PlayerTuning(
     float WalkSpeed,
     float Gravity,
@@ -62,7 +64,8 @@ public readonly record struct PlayerTuning(
     int InvulnerableTicks,
     int BlinkTicks,
     ColorRgba HurtTint,
-    int HurtFreezeTicks)
+    int HurtFreezeTicks,
+    float HurtShake)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -81,5 +84,6 @@ public readonly record struct PlayerTuning(
         InvulnerableTicks: 60,
         BlinkTicks: 4,
         HurtTint: new ColorRgba(255, 96, 96),
-        HurtFreezeTicks: 6);
+        HurtFreezeTicks: 6,
+        HurtShake: 0.6f);
 }

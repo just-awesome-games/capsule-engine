@@ -194,11 +194,19 @@ internal static class StageWorkload
         protected override void OnStart()
         {
             Camera.ViewportSize = CameraViewport;
-            Camera.Teleport(_hero.Position);
+            Camera.Deadzone = new Vector2(16f, 48f);
+            Camera.Lookahead = new Vector2(0.3f, 0f);
+            Camera.SmoothTime = 0.2f;
+            Camera.Follow(_hero);
         }
 
         protected override void OnStep(in StepContext context)
         {
+            if (context.Tick % 20 == 0)
+            {
+                Camera.Shake(0.5f);
+            }
+
             switch (_churn)
             {
                 case StageChurn.DrawListOnly:
@@ -235,7 +243,5 @@ internal static class StageWorkload
                     break;
             }
         }
-
-        protected override void OnLateStep(in StepContext context) => Camera.Center = _hero.Position;
     }
 }

@@ -34,34 +34,37 @@ integer scale when the output can hold it.
 
 ## A camera that follows
 
-A document's `camera` key installs it, or a scene's constructor sets it directly, and nothing touches
-it further after that. A camera subclass has two hooks, `OnStart` to find what it frames and
-`OnLateStep` to settle the framing once every entity has moved:
+A document's `camera` key installs a camera, or a scene's constructor sets one directly. A subclass
+sets its feel once and names its subject in `OnStart`:
 
 ```csharp
 public sealed class GameCamera : Camera
 {
-    private Player _subject = null!;
-
-    public GameCamera() => ViewportSize = World.ViewportSize;
+    public GameCamera()
+    {
+        ViewportSize = World.ViewportSize;
+        Deadzone = new Vector2(16f, 96f);
+        SmoothTime = 0.25f;
+    }
 
     protected override void OnStart()
     {
-        _subject = Scene.FindSingle<Player>();
+        if (Scene.Size.X > 0f && Scene.Size.Y > 0f)
+        {
+            Bounds = new Rect(Vector2.Zero, Scene.Size);
+        }
 
-        // The room opens framed on the player, with no sweep from the world origin.
-        Teleport(_subject.Position);
+        Follow(Scene.FindSingle<Player>());
     }
-
-    protected override void OnLateStep(in StepContext context) => Center = _subject.Position;
 }
 ```
 
-`Center` is the framing target and is interpolated between steps. `Teleport` moves the camera with no
-interpolation, for the frame a scene opens on and for a hard cut. `Bounds` confines the visible region
-to a world rect without moving `Center`. `VisibleRegion` is the world rect the camera frames, settled
-once a step right after `OnLateStep`. `CanvasToWorld` and `WorldToCanvas` convert between canvas
-pixels and the world that rect frames.
+The camera lets its aim wander inside the `Deadzone` box and eases after it over `SmoothTime`. At a
+steady speed it trails by `SmoothTime` seconds of travel. It leads by `Lookahead` only past
+`LookaheadThreshold`, easing in over `SmoothTime`. `Zoom` magnifies the view about its centre.
+`Offset` and `Shake` move the drawn view after `Bounds` confine it, and a hit still shakes a view
+pinned in a corner. `OnLateStep` runs before the follow, for a subclass that retargets, zooms or
+recoils.
 
 ## Renderers
 

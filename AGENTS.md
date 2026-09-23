@@ -10,7 +10,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - A new public member reads fluently to a developer arriving from any established engine: the common case is one call taking the plain thing, the composed case its own type.
 - Peak performance is the bar at authoring time. No heap allocation in hot paths or per-frame loops, value types for frequently created data, pooling for what the runtime spawns.
 - Authoring formats are plain data that people and agents write by hand. A new format needs no tool.
-- [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery.
+- [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery. The sample's README says what it is, how to run it and how to play it, and the code says the rest.
 - A run is driven by an input driver, not by asking a person to play it. The standard command line is the engine's: a game opts in with `WithCommandLine(args)` and re-implements no flag.
 - The development overlay is `src/Capsule.Runtime/DevTools/` plus the guarded block in `CapsuleGame`. Deleting both leaves the engine compiling and every other test passing, so a host seam the overlay needs is generic host machinery. Parsers for other editors' formats are external modules that feed the build, and none lives here.
 - MSBuild wildcards fold case on every platform. Separate two directories differing only by case with `DefaultItemExcludes` and ordinal `%(FullPath)` comparisons, not `Include`, `Remove` or `Exclude`.
@@ -26,6 +26,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 
 - XML documentation is the API reference. A consumer holding the package and its XML does not read engine source, and a source read to learn a contract is fixed with a bug's priority.
 - A summary is one sentence, with a second only for a unit, ownership or lifecycle fact the signature cannot carry. An `<example>` block showing the call site is welcome where it teaches faster than prose.
+- A summary names a default that is not the type's zero value, and what a zero default means when zero switches the feature off.
 - Argument validation follows .NET conventions: null, non-finite and out-of-range arguments throw the `ArgumentException` family and are not documented per member. An `<exception>` tag is for a state rule a caller can violate. Every throw's message names the defect and the fix.
 - Markdown holds what spans many types, one idea once: the task pages under [`docs/`](docs/). [`PACKAGE.md`](PACKAGE.md) is every package's README, and no module carries a second one.
 - A comment states an invariant or a why. Delete one that restates the line below it or addresses a reviewer.

@@ -3,13 +3,13 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// A world-space viewport. The renderer interpolates its centres and resolves <see cref="Size"/>
-/// against the output's shape per <see cref="Fit"/>, keeping the scale isotropic on both axes and
+/// A world-space viewport. The renderer interpolates its centres, sizes and offsets and resolves the
+/// size against the output's shape per <see cref="Fit"/>, keeping the scale isotropic on both axes and
 /// letterboxing the slack. A non-positive size draws nothing.
 /// </summary>
 /// <param name="PreviousCenter">The centre as of the previous fixed step.</param>
 /// <param name="Center">The centre as of the current fixed step.</param>
-/// <param name="Size">World units the viewport spans, read per <see cref="Fit"/>.</param>
+/// <param name="Size">World units the viewport spans as of the current fixed step, read per <see cref="Fit"/>.</param>
 /// <param name="Fit">How <see cref="Size"/> answers an output of a different aspect ratio.</param>
 /// <param name="Bounds">The world rect the visible region is confined to, or null to leave it free.</param>
 /// <param name="ScrollOrigin">
@@ -36,6 +36,21 @@ public readonly record struct CameraView(
     {
     }
 
+    /// <summary><see cref="Size"/> as of the previous fixed step, which defaults to <see cref="Size"/>.</summary>
+    public Vector2 PreviousSize { get; init; } = Size;
+
+    /// <summary>
+    /// How far the view is moved after <see cref="Bounds"/> confine it, in world units, as of the previous
+    /// fixed step.
+    /// </summary>
+    public Vector2 PreviousOffset { get; init; }
+
+    /// <summary>
+    /// How far the view is moved after <see cref="Bounds"/> confine it, in world units, as of the current
+    /// fixed step.
+    /// </summary>
+    public Vector2 Offset { get; init; }
+
     /// <summary>
     /// The union of the viewport regions this view resolves to across a step, which culling tests
     /// against. <see cref="Bounds"/> confine it as they confine a drawn frame, and a
@@ -47,43 +62,67 @@ public readonly record struct CameraView(
         get
         {
             Vector2 halfSize = CullSpan() / 2f;
-
-            if (Bounds is not { } bounds)
-            {
-                return Rect.Sweep(PreviousCenter, Center, halfSize);
-            }
+            Vector2 low = Vector2.Min(PreviousCenter, Center);
+            Vector2 high = Vector2.Max(PreviousCenter, Center);
 
             // Confining is a clamp, so it is monotone in the centre. Confining the two endpoints covers
             // every centre the frame interpolates between them, and confining at the widest span covers
-            // every narrower span an output could ask for.
-            Vector2 low = new(
-                Confine(MathF.Min(PreviousCenter.X, Center.X), halfSize.X, bounds.Left, bounds.Right),
-                Confine(MathF.Min(PreviousCenter.Y, Center.Y), halfSize.Y, bounds.Top, bounds.Bottom));
-            Vector2 high = new(
-                Confine(MathF.Max(PreviousCenter.X, Center.X), halfSize.X, bounds.Left, bounds.Right),
-                Confine(MathF.Max(PreviousCenter.Y, Center.Y), halfSize.Y, bounds.Top, bounds.Bottom));
+            // every narrower span an output or an interpolated size could ask for.
+            if (Bounds is { } bounds)
+            {
+                low = Confine(low, halfSize, bounds);
+                high = Confine(high, halfSize, bounds);
+            }
 
-            return Rect.Sweep(low, high, halfSize);
+            return Rect.Sweep(
+                low + Vector2.Min(PreviousOffset, Offset),
+                high + Vector2.Max(PreviousOffset, Offset),
+                halfSize);
         }
     }
 
     /// <summary>
-    /// The world rect this view shows on an output of <paramref name="outputSize"/> pixels. The centre
-    /// is interpolated by <paramref name="alpha"/>, <see cref="Size"/> is resolved against the
-    /// output's aspect per <see cref="Fit"/>, and the result is confined to <see cref="Bounds"/>.
+    /// The world rect this view shows on an output of <paramref name="outputSize"/> pixels. The centre,
+    /// size and offset are interpolated by <paramref name="alpha"/>. The size is resolved against the
+    /// output's aspect per <see cref="Fit"/>, the rect is confined to <see cref="Bounds"/>, and the
+    /// offset moves it last.
     /// </summary>
-    /// <param name="alpha">Fraction of a fixed step not yet simulated, in [0, 1]. 0 draws the previous centre and 1 the current one.</param>
+    /// <param name="alpha">Fraction of a fixed step not yet simulated, in [0, 1]. 0 draws the previous step and 1 the current one.</param>
     /// <param name="outputSize">
     /// The output's extent in pixels. Only its aspect ratio is read, and an extent with no area on
     /// either axis falls back to <see cref="ViewportFit.Letterbox"/>, which needs none.
     /// </param>
     /// <returns>The visible world rect. Empty when <see cref="Size"/> is not positive on both axes.</returns>
-    public Rect Resolve(float alpha, Vector2 outputSize) => Place(alpha, ResolveSpan(outputSize));
+    public Rect Resolve(float alpha, Vector2 outputSize)
+    {
+        CameraView still = At(alpha);
 
-    // The world rect this view shows across span world units, with the centre interpolated by alpha and
-    // the rect confined to Bounds as Resolve confines it. The renderer calls this with ResolveSpan's span
-    // quantised down to whole surface pixels, so what it draws agrees with this rect and the placed span
-    // stays within what SweptBounds covers.
+        return still.Place(1f, still.ResolveSpan(outputSize));
+    }
+
+    // This view as drawn at alpha, with nothing left to interpolate. A frame is laid out against it and
+    // resolves the interpolated size.
+    internal CameraView At(float alpha)
+    {
+        Vector2 center = StepInterpolation.Interpolate(PreviousCenter, Center, alpha);
+        Vector2 size = StepInterpolation.Interpolate(PreviousSize, Size, alpha);
+        Vector2 offset = StepInterpolation.Interpolate(PreviousOffset, Offset, alpha);
+
+        return this with
+        {
+            PreviousCenter = center,
+            Center = center,
+            PreviousSize = size,
+            Size = size,
+            PreviousOffset = offset,
+            Offset = offset,
+        };
+    }
+
+    // The world rect this view shows across span world units, with the centre and offset interpolated
+    // by alpha, confined to Bounds and then offset as Resolve places it. The renderer calls this with
+    // ResolveSpan's span quantised down to whole surface pixels, so what it draws agrees with this rect
+    // and the placed span stays within what SweptBounds covers.
     internal Rect Place(float alpha, Vector2 span)
     {
         // Negated comparisons reject a NaN span along with the non-positive ones.
@@ -92,26 +131,24 @@ public readonly record struct CameraView(
             return default;
         }
 
+        Vector2 half = span / 2f;
         Vector2 center = StepInterpolation.Interpolate(PreviousCenter, Center, alpha);
 
-        Vector2 half = span / 2f;
-
-        if (Bounds is not { } bounds)
+        if (Bounds is { } bounds)
         {
-            return new Rect(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
+            center = Confine(center, half, bounds);
         }
 
-        float x = Confine(center.X, half.X, bounds.Left, bounds.Right);
-        float y = Confine(center.Y, half.Y, bounds.Top, bounds.Bottom);
+        center += StepInterpolation.Interpolate(PreviousOffset, Offset, alpha);
 
-        return new Rect(x - half.X, y - half.Y, x + half.X, y + half.Y);
+        return new Rect(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
     }
 
     /// <summary>
     /// The world units this view spans on an output of <paramref name="outputSize"/> pixels, per
-    /// <see cref="Fit"/>. This is the span <see cref="Resolve"/> places. A caller that needs both
-    /// takes the span from here, because subtracting the resolved rect's edges loses precision far
-    /// from the origin.
+    /// <see cref="Fit"/>. This is the span <see cref="Resolve"/> places at an alpha of 1. A caller that
+    /// needs both takes the span from here, because subtracting the resolved rect's edges loses
+    /// precision far from the origin.
     /// </summary>
     /// <param name="outputSize">
     /// The output's extent in pixels. Only its aspect ratio is read, and an extent with no area on
@@ -140,8 +177,8 @@ public readonly record struct CameraView(
     }
 
     // The view an entity with this scroll factor is drawn by, shaped so its SweptBounds cover every rect
-    // the frame can draw that entity's layer at. A frame places the real view at a span s' between Size
-    // and the cull span s, with its centre within (s - s') / 2 of the endpoints confined at s, so the
+    // the frame can draw that entity's layer at. A frame places the real view at a span s' no wider than
+    // the cull span s, with its centre within (s - s') / 2 of the endpoints confined at s, so the
     // placed rect's corner K lies in [Kmin, Kmax - s'] where [Kmin, Kmax] is SweptBounds. The layer's
     // rect is [O + (K - O) f, O + (K - O) f + s']. For f >= 0 that lies within the map of
     // [Kmin, Kmax - t s] widened by s on the far side, tightly at t = min(1, 1/f). A negative f reverses
@@ -159,7 +196,7 @@ public readonly record struct CameraView(
         return new CameraView(
             ScrollOrigin + ((near - ScrollOrigin) * factor) + half,
             ScrollOrigin + ((far - ScrollOrigin) * factor) + half,
-            Size * widen,
+            CullSize() * widen,
             Fit,
             Bounds: null,
             ScrollOrigin);
@@ -169,14 +206,26 @@ public readonly record struct CameraView(
     // span up to a factor of one, and 1/f of it past that.
     private static float Reach(float factor) => factor >= 0f ? MathF.Min(1f, 1f / factor) : 0f;
 
-    private Vector2 CullSpan() => Fit switch
+    // The larger of the two sizes on each axis, which covers every size interpolated between them.
+    private Vector2 CullSize() => Vector2.Max(PreviousSize, Size);
+
+    private Vector2 CullSpan()
     {
-        ViewportFit.FixedHeight => new Vector2(MathF.Max(Size.X, Size.Y * CullAspectCeiling), Size.Y),
-        ViewportFit.Expand => new Vector2(
-            MathF.Max(Size.X, Size.Y * CullAspectCeiling),
-            MathF.Max(Size.Y, Size.X * CullAspectCeiling)),
-        _ => Size,
-    };
+        Vector2 size = CullSize();
+
+        return Fit switch
+        {
+            ViewportFit.FixedHeight => new Vector2(MathF.Max(size.X, size.Y * CullAspectCeiling), size.Y),
+            ViewportFit.Expand => new Vector2(
+                MathF.Max(size.X, size.Y * CullAspectCeiling),
+                MathF.Max(size.Y, size.X * CullAspectCeiling)),
+            _ => size,
+        };
+    }
+
+    private static Vector2 Confine(Vector2 center, Vector2 half, in Rect bounds) => new(
+        Confine(center.X, half.X, bounds.Left, bounds.Right),
+        Confine(center.Y, half.Y, bounds.Top, bounds.Bottom));
 
     // A span the bounds cannot hold is centred on them. Clamping it would pin one edge and show world
     // past the other.

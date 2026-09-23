@@ -384,8 +384,8 @@ public class Scene
 
     /// <summary>
     /// Runs after every entity's <see cref="Entity.OnLateStep"/> and before the frame is built. Set
-    /// the scene's camera policy here. The camera's own <see cref="Scenes.Camera.OnLateStep"/> runs
-    /// afterwards and frames the result.
+    /// the scene's camera policy here. The camera's own <see cref="Scenes.Camera.OnLateStep"/> and its
+    /// follow run afterwards and frame the result.
     /// </summary>
     protected virtual void OnLateStep(in StepContext context)
     {
@@ -648,7 +648,7 @@ public class Scene
         Camera.OnLateStep(context);
 
         // The frame's visible region is final. Notifiers settle against it after deferred adds land.
-        Camera.SettleVisibleRegion(context.Output);
+        Camera.Settle(context);
         _settledRegion = Camera.VisibleRegion;
     }
 
@@ -680,6 +680,7 @@ public class Scene
         panel.Field("Camera", Camera.Center);
         panel.Field("Camera Type", Camera.GetType().Name);
         panel.Field("Camera Viewport", Camera.ViewportSize);
+        panel.Field("Camera Zoom", Camera.Zoom);
         panel.Field("Paused", Paused);
 
         if (_started)

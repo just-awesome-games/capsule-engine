@@ -1,29 +1,37 @@
-using Capsule;
+using System.Numerics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Game.Cameras;
 
 /// <summary>
-/// The follow camera: it owns the span the room is framed at, finds the player in
-/// <see cref="OnStart"/>, and settles the follow in <see cref="OnLateStep"/>. A scene installs it
-/// and touches it no further.
+/// The follow camera: it owns the span the room is framed at and the feel of the follow, confines the
+/// view to the room, and follows the player. A scene installs it and touches it no further.
 /// </summary>
 public sealed class GameCamera : Camera
 {
-    private Player _subject = null!;
+    public GameCamera()
+    {
+        ViewportSize = World.ViewportSize;
 
-    public GameCamera() => ViewportSize = World.ViewportSize;
+        // The box the aim moves in without moving the camera. Its height holds the camera through an
+        // ordinary 40 px jump. Widen it for a calmer camera, shrink it towards zero for a tighter one.
+        Deadzone = new Vector2(16f, 96f);
+
+        // Seconds the camera takes to catch its aim. Lower snaps, higher drifts.
+        SmoothTime = 0.25f;
+    }
 
     /// <inheritdoc/>
     protected override void OnStart()
     {
-        _subject = Scene.FindSingle<Player>();
+        // A scene with no tile map spans nothing, and bounds of no size would pin the view.
+        if (Scene.Size.X > 0f && Scene.Size.Y > 0f)
+        {
+            Bounds = new Rect(Vector2.Zero, Scene.Size);
+        }
 
-        // The room opens framed on the player rather than sweeping to it from the world origin.
-        Teleport(_subject.Position);
+        Follow(Scene.FindSingle<Player>());
     }
-
-    /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context) => Center = _subject.Position;
 }

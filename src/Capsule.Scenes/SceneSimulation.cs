@@ -157,13 +157,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     internal void RewriteView()
     {
         _view.Clear();
-        _view.Camera = new CameraView(
-            Scene.Camera.PreviousCenter,
-            Scene.Camera.Center,
-            Scene.Camera.ViewportSize,
-            Scene.Camera.Fit,
-            Scene.Camera.Bounds,
-            Scene.Camera.ScrollOrigin);
+        _view.Camera = Scene.Camera.ToView();
         _view.Canvas = Run.Canvas;
         _view.ClearColor = Scene.ClearColor;
         _view.Ambient = Scene.Ambient;
