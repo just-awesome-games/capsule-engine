@@ -275,12 +275,13 @@
   </Target>
 
   <!-- Runs on up-to-date builds too: every hook below reads the manifests on disk, never a run that
-       skipped. BeforeCompile as well as AssignTargetPaths, because a design-time build reaches no
-       further. -->
+       skipped. A design-time build enters at Compile and never reaches AssignTargetPaths. Item
+       metadata reaches the generators only through the generated analyzer config. This target
+       hooks GenerateMSBuildEditorConfigFileShouldRun, the first target in that chain. -->
   <Target Name="CapsuleReadBuildOutputs"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleRunBuildTool"
-          BeforeTargets="AssignTargetPaths;BeforeCompile;CoreCompile">
+          BeforeTargets="AssignTargetPaths;GenerateMSBuildEditorConfigFileShouldRun;BeforeCompile;CoreCompile">
 
     <ReadLinesFromFile File="$(CapsuleObjDir)/shipped-assets.txt" Condition="Exists('$(CapsuleObjDir)/shipped-assets.txt')">
       <Output TaskParameter="Lines" ItemName="_CapsuleShippedAssetLine" />
