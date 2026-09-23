@@ -7,12 +7,14 @@ namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// What every playable scene is made of, with the level left to the document: the head-up display,
-/// quitting, and returning to the <see cref="MainMenu"/> at no health. A level is a document that names
-/// it as its <c>baseScene</c>. The camera comes from the document, and the
-/// display is installed in the constructor so its contents are collected for its preload.
+/// the pause menu, and returning to the <see cref="MainMenu"/> at no health. A level is a document
+/// that names it as its <c>baseScene</c>. The camera comes from the document, and the display and the
+/// menu are installed in the constructor so their contents are collected for its preload.
 /// </summary>
 public abstract class PlayableScene : Scene
 {
+    private readonly PauseMenu _pauseMenu = new();
+
     /// <summary>The room's spark pool, as far up as sparks reach and no further.</summary>
     public EntityPool<SparkBurst> Sparks { get; } = new(() => new SparkBurst(), capacity: 8);
 
@@ -20,8 +22,11 @@ public abstract class PlayableScene : Scene
     protected Player Player { get; private set; } = null!;
 
     protected PlayableScene(SceneContent content)
-        : base(content) =>
+        : base(content)
+    {
         Add(new PlayerHud());
+        Add(_pauseMenu);
+    }
 
     /// <inheritdoc/>
     protected override void OnStart()
@@ -32,12 +37,20 @@ public abstract class PlayableScene : Scene
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.Room);
     }
 
+    // The scene steps through its own pause and owns the key that opens and closes it.
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        if (context.Input.WasPressed(GameInput.Quit))
+        if (context.Input.WasPressed(GameInput.Pause))
         {
-            Run.RequestExit();
+            if (Paused)
+            {
+                _pauseMenu.Close();
+            }
+            else
+            {
+                _pauseMenu.Open();
+            }
         }
     }
 

@@ -33,11 +33,11 @@ public sealed class OverlayPanelTests
         Assert.Equal("Lone", overlay.Title);
         Assert.Equal(3, overlay.Depth);
         Assert.Equal(
-            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Name", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "StepMode", "Name", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label"],
             Named(overlay));
 
         Press(overlay, scheduler, host, Key.Down);
-        Assert.Equal(8, overlay.Focus);
+        Assert.Equal(9, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Backspace);
         Press(overlay, scheduler, host, Key.Up);
@@ -64,7 +64,7 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("Vanisher", overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
             Named(overlay));
     }
 
@@ -89,7 +89,7 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("Spark (1)", overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Parent", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "  (Commands)", "  [x] Visible", "  Remove"],
+            ["[Entity]", "Parent", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
             Named(overlay));
         Assert.Equal("Parent           Walker", Drawn(overlay, 1));
         Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", Drawn(overlay, 4));

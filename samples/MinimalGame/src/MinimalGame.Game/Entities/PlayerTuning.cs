@@ -43,6 +43,9 @@ namespace MinimalGame.Game.Entities;
 /// blink. Lower flickers faster and reads as more urgent; higher reads as a slow pulse.</param>
 /// <param name="HurtTint">The colour multiplied over the sprite through the grace. Push it towards
 /// pure red for a harsher hit, towards white to keep the blink alone.</param>
+/// <param name="HurtFreezeTicks">Steps the room holds still when a hit lands, the hitstop that sells
+/// its weight. Raise it for a heavier hit, lower it towards zero for one that barely interrupts
+/// the run.</param>
 public readonly record struct PlayerTuning(
     float WalkSpeed,
     float Gravity,
@@ -58,7 +61,8 @@ public readonly record struct PlayerTuning(
     RumblePulse HurtRumble,
     int InvulnerableTicks,
     int BlinkTicks,
-    ColorRgba HurtTint)
+    ColorRgba HurtTint,
+    int HurtFreezeTicks)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -76,5 +80,6 @@ public readonly record struct PlayerTuning(
         HurtRumble: new RumblePulse(0.8f, 0.5f, 0.3f) { LeftTrigger = 0.6f, RightTrigger = 0.6f },
         InvulnerableTicks: 60,
         BlinkTicks: 4,
-        HurtTint: new ColorRgba(255, 96, 96));
+        HurtTint: new ColorRgba(255, 96, 96),
+        HurtFreezeTicks: 6);
 }

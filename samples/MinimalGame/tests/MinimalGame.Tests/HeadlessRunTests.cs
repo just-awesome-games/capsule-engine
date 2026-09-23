@@ -32,9 +32,9 @@ public sealed class HeadlessRunTests
     }
 
     // The driver `--driver Walkthrough` names is an ordinary object, so the test hands the same one
-    // to the same run the shell boots. It ends on Quit rather than by running out of script, which
-    // is what closes a windowed run by itself: a run that only ran dry would report no exit. The room
-    // has no class of its own. This run also proves a document naming a base and a camera loads and plays.
+    // to the same run the shell boots. It ends on the pause menu's Quit rather than by running out of
+    // script, which is what closes a windowed run by itself: a run that only ran dry would report no
+    // exit. The room has no class of its own. This run also proves a document naming a base and a camera loads and plays.
     [Fact]
     public void Walkthrough_PlaysTheRoomHeadlessAndEndsOnQuit()
     {
@@ -47,7 +47,7 @@ public sealed class HeadlessRunTests
     }
 
     // Presses Confirm on the menu, then waits in play until the crossfade the menu started has
-    // taken the theme off the mixer, and presses Quit on that step.
+    // taken the theme off the mixer, and quits through the pause menu from that step.
     [Fact]
     public void ConfirmingStart_CrossfadesTheMenuThemeIntoTheRoomTheme()
     {
@@ -82,11 +82,14 @@ public sealed class HeadlessRunTests
         Assert.True(result.Steps < JumpsFromPlayToMenuAndBack.Budget);
     }
 
-    // Presses Confirm on the menu, which opens focused on Start, then Quit as soon as a playable scene
-    // is the scene about to step. The budget is a floor under a transition that never comes.
+    // Presses Confirm on the menu, which opens focused on Start, then quits through the pause menu as
+    // soon as a playable scene is the scene about to step. The budget is a floor under a transition
+    // that never comes.
     private sealed class StartThenQuit : IInputDriver
     {
         public const int Budget = 60;
+
+        private readonly PauseQuit _quit = new();
 
         public bool EnteredPlay { get; private set; }
 
@@ -95,7 +98,7 @@ public sealed class HeadlessRunTests
             if (scene is PlayableScene)
             {
                 EnteredPlay = true;
-                snapshot = DeviceSnapshot.Of(Key.Escape);
+                snapshot = _quit.Next();
 
                 return true;
             }
@@ -112,6 +115,7 @@ public sealed class HeadlessRunTests
     {
         public const int Budget = 200;
 
+        private readonly PauseQuit _quit = new();
         private Voice _title;
 
         public bool TitleDied { get; private set; }
@@ -130,16 +134,20 @@ public sealed class HeadlessRunTests
 
             if (scene is PlayableScene)
             {
-                if (scene.Run.Audio.IsLive(_title))
+                if (!_quit.Started)
                 {
-                    snapshot = DeviceSnapshot.Empty;
+                    if (scene.Run.Audio.IsLive(_title))
+                    {
+                        snapshot = DeviceSnapshot.Empty;
 
-                    return tick < Budget;
+                        return tick < Budget;
+                    }
+
+                    TitleDied = true;
+                    RoomIsPlaying = scene.Run.Game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
                 }
 
-                TitleDied = true;
-                RoomIsPlaying = scene.Run.Game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
-                snapshot = DeviceSnapshot.Of(Key.Escape);
+                snapshot = _quit.Next();
 
                 return true;
             }
@@ -157,6 +165,7 @@ public sealed class HeadlessRunTests
     {
         public const int Budget = 300;
 
+        private readonly PauseQuit _quit = new();
         private bool _jumped;
         private bool _confirmedAgain;
         private Voice _firstRoom;
@@ -206,16 +215,20 @@ public sealed class HeadlessRunTests
                     _secondRoom = game.Music.Voice;
                 }
 
-                if (scene.Run.Audio.IsLive(_firstRoom))
+                if (!_quit.Started)
                 {
-                    snapshot = DeviceSnapshot.Empty;
+                    if (scene.Run.Audio.IsLive(_firstRoom))
+                    {
+                        snapshot = DeviceSnapshot.Empty;
 
-                    return tick < Budget;
+                        return tick < Budget;
+                    }
+
+                    RoomIsPlaying = game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
+                    ExactlyOneVoiceIsLive = scene.Run.Audio.IsLive(_firstRoom) != scene.Run.Audio.IsLive(_secondRoom);
                 }
 
-                RoomIsPlaying = game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
-                ExactlyOneVoiceIsLive = scene.Run.Audio.IsLive(_firstRoom) != scene.Run.Audio.IsLive(_secondRoom);
-                snapshot = DeviceSnapshot.Of(Key.Escape);
+                snapshot = _quit.Next();
 
                 return true;
             }
@@ -224,5 +237,22 @@ public sealed class HeadlessRunTests
 
             return tick < Budget;
         }
+    }
+
+    // Quits from play the way a player does, one press a step: Pause opens the menu on Resume, Down
+    // moves the focus to Quit, and Confirm picks it. The pause settles on the step after the press,
+    // which is the first step the menu reads input on.
+    private sealed class PauseQuit
+    {
+        private int _presses;
+
+        public bool Started => _presses > 0;
+
+        public DeviceSnapshot Next() => _presses++ switch
+        {
+            0 => DeviceSnapshot.Of(Key.Escape),
+            1 => DeviceSnapshot.Of(Key.Down),
+            _ => DeviceSnapshot.Of(Key.Enter),
+        };
     }
 }

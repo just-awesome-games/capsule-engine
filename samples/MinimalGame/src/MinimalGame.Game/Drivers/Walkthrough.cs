@@ -1,14 +1,15 @@
 using Capsule.Input;
 using Capsule.Scenes;
+using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Game.Drivers;
 
 /// <summary>
 /// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard
 /// and under the first ledge, jumps up through it and lands on top, walks on a little, fires a
-/// bolt, then presses Quit so the run ends by the game's own exit route. Every count is in fixed
-/// steps. Run it with <c>--scene room --driver Walkthrough</c>, with or without <c>--headless</c>; it
-/// plays the same steps either way and closes itself.
+/// bolt, then picks Quit from the pause menu so the run ends by the game's own exit route. Every
+/// count is in fixed steps. Run it with <c>--scene room --driver Walkthrough</c>, with or without
+/// <c>--headless</c>; it plays the same steps either way and closes itself.
 /// </summary>
 public sealed class Walkthrough : IInputDriver
 {
@@ -22,8 +23,9 @@ public sealed class Walkthrough : IInputDriver
     {
         InputScript script = new();
 
-        // 128 world units at the walk speed, which parks the body fully beneath the first ledge.
-        script.Down(Key.D).Wait(96).Up(Key.D);
+        // 128 world units at the walk speed, which parks the body fully beneath the first ledge. The
+        // hazard on the way freezes the room for a few steps, and the walk is held that much longer.
+        script.Down(Key.D).Wait(96 + PlayerTuning.Default.HurtFreezeTicks).Up(Key.D);
 
         // The jump passes through the ledge's underside and lands on its top face inside a second.
         script.Tap(Key.Space).Wait(60);
@@ -34,7 +36,10 @@ public sealed class Walkthrough : IInputDriver
         // One bolt from the muzzle, given long enough to cross the frame.
         script.Tap(MouseButton.Left).Wait(60);
 
-        script.Tap(Key.Escape);
+        // Pause, move the focus from Resume down to Quit, and confirm it.
+        script.Tap(Key.Escape).Wait(30);
+        script.Tap(Key.Down).Wait(15);
+        script.Tap(Key.Enter);
 
         return script.Build();
     }

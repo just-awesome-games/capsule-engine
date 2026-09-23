@@ -129,6 +129,7 @@ public sealed class EntityAttachmentTests
                 ("ScrollFactor", "(1, 1)"),
                 ("Visible", null),
                 ("Tint", "#ffffffff"),
+                ("StepMode", "Inherit"),
                 ("Remove", null),
             ],
             panel.Rows.ToArray().Select(row => (row.Label, row.Value)).ToArray());

@@ -26,11 +26,12 @@ internal static class PanelFixtures
         "Camera",
         "Camera Type",
         "Camera Viewport",
+        "Paused",
         "",
         "[Entities]",
     ];
 
-    internal const int FirstEntity = 11;
+    internal const int FirstEntity = 12;
 
     // Every row named rather than read: its heading, its command, or the field's name without the
     // column the panel pads it into.

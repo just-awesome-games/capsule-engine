@@ -297,6 +297,23 @@ public sealed class ParticleEmitter : Renderer
         Step(dt, previous, current);
     }
 
+    // A held emitter skips its step, so each particle's last motion would otherwise interpolate again
+    // on every frame the hold lasts. The bounds already cover the current positions.
+    internal override void SavePrevious()
+    {
+        if (Entity is not { Held: true })
+        {
+            return;
+        }
+
+        for (int index = 0; index < _particles.Length; index++)
+        {
+            ref Particle particle = ref _particles[index];
+            particle.PreviousPosition = particle.Position;
+            particle.PreviousRotation = particle.Rotation;
+        }
+    }
+
     /// <inheritdoc/>
     public override void Draw(FrameView view)
     {

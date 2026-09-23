@@ -198,6 +198,7 @@ public sealed class Player : Entity
         Health = Math.Max(Health - 1, 0);
         _invulnerable.Start(_tuning.InvulnerableTicks);
         Run.Rumble.Play(_tuning.HurtRumble);
+        Scene.Freeze(_tuning.HurtFreezeTicks);
         Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
     }
 

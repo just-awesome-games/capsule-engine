@@ -38,8 +38,11 @@ public static class GameInput
     /// <summary>Picks the menu item under the pointer.</summary>
     public static readonly InputAction Click = new("click");
 
-    /// <summary>Leaves the game.</summary>
+    /// <summary>Leaves the game from the title screen.</summary>
     public static readonly InputAction Quit = new("quit");
+
+    /// <summary>Opens the pause menu in play, or closes it.</summary>
+    public static readonly InputAction Pause = new("pause");
 
     /// <summary>Cancels a rebinding capture, or leaves the options screen.</summary>
     public static readonly InputAction Back = new("back");
@@ -75,7 +78,11 @@ public static class GameInput
         bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South);
 
         bindings.Bind(Click, MouseButton.Left);
+
+        // Quit, Pause and Back share Escape. The title screen reads Quit, play reads Pause and the
+        // options screen reads Back, and no scene reads two of them.
         bindings.Bind(Quit, Key.Escape, PadButton.Start);
+        bindings.Bind(Pause, Key.Escape, PadButton.Start);
         bindings.Bind(Back, Key.Escape, PadButton.East);
 
         // Jump and Shoot are the player's. Their defaults sit on InputSettings, and a saved document

@@ -32,38 +32,38 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("Seamed", overlay.Title);
         Assert.Equal(
-            [.. Head[..9], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
+            [.. Head[..10], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
             Named(overlay));
-        Assert.Equal(11, overlay.Focus);
+        Assert.Equal(12, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal(1, seamed.Spawned);
         Assert.Equal(1, scheduler.Tick);
-        Assert.Equal("Spawned          1", Drawn(overlay, 9));
-        Assert.Equal(11, overlay.Focus);
+        Assert.Equal("Spawned          1", Drawn(overlay, 10));
+        Assert.Equal(12, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.True(seamed.Slow);
         Assert.Equal(2, scheduler.Tick);
-        Assert.Equal("  [x] Slow", Drawn(overlay, 12));
-        Assert.Equal(12, overlay.Focus);
+        Assert.Equal("  [x] Slow", Drawn(overlay, 13));
+        Assert.Equal(13, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.False(seamed.Slow);
-        Assert.Equal("  [ ] Slow", Drawn(overlay, 12));
+        Assert.Equal("  [ ] Slow", Drawn(overlay, 13));
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
         Assert.Equal("Nudger", overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
             Named(overlay));
-        Assert.Equal(6, overlay.Focus);
+        Assert.Equal(7, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
@@ -78,8 +78,8 @@ public sealed class OverlayCommandTests
         Press(overlay, scheduler, host, Key.Backspace);
 
         Assert.Equal("Seamed", overlay.Title);
-        Assert.Equal("Spawned          5", Drawn(overlay, 9));
-        Assert.Equal(15, overlay.Focus);
+        Assert.Equal("Spawned          5", Drawn(overlay, 10));
+        Assert.Equal(16, overlay.Focus);
     }
 
     // A transition a command asks the run for is consumed by the command's own tick, as a load row's
@@ -95,8 +95,8 @@ public sealed class OverlayCommandTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..9], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Named(overlay));
-        Assert.Equal(10, overlay.Focus);
+        Assert.Equal([.. Head[..10], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Named(overlay));
+        Assert.Equal(11, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Enter);
 
@@ -207,7 +207,7 @@ public sealed class OverlayCommandTests
 
         Open(overlay, scheduler, host);
         Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..9], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Named(overlay));
+        Assert.Equal([.. Head[..10], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Named(overlay));
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
             () => Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter)));

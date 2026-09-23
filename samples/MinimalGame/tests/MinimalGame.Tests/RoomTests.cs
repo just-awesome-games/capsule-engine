@@ -65,8 +65,8 @@ public sealed class RoomTests
         KinematicBody2D body = player.Get<KinematicBody2D>();
 
         // 128 world units at the walk speed; the hazard on the way reports a contact and stops
-        // nothing.
-        room.Step(96, DeviceSnapshot.Of(Key.D));
+        // nothing, and the hit's freeze holds the walk for its steps.
+        room.Step(96 + player.Tuning.HurtFreezeTicks, DeviceSnapshot.Of(Key.D));
 
         Assert.Equal(RoomFixture.UnderLedgeX, player.Position.X, Tolerance);
         Assert.Equal(RoomFixture.FloorTop, PlayerFeet(player), RestTolerance);
@@ -78,9 +78,10 @@ public sealed class RoomTests
     }
 
     // The hurtbox reports; it blocks nothing. Health is spent on the step the contact is entered
-    // and not again while it lasts, and the walk carries on through the hazard.
+    // and not again while it lasts. The hit freezes the room for its tuned steps, and then the walk
+    // carries on through the hazard.
     [Fact]
-    public void WalkingIntoTheHazard_SpendsOneHealthPointAndDoesNotStopTheWalk()
+    public void WalkingIntoTheHazard_SpendsOneHealthPointFreezesTheRoomAndDoesNotStopTheWalk()
     {
         using SimulationHost room = RoomFixture.Simulate();
         Player player = RoomFixture.PlayerOf(room);
@@ -92,8 +93,10 @@ public sealed class RoomTests
         Assert.Equal(startHealth - 1, player.Health);
 
         float contactX = player.Position.X;
-        room.Step(12, DeviceSnapshot.Of(Key.D));
+        room.Step(player.Tuning.HurtFreezeTicks, DeviceSnapshot.Of(Key.D));
+        Assert.Equal(contactX, player.Position.X);
 
+        room.Step(DeviceSnapshot.Of(Key.D));
         Assert.True(player.Position.X > contactX, "the hazard stopped the walk");
         Assert.Equal(startHealth - 1, player.Health);
     }

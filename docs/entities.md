@@ -1,8 +1,8 @@
 # Entities
 
 After this page you know how an entity joins a scene and leaves it, when its lifecycle hooks run, how
-parenting composes its transform, how interpolation avoids a visual smear, and how to reuse an entity
-instead of building one every time.
+parenting composes its transform, how interpolation avoids a visual smear, how a pause holds it, and
+how to reuse an entity instead of building one every time.
 
 ## Building and adding
 
@@ -36,6 +36,17 @@ scene, draw layer and scroll factor, and enters and leaves the scene with it.
 saves it at the top of every step. `Teleport` moves an entity with no interpolation, collapsing
 `PreviousTransform` onto the position it moved to. An entity joining a scene collapses the same way, so a
 freshly placed or a reused entity never smears in from wherever it stood before.
+
+## Pausing
+
+`Scene.Paused` holds the world until it is cleared, and `Scene.Freeze` holds it for a count of steps.
+An entity's `StepMode` decides whether it holds, and a child takes its parent's:
+
+```csharp
+Scene.Paused = true;                        // the pause menu opening
+StepMode = StepMode.WhenPaused;             // the pause menu itself, which steps only while paused
+Scene.Freeze(_tuning.HurtFreezeTicks);      // hitstop from a contact handler
+```
 
 ## Pooling
 

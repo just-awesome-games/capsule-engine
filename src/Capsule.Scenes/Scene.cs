@@ -57,6 +57,12 @@ public class Scene
     private bool _drawing;
     private TextureSampling? _sampling;
 
+    // Steps a freeze still holds after the current one. BeginStep settles it with Paused into this
+    // step's state, which every entity resolves against.
+    private int _freezeTicks;
+    private bool _pausedThisStep;
+    private bool _frozenThisStep;
+
     // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
     // own randomness stream. A new scene instance starts at 0.
     private ulong _nextParticleStream;
@@ -191,6 +197,20 @@ public class Scene
         protected set => _sampling = value;
     }
 
+    /// <summary>
+    /// Whether the scene holds the entities whose <see cref="Entity.StepMode"/> resolves to
+    /// <see cref="StepMode.Pausable"/>, from the next step until it is cleared.
+    /// </summary>
+    /// <remarks>
+    /// The scene and its camera always step, and <see cref="StepContext.Tick"/> and
+    /// <see cref="StepContext.TotalSeconds"/> keep counting. A timer that should hold counts its own
+    /// steps, as <see cref="Capsule.Animation.Countdown"/> does. A held entity skips its and its
+    /// components' steps and late steps, and its colliders and screen notifiers settle nothing until it
+    /// resumes. It still draws, collides with others, keeps its sounds and runs its structural hooks.
+    /// Removing it, or disabling or detaching its collider or notifier, still raises the exits it owes.
+    /// </remarks>
+    public bool Paused { get; set; }
+
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected object? EntryPayload { get; private set; }
 
@@ -255,6 +275,19 @@ public class Scene
         }
 
         Detach(entity);
+    }
+
+    /// <summary>
+    /// Holds the entities <see cref="Paused"/> would hold for the next <paramref name="ticks"/> steps,
+    /// then resumes them by itself.
+    /// </summary>
+    /// <remarks>A freeze already running keeps the longer of the two remaining counts, and zero changes nothing.</remarks>
+    /// <param name="ticks">Fixed steps to hold, counted whether or not the scene is paused.</param>
+    public void Freeze(int ticks)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(ticks);
+
+        _freezeTicks = Math.Max(_freezeTicks, ticks);
     }
 
     /// <summary>Finds the first active entity assignable to <typeparamref name="T"/>.</summary>
@@ -339,8 +372,9 @@ public class Scene
     /// <summary>
     /// Fills the scene's section of the development overlay's scene page, as
     /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default. The run's seed,
-    /// <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>, <see cref="Sampling"/> and
-    /// the camera's centre are written before this call, and the scene's entities are listed after it.
+    /// <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>, <see cref="Sampling"/>, the
+    /// camera and <see cref="Paused"/> are written before this call, and the scene's entities are listed
+    /// after it.
     /// </summary>
     protected virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -487,10 +521,19 @@ public class Scene
     {
         _stepping = true;
 
+        // Pause and freeze settle once here, so no step is held for only part of the tree.
+        _pausedThisStep = Paused;
+        _frozenThisStep = _freezeTicks > 0;
+        if (_frozenThisStep)
+        {
+            _freezeTicks--;
+        }
+
         Camera.SavePrevious();
 
         foreach (Entity entity in Entities)
         {
+            entity.ResolveHold(_pausedThisStep, _frozenThisStep);
             entity.SavePrevious();
 
             foreach (Component component in entity.Components)
@@ -529,7 +572,10 @@ public class Scene
         {
             while (_contactReporters.TryNext(out Collider2D? collider))
             {
-                collider.SettleContacts();
+                if (!collider.Entity!.Held)
+                {
+                    collider.SettleContacts();
+                }
             }
         }
         finally
@@ -580,6 +626,7 @@ public class Scene
         panel.Field("Camera", Camera.Center);
         panel.Field("Camera Type", Camera.GetType().Name);
         panel.Field("Camera Viewport", Camera.ViewportSize);
+        panel.Field("Paused", Paused);
 
         if (_started)
         {
@@ -653,7 +700,10 @@ public class Scene
         {
             while (_screenNotifiers.TryNext(out VisibleOnScreenNotifier2D? notifier))
             {
-                notifier.SettleVisibility(_settledRegion);
+                if (!notifier.Entity!.Held)
+                {
+                    notifier.SettleVisibility(_settledRegion);
+                }
             }
         }
         finally
@@ -730,6 +780,10 @@ public class Scene
         _renderIndex.Invalidate(_drawing);
         entity.SceneOrNull = this;
         entity.PendingScene = null;
+
+        // Resolved against this step's state, so a join during the step settles its screen notifiers
+        // as the rest of the tree does.
+        entity.ResolveHold(_pausedThisStep, _frozenThisStep);
 
         // A join never interpolates. Parent first, so a child's World composes against a parent
         // already collapsed onto its current transform.

@@ -13,7 +13,7 @@ cd capsule-engine
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
-Move with A and D, jump with Space, shoot with the left mouse button, quit with Escape. Press
+Move with A and D, jump with Space, shoot with the left mouse button, pause with Escape. Press
 `` ` `` for the development overlay ([`debugging.md`](debugging.md)).
 [`samples/MinimalGame/`](../samples/MinimalGame/) is a complete game in the shape described below,
 and the fastest start for a game of your own is to copy it.
