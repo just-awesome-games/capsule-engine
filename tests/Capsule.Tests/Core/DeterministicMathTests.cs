@@ -219,6 +219,108 @@ public sealed class DeterministicMathTests
             BitConverter.SingleToInt32Bits(DeterministicMath.Atan2(1f, float.NaN)));
     }
 
+    // Dense over the span a game calls each function in, then at every 2003rd float bit pattern of either
+    // sign across the whole range it claims, so every binade is sampled.
+    [Theory]
+    [InlineData(nameof(DeterministicMath.Tan))]
+    [InlineData(nameof(DeterministicMath.Atan))]
+    [InlineData(nameof(DeterministicMath.Asin))]
+    [InlineData(nameof(DeterministicMath.Acos))]
+    [InlineData(nameof(DeterministicMath.Exp))]
+    [InlineData(nameof(DeterministicMath.Log2))]
+    [InlineData(nameof(DeterministicMath.Log))]
+    [InlineData(nameof(DeterministicMath.Log10))]
+    public void AFunctionOverTheRangeItClaims_IsWithinThePublishedBoundRelatively(string name)
+    {
+        // Exp's range is where its result is a normal float.
+        (Func<float, float> Subject, Func<double, double> Reference, float Low, float High, float DenseLow, float DenseHigh) span = name switch
+        {
+            nameof(DeterministicMath.Tan) => (DeterministicMath.Tan, Math.Tan, -SineRange, SineRange, -10f, 10f),
+            nameof(DeterministicMath.Atan) => (DeterministicMath.Atan, Math.Atan, float.MinValue, float.MaxValue, -100f, 100f),
+            nameof(DeterministicMath.Asin) => (DeterministicMath.Asin, Math.Asin, -1f, 1f, -1f, 1f),
+            nameof(DeterministicMath.Acos) => (DeterministicMath.Acos, Math.Acos, -1f, 1f, -1f, 1f),
+            nameof(DeterministicMath.Exp) => (DeterministicMath.Exp, Math.Exp, -87.3f, 88.7f, -20f, 20f),
+            nameof(DeterministicMath.Log2) => (DeterministicMath.Log2, Math.Log2, float.Epsilon, float.MaxValue, 0f, 100f),
+            nameof(DeterministicMath.Log) => (DeterministicMath.Log, Math.Log, float.Epsilon, float.MaxValue, 0f, 100f),
+            nameof(DeterministicMath.Log10) => (DeterministicMath.Log10, Math.Log10, float.Epsilon, float.MaxValue, 0f, 100f),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No case for this function."),
+        };
+
+        double worst = 0.0;
+        void Check(float value)
+        {
+            if (value >= span.Low && value <= span.High)
+            {
+                worst = Math.Max(worst, RelativeError(span.Subject(value), span.Reference(value)));
+            }
+        }
+
+        for (int sample = 0; sample <= 400_000; sample++)
+        {
+            Check((float)(span.DenseLow + ((span.DenseHigh - span.DenseLow) * (sample / 400_000.0))));
+        }
+
+        for (int bits = 0; bits < 0x7F800000; bits += 2003)
+        {
+            float magnitude = BitConverter.Int32BitsToSingle(bits);
+            Check(magnitude);
+            Check(-magnitude);
+        }
+
+        Assert.True(worst < Bound, $"{name} is out by {worst} relatively.");
+    }
+
+    [Fact]
+    public void APowerWhoseResultIsANormalFloat_IsWithinThePublishedBoundRelatively()
+    {
+        double worst = 0.0;
+        void Check(float value, float power)
+        {
+            double expected = Math.Pow(value, power);
+            if (Math.Abs(expected) >= MinNormal && Math.Abs(expected) <= float.MaxValue)
+            {
+                worst = Math.Max(worst, RelativeError(DeterministicMath.Pow(value, power), expected));
+            }
+        }
+
+        // Bases a game raises, over fractional powers, and negative bases over whole ones.
+        for (int step = 1; step <= 2_000; step++)
+        {
+            float value = step * 0.01f;
+            for (int power = -600; power <= 600; power++)
+            {
+                Check(value, power * 0.05f);
+            }
+
+            for (int power = -30; power <= 30; power++)
+            {
+                Check(-value, power);
+            }
+        }
+
+        // Every binade of base, and bases a few steps from one under powers large enough to amplify the
+        // logarithm's error into the result.
+        for (int bits = 1; bits < 0x7F800000; bits += 20011)
+        {
+            foreach (float power in new[] { -2.5f, -1f, -0.5f, 0.3f, 1f, 1.7f })
+            {
+                Check(BitConverter.Int32BitsToSingle(bits), power);
+            }
+        }
+
+        for (int step = -1_000; step <= 1_000; step++)
+        {
+            Check(1f + (step * 1.1920929e-7f), 1e6f + (step * 37f));
+        }
+
+        Assert.True(worst < Bound, $"the power is out by {worst} relatively.");
+    }
+
+    private const double MinNormal = 1.1754943508222875e-38;
+
+    private static double RelativeError(float actual, double expected) =>
+        expected == 0.0 ? Math.Abs(actual) : Math.Abs((actual - expected) / expected);
+
     private static double SineError(float radians) =>
         Math.Abs(DeterministicMath.Sin(radians) - Math.Sin(radians));
 }

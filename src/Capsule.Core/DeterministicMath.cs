@@ -1,12 +1,17 @@
 namespace Capsule;
 
 /// <summary>
-/// The transcendental functions a simulation calls instead of <see cref="MathF"/>, whose sine and
-/// exponential are correctly rounded by no standard and differ between operating systems. Each
-/// function here is a polynomial over operations IEEE 754 specifies exactly, so its result depends
-/// only on the bits of its argument and is identical on every platform. None is correctly rounded, so
-/// each member states its error bound. Presentation-only arithmetic may call <see cref="MathF"/>.
+/// The transcendental functions a simulation calls instead of <see cref="MathF"/>, whose results differ
+/// between operating systems. Each function here is built from operations IEEE 754 specifies exactly, so
+/// its result depends only on the bits of its arguments and is identical on every platform. None is
+/// correctly rounded, so each member states its error bound. Presentation-only arithmetic may call
+/// <see cref="MathF"/>.
 /// </summary>
+/// <remarks>
+/// NaN, the infinities, the signed zeros, a domain error and the quadrant of <see cref="Atan2"/> follow
+/// the <see cref="Math"/> function's double result rounded to float, and every NaN returned is
+/// <see cref="float.NaN"/>.
+/// </remarks>
 public static class DeterministicMath
 {
     // The working is double because argument reduction needs headroom a float cannot give, and each result
@@ -16,6 +21,10 @@ public static class DeterministicMath
     private const double InverseTwoPi = 1.0 / TwoPi;
     private const double HalfPi = Math.PI * 0.5;
     private const double Ln2 = 0.69314718055994531;
+    private const double Log2E = 1.4426950408889634;
+    private const double Log10Of2 = 0.30102999566398120;
+    private const double Sqrt2 = 1.4142135623730951;
+    private const double TwoOverPi = 2.0 / Math.PI;
 
     // What the nearest double to 2 pi leaves out of the real value. The turn is split into a head of 25
     // significant bits, whose product with any whole turn count is exact, and a tail carrying the rest.
@@ -27,6 +36,15 @@ public static class DeterministicMath
 
     private static readonly double TwoPiTail = (TwoPi - TwoPiHead) + TwoPiResidue;
 
+    // The tangent folds by quarter turns in three parts. A whole quarter count times the 25-bit head or the
+    // 28-bit middle is exact, and so is each subtraction, which leaves one rounding against the residue.
+    private const double HalfPiResidue = 6.123233995736766e-17;
+
+    private static readonly double HalfPiHead =
+        BitConverter.Int64BitsToDouble(BitConverter.DoubleToInt64Bits(HalfPi) & ~0xFFFFFFFL);
+
+    private static readonly double HalfPiMiddle = HalfPi - HalfPiHead;
+
     // The odd Taylor series of sine. It is accurate past float precision over the quarter turn the
     // argument is folded onto.
     private const double SinTerm3 = -1.0 / 6.0;
@@ -35,6 +53,28 @@ public static class DeterministicMath
     private const double SinTerm9 = 1.0 / 362880.0;
     private const double SinTerm11 = -1.0 / 39916800.0;
     private const double SinTerm13 = 1.0 / 6227020800.0;
+
+    // The even Taylor series of cosine, accurate past float precision over the eighth turn the tangent
+    // folds onto.
+    private const double CosTerm2 = -1.0 / 2.0;
+    private const double CosTerm4 = 1.0 / 24.0;
+    private const double CosTerm6 = -1.0 / 720.0;
+    private const double CosTerm8 = 1.0 / 40320.0;
+    private const double CosTerm10 = -1.0 / 3628800.0;
+    private const double CosTerm12 = 1.0 / 479001600.0;
+    private const double CosTerm14 = -1.0 / 87178291200.0;
+
+    // The odd series of the inverse hyperbolic tangent. Twice it at (m - 1) / (m + 1) is the natural
+    // logarithm of a mantissa m centred on one, where the ratio stays under 0.172 in magnitude.
+    private const double LogTerm3 = 1.0 / 3.0;
+    private const double LogTerm5 = 1.0 / 5.0;
+    private const double LogTerm7 = 1.0 / 7.0;
+    private const double LogTerm9 = 1.0 / 9.0;
+    private const double LogTerm11 = 1.0 / 11.0;
+    private const double LogTerm13 = 1.0 / 13.0;
+    private const double LogTerm15 = 1.0 / 15.0;
+    private const double LogTerm17 = 1.0 / 17.0;
+    private const double LogTerm19 = 1.0 / 19.0;
 
     // The exponential series in x * ln 2, over the fractional part of the exponent.
     private const double ExpTerm2 = 1.0 / 2.0;
@@ -78,16 +118,98 @@ public static class DeterministicMath
         float.IsFinite(radians) ? (float)SineOf(HalfPi - radians) : float.NaN;
 
     /// <summary>
+    /// The tangent of <paramref name="radians"/>, within a relative 6e-8 of the true tangent for any
+    /// argument of magnitude up to 2^24 (16777216), with no stated bound beyond that.
+    /// </summary>
+    /// <param name="radians">The angle in radians. Accurate to a magnitude of 2^24.</param>
+    public static float Tan(float radians)
+    {
+        if (!float.IsFinite(radians))
+        {
+            return float.NaN;
+        }
+
+        double quarters = Math.Floor((radians * TwoOverPi) + 0.5);
+        double x = ((radians - (quarters * HalfPiHead)) - (quarters * HalfPiMiddle)) - (quarters * HalfPiResidue);
+        double sine = SineSeries(x);
+        double cosine = CosineSeries(x * x);
+        double tangent = Math.Floor(quarters * 0.5) == quarters * 0.5 ? sine / cosine : -cosine / sine;
+
+        // Past the stated range the fold is not exact, and an overflowing series can divide infinity by
+        // infinity. The platform would decide that NaN's bits.
+        return double.IsNaN(tangent) ? float.NaN : (float)tangent;
+    }
+
+    /// <summary>
     /// Two raised to <paramref name="exponent"/>, within a relative 6e-8 of the true value and exact
     /// at every whole exponent from -149 to 127, subnormals included. An exponent at or above 128
     /// returns <see cref="float.PositiveInfinity"/>, one at or below -150 returns zero, and NaN
     /// returns NaN.
     /// </summary>
-    public static float Exp2(float exponent)
+    public static float Exp2(float exponent) => Exp2Of(exponent);
+
+    /// <summary>
+    /// The natural exponential of <paramref name="exponent"/>, within a relative 6e-8 of the true value
+    /// wherever that is a normal float.
+    /// </summary>
+    public static float Exp(float exponent) => Exp2Of(exponent * Log2E);
+
+    /// <summary>
+    /// The base-two logarithm of <paramref name="value"/>, within a relative 6e-8 of the true logarithm.
+    /// </summary>
+    public static float Log2(float value) =>
+        float.IsNaN(value) || value < 0f ? float.NaN : (float)Log2Of(value);
+
+    /// <summary>
+    /// The natural logarithm of <paramref name="value"/>, within a relative 6e-8 of the true logarithm.
+    /// </summary>
+    public static float Log(float value) =>
+        float.IsNaN(value) || value < 0f ? float.NaN : (float)(Log2Of(value) * Ln2);
+
+    /// <summary>
+    /// The base-ten logarithm of <paramref name="value"/>, within a relative 6e-8 of the true logarithm.
+    /// </summary>
+    public static float Log10(float value) =>
+        float.IsNaN(value) || value < 0f ? float.NaN : (float)(Log2Of(value) * Log10Of2);
+
+    /// <summary>
+    /// <paramref name="value"/> raised to <paramref name="power"/>, within a relative 6e-8 of the true value
+    /// wherever that is a normal float.
+    /// </summary>
+    public static float Pow(float value, float power)
+    {
+        if (power == 0f || value == 1f)
+        {
+            return 1f;
+        }
+
+        if (float.IsNaN(value) || float.IsNaN(power))
+        {
+            return float.NaN;
+        }
+
+        double exponent = power;
+        bool whole = Math.Floor(exponent) == exponent;
+        if (!whole && value < 0f && float.IsFinite(value))
+        {
+            return float.NaN;
+        }
+
+        // Every float at or past 2^24 is even, and an infinity is neither odd nor even.
+        bool odd = whole && float.IsFinite(power) && Math.Floor(exponent * 0.5) != exponent * 0.5;
+
+        // A magnitude of one is settled here, so an infinite power never multiplies a zero logarithm.
+        double magnitude = Math.Abs((double)value);
+        float result = magnitude == 1.0 ? 1f : Exp2Of(exponent * Log2Of(magnitude));
+
+        return odd && BitConverter.SingleToInt32Bits(value) < 0 ? -result : result;
+    }
+
+    private static float Exp2Of(double exponent)
     {
         // Checked first. Converting NaN to an integer is the only operation here whose result the platform
         // decides instead of IEEE.
-        if (float.IsNaN(exponent))
+        if (double.IsNaN(exponent))
         {
             return float.NaN;
         }
@@ -131,10 +253,6 @@ public static class DeterministicMath
     /// The angle in radians from the positive X axis to the point (<paramref name="x"/>,
     /// <paramref name="y"/>), in [-pi, pi] and within 1.2e-7 of the true angle in absolute terms.
     /// </summary>
-    /// <remarks>
-    /// The quadrant, the signed zeros and the infinities follow <see cref="Math.Atan2"/>. A NaN in either
-    /// argument returns <see cref="float.NaN"/>.
-    /// </remarks>
     /// <param name="y">The point's Y. World Y runs down, and a positive angle turns clockwise on screen.</param>
     /// <param name="x">The point's X.</param>
     public static float Atan2(float y, float x)
@@ -152,18 +270,7 @@ public static class DeterministicMath
             x = float.IsInfinity(x) ? MathF.CopySign(1f, x) : MathF.CopySign(0f, x);
         }
 
-        double across = Math.Abs((double)x);
-        double up = Math.Abs((double)y);
-        double angle;
-
-        if (up == 0.0 && across == 0.0)
-        {
-            angle = 0.0;
-        }
-        else
-        {
-            angle = up > across ? HalfPi - ArctangentOf(across / up) : ArctangentOf(up / across);
-        }
+        double angle = QuadrantAngle(Math.Abs((double)y), Math.Abs((double)x));
 
         // The sign bit and not a comparison, so a negative zero X looks back along the axis.
         if (BitConverter.SingleToInt32Bits(x) < 0)
@@ -172,6 +279,57 @@ public static class DeterministicMath
         }
 
         return MathF.CopySign((float)angle, y);
+    }
+
+    /// <summary>
+    /// The arctangent of <paramref name="value"/> in radians, in [-pi/2, pi/2] and within a relative 6e-8
+    /// of the true angle.
+    /// </summary>
+    public static float Atan(float value) =>
+        float.IsNaN(value) ? float.NaN : MathF.CopySign((float)QuadrantAngle(Math.Abs((double)value), 1.0), value);
+
+    /// <summary>
+    /// The arcsine of <paramref name="value"/> in radians, in [-pi/2, pi/2] and within a relative 6e-8 of
+    /// the true angle.
+    /// </summary>
+    public static float Asin(float value)
+    {
+        if (float.IsNaN(value) || value > 1f || value < -1f)
+        {
+            return float.NaN;
+        }
+
+        // Squaring a float is exact in double, and so is the subtraction wherever the root is small.
+        double across = Math.Sqrt(1.0 - ((double)value * value));
+        return MathF.CopySign((float)QuadrantAngle(Math.Abs((double)value), across), value);
+    }
+
+    /// <summary>
+    /// The arccosine of <paramref name="value"/> in radians, in [0, pi] and within a relative 6e-8 of the
+    /// true angle.
+    /// </summary>
+    public static float Acos(float value)
+    {
+        if (float.IsNaN(value) || value > 1f || value < -1f)
+        {
+            return float.NaN;
+        }
+
+        double up = Math.Sqrt(1.0 - ((double)value * value));
+        double angle = QuadrantAngle(up, Math.Abs((double)value));
+        return (float)(value < 0f ? Math.PI - angle : angle);
+    }
+
+    // The angle to a point in the first quadrant, folded about the diagonal so the arctangent's ratio
+    // stays in [0, 1].
+    private static double QuadrantAngle(double up, double across)
+    {
+        if (up == 0.0 && across == 0.0)
+        {
+            return 0.0;
+        }
+
+        return up > across ? HalfPi - ArctangentOf(across / up) : ArctangentOf(up / across);
     }
 
     // The arctangent of a ratio in [0, 1]. Above tan(pi/12) it is folded by the addition formula about
@@ -215,6 +373,12 @@ public static class DeterministicMath
             x = -Math.PI - x;
         }
 
+        return SineSeries(x);
+    }
+
+    // Accurate past float precision over a quarter turn about zero.
+    private static double SineSeries(double x)
+    {
         double squared = x * x;
         double series = squared * SinTerm13;
         series = squared * (SinTerm11 + series);
@@ -224,5 +388,57 @@ public static class DeterministicMath
         series = squared * (SinTerm3 + series);
 
         return x * (1.0 + series);
+    }
+
+    private static double CosineSeries(double squared)
+    {
+        double series = squared * CosTerm14;
+        series = squared * (CosTerm12 + series);
+        series = squared * (CosTerm10 + series);
+        series = squared * (CosTerm8 + series);
+        series = squared * (CosTerm6 + series);
+        series = squared * (CosTerm4 + series);
+        series = squared * (CosTerm2 + series);
+
+        return 1.0 + series;
+    }
+
+    // The base-two logarithm of a positive float widened to double. The exponent comes off the bits
+    // exactly, and the mantissa is centred on one for the series to converge fast.
+    private static double Log2Of(double value)
+    {
+        if (value == 0.0)
+        {
+            return double.NegativeInfinity;
+        }
+
+        if (double.IsPositiveInfinity(value))
+        {
+            return double.PositiveInfinity;
+        }
+
+        long bits = BitConverter.DoubleToInt64Bits(value);
+        int exponent = (int)(bits >> 52) - 1023;
+        double mantissa = BitConverter.Int64BitsToDouble((bits & 0xFFFFFFFFFFFFFL) | 0x3FF0000000000000L);
+        if (mantissa > Sqrt2)
+        {
+            mantissa *= 0.5;
+            exponent++;
+        }
+
+        // Both sides of the ratio are exact for a mantissa that came from a float.
+        double ratio = (mantissa - 1.0) / (mantissa + 1.0);
+        double squared = ratio * ratio;
+        double series = squared * LogTerm19;
+        series = squared * (LogTerm17 + series);
+        series = squared * (LogTerm15 + series);
+        series = squared * (LogTerm13 + series);
+        series = squared * (LogTerm11 + series);
+        series = squared * (LogTerm9 + series);
+        series = squared * (LogTerm7 + series);
+        series = squared * (LogTerm5 + series);
+        series = squared * (LogTerm3 + series);
+
+        return exponent + ((2.0 * ratio) * (1.0 + series) * Log2E);
     }
 }

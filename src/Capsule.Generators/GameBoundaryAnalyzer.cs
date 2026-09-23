@@ -14,6 +14,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     public const string ConcurrencyId = "CAP103";
     public const string AmbientTimeId = "CAP104";
     public const string AmbientRandomId = "CAP105";
+    public const string PlatformMathId = "CAP107";
 
     private static readonly DiagnosticDescriptor RuntimeBoundary = Rule(
         RuntimeBoundaryId,
@@ -45,8 +46,13 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         "Game logic cannot use randomness outside the run's seeded source",
         "'{0}' is not reproducible across runs or runtime versions. Draw from the run's seeded source, reached from a scene, entity or component as Random");
 
+    private static readonly DiagnosticDescriptor PlatformMath = Rule(
+        PlatformMathId,
+        "Game logic cannot call a platform transcendental that DeterministicMath replaces",
+        "'{0}' differs between operating systems. Call {1}");
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [RuntimeBoundary, PlatformBoundary, ExternalIo, Concurrency, AmbientTime, AmbientRandom];
+        [RuntimeBoundary, PlatformBoundary, ExternalIo, Concurrency, AmbientTime, AmbientRandom, PlatformMath];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -111,7 +117,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         DiagnosticDescriptor? rule = Classify(new Subject(method));
         if (rule is not null && (rule != Concurrency || operation.Parent is not IAwaitOperation))
         {
-            Report(context, rule, operation.Syntax.GetLocation(), Display(method));
+            Report(context, rule, operation.Syntax.GetLocation(), method);
         }
     }
 
@@ -131,7 +137,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         IMethodSymbol method = operation.Method;
         if (Classify(new Subject(method)) is { } rule)
         {
-            Report(context, rule, operation.Syntax.GetLocation(), Display(method));
+            Report(context, rule, operation.Syntax.GetLocation(), method);
         }
     }
 
@@ -218,7 +224,12 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             return AmbientTime;
         }
 
-        return IsAmbientRandom(subject) ? AmbientRandom : null;
+        if (IsAmbientRandom(subject))
+        {
+            return AmbientRandom;
+        }
+
+        return IsPlatformMath(subject) ? PlatformMath : null;
     }
 
     private static bool Enabled(AnalyzerOptions options, string property) =>
@@ -330,6 +341,23 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         || (subject.IsSystem("Guid") && subject.Symbol.Name == "NewGuid")
         || (subject.Type?.Name == "RandomNumberGenerator" && subject.In("System.Security.Cryptography"));
 
+    // Exactly the functions DeterministicMath replaces, so every report names its replacement. The
+    // double overloads are refused too, since Math.Sin is the habitual call, though a float twin is no
+    // drop-in for them. A function DeterministicMath gains later joins this list.
+    private static bool IsPlatformMath(in Subject subject) =>
+        subject.Symbol.Name is "Sin" or "Cos" or "SinCos" or "Tan" or "Asin" or "Acos" or "Atan" or "Atan2"
+            or "Exp" or "Exp2" or "Log" or "Log2" or "Log10" or "Pow"
+        && subject.Symbol is IMethodSymbol
+        && (subject.IsSystem("MathF") || subject.IsSystem("Math") || subject.IsSystem("Single") || subject.IsSystem("Double"));
+
+    private static string Replacement(IMethodSymbol method) => method switch
+    {
+        { Name: "SinCos" } => "DeterministicMath.Sin and DeterministicMath.Cos",
+        { Name: "Log", Parameters.Length: 2 } =>
+            $"DeterministicMath.Log({method.Parameters[0].Name}) / DeterministicMath.Log({method.Parameters[1].Name})",
+        _ => "DeterministicMath." + method.Name,
+    };
+
     private static bool IsExternalState(in Subject subject) =>
         subject.IsSystem("Console")
         || subject.IsSystem("Environment")
@@ -340,6 +368,12 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, string display) =>
         context.ReportDiagnostic(Diagnostic.Create(rule, location, display));
+
+    // Only CAP107's message has a second placeholder, for the replacement it names.
+    private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, IMethodSymbol method) =>
+        context.ReportDiagnostic(rule == PlatformMath
+            ? Diagnostic.Create(rule, location, Display(method), Replacement(method))
+            : Diagnostic.Create(rule, location, Display(method)));
 
     private static DiagnosticDescriptor Rule(string id, string title, string message) =>
         new(

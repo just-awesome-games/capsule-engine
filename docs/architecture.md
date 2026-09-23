@@ -41,8 +41,8 @@ until the compiler must enforce a reference direction.
 The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), a direct MonoGame
 reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
 execution (`CAP103`), process or wall-clock time (`CAP104`), randomness outside the seeded
-`RandomSource`, `System.Random` included (`CAP105`), and a save document property declared `init`
-instead of `set` (`CAP106`).
+`RandomSource`, `System.Random` included (`CAP105`), a save document property declared `init` instead
+of `set` (`CAP106`), and a platform transcendental that `DeterministicMath` replaces (`CAP107`).
 
 ## Argument validation
 
@@ -71,7 +71,7 @@ extents, a simulation produces the same state transitions and render intents.
   focus navigators and screen notifiers.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
   which persists across scene transitions.
-- Simulation arithmetic is IEEE-exact. Sine, cosine and exponential differ between operating systems, so
+- Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, so
   simulation code evaluates them through `DeterministicMath` instead of `MathF`.
 - A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining
   accumulated wall-clock time and alters no step that runs.

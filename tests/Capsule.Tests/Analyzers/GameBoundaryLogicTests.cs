@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
 using Capsule.Diagnostics;
 using Capsule.Generators;
+using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using static Capsule.Tests.Analyzers.GameBoundaryFixtures;
 
 namespace Capsule.Tests.Analyzers;
@@ -225,6 +227,58 @@ public sealed class GameBoundaryLogicTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
+        Assert.Empty(diagnostics);
+    }
+
+    [Theory]
+    [InlineData("MathF.Sin(1f)", "DeterministicMath.Sin")]
+    [InlineData("Math.Atan2(1d, 2d)", "DeterministicMath.Atan2")]
+    [InlineData("float.Cos(1f)", "DeterministicMath.Cos")]
+    [InlineData("double.Exp2(1d)", "DeterministicMath.Exp2")]
+    [InlineData("MathF.SinCos(1f)", "DeterministicMath.Sin and DeterministicMath.Cos")]
+    [InlineData("MathF.Tan(1f)", "DeterministicMath.Tan")]
+    [InlineData("Math.Log(8d, 2d)", "DeterministicMath.Log(a) / DeterministicMath.Log(newBase)")]
+    public async Task Logic_rejects_a_platform_transcendental_that_deterministic_math_replaces(string call, string replacement)
+    {
+        string source = $$"""
+            using System;
+
+            public static class Logic
+            {
+                public static object Angle() => {{call}};
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal(GameBoundaryAnalyzer.PlatformMathId, diagnostic.Id);
+        Assert.EndsWith("Call " + replacement, diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    // The rule names only functions with a DeterministicMath twin, so every report names its replacement.
+    [Fact]
+    public async Task Logic_accepts_deterministic_math_and_platform_functions_without_a_twin()
+    {
+        const string source = """
+            using System;
+            using Capsule;
+
+            public static class Logic
+            {
+                public static float Angle(float x) => DeterministicMath.Sin(x) + MathF.Cbrt(x) + MathF.Sqrt(x);
+            }
+            """;
+        MetadataReference core = MetadataReference.CreateFromFile(typeof(DeterministicMath).Assembly.Location);
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true, extraReferences: [core]);
+        CSharpCompilation compilation = CSharpCompilation.Create(
+            "AnalyzerSpecs",
+            [CSharpSyntaxTree.ParseText(source)],
+            References.Add(core),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        Assert.Empty(GeneratorHarness.Errors(compilation.GetDiagnostics()));
         Assert.Empty(diagnostics);
     }
 }
