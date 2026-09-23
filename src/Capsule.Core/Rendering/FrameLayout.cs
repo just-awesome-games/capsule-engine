@@ -1,34 +1,35 @@
-using Capsule.Rendering;
-using Vector2 = System.Numerics.Vector2;
+using System.Numerics;
 
-namespace Capsule.Runtime.Rendering;
+namespace Capsule.Rendering;
 
-// The presentation geometry a frame is drawn on, as arithmetic over a view and a back buffer. No
-// device, no state, nothing drawn. Drawing and pointer mapping resolve from the same geometry, or a
-// sampled window position maps to the wrong canvas pixel.
+// The presentation geometry a frame is drawn on, as arithmetic over a camera, a canvas and a back
+// buffer. No device, no state, nothing drawn. Drawing, pointer mapping and the camera's canvas to world
+// conversion resolve from the same geometry, or a point maps to the wrong pixel.
 //
 // The rule every method here follows: a grown axis is never rounded a pixel up, so the span the
 // world is placed on stays within the span the fit resolved and the camera culled against. A larger
 // surface gets bars around it instead of showing world the camera never considered.
 internal static class FrameLayout
 {
-    // The geometry for a view on a back buffer of this extent. Two paths: the canvas letterboxed
-    // straight into the back buffer, and the render surface presented into it where a resolution is
-    // declared.
+    // The geometry for a camera and canvas on a back buffer of this extent. Two paths: the canvas
+    // letterboxed straight into the back buffer, and the render surface presented into it where a
+    // resolution is declared.
     internal static ScreenLayout Layout(
         (int Width, int Height)? renderResolution,
-        FrameView view,
+        in CameraView camera,
+        Vector2 canvas,
+        TextureSampling sampling,
         int outputWidth,
         int outputHeight)
     {
         // The fit answers to the window on both paths, and a declared canvas is derived from the
         // resolved rect. The span travels beside the rect because subtracting the rect's edges loses
         // precision far from the origin, and its scale quantises every sprite to the pixel grid.
-        Vector2 span = view.Camera.ResolveSpan(new Vector2(outputWidth, outputHeight));
+        Vector2 span = camera.ResolveSpan(new Vector2(outputWidth, outputHeight));
 
         if (renderResolution is not { } resolution)
         {
-            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+            ScreenPlacement windowed = WindowPlacement(canvas, outputWidth, outputHeight);
 
             return new ScreenLayout(
                 span,
@@ -40,23 +41,23 @@ internal static class FrameLayout
                 ScreenOnSurface: true);
         }
 
-        (int Width, int Height) surface = SurfaceSize(resolution, view.Camera, span, outputWidth, outputHeight);
-        float pixelsPerUnit = PixelsPerUnit(resolution, view.Camera);
-        span = QuantisedSpan(view.Camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
-        Letterbox world = WorldFit(view.Camera, span, pixelsPerUnit, surface);
-        ScreenPlacement presented = TargetPlacement(view.Sampling, surface.Width, surface.Height, outputWidth, outputHeight);
+        (int Width, int Height) surface = SurfaceSize(resolution, camera, span, outputWidth, outputHeight);
+        float pixelsPerUnit = PixelsPerUnit(resolution, camera);
+        span = QuantisedSpan(camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
+        Letterbox world = WorldFit(camera, span, pixelsPerUnit, surface);
+        ScreenPlacement presented = TargetPlacement(sampling, surface.Width, surface.Height, outputWidth, outputHeight);
 
         // A canvas declared apart from the resolution is not in the surface's pixels. Drawn on the
         // surface it would be cropped or left unscaled, so it takes its own centred fit of the
         // window over the presented surface.
-        if (view.Canvas != new Vector2(resolution.Width, resolution.Height))
+        if (canvas != new Vector2(resolution.Width, resolution.Height))
         {
-            ScreenPlacement windowed = WindowPlacement(view.Canvas, outputWidth, outputHeight);
+            ScreenPlacement windowed = WindowPlacement(canvas, outputWidth, outputHeight);
 
             return new ScreenLayout(span, surface, world, default, presented, windowed, ScreenOnSurface: false);
         }
 
-        Vector2 slack = ScreenSlack(surface.Width, surface.Height, view.Canvas);
+        Vector2 slack = ScreenSlack(surface.Width, surface.Height, canvas);
 
         return new ScreenLayout(
             span,

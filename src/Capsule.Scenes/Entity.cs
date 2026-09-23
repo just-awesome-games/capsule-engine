@@ -246,6 +246,9 @@ public partial class Entity
     // The scene queued for this entity, between deferred add and drain.
     internal Scene? PendingScene { get; set; }
 
+    // The top of this entity's chain, itself for a root.
+    internal Entity Root => _root;
+
     // The render layer, read from the root of the chain.
     internal RenderSpace Space => _root.OwnSpace;
 

@@ -60,7 +60,7 @@ protected override void OnStep(in StepContext context)
 `IsHeld` is the state this step, `WasPressed` and `WasReleased` are the edges into it, and `Axis`
 reads a value in [-1, 1] from buttons and pad axes plus any unbounded wheel notches bound to it. An
 unbound action is not down and reads zero. `InputState` also carries `Pointer` and `PointerDelta`
-in canvas pixels and `Scroll` in wheel notches.
+in canvas pixels, which `Camera.CanvasToWorld` maps into the world, and `Scroll` in wheel notches.
 
 One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
 

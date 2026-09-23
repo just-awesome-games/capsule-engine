@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Rendering;
-using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 

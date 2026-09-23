@@ -47,6 +47,22 @@ public static class DeterministicMath
     private const double ExpTerm9 = 1.0 / 362880.0;
     private const double ExpTerm10 = 1.0 / 3628800.0;
 
+    // The odd Taylor series of the arctangent, accurate past float precision over the pi/12 the ratio is
+    // folded onto.
+    private const double AtanTerm3 = -1.0 / 3.0;
+    private const double AtanTerm5 = 1.0 / 5.0;
+    private const double AtanTerm7 = -1.0 / 7.0;
+    private const double AtanTerm9 = 1.0 / 9.0;
+    private const double AtanTerm11 = -1.0 / 11.0;
+    private const double AtanTerm13 = 1.0 / 13.0;
+    private const double AtanTerm15 = -1.0 / 15.0;
+    private const double AtanTerm17 = 1.0 / 17.0;
+
+    // The tangent of pi/12, the ratio above which the fold shifts by pi/6.
+    private const double TanTwelfthPi = 0.26794919243112270;
+    private const double InverseSqrt3 = 0.57735026918962576;
+    private const double SixthPi = Math.PI / 6.0;
+
     /// <summary>
     /// The sine of <paramref name="radians"/>, within 6e-8 of the true sine in absolute terms for any
     /// argument of magnitude up to 2^24 (16777216), with no stated bound beyond that. Infinity or NaN
@@ -109,6 +125,77 @@ public static class DeterministicMath
         double scale = BitConverter.Int64BitsToDouble((long)((int)whole + 1023) << 52);
 
         return (float)(series * scale);
+    }
+
+    /// <summary>
+    /// The angle in radians from the positive X axis to the point (<paramref name="x"/>,
+    /// <paramref name="y"/>), in [-pi, pi] and within 1.2e-7 of the true angle in absolute terms.
+    /// </summary>
+    /// <remarks>
+    /// The quadrant, the signed zeros and the infinities follow <see cref="Math.Atan2"/>. A NaN in either
+    /// argument returns <see cref="float.NaN"/>.
+    /// </remarks>
+    /// <param name="y">The point's Y. World Y runs down, and a positive angle turns clockwise on screen.</param>
+    /// <param name="x">The point's X.</param>
+    public static float Atan2(float y, float x)
+    {
+        if (float.IsNaN(y) || float.IsNaN(x))
+        {
+            return float.NaN;
+        }
+
+        // An infinite argument dominates a finite one. Mapping each infinity to a signed one and each
+        // finite value to a signed zero gives the quarter and eighth turns the infinities stand for.
+        if (float.IsInfinity(y) || float.IsInfinity(x))
+        {
+            y = float.IsInfinity(y) ? MathF.CopySign(1f, y) : MathF.CopySign(0f, y);
+            x = float.IsInfinity(x) ? MathF.CopySign(1f, x) : MathF.CopySign(0f, x);
+        }
+
+        double across = Math.Abs((double)x);
+        double up = Math.Abs((double)y);
+        double angle;
+
+        if (up == 0.0 && across == 0.0)
+        {
+            angle = 0.0;
+        }
+        else
+        {
+            angle = up > across ? HalfPi - ArctangentOf(across / up) : ArctangentOf(up / across);
+        }
+
+        // The sign bit and not a comparison, so a negative zero X looks back along the axis.
+        if (BitConverter.SingleToInt32Bits(x) < 0)
+        {
+            angle = Math.PI - angle;
+        }
+
+        return MathF.CopySign((float)angle, y);
+    }
+
+    // The arctangent of a ratio in [0, 1]. Above tan(pi/12) it is folded by the addition formula about
+    // pi/6, which leaves the series a ratio of at most that tangent in magnitude.
+    private static double ArctangentOf(double ratio)
+    {
+        double offset = 0.0;
+        if (ratio > TanTwelfthPi)
+        {
+            ratio = (ratio - InverseSqrt3) / (1.0 + (ratio * InverseSqrt3));
+            offset = SixthPi;
+        }
+
+        double squared = ratio * ratio;
+        double series = squared * AtanTerm17;
+        series = squared * (AtanTerm15 + series);
+        series = squared * (AtanTerm13 + series);
+        series = squared * (AtanTerm11 + series);
+        series = squared * (AtanTerm9 + series);
+        series = squared * (AtanTerm7 + series);
+        series = squared * (AtanTerm5 + series);
+        series = squared * (AtanTerm3 + series);
+
+        return offset + (ratio * (1.0 + series));
     }
 
     private static double SineOf(double radians)

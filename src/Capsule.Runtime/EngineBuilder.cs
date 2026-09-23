@@ -524,7 +524,7 @@ public sealed class EngineBuilder
         using SceneHost host = new(
             opening,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input },
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
             storage,
             _runStart);
 
@@ -594,7 +594,7 @@ public sealed class EngineBuilder
         using SceneHost host = new(
             initialTarget,
             composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input },
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
             storage,
             _runStart);
 

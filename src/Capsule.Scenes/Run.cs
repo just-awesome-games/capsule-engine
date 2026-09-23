@@ -59,6 +59,10 @@ public sealed class Run
     // it off on the run backing its own overlay, whose entities are not the game's.
     internal bool EmitsDebugDraw { get; init; } = true;
 
+    // The render surface the host draws the world on, or null when it draws straight into the back
+    // buffer. The camera resolves its canvas to world conversion through the same geometry.
+    internal (int Width, int Height)? RenderResolution { get; init; }
+
     /// <summary>
     /// The screen layer's extent in canvas pixels, with the origin at the top-left corner and Y running
     /// down. A windowed run takes the canvas the game declared at boot, falling back to the declared

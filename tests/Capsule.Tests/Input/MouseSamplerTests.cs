@@ -1,7 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime.Input;
-using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Input;
 

@@ -173,6 +173,52 @@ public sealed class DeterministicMathTests
             BitConverter.SingleToInt32Bits(DeterministicMath.Exp2(float.NaN)));
     }
 
+    // The arctangent's result reaches pi, where half a float's step is just under 1.2e-7.
+    [Fact]
+    public void AnAngleToAPoint_IsWithinItsPublishedBound()
+    {
+        const double AngleBound = 1.2e-7;
+        double worst = 0.0;
+
+        // Every direction around the circle, at radii from a thousandth of a unit to a million, so the
+        // fold about a sixth of pi and the swap about the diagonal are crossed in all four quadrants.
+        foreach (float radius in new[] { 0.001f, 1f, 37.5f, 1_000_000f })
+        {
+            for (int sample = 0; sample < 200_000; sample++)
+            {
+                double turn = sample * (2.0 * Math.PI / 200_000);
+                float x = (float)(radius * Math.Cos(turn));
+                float y = (float)(radius * Math.Sin(turn));
+                worst = Math.Max(worst, Math.Abs(DeterministicMath.Atan2(y, x) - Math.Atan2(y, x)));
+            }
+        }
+
+        Assert.True(worst < AngleBound, $"the arctangent is out by {worst}.");
+    }
+
+    // Signed zeros compare equal, so the cases are a list and not inline data.
+    [Fact]
+    public void AnAngleOnAnAxisOrAtInfinity_FollowsTheSystemConventionsBitForBit()
+    {
+        (float Y, float X)[] points =
+        [
+            (0f, 0f), (-0f, 0f), (0f, -0f), (-0f, -0f), (0f, -3f), (-0f, -3f), (2f, 0f), (-2f, -0f),
+            (float.PositiveInfinity, float.PositiveInfinity), (float.NegativeInfinity, float.NegativeInfinity),
+            (float.PositiveInfinity, 5f), (-5f, float.PositiveInfinity), (-0f, float.NegativeInfinity),
+        ];
+
+        foreach ((float y, float x) in points)
+        {
+            Assert.Equal(
+                BitConverter.SingleToInt32Bits((float)Math.Atan2(y, x)),
+                BitConverter.SingleToInt32Bits(DeterministicMath.Atan2(y, x)));
+        }
+
+        Assert.Equal(
+            BitConverter.SingleToInt32Bits(float.NaN),
+            BitConverter.SingleToInt32Bits(DeterministicMath.Atan2(1f, float.NaN)));
+    }
+
     private static double SineError(float radians) =>
         Math.Abs(DeterministicMath.Sin(radians) - Math.Sin(radians));
 }

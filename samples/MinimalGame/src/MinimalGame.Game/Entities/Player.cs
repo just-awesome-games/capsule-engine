@@ -3,6 +3,7 @@ using Capsule;
 using Capsule.Animation;
 using Capsule.Audio;
 using Capsule.Diagnostics;
+using Capsule.Input;
 using Capsule.Particles;
 using Capsule.Physics;
 using Capsule.Rendering;
@@ -17,7 +18,8 @@ namespace MinimalGame.Game.Entities;
 /// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
 /// reports <c>hazard</c> contacts alone. Everything visual hangs on the nested <see cref="Visual"/>
 /// child, which reads the facts this root publishes; a shot leaves from the muzzle socket of the
-/// frame that child draws, so the root fires in its late step, once the frame has settled. Its
+/// frame that child draws, so the root fires in its late step, once the frame has settled. On
+/// keyboard and mouse a shot aims at the pointer, and on a pad it flies along the facing. Its
 /// levers live in <see cref="PlayerTuning"/>, the bolt's in <see cref="BoltTuning"/>.
 /// </summary>
 public sealed class Player : Entity
@@ -175,8 +177,25 @@ public sealed class Player : Entity
             return;
         }
 
-        Scene.Add(_bolts.Take().Fire(Muzzle.WorldPosition, _visual.Facing, _bolt));
+        Vector2 muzzle = Muzzle.WorldPosition;
+        Scene.Add(_bolts.Take().Fire(muzzle, Aim(context.Input, muzzle), _bolt));
         Log.Info("shot");
+    }
+
+    // The pointer is in canvas pixels, and the camera maps it onto the world of the frame the player
+    // clicked on. A pointer on the muzzle itself names no direction, so the shot keeps the facing.
+    private Vector2 Aim(InputState input, Vector2 muzzle)
+    {
+        if (input.ActiveDevice == InputDevice.KeyboardMouse)
+        {
+            Vector2 aim = Scene.Camera.CanvasToWorld(input.Pointer) - muzzle;
+            if (aim.LengthSquared() > 0f)
+            {
+                return Vector2.Normalize(aim);
+            }
+        }
+
+        return new Vector2(_visual.Facing, 0f);
     }
 
     protected override void OnDebugPanel(DebugPanel panel)

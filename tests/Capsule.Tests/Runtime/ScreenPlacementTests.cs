@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Rendering;
 
 namespace Capsule.Tests.Runtime;
 
@@ -111,14 +110,14 @@ public sealed class ScreenPlacementTests
     [Fact]
     public void BeforeAFrameHasDrawn_AWindowPixelAlreadyReadsThroughTheLayersPlacement()
     {
-        ScreenPlacement declared = FrameLayout.Layout((320, 180), View(Canvas), 1280, 720).Layer;
+        ScreenPlacement declared = Layout((320, 180), View(Canvas), 1280, 720).Layer;
 
         Assert.Equal(4f, declared.Scale);
         Assert.Equal(new Vector2(40f, 25f), declared.ToCanvas(new Vector2(160f, 100f)));
 
         // With no declared resolution the canvas is the configured window, which fills it at scale 1.
         Vector2 window = new(1280f, 720f);
-        ScreenPlacement windowed = FrameLayout.Layout(null, View(window, window), 1280, 720).Layer;
+        ScreenPlacement windowed = Layout(null, View(window, window), 1280, 720).Layer;
 
         Assert.Equal(1f, windowed.Scale);
         Assert.Equal(new Vector2(160f, 100f), windowed.ToCanvas(new Vector2(160f, 100f)));
@@ -127,8 +126,8 @@ public sealed class ScreenPlacementTests
     [Fact]
     public void BeforeAFrameHasDrawn_AWindowWithNoAreaPlacesNothing()
     {
-        Assert.Equal(0f, FrameLayout.Layout((320, 180), View(Canvas), 0, 720).Layer.Scale);
-        Assert.Equal(0f, FrameLayout.Layout(null, View(Canvas), 0, 720).Layer.Scale);
+        Assert.Equal(0f, Layout((320, 180), View(Canvas), 0, 720).Layer.Scale);
+        Assert.Equal(0f, Layout(null, View(Canvas), 0, 720).Layer.Scale);
     }
 
     // One routine resolves the surface, the slack in it and the present, so the layer a pointer is
@@ -149,7 +148,7 @@ public sealed class ScreenPlacementTests
         // 960 by 542 is a hair narrower than the canvas: the two thirds of a row Expand would reveal
         // round down to none, so the surface stays the canvas and the present keeps its whole scale
         // with a one-pixel bar, rather than growing by a row that would cost the present a scale.
-        ScreenLayout layout = FrameLayout.Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
+        ScreenLayout layout = Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
         Assert.Equal(scale, layout.Layer.Scale);
@@ -162,7 +161,7 @@ public sealed class ScreenPlacementTests
     [Fact]
     public void ACanvasApartFromTheResolution_TakesItsOwnFitOfTheWindowOverThePresentedSurface()
     {
-        ScreenLayout layout = FrameLayout.Layout((320, 180), View(new Vector2(1280f, 720f), Canvas), 1920, 1080);
+        ScreenLayout layout = Layout((320, 180), View(new Vector2(1280f, 720f), Canvas), 1920, 1080);
 
         Assert.False(layout.ScreenOnSurface);
         Assert.Equal((320, 180), layout.Surface);
@@ -177,7 +176,7 @@ public sealed class ScreenPlacementTests
     {
         // FixedHeight on a 2:1 window spans 360 world units across the 320-pixel canvas, so the
         // surface is 360 wide and the canvas sits 20 pixels into it.
-        ScreenLayout layout = FrameLayout.Layout(
+        ScreenLayout layout = Layout(
             (320, 180),
             View(Canvas, Canvas, ViewportFit.FixedHeight),
             1440,
@@ -200,4 +199,7 @@ public sealed class ScreenPlacementTests
             Camera = new CameraView(Vector2.Zero, Vector2.Zero, cameraSize ?? canvas, fit),
         };
     }
+
+    private static ScreenLayout Layout((int Width, int Height)? resolution, FrameView view, int outputWidth, int outputHeight) =>
+        FrameLayout.Layout(resolution, view.Camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
 }

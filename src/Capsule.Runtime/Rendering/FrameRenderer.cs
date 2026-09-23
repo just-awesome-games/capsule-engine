@@ -148,7 +148,7 @@ internal sealed class FrameRenderer : IDisposable
         int outputWidth = backBuffer.BackBufferWidth;
         int outputHeight = backBuffer.BackBufferHeight;
 
-        ScreenLayout layout = FrameLayout.Layout(_canvas, view, outputWidth, outputHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
         Rect world = view.Camera.Place(alpha, layout.Span);
 
         if (_canvas is null)
@@ -290,7 +290,7 @@ internal sealed class FrameRenderer : IDisposable
     internal void ResolveScreenLayer(FrameView view)
     {
         PresentationParameters backBuffer = _device.PresentationParameters;
-        ScreenLayout layout = FrameLayout.Layout(_canvas, view, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, view.Sampling, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
 
         if (layout.Layer.Scale > 0f)
         {

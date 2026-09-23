@@ -33,6 +33,9 @@ public class Camera
     private bool _started;
     private Scene? _scene;
 
+    // The canvas to world conversion the last settle resolved, or null before one has.
+    private CanvasMap? _canvasMap;
+
     /// <summary>The point the viewport is centred on, in world units.</summary>
     public Vector2 Center { get; set; }
 
@@ -83,13 +86,13 @@ public class Camera
     /// The world rect the frame draws: <see cref="ViewportSize"/> centred on <see cref="Center"/> and
     /// clamped to <see cref="Bounds"/>. The engine owns it and settles it once per step, right after
     /// <see cref="OnLateStep"/>. An entity or component that reads it during its own step sees the
-    /// region of the frame last drawn. It reads empty before the first late step of the scene this camera
+    /// region the previous step settled. It reads empty before the first late step of the scene this camera
     /// frames, and whenever <see cref="ViewportSize"/> is not positive on both axes.
     /// <para>
-    /// This is the settled framing, resolved against the output the host hands each step: under every
-    /// <see cref="Fit"/> it is that frame's region, and a step handed no output resolves the declared
-    /// span. The renderer interpolates between the previous step's region and this one and quantises a
-    /// grown span to whole surface pixels, so it can draw under a pixel short of this rect.
+    /// This is the settled framing, resolved against the output the host hands each step. Under every
+    /// <see cref="Fit"/> it is the rect the host draws at the settled centre, and a step handed no
+    /// output resolves the declared span. The renderer interpolates between the previous step's region
+    /// and this one.
     /// </para>
     /// </summary>
     public Rect VisibleRegion { get; private set; }
@@ -113,7 +116,59 @@ public class Camera
         {
             _scene = value;
             VisibleRegion = default;
+            _canvasMap = null;
         }
+    }
+
+    /// <summary>
+    /// The world point drawn under <paramref name="canvasPoint"/>, a position in canvas pixels such as
+    /// <see cref="Capsule.Input.InputState.Pointer"/>.
+    /// </summary>
+    /// <remarks>
+    /// The conversion answers for the framing the last step settled, the one
+    /// <see cref="VisibleRegion"/> holds. The host draws between that framing and the one before it.
+    /// Before this camera's first settle it answers for the camera as it stands, letterboxed over
+    /// <see cref="ViewportSize"/>. While <see cref="ViewportSize"/> is not positive on both axes nothing
+    /// is drawn, and a canvas point converts to the same world point.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Vector2 target = Scene.Camera.CanvasToWorld(context.Input.Pointer);
+    /// Vector2 aim = Vector2.Normalize(target - Muzzle.WorldPosition);
+    /// </code>
+    /// </example>
+    public Vector2 CanvasToWorld(Vector2 canvasPoint) => CanvasToWorld(canvasPoint, Vector2.One);
+
+    /// <summary>
+    /// The point drawn under <paramref name="canvasPoint"/> on the layer of an entity whose
+    /// <see cref="Entity.ScrollFactor"/> is <paramref name="scrollFactor"/>, in that entity's world units.
+    /// </summary>
+    /// <remarks>It answers for the settled framing, as <see cref="CanvasToWorld(Vector2)"/> does.</remarks>
+    public Vector2 CanvasToWorld(Vector2 canvasPoint, Vector2 scrollFactor)
+    {
+        Guard.Finite(canvasPoint, nameof(canvasPoint));
+        Guard.Finite(scrollFactor, nameof(scrollFactor));
+        CanvasMap map = CurrentCanvasMap();
+
+        return map.Origin + (canvasPoint * map.Scale) + LayerShift(map, scrollFactor);
+    }
+
+    /// <summary>The position in canvas pixels at which <paramref name="worldPoint"/> is drawn.</summary>
+    /// <remarks>It answers for the settled framing, as <see cref="CanvasToWorld(Vector2)"/> does.</remarks>
+    public Vector2 WorldToCanvas(Vector2 worldPoint) => WorldToCanvas(worldPoint, Vector2.One);
+
+    /// <summary>
+    /// The position in canvas pixels at which <paramref name="worldPoint"/> is drawn on the layer of an
+    /// entity whose <see cref="Entity.ScrollFactor"/> is <paramref name="scrollFactor"/>.
+    /// </summary>
+    /// <remarks>It answers for the settled framing, as <see cref="CanvasToWorld(Vector2)"/> does.</remarks>
+    public Vector2 WorldToCanvas(Vector2 worldPoint, Vector2 scrollFactor)
+    {
+        Guard.Finite(worldPoint, nameof(worldPoint));
+        Guard.Finite(scrollFactor, nameof(scrollFactor));
+        CanvasMap map = CurrentCanvasMap();
+
+        return (worldPoint - LayerShift(map, scrollFactor) - map.Origin) / map.Scale;
     }
 
     /// <summary>Cuts to <paramref name="center"/>, with no interpolation from the old centre.</summary>
@@ -159,7 +214,102 @@ public class Camera
 
     // The drawing derivation itself, asked at the end of the step against the step's output. An
     // empty output measures the declared span, and every fit resolves to it.
-    internal void SettleVisibleRegion(Vector2 output) => VisibleRegion = ToView().Resolve(1f, output);
+    internal void SettleVisibleRegion(Vector2 output)
+    {
+        (Rect region, CanvasMap map) = Frame(output);
+        VisibleRegion = region;
+        _canvasMap = map;
+    }
+
+    private CanvasMap CurrentCanvasMap() => _canvasMap ?? Frame(Vector2.Zero).Map;
+
+    // A layer at factor f is drawn as if the camera's corner sat at O + (K - O) * f, where O is
+    // ScrollOrigin and K the placed region's corner. A canvas point lands (O - K) * (1 - f) away from
+    // its world point on that layer.
+    private static Vector2 LayerShift(in CanvasMap map, Vector2 scrollFactor) =>
+        map.Parallax * (Vector2.One - scrollFactor);
+
+    // The region and canvas map of the frame the host draws on an output of this extent, through the
+    // host's own layout. The region is the camera placed at the layout's quantised span. With no output
+    // the region is the declared span, and the canvas is letterboxed over it as a surface of the
+    // canvas's own size would draw it.
+    private (Rect Region, CanvasMap Map) Frame(Vector2 output)
+    {
+        if (!(ViewportSize.X > 0f) || !(ViewportSize.Y > 0f))
+        {
+            return (default, CanvasMap.Identity);
+        }
+
+        CameraView view = ToView();
+        Run? run = _scene?.RunOrNull;
+        Vector2 canvas = run?.Canvas ?? Run.StandardCanvas;
+        TextureSampling sampling = _scene?.Sampling ?? TextureSampling.Linear;
+        int width = (int)output.X;
+        int height = (int)output.Y;
+
+        if (width <= 0 || height <= 0)
+        {
+            return Declared(view, canvas, sampling);
+        }
+
+        // An output too small to place the world on falls back to the declared letterbox for the map.
+        ScreenLayout layout = FrameLayout.Layout(run?.RenderResolution, view, canvas, sampling, width, height);
+        Rect region = view.Place(1f, layout.Span);
+
+        return (region, CanvasMap.Resolve(layout, region, ScrollOrigin) ?? Declared(view, canvas, sampling).Map);
+    }
+
+    // The declared span, with the canvas letterboxed over it.
+    private (Rect Region, CanvasMap Map) Declared(in CameraView view, Vector2 canvas, TextureSampling sampling)
+    {
+        ScreenLayout fitted = FrameLayout.Layout(
+            null,
+            view with { Fit = ViewportFit.Letterbox },
+            canvas,
+            sampling,
+            Pixels(canvas.X),
+            Pixels(canvas.Y));
+        Rect region = view.Place(1f, fitted.Span);
+
+        return (region, CanvasMap.Resolve(fitted, region, ScrollOrigin) ?? CanvasMap.Identity);
+    }
+
+    private static int Pixels(float extent) => Math.Max(1, (int)MathF.Round(extent));
+
+    // A canvas point c lands on the world at Origin + c * Scale. Origin is the world point under the
+    // canvas's top-left corner, Scale the world units one canvas pixel spans, and Parallax the settled
+    // ScrollOrigin less the placed region's top-left corner.
+    private readonly record struct CanvasMap(Vector2 Origin, float Scale, Vector2 Parallax)
+    {
+        internal static CanvasMap Identity => new(Vector2.Zero, 1f, Vector2.Zero);
+
+        // Canvas to surface: a screen layer drawn on the surface lands at OnSurface. Otherwise it lands
+        // in the back buffer at Layer, and the surface's present is undone from there. Surface to world:
+        // the world's fit on the surface, from the region's corner.
+        internal static CanvasMap? Resolve(in ScreenLayout layout, in Rect region, Vector2 scrollOrigin)
+        {
+            ScreenPlacement onSurface = layout.ScreenOnSurface
+                ? layout.OnSurface
+                : layout.Present.Scale > 0f
+                    ? new ScreenPlacement(
+                        (layout.Layer.Origin - layout.Present.Origin) / layout.Present.Scale,
+                        layout.Layer.Scale / layout.Present.Scale)
+                    : default;
+            Letterbox world = layout.World;
+
+            if (!(onSurface.Scale > 0f) || world.IsEmpty || !(world.Scale > 0f))
+            {
+                return null;
+            }
+
+            Vector2 corner = new(region.Left, region.Top);
+
+            return new CanvasMap(
+                corner + ((onSurface.Origin - new Vector2(world.X, world.Y)) / world.Scale),
+                onSurface.Scale / world.Scale,
+                scrollOrigin - corner);
+        }
+    }
 
     internal void RunStart()
     {

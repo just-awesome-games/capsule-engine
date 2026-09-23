@@ -198,6 +198,33 @@ public class Scene
     }
 
     /// <summary>
+    /// Whether world-layer renderers in the same draw band draw in order of their root entity's Y, lower
+    /// first. Off by default.
+    /// </summary>
+    /// <remarks>
+    /// The sort point is the root entity's origin: its simulated <see cref="Entity.Position"/>, not the
+    /// interpolated one a frame draws. A root's whole subtree sorts with it, and a character and its
+    /// shadow move through the order as one. The band always wins. A child with its own
+    /// <see cref="Entity.ZIndex"/> sorts by its root's Y within its own band. Equal Y keeps the order
+    /// the scene draws in with sorting off. The screen layer is not sorted.
+    /// </remarks>
+    public bool YSort
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            _renderIndex.Invalidate(_drawing);
+        }
+    }
+
+    /// <summary>
     /// Whether the scene holds the entities whose <see cref="Entity.StepMode"/> resolves to
     /// <see cref="StepMode.Pausable"/>, from the next step until it is cleared.
     /// </summary>
@@ -494,7 +521,7 @@ public class Scene
         }
     }
 
-    internal ReadOnlySpan<Renderer> RenderersInDrawOrder() => _renderIndex.GetDrawOrder(Entities);
+    internal ReadOnlySpan<Renderer> RenderersInDrawOrder() => _renderIndex.GetDrawOrder(Entities, YSort);
 
     internal void InvalidateRenderers() => _renderIndex.Invalidate(_drawing);
 

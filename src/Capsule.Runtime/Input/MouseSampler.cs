@@ -1,6 +1,6 @@
 using System.Numerics;
 using Capsule.Input;
-using Capsule.Runtime.Rendering;
+using Capsule.Rendering;
 using Microsoft.Xna.Framework.Input;
 
 namespace Capsule.Runtime.Input;

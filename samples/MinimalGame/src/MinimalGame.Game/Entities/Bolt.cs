@@ -9,9 +9,10 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// What the <see cref="Player"/> fires: a flat tinted rect flying in one direction at a constant
-/// speed until its lifetime is spent, then gone. <see cref="Entity.Position"/> is its centre. It
-/// collides with nothing. Its levers live in <see cref="BoltTuning"/>. Pooled by the player, so its
-/// per-life state is set in <see cref="Fire"/> rather than the constructor.
+/// speed, turned to face that way, until its lifetime is spent, then gone.
+/// <see cref="Entity.Position"/> is its centre. It collides with nothing. Its levers live in
+/// <see cref="BoltTuning"/>. Pooled by the player, so its per-life state is set in
+/// <see cref="Fire"/> rather than the constructor.
 /// </summary>
 public sealed class Bolt : Entity
 {
@@ -38,13 +39,14 @@ public sealed class Bolt : Entity
 
     /// <summary>Places and arms the bolt for one life: where it starts, which way it flies and how.</summary>
     /// <param name="position">Where the bolt starts: the muzzle, in world units.</param>
-    /// <param name="direction">The sign of the X the bolt travels along; negative is left.</param>
+    /// <param name="direction">The unit vector the bolt travels along.</param>
     /// <param name="tuning">The levers the bolt flies on.</param>
     /// <returns>This bolt, so the caller can add it to the scene in one expression.</returns>
-    public Bolt Fire(Vector2 position, float direction, in BoltTuning tuning)
+    public Bolt Fire(Vector2 position, Vector2 direction, in BoltTuning tuning)
     {
         Position = position;
-        _velocity = new Vector2(direction < 0f ? -tuning.Speed : tuning.Speed, 0f);
+        _velocity = direction * tuning.Speed;
+        Rotation = DeterministicMath.Atan2(direction.Y, direction.X);
         _life.Start(tuning.LifetimeTicks);
         Scale = tuning.Size;
         _sprite.Color = tuning.Tint;

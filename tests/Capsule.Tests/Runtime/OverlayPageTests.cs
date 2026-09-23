@@ -3,7 +3,6 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
-using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;

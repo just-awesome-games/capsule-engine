@@ -59,8 +59,9 @@ public sealed class GameCamera : Camera
 
 `Center` is the framing target and is interpolated between steps. `Teleport` moves the camera with no
 interpolation, for the frame a scene opens on and for a hard cut. `Bounds` confines the visible region
-to a world rect without moving `Center`. `VisibleRegion` is the world rect the last frame drew, settled
-once a step right after `OnLateStep`.
+to a world rect without moving `Center`. `VisibleRegion` is the world rect the camera frames, settled
+once a step right after `OnLateStep`. `CanvasToWorld` and `WorldToCanvas` convert between canvas
+pixels and the world that rect frames.
 
 ## Renderers
 
@@ -118,6 +119,9 @@ world, and every renderer it holds follows.
 
 Within a layer, what draws later has the higher sum of the entity's `ZIndex` up its ancestry and the
 renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order.
+
+A top-down scene sets `Scene.YSort`, and world renderers in one band then draw in order of their root
+entity's Y, a root's children with it. A floor and a canopy take bands of their own, below and above.
 
 A `ScreenEntity` is placed by an `Anchor`, a fraction of the canvas on each axis, plus an offset in
 canvas pixels, so an element keeps its distance from the edge it was anchored to whatever the canvas

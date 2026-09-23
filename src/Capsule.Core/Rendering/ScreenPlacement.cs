@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Capsule.Runtime.Rendering;
+namespace Capsule.Rendering;
 
 // Where the screen layer lands in the window: a canvas pixel is Origin plus itself times Scale, in
 // back-buffer pixels. The inverse turns a sampled mouse position into the canvas position the
@@ -14,7 +14,7 @@ internal readonly record struct ScreenPlacement(Vector2 Origin, float Scale)
         Scale > 0f ? (window - Origin) / Scale : window - Origin;
 }
 
-// One frame's presentation geometry, resolved from a frame view and the back buffer's extent:
+// One frame's presentation geometry, resolved from a camera, a canvas and the back buffer's extent:
 //
 // Span      the world units the camera spans on Surface. Under Expand or FixedHeight on a render
 //           surface that is a whole number of its pixels on the axis the fit grew and the camera's

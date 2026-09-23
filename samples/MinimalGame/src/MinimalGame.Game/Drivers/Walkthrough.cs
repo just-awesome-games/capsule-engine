@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
@@ -5,11 +6,11 @@ using MinimalGame.Game.Entities;
 namespace MinimalGame.Game.Drivers;
 
 /// <summary>
-/// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard
-/// and under the first ledge, jumps up through it and lands on top, walks on a little, fires a
-/// bolt, then picks Quit from the pause menu so the run ends by the game's own exit route. Every
-/// count is in fixed steps. Run it with <c>--scene room --driver Walkthrough</c>, with or without
-/// <c>--headless</c>; it plays the same steps either way and closes itself.
+/// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard and
+/// under the first ledge, jumps up through it and lands on top, walks on a little, fires a bolt at
+/// the pointer, then picks Quit from the pause menu so the run ends by the game's own exit route.
+/// Every count is in fixed steps. Run it with <c>--scene room --driver Walkthrough</c>, with or
+/// without <c>--headless</c>; it plays the same steps either way and closes itself.
 /// </summary>
 public sealed class Walkthrough : IInputDriver
 {
@@ -33,8 +34,9 @@ public sealed class Walkthrough : IInputDriver
         // A short walk along the ledge, then a pause to show the landing.
         script.Down(Key.D).Wait(24).Up(Key.D).Wait(30);
 
-        // One bolt from the muzzle, given long enough to cross the frame.
-        script.Tap(MouseButton.Left).Wait(60);
+        // One bolt from the muzzle at a point up and to the right of the player, given long enough
+        // to cross the frame.
+        script.MoveTo(new Vector2(300f, 40f)).Tap(MouseButton.Left).Wait(60);
 
         // Pause, move the focus from Resume down to Quit, and confirm it.
         script.Tap(Key.Escape).Wait(30);

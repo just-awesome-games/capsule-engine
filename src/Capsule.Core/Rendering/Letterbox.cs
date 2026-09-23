@@ -1,4 +1,4 @@
-namespace Capsule.Runtime.Rendering;
+namespace Capsule.Rendering;
 
 // A centred fit in whole container pixels. Scale is isotropic and stays float, fractional for world
 // content and whole for a pixel surface the container can hold at least once.
