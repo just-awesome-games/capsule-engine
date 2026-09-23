@@ -53,7 +53,6 @@
   <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
-    <InternalsVisibleTo Include="Capsule.DeviceTests" />
     <InternalsVisibleTo Include="Capsule.AotSmoke" />
   </ItemGroup>
 

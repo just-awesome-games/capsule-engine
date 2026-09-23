@@ -3,8 +3,7 @@ using Capsule.Runtime.Assets;
 
 namespace Capsule.Tests.Runtime;
 
-// Where a handle's file has to be, and how scene-owned assets load and leave memory. Texture decode
-// needs a graphics device; neither the content-path contract nor generic ownership does.
+// Where a handle's file has to be, and how scene-owned assets load and leave memory.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
