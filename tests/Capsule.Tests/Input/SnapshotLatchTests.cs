@@ -58,6 +58,18 @@ public sealed class SnapshotLatchTests
     }
 
     [Fact]
+    public void AWindowFocusLossBetweenSteps_SurvivesToTheNextStep()
+    {
+        SnapshotLatch latch = new();
+
+        latch.Observe(DeviceSnapshot.Empty.WithWindowFocus(false));
+        latch.Observe(DeviceSnapshot.Empty);
+
+        Assert.False(latch.Consume().HasWindowFocus);
+        Assert.True(latch.Consume().HasWindowFocus);
+    }
+
+    [Fact]
     public void AReleaseObservedAfterAStep_LandsOnTheFollowingStep()
     {
         SnapshotLatch latch = new();

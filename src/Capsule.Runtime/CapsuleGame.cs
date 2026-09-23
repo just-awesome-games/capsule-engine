@@ -51,12 +51,11 @@ internal sealed class CapsuleGame : Game
     private SoundStore? _sounds;
     private AudioPlayer? _audio;
 
-    private float _lastOutputGain = -1f;
-
     // Null until the renderer exists, and null for a platform with no redraw watch.
     private IDisposable? _redrawWatch;
 
     private bool _windowRaised;
+    private bool _focusSeen;
     private bool _deviceSeeded;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
@@ -199,6 +198,11 @@ internal sealed class CapsuleGame : Game
             _renderer.ScreenLayer,
             active);
 
+        // A window that has never had focus has not lost it. The frames before the first Draw raises
+        // the window read focused, and a launch from a terminal raises no loss.
+        _focusSeen |= active;
+        sampled = sampled.WithWindowFocus(active || !_focusSeen);
+
         // The first sample decides the run's initial active device: a pad found before the first step
         // seeds Gamepad. A driven run seeds the keyboard, as a headless one does, and the driver's
         // snapshots move it from there.
@@ -240,19 +244,10 @@ internal sealed class CapsuleGame : Game
         // output, and a streamed voice hands it the next buffers.
         _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
 
-        if (_device is { } device && _scenes is { } scenes)
-        {
-            float gain = active ? 1f : scenes.Run.Audio.UnfocusedVolume;
-            if (gain != _lastOutputGain)
-            {
-                device.SetOutputGain(gain);
-                _lastOutputGain = gain;
-            }
-        }
-
-        // Every frame, after the steps: the level is the run's settled output, and focus and the pad's
-        // slot are the host's. The applier rests the motors while the window is inactive and rewrites
-        // the level when focus returns, and the simulation sees neither.
+        // Every frame, after the steps: the level is the run's settled output, and the live window
+        // focus and the pad's slot are the host's. The applier rests the motors while the window is
+        // inactive and rewrites the level when window focus returns. A driven run's scripted window
+        // focus does not reach them.
         if (_rumble is { } rumble && _scenes is { } rumbled)
         {
             rumble.Apply(

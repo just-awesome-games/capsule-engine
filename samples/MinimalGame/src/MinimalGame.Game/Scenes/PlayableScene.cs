@@ -37,11 +37,16 @@ public abstract class PlayableScene : Scene
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.Room);
     }
 
-    // The scene steps through its own pause and owns the key that opens and closes it.
+    // The scene steps through its own pause and owns the key that opens and closes it. Losing window
+    // focus opens it too, and regaining window focus leaves it open.
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        if (context.Input.WasPressed(GameInput.Pause))
+        if (context.Input.WindowFocusLost && !Paused)
+        {
+            _pauseMenu.Open();
+        }
+        else if (context.Input.WasPressed(GameInput.Pause))
         {
             if (Paused)
             {

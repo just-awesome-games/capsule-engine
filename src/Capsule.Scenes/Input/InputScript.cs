@@ -79,6 +79,13 @@ public sealed class InputScript
         return this;
     }
 
+    /// <summary>Gives the game's window focus or takes it away from the next emitted step on. A script starts focused.</summary>
+    public InputScript WindowFocus(bool focused)
+    {
+        _held = _held.WithWindowFocus(focused);
+        return this;
+    }
+
     /// <summary>Places <paramref name="axis"/> at <paramref name="value"/> from the next emitted step on.</summary>
     /// <param name="axis">The axis to place. Not <see cref="PadAxis.None"/>.</param>
     /// <param name="value">In [-1, 1] for a stick, or [0, 1] for a trigger.</param>

@@ -4,8 +4,8 @@ using System.Runtime.CompilerServices;
 namespace Capsule.Input;
 
 /// <summary>
-/// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, the
-/// pointer, and the wheel notches turned since the previous sample.
+/// An allocation-free snapshot of window focus, held keys, pad buttons and mouse buttons, axis
+/// positions, the pointer, and the wheel notches turned since the previous sample.
 /// </summary>
 /// <remarks>
 /// A key or button outside the capacity its device declares cannot be held. The builders throw on
@@ -31,7 +31,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     private readonly Vector2 _scroll;
     private readonly AxisSet _axes;
 
-    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes)
+    // Inverted so that default reads focused.
+    private readonly bool _unfocused;
+
+    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes, bool unfocused)
     {
         _down = down;
         _padDown = padDown;
@@ -39,11 +42,12 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         _pointer = pointer;
         _scroll = scroll;
         _axes = axes;
+        _unfocused = unfocused;
     }
 
     /// <summary>
-    /// A snapshot with nothing held, every axis at rest, the wheel still and the pointer on the
-    /// canvas's top-left corner. Equal to <c>default</c>.
+    /// A snapshot with window focus, nothing held, every axis at rest, the wheel still and the pointer
+    /// on the canvas's top-left corner. Equal to <c>default</c>.
     /// </summary>
     public static DeviceSnapshot Empty => default;
 
@@ -57,10 +61,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             down |= Bit(keys[i]);
         }
 
-        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default);
+        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default, false);
     }
 
-    /// <summary>Whether nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.</summary>
+    /// <summary>Whether the window has focus, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.</summary>
     public bool IsEmpty => Equals(Empty);
 
     /// <summary>
@@ -76,6 +80,9 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// </summary>
     /// <remarks>Unbounded. Latching several samples into one step sums the notches.</remarks>
     public Vector2 Scroll => _scroll;
+
+    /// <summary>Whether the game's window has input focus at this instant.</summary>
+    public bool HasWindowFocus => !_unfocused;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
     public bool IsDown(Key key) => (uint)key < Capacity && (_down & (UInt128.One << (int)key)) != UInt128.Zero;
@@ -96,27 +103,27 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The key is outside <see cref="Capacity"/>.</exception>
-    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes);
+    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="PadCapacity"/>.</exception>
-    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes);
+    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="MouseCapacity"/>.</exception>
-    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes);
+    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The key is outside <see cref="Capacity"/>.</exception>
-    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes);
+    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="PadCapacity"/>.</exception>
-    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes);
+    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="MouseCapacity"/>.</exception>
-    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes);
+    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused);
 
     // A sampler walks a device's held buttons once and folds them into one mask. A sample costs one
     // snapshot instead of one per button.
@@ -170,17 +177,17 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         }
     }
 
-    internal DeviceSnapshot WithKeys(UInt128 keys) => new(_down | keys, _padDown, _mouseDown, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithKeys(UInt128 keys) => new(_down | keys, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithPadButtons(uint buttons) => new(_down, _padDown | buttons, _mouseDown, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithPadButtons(uint buttons) => new(_down, _padDown | buttons, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithoutKeys(UInt128 keys) => new(_down & ~keys, _padDown, _mouseDown, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithoutKeys(UInt128 keys) => new(_down & ~keys, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithoutPadButtons(uint buttons) => new(_down, _padDown & ~buttons, _mouseDown, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithoutPadButtons(uint buttons) => new(_down, _padDown & ~buttons, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithoutMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown & ~buttons, _pointer, _scroll, _axes);
+    internal DeviceSnapshot WithoutMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown & ~buttons, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> released. A stick direction is removed by
@@ -198,7 +205,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(position, nameof(position));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes, _unfocused);
     }
 
     /// <summary>This snapshot with the wheel having turned <paramref name="notches"/>.</summary>
@@ -210,8 +217,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(notches, nameof(notches));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes, _unfocused);
     }
+
+    /// <summary>This snapshot with the game's window focused or not.</summary>
+    public DeviceSnapshot WithWindowFocus(bool focused) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, !focused);
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place. Must not be <see cref="PadAxis.None"/>.</param>
@@ -225,11 +235,12 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         AxisSet axes = _axes;
         axes[index] = value;
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes, _unfocused);
     }
 
-    // Unions held buttons with a newer sample, sums the wheel notches, and takes the newer axis values
-    // and pointer. A click or notch between two fixed steps survives to the next step.
+    // Unions held buttons and window focus loss with a newer sample, sums the wheel notches, and takes
+    // the newer axis values and pointer. A click, notch or window focus loss between two fixed steps
+    // survives to the next step.
     internal DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(
             _down | newer._down,
@@ -237,16 +248,17 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             _mouseDown | newer._mouseDown,
             newer._pointer,
             _scroll + newer._scroll,
-            newer._axes);
+            newer._axes,
+            _unfocused | newer._unfocused);
 
     /// <summary>
-    /// Whether the same keys and buttons are held, every axis and the wheel read the same, and the
-    /// pointer is on the same position.
+    /// Whether window focus is the same, the same keys and buttons are held, every axis and the wheel read
+    /// the same, and the pointer is on the same position.
     /// </summary>
     public bool Equals(DeviceSnapshot other)
     {
         if (_down != other._down || _padDown != other._padDown || _mouseDown != other._mouseDown ||
-            _pointer != other._pointer || _scroll != other._scroll)
+            _pointer != other._pointer || _scroll != other._scroll || _unfocused != other._unfocused)
         {
             return false;
         }
@@ -274,6 +286,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         hash.Add(_mouseDown);
         hash.Add(_pointer);
         hash.Add(_scroll);
+        hash.Add(_unfocused);
         for (int i = 0; i < AxisCount; i++)
         {
             hash.Add(_axes[i]);
@@ -282,10 +295,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return hash.ToHashCode();
     }
 
-    /// <summary>Whether the two snapshots read the same in everything held, every axis, the wheel and the pointer.</summary>
+    /// <summary>Whether the two snapshots read the same in window focus, everything held, every axis, the wheel and the pointer.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in anything held, any axis, the wheel or the pointer.</summary>
+    /// <summary>Whether the two snapshots differ in window focus, anything held, any axis, the wheel or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     // A None value is the empty set, so bit 0 is unused in all three masks.

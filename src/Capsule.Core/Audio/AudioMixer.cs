@@ -40,6 +40,9 @@ public sealed class AudioMixer
 
     private float _unfocusedVolume;
 
+    // Whether the last step's input read unfocused.
+    private bool _unfocused;
+
     // An idle mixer: master at volume 1, no other bus registered, nothing playing.
     internal AudioMixer()
     {
@@ -55,9 +58,14 @@ public sealed class AudioMixer
     internal ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
 
     /// <summary>
-    /// The linear amplitude the windowed host applies to the output while the game's window is
-    /// inactive, in [0, 1]. Defaults to 0, which silences an unfocused game.
+    /// The linear amplitude every voice is scaled by while the run's input reads unfocused, in [0, 1].
+    /// Defaults to 0, which silences an unfocused game.
     /// </summary>
+    /// <remarks>
+    /// It follows <see cref="Input.InputState.HasWindowFocus"/>, and a headless run reaches the same gains. To
+    /// pause music instead of ducking it, set this to 1 and pause the bus on
+    /// <see cref="Input.InputState.WindowFocusLost"/>.
+    /// </remarks>
     public float UnfocusedVolume
     {
         get => _unfocusedVolume;
@@ -65,6 +73,10 @@ public sealed class AudioMixer
         {
             Guard.InUnit(value, nameof(value));
             _unfocusedVolume = value;
+            if (_unfocused)
+            {
+                RaiseGains(0);
+            }
         }
     }
 
@@ -92,14 +104,7 @@ public sealed class AudioMixer
         bus0.Volume = volume;
         bus0.Ramp.Active = false;
 
-        Span<Slot> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (!ReclaimIfExpired(ref slots[i]) && (index == 0 || slots[i].Bus == index))
-            {
-                Raise(AudioCommandKind.SetGain, i, in slots[i], Gain(in slots[i]), 0f);
-            }
-        }
+        RaiseGains(index);
     }
 
     /// <summary>
@@ -127,14 +132,7 @@ public sealed class AudioMixer
 
         bus0.Volume = volume;
 
-        Span<Slot> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (!ReclaimIfExpired(ref slots[i]) && (index == 0 || slots[i].Bus == index))
-            {
-                Raise(AudioCommandKind.SetGain, i, in slots[i], Gain(in slots[i]), 0f);
-            }
-        }
+        RaiseGains(index);
     }
 
     /// <summary>Whether this bus is paused in its own right. An untouched bus is not.</summary>
@@ -490,7 +488,9 @@ public sealed class AudioMixer
             buses[i].Moved = AdvanceRamp(ref buses[i].Ramp, ref buses[i].Volume, _tick);
         }
 
-        bool masterMoved = buses[0].Moved;
+        bool focusMoved = _unfocused == context.Input.HasWindowFocus;
+        _unfocused = !context.Input.HasWindowFocus;
+        bool masterMoved = buses[0].Moved || focusMoved;
 
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
@@ -816,7 +816,20 @@ public sealed class AudioMixer
         slot.SelfPaused || _buses[0].Paused || (slot.Bus != 0 && _buses[slot.Bus].Paused);
 
     private float Gain(in Slot slot) =>
-        _buses[0].Volume * (slot.Bus == 0 ? 1f : _buses[slot.Bus].Volume) * slot.Volume;
+        (_unfocused ? _unfocusedVolume : 1f) * _buses[0].Volume * (slot.Bus == 0 ? 1f : _buses[slot.Bus].Volume) * slot.Volume;
+
+    // Raises the gain of every live voice on the bus at this index, or of every live voice for master.
+    private void RaiseGains(int bus)
+    {
+        Span<Slot> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (!ReclaimIfExpired(ref slots[i]) && (bus == 0 || slots[i].Bus == bus))
+            {
+                Raise(AudioCommandKind.SetGain, i, in slots[i], Gain(in slots[i]), 0f);
+            }
+        }
+    }
 
     private int Find(AudioBus bus)
     {

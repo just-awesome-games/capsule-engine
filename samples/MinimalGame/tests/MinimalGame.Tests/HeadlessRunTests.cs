@@ -31,6 +31,19 @@ public sealed class HeadlessRunTests
         Assert.True(result.Steps < StartThenQuit.Budget);
     }
 
+    // A window focus loss in play opens the pause menu as Escape does. Regaining window focus on the
+    // next step leaves the menu open, and the same Down and Confirm quit from it.
+    [Fact]
+    public void LosingWindowFocusInPlay_OpensThePauseMenu()
+    {
+        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+            .WithRunStart(GameBoot.Start)
+            .WithoutLogging()
+            .RunHeadless<MainMenu>(new StartThenQuit(DeviceSnapshot.Empty.WithWindowFocus(false)));
+
+        Assert.True(result.ExitRequested, "the window focus loss did not open the pause menu");
+    }
+
     // The driver `--driver Walkthrough` names is an ordinary object, so the test hands the same one
     // to the same run the shell boots. It ends on the pause menu's Quit rather than by running out of
     // script, which is what closes a windowed run by itself: a run that only ran dry would report no
@@ -85,11 +98,11 @@ public sealed class HeadlessRunTests
     // Presses Confirm on the menu, which opens focused on Start, then quits through the pause menu as
     // soon as a playable scene is the scene about to step. The budget is a floor under a transition
     // that never comes.
-    private sealed class StartThenQuit : IInputDriver
+    private sealed class StartThenQuit(DeviceSnapshot? pause = null) : IInputDriver
     {
         public const int Budget = 60;
 
-        private readonly PauseQuit _quit = new();
+        private readonly PauseQuit _quit = new(pause);
 
         public bool EnteredPlay { get; private set; }
 
@@ -241,8 +254,8 @@ public sealed class HeadlessRunTests
 
     // Quits from play the way a player does, one press a step: Pause opens the menu on Resume, Down
     // moves the focus to Quit, and Confirm picks it. The pause settles on the step after the press,
-    // which is the first step the menu reads input on.
-    private sealed class PauseQuit
+    // which is the first step the menu reads input on. A test may open the menu another way.
+    private sealed class PauseQuit(DeviceSnapshot? pause = null)
     {
         private int _presses;
 
@@ -250,7 +263,7 @@ public sealed class HeadlessRunTests
 
         public DeviceSnapshot Next() => _presses++ switch
         {
-            0 => DeviceSnapshot.Of(Key.Escape),
+            0 => pause ?? DeviceSnapshot.Of(Key.Escape),
             1 => DeviceSnapshot.Of(Key.Down),
             _ => DeviceSnapshot.Of(Key.Enter),
         };

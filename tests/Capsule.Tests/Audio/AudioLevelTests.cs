@@ -1,4 +1,5 @@
 using Capsule.Audio;
+using Capsule.Input;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -146,18 +147,42 @@ public sealed class AudioLevelTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new AudioMixer().UnfocusedVolume = volume);
     }
 
+    // The loss silences at the default, a new volume lands at once while unfocused, and the regain
+    // restores the resolved gain.
     [Fact]
-    public void SettingUnfocusedVolume_RaisesNoCommand()
+    public void UnfocusedVolume_ScalesEveryVoiceFromAWindowFocusLossUntilTheRegain()
     {
         AudioMixer mixer = new();
-        mixer.Play(Step);
-        AudioCommand[] before = mixer.Commands.ToArray();
+        mixer.SetVolume(AudioBus.Master, 0.5f);
+        Voice music = mixer.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
 
-        Assert.Equal(0f, mixer.UnfocusedVolume);
+        mixer.BeginStep(Focused(1, false));
+        Assert.Equal((AudioCommandKind.SetGain, music, 0f), Last(mixer));
 
         mixer.UnfocusedVolume = 0.5f;
+        Assert.Equal((AudioCommandKind.SetGain, music, 0.25f), Last(mixer));
 
-        Assert.Equal(before, mixer.Commands.ToArray());
+        mixer.BeginStep(Focused(2, false));
+        Assert.Empty(mixer.Commands.ToArray());
+
+        mixer.BeginStep(Focused(3, true));
+        Assert.Equal((AudioCommandKind.SetGain, music, 0.5f), Last(mixer));
+    }
+
+    private static StepContext Focused(long tick, bool focused)
+    {
+        InputState input = new(new ActionBindings());
+        input.Advance(DeviceSnapshot.Empty.WithWindowFocus(focused));
+
+        return new StepContext(1.0 / StepContext.DefaultStepHertz, input, tick);
+    }
+
+    // The last command raised. A command raised outside a step is appended to the last step's list.
+    private static (AudioCommandKind Kind, Voice Voice, float Gain) Last(AudioMixer mixer)
+    {
+        AudioCommand command = mixer.Commands[^1];
+
+        return (command.Kind, command.Voice, command.Gain);
     }
 
     private sealed class LevellingScene : Scene

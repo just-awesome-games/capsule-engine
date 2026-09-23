@@ -56,6 +56,15 @@ protected override void OnStep(in StepContext context)
 `Camera.CanvasToWorld` maps a pointer position into the world. A button prompt reads
 `InputState.ActiveDevice`, the device the player last used.
 
+Window focus reads as held state with edges, and the game decides what a loss means:
+
+```csharp
+if (context.Input.WindowFocusLost && !Paused)
+{
+    _pauseMenu.Open();
+}
+```
+
 One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
 
 ## Rebind at a settings screen

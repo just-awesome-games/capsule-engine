@@ -120,6 +120,20 @@ public sealed class InputScriptTests
     }
 
     [Fact]
+    public void WindowFocus_IsHeldUntilTheScriptTakesItAway()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Wait(1)
+            .WindowFocus(false)
+            .Wait(1)
+            .WindowFocus(true)
+            .Wait(1)
+            .Build());
+
+        Assert.Equal([true, false, true], steps.Select(snapshot => snapshot.HasWindowFocus));
+    }
+
+    [Fact]
     public void TappingAHeldMouseButton_IsRefused()
     {
         InputScript script = new InputScript().Down(MouseButton.Left);

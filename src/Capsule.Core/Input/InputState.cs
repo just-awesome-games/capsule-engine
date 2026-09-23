@@ -43,6 +43,19 @@ public sealed class InputState
     /// <remarks>Unbounded. A flick reads several notches at once.</remarks>
     public Vector2 Scroll => _current.Scroll;
 
+    /// <summary>Whether the game's window has input focus this step.</summary>
+    /// <remarks>
+    /// The engine does not pause on a loss. A driven or headless run has window focus unless its
+    /// driver takes it away.
+    /// </remarks>
+    public bool HasWindowFocus => _current.HasWindowFocus;
+
+    /// <summary>Whether the window lost focus on the edge into this step.</summary>
+    public bool WindowFocusLost => !_current.HasWindowFocus && _previous.HasWindowFocus;
+
+    /// <summary>Whether the window regained focus on the edge into this step.</summary>
+    public bool WindowFocusGained => _current.HasWindowFocus && !_previous.HasWindowFocus;
+
     /// <summary>The device the player last used, which a button prompt reads.</summary>
     /// <remarks>
     /// It becomes <see cref="InputDevice.Gamepad"/> on a step a pad button goes down or a pad axis is

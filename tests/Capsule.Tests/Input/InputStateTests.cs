@@ -55,6 +55,38 @@ public sealed class InputStateTests
         Assert.False(input.WasReleased(Jump));
     }
 
+    // A default snapshot has window focus, and a repeated snapshot raises no second edge.
+    [Fact]
+    public void AWindowFocusLossAndRegain_EdgeOnceEachWay()
+    {
+        InputState input = new(new ActionBindings());
+        DeviceSnapshot unfocused = DeviceSnapshot.Empty.WithWindowFocus(false);
+
+        input.Advance(DeviceSnapshot.Empty);
+
+        Assert.True(input.HasWindowFocus);
+        Assert.False(input.WindowFocusLost);
+
+        input.Advance(unfocused);
+
+        Assert.False(input.HasWindowFocus);
+        Assert.True(input.WindowFocusLost);
+        Assert.False(input.WindowFocusGained);
+
+        input.Advance(unfocused);
+
+        Assert.False(input.WindowFocusLost);
+
+        input.Advance(DeviceSnapshot.Empty);
+
+        Assert.True(input.WindowFocusGained);
+        Assert.False(input.WindowFocusLost);
+
+        input.Advance(DeviceSnapshot.Empty);
+
+        Assert.False(input.WindowFocusGained);
+    }
+
     [Fact]
     public void Axis_ReadsTheCurrentStepOnly()
     {
