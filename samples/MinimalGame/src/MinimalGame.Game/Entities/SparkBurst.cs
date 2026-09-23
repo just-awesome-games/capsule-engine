@@ -8,8 +8,8 @@ using Capsule.Scenes;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// The effect shape Unity and Godot use: an effect that outlives what asked for it is its own entity,
-/// removed once its last particle dies, and returned to its pool.
+/// A spark burst lives on its own entity so it outlives what asked for it. The entity leaves the
+/// scene once its last particle dies and returns to its pool.
 /// </summary>
 public sealed class SparkBurst : Entity
 {

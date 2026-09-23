@@ -24,18 +24,13 @@ public sealed class MenuItem : ScreenEntity
     private readonly Label _caption;
     private readonly ColorRect _bar;
 
-    private Vector2 _box;
-    private bool _focused;
-
     /// <param name="anchor">The point on the canvas <paramref name="offset"/> is measured from.</param>
     /// <param name="offset">Canvas pixels from that point to this item's centre.</param>
     /// <param name="text">The caption drawn inside the box.</param>
     public MenuItem(Anchor anchor, Vector2 offset, string text)
         : base(anchor, offset)
     {
-        // Hidden by a zero extent rather than a transparent colour: the bar's colour then stays one
-        // constant, and the size is what the focus already changes.
-        _bar = new ColorRect(Vector2.Zero) { ZIndex = -1 };
+        _bar = new ColorRect(Vector2.Zero) { ZIndex = -1, Visible = false };
 
         _caption = new Label(CapsuleAssets.Fonts.Menu, text)
         {
@@ -78,35 +73,33 @@ public sealed class MenuItem : ScreenEntity
 
     private void OnFocused()
     {
-        _focused = true;
         _caption.Color = FocusedInk;
-        _bar.Size = _box;
+        _bar.Visible = true;
     }
 
     private void OnUnfocused()
     {
-        _focused = false;
         _caption.Color = RestingInk;
-        _bar.Size = Vector2.Zero;
+        _bar.Visible = false;
     }
 
     // The box grows with the caption, so focused ink never runs off the bar.
     private void Grow(string text)
     {
         Vector2 measured = CapsuleAssets.Fonts.Menu.Measure(text);
-        _box = new Vector2(Math.Max(MinWidth, measured.X + (2f * HorizontalPadding)), BoxHeight);
+        Vector2 box = new(Math.Max(MinWidth, measured.X + (2f * HorizontalPadding)), BoxHeight);
 
         // The bar, the caption and the focus box are one box centred on the entity, so all three hang
         // from the same corner.
-        Vector2 corner = -_box / 2f;
+        Vector2 corner = -box / 2f;
 
         _bar.Offset = corner;
-        _bar.Size = _focused ? _box : Vector2.Zero;
+        _bar.Size = box;
 
         _caption.Offset = corner;
-        _caption.Size = _box;
+        _caption.Size = box;
 
         Focusable.Offset = corner;
-        Focusable.Size = _box;
+        Focusable.Size = box;
     }
 }

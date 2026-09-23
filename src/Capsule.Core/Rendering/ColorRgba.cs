@@ -64,6 +64,14 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
             Channel(a.A, b.A, t));
     }
 
+    // Multiplies each channel of a by b's. White is an exact identity and the result is deterministic.
+    internal static ColorRgba Multiply(ColorRgba a, ColorRgba b) =>
+        new(Multiply(a.R, b.R), Multiply(a.G, b.G), Multiply(a.B, b.B), Multiply(a.A, b.A));
+
+    // One channel times another, both read as fractions of 255, rounded to the nearest byte. A factor
+    // of 255 returns the other channel unchanged.
+    internal static byte Multiply(byte a, byte b) => (byte)(((a * b) + 127) / 255);
+
     private static bool TryReadByte(string hex, int start, out byte value)
     {
         char high = hex[start];

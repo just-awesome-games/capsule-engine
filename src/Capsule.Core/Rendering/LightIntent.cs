@@ -16,7 +16,7 @@ namespace Capsule.Rendering;
 /// <param name="PreviousRotation">The turn about the pivot at the end of the previous step, in radians, clockwise positive.</param>
 /// <param name="Rotation">The turn about the pivot now, in radians, clockwise positive in the Y-down space.</param>
 /// <param name="Radius">World units from the pivot to the light's falloff edge. Non-positive or non-finite draws nothing.</param>
-/// <param name="Color">The light's colour, added into the light map at full strength.</param>
+/// <param name="Color">The light's colour, added into the light map scaled by its alpha.</param>
 /// <param name="Intensity">How many times the colour is added. Non-positive or non-finite draws nothing.</param>
 public readonly record struct LightIntent(
     Sprite Sprite,

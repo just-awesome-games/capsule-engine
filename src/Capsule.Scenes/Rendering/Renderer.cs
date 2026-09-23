@@ -37,6 +37,9 @@ public abstract class Renderer : Component
         }
     }
 
+    /// <summary>Whether this renderer draws. Hiding it changes nothing else.</summary>
+    public bool Visible { get; set; } = true;
+
     /// <summary>
     /// The rect this renderer covers, in the space it draws in: world units under a world root, or canvas
     /// pixels with the anchor resolved under a screen root. It reads the entity's current world
@@ -80,6 +83,7 @@ public abstract class Renderer : Component
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
+        panel.Toggle("Visible", Visible, value => Visible = value);
         panel.Field("ZIndex", ZIndex);
     }
 }

@@ -98,6 +98,17 @@ with no value to read, for a cooldown, a delay or a lifetime.
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
 is handed. The sheet format, atlases and where sprites come from are [`assets.md`](assets.md).
 
+## Hiding and fading
+
+`Entity.Visible` and `Entity.Tint` hide and colour an entity and everything beneath it.
+`Renderer.Visible` and a renderer's own `Color` do the same for one renderer. None of them stops the
+entity stepping:
+
+```csharp
+Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
+Visible = grace / _tuning.BlinkTicks % 2 == 0;
+```
+
 ## Two layers, and draw order
 
 A frame carries two ordered lists. The world layer is placed by the camera and culled against it. The

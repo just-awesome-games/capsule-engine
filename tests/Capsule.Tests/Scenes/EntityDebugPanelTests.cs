@@ -34,6 +34,8 @@ public sealed class EntityDebugPanelTests
                 ("Transform", "(3, 4) r 0 s (1, 1)"),
                 ("ZIndex", "7"),
                 ("ScrollFactor", "(1, 1)"),
+                ("Visible", null),
+                ("Tint", "#ffffffff"),
                 ("Remove", null),
                 ("Health", "12"),
                 ("[ReportingComponent]", null),
@@ -64,6 +66,8 @@ public sealed class EntityDebugPanelTests
                 ("Transform", "(0, 0) r 0 s (1, 1)"),
                 ("ZIndex", "0"),
                 ("ScrollFactor", "(1, 1)"),
+                ("Visible", null),
+                ("Tint", "#ffffffff"),
                 ("Remove", null),
                 ("[ReportingComponent]", null),
             ],
@@ -91,6 +95,8 @@ public sealed class EntityDebugPanelTests
                 ("Transform", "(9, 9) r 0 s (1, 1)"),
                 ("ZIndex", "0"),
                 ("ScrollFactor", "(1, 1)"),
+                ("Visible", null),
+                ("Tint", "#ffffffff"),
                 ("Remove", null),
                 ("[BoxCollider2D]", null),
                 ("Offset", "(1, 2)"),
@@ -102,7 +108,7 @@ public sealed class EntityDebugPanelTests
             ],
             Rows(panel));
 
-        DebugPanelRow enabled = panel.Rows[9];
+        DebugPanelRow enabled = panel.Rows[11];
         Assert.Equal(DebugPanelRowKind.Toggle, enabled.Kind);
         Assert.False(enabled.On);
 
@@ -111,9 +117,9 @@ public sealed class EntityDebugPanelTests
 
         panel.Clear();
         entity.RunDebugPanel(panel);
-        Assert.True(panel.Rows[9].On);
+        Assert.True(panel.Rows[11].On);
 
-        panel.Rows[9].Activate!();
+        panel.Rows[11].Activate!();
         Assert.False(collider.Enabled);
     }
 

@@ -91,6 +91,24 @@ public sealed class FocusLivenessTests
         Assert.Equal(2, menu.Tap(Key.Down).FocusedIndex);
     }
 
+    // Hiding counts as leaving for the focus. The step that notices moves the focus off, and the pointer
+    // over the hidden box lands nothing.
+    [Fact]
+    public void AHiddenItem_LosesTheFocusAndIsNotReachedByThePointer()
+    {
+        using Menu menu = Column().Open();
+
+        menu.At(0).Entity!.Visible = false;
+        menu.Pointer(InFirst).Rest();
+
+        Assert.Equal(["unfocused 0", "focused 1", "changed 1"], menu.Log);
+
+        menu.Tap(MouseButton.Left);
+
+        Assert.Empty(menu.Log);
+        Assert.Equal(1, menu.FocusedIndex);
+    }
+
     // Nothing live to land on, so the navigator holds no focus at all — and takes one again by itself
     // once an item is live, which is what makes an item re-entering the scene simply usable again.
     [Fact]

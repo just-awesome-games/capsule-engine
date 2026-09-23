@@ -300,8 +300,8 @@ internal sealed class FrameRenderer : IDisposable
 
     // Modulates the world's colour by twice the light map: source * destination + destination * source.
     // The map is drawn at half scale (an ambient of white is stored as 128), so its 8 bits span a light of
-    // zero to two, and a light on a white ambient brightens the world towards white as Godot's Add lights
-    // do. Both factors stay inside [0, 1], where every desktop API blends exactly.
+    // zero to two, and a light on a white ambient brightens the world towards white. Both factors stay
+    // inside [0, 1], where every desktop API blends exactly.
     private static readonly BlendState Modulate2x = new()
     {
         ColorSourceBlend = Blend.DestinationColor,

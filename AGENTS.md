@@ -7,7 +7,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 ## Scope
 
 - A feature is admitted by a consuming game's need or by what any developer expects of a 2D engine. It ships complete, for developers beyond JAG, or it is absent.
-- Unity, Godot and Unreal are the prior. A new public member reads fluently to a developer arriving from one of them: the common case is one call taking the plain thing, the composed case its own type. The precedent and the complaint it answers go in the design ledger, not here.
+- A new public member reads fluently to a developer arriving from any established engine: the common case is one call taking the plain thing, the composed case its own type.
 - Peak performance is the bar at authoring time. No heap allocation in hot paths or per-frame loops, value types for frequently created data, pooling for what the runtime spawns.
 - Authoring formats are plain data that people and agents write by hand. A new format needs no tool.
 - [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery.
@@ -29,6 +29,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - Argument validation follows .NET conventions: null, non-finite and out-of-range arguments throw the `ArgumentException` family and are not documented per member. An `<exception>` tag is for a state rule a caller can violate. Every throw's message names the defect and the fix.
 - Markdown holds what spans many types, one idea once: the task pages under [`docs/`](docs/). [`PACKAGE.md`](PACKAGE.md) is every package's README, and no module carries a second one.
 - A comment states an invariant or a why. Delete one that restates the line below it or addresses a reviewer.
+- Docs, XML and comments name no other engine. Capsule is described on its own terms. A precedent and the complaint it answers live only in the design ledger. A dependency or an interchange format is named as what it is.
 - Plain sentences, subject then verb. No em-dashes, no consequence chains ("X, so a Y can Z"), no inversions ("Idempotent, because..."), no semicolon-joined clauses.
 
 ## Tests

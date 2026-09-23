@@ -182,13 +182,19 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             for (int index = 0; index < renderers.Length; index++)
             {
                 Renderer renderer = renderers[index];
-                if (Scene.Draws(renderer))
+                if (!Scene.Draws(renderer) || !renderer.Visible)
                 {
-                    // The only place the render space and scroll factor are chosen. A renderer follows its
-                    // entity.
-                    Entity entity = renderer.Entity!;
+                    continue;
+                }
+
+                // The only place the render space, scroll factor and tint are chosen. A renderer follows its
+                // entity. A hidden or fully faded entity's renderers are skipped before Draw.
+                Entity entity = renderer.Entity!;
+                if (entity.TryGetDrawTint(out ColorRgba tint))
+                {
                     _view.Space = entity.Space;
                     _view.ScrollFactor = entity.ScrollFactor;
+                    _view.Tint = tint;
                     renderer.Draw(_view);
                 }
             }
@@ -197,6 +203,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         {
             _view.Space = RenderSpace.World;
             _view.ScrollFactor = Vector2.One;
+            _view.Tint = ColorRgba.White;
             Scene.EndDraw();
         }
 

@@ -224,8 +224,8 @@ internal sealed class SpriteBatcher : IDisposable
 
     // ColorRgba is straight alpha and the backend blend convention is premultiplied, so an alpha
     // intent is premultiplied here. Additive draws with no state change against the same premultiplied
-    // pipeline: an alpha of zero contributes nothing to cover and the colour adds unpremultiplied,
-    // src.rgb + dst.rgb x (1 - 0).
+    // pipeline: an alpha of zero contributes nothing to cover and the colour, already scaled by its
+    // alpha, adds as src.rgb + dst.rgb x (1 - 0).
     private Color Pack(ColorRgba color, BlendMode blend)
     {
         if (color != _lastColor || blend != _lastBlend)
@@ -243,11 +243,13 @@ internal sealed class SpriteBatcher : IDisposable
     }
 
     // The bytes Pack hands to the backend's colour constructor, with no MonoGame type so a test can
-    // assert on it. Additive hands zero alpha with the colour untouched, for no premultiply and no
-    // state change. Alpha hands the intent's colour and alpha through exactly, for
+    // assert on it. Additive hands the colour scaled by its alpha and zero alpha, so a fading glow fades
+    // with no state change. Alpha hands the intent's colour and alpha through exactly, for
     // Color.FromNonPremultiplied to premultiply as it always has (D-capsule-109).
     internal static (byte R, byte G, byte B, byte A) PackInput(ColorRgba color, BlendMode blend) =>
-        blend == BlendMode.Additive ? (color.R, color.G, color.B, (byte)0) : (color.R, color.G, color.B, color.A);
+        blend == BlendMode.Additive
+            ? (ColorRgba.Multiply(color.R, color.A), ColorRgba.Multiply(color.G, color.A), ColorRgba.Multiply(color.B, color.A), (byte)0)
+            : (color.R, color.G, color.B, color.A);
 
     private void Flush()
     {

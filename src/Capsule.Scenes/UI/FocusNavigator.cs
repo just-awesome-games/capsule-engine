@@ -12,8 +12,9 @@ namespace Capsule.UI;
 /// machine behind a menu, a tab strip, a grid or a talent tree. It steps itself and draws nothing. The
 /// items supply the focus visuals and decide what pressing means. The items need not sit on this
 /// component's entity, or even on one entity. An item counts as live while its
-/// <see cref="Component.Entity"/> is in a scene, or queued to join one and not queued to leave. Only
-/// live items take part in directions, the pointer and the press.
+/// <see cref="Component.Entity"/> is in a scene, or queued to join one and not queued to leave, and is
+/// shown by <see cref="Entity.Visible"/> up its ancestry. Only live items take part in directions, the
+/// pointer and the press.
 /// <para>
 /// A direction first takes the neighbour the focused item names for that side. When the item names
 /// none, the navigator ranks the items lying that way from the focused item's
@@ -457,7 +458,8 @@ public sealed class FocusNavigator : Component
     // rebuilt during a step focus the row it just added when that step's queue drains.
     private static bool Live(Focusable item) =>
         item.Entity is { } entity &&
-        (entity.SceneOrNull is { } scene ? scene.Contains(entity) : entity.PendingScene is not null);
+        (entity.SceneOrNull is { } scene ? scene.Contains(entity) : entity.PendingScene is not null) &&
+        entity.ShownInTree;
 
     // Returns the first screen item containing the pointer, or null. World items are skipped, because
     // the pointer is in canvas pixels and their bounds are in world units.

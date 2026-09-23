@@ -40,6 +40,9 @@ public sealed class Player : Entity
     /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
     public bool ShotThisStep { get; private set; }
 
+    /// <summary>Steps left of the grace after a hit, during which hazards cost nothing.</summary>
+    public int InvulnerableTicksLeft => _invulnerable.TicksLeft;
+
     /// <summary>
     /// The muzzle: the child the sprite's <c>muzzle</c> socket places, on whichever frame is drawn.
     /// Its <see cref="Entity.WorldPosition"/> is where a bolt leaves from.
@@ -67,6 +70,7 @@ public sealed class Player : Entity
     private readonly EntityPool<Bolt> _bolts;
 
     private Vector2 _velocity;
+    private Countdown _invulnerable;
 
     public Player(EntitySpawn spawn)
         : base(spawn)
@@ -119,6 +123,8 @@ public sealed class Player : Entity
     protected override void OnStep(in StepContext context)
     {
         float delta = context.DeltaSeconds;
+
+        _invulnerable.Step();
 
         // The edges are this step's facts: the visual, stepping after this root, reads them once.
         JumpedThisStep = false;
@@ -184,7 +190,13 @@ public sealed class Player : Entity
     // find, and it can be detached by the same method group that subscribed it.
     private void OnHurtboxEntered(ColliderContact2D contact)
     {
+        if (_invulnerable.IsRunning)
+        {
+            return;
+        }
+
         Health = Math.Max(Health - 1, 0);
+        _invulnerable.Start(_tuning.InvulnerableTicks);
         Run.Rumble.Play(_tuning.HurtRumble);
         Log.Info(FormattableString.Invariant($"entered {contact.LayerName} at {contact.Point}, health {Health}"));
     }
@@ -256,6 +268,11 @@ public sealed class Player : Entity
             }
 
             Scale = new Vector2(_facing * _squash.X, _squash.Y);
+
+            // The grace reads as a red blink. The root owns the rule and this child owns the look.
+            int grace = _player.InvulnerableTicksLeft;
+            Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
+            Visible = grace / _tuning.BlinkTicks % 2 == 0;
         }
 
         // Towards the target by at most maxDelta, landing on it exactly.

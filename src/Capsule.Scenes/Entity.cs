@@ -406,8 +406,8 @@ public partial class Entity
 
     /// <summary>
     /// Fills this entity's panel section. The engine writes <see cref="Name"/>, <see cref="Transform"/>,
-    /// <see cref="WorldTransform"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/>, and <c>Remove</c>
-    /// before this call. Components fill their sections after.
+    /// <see cref="WorldTransform"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/>, <see cref="Visible"/>,
+    /// <see cref="Tint"/> and <c>Remove</c> before this call. Components fill their sections after.
     /// </summary>
     protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -603,6 +603,8 @@ public partial class Entity
 
         panel.Field("ZIndex", ZIndex);
         panel.Field("ScrollFactor", ScrollFactor);
+        panel.Toggle("Visible", Visible, value => Visible = value);
+        panel.Field("Tint", Tint);
         panel.Command("Remove", () => SceneOrNull?.Remove(this));
 
         if (_started)

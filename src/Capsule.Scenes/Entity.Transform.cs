@@ -234,7 +234,8 @@ public partial class Entity
     // Marks this subtree's world transform stale, stopping at any entity already stale, because the
     // invariant makes everything beneath it stale too. With `previous`, the walk visits every descendant
     // and rebuilds what a parent change or a previous-value write left wrong: the root pointer and the
-    // previous world, parent first.
+    // previous world, parent first. It also stales the composed tint and visibility, which a parent
+    // change moves.
     private void Invalidate(bool previous)
     {
         if (_worldStale && !previous)
@@ -247,6 +248,7 @@ public partial class Entity
         if (previous)
         {
             _root = _parent?._root ?? this;
+            _appearanceStale = true;
             _previousWorld = _parent is { } parent ? parent._previousWorld.Compose(_previousLocal) : _previousLocal;
         }
 

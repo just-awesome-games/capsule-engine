@@ -14,14 +14,14 @@ public sealed class BlendModeTests
         Assert.Equal(112, Unsafe.SizeOf<SpriteIntent>());
     }
 
+    // Additive premultiplies by alpha, so a glow fades as its alpha falls. Opaque adds the colour exactly.
     [Fact]
-    public void Additive_PacksZeroAlphaWithTheColourUntouched()
+    public void Additive_PacksTheColourScaledByItsAlphaWithZeroAlpha()
     {
-        ColorRgba color = new(200, 120, 40, 180);
+        (byte r, byte g, byte b, byte a) = SpriteBatcher.PackInput(new ColorRgba(200, 120, 40, 180), BlendMode.Additive);
 
-        (byte r, byte g, byte b, byte a) = SpriteBatcher.PackInput(color, BlendMode.Additive);
-
-        Assert.Equal((color.R, color.G, color.B, (byte)0), (r, g, b, a));
+        Assert.Equal(((byte)141, (byte)85, (byte)28, (byte)0), (r, g, b, a));
+        Assert.Equal(((byte)200, (byte)120, (byte)40, (byte)0), SpriteBatcher.PackInput(new ColorRgba(200, 120, 40), BlendMode.Additive));
     }
 
     [Fact]

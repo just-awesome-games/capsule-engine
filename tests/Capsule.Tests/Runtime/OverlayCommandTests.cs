@@ -61,10 +61,11 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("Nudger", overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "  (Commands)", "  Remove", "  Nudge"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
             Named(overlay));
-        Assert.Equal(5, overlay.Focus);
+        Assert.Equal(6, overlay.Focus);
 
+        Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
 
@@ -183,6 +184,7 @@ public sealed class OverlayCommandTests
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Enter);
         Assert.Equal("Walker", overlay.Title);
+        Press(overlay, scheduler, host, Key.Down);
         Assert.Equal("  Remove", Drawn(overlay, overlay.Focus));
 
         Press(overlay, scheduler, host, Key.Enter);

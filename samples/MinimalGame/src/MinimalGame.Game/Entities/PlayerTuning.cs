@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 
 namespace MinimalGame.Game.Entities;
 
@@ -35,6 +36,13 @@ namespace MinimalGame.Game.Entities;
 /// longer as a heavy body settling.</param>
 /// <param name="HurtRumble">The pulse a hazard contact plays: both motors and both impulse triggers,
 /// decaying. Raise the amplitudes or the seconds to make a hit land harder.</param>
+/// <param name="InvulnerableTicks">Steps of grace after a hit, during which hazards cost nothing. At
+/// 60 steps a second the default is one second. Raise it to forgive a player bounced between hazards,
+/// lower it to punish lingering.</param>
+/// <param name="BlinkTicks">Steps the sprite spends shown, then hidden, in each half of the grace's
+/// blink. Lower flickers faster and reads as more urgent; higher reads as a slow pulse.</param>
+/// <param name="HurtTint">The colour multiplied over the sprite through the grace. Push it towards
+/// pure red for a harsher hit, towards white to keep the blink alone.</param>
 public readonly record struct PlayerTuning(
     float WalkSpeed,
     float Gravity,
@@ -47,7 +55,10 @@ public readonly record struct PlayerTuning(
     float LandRumbleLow,
     float LandRumbleHigh,
     float LandRumbleSeconds,
-    RumblePulse HurtRumble)
+    RumblePulse HurtRumble,
+    int InvulnerableTicks,
+    int BlinkTicks,
+    ColorRgba HurtTint)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -62,5 +73,8 @@ public readonly record struct PlayerTuning(
         LandRumbleLow: 0.5f,
         LandRumbleHigh: 0.15f,
         LandRumbleSeconds: 0.12f,
-        HurtRumble: new RumblePulse(0.8f, 0.5f, 0.3f) { LeftTrigger = 0.6f, RightTrigger = 0.6f });
+        HurtRumble: new RumblePulse(0.8f, 0.5f, 0.3f) { LeftTrigger = 0.6f, RightTrigger = 0.6f },
+        InvulnerableTicks: 60,
+        BlinkTicks: 4,
+        HurtTint: new ColorRgba(255, 96, 96));
 }

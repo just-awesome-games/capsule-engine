@@ -23,8 +23,8 @@ public sealed class AudioProbeOggTests
         Assert.Equal(AudioLoopRegion.None, measured.Loop);
     }
 
-    // LOOPSTART with LOOPLENGTH is the RPG Maker pair; LOOPSTART with LOOPEND is the same authoring
-    // spelt the other way; LOOPSTART alone loops the rest of the file. Tag names are case-insensitive.
+    // LOOPSTART with LOOPLENGTH is the common pair. LOOPSTART with LOOPEND is the same authoring spelt
+    // the other way, and LOOPSTART alone loops the rest of the file. Tag names are case-insensitive.
     [Theory]
     [InlineData(new[] { "LOOPSTART=6000", "LOOPLENGTH=12000" }, 18000)]
     [InlineData(new[] { "LOOPSTART=6000", "LOOPEND=18000" }, 18000)]

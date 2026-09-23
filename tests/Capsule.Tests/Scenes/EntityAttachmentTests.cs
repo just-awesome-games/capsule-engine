@@ -127,6 +127,8 @@ public sealed class EntityAttachmentTests
                 ("World Transform", "(12, 2) r 0.5 s (2, 2)"),
                 ("ZIndex", "0"),
                 ("ScrollFactor", "(1, 1)"),
+                ("Visible", null),
+                ("Tint", "#ffffffff"),
                 ("Remove", null),
             ],
             panel.Rows.ToArray().Select(row => (row.Label, row.Value)).ToArray());

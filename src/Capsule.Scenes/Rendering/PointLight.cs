@@ -39,7 +39,7 @@ public sealed class PointLight : Renderer
         }
     }
 
-    /// <summary>The light's colour, added into the light map at full strength. White by default.</summary>
+    /// <summary>The light's colour, added into the light map scaled by its alpha. White by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <summary>

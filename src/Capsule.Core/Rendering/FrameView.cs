@@ -30,6 +30,8 @@ public sealed class FrameView
     private CameraView _camera;
     private CameraView _layerCamera;
     private Vector2 _scrollFactor = Vector2.One;
+    private ColorRgba _tint = ColorRgba.White;
+    private bool _tinted;
 
     private Vector2 _canvas;
 
@@ -85,6 +87,18 @@ public sealed class FrameView
             _canvas = value;
             _screen.Bounds = new Rect(Vector2.Zero, value);
             _screen.Culls = !_screen.Bounds.IsEmpty;
+        }
+    }
+
+    // The colour the running renderer's entity is tinted by, and white outside a renderer. The scene sets
+    // it before each Draw. Only the leaves that store an intent apply it, so an expansion such as text
+    // is tinted once. A white tint costs one flag test.
+    internal ColorRgba Tint
+    {
+        set
+        {
+            _tint = value;
+            _tinted = value != ColorRgba.White;
         }
     }
 
@@ -195,7 +209,7 @@ public sealed class FrameView
     internal void AddUnculled(in SpriteIntent sprite)
     {
         _submitted++;
-        Of(Space).Sprites.Add(sprite);
+        Of(Space).Sprites.Add(_tinted ? sprite with { Color = ColorRgba.Multiply(sprite.Color, _tint) } : sprite);
     }
 
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
@@ -212,7 +226,7 @@ public sealed class FrameView
             return;
         }
 
-        layer.Sprites.Add(sprite);
+        layer.Sprites.Add(_tinted ? sprite with { Color = ColorRgba.Multiply(sprite.Color, _tint) } : sprite);
     }
 
     /// <summary>
@@ -243,7 +257,7 @@ public sealed class FrameView
             return;
         }
 
-        _lights.Add(light);
+        _lights.Add(_tinted ? light with { Color = ColorRgba.Multiply(light.Color, _tint) } : light);
         LitWorld = true;
     }
 
@@ -353,7 +367,7 @@ public sealed class FrameView
             return;
         }
 
-        layer.Lines.Add(line);
+        layer.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
     }
 
     /// <summary>
@@ -484,6 +498,7 @@ public sealed class FrameView
         _lights.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
+        Tint = ColorRgba.White;
         _scrollFactor = Vector2.One;
         LitWorld = false;
         _ambient = ColorRgba.White;

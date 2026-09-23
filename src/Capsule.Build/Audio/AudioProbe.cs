@@ -256,7 +256,7 @@ internal static class AudioProbe
             LoopTags(stream, serial, comments, out start, out length, out end);
         }
 
-        // LOOPSTART with LOOPLENGTH is the RPG Maker pair. LOOPSTART with LOOPEND is the same
+        // LOOPSTART with LOOPLENGTH is the common pair. LOOPSTART with LOOPEND is the same
         // authoring spelt the other way, and LOOPSTART alone loops the rest of the file.
         long? region = start is null ? null
             : length is { } run ? start + run
