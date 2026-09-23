@@ -1,9 +1,14 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Capsule.Input;
 
-/// <summary>Reads and writes an <see cref="InputButton"/> as the string its <c>ToString</c> writes.</summary>
+/// <summary>
+/// Reads and writes an <see cref="InputButton"/> as the string its <c>ToString</c> writes. The type's
+/// <c>[JsonConverter]</c> attribute names it, and a game never registers it.
+/// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class InputButtonJsonConverter : JsonConverter<InputButton>
 {
     /// <inheritdoc/>

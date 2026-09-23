@@ -1,10 +1,10 @@
 namespace Capsule.Input;
 
-/// <summary>
-/// A physical key, named for what a US layout prints on it. A binding follows the position, not the
-/// character. <see cref="None"/> is the default, and an unassigned key does not mean a real one.
-/// Values must stay below <see cref="DeviceSnapshot.Capacity"/>.
-/// </summary>
+/// <summary>A physical key, named for what a US layout prints on it.</summary>
+/// <remarks>
+/// A binding follows the position, not the character. <see cref="None"/> is the default and names
+/// no key. Values must stay below <see cref="DeviceSnapshot.Capacity"/>.
+/// </remarks>
 #pragma warning disable CS1591 // Each member's name is the key it stands for.
 public enum Key
 {

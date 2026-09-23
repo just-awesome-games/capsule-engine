@@ -13,12 +13,13 @@ directory segment and the file stem normalized to the kebab form of the identifi
 `enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`,
 one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`. `Stage1`, `stage1` and
 `stage-1` are one segment, `stage-1`. The build normalizes every key a game or an authoring module hands
-it, so the runtime sees keys only. A document names an asset by key and extension, `"enemies/bat.png"`,
+it, and the runtime sees keys only. A document names an asset by key and extension, `"enemies/bat.png"`,
 spelt however the author likes.
 
 A segment that is no C# identifier, two sources keying the same, and C# identifier collisions fail the
-build naming the files. Each generated domain and directory class exposes an allocation-free `All` span over
-the handles beneath it, except `CapsuleAssets.Scenes`, which holds scene document keys ([`scenes.md`](scenes.md)).
+build naming the files. Each generated domain and directory class exposes an allocation-free `All` span
+over the handles beneath it. `CapsuleAssets.Scenes` is the exception and holds scene document keys
+([`scenes.md`](scenes.md)).
 
 ## Textures
 
@@ -37,8 +38,8 @@ A sheet names one texture, the frames it cuts from it, any clips played over tho
 sockets its frames set. Playback is [`rendering.md`](rendering.md#renderers).
 
 Sheets are authored under `Assets/Sprites/` and compiled by the build tool into game code under
-`CapsuleAssets.Sprites`, so a misspelt frame, clip or socket is a build error naming the file and the member, and no
-sheet ships. An edited sheet reaches IntelliSense on the next build. A sheet's key is its path under the
+`CapsuleAssets.Sprites`. A misspelt frame, clip or socket is a build error naming the file and the
+member, and no sheet ships. An edited sheet reaches IntelliSense on the next build. A sheet's key is its path under the
 sprites root without either extension, and each directory in it becomes a nested class:
 `actors/player.sheet.json` declares `CapsuleAssets.Sprites.Actors.Player`, with `Frames.Idle0` a `Sprite`
 carrying its sockets, `Clips.Idle` a `SpriteClip` and `Sockets.Muzzle` the socket's name.
@@ -77,10 +78,10 @@ Format version 1, UTF-8 JSON:
 | `frames` (of a clip) | At least one entry, each naming a `frame` of this sheet and the `ticks` it is held for. |
 | `ticks` | Fixed steps the frame is held for, at least one. Not milliseconds. |
 
-A `source` block of `tool`, `path` and `hash` is accepted so a derived sheet may name what it came from.
-Nothing reads it.
+A derived sheet may name what it came from in a `source` block of `tool`, `path` and `hash`. Nothing
+reads it.
 
-A socket is a named point on a frame, such as a muzzle or a hand, in the pivot's texel space, so it moves
+A socket is a named point on a frame, such as a muzzle or a hand, in the pivot's texel space. It moves
 with the drawing frame by frame. `SpriteRenderer.Socket` returns a child entity placed at that point,
 mirrored by the renderer's flips and turned and scaled with the entity as the frame is. A game parents
 whatever hangs from the point under that child. A frame that sets no point for a socket leaves the child
@@ -90,7 +91,7 @@ where the last frame that did put it.
 
 An atlas is a build-time packing of textures onto shared pages, declared by a manifest and invisible to
 game code. The runtime serves a packed handle from its page and moves the region by where that texture's
-texels landed, so adding, splitting or removing an atlas changes no C# and no document.
+texels landed. Adding, splitting or removing an atlas changes no C# and no document.
 
 `Assets/Atlases/<name>.atlas.json`:
 
@@ -107,18 +108,18 @@ the build, as does a texture two manifests both match. `maxSize` is optional, th
 reach on either axis, a power of two up to 8192, 4096 by default. Any other member fails the build. Fonts
 do not pack.
 
-Members are placed by MaxRects, best short side fit and no rotation, in an order fixed by size and key, so
-one input packs byte-identically on every machine. Two texels stay clear between placements, and every
-member's outer texel is duplicated one texel outward on every side, so clamped linear sampling, sub-texel
-scaling and tiling at a region's edge read no neighbour. When a page is full the next opens: `<name>.0`,
+Members are placed by MaxRects, best short side fit and no rotation, in an order fixed by size and key.
+One input packs byte-identically on every machine. Two texels stay clear between placements, and every
+member's outer texel is duplicated one texel outward on every side. Clamped linear sampling, sub-texel
+scaling and tiling at a region's edge then read no neighbour. When a page is full the next opens: `<name>.0`,
 `<name>.1` and so on, each trimmed to its packed extent rounded up to a multiple of four. A member that
 cannot fit a page with its border fails the build naming the texture.
 
 Pages ship straight-alpha at `assets/textures/<name>.<n>.png`, beside one map at
 `assets/textures/atlases.json` naming each packed key's page and the texel its `(0, 0)` landed on. A packed
-member does not ship on its own. Each atlas keeps a stamp over its manifest and members, so editing one
-texture repacks only the atlas holding it. `CapsuleAssets.Textures` is derived from the sources, so packing
-leaves it unchanged.
+member does not ship on its own. Each atlas keeps a stamp over its manifest and members, and editing one
+texture repacks only the atlas holding it. `CapsuleAssets.Textures` is derived from the sources, and
+packing leaves it unchanged.
 
 ## Audio
 
@@ -136,9 +137,9 @@ A bitmap font is authored under `Assets/Fonts/` in any directory shape.
 | `.fnt` | A BMFont description, text flavour, unpacked. Its metrics, glyphs and kerning compile into the logic assembly as a `BitmapFont`. The file does not ship. |
 | `.png` | A page the description names. Ships under `assets/fonts/` at its own key. |
 
-A font and its pages are keyed off their authored paths, so a page beside its font ships beside it. A
-description naming a page the game does not ship fails the build. `BitmapFont.Default` ships inside the
-runtime and needs no asset. Drawing text is [`rendering.md`](rendering.md#text).
+A font and its pages are keyed off their authored paths, and a page beside its font ships beside it. A
+description naming a page the game does not ship fails the build. Drawing text, and the font that needs no
+asset, is [`rendering.md`](rendering.md#text).
 
 ## Loading and residency
 
@@ -150,25 +151,20 @@ protected internal override void CollectAssets(AssetCollection assets) => assets
 ```
 
 `Scene.CollectAssets`, `Entity.CollectAssets` and `Component.CollectAssets` are the hooks. The engine's
-renderers, audio sources and labels declare what they hold, so an entity that attaches its components in
-its constructor is preloaded with them. A resource the scene did not collect loads on first rendered or
+renderers, audio sources and labels declare what they hold. An entity that attaches its components in its
+constructor is preloaded with them. A resource the scene did not collect loads on first rendered or
 audible use, logs that at info, and is cached for the rest of that scene. The outgoing scene's resources
 are released at transition or exit, except those the incoming preload also uses. A packed texture is
-resident as its atlas page, so one page covers any number of its members. A headless run loads no media.
+resident as its atlas page, and one page covers any number of its members. A headless run loads no
+media.
 
 `Run.PrefetchScene<TScene>()` starts loading a scene's preloads before it is requested, and the request
 then waits only for what has not landed.
 
 ## Authoring tools
 
-Another editor's format enters through an authoring module: a package whose `buildTransitive` targets
-derive a document per source into their own `obj/` space and add each derived file to the engine's item.
-Scenes go on `CapsuleSceneDocument` from a target running `BeforeTargets="CapsuleCollectSceneDocuments"`
-([`scenes.md`](scenes.md#authoring-tools)). Sheets go on `CapsuleSheetDocument` from one running
-`BeforeTargets="CapsuleCollectSheetDocuments"`. A module states each document's key as
-`%(CapsuleDocumentKey)` and the engine normalizes it, so no module implements the key rule. A module
-converts its own pivot, point and time models at derivation: pivots and socket points are texels from the
-frame's top-left corner, and durations are ticks.
-
-JAG Studios publishes the Tiled module as `JAG.Capsule.Tiled` from
-[capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).
+A sheet from another editor's format enters through an authoring module, the way a scene document does
+([`scenes.md`](scenes.md#authoring-tools)). The module adds each derived sheet to `CapsuleSheetDocument`
+from a target running `BeforeTargets="CapsuleCollectSheetDocuments"`. It converts its own pivot, point and
+time models at derivation. Pivots and socket points are texels from the frame's top-left corner, and
+durations are ticks.

@@ -7,15 +7,18 @@ namespace Capsule.Rendering;
 /// <summary>
 /// Mutable render intent, populated at scene startup, rewritten after each fixed step and read on
 /// draw frames. It holds two ordered layers of sprites and lines, one in world units and one in
-/// canvas pixels, and the screen layer draws over the world layer. Text and nine-sliced panels
-/// expand onto those lists, one sprite per glyph and one per slice. Each <c>Add</c> draws onto the
-/// layer of the running renderer's entity, or onto the world outside a renderer, and culls against
-/// the camera in world space and against <see cref="Canvas"/> in screen space.
-/// <para>
-/// World intent sits at its authored position whatever scroll factor its entity carries.
-/// <see cref="ParallaxLayers"/> names the runs a renderer moves by a factor.
-/// </para>
+/// canvas pixels, and the screen layer draws over the world layer.
 /// </summary>
+/// <remarks>
+/// Text and nine-sliced panels expand onto those lists, one sprite per glyph and one per slice.
+/// Each <c>Add</c> draws onto the layer of the running renderer's entity, or onto the world outside
+/// a renderer, and culls against the camera in world space and against <see cref="Canvas"/> in
+/// screen space.
+/// <para>
+/// World intent sits at its authored position whatever scroll factor its entity carries. The host
+/// moves each entity's intent by its factor at draw time.
+/// </para>
+/// </remarks>
 public sealed class FrameView
 {
     private readonly Layer _world = new();
@@ -39,14 +42,14 @@ public sealed class FrameView
 
     /// <summary>
     /// The world region on screen. A non-positive <see cref="CameraView.Size"/> draws nothing.
-    /// <para>
+    /// </summary>
+    /// <remarks>
     /// Inside a renderer on an entity whose scroll factor is not one, this is the view that entity
     /// is drawn by: the swept region moved by the factor about the camera's scroll origin, widened
-    /// where the factor lets the layer outrun the frame. Its
-    /// <see cref="CameraView.SweptBounds"/> cover everything the frame can draw of that entity, so
-    /// a renderer can cull against them without knowing the factor.
-    /// </para>
-    /// </summary>
+    /// where the factor lets the layer outrun the frame. Its <see cref="CameraView.SweptBounds"/>
+    /// cover everything the frame can draw of that entity. A renderer can cull against them without
+    /// knowing the factor.
+    /// </remarks>
     public CameraView Camera
     {
         get => _scrollFactor == Vector2.One ? _camera : _layerCamera;
@@ -76,9 +79,11 @@ public sealed class FrameView
     }
 
     /// <summary>
-    /// The screen layer's extent in canvas pixels, with the origin at its top-left corner. Screen
-    /// intent is culled against it. A non-positive canvas disables that culling.
+    /// The screen layer's extent in canvas pixels, with the origin at its top-left corner.
     /// </summary>
+    /// <remarks>
+    /// Screen intent is culled against it. A non-positive canvas disables that culling.
+    /// </remarks>
     public Vector2 Canvas
     {
         get => _canvas;
@@ -111,9 +116,11 @@ public sealed class FrameView
 
     /// <summary>
     /// The colour the world is lit by where no light reaches. White by default, the world at its
-    /// authored colour. A frame with white ambient and no light in <see cref="Lights"/> runs no
-    /// lighting pass.
+    /// authored colour.
     /// </summary>
+    /// <remarks>
+    /// A frame with white ambient and no light in <see cref="Lights"/> runs no lighting pass.
+    /// </remarks>
     public ColorRgba Ambient
     {
         get => _ambient;
@@ -153,9 +160,10 @@ public sealed class FrameView
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_world.Sprites);
 
     /// <summary>
-    /// The lights to draw into the frame's light map, in the order added. World-only: the screen layer
-    /// is never lit. Invalidated by the next mutation.
+    /// The lights to draw into the frame's light map, in the order added. World-only: the screen
+    /// layer is never lit.
     /// </summary>
+    /// <remarks>Invalidated by the next mutation.</remarks>
     public ReadOnlySpan<LightIntent> Lights => CollectionsMarshal.AsSpan(_lights);
 
     /// <summary>
@@ -176,19 +184,18 @@ public sealed class FrameView
     /// </summary>
     public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(_screen.Lines);
 
-    /// <summary>
-    /// The runs of <see cref="Sprites"/> and <see cref="Lines"/> whose entity carries a scroll
-    /// factor, in list order and back-to-back. A run opens where the factor changed and closes where
-    /// the next one opens. Intent before the first run draws with the world. Invalidated by the next
-    /// mutation.
-    /// </summary>
-    public ReadOnlySpan<ParallaxLayer> ParallaxLayers => CollectionsMarshal.AsSpan(_parallax);
+    // The runs of Sprites, Lines and Lights whose entity carries a scroll factor, in list order and
+    // back-to-back. A run opens where the factor changed and closes where the next one opens. Intent
+    // before the first run draws with the world. Invalidated by the next mutation.
+    internal ReadOnlySpan<ParallaxLayer> ParallaxLayers => CollectionsMarshal.AsSpan(_parallax);
 
     /// <summary>
-    /// Submission counts from the current rewrite, across both layers, lines included. One
-    /// submission is one sprite or line offered to the culler. Text, a panel and a tiling count the
-    /// copies they expand to, and an expansion that produces nothing counts nothing.
+    /// Submission counts from the current rewrite, across both layers, lines included.
     /// </summary>
+    /// <remarks>
+    /// One submission is one sprite or line offered to the culler. Text, a panel and a tiling count
+    /// the copies they expand to, and an expansion that produces nothing counts nothing.
+    /// </remarks>
     public RenderMetrics Metrics => new(
         _submitted,
         _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count,
@@ -229,10 +236,11 @@ public sealed class FrameView
         layer.Sprites.Add(_tinted ? sprite with { Color = ColorRgba.Multiply(sprite.Color, _tint) } : sprite);
     }
 
-    /// <summary>
-    /// Adds a light, culled through its swept region against the world layer as a sprite is. World-only:
-    /// attach a <c>PointLight</c> to a world entity.
-    /// </summary>
+    /// <summary>Adds a light, culled through its swept region against the world layer as a sprite is.</summary>
+    /// <remarks>
+    /// A light is world-only. Attach a <c>PointLight</c> to a world entity. A light whose
+    /// <see cref="LightIntent.Intensity"/> is not positive and finite is dropped.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The running renderer's space is the screen layer.</exception>
     public void Add(in LightIntent light)
     {
@@ -264,16 +272,19 @@ public sealed class FrameView
     /// <summary>
     /// Adds <paramref name="sprite"/> repeated across <paramref name="tiling"/>, with each copy
     /// culled and counted on its own. On each axis the period is the sprite's drawn
-    /// <see cref="SpriteIntent.Size"/>. Zero draws the frame once. A finite extent covers that many
-    /// units from the frame's low edge towards +X or +Y and crops the copy at the far edge.
-    /// <see cref="float.PositiveInfinity"/> repeats without bound, and draws the frame once when
-    /// culling is disabled. A negative or NaN extent draws nothing, and so does a tiling of a turned
-    /// sprite, because a tiled sprite does not turn.
-    /// <para>
-    /// At most 1024 copies are emitted per axis. An extent far larger than the period covers only what
-    /// those copies reach.
-    /// </para>
+    /// <see cref="SpriteIntent.Size"/>.
     /// </summary>
+    /// <remarks>
+    /// Zero draws the frame once. A finite extent covers that many units from the frame's low edge
+    /// towards +X or +Y and crops the copy at the far edge. <see cref="float.PositiveInfinity"/>
+    /// repeats without bound, and draws the frame once when culling is disabled. A negative or NaN
+    /// extent draws nothing. A tiled sprite does not turn, and one with a non-zero rotation at
+    /// either end draws nothing.
+    /// <para>
+    /// At most 1024 copies are emitted per axis. An extent far larger than the period covers only
+    /// what those copies reach.
+    /// </para>
+    /// </remarks>
     public void Add(in SpriteIntent sprite, Vector2 tiling) => Add(in sprite, tiling, Space);
 
     /// <summary>Adds <paramref name="sprite"/> repeated across <paramref name="tiling"/> onto <paramref name="space"/>'s list.</summary>
@@ -372,9 +383,11 @@ public sealed class FrameView
 
     /// <summary>
     /// Lays <paramref name="text"/> out and adds one sprite per glyph, each culled and counted on
-    /// its own. Glyphs are added in reading order, so where two overlap the later one covers the
-    /// earlier.
+    /// its own.
     /// </summary>
+    /// <remarks>
+    /// Glyphs are added in reading order. Where two overlap, the later one covers the earlier.
+    /// </remarks>
     public void Add(in TextIntent text) => Add(in text, Space);
 
     /// <summary>Lays <paramref name="text"/> out onto <paramref name="space"/>'s list.</summary>
@@ -424,10 +437,12 @@ public sealed class FrameView
 
     /// <summary>
     /// Expands <paramref name="panel"/> and adds one sprite per slice that has both texels and
-    /// extent, each culled and counted on its own. Slices are added left to right then top to
-    /// bottom. A panel too small for its insets overlaps slices, and the later one covers the
-    /// earlier.
+    /// extent, each culled and counted on its own.
     /// </summary>
+    /// <remarks>
+    /// Slices are added left to right then top to bottom. A panel too small for its insets overlaps
+    /// slices, and the later one covers the earlier.
+    /// </remarks>
     public void Add(in NineSliceIntent panel) => Add(in panel, Space);
 
     /// <summary>Expands <paramref name="panel"/> onto <paramref name="space"/>'s list.</summary>

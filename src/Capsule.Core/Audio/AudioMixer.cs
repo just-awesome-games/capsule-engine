@@ -5,14 +5,16 @@ namespace Capsule.Audio;
 
 /// <summary>
 /// The run's sound: buses, their volumes and pause state, and the voices playing on them. Reached
-/// as <c>Run.Audio</c> and held for the run. A voice survives a scene transition until something
-/// stops it. A call taking a voice that has ended does nothing. Each step rewrites
-/// <see cref="Commands"/> for the host to apply afterwards.
+/// as <c>Run.Audio</c> and held for the run.
+/// </summary>
+/// <remarks>
+/// A voice survives a scene transition until something stops it. A call taking a voice that has
+/// ended does nothing. The host applies what a step changed after that step.
 /// <para>
 /// Voice lifetimes are computed from the clip's duration, the voice's pitch and the step length.
 /// Nothing is read back from a device. A headless run reaches the same state as a windowed one.
 /// </para>
-/// </summary>
+/// </remarks>
 public sealed class AudioMixer
 {
     /// <summary>How many voices may sound at once before <see cref="Play(in AudioPlayback)"/> steals one.</summary>
@@ -38,8 +40,8 @@ public sealed class AudioMixer
 
     private float _unfocusedVolume;
 
-    /// <summary>An idle mixer: master at volume 1, no other bus registered, nothing playing.</summary>
-    public AudioMixer()
+    // An idle mixer: master at volume 1, no other bus registered, nothing playing.
+    internal AudioMixer()
     {
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
@@ -48,16 +50,13 @@ public sealed class AudioMixer
         }
     }
 
-    /// <summary>
-    /// The commands the last step raised, in the order they were raised. The next mixer call
-    /// invalidates the span. A command raised outside a step is appended to the last step's list.
-    /// </summary>
-    public ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
+    // The commands the last step raised, in the order they were raised. The next mixer call
+    // invalidates the span. A command raised outside a step is appended to the last step's list.
+    internal ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
 
     /// <summary>
     /// The linear amplitude the windowed host applies to the output while the game's window is
-    /// inactive, in [0, 1]. Defaults to 0. This is run state outside the command stream, so setting
-    /// it raises no command.
+    /// inactive, in [0, 1]. Defaults to 0, which silences an unfocused game.
     /// </summary>
     public float UnfocusedVolume
     {
@@ -78,11 +77,12 @@ public sealed class AudioMixer
     }
 
     /// <summary>
-    /// Sets this bus's linear amplitude in [0, 1], registering the bus if it is new, and raises
-    /// <see cref="AudioCommandKind.SetGain"/> for every live voice on it. <see cref="AudioBus.Master"/>
-    /// covers every live voice. Bus volumes belong to the run and stand until they are set again. This
-    /// cancels any ramp <see cref="FadeVolume(AudioBus, float, float, Ease)"/> started on the bus.
+    /// Sets this bus's linear amplitude in [0, 1], registering the bus if it is new.
     /// </summary>
+    /// <remarks>
+    /// <see cref="AudioBus.Master"/> scales every live voice. This cancels any ramp
+    /// <see cref="FadeVolume(AudioBus, float, float, Ease)"/> started on the bus.
+    /// </remarks>
     public void SetVolume(AudioBus bus, float volume)
     {
         Guard.InUnit(volume, nameof(volume));
@@ -108,13 +108,8 @@ public sealed class AudioMixer
     /// duration of zero sets the volume at once, exactly as <see cref="SetVolume(AudioBus, float)"/> does.
     /// </summary>
     /// <remarks>
-    /// Each step the ramp moves, this raises <see cref="AudioCommandKind.SetGain"/> for every live
-    /// voice on the bus.
+    /// A ramp does not move on this call. Its first move lands on the next step.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
-    /// finite, or <paramref name="ease"/> is not a declared curve.
-    /// </exception>
     public void FadeVolume(AudioBus bus, float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
@@ -150,17 +145,18 @@ public sealed class AudioMixer
         return index >= 0 && _buses[index].Paused;
     }
 
-    /// <summary>
-    /// Pauses this bus, registering it if it is new. Every voice whose effective state changes is
-    /// held where it is and raises <see cref="AudioCommandKind.Pause"/>. Pausing
-    /// <see cref="AudioBus.Master"/> pauses every voice.
-    /// </summary>
+    /// <summary>Pauses this bus, registering it if it is new.</summary>
+    /// <remarks>
+    /// Every voice on the bus is held where it is. Pausing <see cref="AudioBus.Master"/> pauses
+    /// every voice.
+    /// </remarks>
     public void Pause(AudioBus bus) => SetBusPaused(bus, paused: true);
 
     /// <summary>
-    /// Resumes this bus. A voice paused in its own right stays paused. Every other voice continues
-    /// and raises <see cref="AudioCommandKind.Resume"/>.
+    /// Resumes this bus, registering it if it is new. A voice still held by its own pause, its bus
+    /// or the master stays paused.
     /// </summary>
+    /// <remarks>Every other voice the bus held continues from where it was held.</remarks>
     public void Resume(AudioBus bus) => SetBusPaused(bus, paused: false);
 
     /// <summary>Plays <paramref name="clip"/> once on <see cref="AudioBus.Master"/> at full volume and unit pitch.</summary>
@@ -172,20 +168,17 @@ public sealed class AudioMixer
     public Voice Play(AudioClip clip, AudioBus bus) => Play(new AudioPlayback(clip) { Bus = bus });
 
     /// <summary>
-    /// Starts one voice and raises <see cref="AudioCommandKind.Play"/> for it. A one-shot ends
-    /// itself after <c>ceil(DurationSeconds / Pitch / step)</c> steps and a loop plays until it is
-    /// stopped. A voice played onto a paused bus starts held.
-    /// <para>
-    /// With no slot free the oldest live one-shot is stolen and raises
-    /// <see cref="AudioCommandKind.Stop"/> ahead of the new voice's play. If every live voice loops,
-    /// nothing is stolen.
-    /// </para>
+    /// Starts one voice. A one-shot ends itself after <c>ceil((DurationSeconds - StartSeconds) /
+    /// Pitch / step)</c> steps and a loop plays until it is stopped.
     /// </summary>
+    /// <remarks>
+    /// A voice played onto a paused bus starts held.
+    /// <para>
+    /// With no slot free the oldest live one-shot is stopped and its slot reused. If every live
+    /// voice loops, nothing is stolen.
+    /// </para>
+    /// </remarks>
     /// <returns>The voice started, or <see cref="Voice.None"/> when every voice is a live loop.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The playback's volume, pitch, pan or start is outside its range, or the clip carries a loop
-    /// region that does not fit it.
-    /// </exception>
     public Voice Play(in AudioPlayback playback)
     {
         Guard.InUnit(playback.Volume, nameof(playback));
@@ -236,10 +229,6 @@ public sealed class AudioMixer
     /// </summary>
     /// <remarks>The two hold equal power throughout.</remarks>
     /// <returns>The voice <paramref name="to"/> started, or <see cref="Voice.None"/> when the mixer had none to give, leaving <paramref name="from"/> untouched.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The playback's volume, pitch, pan or start is outside its range, its clip carries a loop region
-    /// that does not fit it, or <paramref name="seconds"/> is negative or not finite.
-    /// </exception>
     public Voice CrossFade(Voice from, in AudioPlayback to, float seconds)
     {
         Guard.InUnit(to.Volume, nameof(to));
@@ -261,7 +250,7 @@ public sealed class AudioMixer
         return started;
     }
 
-    /// <summary>Ends <paramref name="voice"/>, raising <see cref="AudioCommandKind.Stop"/> and freeing its slot.</summary>
+    /// <summary>Ends <paramref name="voice"/> and frees its slot.</summary>
     public void Stop(Voice voice)
     {
         if (!TryResolve(voice, out int index))
@@ -276,14 +265,13 @@ public sealed class AudioMixer
 
     /// <summary>
     /// Ramps this voice's own amplitude to 0 on <see cref="Ease.Linear"/> over <paramref name="seconds"/>,
-    /// then raises <see cref="AudioCommandKind.Stop"/> alone on the landing tick and frees the slot. A
+    /// then stops the voice and frees its slot on the landing tick. A
     /// duration of zero stops the voice at once, as <see cref="Stop(Voice)"/> does.
     /// </summary>
     /// <remarks>
     /// <see cref="IsLive(Voice)"/> reads true until the landing tick. <see cref="Stop(Voice)"/> during
     /// the fade stops at once instead.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="seconds"/> is negative or not finite.</exception>
     public void Stop(Voice voice, float seconds)
     {
         Guard.RequireSeconds(seconds, nameof(seconds));
@@ -332,8 +320,7 @@ public sealed class AudioMixer
     }
 
     /// <summary>
-    /// Sets this voice's own linear amplitude in [0, 1] and raises
-    /// <see cref="AudioCommandKind.SetGain"/> with the gain that resolves to. This cancels any ramp
+    /// Sets this voice's own linear amplitude in [0, 1]. This cancels any ramp
     /// <see cref="FadeVolume(Voice, float, float, Ease)"/> or <see cref="Stop(Voice, float)"/> started
     /// on the voice, including a pending fade-stop.
     /// </summary>
@@ -360,13 +347,8 @@ public sealed class AudioMixer
     /// zero sets the volume at once, exactly as <see cref="SetVolume(Voice, float)"/> does.
     /// </summary>
     /// <remarks>
-    /// Nothing is raised by this call. The first ramped <see cref="AudioCommandKind.SetGain"/> lands on
-    /// the next step.
+    /// A ramp does not move on this call. Its first move lands on the next step.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
-    /// finite, or <paramref name="ease"/> is not a declared curve.
-    /// </exception>
     public void FadeVolume(Voice voice, float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
@@ -390,7 +372,7 @@ public sealed class AudioMixer
     }
 
     /// <summary>
-    /// Sets this voice's playback rate and raises <see cref="AudioCommandKind.SetPitch"/>. The clip
+    /// Sets this voice's playback rate. The clip
     /// time a one-shot has left carries across, and its end tick is recomputed at the new rate.
     /// </summary>
     public void SetPitch(Voice voice, float pitch)
@@ -416,7 +398,7 @@ public sealed class AudioMixer
         Raise(AudioCommandKind.SetPitch, index, in slot, 0f, pitch);
     }
 
-    /// <summary>Sets where this voice sits between the speakers and raises <see cref="AudioCommandKind.SetPan"/>.</summary>
+    /// <summary>Sets where this voice sits between the speakers.</summary>
     /// <param name="pan">Stereo position in [-1, 1]: -1 hard left, 0 centred, 1 hard right.</param>
     /// <param name="voice">The voice to move.</param>
     public void SetPan(Voice voice, float pan)
@@ -435,9 +417,12 @@ public sealed class AudioMixer
 
     /// <summary>
     /// The clip time this voice is at on the step being taken, in seconds from the clip's start. A
-    /// voice that is not live reads 0. The time advances in whole steps at the voice's pitch, holds
-    /// while the voice is held, and wraps within a looping clip's region.
+    /// voice that is not live reads 0.
     /// </summary>
+    /// <remarks>
+    /// The time advances in whole steps at the voice's pitch, holds while the voice is held, and
+    /// wraps within a looping clip's region.
+    /// </remarks>
     public double GetTime(Voice voice)
     {
         if (!TryResolve(voice, out int index))
@@ -468,10 +453,13 @@ public sealed class AudioMixer
     }
 
     /// <summary>
-    /// Whether this voice still owns its slot: sounding, or held by its own pause or its bus's. This
-    /// is ownership, not audibility, so ask it before restarting a sound that may already be going.
-    /// <see cref="IsPlaying"/> and <see cref="IsPaused(Voice)"/> partition it.
+    /// Whether this voice still owns its slot: sounding, or held by its own pause or its bus's. It
+    /// reports ownership, not audibility.
     /// </summary>
+    /// <remarks>
+    /// Ask it before restarting a sound that may already be going. <see cref="IsPlaying"/> and
+    /// <see cref="IsPaused(Voice)"/> partition it.
+    /// </remarks>
     public bool IsLive(Voice voice) => TryResolve(voice, out _);
 
     /// <summary>Whether this voice is live and sounding: not held, and either looping or not yet finished.</summary>

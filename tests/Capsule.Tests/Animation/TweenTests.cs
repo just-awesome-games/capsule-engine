@@ -228,11 +228,13 @@ public sealed class TweenTests
     }
 
     [Fact]
-    public void ALoopModeTheEnumDoesNotDeclare_IsRefused()
+    public void ALoopModeOrCurveTheEnumDoesNotDeclare_IsRefusedAtStart()
     {
         Tween tween = default;
 
         Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(4, Ease.Linear, (TweenLoop)9));
+        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(4, (Ease)999));
+        Assert.False(tween.IsRunning);
     }
 
     // The reflections only say the three directions of a family agree; what they are is pinned here,

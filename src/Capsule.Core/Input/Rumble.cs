@@ -2,15 +2,18 @@ namespace Capsule.Input;
 
 /// <summary>
 /// The run's gamepad rumble: the pulses playing and the level they mix to. Reached as
-/// <c>Run.Rumble</c> and held for the run. A pulse survives a scene transition until it ends or
-/// something stops it. A call taking a handle to a pulse that has ended does nothing. After each
-/// step the host reads <see cref="Level"/> and writes it to the pad.
+/// <c>Run.Rumble</c> and held for the run.
+/// </summary>
+/// <remarks>
+/// A pulse survives a scene transition until it ends or something stops it. A call taking a handle
+/// to a pulse that has ended does nothing. After each step the host reads <see cref="Level"/> and
+/// writes it to the pad.
 /// <para>
 /// Pulse lifetimes and envelopes are computed from the step's tick and the step length. Nothing is
 /// read back from a pad. A headless run reaches the same state as a windowed one, and a driven run
 /// steps identically whether or not a pad is connected.
 /// </para>
-/// </summary>
+/// </remarks>
 public sealed class Rumble
 {
     /// <summary>How many pulses may play at once before <see cref="Play(in RumblePulse)"/> evicts one.</summary>
@@ -30,8 +33,8 @@ public sealed class Rumble
 
     private float _volume = 1f;
 
-    /// <summary>An idle mixer: volume 1, nothing playing.</summary>
-    public Rumble()
+    // An idle mixer: volume 1, nothing playing.
+    internal Rumble()
     {
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
@@ -41,9 +44,10 @@ public sealed class Rumble
     }
 
     /// <summary>
-    /// The master scale applied to <see cref="Level"/>, in [0, 1] and 1 by default. Zero is the
-    /// accessibility toggle: every pulse still runs its course, and the pad reads nothing.
+    /// The master scale applied to <see cref="Level"/>, in [0, 1] and 1 by default. Zero silences
+    /// the pad for players who turn rumble off.
     /// </summary>
+    /// <remarks>Every pulse still runs its course.</remarks>
     public float Volume
     {
         get => _volume;
@@ -105,13 +109,13 @@ public sealed class Rumble
     }
 
     /// <summary>
-    /// Plays a timed pulse. It ends after its seconds have elapsed in whole steps, and reads at full
-    /// amplitude on the step it is played.
-    /// <para>
-    /// With no slot free, the live pulse with the lowest current peak is evicted and its slot reused.
-    /// A quiet tail never keeps a new hit off the pad.
-    /// </para>
+    /// Plays a timed pulse. It ends after its seconds have elapsed in whole steps, and reads at
+    /// full amplitude on the step it is played.
     /// </summary>
+    /// <remarks>
+    /// With no slot free, the live pulse with the lowest current peak is evicted and its slot
+    /// reused. A quiet tail never keeps a new hit off the pad.
+    /// </remarks>
     /// <returns>The pulse started. It is never <see cref="RumbleHandle.None"/>.</returns>
     public RumbleHandle Play(in RumblePulse pulse)
     {
@@ -138,9 +142,11 @@ public sealed class Rumble
     }
 
     /// <summary>
-    /// Holds every motor at <paramref name="level"/> until <see cref="Stop(RumbleHandle)"/>. No fade.
-    /// A held pulse is evicted like any other when it has the lowest peak of a full table.
+    /// Holds every motor at <paramref name="level"/> until <see cref="Stop(RumbleHandle)"/>.
     /// </summary>
+    /// <remarks>
+    /// No fade. A held pulse is evicted like any other when it has the lowest peak of a full table.
+    /// </remarks>
     /// <returns>The pulse started. It is never <see cref="RumbleHandle.None"/>.</returns>
     public RumbleHandle Hold(RumbleLevel level)
     {

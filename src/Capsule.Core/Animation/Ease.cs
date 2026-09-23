@@ -1,13 +1,14 @@
 namespace Capsule.Animation;
 
-/// <summary>
-/// The shape a normalised progress is bent into on its way from 0 to 1. <c>In</c> eases at the start,
-/// <c>Out</c> at the end, and <c>InOut</c> at both. Every member passes through 0 at 0 and 1 at 1, and
-/// only the back and elastic families leave the unit range in between.
-/// </summary>
+/// <summary>The shape a normalised progress is bent into on its way from 0 to 1.</summary>
+/// <remarks>
+/// <c>In</c> eases at the start, <c>Out</c> at the end, and <c>InOut</c> at both. Every member
+/// passes through 0 at 0 and 1 at 1, and only the back and elastic families leave the unit range in
+/// between.
+/// </remarks>
 public enum Ease
 {
-    /// <summary>No bend, so progress passes through unchanged.</summary>
+    /// <summary>No bend. Progress passes through unchanged.</summary>
     Linear,
 
     /// <summary>A quarter of a cosine, the gentlest start of the families here.</summary>
@@ -55,10 +56,10 @@ public enum Ease
     /// <summary>Fifth-power acceleration then deceleration.</summary>
     InOutQuint,
 
-    /// <summary>Doubling every tenth of the way, so it is near-motionless then abrupt.</summary>
+    /// <summary>Doubling every tenth of the way, near-motionless and then abrupt.</summary>
     InExpo,
 
-    /// <summary>Halving every tenth of the way, so it is abrupt then near-motionless.</summary>
+    /// <summary>Halving every tenth of the way, abrupt and then near-motionless.</summary>
     OutExpo,
 
     /// <summary>Exponential acceleration then deceleration.</summary>

@@ -5,13 +5,12 @@ give a settings screen volume sliders.
 
 ## Clips and buses
 
-A clip is `assets/audio/<key>.wav` or `.ogg`, authored under the logic project's `Assets/Audio/` and
-named in code as `CapsuleAssets.Audio.<Key>` ([`assets.md`](assets.md)). The build measures each
-source's duration and reads any loop region out of it, so playback state is derived arithmetically and
-not read back from a device.
+A clip is authored under the logic project's `Assets/Audio/` and named in code as
+`CapsuleAssets.Audio.<Key>` ([`assets.md`](assets.md#audio)). Playback state is computed from the
+duration the build measured and never read back from a device.
 
-A bus is a named group voices are mixed and paused through. A game declares its buses at its assembly
-root:
+A bus is a named group that voices are mixed and paused through. A game declares its buses at its
+assembly root:
 
 ```csharp
 public static class AudioBuses
@@ -24,14 +23,12 @@ public static class AudioBuses
 }
 ```
 
-Every bus is nested under `AudioBus.Master`. Its volume scales every voice, and pausing it pauses every
-voice. A bus registers the first time the mixer is asked to change it, at volume 1 and unpaused. A bus's
-volume and pause state belong to the run, so both stand across every scene transition.
+Every bus sits under `AudioBus.Master`, whose volume and pause reach every voice. Bus volume and pause
+state belong to the run and stand across every scene transition.
 
 ## A sound from an entity
 
-`AudioSource` is a component that plays one clip and holds the voice, so the entity can stop, pause and
-re-level it. The clip is declared as a preload, and the voice is stopped when the entity leaves the
+`AudioSource` plays a clip for its entity and holds the voice. The voice stops when the entity leaves the
 scene:
 
 ```csharp
@@ -45,14 +42,6 @@ if (_body.IsOnFloor && !wasOnFloor)
     _footfall.Play();
 }
 ```
-
-`Play()` restarts from the beginning and stops whatever the source was already playing. `Volume`,
-`Pitch` and `Pan` apply to the live voice at once and to every later one. `Loop` repeats the clip, or
-the clip's loop region where it has one. `PlayOneShot(clip)` plays a separate voice on the same bus and
-pan, leaving this source's own voice alone, and returns the `Voice` for the caller to hold. `IsLive`
-answers whether a voice is still going, and `IsPlaying` and `IsPaused` split it.
-
-Capsule mixes no position into gain. An `AudioSource` is a handle on a voice, not a point in space.
 
 ## Music, and everything the run owns
 
@@ -71,15 +60,13 @@ Run.Audio.SetVolume(AudioBuses.Music, volume);
 Run.Audio.Pause(AudioBuses.Sfx);
 ```
 
-Up to `AudioMixer.MaxVoices` voices sound at once, and a further play steals the oldest. Where every
-voice is a live loop, nothing starts. `UnfocusedVolume` is the master scale applied while the window
-has no input focus.
+The mixer sounds at most `AudioMixer.MaxVoices` voices, shared by the run and every `AudioSource`.
+`AudioMixer.Play` documents which voice a further play steals.
 
 ## Fades
 
-A fade is a ramp the mixer steps on its own tick, through a pause and past the scene that started it. A
-crossfade composes two ramps: the incoming voice eases in while the outgoing one eases out, holding one
-voice's worth of power throughout.
+A fade is a ramp the mixer steps on its own tick. It runs through a pause and past the scene that started
+it. A crossfade eases the incoming voice in while the outgoing one eases out, at equal power:
 
 ```csharp
 Music = Run.Audio.CrossFade(
@@ -88,24 +75,17 @@ Music = Run.Audio.CrossFade(
     seconds: 2f);
 ```
 
-A fade-out cues the next sound once the old one has cleared the mix. A bus fade ducks under dialogue
-the way `SetVolume` levels a bus, only smoothed:
+A fade-out lets the old sound clear the mix before the next one starts. A bus fade ducks music under
+dialogue:
 
 ```csharp
 Run.Audio.Stop(Music, seconds: 0.5f);
 Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
 ```
 
-Ramps step on the mixer's own tick. A held voice still ramps. `SetVolume` cancels a ramp in progress.
-There is no completion callback. Poll `IsLive` for the edge. A crossfade is equal-power.
+A fade raises no completion callback. Poll `IsLive` for the edge.
 
 ## Formats and streaming
 
-`.wav` and `.ogg` are admitted, and MP3 is not. The host holds a `.wav` clip resident for every scene
-that uses it. An `.ogg` clip decodes on one background worker as it plays. A looping voice whose clip
-carries a loop region streams that way whatever its format, and repeats the region gaplessly.
-
-## In tests
-
-Audio mixing is simulation state. A headless run reaches the same mixer state a windowed one does, so a
-test asserts through `Run.Audio` with no playback and no device ([`testing.md`](testing.md)).
+The host holds a `.wav` clip resident for every scene that uses it. An `.ogg` clip decodes on one background worker as it plays. A looping voice whose clip
+carries a loop region streams the same way in either format and repeats the region gaplessly.

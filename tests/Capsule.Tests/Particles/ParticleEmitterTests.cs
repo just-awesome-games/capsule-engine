@@ -129,6 +129,28 @@ public sealed class ParticleEmitterTests
     }
 
     [Fact]
+    public void ClearBeforeTheEmitterStarts_CancelsTheWaitingEmit()
+    {
+        BurstOnConstruction entity = null!;
+
+        SceneFixtures.HookScene scene = new(
+            step: (Scene s, in StepContext context) =>
+            {
+                if (context.Tick == 0)
+                {
+                    entity = new BurstOnConstruction(Vector2.Zero);
+                    entity.Emitter.Clear();
+                    s.Add(entity);
+                }
+            });
+
+        SimulationHost host = new(scene);
+        host.Step();
+
+        Assert.Equal(0, entity.Emitter.Alive);
+    }
+
+    [Fact]
     public void EmitAfterTheRequestingEntitysRemoval_StillDrawsOnTheNextFrame()
     {
         ParticleEmitter shared = new(Tile, capacity: 8) { Lifetime = new FloatRange(2f, 2f) };

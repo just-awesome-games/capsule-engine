@@ -58,8 +58,7 @@ public sealed class TileGrid
     public static TileDefinition EmptyTile => new(EmptyTileType, null);
 
     /// <summary>
-    /// The edge length of one tile in world units, which also equals its edge in atlas pixels. The grid
-    /// supplies this value and the engine does not constrain it.
+    /// The edge length of one tile in world units, which also equals its edge in atlas pixels.
     /// </summary>
     public int TileSize { get; }
 
@@ -81,11 +80,11 @@ public sealed class TileGrid
     /// <summary>The tile palette. Index 0 is <see cref="EmptyTile"/> and type names are unique.</summary>
     public ReadOnlySpan<TileDefinition> TileTypes => _tileTypes;
 
-    /// <summary>Palette indices, row-major, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
+    /// <summary>Palette indices, row-major from the top row, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
 
-    /// <summary>Whether any palette entry is on a layer. A grid with none needs no collider.</summary>
-    public bool Collides
+    // Whether any palette entry is on a layer. A grid with none needs no collider.
+    internal bool Collides
     {
         get
         {
@@ -183,7 +182,7 @@ public sealed class TileGrid
             else if (definition.CollidableFaces != CellFaces2D.All)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares collidableFaces but no layer, so it collides as nothing; add a layer, or drop the faces.",
+                    $"tileTypes[{i}] declares collidableFaces but no layer and collides as nothing. Add a layer or drop the faces.",
                     "tileTypes");
             }
         }

@@ -13,7 +13,10 @@ namespace Capsule.Tiles;
 /// bottom, or null to draw nothing. The grid's <c>Columns</c> and tile size turn it into a source region.
 /// </param>
 /// <param name="Layer">The collision layer a tile of this type is on. Null means it does not collide.</param>
-/// <param name="CollidableFaces">Which sides of the tile collide. Every side by default.</param>
+/// <param name="CollidableFaces">
+/// Which sides of the tile collide. Every side by default. A grid rejects any other value on a tile with
+/// no layer, and no sides on a tile with one.
+/// </param>
 public readonly record struct TileDefinition(
     string Type,
     int? Cell,

@@ -1,16 +1,16 @@
 namespace Capsule.Physics;
 
-/// <summary>
-/// Which layers a query or a mover may hit, held as one bit per <see cref="CollisionLayer"/> so
-/// matching costs a single bit test. <see cref="CollisionWorld2D.CreateFilter(System.ReadOnlySpan{string})"/>
-/// builds a filter from layer names.
+/// <summary>Which layers a query or a mover may hit.</summary>
+/// <remarks>
+/// <see cref="CollisionWorld2D.CreateFilter(System.ReadOnlySpan{string})"/> builds a filter from
+/// layer names.
 /// <para>
 /// A filter belongs to the world that interned its layers. Mixing layers or filters from two worlds
 /// throws <see cref="ArgumentException"/>, as does a layer no world interned, such as the value a
 /// failed <see cref="CollisionWorld2D.TryFindLayer"/> leaves behind. <see cref="None"/> and
 /// <see cref="Everything"/> name no table, and every world accepts them.
 /// </para>
-/// </summary>
+/// </remarks>
 public readonly struct CollisionFilter : IEquatable<CollisionFilter>
 {
     private readonly ulong _mask;

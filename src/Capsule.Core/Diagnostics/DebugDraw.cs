@@ -5,16 +5,20 @@ using Capsule.Rendering;
 namespace Capsule.Diagnostics;
 
 /// <summary>
-/// How game logic draws a wire shape or a label over the world to see what it is doing. It is
-/// write-only, like <see cref="Log"/>, so showing the draws does not change the state a run reaches.
-/// Every method is compiled out of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c>.
-/// <para>
-/// Positions are world units at the settled step, and a draw stays for <c>steps</c> fixed steps
-/// counted by the scheduler's tick. Draws are dropped until the host attaches a buffer, which the
-/// development overlay does. A headless run draws nothing. A draw is shown while its channel is
-/// switched on in the overlay, in the colour <see cref="SetColor"/> gave it.
-/// </para>
+/// How game logic draws a wire shape or a label over the world to see what it is doing.
 /// </summary>
+/// <remarks>
+/// It is write-only, like <see cref="Log"/>. Showing the draws does not change the state a run
+/// reaches. Every method is compiled out of an assembly that does not define
+/// <c>CAPSULE_DEVELOPMENT</c>.
+/// <para>
+/// Positions are world units at the settled step. A draw stays for <c>steps</c> fixed steps counted
+/// by the scheduler's tick, and a <c>steps</c> below one counts as one. Draws are dropped until the
+/// host attaches a buffer, which the development overlay does. A headless run draws nothing. A draw
+/// is shown while its channel is switched on in the overlay, in the colour <see cref="SetColor"/>
+/// gave it.
+/// </para>
+/// </remarks>
 public static class DebugDraw
 {
     /// <summary>
@@ -50,10 +54,12 @@ public static class DebugDraw
     };
 
     /// <summary>
-    /// Sets the colour <paramref name="channel"/>'s draws take when a call passes none, for the rest
-    /// of the process. This is configuration, not a draw, so it is never compiled out. Call it from
-    /// <c>Main</c> before the run starts or from a scene's <c>OnStart</c>.
+    /// Sets the colour <paramref name="channel"/>'s draws take when a call passes none, for the
+    /// rest of the process. It is configuration, not a draw, and is never compiled out.
     /// </summary>
+    /// <remarks>
+    /// Call it from <c>Main</c> before the run starts or from a scene's <c>OnStart</c>.
+    /// </remarks>
     public static void SetColor(string channel, ColorRgba color)
     {
         ArgumentNullException.ThrowIfNull(channel);
@@ -129,10 +135,13 @@ public static class DebugDraw
         ClosedOutline(channel, points, color, 1, motion);
 
     /// <summary>
-    /// Draws <paramref name="text"/> with its top-left corner on <paramref name="position"/>. Null or
-    /// empty text draws nothing. Glyphs are sized in screen pixels at the overlay's scale. A label
-    /// reads the same however far the camera is zoomed.
+    /// Draws <paramref name="text"/> with its top-left corner on <paramref name="position"/>. Null
+    /// or empty text draws nothing.
     /// </summary>
+    /// <remarks>
+    /// Glyphs are sized in screen pixels at the overlay's scale. A label reads the same however far
+    /// the camera is zoomed.
+    /// </remarks>
     [Conditional(Development.Symbol)]
     public static void Text(string channel, Vector2 position, string? text, ColorRgba? color = null, int steps = 1)
     {

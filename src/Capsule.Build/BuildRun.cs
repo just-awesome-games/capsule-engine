@@ -9,8 +9,8 @@ namespace Capsule.Build;
 /// <summary>
 /// One run over one request manifest: key every authored path, derive every keyed scene, measure the
 /// clip set, pack every atlas, and write the manifests the targets read their items back from. The
-/// scene, audio and atlas steps are independent, so one run reports every authoring defect instead
-/// of stopping at the first kind it met.
+/// scene, audio and atlas steps are independent. One run reports every authoring defect instead of
+/// stopping at the first kind it met.
 /// </summary>
 internal static class BuildRun
 {

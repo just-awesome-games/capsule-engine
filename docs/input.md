@@ -6,8 +6,8 @@ nobody at the keyboard.
 ## Declare the actions
 
 An action is a named thing the player can do, apart from the device that does it. A game
-declares its actions once at its assembly root and binds them in one place, so every scene reads
-actions and not keys or pad buttons:
+declares its actions once at its assembly root and binds them in one place. Every scene then reads
+actions, never keys or pad buttons:
 
 ```csharp
 public static class GameInput
@@ -18,11 +18,9 @@ public static class GameInput
     /// <summary>Leaves the floor.</summary>
     public static readonly InputAction Jump = new("jump");
 
-    /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
+    /// <summary>Binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input, GameSettings settings)
     {
-        input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
-
         ActionBindings bindings = input.Bindings;
 
         // Axis contributions accumulate, so each pair adds another way to push the same axis.
@@ -35,13 +33,10 @@ public static class GameInput
 }
 ```
 
-The shell runs `GameBoot.Start` once per run through `WithRunStart`, after saves are restored and
-before the first scene. It attaches its run object, reads the settings, hands them to `Configure`, and
-levels the audio.
-
-Constructing an `InputAction` or an `AxisAction` resolves its name to a dense index, and a binding
-lookup is an array read that allocates nothing. Declare each action once as a static field. Building
-one per step interns a name per step. Two actions of the same name are one action.
+The sample's shell passes `GameBoot.Start` to `EngineBuilder.WithRunStart`, which runs it once after
+saves are restored. It reads the settings and hands them to `Configure`. Declare each action once as a
+static field, as above. Constructing one interns its name. A game that tunes the sampled pad's
+deadzones calls `InputConfiguration.GamepadDeadzones` in the same place.
 
 ## Read them in a step
 
@@ -57,24 +52,11 @@ protected override void OnStep(in StepContext context)
 }
 ```
 
-`IsHeld` is the state this step, `WasPressed` and `WasReleased` are the edges into it, and `Axis`
-reads a value in [-1, 1] from buttons and pad axes plus any unbounded wheel notches bound to it. An
-unbound action is not down and reads zero. `InputState` also carries `Pointer` and `PointerDelta`
-in canvas pixels, which `Camera.CanvasToWorld` maps into the world, and `Scroll` in wheel notches.
+`InputState` holds each action's state for the step and the pointer in canvas pixels.
+`Camera.CanvasToWorld` maps a pointer position into the world. A button prompt reads
+`InputState.ActiveDevice`, the device the player last used.
 
 One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
-
-`ActiveDevice` is the device the player last used: the pad on a step a pad button goes down or a
-stick leaves centre, the keyboard and mouse on a step a key or mouse button goes down, the wheel
-turns or the pointer moves more than two canvas pixels. It is seeded from a pad found at boot and
-is what a button prompt reads, on the step `ActiveDeviceChanged` is true.
-
-## Gamepad deadzones and the overlay key
-
-`InputConfiguration.GamepadDeadzones(stick, trigger)` filters the sampled pad. A run played by a
-driver takes its snapshots as already filtered. `InputConfiguration.DebugMenu(button)` moves the
-button that opens the development overlay, and `InputButton.None` removes it
-([`debugging.md`](debugging.md)).
 
 ## Rebind at a settings screen
 
@@ -88,14 +70,12 @@ if (context.Input.WasAnyPressed(out InputButton button))
 }
 ```
 
-`WasAnyPressed` reports the first key, mouse button, pad button or stick direction that went down this
-step, which is what a "press a button" prompt waits for. Set `FocusNavigator.Interactable` false while
-it waits, so the menu behind it holds still. `InputButton.Name` is the bare name a caption shows, and
-`InputButton.Device` says which slot a captured button belongs in.
+A "press a button" prompt waits on `WasAnyPressed`. Set `FocusNavigator.Interactable` false while it
+waits, and the menu behind it holds still. `InputButton.Name` is the bare name a caption shows.
 
-Persisting a rebinding is the game's job: keep the buttons the player may change in the settings
-document, where an `InputButton` field saves as `"Key.Space"`, and re-apply them at boot. A headless
-run restores that document only under a named save storage; without one it plays the defaults.
+The game persists a rebinding. It keeps the buttons the player may change in the settings document,
+where an `InputButton` field saves as `"Key.Space"`, and re-applies them at run start
+([`persistence.md`](persistence.md)).
 
 ## Rumble
 
@@ -107,16 +87,13 @@ Run.Rumble.Play(low: 0.5f, high: 0.15f, seconds: 0.12f);
 Run.Rumble.Volume = settings.RumbleStrength;
 ```
 
-The composed `RumblePulse`, `Hold` and `Set`, and the mixing rule are the XML reference. The host
-rests the motors on focus loss, disconnect, exit and crash, and while the keyboard or mouse is the
-active device. A headless run rumbles nothing, and a driven run steps identically with or without a
-pad.
+When the host rests the motors is on `Run.Rumble`. A headless run rumbles nothing.
 
 ## Play a run with no one at the keyboard
 
-A run is determined by its initial state, its fixed step and the sequence of `DeviceSnapshot` values
-the simulation sees. An input driver supplies that sequence, so a run plays with no window, no
-graphics device and no player, the same way every time.
+An input driver supplies the `DeviceSnapshot` sequence a run sees. Under the
+[determinism contract](architecture.md#determinism-contract) a driven run plays the same way every time,
+with no window, no graphics device and no player.
 
 An `InputScript` is a fixed sequence of edits and waits, everything it measures counted in fixed
 steps:
@@ -160,8 +137,8 @@ public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
 }
 ```
 
-Returning false ends the run. Put drivers in a directory carrying a `.capsuleignore`, so they are
-part of every build and of no publish
+Returning false ends the run. Put drivers in a directory carrying a `.capsuleignore`. They are then
+part of every ordinary build and of no publish
 ([`build-and-publish.md`](build-and-publish.md#development-only-directories)).
 
 ## The standard command line
@@ -170,8 +147,8 @@ The build registers every driver with a public parameterless constructor under i
 wherever the game declares it. One that takes constructor arguments registers under no name and
 reaches a run through `EngineBuilder.WithInputDriver` or `CapsuleEngine.RunHeadless`.
 
-`WithCommandLine(args)` gives the shell the engine's standard command line, so a game writes no
-parser for it:
+`WithCommandLine(args)` gives the shell the engine's standard command line, and a game writes no
+parser of its own:
 
 ```text
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
@@ -183,6 +160,5 @@ A refused flag and `--help` both throw `CommandLineException`, which the shell c
 configuration chain and reports as the process's exit code.
 
 From a test, the same driver plays under `SimulationHost.Play` or `CapsuleEngine.RunHeadless`
-([`testing.md`](testing.md)). A headless run has no overlay, no surface and no saves directory unless
-one is named. A windowed driven run opens the overlay as any other run does, and stepping asks the
-driver for the step's snapshot.
+([`testing.md`](testing.md)). How a driven run meets the development overlay is
+[`debugging.md`](debugging.md#development-builds).

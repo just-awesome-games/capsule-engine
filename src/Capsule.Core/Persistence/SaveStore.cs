@@ -10,8 +10,9 @@ namespace Capsule.Persistence;
 /// <summary>
 /// A run's save documents, held in memory and reached through <c>Run.Saves</c>. Reads are
 /// synchronous, and a write or delete is persisted by the host after the step that made it and at
-/// the run's teardown. A run with no storage behind it persists and stamps nothing.
+/// the run's teardown.
 /// </summary>
+/// <remarks>A run with no storage behind it persists and stamps nothing.</remarks>
 public sealed class SaveStore
 {
     private static readonly JsonWriterOptions WriterOptions = new() { Indented = true, NewLine = "\n" };
@@ -69,10 +70,11 @@ public sealed class SaveStore
         return false;
     }
 
-    /// <summary>
-    /// Replaces the document. The value is serialized before this returns. A later mutation of
-    /// <paramref name="value"/> does not reach the store. Accepted after <c>Run.RequestExit</c>.
-    /// </summary>
+    /// <summary>Replaces the document. The value is serialized before this returns.</summary>
+    /// <remarks>
+    /// A later mutation of <paramref name="value"/> does not reach the store. Accepted after
+    /// <c>Run.RequestExit</c>.
+    /// </remarks>
     /// <exception cref="JsonException">The value cannot be serialized. The store is unchanged.</exception>
     public void Write<T>(SaveKey<T> key, T value)
     {
@@ -116,11 +118,14 @@ public sealed class SaveStore
     }
 
     /// <summary>
-    /// When the host first and last persisted the document. Null while the document is absent or not
-    /// yet persisted. This is host state, restored at boot and set at each flush. A document
-    /// written this step shows its stamp from the next step. Reading it into gameplay takes an input
-    /// the determinism contract does not cover.
+    /// When the host first and last persisted the document. Null while the document is absent or
+    /// not yet persisted.
     /// </summary>
+    /// <remarks>
+    /// This is host state, restored at boot and set at each flush. A document written this step
+    /// shows its stamp from the next step. Reading it into gameplay takes an input the determinism
+    /// contract does not cover.
+    /// </remarks>
     public SaveMetadata? Metadata(SaveKey key)
     {
         ArgumentNullException.ThrowIfNull(key);

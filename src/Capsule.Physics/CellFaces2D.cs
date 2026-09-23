@@ -1,14 +1,16 @@
 namespace Capsule.Physics;
 
-/// <summary>
-/// Which sides of a grid cell collide. Names follow grid direction in a Y-down world, where
-/// <see cref="Top"/> is the -Y side and <see cref="Bottom"/> the +Y side.
+/// <summary>Which sides of a grid cell collide.</summary>
+/// <remarks>
+/// Names follow grid direction in a Y-down world, where <see cref="Top"/> is the -Y side and
+/// <see cref="Bottom"/> the +Y side.
 /// <para>
-/// <see cref="All"/> is a solid cell. Faces shared with a solid neighbour are culled, leaving a flat
-/// run to read as one surface. A smaller set gives one-directional edges. A face blocks motion crossing
-/// it into the cell, and ignores motion along the face or a body that started on the far side.
+/// <see cref="All"/> is a solid cell. Faces shared with a solid neighbour are culled, leaving a
+/// flat run to read as one surface. A smaller set gives one-directional edges. A face blocks motion
+/// crossing it into the cell, and ignores motion along the face or a body that started on the far
+/// side.
 /// </para>
-/// </summary>
+/// </remarks>
 [Flags]
 public enum CellFaces2D
 {

@@ -10,7 +10,7 @@ public sealed class StillSprites : Renderer
 
     private const int Rows = 10;
 
-    public override void Draw(FrameView view)
+    protected override void Draw(FrameView view)
     {
         for (int i = 0; i < Columns * Rows; i++)
         {

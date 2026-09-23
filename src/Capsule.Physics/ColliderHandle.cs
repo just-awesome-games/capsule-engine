@@ -1,13 +1,13 @@
 namespace Capsule.Physics;
 
-/// <summary>
-/// Identifies a collider in a <see cref="CollisionWorld2D"/>. A handle carries the world that
-/// issued it, and world APIs reject a foreign handle.
+/// <summary>Identifies a collider in a <see cref="CollisionWorld2D"/>.</summary>
+/// <remarks>
+/// A handle carries the world that issued it, and world APIs reject a foreign handle.
 /// <para>
 /// Handles are not reused. A slot refilled after a removal issues a different handle, and a stale
 /// handle reads as absent.
 /// </para>
-/// </summary>
+/// </remarks>
 public readonly struct ColliderHandle : IEquatable<ColliderHandle>
 {
     internal ColliderHandle(int world, int index, int generation)

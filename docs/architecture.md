@@ -26,10 +26,10 @@ project-reference and package consumers alike.
 
 ## Placement
 
-Assemblies follow layers, so the compiler enforces reference direction. Namespaces and folders follow
-domains, so a subsystem is reached with one `using`. A type's assembly follows the charters above: what it
-depends on decides it, and knowing an operating system's locations or linking a native library puts it in a
-platform module.
+Assemblies follow layers, and the compiler enforces their reference direction. Namespaces and folders
+follow domains, and one `using` reaches a subsystem. A type's assembly follows the charters above. What it
+depends on decides it, and a type that knows an operating system's locations or links a native library
+belongs in a platform module.
 
 Its namespace is its domain whichever assembly it lives in: `Capsule` for the step, the run, randomness and
 deterministic math, then a namespace per subsystem, the runtime's `Capsule.Runtime.*` mirrors, and the
@@ -71,16 +71,16 @@ extents, a simulation produces the same state transitions and render intents.
   focus navigators and screen notifiers.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
   which persists across scene transitions.
-- Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, so
-  simulation code evaluates them through `DeterministicMath` instead of `MathF`.
+- Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
+  simulation code calls `DeterministicMath` in place of `MathF`.
 - A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining
   accumulated wall-clock time and alters no step that runs.
-- `Run.TimeScale` is host pace. It moves how much wall time a frame is worth in simulation seconds, alters
-  no step that runs, and is not read by simulation.
+- `Run.TimeScale` is host pace. It sets how many simulation seconds a wall second is worth. It alters no
+  step that runs, and simulation code must not read it.
 
 ## Simulation and host
 
-Simulation emits backend-free `FrameView` state and rewrites a step's `AudioCommand` list the same way. The
+Simulation emits backend-free `FrameView` state and rewrites a step's audio commands the same way. The
 host draws at display rate, interpolating entities and the camera with one shared fraction, and applies
 audio commands after every step. Neither rendering nor audio feeds state back into simulation.
 
@@ -102,18 +102,16 @@ identifier, and a console is another family with a shell of its own. A platform 
 content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, and
 how sound follows the default output.
 
-`Capsule.Runtime` holds no implicit location and no native binding, and its banned-API list refuses one at
-compile time (`src/Capsule.Runtime/BannedSymbols.txt`). The handle it passes back is a `WindowHandle`, the
-graphics backend's handle and not the operating system's: an `SDL_Window*` on the shipped desktop backend,
-which Capsule does not interpret.
+`Capsule.Runtime` holds no implicit location and no native binding. Its banned-API list refuses one at
+compile time (`src/Capsule.Runtime/BannedSymbols.txt`).
 
-`Capsule.Runtime.Desktop` is the platform module the engine ships. It consumes the neutral host's public
-surface with no internals, so it also proves a private module can be written against the contract. Writing
-one is [`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
+`Capsule.Runtime.Desktop` is the platform module the engine ships. It uses only the neutral host's public
+surface, which proves a private module can be written against the same contract. Writing one is
+[`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
 
 ## NativeAOT floor
 
 Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation,
-`dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes a package-consuming game and
-the source-backed headless smoke with NativeAOT on Windows and Linux and runs the result. A console platform
-module builds on the same floor.
+`dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes the package-consuming sample
+and the source-backed headless smoke with NativeAOT on Windows and Linux, and it runs the smoke. A console
+platform module builds on the same floor.

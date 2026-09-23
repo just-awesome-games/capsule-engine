@@ -82,11 +82,10 @@ public sealed class GridColliderTests
         GridCollider2D grid = CollisionFixtures.Paint(world, "....", "####");
         ColliderHandle handle = grid.Handle;
 
-        Assert.Throws<ArgumentException>(() => world.SetFilter(handle, world.Layer("wall"), CollisionFilter.Everything));
+        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, world.Layer("wall")));
         Assert.Throws<ArgumentException>(() => world.PositionOf(handle));
         Assert.Throws<ArgumentException>(() => world.ShapeOf(handle));
         Assert.Throws<ArgumentException>(() => world.LayerOf(handle));
-        Assert.Throws<ArgumentException>(() => world.FilterOf(handle));
         Assert.Null(world.UserDataOf(handle));
 
         // The members that are about grids still take it, and the grid still answers as before.
@@ -121,8 +120,7 @@ public sealed class GridColliderTests
         ColliderHandle body = world.Add(
             Shape2D.Box(new Vector2(20f, 20f), new Vector2(8f, 8f)),
             Vector2.Zero,
-            world.Layer(CollisionFixtures.Solid),
-            CollisionFilter.None);
+            world.Layer(CollisionFixtures.Solid));
 
         // Downwards from inside the empty row: the floor is the only thing below, and it is ignored.
         Assert.False(world.Raycast(new Vector2(56f, 20f), Vector2.UnitY, 64f, CollisionFilter.Everything, out _, floor.Handle));

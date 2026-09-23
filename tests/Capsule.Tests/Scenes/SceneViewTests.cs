@@ -180,6 +180,6 @@ public sealed class SceneViewTests
     // Draws nothing itself; takes the renderer it was given off its entity as it goes.
     private sealed class Detacher(Renderer doomed) : Renderer
     {
-        public override void Draw(FrameView view) => doomed.Entity?.Remove(doomed);
+        protected internal override void Draw(FrameView view) => doomed.Entity?.Remove(doomed);
     }
 }

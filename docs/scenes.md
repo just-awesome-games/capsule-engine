@@ -1,4 +1,4 @@
-\# Scenes
+# Scenes
 
 A scene is one world: its ordered contents and a camera. A `*.scene.json` scene document is its serialized
 form, data carrying no behaviour. Tile maps are one engine-native entry type, not a separate kind of scene.
@@ -26,7 +26,7 @@ class name wins when a value is both.
 ## Format
 
 `SceneDocumentFile` reads and writes format version 6 as two-space-indented UTF-8 JSON with LF endings and
-one trailing newline, so a canonical document is a fixed point of the importer. A document is one uniform
+one trailing newline. A canonical document is a fixed point of the importer. A document is one uniform
 list of entries:
 
 ```json
@@ -74,7 +74,7 @@ code assigning that property still wins. The top-level keys run in the order `fo
 - `formatVersion` is required and must be supported.
 - `baseScene` names an abstract `Scene` subclass. The generator emits the sealed scene deriving from it
   and registers the document as that scene. Absent composes a plain `Scene`. The base must be
-  abstract because a template is never a loadable scene itself.
+  abstract.
 - `camera` names a concrete `Camera` subclass with an accessible parameterless constructor, installed by
   the `Scene(SceneContent)` constructor. Absent leaves the scene's default camera in place, and a
   subclass assigning `Camera` in its own constructor body still wins.
@@ -91,17 +91,17 @@ code assigning that property still wins. The top-level keys run in the order `fo
   `scrollFactor` and then `properties` follow where the entry carries them.
 - `scale` is `[x, y]`, both finite and greater than zero, and absent is identity. It is the raw authored
   factor, and the entity's constructor decides what it scales. A `scale` on a `tile-map` entry is rejected.
-- `zIndex` is the entry's draw band. What draws later is the higher sum of the band and the renderer's own
-  offset within it, ties broken by file order and then attachment order. The spawn carries the authored band
-  to the entity's constructor, which applies it before its own body runs and may override it. The writer
-  emits the field only where the entry authors one. On a `tile-map` entry it applies to the composed map.
+- `zIndex` is the entry's draw band ([`rendering.md`](rendering.md#two-layers-and-draw-order)). The spawn
+  carries the authored band to the entity's constructor, which applies it before its own body runs and may
+  override it. The writer emits the field only where the entry authors one. On a `tile-map` entry it
+  applies to the composed map.
 - `scrollFactor` is `[x, y]`, both finite, and behaves like `zIndex`: carried to the constructor,
   overridable, emitted only where authored. On a `tile-map` entry it applies to the composed map, and a map
   whose palette names a collision layer is rejected with it.
 - IDs are unique, positive and lower than `nextEntityId`, and deleted IDs are not reused. `entities` may be
   empty.
 - A `source` block records tool, relative source path and SHA-256 of the source closure. Its presence marks
-  a derived file, so an authoring source omits it.
+  a derived file, and an authoring source omits it.
 - `properties` is a contract per entry type, consumed by whatever constructs that entry, and not a
   set-by-name bag. Only the engine's `tile-map` declares one. Properties on any other type are rejected at
   parse.
@@ -164,13 +164,13 @@ running `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine validates, ca
 like hand-authored documents, preserving the module's `source` block. A module states each document's key as
 `%(CapsuleDocumentKey)`: the root-relative path with no extension, `/`-joined segments of ASCII letters,
 digits, hyphens and underscores, none a reserved Windows device name. A document naming none is keyed by its
-stem at the root. The engine normalizes the key, so no module implements the key rule. Sprite sheets enter
+stem at the root. The engine normalizes the key, and no module implements the key rule. Sprite sheets enter
 the same way, on `CapsuleSheetDocument` ([`assets.md`](assets.md#authoring-tools)).
 
 Three rules hold a module's targets:
 
 - Read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize` and `CapsuleDotNetHost` only inside
-  targets. NuGet imports package targets in no promised order, so a property a role derives is final at
+  targets. NuGet imports package targets in no promised order. A property a role derives is final at
   execution time and not at evaluation.
 - Collect a glob first and set its key in a second item group, naming the metadata qualified as
   `%(MyModuleSource.RecursiveDir)`. `%(RecursiveDir)` on a glob's own `Include` inside a target batches over

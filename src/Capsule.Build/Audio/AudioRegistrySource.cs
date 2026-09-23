@@ -23,9 +23,9 @@ internal static class AudioRegistrySource
 
     /// <summary>
     /// The C# text declaring <paramref name="clips"/>. A clip's key is its path under the audio
-    /// root, and each directory in it becomes a nested class, so <c>steps/stone</c> is declared as
-    /// <c>CapsuleAssets.Audio.Steps.Stone</c>. Ordered by key, so the output is the same on every
-    /// machine whatever order the build collected the sources in.
+    /// root, and each directory in it becomes a nested class. <c>steps/stone</c> is declared as
+    /// <c>CapsuleAssets.Audio.Steps.Stone</c>. Clips are ordered by key, and the output is the same on
+    /// every machine whatever order the build collected the sources in.
     /// </summary>
     /// <param name="clips">Each clip's key paired with the extension and duration measured for it.</param>
     /// <param name="key">The clip key that could not be declared, when one could not.</param>

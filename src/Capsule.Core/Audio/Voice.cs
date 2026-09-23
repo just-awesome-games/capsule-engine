@@ -1,10 +1,13 @@
 namespace Capsule.Audio;
 
 /// <summary>
-/// A handle to one playing sound, valid on the <see cref="AudioMixer"/> that issued it and until that
-/// voice stops, expires or is stolen. A mixer call taking a handle to a voice that has ended does
-/// nothing. A caller may hold one indefinitely without checking.
+/// A handle to one playing sound, valid on the <see cref="AudioMixer"/> that issued it and until
+/// that voice stops, expires or is stolen.
 /// </summary>
+/// <remarks>
+/// A mixer call taking a handle to a voice that has ended does nothing. A caller may hold one
+/// indefinitely without checking.
+/// </remarks>
 public readonly record struct Voice
 {
     // Slot in the low bits and generation above it. The generation advances when a slot is freed, so a

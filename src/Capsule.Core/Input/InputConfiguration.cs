@@ -3,9 +3,12 @@ namespace Capsule.Input;
 /// <summary>
 /// Everything a game says about input: the actions its devices stand for, the gamepad deadzones its
 /// sampled pad is filtered by, and the host-owned button that opens the debug menu in a development
-/// build. A run played by an input driver treats the driver's snapshots as already filtered, so the
-/// deadzones apply only to a sampled gamepad.
+/// build.
 /// </summary>
+/// <remarks>
+/// The deadzones apply only to a sampled gamepad. A run played by an input driver treats the
+/// driver's snapshots as already filtered.
+/// </remarks>
 /// <example>
 /// <code>
 /// public static readonly AxisAction Move = new("move");
@@ -32,18 +35,20 @@ public sealed class InputConfiguration
     /// <summary>Which buttons and axes stand for which actions.</summary>
     public ActionBindings Bindings { get; } = new();
 
-    /// <summary>Stick radius below which the stick reads as centred.</summary>
+    /// <summary>Stick radius below which the stick reads as centred, <see cref="DefaultStickDeadzone"/> until <see cref="GamepadDeadzones"/> sets it.</summary>
     public float StickDeadzone { get; private set; } = DefaultStickDeadzone;
 
-    /// <summary>Trigger pull below which the trigger reads as released.</summary>
+    /// <summary>Trigger pull below which the trigger reads as released, <see cref="DefaultTriggerDeadzone"/> until <see cref="GamepadDeadzones"/> sets it.</summary>
     public float TriggerDeadzone { get; private set; } = DefaultTriggerDeadzone;
 
     /// <summary>
-    /// The host-owned button that opens Capsule's debug menu in a development build. It defaults to
-    /// <see cref="Key.Grave"/>, does not reach the simulation, wins over a game binding of the same
-    /// button, and is inert in a shipping publish. <see cref="InputButton.None"/> disables opening the
-    /// menu.
+    /// The host-owned button that opens Capsule's debug menu in a development build,
+    /// <see cref="Key.Grave"/> by default. The button does not reach the simulation and wins over a
+    /// game binding of the same button.
     /// </summary>
+    /// <remarks>
+    /// It is inert in a shipping publish, and <see cref="InputButton.None"/> disables the menu.
+    /// </remarks>
     public InputButton DebugMenuButton { get; private set; } = Key.Grave;
 
     // Set when the run's first scene starts. The overlay reads DebugMenuButton once at construction,
@@ -71,12 +76,17 @@ public sealed class InputConfiguration
     /// <summary>
     /// Sets the host-owned button that opens Capsule's development debug menu. It may be a key, pad
     /// button, mouse button or stick direction, and <see cref="InputButton.None"/> leaves the menu
-    /// unreachable. While the menu is open the simulation is held on the settled step and every
-    /// playing voice is suspended. Closing it resumes both.
+    /// unreachable.
     /// </summary>
+    /// <remarks>
+    /// While the menu is open the simulation is held on the settled step and every playing voice is
+    /// suspended. Closing it resumes both.
+    /// </remarks>
     /// <param name="button">The button that toggles the menu on its leading edge.</param>
     /// <returns>This configuration.</returns>
-    /// <exception cref="InvalidOperationException">The run has already booted.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The run's first scene has started. Call this from <c>WithRunStart</c>.
+    /// </exception>
     public InputConfiguration DebugMenu(InputButton button)
     {
         if (Started)

@@ -9,7 +9,7 @@ public enum ShapeKind2D
     /// <summary>A segment and a positive radius, covering the region within that radius of the segment.</summary>
     Capsule,
 
-    /// <summary>An axis-aligned rectangle with no radius. The narrowphase has a fast path for it.</summary>
+    /// <summary>An axis-aligned rectangle with no radius, cheaper to test than a polygon.</summary>
     Box,
 
     /// <summary>A convex polygon of three or four points, optionally rounded by a radius.</summary>

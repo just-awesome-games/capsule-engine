@@ -4,11 +4,13 @@ namespace Capsule.Physics;
 
 /// <summary>
 /// A stadium-shaped collider covering everything within <see cref="Radius"/> of the segment from
-/// <see cref="Start"/> to <see cref="End"/>. Both endpoints are relative to the entity's position plus
-/// <see cref="Collider2D.Offset"/>. Every write throws on endpoints within
-/// <see cref="CollisionTolerance.LinearSlop"/> of each other, on bounds that are not finite, and on a capsule
-/// that cannot be placed at the collider's offset.
+/// <see cref="Start"/> to <see cref="End"/>.
 /// </summary>
+/// <remarks>
+/// Both endpoints are relative to the entity's position plus <see cref="Collider2D.Offset"/>. Every
+/// write throws on endpoints within <see cref="CollisionTolerance.LinearSlop"/> of each other, on
+/// bounds that are not finite, and on a capsule that cannot be placed at the collider's offset.
+/// </remarks>
 public sealed class CapsuleCollider2D : Collider2D
 {
     private Vector2 _start;

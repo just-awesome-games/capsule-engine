@@ -4,19 +4,22 @@ namespace Capsule.Animation;
 
 /// <summary>
 /// One animation as sprites: an ordered run of frames, each held for a whole number of fixed steps,
-/// played once or on a loop. It is immutable and shareable, so every entity playing a clip reads the
-/// same instance and keeps its own <see cref="AnimationPlayback"/> cursor. A clip is identified by
-/// instance and has no value equality. Compare the clip playing against the clip a sheet declared.
+/// played once or on a loop.
 /// </summary>
+/// <remarks>
+/// A clip is immutable. Every entity playing it shares the one instance and keeps its own
+/// <see cref="AnimationPlayback"/> cursor. A clip is identified by instance and has no value
+/// equality. Compare the clip playing against the clip a sheet declared.
+/// </remarks>
 public sealed class SpriteClip
 {
     private readonly Sprite[] _frames;
     private readonly int[] _frameTicks;
 
+    /// <summary>Creates a clip from copies of <paramref name="frames"/> and <paramref name="frameTicks"/>.</summary>
     /// <param name="frames">The frames in play order. At least one.</param>
     /// <param name="frameTicks">How many fixed steps each frame is held for, one per frame and each positive.</param>
     /// <param name="loop">Whether the last frame wraps back to the first instead of finishing.</param>
-    /// <exception cref="ArgumentException">There are no frames, the two runs differ in length, or a duration is not positive.</exception>
     public SpriteClip(ReadOnlySpan<Sprite> frames, ReadOnlySpan<int> frameTicks, bool loop = false)
     {
         if (frames.IsEmpty)

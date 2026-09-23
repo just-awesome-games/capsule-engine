@@ -1,30 +1,24 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Tests.Allocation;
 using Capsule.Tests.Scenes;
 using Capsule.UI;
 
 namespace Capsule.Tests.Runtime;
 
-// The whole managed heap is measured, so nothing else may allocate on another thread meanwhile.
-[Collection(StageAllocationCollection.Name)]
 public sealed class SceneTransitionRetentionTests
 {
-    private const int WarmUpTransitions = 10;
-    private const int MeasuredTransitions = 50;
-
-    // The whole managed heap is compared across the measured transitions, so the slack covers the
-    // GC's own bookkeeping and whatever the runtime lazily allocates on first use of a path it did
-    // not touch during warm-up; a retained scene would cost tens of kilobytes per transition.
-    private const long ToleranceBytes = 16 * 1024;
+    private const int Transitions = 10;
 
     private static readonly TextureHandle Atlas = new("retention/atlas", ".png");
     private static readonly Sprite Frame = new(Atlas, new TextureRegion(0, 0, 16, 16));
 
+    // Reachability is asked of the replaced objects themselves. A whole-heap byte count would also see
+    // whatever the test host and earlier tests' leftover threads hold at that moment.
     [Fact]
     public void ASceneTransition_RetainsNothingOfTheSceneItReplaced()
     {
@@ -33,36 +27,39 @@ public sealed class SceneTransitionRetentionTests
 
         using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), Resolve, new Run());
 
-        long tick = 0;
-        Transition(host, WarmUpTransitions, ref tick);
-        long before = RetainedBytes();
-
-        Transition(host, MeasuredTransitions, ref tick);
-        long after = RetainedBytes();
-
-        Assert.IsType<Lobby>(host.Scene);
-        Assert.InRange(after - before, long.MinValue, ToleranceBytes);
-    }
-
-    // Every step requests the other scene, so one step is one transition.
-    private static void Transition(SceneHost host, int count, ref long tick)
-    {
-        Type expected = host.Scene.GetType();
-        for (int index = 0; index < count; index++)
+        List<WeakReference> replaced = [];
+        for (long tick = 0; tick < Transitions; tick++)
         {
-            host.Step(SceneFixtures.Step(tick++));
-            Assert.NotEqual(expected, host.Scene.GetType());
-            expected = host.Scene.GetType();
+            Replace(host, tick, replaced);
         }
-    }
 
-    private static long RetainedBytes()
-    {
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
-        return GC.GetTotalMemory(true);
+        Assert.All(replaced, reference => Assert.False(reference.IsAlive, $"{reference.Target} outlived its scene."));
+    }
+
+    // Steps once, which swaps in the other scene, and records the outgoing scene, its entities and
+    // their components. Nothing on this stack outlives the call to keep them alive.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Replace(SceneHost host, long tick, List<WeakReference> replaced)
+    {
+        Scene outgoing = host.Scene;
+        Assert.False(outgoing.Entities.IsEmpty);
+
+        replaced.Add(new WeakReference(outgoing));
+        foreach (Entity entity in outgoing.Entities)
+        {
+            replaced.Add(new WeakReference(entity));
+            foreach (Component component in entity.Components)
+            {
+                replaced.Add(new WeakReference(component));
+            }
+        }
+
+        host.Step(SceneFixtures.Step(tick));
+        Assert.NotSame(outgoing, host.Scene);
     }
 
     // Two scenes of the shape a game's are: bodies with colliders in the collision world, sprites,

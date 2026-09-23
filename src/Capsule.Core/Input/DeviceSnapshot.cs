@@ -5,10 +5,12 @@ namespace Capsule.Input;
 
 /// <summary>
 /// An allocation-free snapshot of held keys, pad buttons and mouse buttons, axis positions, the
-/// pointer, and the wheel notches turned since the previous sample. A key or button outside the
-/// capacity its device declares cannot be held. The builders refuse it, and a read reports it as not
-/// down instead of throwing, because reads run on the step path.
+/// pointer, and the wheel notches turned since the previous sample.
 /// </summary>
+/// <remarks>
+/// A key or button outside the capacity its device declares cannot be held. The builders throw on
+/// one, and a read reports it as not down.
+/// </remarks>
 public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 {
     /// <summary>Keys whose <see cref="Key"/> value must remain below this to be representable.</summary>
@@ -63,15 +65,16 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     /// <summary>
     /// Where the pointer sits at this instant, in canvas pixels from the canvas's top-left corner.
-    /// Unclamped. A pointer outside the window reads outside the canvas.
+    /// Unclamped.
     /// </summary>
+    /// <remarks>A pointer outside the window reads outside the canvas.</remarks>
     public Vector2 Pointer => _pointer;
 
     /// <summary>
     /// Wheel notches turned since the previous sample, and zero while the wheel rests. X positive
-    /// scrolls right, Y positive scrolls away from the user. This is a displacement, not a position,
-    /// so latching several samples into one step sums it and nothing bounds it.
+    /// scrolls right, Y positive scrolls away from the user.
     /// </summary>
+    /// <remarks>Unbounded. Latching several samples into one step sums the notches.</remarks>
     public Vector2 Scroll => _scroll;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
@@ -83,7 +86,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
     public bool IsDown(MouseButton button) => (uint)button < MouseCapacity && (_mouseDown & (1u << (int)button)) != 0;
 
-    /// <summary>Position of <paramref name="axis"/> after deadzone filtering. Reads 0 at rest and 0 for <see cref="PadAxis.None"/>.</summary>
+    /// <summary>Position of <paramref name="axis"/>, reading 0 at rest and for <see cref="PadAxis.None"/>.</summary>
     public float Axis(PadAxis axis)
     {
         int index = (int)axis - 1;
@@ -225,11 +228,9 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes);
     }
 
-    /// <summary>
-    /// Unions held buttons with a newer sample, sums the wheel notches, and takes the newer axis
-    /// values and pointer. A click or notch between two fixed steps survives to the next step.
-    /// </summary>
-    public DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
+    // Unions held buttons with a newer sample, sums the wheel notches, and takes the newer axis values
+    // and pointer. A click or notch between two fixed steps survives to the next step.
+    internal DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(
             _down | newer._down,
             _padDown | newer._padDown,
@@ -281,7 +282,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return hash.ToHashCode();
     }
 
-    /// <summary>Whether the two snapshots capture the same instant.</summary>
+    /// <summary>Whether the two snapshots read the same in everything held, every axis, the wheel and the pointer.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
     /// <summary>Whether the two snapshots differ in anything held, any axis, the wheel or the pointer.</summary>

@@ -8,21 +8,27 @@ namespace Capsule.Rendering;
 /// Font pixels right from the origin to this glyph's pen, alignment included.
 /// <see cref="Rendering.Glyph.XOffset"/> applies on top of it.
 /// </param>
-/// <param name="Line">Lines below the first, so the glyph's top edge is this times <see cref="BitmapFont.LineHeight"/>.</param>
+/// <param name="Line">
+/// Lines below the first. The glyph's line starts this times <see cref="BitmapFont.LineHeight"/> below
+/// the origin, and <see cref="Rendering.Glyph.YOffset"/> applies on top of it.
+/// </param>
 /// <param name="Index">
 /// The glyph's codepoint position in the run's text. It counts every codepoint the text carries,
-/// including line breaks, codepoints the font has no glyph for, and the spaces a wrap broke at, so it
+/// including line breaks, codepoints the font has no glyph for, and the spaces a wrap broke at. It
 /// rises over the run and skips the positions that draw nothing.
 /// </param>
 public readonly record struct GlyphPlacement(Glyph Glyph, int PenX, int Line, int Index);
 
 /// <summary>
 /// The layout pass over a font and a run of text, in font pixels and free of any texture, frame or
-/// camera. <c>foreach</c> it to place every glyph the run draws, in reading order. Measuring and
-/// drawing both enumerate this, and a game measures what gets drawn. It allocates nothing and throws
-/// nothing, because it runs on the frame path. A consumer that draws its own glyphs lays the run out
-/// here and emits its own sprites onto either of a <see cref="FrameView"/>'s lists.
+/// camera. <c>foreach</c> it to place every glyph the run draws, in reading order.
 /// </summary>
+/// <remarks>
+/// <see cref="BitmapFont.Measure(ReadOnlySpan{char})"/> and
+/// <see cref="FrameView.Add(in TextIntent)"/> both enumerate it, and a measure matches what is
+/// drawn. Enumerating it allocates nothing and throws nothing. A consumer that draws its own glyphs
+/// lays the run out here and adds its own sprites to a <see cref="FrameView"/>.
+/// </remarks>
 public ref struct GlyphRun
 {
     private readonly BitmapFont _font;
@@ -54,7 +60,7 @@ public ref struct GlyphRun
     /// Lays <paramref name="text"/> out in <paramref name="font"/> as one left-aligned block, with
     /// each line as long as the text makes it.
     /// </summary>
-    /// <param name="font">The font the run is laid out in. Must not be null.</param>
+    /// <param name="font">The font the run is laid out in.</param>
     /// <param name="text">
     /// The text to lay out. <c>\n</c> starts a new line, <c>\r</c> is ignored, and a codepoint the
     /// font carries no glyph for draws nothing and advances nothing.
@@ -65,7 +71,7 @@ public ref struct GlyphRun
     }
 
     /// <summary>Lays <paramref name="text"/> out inside a box of <paramref name="boxWidth"/>.</summary>
-    /// <param name="font">The font the run is laid out in. Must not be null.</param>
+    /// <param name="font">The font the run is laid out in.</param>
     /// <param name="text">The text to lay out, with the line rules the other constructor states.</param>
     /// <param name="boxWidth">
     /// The box's width in font pixels, which lines wrap inside and are aligned within. Zero or less
@@ -75,6 +81,8 @@ public ref struct GlyphRun
     /// <param name="alignment">Where each line sits between the box's edges.</param>
     public GlyphRun(BitmapFont font, ReadOnlySpan<char> text, int boxWidth, TextWrap wrap, HorizontalAlignment alignment)
     {
+        ArgumentNullException.ThrowIfNull(font);
+
         _font = font;
         _text = text;
         _boxWidth = boxWidth;
@@ -86,7 +94,7 @@ public ref struct GlyphRun
     /// <summary>The glyph this enumerator has reached.</summary>
     public GlyphPlacement Current { get; private set; }
 
-    /// <summary>Returns a copy of the run, so <c>foreach</c> leaves this one where it was.</summary>
+    /// <summary>Returns a copy of the run. A <c>foreach</c> leaves this one where it was.</summary>
     public readonly GlyphRun GetEnumerator() => this;
 
     /// <summary>Advances to the next glyph the run draws.</summary>

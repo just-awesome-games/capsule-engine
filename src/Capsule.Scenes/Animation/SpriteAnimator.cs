@@ -9,16 +9,19 @@ namespace Capsule.Animation;
 /// <summary>
 /// Plays a <see cref="SpriteClip"/> on the fixed step and writes its current frame into the
 /// <see cref="SpriteRenderer"/> given at construction. It owns that renderer's
-/// <see cref="SpriteRenderer.Sprite"/> and nothing else, so offset, scale, flips and colour stay with
-/// the renderer. Playback advances on ticks, not on the frame rate, so the frame an entity is on is
-/// simulation state.
+/// <see cref="SpriteRenderer.Sprite"/> and nothing else.
 /// </summary>
 /// <remarks>
+/// Offset, scale, flips and colour stay with the renderer. Playback advances on ticks, not on the
+/// frame rate, and the frame an entity is on is simulation state.
+/// <para>
 /// A <see cref="Component"/> steps after its entity. An entity reading its animator's
-/// <see cref="Clip"/>, <see cref="FrameIndex"/> or <see cref="Tick"/> in <see cref="Entity.OnStep"/>
-/// therefore sees the frame the previous step drew. A <see cref="Play(SpriteClip, int)"/> made there at that
-/// <see cref="Tick"/> re-enters the previous step's position and costs the clip a tick. Put logic that
-/// depends on the frame drawn in a component attached after the animator.
+/// <see cref="Clip"/>, <see cref="FrameIndex"/> or <see cref="Tick"/> in
+/// <see cref="Entity.OnStep"/> therefore sees the frame the previous step drew. A
+/// <see cref="Play(SpriteClip, int)"/> made there at that <see cref="Tick"/> re-enters the previous
+/// step's position and costs the clip a tick. Put logic that depends on the frame drawn in a
+/// component attached after the animator.
+/// </para>
 /// </remarks>
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
 public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
@@ -45,11 +48,13 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     public bool IsFinished => _playback.IsFinished;
 
     /// <summary>
-    /// How many ticks have elapsed since the current pass through <see cref="Clip"/> began, counting every
-    /// earlier frame's ticks plus those spent on the frame drawn. It reaches the clip's total ticks once a
-    /// non-looping clip finishes, and reads 0 while nothing plays. Passing this value to
-    /// <see cref="Play(SpriteClip, int)"/> reproduces this position.
+    /// How many ticks have elapsed since the current pass through <see cref="Clip"/> began,
+    /// counting every earlier frame's ticks plus those spent on the frame drawn. It reaches the
+    /// clip's total ticks once a non-looping clip finishes, and reads 0 while nothing plays.
     /// </summary>
+    /// <remarks>
+    /// Passing this value to <see cref="Play(SpriteClip, int)"/> reproduces this position.
+    /// </remarks>
     public int Tick => Clip is { } clip ? _playback.TickOf(clip.FrameTicks) : 0;
 
     /// <inheritdoc/>
@@ -72,17 +77,20 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     }
 
     /// <summary>
-    /// Plays <paramref name="clip"/> from its first frame and draws that frame immediately, so the change
-    /// shows on this step instead of the next. The first frame then holds for exactly its own ticks,
-    /// counted from the tick of this call whatever point in the step it came from. An entity, a
-    /// component stepped after this animator and a late step all produce the same frames. Called outside a
-    /// step, the first frame holds from the next step.
-    /// <para>
-    /// Playing the clip that is already playing does nothing unless <paramref name="restart"/> is true. A
-    /// finished non-looping clip still counts as the clip playing, so re-triggering it from unchanged
-    /// state needs <paramref name="restart"/>.
-    /// </para>
+    /// Plays <paramref name="clip"/> from its first frame and draws that frame immediately. The
+    /// change shows on this step instead of the next.
     /// </summary>
+    /// <remarks>
+    /// The first frame then holds for exactly its own ticks, counted from the tick of this call
+    /// whatever point in the step it came from. An entity, a component stepped after this animator
+    /// and a late step all produce the same frames. Called outside a step, the first frame holds
+    /// from the next step.
+    /// <para>
+    /// Playing the clip that is already playing does nothing unless <paramref name="restart"/> is
+    /// true. A finished non-looping clip still counts as the clip playing. Re-triggering it from
+    /// unchanged state needs <paramref name="restart"/>.
+    /// </para>
+    /// </remarks>
     /// <param name="clip">The clip to play.</param>
     /// <param name="restart">Whether to restart the clip when it is already playing.</param>
     public void Play(SpriteClip clip, bool restart = false)
@@ -102,24 +110,27 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     }
 
     /// <summary>
-    /// Plays <paramref name="clip"/> positioned as though it had started <paramref name="atTick"/> ticks
-    /// ago, and draws that frame immediately, so the change shows on this step instead of the next. The
-    /// tick lands on the frame the clip would have reached, with that frame's ticks partly spent, and the
-    /// frame then holds for the rest of its ticks, counted from the tick of this call whatever point in the
-    /// step it came from. An <paramref name="atTick"/> of 0 matches
+    /// Plays <paramref name="clip"/> positioned as though it had started <paramref name="atTick"/>
+    /// ticks ago, and draws that frame immediately. The change shows on this step instead of the
+    /// next.
+    /// </summary>
+    /// <remarks>
+    /// The tick lands on the frame the clip would have reached, with that frame's ticks partly
+    /// spent, and the frame then holds for the rest of its ticks, counted from the tick of this
+    /// call whatever point in the step it came from. An <paramref name="atTick"/> of 0 matches
     /// <see cref="Play(SpriteClip, bool)"/> with a restart.
     /// <para>
-    /// A looping clip wraps the tick modulo its total ticks and never finishes. A non-looping clip clamps a
-    /// tick at or past its total to the last frame, already finished. This method always repositions, even
-    /// when <paramref name="clip"/> is the clip already playing, which
+    /// A looping clip wraps the tick modulo its total ticks and never finishes. A non-looping clip
+    /// clamps a tick at or past its total to the last frame, already finished. This overload always
+    /// repositions, even when <paramref name="clip"/> is the clip already playing, which
     /// <see cref="Play(SpriteClip, bool)"/> does not.
     /// </para>
     /// <para>
-    /// Played at <see cref="Tick"/>, a clip with the same frame count and per-frame ticks as the one
-    /// playing draws the frame that clip stood on and continues from there, and a finished clip stays
-    /// finished. A clip of any other shape simply seeks, and nothing is validated.
+    /// Played at <see cref="Tick"/>, a clip with the same frame count and per-frame ticks as the
+    /// one playing draws the frame that clip stood on and continues from there, and a finished clip
+    /// stays finished. A clip of any other shape only seeks, and nothing is validated.
     /// </para>
-    /// </summary>
+    /// </remarks>
     /// <param name="clip">The clip to play.</param>
     /// <param name="atTick">How many ticks have elapsed since the clip would have started. Not negative.</param>
     public void Play(SpriteClip clip, int atTick)
@@ -133,7 +144,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
-    /// <summary>Rewinds to <see cref="Clip"/>'s first frame and keeps the clip, so a reused entity replays it as a new one would.</summary>
+    /// <summary>Rewinds to <see cref="Clip"/>'s first frame and keeps the clip. A reused entity replays it as a new one would.</summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {

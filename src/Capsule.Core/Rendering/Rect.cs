@@ -3,13 +3,16 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// An axis-aligned rect, held as its four edges instead of a corner and an extent, in whatever units
-/// the thing reporting it names. The plane is Y-down, so <see cref="Left"/> and <see cref="Top"/> are
-/// the low edges. Overlap is open, so two rects sharing an edge do not <see cref="Intersects"/>, and
-/// containment is half-open.
+/// An axis-aligned rect, held as its four edges instead of a corner and an extent, in whatever
+/// units the thing reporting it names.
 /// </summary>
+/// <remarks>
+/// The plane is Y-down, and <see cref="Left"/> and <see cref="Top"/> are the low edges. Overlap is
+/// open, and two rects that only share an edge do not <see cref="Intersects"/>. Containment is
+/// half-open.
+/// </remarks>
 /// <param name="Left">The low edge on X.</param>
-/// <param name="Top">The low edge on Y, which is Y-down and so the upper one on screen.</param>
+/// <param name="Top">The low edge on Y, the upper one on screen.</param>
 /// <param name="Right">The high edge on X, not a width.</param>
 /// <param name="Bottom">The high edge on Y, not a height.</param>
 public readonly record struct Rect(float Left, float Top, float Right, float Bottom)
@@ -29,8 +32,8 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
     public Vector2 Size => new(Right - Left, Bottom - Top);
 
     /// <summary>
-    /// Whether this rect encloses nothing testable, meaning no area on an axis or a non-finite edge.
-    /// A NaN edge reads as empty, because it compares false to everything.
+    /// Whether this rect encloses nothing testable, meaning no area on an axis or a non-finite edge,
+    /// NaN included.
     /// </summary>
     public bool IsEmpty =>
         !(Right > Left) ||
@@ -41,11 +44,14 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
         !float.IsFinite(Bottom);
 
     /// <summary>
-    /// Whether <paramref name="point"/> lies inside this rect, in the same units. The region is
-    /// half-open, with <see cref="Left"/> and <see cref="Top"/> inside and <see cref="Right"/> and
-    /// <see cref="Bottom"/> outside, so abutting rects tile the plane with no point claimed twice. An
-    /// empty rect claims nothing, and a non-finite coordinate lands outside every rect.
+    /// Whether <paramref name="point"/> lies inside this rect, in the same units.
     /// </summary>
+    /// <remarks>
+    /// The region is half-open, with <see cref="Left"/> and <see cref="Top"/> inside and
+    /// <see cref="Right"/> and <see cref="Bottom"/> outside. Abutting rects tile the plane with no
+    /// point claimed twice. An empty rect claims nothing, and a non-finite coordinate lands outside
+    /// every rect.
+    /// </remarks>
     public bool Contains(Vector2 point) =>
         !IsEmpty &&
         point.X >= Left &&

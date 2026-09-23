@@ -14,7 +14,7 @@ public partial class Entity
     private bool _appearanceStale = true;
 
     /// <summary>
-    /// Whether this entity and its subtree draw. A hidden entity still steps, collides, plays sound and
+    /// Whether this entity and its subtree draw, defaulting to true. A hidden entity still steps, collides, plays sound and
     /// reports to its notifiers, and a <see cref="UI.Focusable"/> in its subtree takes no focus.
     /// </summary>
     public bool Visible

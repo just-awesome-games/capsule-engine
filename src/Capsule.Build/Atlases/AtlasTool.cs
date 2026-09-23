@@ -389,8 +389,8 @@ internal static class AtlasTool
     /// <summary>
     /// Copies <paramref name="member"/> onto <paramref name="page"/> (RGBA8, <paramref name="pageWidth"/>
     /// texels a row) with its top-left texel at (<paramref name="x"/>, <paramref name="y"/>). The
-    /// border is extruded <see cref="Extrude"/> texels outward on every side, corners included, so a
-    /// clamped linear sample at the member's edge reads the edge and not a neighbour.
+    /// border is extruded <see cref="Extrude"/> texels outward on every side, corners included. A
+    /// clamped linear sample at the member's edge then reads the edge and not a neighbour.
     /// </summary>
     internal static void Blit(byte[] page, int pageWidth, ImageResult member, int x, int y)
     {

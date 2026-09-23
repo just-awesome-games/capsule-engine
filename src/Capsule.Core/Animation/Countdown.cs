@@ -4,21 +4,17 @@ namespace Capsule.Animation;
 /// A one-shot counter of fixed steps for a cooldown, a delay or a lockout. <see cref="Start"/> arms
 /// it, each <see cref="Step"/> spends one tick, and the step that spends the last raises
 /// <see cref="JustFinished"/> for that step alone.
-/// <para>
-/// This is a mutable value. Copying it copies the ticks left, and the copy steps independently.
-/// </para>
 /// </summary>
+/// <remarks>
+/// This is a mutable value. Copying it copies the ticks left, and the copy steps independently.
+/// </remarks>
 /// <example>
 /// <code>
-/// if (fired)
-/// {
-///     _cooldown.Start(30);
-/// }
-///
 /// _cooldown.Step();
-/// if (!_cooldown.IsRunning)
+/// if (firePressed &amp;&amp; !_cooldown.IsRunning)
 /// {
 ///     Fire();
+///     _cooldown.Start(30);
 /// }
 /// </code>
 /// </example>
@@ -40,9 +36,11 @@ public struct Countdown
 
     /// <summary>
     /// Whether the last <see cref="Step"/> spent the final tick. It holds for that one step and the
-    /// next step clears it. <see cref="Stop"/> does not raise it, and neither does a start of zero
-    /// ticks.
+    /// next step clears it.
     /// </summary>
+    /// <remarks>
+    /// <see cref="Stop"/> does not raise it, and neither does a start of zero ticks.
+    /// </remarks>
     public readonly bool JustFinished => _run.JustFinished;
 
     /// <summary>

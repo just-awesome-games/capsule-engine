@@ -13,7 +13,7 @@ internal enum SceneFault
 /// <summary>
 /// One class deriving <see cref="Capsule.Scenes.Scene"/>, abstract included, described once for
 /// both keys a scene document can resolve to it. A document's own key composes it when
-/// <see cref="Registrable"/> and <see cref="Fault"/> is <see cref="SceneFault.None"/>; a document's
+/// <see cref="Registrable"/> and <see cref="Fault"/> is <see cref="SceneFault.None"/>. A document's
 /// <c>baseScene</c> key names it when <see cref="BaseFault"/> is <see cref="SceneFault.None"/>.
 /// </summary>
 /// <param name="Documented">Whether a document composes this scene.</param>

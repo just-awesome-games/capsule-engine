@@ -5,18 +5,10 @@ entity you can move with the keyboard.
 
 ## Run the sample first
 
-Install the .NET SDK that [`global.json`](../global.json) selects, then:
-
-```text
-git clone https://github.com/just-awesome-games/capsule-engine.git
-cd capsule-engine
-dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
-```
-
-Move with A and D, jump with Space, shoot with the left mouse button, pause with Escape. Press
-`` ` `` for the development overlay ([`debugging.md`](debugging.md)).
-[`samples/MinimalGame/`](../samples/MinimalGame/) is a complete game in the shape described below,
-and the fastest start for a game of your own is to copy it.
+Clone the engine and run the sample as the [README](../README.md#quick-start) shows. Its controls are in
+the [sample's README](../samples/MinimalGame/README.md#controls).
+[`samples/MinimalGame/`](../samples/MinimalGame/) is a complete game in the shape described below. The
+fastest start for a game of your own is a copy of it.
 
 ## Three projects
 
@@ -54,9 +46,9 @@ catch (CommandLineException failure)
 
 `CapsuleBoot` is generated into the shell project from its role. Every generated class lives in
 `Capsule.Generated`. The build imports it into the logic and shell projects, and a test project writes
-`using Capsule.Generated;` itself. `WithCommandLine(args)` installs the engine's standard command line
-and throws `CommandLineException` for `--help` and for a flag it refuses, which the `catch` turns into
-the process's exit code. Every other boot lever is on `EngineBuilder`, and each documents its default.
+`using Capsule.Generated;` itself. `WithCommandLine(args)` installs the engine's standard command line,
+and the `catch` reports `--help` or a refused flag ([`input.md`](input.md#the-standard-command-line)).
+Every other boot lever is on `EngineBuilder`, and each documents its default.
 
 ## The game's actions
 
@@ -84,8 +76,8 @@ More on actions, axes and playing a run with no one at the keyboard is in [`inpu
 
 ## A scene with one entity
 
-A scene is one world: its contents and a camera. A camera spans world units, and one that spans
-nothing draws nothing, so the scene sets its span:
+A scene is one world: its contents and a camera. A camera draws nothing until its `ViewportSize` spans
+some world units:
 
 ```csharp
 using System.Numerics;
@@ -128,9 +120,9 @@ public sealed class Blob : Entity
 }
 ```
 
-`OnStep` runs on the fixed step, sixty times a simulated second by default, so `DeltaSeconds` is
-constant and the run is reproducible. `Position` is the entity's top-left corner in world units, and
-`ColorRect` draws its size from there.
+`OnStep` runs on the fixed step, sixty times a simulated second by default. `DeltaSeconds` is constant,
+and the run is reproducible. `Position` is in world units with Y pointing down, and `ColorRect` draws its
+`Size` down and to the right of it.
 
 ## Run it
 
@@ -143,14 +135,4 @@ dotnet test
 
 ## Where to go next
 
-- [`input.md`](input.md): actions, axes, the pointer, input drivers, the standard command line.
-- [`rendering.md`](rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
-- [`audio.md`](audio.md): clips, buses, sources, the mixer.
-- [`collision.md`](collision.md): colliders, layers, contacts, moving a body, queries.
-- [`assets.md`](assets.md): textures, sprite sheets, atlases, audio, fonts, and asset keys.
-- [`scenes.md`](scenes.md): the authoring model and the `*.scene.json` format.
-- [`persistence.md`](persistence.md): save documents and where they go.
-- [`build-and-publish.md`](build-and-publish.md): project wiring, build properties, publishing.
-- [`testing.md`](testing.md): which boundary to test a game at.
-- [`debugging.md`](debugging.md): the development overlay, debug draw, panels, logging.
-- [`architecture.md`](architecture.md): modules, the logic boundary, the determinism contract.
+The [README](../README.md#documentation) indexes every task page.

@@ -105,7 +105,7 @@ public sealed class EntityTransformTests
 
         Assert.Equal(new Vector2(0.5f, 0.5f), child.ScrollFactor);
         InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => child.ScrollFactor = new Vector2(0.25f, 1f));
-        Assert.Contains("set the scroll factor on the root", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("Set the scroll factor on the root", refused.Message, StringComparison.Ordinal);
 
         // A child that collides cannot sit under a scrolled root, from either side.
         Node collides = new(Vector2.Zero);

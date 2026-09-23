@@ -3,16 +3,18 @@ using System.Numerics;
 namespace Capsule;
 
 /// <summary>
-/// The deterministic random source game logic draws from, reached as a run's <c>Random</c>. It is a
-/// xoshiro256** generator seeded from <see cref="Seed"/> and <see cref="Stream"/>. It reads no wall
-/// clock, process entropy or ambient state and advances only on a draw, so one seed, stream and
-/// sequence of calls produce the same values on every platform. Give each independent domain its own
-/// stream of the run's seed.
-/// <para>
-/// A run holds one instance for its life, so neither a transition nor a restart reseeds it. To
-/// restore a position, construct the source again and advance it by <see cref="DrawCount"/> draws.
-/// </para>
+/// The deterministic random source game logic draws from, reached as a run's <c>Random</c>.
 /// </summary>
+/// <remarks>
+/// It is a xoshiro256** generator seeded from <see cref="Seed"/> and <see cref="Stream"/>. It reads
+/// no wall clock, process entropy or ambient state, and it advances only on a draw. One seed,
+/// stream and sequence of calls produce the same values on every platform. Give each independent
+/// domain its own stream of the run's seed.
+/// <para>
+/// A run holds one instance for its life. Neither a transition nor a restart reseeds it. To restore
+/// a position, construct the source again and advance it by <see cref="DrawCount"/> draws.
+/// </para>
+/// </remarks>
 public sealed class RandomSource
 {
     /// <summary>The seed a run uses unless the host configures one. An unconfigured game still replays.</summary>
@@ -96,8 +98,8 @@ public sealed class RandomSource
     /// <param name="maxExclusive">One past the highest. Equal to the minimum returns it and draws nothing.</param>
     /// <returns>A uniformly distributed value in the half-open range.</returns>
     /// <remarks>
-    /// Usually one draw, and this method's cost is not fixed. A span that does not divide 2^32 rejects
-    /// the outputs that would bias it, and each rejection costs one more draw.
+    /// Usually one draw. A span that does not divide 2^32 rejects the outputs that would bias it, and
+    /// each rejection costs one more draw.
     /// </remarks>
     public int Range(int minInclusive, int maxExclusive)
     {
@@ -152,13 +154,13 @@ public sealed class RandomSource
     public float Range(FloatRange range) => Range(range.Min, range.Max);
 
     /// <summary>Draws a float in [0, 1). One draw.</summary>
-    /// <returns>A uniformly distributed value on a grid of 2^-24, so every result is exact in float.</returns>
+    /// <returns>A uniformly distributed value on a grid of 2^-24. Every result is exact in float.</returns>
     public float NextFloat() => (NextUInt64() >> 40) * (1.0f / (1 << 24));
 
     /// <summary>Draws a bool that is true with probability <paramref name="probability"/>. One draw.</summary>
     /// <param name="probability">
     /// In [0, 1]. At or below 0 never passes, at or above 1 always passes, and NaN never passes.
-    /// One draw is consumed whatever the value, so tuning a probability does not shift the stream.
+    /// One draw is consumed whatever the value. Tuning a probability does not shift the stream.
     /// </param>
     public bool Chance(float probability) => NextFloat() < probability;
 
@@ -197,9 +199,8 @@ public sealed class RandomSource
     }
 
     /// <summary>
-    /// Draws a point uniformly distributed over the unit disc by area, so points do not cluster at the
-    /// centre. Two draws per attempt, rejecting the corners of the square, which accepts about four
-    /// attempts in five.
+    /// Draws a point uniformly distributed over the area of the unit disc. Each attempt costs two draws,
+    /// and about four attempts in five land inside the disc and return.
     /// </summary>
     /// <returns>A point inside or on the unit circle, with magnitude at most 1.</returns>
     public Vector2 InsideUnitCircle()
@@ -219,7 +220,6 @@ public sealed class RandomSource
     }
 
     /// <summary>Draws one of <paramref name="values"/> uniformly. Costs one <see cref="Range(int, int)"/>.</summary>
-    /// <exception cref="ArgumentException"><paramref name="values"/> is empty.</exception>
     public T Pick<T>(params ReadOnlySpan<T> values)
     {
         if (values.IsEmpty)
@@ -231,8 +231,8 @@ public sealed class RandomSource
     }
 
     /// <summary>
-    /// Shuffles <paramref name="values"/> in place into a uniformly distributed permutation.
-    /// Fisher-Yates, costing one <see cref="Range(int, int)"/> per value after the first.
+    /// Shuffles <paramref name="values"/> in place into a uniformly distributed permutation. Costs one
+    /// <see cref="Range(int, int)"/> per value after the first.
     /// </summary>
     public void Shuffle<T>(Span<T> values)
     {
@@ -253,10 +253,9 @@ public sealed class RandomSource
 
     /// <summary>
     /// Draws an index of <paramref name="weights"/> with probability proportional to its weight.
-    /// Costs one <see cref="NextFloat"/>. A zero weight is never drawn.
     /// </summary>
+    /// <remarks>Costs one <see cref="NextFloat"/>. A zero weight is never drawn.</remarks>
     /// <param name="weights">Non-negative finite weights, at least one of them positive. They need not sum to 1.</param>
-    /// <exception cref="ArgumentException">The weights are empty, hold a negative or non-finite value, or none is positive.</exception>
     public int WeightedIndex(params ReadOnlySpan<float> weights)
     {
         double total = 0;

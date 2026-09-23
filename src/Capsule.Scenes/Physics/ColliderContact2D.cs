@@ -50,9 +50,10 @@ public readonly struct ColliderContact2D
     public Vector2 Normal { get; }
 
     /// <summary>
-    /// How far the two shapes overlap along <see cref="Normal"/>, so <c>Normal * Depth</c> leads out of
-    /// the touched thing. Zero when they merely touch, and on every contact a sweep reports.
+    /// How far the two shapes overlap along <see cref="Normal"/>, in world units. <c>Normal * Depth</c>
+    /// leads out of the touched thing.
     /// </summary>
+    /// <remarks>Zero when the shapes merely touch, and on every contact a sweep reports.</remarks>
     public float Depth { get; }
 
     /// <summary>The other collider, or null when a grid cell was touched.</summary>
@@ -65,10 +66,9 @@ public readonly struct ColliderContact2D
     public Entity? OtherEntity => OtherCollider?.Entity ?? Tile?.Map;
 
     /// <summary>
-    /// The touched surface's layer as the name it was interned under, which is the readable form for a
-    /// log line. Reads empty on a default contact, which has no world. A handler deciding what to do
-    /// compares <see cref="Layer"/> instead, which costs no lookup.
+    /// The touched surface's layer name, for a log line. Reads empty on a default contact.
     /// </summary>
+    /// <remarks>A handler deciding what to do compares <see cref="Layer"/>, which costs no lookup.</remarks>
     public string LayerName => _world?.NameOf(Layer) ?? string.Empty;
 
     // A stable identity that pairs an enter with its exit without exposing grid internals through the

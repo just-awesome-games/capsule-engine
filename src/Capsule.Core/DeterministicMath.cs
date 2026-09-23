@@ -1,17 +1,21 @@
 namespace Capsule;
 
 /// <summary>
-/// The transcendental functions a simulation calls instead of <see cref="MathF"/>, whose results differ
-/// between operating systems. Each function here is built from operations IEEE 754 specifies exactly, so
-/// its result depends only on the bits of its arguments and is identical on every platform. None is
-/// correctly rounded, so each member states its error bound. Presentation-only arithmetic may call
-/// <see cref="MathF"/>.
+/// The transcendental functions a simulation calls instead of <see cref="MathF"/>, whose results
+/// differ between operating systems. Each function is built from operations IEEE 754 specifies
+/// exactly.
 /// </summary>
 /// <remarks>
-/// NaN, the infinities, the signed zeros, a domain error and the quadrant of <see cref="Atan2"/> follow
-/// the <see cref="Math"/> function's double result rounded to float, and every NaN returned is
-/// <see cref="float.NaN"/>.
+/// Its result depends only on the bits of its arguments and is identical on every platform. No
+/// function is correctly rounded, and each member states its error bound. Presentation-only
+/// arithmetic may call <see cref="MathF"/>.
+/// <para>
+/// NaN, the infinities, the signed zeros, a domain error and the quadrant of <see cref="Atan2"/>
+/// follow the <see cref="Math"/> function's double result rounded to float, and every NaN returned
+/// is <see cref="float.NaN"/>.
+/// </para>
 /// </remarks>
+///
 public static class DeterministicMath
 {
     // The working is double because argument reduction needs headroom a float cannot give, and each result

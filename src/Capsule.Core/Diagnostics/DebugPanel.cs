@@ -8,24 +8,26 @@ namespace Capsule.Diagnostics;
 
 /// <summary>
 /// How a scene, entity or component offers itself to the development overlay from its
-/// <c>OnDebugPanel</c> hook. Each call writes one row, shown in write order: a labelled value to
-/// read, a command to run, or a toggle to flip. It is write-only, like <see cref="DebugDraw"/>, and
-/// every verb is compiled out of an assembly that does not define <c>CAPSULE_DEVELOPMENT</c>. Values
-/// are formatted in the invariant culture.
+/// <c>OnDebugPanel</c> hook. The engine builds the panel and hands it to the hook.
+/// </summary>
+/// <remarks>
+/// Each call writes one row, shown in write order: a labelled value to read, a command to run, or a
+/// toggle to flip. It is write-only, like <see cref="DebugDraw"/>, and every verb is compiled out of
+/// an assembly that does not define <c>CAPSULE_DEVELOPMENT</c>. Values are formatted in the invariant
+/// culture.
 /// <para>
 /// A command or toggle runs while the overlay holds the simulation, inside the fixed step the overlay
 /// then runs through the ordinary input path. It runs after that step has begun and before the
-/// scene's own logic, so its sounds and any scene transition it requests belong to that step.
+/// scene's own logic. Its sounds and any scene transition it requests belong to that step.
 /// </para>
-/// </summary>
+/// </remarks>
 public sealed class DebugPanel
 {
     private const string Null = "null";
 
     private readonly List<DebugPanelRow> _rows = [];
 
-    /// <summary>An empty panel. A game constructs one to call its own <c>OnDebugPanel</c> in a test.</summary>
-    public DebugPanel()
+    internal DebugPanel()
     {
     }
 

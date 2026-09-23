@@ -12,10 +12,10 @@ internal readonly record struct KeyedAsset(string Group, string Key, string Exte
 
 /// <summary>
 /// The key pass: the single place an authored path becomes the key everything downstream spells it by.
-/// The rule is a C# function shared with the generators, and MSBuild cannot call it, so the targets
-/// hand this every authored path and read the derived names back out of the manifests it writes. The
-/// key, the shipped path and the generated identifier all come from here, so no engine rule dictates
-/// how a game spells a directory below a domain root.
+/// The rule is a C# function shared with the generators, and MSBuild cannot call it. The targets hand
+/// this every authored path and read the derived names back out of the manifests it writes. The key,
+/// the shipped path and the generated identifier all come from here. No engine rule dictates how a
+/// game spells a directory below a domain root.
 /// </summary>
 internal static class KeyTool
 {
@@ -78,8 +78,8 @@ internal static class KeyTool
 
     /// <summary>
     /// Writes the manifests the targets read their items back from, each holding the strings one
-    /// hook needs so no target has to take a key apart again. Both are written on every run, so a
-    /// hook never reads what a previous build left behind.
+    /// hook needs. No target has to take a key apart again. Both are written on every run, and a hook
+    /// never reads what a previous build left behind.
     /// </summary>
     /// <param name="keyed">Everything this run keyed.</param>
     /// <param name="outputDirectory">Where the manifests are written.</param>

@@ -1,13 +1,15 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// A physical gamepad button, with face buttons named by position and not by brand. The triggers
-/// appear here as well as on <see cref="PadAxis"/>, and read as pressed once pulled past the trigger
-/// deadzone. Values must stay below <see cref="DeviceSnapshot.PadCapacity"/>.
+/// A physical gamepad button, with face buttons named by position and not by brand.
 /// </summary>
+/// <remarks>
+/// The triggers appear here as well as on <see cref="PadAxis"/>, and read as pressed once pulled
+/// past the trigger deadzone. Values must stay below <see cref="DeviceSnapshot.PadCapacity"/>.
+/// </remarks>
 public enum PadButton
 {
-    /// <summary>No button. It is the default, and an unassigned <see cref="PadButton"/> does not mean a real button.</summary>
+    /// <summary>No button, and the default.</summary>
     None,
 
     /// <summary>Up on the directional pad.</summary>

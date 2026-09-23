@@ -7,9 +7,18 @@ using Capsule.Scenes;
 namespace Capsule.Particles;
 
 /// <summary>
-/// Simulation state stepped on the fixed tick, emitting one <see cref="SpriteIntent"/> per live
-/// particle through the sprite path. Nothing runs on the host, so a headless run emits exactly the
-/// intents a windowed run draws and two runs of one seed are identical.
+/// Draws a fixed pool of sprite particles simulated on the fixed step, one
+/// <see cref="SpriteIntent"/> per live particle. A particle moves on its own once spawned and does
+/// not follow the entity.
+/// </summary>
+/// <remarks>
+/// Positions are in world units under a world root and canvas pixels under a screen root.
+/// <para>
+/// The simulation is engine state seeded from the run's seed. A headless run emits exactly the
+/// intents a windowed run draws, and two runs of one seed are identical. A spawn into a full pool
+/// replaces the live particle nearest the end of its life.
+/// </para>
+/// </remarks>
 /// <example>
 /// An effect that outlives what asked for it is its own entity, removed once its last particle dies.
 /// <code>
@@ -45,7 +54,6 @@ namespace Capsule.Particles;
 /// }
 /// </code>
 /// </example>
-/// </summary>
 public sealed class ParticleEmitter : Renderer
 {
     // The top byte set, so a particle stream never collides with a stream a game mints from its own
@@ -82,7 +90,7 @@ public sealed class ParticleEmitter : Renderer
     private Vector2 _boundsMax;
 
     /// <param name="sprite">The frame a particle draws when <see cref="Sprites"/> is empty.</param>
-    /// <param name="capacity">The pool's fixed size. Positive.</param>
+    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
     public ParticleEmitter(Sprite sprite, int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
@@ -96,55 +104,64 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>The pool's fixed size, set at construction.</summary>
     public int Capacity { get; }
 
-    /// <summary>Live particles right now.</summary>
+    /// <summary>How many particles are alive now.</summary>
     public int Alive => _alive;
 
-    /// <summary>The point in the entity's own space the shape is centred on, as <see cref="SpriteRenderer.Offset"/>; zero by default.</summary>
+    /// <summary>The point in the entity's own space the emit shape is centred on, placed as <see cref="SpriteRenderer.Offset"/> is. Zero by default.</summary>
     public Vector2 Offset { get; set; }
 
-    /// <summary>Where a particle starts, about <see cref="Offset"/>; <see cref="EmitShape.Point"/> by default.</summary>
+    /// <summary>Where a particle starts, about <see cref="Offset"/>. <see cref="EmitShape.Point"/> by default.</summary>
     public EmitShape Shape { get; set; }
 
     /// <summary>
-    /// The cone's centre, in the entity's own space, not normalised by the caller and transformed at
-    /// spawn by the entity's world rotation and scale sign; zero draws uniformly over the full circle
-    /// instead of about a direction. <see cref="Vector2.UnitX"/> by default.
+    /// The launch cone's centre line in the entity's own space, <see cref="Vector2.UnitX"/> by default.
+    /// Zero launches uniformly over the full circle.
     /// </summary>
+    /// <remarks>
+    /// Any non-zero length works. The entity's world rotation and the sign of its world scale turn and
+    /// mirror the direction at spawn.
+    /// </remarks>
     public Vector2 Direction { get; set; } = Vector2.UnitX;
 
-    /// <summary>Degrees of the cone's full width about <see cref="Direction"/>, uniform; zero by default.</summary>
+    /// <summary>The cone's full width about <see cref="Direction"/>, in degrees, drawn uniformly. Zero launches along <see cref="Direction"/>.</summary>
     public float Spread { get; set; }
 
-    /// <summary>Units per second along the drawn direction at spawn; zero by default.</summary>
+    /// <summary>The launch speed, in units per second along the drawn direction. Zero by default.</summary>
     public FloatRange Speed { get; set; }
 
-    /// <summary>Seconds a particle lives, held as ticks at spawn; one second by default.</summary>
+    /// <summary>
+    /// Seconds a particle lives, one by default. The drawn value rounds up to whole steps at spawn, one
+    /// step at least.
+    /// </summary>
     public FloatRange Lifetime { get; set; } = new(1f, 1f);
 
-    /// <summary>Units per second squared added to velocity each tick; zero by default.</summary>
+    /// <summary>Acceleration on every live particle, in units per second squared. Zero by default.</summary>
     public Vector2 Gravity { get; set; }
 
-    /// <summary>Per second, multiplying velocity by <c>max(0, 1 - Damping * dt)</c> each tick; zero by default.</summary>
+    /// <summary>Velocity drag per second, applied as <c>velocity *= max(0, 1 - Damping * dt)</c> each step. Zero by default.</summary>
     public float Damping { get; set; }
 
-    /// <summary>Degrees at spawn, about the frame's pivot; zero by default.</summary>
+    /// <summary>The spawn rotation about the frame's pivot, in degrees. Zero by default.</summary>
     public FloatRange Rotation { get; set; }
 
-    /// <summary>Degrees per second at spawn; zero by default.</summary>
+    /// <summary>The spin drawn at spawn, in degrees per second. Zero by default.</summary>
     public FloatRange AngularVelocity { get; set; }
 
-    /// <summary>The spawn multiplier on the frame's texel size; one by default.</summary>
+    /// <summary>The spawn multiplier on the frame's texel size. One by default.</summary>
     public FloatRange Scale { get; set; } = new(1f, 1f);
 
-    /// <summary>Multiplied into the spawn <see cref="Scale"/> by age fraction; a constant one by default.</summary>
+    /// <summary>
+    /// A factor on the spawn <see cref="Scale"/>, read at the particle's age fraction from 0 to 1.
+    /// A constant one by default.
+    /// </summary>
+    /// <remarks>A default <see cref="Curve"/> reads zero and hides every particle.</remarks>
     public Curve ScaleOverLifetime { get; set; } = Curve.Constant(1f);
 
-    /// <summary>The tint by age fraction; white by default.</summary>
+    /// <summary>The tint read at the particle's age fraction from 0 to 1. White by default.</summary>
     public Gradient Color { get; set; }
 
     /// <summary>
-    /// The frames a particle draws from; empty means the constructor's sprite. Setting it recomputes
-    /// the largest region for <see cref="Bounds"/>.
+    /// The frames a particle draws from. Empty, the default, draws the constructor's sprite.
     /// </summary>
     public ReadOnlyMemory<Sprite> Sprites
     {
@@ -157,46 +174,62 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
-    /// <summary>How a particle with more than one frame picks which to draw; <see cref="Particles.SpriteMode.RandomAtSpawn"/> by default.</summary>
+    /// <summary>How a particle picks which of <see cref="Sprites"/> to draw. <see cref="Particles.SpriteMode.RandomAtSpawn"/> by default.</summary>
     public SpriteMode SpriteMode { get; set; }
 
-    /// <summary>Fraction of the emitter's own velocity added to a spawned particle; zero by default.</summary>
+    /// <summary>The fraction of the emitter's own velocity a particle spawned by <see cref="Rate"/> or <see cref="RateOverDistance"/> inherits. Zero by default.</summary>
     public float InheritVelocity { get; set; }
 
-    /// <summary>How every intent blends; <see cref="BlendMode.Alpha"/> by default.</summary>
+    /// <summary>How every particle blends with what is already drawn. <see cref="BlendMode.Alpha"/> by default.</summary>
     public BlendMode Blend { get; set; }
 
-    /// <summary>Whether <see cref="Rate"/> and <see cref="RateOverDistance"/> spawn; true by default. A pool with neither set still spawns nothing until <see cref="Emit(int)"/>.</summary>
+    /// <summary>
+    /// Whether <see cref="Rate"/> and <see cref="RateOverDistance"/> spawn, true by default.
+    /// <see cref="Emit(int)"/> spawns either way.
+    /// </summary>
     public bool Emitting { get; set; } = true;
 
-    /// <summary>Particles per second while <see cref="Emitting"/>, with the fraction carried across ticks; zero by default.</summary>
+    /// <summary>Particles spawned per second while <see cref="Emitting"/>, zero by default. A fractional remainder carries to the next step.</summary>
     public float Rate { get; set; }
 
-    /// <summary>Particles per world unit the emitter moves while <see cref="Emitting"/>; zero by default.</summary>
+    /// <summary>Particles spawned per unit the emitter moves while <see cref="Emitting"/>, zero by default. A fractional remainder carries to the next step.</summary>
     public float RateOverDistance { get; set; }
 
-    /// <summary>Seconds folded into the emitter's first step, filling the pool on the first frame instead of over time; zero by default.</summary>
+    /// <summary>
+    /// Seconds of <see cref="Rate"/> emission simulated in the emitter's first step. Zero, the default,
+    /// starts empty.
+    /// </summary>
+    /// <remarks>
+    /// Read once, on the first step after the emitter joins a scene, and only while <see cref="Emitting"/>.
+    /// The prewarm holds the emitter still. <see cref="RateOverDistance"/> spawns nothing during it.
+    /// </remarks>
     public float PrewarmSeconds { get; set; }
 
-    /// <summary>The rect covering every live particle, inflated by the largest frame's reach; empty with nothing alive.</summary>
+    /// <summary>
+    /// The rect covering every live particle's last move, grown by the largest frame's reach at its
+    /// largest scale. Empty with nothing alive.
+    /// </summary>
     public override Rect Bounds => _hasBounds
         ? Inflate(_boundsMin, _boundsMax, _boundsRadius * Scale.Max * ScaleOverLifetime.Max)
         : default;
 
     /// <summary>
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
-    /// as the entity is placed at this call. Before the emitter has started, the spawn is held and
-    /// placed once it has.
+    /// placed by the entity's transform at this call. Before the emitter has started, the spawn waits
+    /// and is placed when it starts.
     /// </summary>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     public void Emit(int count) => Emit(count, Offset);
 
     /// <summary>
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> centred on
-    /// <paramref name="at"/> in the entity's own space. Before the emitter has started, the spawn is
-    /// held and placed once it has, at the transform the entity starts with. A pool shared by a room
-    /// sits on an unmoved root entity, so <paramref name="at"/> is a world point there.
+    /// <paramref name="at"/> in the entity's own space. On an unmoved root entity, <paramref name="at"/>
+    /// is a world point.
     /// </summary>
+    /// <remarks>
+    /// Before the emitter has started, the spawn waits and is placed at the transform the entity starts
+    /// with. Counts from several early calls add up and spawn at the last call's point.
+    /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     /// <param name="at">Where the shape is centred, instead of <see cref="Offset"/>.</param>
     public void Emit(int count, Vector2 at)
@@ -217,11 +250,16 @@ public sealed class ParticleEmitter : Renderer
         SpawnImmediate(count, at);
     }
 
-    /// <summary>Frees every slot, zeroes the accumulators, and restarts the slot cursor from 0.</summary>
+    /// <summary>
+    /// Removes every live particle, drops the fractional <see cref="Rate"/> and
+    /// <see cref="RateOverDistance"/> remainders, and cancels any <see cref="Emit(int)"/> count waiting
+    /// for the emitter to start.
+    /// </summary>
     public void Clear()
     {
         Array.Clear(_particles);
         _alive = 0;
+        _pendingCount = 0;
         _rateAccumulator = 0f;
         _distanceAccumulator = 0f;
         _hasBounds = false;
@@ -256,14 +294,13 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
-    /// <summary>Clears every particle and the prewarm flag, so a reused emitter starts its next life as a new one would.</summary>
+    /// <summary>Clears every particle and the prewarm. A reused emitter starts its next life as a new one would.</summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
         base.OnRemovedFromScene();
 
         Clear();
-        _pendingCount = 0;
         _prewarmed = false;
         _lastDeltaSeconds = 1f / StepContext.DefaultStepHertz;
     }
@@ -315,7 +352,7 @@ public sealed class ParticleEmitter : Renderer
     }
 
     /// <inheritdoc/>
-    public override void Draw(FrameView view)
+    protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
 

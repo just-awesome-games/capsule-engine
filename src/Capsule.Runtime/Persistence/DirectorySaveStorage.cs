@@ -7,11 +7,7 @@ using Capsule.Persistence;
 namespace Capsule.Runtime.Persistence;
 
 /// <summary>
-/// The directory medium: <c>&lt;name&gt;.save.json</c> per document under one directory, created on
-/// the first persist. Each write is staged as <c>.save.json.tmp</c> and swapped in, keeping the
-/// previous file as <c>.save.json.bak</c>. A file that does not parse at restore is set aside as
-/// <c>.save.json.corrupt</c> and its backup restored in its place, with a warning either way. A read
-/// failure propagates and the run does not boot. <c>docs/persistence.md</c> holds the file format.
+/// Keeps each document as a file under one directory, in the layout <c>docs/persistence.md</c> gives.
 /// </summary>
 public sealed class DirectorySaveStorage : ISaveStorage
 {
@@ -32,7 +28,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
     private Utf8JsonWriter? _writer;
 
     /// <summary>Stores documents under <paramref name="directory"/>. A relative path resolves against the working directory.</summary>
-    /// <exception cref="ArgumentException">The path is null or blank.</exception>
     public DirectorySaveStorage(string directory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
@@ -40,12 +35,12 @@ public sealed class DirectorySaveStorage : ISaveStorage
         Directory = Path.GetFullPath(directory);
     }
 
-    /// <summary>The directory documents are stored in, as a full path.</summary>
+    /// <summary>The directory documents are stored in, as a full path. It is created on the first write.</summary>
     public string Directory { get; }
 
     /// <inheritdoc/>
     /// <exception cref="ArgumentNullException">The callback is null.</exception>
-    /// <exception cref="IOException">A file could not be read, moved or copied.</exception>
+    /// <exception cref="IOException">A file could not be read, moved or copied. The run does not boot.</exception>
     /// <exception cref="UnauthorizedAccessException">The directory or a file in it denies access.</exception>
     public void Restore(Action<string, string, SaveMetadata> restore)
     {

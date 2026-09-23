@@ -6,9 +6,12 @@ namespace Capsule.Scenes.Documents;
 
 /// <summary>
 /// A scene as data, held as one ordered list of engine-native tile maps and game-defined entity
-/// placements. File order is composition order. The constructor enforces the format's invariants, so
-/// every document that exists is valid.
+/// placements.
 /// </summary>
+/// <remarks>
+/// File order is composition order. The constructor enforces the format's invariants, and every
+/// document that exists is valid.
+/// </remarks>
 public sealed class SceneDocument
 {
     // The entry type the engine reserves for tile maps. A document may hold any number of them.
@@ -21,6 +24,7 @@ public sealed class SceneDocument
 
     private readonly SceneDocumentEntry[] _entries;
 
+    /// <summary>A validated document over <paramref name="entries"/>.</summary>
     /// <param name="entries">Every tile map and entity placement, in composition order.</param>
     /// <param name="nextEntityId">The next id to hand out. At least 1, and greater than every entry's id.</param>
     /// <param name="source">Where a derived document came from, or null when it is hand-authored.</param>
@@ -46,9 +50,10 @@ public sealed class SceneDocument
     public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
     /// <summary>
-    /// The next id to hand out. It rises and never falls, ids are never reused, and deleting an entry
-    /// does not rewind it. Every entry's id is below this value.
+    /// The next id to hand out. It rises and never falls, ids are never reused, and deleting an
+    /// entry does not rewind it.
     /// </summary>
+    /// <remarks>Every entry's id is below this value.</remarks>
     public int NextEntityId { get; }
 
     /// <summary>The authoring source this document was derived from, or null when it is hand-authored.</summary>
@@ -84,7 +89,7 @@ public sealed class SceneDocument
                 string identity = entity is { } unidentified
                     ? string.Create(CultureInfo.InvariantCulture, $"entity '{unidentified.Type}' at ({unidentified.X}, {unidentified.Y})")
                     : $"the '{TileMapType}' entry";
-                throw Malformed($"{identity} has no id; assign one from nextEntityId when the entry is created.");
+                throw Malformed($"{identity} has no id. Assign one from nextEntityId when the entry is created.");
             }
 
             if (tileMap is { Grid: null })

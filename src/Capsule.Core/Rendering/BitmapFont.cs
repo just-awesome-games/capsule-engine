@@ -1,16 +1,19 @@
+using System.ComponentModel;
 using System.Numerics;
 using Capsule.Assets;
 
 namespace Capsule.Rendering;
 
 /// <summary>
-/// A font baked to texture pages, with its line metrics, the glyph cut for each codepoint it carries,
-/// and the kerning between them. It is immutable once constructed and built by generated code from
-/// the data the build read out of the authored font, so nothing is parsed or measured at run time.
+/// A font baked to texture pages, with its line metrics, the glyph cut for each codepoint it
+/// carries, and the kerning between them. Generated code builds it from the data the build read out
+/// of the authored font, and it is immutable after that.
+/// </summary>
+/// <remarks>
 /// Every measure is in font pixels, the units the font was baked at. To draw a run of text, hand a
 /// <see cref="TextIntent"/> to <see cref="FrameView.Add(in TextIntent)"/>. A <c>Label</c> does that
 /// for an entity.
-/// </summary>
+/// </remarks>
 public sealed partial class BitmapFont
 {
     // Codepoints below this get a direct index, and the rest binary-search the sorted glyphs. This covers
@@ -30,7 +33,8 @@ public sealed partial class BitmapFont
     // Index into _glyphs per codepoint below DenseLimit, and -1 where the font has no glyph.
     private readonly int[] _dense;
 
-    /// <summary>Builds a font from the data the build read. Every array is copied.</summary>
+    /// <summary>Builds a font from the data the build read.</summary>
+    /// <remarks>Called by generated code. Every array is copied.</remarks>
     /// <param name="lineHeight">Font pixels from one line's top edge to the next. Must be positive.</param>
     /// <param name="baseline">Font pixels from a line's top edge down to the baseline.</param>
     /// <param name="pages">The texture pages glyphs are cut from, in the order the font declares them. At least one.</param>
@@ -42,6 +46,7 @@ public sealed partial class BitmapFont
     /// <paramref name="pages"/> is empty, a glyph names no page of this font, or two glyphs carry
     /// one codepoint.
     /// </exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public BitmapFont(int lineHeight, int baseline, TextureHandle[] pages, Glyph[] glyphs, KerningPair[] kernings)
     {
         ArgumentNullException.ThrowIfNull(pages);
@@ -111,9 +116,12 @@ public sealed partial class BitmapFont
 
     /// <summary>
     /// The texture pages this font's glyphs are cut from, in the order the font declares them.
-    /// <see cref="Glyph.Page"/> indexes into this. A game's font ships its pages under
-    /// <c>assets/fonts/</c>. <see cref="Default"/>'s page is engine-owned and ships with the runtime.
     /// </summary>
+    /// <remarks>
+    /// <see cref="Glyph.Page"/> indexes into this. A game's font ships its pages under
+    /// <c>assets/fonts/</c>. <see cref="Default"/>'s page is engine-owned and ships with the
+    /// runtime.
+    /// </remarks>
     public ReadOnlySpan<TextureHandle> Pages => _pages;
 
     /// <summary>The glyph cut for <paramref name="codepoint"/>, if this font carries one.</summary>
@@ -155,11 +163,14 @@ public sealed partial class BitmapFont
     /// <summary>
     /// The extent <paramref name="text"/> occupies in font pixels, laid out as
     /// <see cref="FrameView.Add(in TextIntent)"/> draws it. X is the furthest right any line's pen
-    /// reached after drawing a glyph, kerning included. Y runs from the run's first line down to the
-    /// bottom edge of the last line that draws a glyph, in whole <see cref="LineHeight"/> steps, so a
-    /// leading blank line adds to the height and a trailing one does not. Text that draws nothing
-    /// measures zero. Multiply by a <see cref="TextIntent.Scale"/> to get world units.
+    /// reached after drawing a glyph, kerning included.
     /// </summary>
+    /// <remarks>
+    /// Y runs from the run's first line down to the bottom edge of the last line that draws a
+    /// glyph, in whole <see cref="LineHeight"/> steps. A leading blank line adds to the height and
+    /// a trailing one does not. Text that draws nothing measures zero. Multiply by a
+    /// <see cref="TextIntent.Scale"/> to get world units.
+    /// </remarks>
     public Vector2 Measure(ReadOnlySpan<char> text) => Measured(text, 0, TextWrap.None);
 
     /// <summary>

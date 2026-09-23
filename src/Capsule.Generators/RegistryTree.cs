@@ -287,7 +287,7 @@ internal static class RegistryFile
 {
     internal const string RootClass = "CapsuleAssets";
 
-    /// <summary>The set member every class carries, so no directory or file may take this name.</summary>
+    /// <summary>The set member every class carries. No directory or file may take this name.</summary>
     internal const string ListMember = "All";
 
     // Every half of this partial class carries the same summary, so the compiler keeps the same

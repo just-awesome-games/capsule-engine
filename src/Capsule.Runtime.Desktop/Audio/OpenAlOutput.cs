@@ -56,7 +56,7 @@ internal sealed class OpenAlOutput : AudioOutput
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate byte ReopenDevice(nint device, nint deviceName, nint attribs);
 
-    public override bool Connected
+    protected override bool Connected
     {
         get
         {
@@ -66,7 +66,7 @@ internal sealed class OpenAlOutput : AudioOutput
         }
     }
 
-    public override string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
+    protected override string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
 
     // Subscribes defaultChanged to the system's default playback device changing, or returns null when
     // the device or the extensions are absent. defaultChanged runs on one of the library's own threads,
@@ -111,7 +111,7 @@ internal sealed class OpenAlOutput : AudioOutput
     }
 
     // On failure the library's error for the device is reported and cleared.
-    public override bool TryReopen([NotNullWhen(false)] out string? reason)
+    protected override bool TryReopen([NotNullWhen(false)] out string? reason)
     {
         if (_reopen(_device, nint.Zero, nint.Zero) == AlcTrue)
         {

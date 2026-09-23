@@ -81,7 +81,7 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
         if (channels is not (1 or 2))
         {
             throw new NotSupportedException(
-                $"Audio clip '{clipName}' is {channels}-channel; Capsule plays mono and stereo.");
+                $"Audio clip '{clipName}' is {channels}-channel. Capsule plays mono and stereo.");
         }
 
         return new PcmAudio(Decode(data, tag, bits, clipName), channels, rate);
@@ -93,7 +93,7 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
         if (width == 0 || (tag == 3 && bits != 32) || (tag == 1 && bits is not (8 or 16 or 24 or 32)))
         {
             throw new NotSupportedException(
-                $"Audio clip '{clipName}' is WAVE format {tag} at {bits} bits; Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float.");
+                $"Audio clip '{clipName}' is WAVE format {tag} at {bits} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float.");
         }
 
         float[] samples = new float[data.Length / width];

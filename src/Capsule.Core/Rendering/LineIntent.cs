@@ -5,14 +5,17 @@ namespace Capsule.Rendering;
 /// <summary>
 /// One straight segment of flat colour as the simulation wants it drawn, from <see cref="A"/> to
 /// <see cref="B"/>. It is drawn at the settled step and does not interpolate the way a
-/// <see cref="SpriteIntent"/> does. Its ends quantise to the frame's pixel grid when the frame's
-/// sprites do. A segment of no length draws nothing.
+/// <see cref="SpriteIntent"/> does.
 /// </summary>
+/// <remarks>
+/// Its ends quantise to the frame's pixel grid when the frame's sprites do. A segment of no length
+/// draws nothing.
+/// </remarks>
 /// <param name="A">One end, in the drawn space's units.</param>
 /// <param name="B">The other end, in the drawn space's units.</param>
 /// <param name="Thickness">
-/// How wide the segment is drawn, in the drawn space's units, centred on the segment. Zero, the
-/// default, draws one pixel of the surface the frame is rasterised on. A negative or non-finite
+/// How wide the segment is drawn, in the drawn space's units, centred on the segment. Zero draws one
+/// pixel of the surface the frame is rasterised on. A negative or non-finite
 /// thickness draws nothing.
 /// </param>
 /// <param name="Color">The colour filled, with straight alpha.</param>

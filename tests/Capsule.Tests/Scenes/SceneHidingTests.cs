@@ -110,7 +110,7 @@ public sealed class SceneHidingTests
     {
         internal int Draws { get; private set; }
 
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             Draws++;
             view.Add(new SpriteIntent(SceneFixtures.Frame(1, 1), Vector2.Zero, Vector2.Zero, 0f, 0f, Vector2.One, false, false, ColorRgba.White));

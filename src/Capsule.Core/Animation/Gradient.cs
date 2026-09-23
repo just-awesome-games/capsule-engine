@@ -10,9 +10,16 @@ public readonly record struct GradientStop(float Time, ColorRgba Color);
 
 /// <summary>
 /// A colour over a normalised time in [0, 1], lerped between adjacent stops through
-/// <see cref="ColorRgba.Lerp"/>. Holds up to eight stops inline.
+/// <see cref="ColorRgba.Lerp"/>. It holds the first stop's colour before that stop and the last
+/// stop's colour after it.
 /// </summary>
-/// <remarks>Allocates nothing.</remarks>
+/// <remarks>
+/// A gradient stores up to eight stops inline.
+/// <para>
+/// Allocates nothing.
+/// </para>
+/// </remarks>
+///
 public readonly struct Gradient
 {
     private readonly StopBuffer _stops;
@@ -38,7 +45,6 @@ public readonly struct Gradient
 
     /// <summary>A gradient through <paramref name="stops"/>, lerped between them.</summary>
     /// <param name="stops">One to eight stops, with non-decreasing <see cref="GradientStop.Time"/> each in [0, 1].</param>
-    /// <exception cref="ArgumentOutOfRangeException">More than eight stops, a time outside [0, 1], or a time that decreases from the one before it.</exception>
     public static Gradient FromKeys(params ReadOnlySpan<GradientStop> stops)
     {
         if (stops.Length is < 1 or > 8)
@@ -64,9 +70,12 @@ public readonly struct Gradient
     }
 
     /// <summary>
-    /// The gradient's colour at <paramref name="t"/>. Progress is clamped to [0, 1] and NaN reads as 0.
-    /// A default gradient, with no stops, reads <see cref="ColorRgba.White"/> everywhere.
+    /// The gradient's colour at <paramref name="t"/>. Progress is clamped to [0, 1] and NaN reads
+    /// as 0.
     /// </summary>
+    /// <remarks>
+    /// A default gradient, with no stops, reads <see cref="ColorRgba.White"/> everywhere.
+    /// </remarks>
     public ColorRgba Evaluate(float t)
     {
         // Not handled by the loop: the backing array's default stop is transparent black, not white.

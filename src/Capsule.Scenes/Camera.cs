@@ -6,10 +6,13 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// A scene's world-space viewport. Its centre, zoom and offset interpolate between steps, and
-/// <see cref="Teleport"/> cuts without interpolating. A non-positive <see cref="ViewportSize"/> draws
-/// nothing. A scene installs a subclass to keep framing in one place: the subclass picks its subject in
-/// <see cref="OnStart"/> and steers the framing in <see cref="OnLateStep"/> when it needs to.
+/// <see cref="Teleport"/> cuts without interpolating.
 /// </summary>
+/// <remarks>
+/// A non-positive <see cref="ViewportSize"/> draws nothing. A scene installs a subclass to keep
+/// framing in one place: the subclass picks its subject in <see cref="OnStart"/> and steers the
+/// framing in <see cref="OnLateStep"/> when it needs to.
+/// </remarks>
 /// <example>
 /// <code>
 /// public sealed class GameCamera : Camera
@@ -45,10 +48,8 @@ public partial class Camera
     /// <summary>The point the viewport is centred on, in world units.</summary>
     public Vector2 Center { get; set; }
 
-    /// <summary>
-    /// <see cref="Center"/> at the previous fixed step, in world units. The engine saves it.
-    /// </summary>
-    public Vector2 PreviousCenter { get; internal set; }
+    // Center at the previous fixed step, in world units. The engine saves it.
+    internal Vector2 PreviousCenter { get; set; }
 
     /// <summary>
     /// How many world units the viewport spans. Zero until the scene or its camera sets it, and a
@@ -63,11 +64,14 @@ public partial class Camera
     public ViewportFit Fit { get; set; }
 
     /// <summary>
-    /// A world rect the visible region must stay inside, applied after the fit resolves. The region is
-    /// clamped inside these bounds on each axis, and centred on an axis where it is larger than the bounds.
-    /// Null, the default, leaves the view free. <see cref="Center"/> keeps the raw framing target, so the
-    /// clamping affects only what is drawn.
+    /// A world rect the visible region must stay inside, applied after the fit resolves. The region
+    /// is clamped inside these bounds on each axis, and centred on an axis where it is larger than
+    /// the bounds.
     /// </summary>
+    /// <remarks>
+    /// Null, the default, leaves the view free. <see cref="Center"/> keeps the raw framing target.
+    /// The clamping affects only what is drawn.
+    /// </remarks>
     public Rect? Bounds { get; set; }
 
     /// <summary>How many times the view magnifies the world, defaulting to 1.</summary>
@@ -115,10 +119,11 @@ public partial class Camera
 
     /// <summary>
     /// The camera corner at which every entity sits where it was authored, whatever its
-    /// <see cref="Entity.ScrollFactor"/>. An entity with factor <c>f</c> draws as if the camera's corner sat
-    /// at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, where Corner is the top-left of the world rect
-    /// the frame places. Set it for a room whose first screen is not at the world origin.
+    /// <see cref="Entity.ScrollFactor"/>. An entity with factor <c>f</c> draws as if the camera's
+    /// corner sat at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, where Corner is the
+    /// top-left of the world rect the frame places.
     /// </summary>
+    /// <remarks>Set it for a room whose first screen is not at the world origin.</remarks>
     public Vector2 ScrollOrigin
     {
         get;
@@ -131,19 +136,22 @@ public partial class Camera
     }
 
     /// <summary>
-    /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred on
-    /// <see cref="Center"/>, clamped to <see cref="Bounds"/> and moved by <see cref="Offset"/> and the
-    /// shake. The engine owns it and settles it once per step, after the follow and the shake. An entity
-    /// or component that reads it during its own step sees the region the previous step settled. It reads
-    /// empty before the first late step of the scene this camera frames, and whenever
-    /// <see cref="ViewportSize"/> is not positive on both axes.
-    /// <para>
-    /// This is the settled framing, resolved against the output the host hands each step. Under every
-    /// <see cref="Fit"/> it is the rect the host draws at the settled centre, and a step handed no
-    /// output resolves the declared span. The renderer interpolates between the previous step's region
-    /// and this one.
-    /// </para>
+    /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred
+    /// on <see cref="Center"/>, clamped to <see cref="Bounds"/> and moved by <see cref="Offset"/>
+    /// and the shake. The engine owns it and settles it once per step, after the follow and the
+    /// shake.
     /// </summary>
+    /// <remarks>
+    /// An entity or component that reads it during its own step sees the region the previous step
+    /// settled. It reads empty before the first late step of the scene this camera frames, and
+    /// whenever <see cref="ViewportSize"/> is not positive on both axes.
+    /// <para>
+    /// This is the settled framing, resolved against the output the host hands each step. Under
+    /// every <see cref="Fit"/> it is the rect the host draws at the settled centre, and a step
+    /// handed no output resolves the declared span. The renderer interpolates between the previous
+    /// step's region and this one.
+    /// </para>
+    /// </remarks>
     public Rect VisibleRegion { get; private set; }
 
     /// <summary>The scene this camera frames.</summary>
@@ -242,11 +250,13 @@ public partial class Camera
     }
 
     /// <summary>
-    /// Runs once for this camera's lifetime, before its first late step, and not again when the camera
-    /// is reinstalled. The scene and every entity it holds have started by then, so find the subject to
-    /// follow here. A camera installed in a scene that has already opened its camera runs this as it is
-    /// installed.
+    /// Runs once for this camera's lifetime, before its first late step, and not again when the
+    /// camera is reinstalled. The scene and every entity it holds have started by then.
     /// </summary>
+    /// <remarks>
+    /// Find the subject to follow here. A camera installed in a scene that has already opened its
+    /// camera runs this as it is installed.
+    /// </remarks>
     protected internal virtual void OnStart()
     {
     }

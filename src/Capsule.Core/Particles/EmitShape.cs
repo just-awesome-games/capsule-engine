@@ -33,7 +33,7 @@ public readonly record struct EmitShape
     /// <summary>The rim of a disc of <paramref name="radius"/>.</summary>
     public static EmitShape Ring(float radius) => new(Kind.Ring, radius, 0f);
 
-    /// <summary>A rectangle of <paramref name="width"/> by <paramref name="height"/>, centred on the origin.</summary>
+    /// <summary>A rectangle of <paramref name="width"/> by <paramref name="height"/>, filled and centred on the emitter's offset.</summary>
     public static EmitShape Rect(float width, float height) => new(Kind.Rect, width, height);
 
     // The offset in the emitter's own space, about its Offset.

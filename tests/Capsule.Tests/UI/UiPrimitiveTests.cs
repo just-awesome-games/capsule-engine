@@ -141,7 +141,7 @@ public sealed class UiPrimitiveTests
 
         public override Rect Bounds => new(RenderTransform.Position, new Vector2(2f, 2f));
 
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 

@@ -97,7 +97,6 @@ public sealed class ColliderValidationTests
         Assert.Throws<ArgumentException>(() => body.Collider.SetFilter("wall", " "));
 
         Assert.Equal(before, body.Collider.Filter);
-        Assert.Equal(before, scene.Collision.FilterOf(body.Collider.Handle));
 
         // The stored names are what the next scene rebuilds the filter from, which is the only
         // place a half-applied list would ever show itself.

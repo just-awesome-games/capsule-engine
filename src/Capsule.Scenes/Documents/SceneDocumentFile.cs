@@ -9,11 +9,12 @@ using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
 
-/// <summary>
-/// Reads and writes the scene document format. The written form is canonical: fixed field order, a
-/// two-space indent, LF line endings, UTF-8 without a BOM, and one trailing newline. Re-generating an
-/// unchanged document reproduces its bytes exactly.
-/// </summary>
+/// <summary>Reads and writes the scene document format.</summary>
+/// <remarks>
+/// The written form is canonical: fixed field order, a two-space indent, LF line endings, UTF-8
+/// without a BOM, and one trailing newline. Re-generating an unchanged document reproduces its
+/// bytes exactly.
+/// </remarks>
 public static class SceneDocumentFile
 {
     private const int FormatVersion = 6;
@@ -127,6 +128,7 @@ public static class SceneDocumentFile
     }
 
     /// <summary>Serializes <paramref name="document"/> to its canonical text.</summary>
+    /// <exception cref="SceneDocumentFormatException">A grid names a texture that has no written form.</exception>
     public static string ToJson(SceneDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

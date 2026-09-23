@@ -18,7 +18,7 @@ public sealed class ShapeUnionTests
     {
         CollisionWorld2D world = new();
         CollisionLayer target = world.Layer("target");
-        world.Add(Of(kind), new Vector2(50f, 50f), target, CollisionFilter.None);
+        world.Add(Of(kind), new Vector2(50f, 50f), target);
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
 
@@ -34,7 +34,7 @@ public sealed class ShapeUnionTests
     public void EveryShape_IsHitByARayAimedAtIt(string kind)
     {
         CollisionWorld2D world = new();
-        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"), CollisionFilter.None);
+        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"));
 
         Assert.True(world.Raycast(
             new Vector2(0f, 50f),
@@ -51,7 +51,7 @@ public sealed class ShapeUnionTests
     public void EveryShape_StopsAShapeCastAndAMoveSweptIntoIt(string kind)
     {
         CollisionWorld2D world = new();
-        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"), CollisionFilter.None);
+        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"));
 
         Assert.True(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),

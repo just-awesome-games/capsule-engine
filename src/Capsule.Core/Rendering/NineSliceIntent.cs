@@ -3,19 +3,21 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// One nine-sliced panel as the simulation wants it drawn. <see cref="Insets"/> cut a sprite's region
-/// into corners, edges and a middle, which are then laid over <see cref="Size"/> with the corners at
-/// their own texel size, the edges stretched along one axis and the middle along both.
-/// <see cref="FrameView.Add(in NineSliceIntent)"/> expands it into one <see cref="SpriteIntent"/> per
-/// slice that has both texels and extent. A panel interpolates, culls and counts per slice.
+/// One nine-sliced panel as the simulation wants it drawn. <see cref="Insets"/> cut a sprite's
+/// region into corners, edges and a middle, which are then laid over <see cref="Size"/> with the
+/// corners at their own texel size, the edges stretched along one axis and the middle along both.
 /// </summary>
-/// <param name="Sprite">The frame cut into slices. Its pivot is not read, because a panel is placed by its top-left corner.</param>
+/// <remarks>
+/// <see cref="FrameView.Add(in NineSliceIntent)"/> expands it into one <see cref="SpriteIntent"/>
+/// per slice that has both texels and extent. A panel interpolates, culls and counts per slice.
+/// </remarks>
+/// <param name="Sprite">The frame cut into slices. Its pivot is not read. A panel is placed by its top-left corner.</param>
 /// <param name="Insets">Where the cuts fall inside the frame's region.</param>
-/// <param name="PreviousPosition">Where the panel's top-left corner sat at the end of the previous step.</param>
+/// <param name="PreviousPosition">Where the panel's top-left corner sat at the end of the previous step, in the drawn space's units.</param>
 /// <param name="Position">Where the panel's top-left corner sits now, in the drawn space's units.</param>
 /// <param name="Size">
 /// The extent the panel covers, in the drawn space's units. A size smaller than its insets on an axis
-/// keeps both edge slices at their own size, so they overlap instead of shrinking. A non-positive size
+/// keeps both edge slices at their own size, and they overlap. A non-positive size
 /// draws nothing.
 /// </param>
 /// <param name="Color">Multiplied into every texel of every slice.</param>

@@ -1,10 +1,10 @@
 namespace Capsule.Input;
 
-/// <summary>
-/// A named thing the player can do, independent of what is bound to it. Equality is ordinal.
-/// Constructing one resolves the name to an index the bindings read by, so declare a game's actions
+/// <summary>A named thing the player can do, independent of what is bound to it.</summary>
+/// <remarks>
+/// Equality is ordinal. Constructing one interns the name for the process. Declare a game's actions
 /// once as static fields instead of building them per step.
-/// </summary>
+/// </remarks>
 public readonly record struct InputAction
 {
     /// <summary>Names an action.</summary>

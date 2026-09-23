@@ -30,7 +30,7 @@ public sealed class SpriteField(Sprite frame, float extent, Vector2 stage, int c
 
     protected override void OnStep(in StepContext context) => _tick = context.Tick;
 
-    public override void Draw(FrameView view)
+    protected override void Draw(FrameView view)
     {
         int rows = (count + _columns - 1) / _columns;
         Vector2 cell = new(stage.X / _columns, stage.Y / rows);

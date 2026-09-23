@@ -9,11 +9,13 @@ namespace Capsule.Rendering;
 public sealed partial class BitmapFont
 {
     /// <summary>
-    /// The engine's Spleen 8x16 monospace font. Its line metrics, glyph metrics and page regions are
-    /// in font pixels, and it carries Unicode codepoints 32-126 and 160-255. Its page is engine-owned
-    /// and ships with Capsule.Runtime, so no <c>Fonts/</c> asset is needed. See
-    /// <c>THIRD-PARTY-NOTICES.md</c> for the BSD-2-Clause license.
+    /// The engine's Spleen 8x16 monospace font. Its line metrics, glyph metrics and page regions
+    /// are in font pixels, and it carries Unicode codepoints 32-126 and 160-255.
     /// </summary>
+    /// <remarks>
+    /// Its page is engine-owned and ships with Capsule.Runtime, with no file under
+    /// <c>assets/fonts/</c>. See <c>THIRD-PARTY-NOTICES.md</c> for the BSD-2-Clause license.
+    /// </remarks>
     public static BitmapFont Default { get; } = new BitmapFont(
         16,
         12,

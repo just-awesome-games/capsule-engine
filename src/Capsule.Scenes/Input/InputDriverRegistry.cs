@@ -54,13 +54,13 @@ public sealed class InputDriverRegistry
         {
             if (string.IsNullOrWhiteSpace(registration.Name))
             {
-                throw new ArgumentException("An input driver registration names no driver; set its Name.", nameof(drivers));
+                throw new ArgumentException("An input driver registration names no driver. Set its Name.", nameof(drivers));
             }
 
             if (!_byName.TryAdd(registration.Name, registration))
             {
                 throw new ArgumentException(
-                    $"The input driver '{registration.Name}' is registered more than once; rename one, because a command line can name only one driver per class name.",
+                    $"The input driver '{registration.Name}' is registered more than once. Rename one. A command line can name only one driver per class name.",
                     nameof(drivers));
             }
         }

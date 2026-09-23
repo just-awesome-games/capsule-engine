@@ -11,9 +11,13 @@ internal interface IEntityPool
 }
 
 /// <summary>
-/// Hands out <typeparamref name="T"/> entities built once and reused for the pool's life. The engine
-/// returns an entity to this pool the moment its removal from a scene lands, or when the scene stops,
-/// so the game never writes a release call and the pooled class holds no pool reference.
+/// Hands out <typeparamref name="T"/> entities built once and reused for the pool's life. The
+/// engine returns an entity to this pool the moment its removal from a scene lands, or when the
+/// scene stops.
+/// </summary>
+/// <remarks>
+/// The game writes no release call, and the pooled class holds no pool reference.
+/// </remarks>
 /// <example>
 /// <code>
 /// private EntityPool&lt;Bolt&gt; _bolts = new(() =&gt; new Bolt(sparks), capacity: 8);
@@ -25,7 +29,6 @@ internal interface IEntityPool
 /// }
 /// </code>
 /// </example>
-/// </summary>
 /// <typeparam name="T">The pooled entity type.</typeparam>
 public sealed class EntityPool<T> : IEntityPool
     where T : Entity
@@ -65,9 +68,17 @@ public sealed class EntityPool<T> : IEntityPool
     public int Active => Capacity - Available;
 
     /// <summary>
-    /// Pops the most recently returned idle entity, or builds one more when none is idle. Never null.
-    /// The entity returns to this pool when it leaves its scene.
+    /// Pops the most recently returned idle entity, or builds one more when none is idle. Never
+    /// null.
     /// </summary>
+    /// <remarks>
+    /// The entity returns to this pool when it leaves its scene.
+    /// <para>
+    /// The first build past the constructed capacity logs once at <see cref="Log.Debug"/>. Size the
+    /// pool for its peak.
+    /// </para>
+    /// </remarks>
+    ///
     public T Take()
     {
         if (_idle.TryPop(out T? entity))
@@ -79,7 +90,7 @@ public sealed class EntityPool<T> : IEntityPool
         if (!_loggedGrowth)
         {
             _loggedGrowth = true;
-            Log.Debug($"{typeof(T).Name} pool grew past {_constructedCapacity}; size the pool for its peak");
+            Log.Debug($"{typeof(T).Name} pool grew past {_constructedCapacity}. Size the pool for its peak");
         }
 
         T built = Build();

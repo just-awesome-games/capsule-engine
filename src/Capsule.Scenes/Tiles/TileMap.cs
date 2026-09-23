@@ -7,20 +7,21 @@ using Capsule.Scenes;
 
 namespace Capsule.Tiles;
 
-/// <summary>
-/// A tile grid anchored at the world origin. Its cells are world coordinates, so writing
-/// <see cref="Entity.Position"/>, <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/> throws and
-/// it takes no <see cref="Entity.Parent"/>. It may still place children of its own, whose local values
-/// are world values. It draws every palette entry that names a cell of the grid's texture, and registers
-/// one <see cref="GridCollider2D"/> with the scene's world when any tile type collides. Every tile draws
-/// in the map's own <see cref="Entity.ZIndex"/> band, so one value puts every tile behind or in front
-/// of the rest of the scene. Tiles follow the map's <see cref="Entity.ScrollFactor"/>,
-/// which a grid with a colliding palette rejects.
+/// <summary>A tile grid anchored at the world origin, with cell (0, 0) at the top-left.</summary>
+/// <remarks>
+/// Its cells sit at fixed world coordinates. Writing <see cref="Entity.Position"/>,
+/// <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/> throws, and the map takes no
+/// <see cref="Entity.Parent"/>. It may still place children of its own, whose local values are
+/// world values. It draws every palette entry that names a cell of the grid's texture, and
+/// registers one <see cref="GridCollider2D"/> with the scene's world when any tile type collides.
+/// Every tile draws in the map's own <see cref="Entity.ZIndex"/> band. Tiles follow the map's
+/// <see cref="Entity.ScrollFactor"/>, which must stay one when any tile type collides.
 /// <para>
-/// The map copies the grid's cells when it is built, and <see cref="SetTile"/> changes that copy. The
-/// <see cref="TileGrid"/> handed in is never written, so a scene rebuilt from it starts as authored.
+/// The map copies the grid's cells when it is built, and <see cref="SetTile"/> changes that copy.
+/// The <see cref="TileGrid"/> handed in is never written. A scene rebuilt from it starts as
+/// authored.
 /// </para>
-/// </summary>
+/// </remarks>
 public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
@@ -59,10 +60,11 @@ public sealed class TileMap : Entity
     internal override bool Collides => _grid.Collides;
 
     /// <summary>
-    /// This grid's collider in the scene's world, or null when the map is in no scene or no tile type in
-    /// its palette collides. Each cell carries the collision layer its tile type was authored on. A tile
-    /// type name identifies the tile and does not name a layer.
+    /// This grid's collider in the scene's world, or null when the map is in no scene or no tile
+    /// type in its palette collides. Each cell carries the collision layer its tile type was
+    /// authored on.
     /// </summary>
+    /// <remarks>A tile type name identifies the tile and does not name a layer.</remarks>
     public GridCollider2D? Collision { get; private set; }
 
     /// <summary>
@@ -73,7 +75,7 @@ public sealed class TileMap : Entity
 
     /// <summary>
     /// Returns the tile coordinate of the cell a world position falls in. The cell may lie outside the
-    /// map.
+    /// map, where <see cref="TileAt"/> throws.
     /// </summary>
     /// <example>
     /// <code>
@@ -195,7 +197,7 @@ public sealed class TileMap : Entity
 
     private sealed class VisibleTiles(TileGrid grid, int[] cells) : Renderer
     {
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 

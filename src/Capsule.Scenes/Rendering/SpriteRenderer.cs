@@ -7,13 +7,15 @@ using Capsule.Scenes;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Draws its entity as one sprite at one texel per unit of the entity's space. The frame's pivot lands
-/// on <see cref="Offset"/> as placed by the entity's world transform, and the frame turns about that
-/// point and takes its size from the transform. A negative scale axis mirrors the frame about the pivot,
-/// the same way a flip does. Coordinates are Y-down, in world units under a world root and canvas pixels
-/// under a screen root. A frame's sockets are placed the same way, as child entities bound through
-/// <see cref="Socket"/>.
+/// Draws its entity as one sprite at one texel per unit of the entity's space. The frame's pivot
+/// lands on <see cref="Offset"/> as placed by the entity's world transform, and the frame turns
+/// about that point and takes its scale from the transform.
 /// </summary>
+/// <remarks>
+/// A negative scale axis mirrors the frame about the pivot, the same way a flip does. Coordinates
+/// are Y-down, in world units under a world root and canvas pixels under a screen root. A frame's
+/// sockets are placed the same way, as child entities bound through <see cref="Socket"/>.
+/// </remarks>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer
 {
@@ -26,10 +28,12 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     private List<SocketBinding>? _sockets;
 
     /// <summary>
-    /// The frame this renderer draws. Swap it to animate, or to change a static frame. Writing it
-    /// re-places every bound socket the new frame carries, under the rules <see cref="Socket"/>
-    /// describes, before returning.
+    /// The frame this renderer draws. Swap it to animate, or to change a static frame.
     /// </summary>
+    /// <remarks>
+    /// Writing it re-places every bound socket the new frame carries, under the rules
+    /// <see cref="Socket"/> describes, before returning.
+    /// </remarks>
     public Sprite Sprite
     {
         get => _sprite;
@@ -42,9 +46,10 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     /// <summary>
-    /// The point in the entity's own space where the frame's pivot lands, placed by the entity's world
-    /// transform. Zero by default, which puts it on the entity. Bound sockets follow it.
+    /// The point in the entity's own space where the frame's pivot lands, placed by the entity's
+    /// world transform. Zero by default, which puts it on the entity.
     /// </summary>
+    /// <remarks>Bound sockets follow it.</remarks>
     public Vector2 Offset
     {
         get => _offset;
@@ -57,14 +62,17 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     /// <summary>
-    /// How far the frame repeats on each axis, in the entity's own units. Zero, the default, draws it
-    /// once. A finite extent covers that distance from the frame's low edge towards +X or +Y, repeating
-    /// at the frame's drawn extent and cropping the last copy at the far edge.
-    /// <see cref="float.PositiveInfinity"/> repeats without bound on both sides, and draws once when
-    /// nothing culls. A negative or NaN component draws nothing, as does a world scale with a zero axis.
-    /// A non-zero tiling on an entity whose <see cref="Entity.WorldTransform"/> is turned also draws
-    /// nothing, because a tiled frame cannot turn.
+    /// How far the frame repeats on each axis, in the entity's own units. Zero, the default, draws
+    /// it once.
     /// </summary>
+    /// <remarks>
+    /// A finite extent covers that distance from the frame's low edge towards +X or +Y, repeating
+    /// at the frame's drawn extent and cropping the last copy at the far edge.
+    /// <see cref="float.PositiveInfinity"/> repeats without bound on both sides, and draws once
+    /// when nothing culls. A negative or NaN component draws nothing, as does a world scale with a
+    /// zero axis. A tiled frame cannot turn. A non-zero tiling on an entity whose
+    /// <see cref="Entity.WorldTransform"/> is turned draws nothing.
+    /// </remarks>
     public Vector2 Tiling { get; set; }
 
     /// <summary>Whether the frame is mirrored horizontally about its pivot. Bound sockets mirror with it.</summary>
@@ -98,14 +106,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     public BlendMode Blend { get; set; }
 
     /// <summary>
-    /// The rect the frame covers: its region at the entity's world scale, placed by the mirrored pivot
-    /// and extended to a finite <see cref="Tiling"/>, in the space and under the rules
-    /// <see cref="Renderer.Bounds"/> states. An unbounded axis reports the frame's own extent. On an
-    /// entity with a non-zero world rotation this reports the box of the frame's bounding circle about
-    /// the pivot, which covers it at every angle, instead of the tighter rect it draws. Reads
-    /// empty whenever the frame draws nothing: a region with no texels, an invalid tiling, a world scale
-    /// with a zero axis, or a turned frame that tiles.
+    /// The rect the frame covers: its region at the entity's world scale, placed by the mirrored
+    /// pivot and extended to a finite <see cref="Tiling"/>, in the space and under the rules
+    /// <see cref="Renderer.Bounds"/> states. An unbounded axis reports the frame's own extent.
     /// </summary>
+    /// <remarks>
+    /// On an entity with a non-zero world rotation this reports the box of the frame's bounding
+    /// circle about the pivot, which covers it at every angle, instead of the tighter rect it
+    /// draws. Reads empty whenever the frame draws nothing: a region with no texels, an invalid
+    /// tiling, a world scale with a zero axis, or a turned frame that tiles.
+    /// </remarks>
     public override Rect Bounds
     {
         get
@@ -133,22 +143,24 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     /// <summary>
     /// Returns the child entity sitting on the socket named <paramref name="name"/>. The first call
-    /// creates it under this renderer's entity and every later call returns the same instance. The
-    /// renderer owns it. Game code may read its <see cref="Entity.WorldPosition"/> or parent entities
-    /// under it, but must not remove or reparent it. It leaves the scene with its parent.
+    /// creates it under this renderer's entity and every later call returns the same instance.
+    /// </summary>
+    /// <remarks>
+    /// The renderer owns it. Game code may read its <see cref="Entity.WorldPosition"/> or parent
+    /// entities under it, but must not remove or reparent it. It leaves the scene with its parent.
     /// <para>
     /// Its local position is <see cref="Offset"/> plus the socket's point measured from the frame's
-    /// pivot, mirrored about that pivot by <see cref="FlipX"/> and <see cref="FlipY"/> the same way the
-    /// drawn frame is, so the entity's turn and scale place it as they place the frame. Every write to
-    /// <see cref="Sprite"/>, <see cref="Offset"/>, <see cref="FlipX"/> or <see cref="FlipY"/> re-places
-    /// it as a teleport, because a socket point belongs to one discrete frame and snaps with the frame
-    /// instead of interpolating between two frames' points. A frame that does not carry the socket leaves
-    /// the child where the last frame carrying it put it, and a later offset or flip re-places it from
-    /// that stored point. Until some frame carries it, the child sits at the entity's origin. The point
-    /// comes from the frame written this step. A late step, or a component attached after the animator,
-    /// reads the socket of the frame that will be drawn.
+    /// pivot, mirrored about that pivot by <see cref="FlipX"/> and <see cref="FlipY"/> the same way
+    /// the drawn frame is. The entity's turn and scale then place it as they place the frame. Every
+    /// write to <see cref="Sprite"/>, <see cref="Offset"/>, <see cref="FlipX"/> or
+    /// <see cref="FlipY"/> re-places it as a teleport. A socket point snaps with its frame and
+    /// never interpolates between two frames' points. A frame that does not carry the socket leaves
+    /// the child where the last frame carrying it put it, and a later offset or flip re-places it
+    /// from that stored point. Until some frame carries it, the child sits at the entity's origin.
+    /// The point comes from the frame written this step. A late step, or a component attached after
+    /// the animator, reads the socket of the frame that will be drawn.
     /// </para>
-    /// </summary>
+    /// </remarks>
     /// <param name="name">The socket's name as the sheet declared it. <c>CapsuleAssets.Sprites.&lt;Sheet&gt;.Sockets</c> lists them.</param>
     /// <exception cref="InvalidOperationException">The renderer is attached to no entity. Attach it first.</exception>
     public Entity Socket(string name)
@@ -191,7 +203,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     /// <inheritdoc/>
-    public override void Draw(FrameView view)
+    protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
 

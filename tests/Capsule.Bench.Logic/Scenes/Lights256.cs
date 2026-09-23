@@ -40,7 +40,7 @@ public sealed class Lights256 : SpriteFieldScene
 
         protected override void OnStep(in StepContext context) => _tick = context.Tick;
 
-        public override void Draw(FrameView view)
+        protected override void Draw(FrameView view)
         {
             int rows = (count + Columns - 1) / Columns;
             Vector2 cell = new(stage.X / Columns, stage.Y / rows);

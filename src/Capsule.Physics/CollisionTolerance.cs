@@ -9,9 +9,10 @@ public static class CollisionTolerance
     /// </summary>
     public const float LinearSlop = 0.005f;
 
-    /// <summary>
-    /// How close two colliders must be to count as touching. Wider than <see cref="LinearSlop"/> so
-    /// a body resting against a surface still reports contact on the next step.
-    /// </summary>
+    /// <summary>How close two colliders must be to count as touching.</summary>
+    /// <remarks>
+    /// The skin is wider than <see cref="LinearSlop"/>. A body a blocked move left resting on a
+    /// surface still reports contact.
+    /// </remarks>
     public const float ContactSkin = 0.02f;
 }

@@ -1,9 +1,12 @@
 namespace Capsule.Animation;
 
 /// <summary>
-/// Evaluates the curves <see cref="Ease"/> names. It is arithmetic over one normalised progress, so
-/// it holds no state, allocates nothing and is safe from any thread.
+/// Evaluates the curves <see cref="Ease"/> names. Each curve is pure arithmetic over one normalised
+/// progress.
 /// </summary>
+/// <remarks>
+/// <see cref="Easing"/> holds no state, allocates nothing and is safe from any thread.
+/// </remarks>
 public static class Easing
 {
     // Robert Penner's constants as published on easings.net. 1.70158 overshoots back by about a tenth of
@@ -17,15 +20,12 @@ public static class Easing
     private const float BounceSegment = 2.75f;
 
     /// <summary>
-    /// The eased position at normalised progress <paramref name="t"/>. Progress is clamped to <c>[0,
-    /// 1]</c> and NaN reads as 0. Every curve returns <c>0</c> and <c>1</c> at the endpoints, and only
-    /// the overshooting curves leave that range between them.
+    /// The eased position at normalised progress <paramref name="t"/>, clamped to <c>[0, 1]</c> with
+    /// NaN read as 0.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The curve is not a declared <see cref="Ease"/>.</exception>
     /// <remarks>
-    /// Every family uses IEEE arithmetic evaluated through <see cref="DeterministicMath"/> instead of
-    /// the platform's transcendental functions. A curve answers a given progress with the same bits on
-    /// every operating system.
+    /// Every curve is evaluated through <see cref="DeterministicMath"/>. A curve answers a given
+    /// progress with the same bits on every operating system.
     /// </remarks>
     public static float Apply(Ease ease, float t)
     {

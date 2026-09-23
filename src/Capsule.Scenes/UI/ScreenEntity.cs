@@ -5,16 +5,19 @@ using Capsule.Scenes;
 namespace Capsule.UI;
 
 /// <summary>
-/// An entity on the frame's screen layer. Its <see cref="Entity.Position"/> is canvas pixels, Y-down, from
-/// the point <see cref="Anchor"/> names, and every renderer it holds draws over the world layer whatever the
-/// two layers' bands are. Build an interface from these and the world from plain entities. A screen entity is
-/// always a root and rejects a <see cref="Entity.Parent"/>. A plain entity parented under one joins the
+/// An entity on the frame's screen layer. Its <see cref="Entity.Position"/> is canvas pixels,
+/// Y-down, from the point <see cref="Anchor"/> names, and every renderer it holds draws over the
+/// world layer whatever the two layers' bands are.
+/// </summary>
+/// <remarks>
+/// Build an interface from these and the world from plain entities. A screen entity is always a
+/// root and rejects a <see cref="Entity.Parent"/>. A plain entity parented under one joins the
 /// group and draws on the screen layer in canvas pixels from this entity's anchored point.
 /// <para>
-/// The canvas is the run's (<see cref="Run.Canvas"/>), not the window's. A corner-anchored element keeps
-/// its distance from that corner at every window size.
+/// The canvas is the run's (<see cref="Run.Canvas"/>), not the window's. A corner-anchored element
+/// keeps its distance from that corner at every window size.
 /// </para>
-/// </summary>
+/// </remarks>
 public class ScreenEntity : Entity
 {
     /// <param name="anchor">The point on the canvas <paramref name="offset"/> is measured from.</param>

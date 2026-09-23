@@ -54,7 +54,7 @@ internal static class FontRegistrySource
 
     /// <summary>
     /// Resolves every page the font names to the shipped asset that carries it. Page keys are
-    /// derived the same way the key pass derives them, so the two agree across normalization.
+    /// derived the same way the key pass derives them, and the two agree across normalization.
     /// </summary>
     /// <returns>The source, or null with <paramref name="error"/> set.</returns>
     internal static FontSource? Resolve(

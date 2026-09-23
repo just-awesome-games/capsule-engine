@@ -3,10 +3,14 @@ using System.Numerics;
 namespace Capsule.Physics;
 
 /// <summary>
-/// A grid of layered cells anchored at the world origin. Each cell sits on the layer its palette
-/// entry names and collides on the sides that entry declares. The grid is its own broadphase, and a
-/// query visits only the cells it crosses.
+/// A grid of layered cells with cell (0, 0) at the world origin. Each cell sits on the layer its
+/// palette entry names and collides on the sides that entry declares.
 /// </summary>
+/// <remarks>
+/// A query visits only the cells it crosses. A scene's tile map builds one, and
+/// <see cref="CollisionWorld2D.GridOf"/> finds it from a query's
+/// <see cref="CollisionTarget.Collider"/>.
+/// </remarks>
 public sealed class GridCollider2D
 {
     private readonly int[] _cells;

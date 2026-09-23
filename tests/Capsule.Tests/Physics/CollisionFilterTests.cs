@@ -100,13 +100,13 @@ public sealed class CollisionFilterTests
         CollisionWorld2D world = new();
         CollisionLayer solid = world.Layer("solid");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
-        ColliderHandle handle = world.Add(box, Vector2.Zero, solid, CollisionFilter.None);
+        ColliderHandle handle = world.Add(box, Vector2.Zero, solid);
 
         Assert.False(world.TryFindLayer("hazard", out CollisionLayer missing));
 
         Assert.Throws<ArgumentException>(() => world.NameOf(missing));
-        Assert.Throws<ArgumentException>(() => world.Add(box, Vector2.Zero, missing, CollisionFilter.None));
-        Assert.Throws<ArgumentException>(() => world.SetFilter(handle, missing, CollisionFilter.None));
+        Assert.Throws<ArgumentException>(() => world.Add(box, Vector2.Zero, missing));
+        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, missing));
         Assert.Equal(solid, world.LayerOf(handle));
     }
 
@@ -190,12 +190,12 @@ public sealed class CollisionFilterTests
         CollisionLayer wall = world.Layer("wall");
         CollisionLayer ghost = world.Layer("ghost");
         Shape2D box = Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f));
-        ColliderHandle handle = world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+        ColliderHandle handle = world.Add(box, Vector2.Zero, wall);
 
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
 
-        world.SetFilter(handle, ghost, CollisionFilter.None);
+        world.SetLayer(handle, ghost);
 
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(ghost), out _));
@@ -206,7 +206,7 @@ public sealed class CollisionFilterTests
         world.Remove(handle);
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, out _));
 
-        handle = world.Add(box, Vector2.Zero, wall, CollisionFilter.None);
+        handle = world.Add(box, Vector2.Zero, wall);
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out _));
 
         // A move is observed by the very next query, with no step in between.

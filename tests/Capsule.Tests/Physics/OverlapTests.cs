@@ -10,9 +10,9 @@ public sealed class OverlapTests
     {
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
-        ColliderHandle first = world.Add(Shape2D.Circle(new Vector2(4f, 4f), 4f), Vector2.Zero, item, CollisionFilter.None);
-        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(6f, 0f), new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
-        world.Add(Shape2D.Circle(new Vector2(400f, 400f), 4f), Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle first = world.Add(Shape2D.Circle(new Vector2(4f, 4f), 4f), Vector2.Zero, item);
+        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(6f, 0f), new Vector2(8f, 8f)), Vector2.Zero, item);
+        world.Add(Shape2D.Circle(new Vector2(400f, 400f), 4f), Vector2.Zero, item);
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
         int count = world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)), Vector2.Zero, CollisionFilter.Everything, contacts);
@@ -35,8 +35,7 @@ public sealed class OverlapTests
             handles[index] = world.Add(
                 Shape2D.Box(new Vector2(index, 0f), new Vector2(8f, 8f)),
                 Vector2.Zero,
-                item,
-                CollisionFilter.None);
+                item);
         }
 
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
@@ -66,8 +65,8 @@ public sealed class OverlapTests
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
         CollisionLayer other = world.Layer("other");
-        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
-        world.Add(Shape2D.Box(new Vector2(4f, 0f), new Vector2(8f, 8f)), Vector2.Zero, other, CollisionFilter.None);
+        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item);
+        world.Add(Shape2D.Box(new Vector2(4f, 0f), new Vector2(8f, 8f)), Vector2.Zero, other);
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
@@ -84,8 +83,8 @@ public sealed class OverlapTests
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
         CollisionLayer other = world.Layer("other");
-        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.Of(item));
-        world.Add(Shape2D.Box(new Vector2(4f, 0f), new Vector2(8f, 8f)), Vector2.Zero, other, CollisionFilter.None);
+        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item);
+        world.Add(Shape2D.Box(new Vector2(4f, 0f), new Vector2(8f, 8f)), Vector2.Zero, other);
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
@@ -102,8 +101,7 @@ public sealed class OverlapTests
         ColliderHandle item = world.Add(
             Shape2D.Box(new Vector2(4f, 4f), new Vector2(4f, 4f)),
             Vector2.Zero,
-            world.Layer("item"),
-            CollisionFilter.None);
+            world.Layer("item"));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         int count = world.OverlapAll(
@@ -122,7 +120,7 @@ public sealed class OverlapTests
     public void ShapeCast_StopsAtTheFirstThingAlongTheTranslation()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"));
 
         Assert.True(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)),
@@ -139,7 +137,7 @@ public sealed class OverlapTests
     public void ShapeCast_MissesWhatTheTranslationDoesNotReach()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"));
 
         Assert.False(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)),
@@ -156,7 +154,7 @@ public sealed class OverlapTests
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "...", ".#.", "...");
-        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), new Vector2(60f, 0f), world.Layer("item"), CollisionFilter.None);
+        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), new Vector2(60f, 0f), world.Layer("item"));
         Span<Contact2D> contacts = stackalloc Contact2D[4];
 
         Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(55f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));

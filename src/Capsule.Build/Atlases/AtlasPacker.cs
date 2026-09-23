@@ -5,7 +5,7 @@ internal readonly record struct Placement(string Key, int Page, int X, int Y);
 
 /// <summary>
 /// MaxRects, best short side fit, no rotation. Input is sorted by height, then width, then key, and
-/// ties break on the first free rectangle found, so one input packs the same way on every machine.
+/// ties break on the first free rectangle found. One input packs the same way on every machine.
 /// Every open page is tried before a new one opens. A small cell late in the order can fill a hole
 /// an earlier page left.
 /// </summary>

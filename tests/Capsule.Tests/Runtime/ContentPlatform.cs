@@ -7,7 +7,7 @@ namespace Capsule.Tests.Runtime;
 // no-window default, and a save storage is never asked for.
 internal sealed class ContentPlatform(string root) : HostPlatform
 {
-    public override Stream OpenContent(string relativePath) => File.OpenRead(Path.Combine(root, relativePath));
+    protected internal override Stream OpenContent(string relativePath) => File.OpenRead(Path.Combine(root, relativePath));
 
-    public override ISaveStorage OpenSaveStorage(string localFolderName) => throw new NotSupportedException();
+    protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => throw new NotSupportedException();
 }

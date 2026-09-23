@@ -2,9 +2,12 @@ namespace Capsule.Input;
 
 /// <summary>
 /// A handle to one rumble pulse, valid on the <see cref="Rumble"/> that issued it and until that
-/// pulse ends, is stopped or is evicted. A mixer call taking a handle to a pulse that has ended does
-/// nothing. A caller may hold one indefinitely without checking.
+/// pulse ends, is stopped or is evicted.
 /// </summary>
+/// <remarks>
+/// A mixer call taking a handle to a pulse that has ended does nothing. A caller may hold one
+/// indefinitely without checking.
+/// </remarks>
 public readonly record struct RumbleHandle
 {
     // Slot in the low bits and generation above it. The generation advances when a slot is freed, so a

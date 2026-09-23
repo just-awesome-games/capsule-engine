@@ -61,7 +61,7 @@ internal sealed class TextureStore : IDisposable
         }
 
         texture = _textures.Load(file);
-        Log.Info($"'{drawn.Name}' loaded on first draw; declare it to preload it");
+        Log.Info($"'{drawn.Name}' loaded on first draw. Declare it to preload it");
 
         return texture;
     }

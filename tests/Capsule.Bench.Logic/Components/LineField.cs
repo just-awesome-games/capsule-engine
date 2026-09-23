@@ -14,7 +14,7 @@ public sealed class LineField : Renderer
         new ColorRgba(96, 160, 255),
     ];
 
-    public override void Draw(FrameView view)
+    protected override void Draw(FrameView view)
     {
         for (int fan = 0; fan < 100; fan++)
         {

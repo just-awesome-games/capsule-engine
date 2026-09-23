@@ -3,10 +3,10 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// A world-space viewport. The renderer interpolates its centres, sizes and offsets and resolves the
-/// size against the output's shape per <see cref="Fit"/>, keeping the scale isotropic on both axes and
-/// letterboxing the slack. A non-positive size draws nothing.
+/// A world-space viewport. The renderer interpolates its centre, size and offset between fixed
+/// steps and resolves the size against the output's shape per <see cref="Fit"/>.
 /// </summary>
+/// <remarks>The scale is the same on both axes. A non-positive size draws nothing.</remarks>
 /// <param name="PreviousCenter">The centre as of the previous fixed step.</param>
 /// <param name="Center">The centre as of the current fixed step.</param>
 /// <param name="Size">World units the viewport spans as of the current fixed step, read per <see cref="Fit"/>.</param>
@@ -81,19 +81,12 @@ public readonly record struct CameraView(
         }
     }
 
-    /// <summary>
-    /// The world rect this view shows on an output of <paramref name="outputSize"/> pixels. The centre,
-    /// size and offset are interpolated by <paramref name="alpha"/>. The size is resolved against the
-    /// output's aspect per <see cref="Fit"/>, the rect is confined to <see cref="Bounds"/>, and the
-    /// offset moves it last.
-    /// </summary>
-    /// <param name="alpha">Fraction of a fixed step not yet simulated, in [0, 1]. 0 draws the previous step and 1 the current one.</param>
-    /// <param name="outputSize">
-    /// The output's extent in pixels. Only its aspect ratio is read, and an extent with no area on
-    /// either axis falls back to <see cref="ViewportFit.Letterbox"/>, which needs none.
-    /// </param>
-    /// <returns>The visible world rect. Empty when <see cref="Size"/> is not positive on both axes.</returns>
-    public Rect Resolve(float alpha, Vector2 outputSize)
+    // The world rect this view shows on an output of outputSize pixels. The centre, size and offset are
+    // interpolated by alpha, where 0 draws the previous step and 1 the current one. The size is
+    // resolved against the output's aspect per Fit, the rect is confined to Bounds, and the offset moves
+    // it last. Only the output's aspect is read. An output with no area falls back to Letterbox, and a
+    // Size not positive on both axes gives an empty rect.
+    internal Rect Resolve(float alpha, Vector2 outputSize)
     {
         CameraView still = At(alpha);
 
@@ -144,18 +137,11 @@ public readonly record struct CameraView(
         return new Rect(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
     }
 
-    /// <summary>
-    /// The world units this view spans on an output of <paramref name="outputSize"/> pixels, per
-    /// <see cref="Fit"/>. This is the span <see cref="Resolve"/> places at an alpha of 1. A caller that
-    /// needs both takes the span from here, because subtracting the resolved rect's edges loses
-    /// precision far from the origin.
-    /// </summary>
-    /// <param name="outputSize">
-    /// The output's extent in pixels. Only its aspect ratio is read, and an extent with no area on
-    /// either axis resolves <see cref="Size"/> unchanged.
-    /// </param>
-    /// <returns><see cref="Size"/> unchanged under <see cref="ViewportFit.Letterbox"/>.</returns>
-    public Vector2 ResolveSpan(Vector2 outputSize)
+    // The world units this view spans on an output of outputSize pixels, per Fit. This is the span
+    // Resolve places at an alpha of 1. Take the span from here, not from the resolved rect's edges.
+    // Subtracting those edges loses precision far from the origin. Size comes back unchanged under
+    // Letterbox or for an output with no area.
+    internal Vector2 ResolveSpan(Vector2 outputSize)
     {
         if (Fit == ViewportFit.Letterbox || !(outputSize.X > 0f) || !(outputSize.Y > 0f))
         {

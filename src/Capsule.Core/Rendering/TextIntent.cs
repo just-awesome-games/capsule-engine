@@ -4,17 +4,19 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// One run of text as the simulation wants it drawn, laid out inside a box.
-/// <see cref="FrameView.Add(in TextIntent)"/> adds one <see cref="SpriteIntent"/> per glyph, so text
-/// interpolates, culls and counts as sprites do. <see cref="Pivot"/> places the box, and the two
-/// alignments move the text inside it.
+/// <see cref="FrameView.Add(in TextIntent)"/> adds one <see cref="SpriteIntent"/> per glyph.
 /// </summary>
+/// <remarks>
+/// Text interpolates, culls and counts as sprites do. <see cref="Pivot"/> places the box, and the
+/// two alignments move the text inside it.
+/// </remarks>
 /// <param name="Font">The font the run is laid out and drawn with. Null draws nothing.</param>
 /// <param name="Text">
-/// The text drawn, where empty draws nothing. It is read while the intent is laid out and not after,
-/// and a caller may hand over a buffer it rewrites next frame. <c>\n</c> starts a new line, <c>\r</c>
+/// The text drawn, where empty draws nothing. It is read only while the intent is laid out, and a
+/// caller may reuse the buffer next frame. <c>\n</c> starts a new line, <c>\r</c>
 /// is ignored, and a codepoint the font carries no glyph for draws and advances nothing.
 /// </param>
-/// <param name="PreviousPosition">Where the box's <see cref="Pivot"/> sat at the end of the previous step.</param>
+/// <param name="PreviousPosition">Where the box's <see cref="Pivot"/> sat at the end of the previous step, in the drawn space's units.</param>
 /// <param name="Position">Where the box's <see cref="Pivot"/> sits now, in the drawn space's units.</param>
 /// <param name="Scale">Font pixels to the drawn space's units per axis. A non-positive component draws nothing.</param>
 /// <param name="Color">Multiplied into every texel of every glyph.</param>
@@ -39,8 +41,8 @@ public readonly record struct TextIntent(
     }
 
     /// <summary>
-    /// The box the run is laid out in, in the drawn space's units. A non-positive component, which is
-    /// the default on both axes, takes the measured run on that axis, so the box becomes the text.
+    /// The box the run is laid out in, in the drawn space's units. A non-positive component, the
+    /// default, takes the measured run's extent on that axis.
     /// </summary>
     public Vector2 Size { get; init; }
 
@@ -57,18 +59,21 @@ public readonly record struct TextIntent(
     public VerticalAlignment VerticalAlignment { get; init; }
 
     /// <summary>
-    /// How many of the text's leading codepoints are drawn. Null, the default, draws all of them, zero
-    /// draws nothing, and a count past the end draws everything. Layout runs over the full text
-    /// whatever this says, so revealing a run one codepoint at a time does not reflow it. The count is
-    /// in codepoints of <see cref="Text"/>. A line break and a codepoint the font has no glyph for each
-    /// spend one.
+    /// How many of the text's leading codepoints are drawn. Null, the default, draws all of them,
+    /// zero draws nothing, and a count past the end draws everything.
     /// </summary>
+    /// <remarks>
+    /// Layout runs over the full text whatever this says. Revealing a run one codepoint at a time
+    /// does not reflow it. The count is in codepoints of <see cref="Text"/>. A line break and a
+    /// codepoint the font has no glyph for each spend one.
+    /// </remarks>
     public int? VisibleCharacters { get; init; }
 
     /// <summary>
-    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>. Empty
-    /// with no font or no text. Reading it lays the run out.
+    /// The box this run is laid out in, placed by <see cref="Pivot"/> on <see cref="Position"/>.
+    /// Empty with no font or no text.
     /// </summary>
+    /// <remarks>Reading it lays the run out.</remarks>
     public Rect Bounds => TryPlace(out TextPlacement placed) ? placed.Box : default;
 
     // The resolved layout, or false where the run draws nothing.

@@ -77,7 +77,7 @@ internal sealed class SoundStore : IDisposable
         }
 
         sound = _resident.Load(clip);
-        Log.Info($"'{clip.Name}' loaded on first play; declare it to preload it");
+        Log.Info($"'{clip.Name}' loaded on first play. Declare it to preload it");
 
         return sound;
     }

@@ -41,10 +41,11 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
     /// <summary>
     /// The colour <paramref name="t"/> of the way from <paramref name="a"/> to <paramref name="b"/>,
     /// with each channel interpolated on its own and rounded to the nearest byte, a half rounding up.
-    /// Alpha is straight, so it blends like any other channel and the colour is not premultiplied by
-    /// it. Progress is clamped to <c>[0, 1]</c>, where <c>0</c> gives <paramref name="a"/> and
-    /// <c>1</c> gives <paramref name="b"/>. NaN progress gives <paramref name="a"/>.
     /// </summary>
+    /// <remarks>
+    /// Alpha blends like any other channel, with no premultiplication. Progress is clamped to
+    /// <c>[0, 1]</c>, and NaN progress gives <paramref name="a"/>.
+    /// </remarks>
     public static ColorRgba Lerp(ColorRgba a, ColorRgba b, float t)
     {
         if (t <= 0f || float.IsNaN(t))

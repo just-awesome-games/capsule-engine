@@ -3,14 +3,16 @@ using System.Numerics;
 namespace Capsule.UI;
 
 /// <summary>
-/// A point on the canvas given as a fraction of its extent on each axis, Y-down, so (0, 0) is the top-left
-/// corner and (1, 1) the bottom-right. A <see cref="ScreenEntity"/>'s position is measured from the point its
-/// anchor names, and a corner-anchored element keeps its distance from that corner at any canvas size.
-/// <para>
-/// A fraction outside [0, 1] names a point off the canvas, which is allowed and anchors something just past an
-/// edge.
-/// </para>
+/// A point on the canvas given as a fraction of its extent on each axis, Y-down. (0, 0) is the
+/// top-left corner and (1, 1) the bottom-right.
 /// </summary>
+/// <remarks>
+/// A <see cref="ScreenEntity"/>'s position is measured from the point its anchor names, and a
+/// corner-anchored element keeps its distance from that corner at any canvas size.
+/// <para>
+/// A fraction outside [0, 1] names a point off the canvas and is allowed.
+/// </para>
+/// </remarks>
 /// <param name="X">The fraction across the canvas on X, where 0 is its left edge and 1 its right.</param>
 /// <param name="Y">The fraction down the canvas on Y, where 0 is its top edge and 1 its bottom.</param>
 public readonly record struct Anchor(float X, float Y)

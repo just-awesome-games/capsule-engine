@@ -4,11 +4,13 @@ using System.Runtime.CompilerServices;
 namespace Capsule.Physics;
 
 /// <summary>
-/// A convex collision shape, the region within <see cref="Radius"/> of the convex hull of its points.
-/// A shape carries no angle because rotation stays render-side. Factories validate on construction,
-/// so every query accepts a shape a factory returned. The default value holds no points, and every
-/// API that takes a shape rejects it.
+/// A convex collision shape, the region within <see cref="Radius"/> of the convex hull of its
+/// points.
 /// </summary>
+/// <remarks>
+/// A shape carries no angle. Rotation stays render-side. Every query accepts a shape a factory
+/// returned. The default value holds no points, and every API that takes a shape rejects it.
+/// </remarks>
 public readonly struct Shape2D : IEquatable<Shape2D>
 {
     /// <summary>The most points a shape may hold.</summary>
@@ -108,10 +110,11 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <exception cref="ArgumentException">The box it describes is one <see cref="Box(in Aabb2D)"/> refuses.</exception>
     public static Shape2D Box(Vector2 corner, Vector2 size) => Box(Aabb2D.FromCorner(corner, size));
 
-    /// <summary>
-    /// A convex polygon of three or four points, rounded by <paramref name="radius"/> when one is
-    /// given. Winding is normalised on construction, so either order is accepted.
-    /// </summary>
+    /// <summary>A convex polygon of three or four points, rounded by <paramref name="radius"/> when one is given.</summary>
+    /// <remarks>
+    /// Four points on the corners of an axis-aligned rectangle with a zero radius return a shape of
+    /// kind <see cref="ShapeKind2D.Box"/>.
+    /// </remarks>
     /// <param name="points">The hull's corners, convex and in either winding order.</param>
     /// <param name="radius">How far the polygon extends beyond that hull. Zero for a plain polygon.</param>
     /// <exception cref="ArgumentException">There are not three or four points, two of them nearly coincide, they are not strictly convex, or the bounds they and the radius describe are not a box a float can measure.</exception>
@@ -191,9 +194,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     }
 
     /// <summary>
-    /// This shape with every point multiplied by <paramref name="scale"/> about the origin of the
-    /// collider's local space, which leaves the collider's position alone. A rounded shape takes a
-    /// uniform scale because its radius is a single distance with no per-axis form.
+    /// This shape with every point multiplied by <paramref name="scale"/> about the origin of its own
+    /// space. The radius scales too, and a rounded shape needs the same factor on both axes.
     /// </summary>
     /// <exception cref="ArgumentException">The scale is non-uniform on a rounded shape, or the result is a shape construction would refuse.</exception>
     public Shape2D Scaled(Vector2 scale)

@@ -3,13 +3,10 @@ using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
 
-/// <summary>Which of the two shapes a <see cref="SceneDocumentEntry"/> holds.</summary>
-public enum SceneEntryKind
+// Which of the two shapes a SceneDocumentEntry holds.
+internal enum SceneEntryKind
 {
-    /// <summary>A game-defined entity placement.</summary>
     Entity,
-
-    /// <summary>An engine-native tile map.</summary>
     TileMap,
 }
 
@@ -47,16 +44,16 @@ public readonly record struct SceneDocumentEntry
         _grid = tileMap.Grid;
     }
 
-    /// <summary>Which shape this entry holds.</summary>
-    public SceneEntryKind Kind { get; }
+    // Which shape this entry holds.
+    internal SceneEntryKind Kind { get; }
 
     /// <summary>The entry's id in the document's single id space.</summary>
     public int Id { get; }
 
-    /// <summary>The entry's authored world-space X coordinate.</summary>
+    /// <summary>The entry's authored world-space X coordinate, zero for a tile map.</summary>
     public float X { get; }
 
-    /// <summary>The entry's authored world-space Y coordinate.</summary>
+    /// <summary>The entry's authored world-space Y coordinate, zero for a tile map.</summary>
     public float Y { get; }
 
     /// <summary>The entry's authored draw band, or null when it authors none.</summary>

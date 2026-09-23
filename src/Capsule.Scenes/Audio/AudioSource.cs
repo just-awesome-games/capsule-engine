@@ -5,15 +5,16 @@ using Capsule.Scenes;
 
 namespace Capsule.Audio;
 
-/// <summary>
-/// Plays one clip for its entity and holds the voice, so the entity can stop, pause and re-level it.
-/// The clip is declared as a preload, and the voice stops when the entity leaves the scene. A
-/// transition therefore silences what a scene's entities were playing, while anything started
-/// through <see cref="Run.Audio"/> keeps playing.
+/// <summary>Plays one clip for its entity and holds the voice.</summary>
+/// <remarks>
+/// The entity can then stop, pause and re-level it. The clip is declared as a preload, and the
+/// voice stops when the entity leaves the scene. A transition therefore silences what a scene's
+/// entities were playing, while anything started through <see cref="Run.Audio"/> keeps playing.
 /// <para>
-/// Capsule mixes no position into gain. This component is a handle on a voice, not a point in space.
+/// Capsule mixes no position into gain. This component is a handle on a voice, not a point in
+/// space.
 /// </para>
-/// </summary>
+/// </remarks>
 /// <param name="clip">The clip <see cref="Play()"/> starts.</param>
 /// <example>
 /// <code>
@@ -93,10 +94,13 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     /// <summary>
     /// Where this source's voices sit between the speakers, in [-1, 1], where -1 is hard left, 0 is
-    /// centred and 1 is hard right. Centred by default. It applies to the live voice immediately and to
-    /// every voice played afterwards. A mono clip pans across the whole field, and a stereo clip is
-    /// rotated within it where the device supports that.
+    /// centred and 1 is hard right. Centred by default.
     /// </summary>
+    /// <remarks>
+    /// It applies to the live voice immediately and to every voice played afterwards. A mono clip
+    /// pans across the whole field, and a stereo clip is rotated within it where the device
+    /// supports that.
+    /// </remarks>
     public float Pan
     {
         get => _pan;
@@ -109,28 +113,35 @@ public sealed class AudioSource(AudioClip clip) : Component
     }
 
     /// <summary>
-    /// The clip time this source's voice has reached on the current step, in seconds from the clip's
-    /// start. Reads 0 when the source owns no voice. It advances in whole simulation steps.
+    /// The clip time this source's voice has reached on the current step, in seconds from the
+    /// clip's start. Reads 0 when the source owns no voice.
     /// </summary>
+    /// <remarks>It advances in whole simulation steps.</remarks>
     public double Time => _playing?.GetTime(_voice) ?? 0.0;
 
     /// <summary>
-    /// Whether <see cref="Play()"/> starts a voice that repeats forever. Read at each play. When the clip
-    /// carries an <see cref="AudioClip.LoopRegion"/>, set by the build from the audio file or by the game,
-    /// the voice plays from the clip's beginning to the region's end and then repeats the region. A clip
-    /// with no region repeats in full. <see cref="PlayOneShot"/> does not loop.
+    /// Whether <see cref="Play()"/> starts a voice that repeats forever. Read at each play.
     /// </summary>
+    /// <remarks>
+    /// When the clip carries an <see cref="AudioClip.LoopRegion"/>, set by the build from the audio
+    /// file or by the game, the voice plays from the clip's beginning to the region's end and then
+    /// repeats the region. A clip with no region repeats in full. <see cref="PlayOneShot"/> does
+    /// not loop.
+    /// </remarks>
     public bool Loop { get; set; }
 
     /// <summary>Whether the source starts playing in <see cref="Component.OnStart"/>.</summary>
     public bool PlayOnStart { get; set; }
 
     /// <summary>
-    /// Whether this source still owns a voice, either sounding or held by its own pause or its bus's. It
-    /// reads false before the first <see cref="Play()"/> and after the voice ends, whether stopped,
-    /// expired or stolen. This reports ownership, not audibility, and it is the check to make before
-    /// starting another voice. <see cref="IsPlaying"/> and <see cref="IsPaused"/> split it in two.
+    /// Whether this source still owns a voice, either sounding or held by its own pause or its
+    /// bus's. It reads false before the first <see cref="Play()"/> and after the voice ends,
+    /// whether stopped, expired or stolen.
     /// </summary>
+    /// <remarks>
+    /// This reports ownership, not audibility, and it is the check to make before starting another
+    /// voice. <see cref="IsPlaying"/> and <see cref="IsPaused"/> split it in two.
+    /// </remarks>
     public bool IsLive => _playing?.IsLive(_voice) ?? false;
 
     /// <summary>Whether this source's voice is live and sounding. Reads false while it is held.</summary>
@@ -175,10 +186,10 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     /// <summary>
     /// Plays <paramref name="clip"/> as a separate one-shot on this source's bus and at its
-    /// <see cref="Pan"/>, multiplying <see cref="Volume"/> and <see cref="Pitch"/> by the given scales.
-    /// This source's own <see cref="Volume"/>, <see cref="Pitch"/> and voice are unchanged, and the source
-    /// does not track the new voice, so the caller holds it.
+    /// <see cref="Pan"/>, multiplying <see cref="Volume"/> and <see cref="Pitch"/> by the given
+    /// scales. This source's own <see cref="Volume"/>, <see cref="Pitch"/> and voice are unchanged.
     /// </summary>
+    /// <remarks>The source does not track the new voice, and the caller holds it.</remarks>
     /// <param name="clip">The clip to play once.</param>
     /// <param name="volumeScale">A factor on <see cref="Volume"/> for this play, itself in [0, 1].</param>
     /// <param name="pitchScale">A factor on <see cref="Pitch"/> for this play, positive and finite.</param>
@@ -212,7 +223,7 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     /// <summary>
     /// Ramps this source's voice to 0 over <paramref name="seconds"/> and stops it on the landing tick.
-    /// The source must outlive the fade: <see cref="Component.OnRemovedFromScene"/> still stops at once.
+    /// Removing the source's entity from its scene during the fade stops the voice at once.
     /// </summary>
     /// <remarks><see cref="IsLive"/> follows the ramp. Poll it for the edge. Does nothing when this source owns no voice.</remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="seconds"/> is negative or not finite.</exception>

@@ -4,10 +4,10 @@ using Capsule.Rendering;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// Hosts one <see cref="SceneSimulation"/> with no platform behind it, owning its tick, input state and
-/// disposal. The tick starts at zero and advances across calls. One input state holds buttons and detects
-/// press edges for the whole run.
+/// Hosts one <see cref="SceneSimulation"/> with no platform behind it, owning its tick, input state
+/// and disposal. The tick starts at zero and advances across calls.
 /// </summary>
+/// <remarks>One input state holds buttons and detects press edges for the whole run.</remarks>
 public sealed class SimulationHost : IDisposable
 {
     /// <summary>
@@ -61,17 +61,20 @@ public sealed class SimulationHost : IDisposable
     /// <summary>The input state every step of this host advances.</summary>
     public InputState Input { get; }
 
-    /// <summary>
-    /// The tick the next step will run at. It starts at 0 and is never reset. A step whose scene throws has
-    /// still spent its tick.
-    /// </summary>
+    /// <summary>The tick the next step will run at. It starts at 0 and is never reset.</summary>
+    /// <remarks>A step whose scene throws has still spent its tick.</remarks>
     public long Tick { get; private set; }
 
     /// <summary>
     /// Advances <see cref="Input"/> to <paramref name="snapshot"/> and steps the simulation once at
     /// <see cref="Tick"/>, then moves the tick on.
     /// </summary>
+    /// <remarks>
+    /// Exceptions from scene, entity, component, contact, camera or renderer callbacks propagate to the
+    /// caller. A step that throws can leave the state half-changed. Do not step that host again.
+    /// </remarks>
     /// <param name="snapshot">The device state for this step. Omit it to hold nothing.</param>
+    /// <exception cref="ObjectDisposedException">The simulation has been disposed.</exception>
     public void Step(in DeviceSnapshot snapshot = default)
     {
         Input.Advance(in snapshot);
@@ -96,10 +99,13 @@ public sealed class SimulationHost : IDisposable
     }
 
     /// <summary>
-    /// Plays one snapshot per step until <paramref name="driver"/> finishes or the run requests exit.
-    /// The driver receives the run's current tick, and exit is checked after each step. An exit
-    /// requested during scene startup therefore still lets the first supplied snapshot play.
+    /// Plays one snapshot per step until <paramref name="driver"/> finishes or the run requests
+    /// exit. The driver receives the run's current tick, and exit is checked after each step.
     /// </summary>
+    /// <remarks>
+    /// An exit requested during scene startup therefore still lets the first supplied snapshot
+    /// play.
+    /// </remarks>
     public void Play(IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);

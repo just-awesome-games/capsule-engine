@@ -1,12 +1,14 @@
 namespace Capsule.Animation;
 
 /// <summary>
-/// The tick cursor over an ordered run of frames, each held for a whole number of fixed steps. It
-/// carries only the position, and what a frame contains belongs to whatever pairs the cursor with a
-/// frame table. Each <see cref="Step"/> advances one tick. A looping run wraps to frame 0, and a
-/// non-looping run holds its last frame and reports <see cref="IsFinished"/>. This is a mutable
-/// value, so call <see cref="Restart"/> when the run it walks changes.
+/// The tick cursor over an ordered run of frames, each held for a whole number of fixed steps.
 /// </summary>
+/// <remarks>
+/// It carries only the position. What a frame shows belongs to whatever pairs the cursor with a
+/// frame table. Each <see cref="Step"/> advances one tick. A looping run wraps to frame 0, and a
+/// non-looping run holds its last frame and reports <see cref="IsFinished"/>. The cursor is a
+/// mutable value. Call <see cref="Restart"/> when the run it walks changes.
+/// </remarks>
 public struct AnimationPlayback
 {
     /// <summary>The frame the cursor is on, from 0.</summary>
@@ -32,13 +34,14 @@ public struct AnimationPlayback
     /// <summary>
     /// Positions the cursor where a fresh cursor stepped <paramref name="tick"/> times over
     /// <paramref name="frameTicks"/> would stand, with tick 0 matching <see cref="Restart"/>. A
-    /// looping run wraps the tick modulo the run's total. A non-looping run clamps a tick past its
-    /// total to the last frame and finishes.
+    /// looping run wraps the tick modulo the run's total.
     /// </summary>
+    /// <remarks>
+    /// A non-looping run clamps a tick past its total to the last frame and finishes.
+    /// </remarks>
     /// <param name="frameTicks">How many steps each frame is held for, in frame order. Every duration positive.</param>
     /// <param name="loop">Whether the last frame wraps back to frame 0 instead of finishing.</param>
     /// <param name="tick">Ticks elapsed since the run began. Must not be negative.</param>
-    /// <exception cref="ArgumentException">The run is empty or holds a non-positive duration.</exception>
     public void Seek(ReadOnlySpan<int> frameTicks, bool loop, int tick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);

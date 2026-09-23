@@ -68,7 +68,7 @@ public partial class Camera
 
     /// <summary>
     /// Shakes the view for <paramref name="seconds"/> at <see cref="ShakeAmplitude"/> times
-    /// <paramref name="intensity"/>, which holds at 1. A call weaker than the shake on screen changes
+    /// <paramref name="intensity"/>, capped at 1. A call weaker than the shake on screen changes
     /// nothing.
     /// </summary>
     /// <remarks>The shake draws nothing from <see cref="Run.Random"/>.</remarks>

@@ -23,9 +23,9 @@ public sealed class CapsuleBootGeneratorTests
 
         public sealed class SpecPlatform : Capsule.Runtime.HostPlatform
         {
-            public override System.IO.Stream OpenContent(string relativePath) => throw new System.NotSupportedException();
+            protected override System.IO.Stream OpenContent(string relativePath) => throw new System.NotSupportedException();
 
-            public override Capsule.Persistence.ISaveStorage OpenSaveStorage(string localFolderName) => throw new System.NotSupportedException();
+            protected override Capsule.Persistence.ISaveStorage OpenSaveStorage(string localFolderName) => throw new System.NotSupportedException();
         }
         """;
 

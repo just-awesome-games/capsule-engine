@@ -86,7 +86,7 @@ internal sealed class SoundDevice : IAudioBackend
             reader.Dispose();
 
             throw new NotSupportedException(
-                $"Audio clip '{clip.Name}' is {channels}-channel; Capsule streams mono and stereo Ogg Vorbis.");
+                $"Audio clip '{clip.Name}' is {channels}-channel. Capsule streams mono and stereo Ogg Vorbis.");
         }
 
         return _streamer.Play(new VorbisPcmSource(reader), clip, gain, pitch, pan, loop, startSeconds);

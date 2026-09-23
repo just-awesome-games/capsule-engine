@@ -6,9 +6,7 @@ and a game chooses its own test framework. Pick the boundary by what the test is
 | Test subject | Entry point |
 | --- | --- |
 | Scene behaviour over time | `SimulationHost`, which owns ticks, input state and teardown. |
-| A deliberately constructed step context | `SceneSimulation`. |
 | Scene transitions, boot configuration or exit results | `CapsuleEngine.RunHeadless`, from `JAG.Capsule.Runtime`, with a platform module. |
-| Geometry independent of scenes | `CollisionWorld2D`. |
 
 Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that reads the scene
 ([`input.md`](input.md)). Audio mixing is simulation state, asserted through `Run.Audio` without playback

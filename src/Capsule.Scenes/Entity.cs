@@ -10,17 +10,17 @@ using Capsule.UI;
 
 namespace Capsule.Scenes;
 
-/// <summary>
-/// One object in a scene, in world units with Y-down. <see cref="Position"/> anchors differ by
-/// subclass. A subclass carries the behaviour, and shared capabilities attach as
-/// <see cref="Component"/>.
+/// <summary>One object in a scene, in world units with Y-down.</summary>
+/// <remarks>
+/// <see cref="Position"/> anchors differ by subclass. A subclass carries the behaviour, and shared
+/// capabilities attach as <see cref="Component"/>.
 /// <para>
 /// Under a <see cref="Parent"/>, local <see cref="Position"/>, <see cref="Rotation"/> and
 /// <see cref="Scale"/> combine to <see cref="WorldTransform"/>. Rotation and scale reach
 /// presentation only. Collision follows position. <see cref="ScreenEntity"/> is the screen-layer
 /// counterpart.
 /// </para>
-/// </summary>
+/// </remarks>
 public partial class Entity
 {
     // The half-length of the origin cross's arms, in world units.
@@ -48,8 +48,9 @@ public partial class Entity
 
     /// <summary>
     /// A marker or pivot at <paramref name="parent"/>'s origin. It has a place in the world and no
-    /// behaviour of its own. It joins the parent's scene as <see cref="Parent"/> describes.
+    /// behaviour of its own.
     /// </summary>
+    /// <remarks>It joins the parent's scene as <see cref="Parent"/> describes.</remarks>
     /// <param name="parent">The entity this one is placed by.</param>
     public Entity(Entity parent)
         : this(parent, Vector2.Zero)
@@ -70,8 +71,9 @@ public partial class Entity
         Parent = parent;
     }
 
+    /// <summary>A root entity at <paramref name="position"/>, in world units.</summary>
     /// <param name="position">
-    /// The starting position. <see cref="PreviousTransform"/> equals it so spawns do not interpolate.
+    /// The starting position. A spawn does not interpolate from the origin.
     /// </param>
     protected Entity(Vector2 position)
     {
@@ -82,11 +84,14 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Spawns from a document. The position, <see cref="ZIndex"/> and <see cref="ScrollFactor"/> are
-    /// applied before the subclass constructor runs, so its writes override the document.
-    /// <see cref="EntitySpawn.Scale"/> is left to the subclass. An entity with a different anchor
-    /// adjusts the position: <c>spawn with { Position = spawn.Position + anchor }</c>.
+    /// Spawns from a document placement. The position, <see cref="ZIndex"/> and
+    /// <see cref="ScrollFactor"/> land before the subclass constructor body runs, and writes in that body
+    /// override them.
     /// </summary>
+    /// <remarks>
+    /// <see cref="EntitySpawn.Scale"/> is left to the subclass. An entity with a different anchor adjusts
+    /// the position: <c>spawn with { Position = spawn.Position + anchor }</c>.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The scroll factor is not one on an entity that refuses one.</exception>
     protected Entity(EntitySpawn spawn)
         : this(spawn.Position)
@@ -102,12 +107,12 @@ public partial class Entity
         }
     }
 
-    /// <summary>
-    /// The entity this one is placed by, or null for a root. Reparenting keeps <see cref="Position"/>,
-    /// <see cref="Rotation"/> and <see cref="Scale"/> local. An entity parented under one a scene
-    /// holds joins that scene and leaves when the parent does. <see cref="Scene.Remove"/> on this
-    /// entity by itself clears the parent.
-    /// </summary>
+    /// <summary>The entity this one is placed by, or null for a root.</summary>
+    /// <remarks>
+    /// Reparenting keeps <see cref="Position"/>, <see cref="Rotation"/> and <see cref="Scale"/>
+    /// local. An entity parented under one a scene holds joins that scene and leaves when the
+    /// parent does. <see cref="Scene.Remove"/> on this entity by itself clears the parent.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// This entity is in a scene, the parent is this entity or a descendant, scroll factors conflict,
     /// or rotation/scale in the ancestry conflicts with components in this subtree.
@@ -149,22 +154,26 @@ public partial class Entity
     }
 
     /// <summary>
-    /// The entities this one places, in parenting order. Invalidated by changes.
+    /// The entities this one places, in parenting order. The span is invalid once a child is added or
+    /// removed.
     /// </summary>
     public ReadOnlySpan<Entity> Children => _children is null ? default : CollectionsMarshal.AsSpan(_children);
 
     /// <summary>
-    /// A developer-facing label the debug overlay shows in place of the type name. Defaults to null,
-    /// only diagnostics read it, and duplicates are allowed.
+    /// A label the debug overlay shows in place of the type name, or null to show the type name. Only
+    /// diagnostics read it, and duplicates are allowed.
     /// </summary>
     public string? Name { get; set; }
 
     /// <summary>
-    /// The render band: an ordering key applied to all attached renderers. Each renderer's draw order
-    /// is the sum of this band up the ancestry plus its own <see cref="Rendering.Renderer.ZIndex"/>.
+    /// The render band: an ordering key applied to all attached renderers. Each renderer's draw
+    /// order is the sum of this band up the ancestry plus its own
+    /// <see cref="Rendering.Renderer.ZIndex"/>.
+    /// </summary>
+    /// <remarks>
     /// Higher sums draw later. Equal sums use tree order, then attachment order. Writes inside
     /// <see cref="Rendering.Renderer.Draw"/> affect the next frame.
-    /// </summary>
+    /// </remarks>
     public int ZIndex
     {
         get;
@@ -182,11 +191,14 @@ public partial class Entity
     }
 
     /// <summary>
-    /// How far this entity's renderers move with the camera, per axis. One is world speed, zero is
-    /// fixed to the screen, below one is further away and above one is nearer. The root's factor
-    /// applies to its whole subtree. This affects drawing only, so position, colliders and bounds
-    /// stay in authored space. The camera's <see cref="Camera.ScrollOrigin"/> anchors every layer.
+    /// How far this entity's renderers move with the camera, per axis, defaulting to one. One is
+    /// world speed, zero is fixed to the screen, below one is further away and above one is nearer.
     /// </summary>
+    /// <remarks>
+    /// The root's factor applies to its whole subtree. The factor affects drawing only. Position,
+    /// colliders and bounds stay in authored space. The camera's <see cref="Camera.ScrollOrigin"/>
+    /// anchors every layer.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// Non-one factors are forbidden on children, screen-layer entities, entities that collide, or
     /// entities holding <see cref="Rendering.VisibleOnScreenNotifier2D"/> in the subtree.
@@ -207,7 +219,7 @@ public partial class Entity
                 if (_parent is not null)
                 {
                     throw new InvalidOperationException(
-                        $"A {GetType().Name} has a parent and scrolls with its root; set the scroll factor on the root.");
+                        $"A {GetType().Name} has a parent and scrolls with its root. Set the scroll factor on the root.");
                 }
 
                 if (Space == RenderSpace.Screen)
@@ -383,18 +395,23 @@ public partial class Entity
 
     /// <summary>
     /// Advances this entity by one fixed step, before its components and its <see cref="Children"/>
-    /// step. The scene steps in tree order, and a child sees the world position its parent just moved
-    /// to. An entity steps only after <see cref="OnStart"/> has run, and so do its components.
+    /// step. The scene steps in tree order, and a child sees the world position its parent just
+    /// moved to.
     /// </summary>
+    /// <remarks>
+    /// An entity and its components step only after <see cref="OnStart"/> has run, and not while
+    /// <see cref="StepMode"/> holds them.
+    /// </remarks>
     protected internal virtual void OnStep(in StepContext context)
     {
     }
 
     /// <summary>
     /// Advances the entity after stepping and contact settlement, before the frame is built. Runs
-    /// before this entity's components' late step and before the scene's <see cref="Scene.OnLateStep"/>.
-    /// The scene calls this only after <see cref="OnStart"/>.
+    /// before this entity's components' late step and before the scene's
+    /// <see cref="Scene.OnLateStep"/>.
     /// </summary>
+    /// <remarks>The scene calls this only after <see cref="OnStart"/>.</remarks>
     protected internal virtual void OnLateStep(in StepContext context)
     {
     }
@@ -408,20 +425,24 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Fills this entity's panel section. The engine writes <see cref="Name"/>, <see cref="Transform"/>,
-    /// <see cref="WorldTransform"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/>, <see cref="Visible"/>,
-    /// <see cref="Tint"/>, <see cref="StepMode"/> and <c>Remove</c> before this call. Components fill
-    /// their sections after.
+    /// Fills this entity's panel section. The engine writes <see cref="Name"/>,
+    /// <see cref="Transform"/>, <see cref="WorldTransform"/>, <see cref="ZIndex"/>,
+    /// <see cref="ScrollFactor"/>, <see cref="Visible"/>, <see cref="Tint"/>,
+    /// <see cref="StepMode"/> and <c>Remove</c> before this call.
     /// </summary>
+    /// <remarks>Components fill their sections after.</remarks>
     protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
     }
 
     /// <summary>
     /// Runs once before the first step, after the peers added alongside this entity have attached.
-    /// A parent starts before its children, and the batch starts together. Components start after.
-    /// An entity removed from here never steps.
+    /// A parent starts before its children, and the batch starts together.
     /// </summary>
+    /// <remarks>
+    /// Components start after. An entity removed during this call never steps, and its components
+    /// do not start.
+    /// </remarks>
     protected internal virtual void OnStart()
     {
     }
@@ -443,9 +464,12 @@ public partial class Entity
 
     /// <summary>
     /// Appends assets this entity declares beyond those owned by its components. Collection can run
-    /// before <see cref="OnStart"/>, so declare from construction-time state. An override appends to
-    /// <paramref name="assets"/> and changes nothing else.
+    /// before <see cref="OnStart"/>.
     /// </summary>
+    /// <remarks>
+    /// Declare from construction-time state. An override appends to <paramref name="assets"/> and
+    /// changes nothing else.
+    /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
         ArgumentNullException.ThrowIfNull(assets);

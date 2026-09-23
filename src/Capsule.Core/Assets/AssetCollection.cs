@@ -3,8 +3,8 @@ using Capsule.Audio;
 namespace Capsule.Assets;
 
 /// <summary>
-/// Assets an object graph asks the host to preload, kept once each in first-declaration order. These
-/// are names only, so collecting them performs no device or file-system work.
+/// Assets an object graph asks the host to preload, kept once each in first-declaration order.
+/// Collecting names does no device or file-system work.
 /// </summary>
 public sealed class AssetCollection
 {
@@ -40,8 +40,8 @@ public sealed class AssetCollection
     }
 
     /// <summary>
-    /// Adds one clip unless it was already declared. A clip whose format the host streams instead of
-    /// holding in memory reserves nothing, so declaring it preloads no samples.
+    /// Adds one clip unless it was already declared. Declaring a clip the host streams preloads no
+    /// samples.
     /// </summary>
     public void Add(AudioClip clip)
     {

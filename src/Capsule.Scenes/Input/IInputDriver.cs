@@ -3,16 +3,19 @@ using Capsule.Scenes;
 namespace Capsule.Input;
 
 /// <summary>
-/// Supplies a run's input from code, one <see cref="DeviceSnapshot"/> per fixed step in step order. A driver
-/// replaces the keyboard and gamepad completely, so the run it drives is reproducible from its initial state,
-/// its fixed step and this class alone.
+/// Supplies a run's input from code, one <see cref="DeviceSnapshot"/> per fixed step in step order.
 /// </summary>
 /// <remarks>
-/// The engine asks a driver exactly once per fixed step, whatever the frame rate, before that step runs, so
-/// the scene it reads is the world the previous step left. A game's shell reaches a driver by name through
-/// <c>--driver</c>, which requires a public parameterless constructor.
+/// A driver replaces the keyboard, mouse and gamepad completely. The run it drives is reproducible
+/// from its initial state, its fixed step and the driver alone.
+/// <para>
+/// The engine asks a driver exactly once per fixed step, whatever the frame rate, before that step
+/// runs. The scene it reads is the world the previous step left. A game's shell reaches a driver by
+/// name through <c>--driver</c>, which requires a public parameterless constructor.
 /// <see cref="InputScript"/> builds one from a fixed sequence instead.
+/// </para>
 /// </remarks>
+///
 public interface IInputDriver
 {
     /// <summary>Supplies the snapshot that drives the step at <paramref name="tick"/>.</summary>

@@ -367,7 +367,7 @@ public sealed class SceneDrawOrderTests
     /// <summary>Writes its own key, and optionally detaches a peer, from inside its own Draw.</summary>
     private sealed class Raising(int tag, int raisedTo, Renderer? detaches = null) : Renderer
     {
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             // Idempotent: the setter ignores a write of the value it already holds, so this
             // raises once and does not re-invalidate on every later frame.
@@ -380,7 +380,7 @@ public sealed class SceneDrawOrderTests
     /// <summary>Lowers a peer's key, and optionally detaches another, from inside its own Draw.</summary>
     private sealed class Lowering(int tag, Renderer peer, int loweredTo, Renderer? detaches = null) : Renderer
     {
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             peer.ZIndex = loweredTo;
             detaches?.Entity?.Remove(detaches);

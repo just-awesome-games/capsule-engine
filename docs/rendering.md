@@ -13,8 +13,8 @@ Three spans decide what a player sees, and each is set in one place.
 | Canvas | `EngineBuilder.WithCanvas(width, height)`, or `Run.Canvas` during the run | The screen layer's extent in canvas pixels. Defaults to the render surface, then to the window size. |
 | Viewport | `Camera.ViewportSize` | World units the camera spans. Zero draws nothing. |
 
-Pixel-art games declare one render surface and let the canvas follow it, so the interface is drawn in
-the same pixels as the world:
+A pixel-art game declares one render surface and lets the canvas follow it. The interface is then drawn
+in the same pixels as the world:
 
 ```csharp
 return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
@@ -25,12 +25,10 @@ return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
     .RunScene<MainMenu>();
 ```
 
-`Camera.Fit` decides what happens on an output whose aspect ratio differs from the viewport.
-`Letterbox` shows that span and turns the slack into bars, `Expand` reveals more world on the slack
-axis at the same scale, and `FixedHeight` keeps the vertical span and follows the output's aspect
-across. On a declared render surface the world is drawn at the declared pixels per unit under either
-sampling. Point sampling snaps each sprite to the surface's pixel grid and presents the surface at an
-integer scale when the output can hold it.
+`Camera.Fit` decides what an output whose aspect ratio differs from the viewport shows. On a declared
+render surface the world is drawn at the declared pixels per unit under either sampling. Point sampling
+snaps each sprite to the surface's pixel grid and presents the surface at an integer scale when the
+output can hold it.
 
 ## A camera that follows
 
@@ -59,12 +57,8 @@ public sealed class GameCamera : Camera
 }
 ```
 
-The camera lets its aim wander inside the `Deadzone` box and eases after it over `SmoothTime`. At a
-steady speed it trails by `SmoothTime` seconds of travel. It leads by `Lookahead` only past
-`LookaheadThreshold`, easing in over `SmoothTime`. `Zoom` magnifies the view about its centre.
-`Offset` and `Shake` move the drawn view after `Bounds` confine it, and a hit still shakes a view
-pinned in a corner. `OnLateStep` runs before the follow, for a subclass that retargets, zooms or
-recoils.
+`Camera` documents how each framing lever composes with the follow. A subclass retargets, zooms or
+recoils in `OnLateStep`, which runs before the follow.
 
 ## Renderers
 
@@ -87,17 +81,17 @@ _animator = new SpriteAnimator(sprite);
 Add(_animator);
 ```
 
-A `SpriteAnimator` plays a clip on a `SpriteRenderer`. Clips are held in whole fixed steps, so
-animation is simulation state and means the same at any frame rate. `Play` ignores a clip that is
-already playing, so a step may ask for the clip the state implies without restarting it:
+A `SpriteAnimator` plays a clip on a `SpriteRenderer`. Clips are held in whole fixed steps.
+Animation is simulation state and means the same at any frame rate. `Play` does not restart a clip that
+is already playing, and a step may ask for the clip its state implies every step:
 
 ```csharp
 _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
 ```
 
-A `Tween` is the eased value beside all this. It counts a duration in whole fixed steps, reads through
-an easing curve, and drives a flash, a slide or a one-off eased value. A `Countdown` is the same timer
-with no value to read, for a cooldown, a delay or a lifetime.
+A `Tween` is an eased value that counts its duration in whole fixed steps. It drives a flash, a slide
+or any one-off eased value. A `Countdown` is the same timer with no value to read, for a cooldown, a
+delay or a lifetime.
 
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
 is handed. The sheet format, atlases and where sprites come from are [`assets.md`](assets.md).
@@ -127,17 +121,14 @@ A top-down scene sets `Scene.YSort`, and world renderers in one band then draw i
 entity's Y, a root's children with it. A floor and a canopy take bands of their own, below and above.
 
 A `ScreenEntity` is placed by an `Anchor`, a fraction of the canvas on each axis, plus an offset in
-canvas pixels, so an element keeps its distance from the edge it was anchored to whatever the canvas
-is:
+canvas pixels. An element keeps its distance from the edge it was anchored to whatever the canvas is:
 
 ```csharp
 private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(8f, 8f));
 ```
 
 Menus are `Focusable` components under one `FocusNavigator`. The navigator owns which item has focus
-and moves it from the game's own focus actions, pointer included. A focus change applies at once, so a
-handler sees the new focus. Changing the navigator's items or its focus from inside one of its own
-focus events throws.
+and moves it from the game's own focus actions, pointer included.
 
 ## Parallax
 
@@ -160,51 +151,10 @@ A document may author the factor instead, as `scrollFactor` on an entry ([`scene
 
 ## Particles
 
-A `ParticleEmitter` is a `Renderer` stepped on the fixed tick over a fixed pool of particles, each
-emitting one sprite through the same path any other renderer draws through. An effect that outlives
-what asked for it is its own entity, removed once its last particle dies:
-
-```csharp
-public sealed class SparkBurst : Entity
-{
-    private readonly ParticleEmitter _emitter;
-
-    public SparkBurst(Vector2 position)
-        : base(position)
-    {
-        _emitter = new ParticleEmitter(Sprite.White, capacity: 8)
-        {
-            Lifetime = (0.15f, 0.35f),
-            Speed = (60f, 140f),
-            Spread = 360f,
-            Gravity = new Vector2(0f, 300f),
-            Scale = (1f, 2f),
-            ScaleOverLifetime = Curve.Linear(1f, 0f),
-            Color = Gradient.Linear(ColorRgba.Yellow, new ColorRgba(255, 255, 0, 0)),
-            Blend = BlendMode.Additive,
-        };
-        Add(_emitter);
-        _emitter.Emit(6);
-    }
-
-    protected override void OnStep(in StepContext context)
-    {
-        if (_emitter.Alive == 0)
-        {
-            Scene.Remove(this);
-        }
-    }
-}
-```
-
-A `ParticleEmitter` is a `Renderer` stepped on the fixed tick over a fixed pool of particles. A
-continuous emitter sets `Rate` or `RateOverDistance`; a burst calls `Emit` directly, as `SparkBurst`
-does above. Particles are simulation state. A headless run reproduces a burst exactly, and a test can
-assert on one. The pool is fixed at construction. The particle nearest the end of its life is recycled
-when a spawn finds none free. Randomness is a stream per emitter, never the game's `Run.Random`.
-Additive draws through `Blend`, for glow, sparks and fire. A game that pools effects instead keeps one
-emitter on a root entity and calls `Emit(count, at)`. Local space, noise, sub-emission, collision and
-trails are not built.
+A `ParticleEmitter` is a renderer that steps a fixed pool of sprite particles on the fixed tick. Its
+documented example is a complete burst effect. A continuous emitter sets `Rate` or `RateOverDistance`, and a burst
+calls `Emit`. Particles are simulation state. A headless run reproduces a burst exactly, and a test can
+assert on one. Local space, noise, sub-emission, collision and trails are not built.
 
 ## Lighting
 
@@ -213,16 +163,12 @@ Add(new ColorRect(HeadSize) { Color = HeadColor, Blend = BlendMode.Additive, Off
 Add(new PointLight { Radius = 56f, Color = HeadColor, Offset = new Vector2(0f, -PostSize.Y) });
 ```
 
-A scene lowers the light with one property, `Scene.Ambient`, white by default and set in code or by the document's `ambient`. A
-`PointLight` draws its sprite additively into the frame's light map, which the host multiplies over the
-world in one pass; two lights add, a light lights the sprite it sits on, and a light on a white ambient
-brightens what it reaches, up to twice the authored colour, so a light shows in a room that set nothing. In a lit frame a world
-`SpriteIntent` drawn with `Blend == Additive` is a light too, so a glow sprite never goes dark in a dim room. An
-`Intensity` above one adds the colour more than once, widening the bright core. The screen layer is
-never lit: a `PointLight` under a `ScreenEntity` throws. A cone or any other shape is a `Sprite` from a
-sheet, turned by the entity, in place of the engine's radial falloff. A scene with white ambient and no
-light runs no pass, because a white map changes nothing. Not built: shadows, normal maps, bloom, a light-map
-scale, a per-renderer opt-out.
+A scene lowers the light with `Scene.Ambient`, set in code or by the document's `ambient`. A
+`PointLight` draws into the frame's light map, and the host multiplies that map over the world layer in
+one pass. In a lit frame a world sprite drawn with `BlendMode.Additive` lights the map too, and a glow
+sprite never goes dark in a dim room. The screen layer is never lit. A scene with white ambient and no
+light runs no pass. Shadows, normal maps, bloom, a light-map scale and a per-renderer opt-out are not
+built.
 
 ## Text
 
@@ -239,12 +185,10 @@ Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
 });
 ```
 
-`Label` wraps inside `Size` by `Wrap`, aligns by `HorizontalAlignment` and `VerticalAlignment`, and
-reveals a prefix through `VisibleCharacters` for a typewriter effect. `SetText(ReadOnlySpan<char>)`
-writes a run without allocating a string. `BitmapFont.Default` ships inside the runtime and needs no
-asset. `GlyphRun` is the layout pass every placement comes from, so code emitting its own per-glyph
-sprites enumerates the geometry the engine draws and measures. Fonts are authored under
-`Assets/Fonts/` ([`assets.md`](assets.md#fonts)).
+`BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under
+`Assets/Fonts/` ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout pass every placement comes
+from. Code that emits its own per-glyph sprites enumerates it for the geometry the engine draws and
+measures.
 
 ## Visibility
 

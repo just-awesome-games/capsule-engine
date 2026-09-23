@@ -5,7 +5,7 @@ namespace Capsule.Bench.Logic.Components;
 
 public sealed class ParallaxRow : Renderer
 {
-    public override void Draw(FrameView view)
+    protected override void Draw(FrameView view)
     {
         for (int i = 0; i < 8; i++)
         {

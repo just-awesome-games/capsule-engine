@@ -141,7 +141,7 @@ A shell is one host family and references that family's platform module:
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!-- Release ships as a Windows-subsystem app, so a double-click opens no console; Debug
+    <!-- Release ships as a Windows-subsystem app, and a double-click opens no console. Debug
          keeps the console for the log sink. -->
     <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MyGame</AssemblyName>
@@ -185,7 +185,7 @@ The gate is also the commit hook, set once per clone with `git config core.hooks
 set, Git ignores `hooks/` and a commit passes with no report.
 
 Game logic cannot reach `System.Console` and writes through `Capsule.Diagnostics.Log`
-([`debugging.md`](debugging.md)). A headless test installs `CollectingLogSink`. On Windows,
+([`debugging.md`](debugging.md)). On Windows,
 `SDL_DIRECTINPUT_ENABLED=0` in the environment isolates DirectInput's controller-enumeration cost at
 boot.
 
@@ -205,7 +205,7 @@ build resolves the engine through project references, and its lock file lands un
 
 Capsule's XML comments are its API reference. A package consumer reads them in the NuGet cache
 (`jag.capsule/<version>/lib/net10.0/`). A source build stages them at `artifacts/capsule-api/` before each
-project compiles, so the reference stays current when a build fails against a changed engine API.
+project compiles. The staged reference stays current when a build fails against a changed engine API.
 
 ## Development builds
 
@@ -213,8 +213,8 @@ project compiles, so the reference stays current when a build fails against a ch
 setting it by hand verifies what a publish will hold. It moves three things together: the runtime switch
 `Capsule.Development` to `false`, the compile symbol `CAPSULE_DEVELOPMENT` to undefined, and every
 development-only directory out of the compile and the asset plane. A trimmed publish drops the engine's
-development code and an untrimmed one carries it disabled. `Capsule.Diagnostics.Development` is the contract
-between them, and [`debugging.md`](debugging.md) covers what the development code is for.
+development code, and an untrimmed one carries it disabled. `Capsule.Diagnostics.Development` documents how
+a game's own code gates on the axis. The development code itself is [`debugging.md`](debugging.md).
 
 ### Development-only directories
 
@@ -228,7 +228,7 @@ src/MyGame.Game/
     Walkthrough.cs
 ```
 
-Sources under a marked directory leave the compile before the generators read it, so a shipped build's
+Sources under a marked directory leave the compile before the generators read it. A shipped build's
 registries hold nothing declared there. Authoring sources leave the asset plane, and shipped code naming a
 development-only asset fails to compile in a publish. Marking follows the directory, not the path a project
 spelled, and the marker file's contents are not read.
@@ -303,8 +303,8 @@ beside the shell project:
 ```
 
 Defining one half is allowed, and the build warns that the other half keeps Capsule branding. An `Icon.bmp`
-whose alpha is all zero reads as fully opaque. Most viewers draw a `BI_RGB` alpha bitmap on black, so a
-transparent icon looks black-backed outside the window.
+whose alpha is all zero reads as fully opaque. Most image viewers draw a `BI_RGB` alpha bitmap on black,
+and a transparent icon looks black-backed there.
 
 ## A private platform module
 
@@ -318,7 +318,7 @@ branch of the engine:
 3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`) and swap the substrate with
    `CapsuleSubstratePackage` and `CapsuleSubstrateVersion`. An unmodified checkout retargets.
 
-Isolation at publish is the reference graph. A shell references one platform module, so a desktop assembly
-is absent from a console publish and not trimmed out of it. The engine's CI publishes and runs the desktop
-path, and a private module is tested by its own repository
+Isolation at publish is the reference graph. A shell references one platform module, and a desktop
+assembly is absent from a console publish rather than trimmed out of it. The engine's CI publishes the
+desktop path, and a private module is tested by its own repository
 ([`architecture.md`](architecture.md#platforms)).

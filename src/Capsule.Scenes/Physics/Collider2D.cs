@@ -11,19 +11,21 @@ namespace Capsule.Physics;
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. The collider
 /// registers when its entity joins a scene, unregisters when it leaves, and follows the entity's
-/// <see cref="Scenes.Entity.WorldPosition"/> every step. Position is the only transform it follows.
-/// Rotation and scale anywhere in the entity's ancestry are refused while a collider is present.
-/// The subclass owns the shape and its offset from the position.
-/// Every query throws while the collider is disabled or in no scene. A filter built from another
-/// collision world's layers throws too.
+/// <see cref="Scenes.Entity.WorldPosition"/> every step.
+/// </summary>
+/// <remarks>
+/// Position is the only transform it follows. Rotation and scale anywhere in the entity's ancestry
+/// are refused while a collider is present. The subclass defines the shape, and
+/// <see cref="Offset"/> places it relative to the position. Every query throws while the collider
+/// is disabled or in no scene. A filter built from another collision world's layers throws too.
 /// <para>
 /// A contact handler cannot reconfigure the collider it was raised for. <see cref="Enabled"/>,
-/// <see cref="Offset"/>, <see cref="Layer"/>, <see cref="ReportsContacts"/>, <see cref="SetFilter"/>
-/// and a subclass's shape all throw for the length of the dispatch. A handler may detach the
-/// collider. Detaching removes it from the world, raises the exits it owes, and cancels the
-/// remaining enters for this step.
+/// <see cref="Offset"/>, <see cref="Layer"/>, <see cref="ReportsContacts"/>,
+/// <see cref="SetFilter"/> and a subclass's shape all throw for the length of the dispatch. A
+/// handler may detach the collider. Detaching removes it from the world, raises the exits it owes,
+/// and cancels the remaining enters for this step.
 /// </para>
-/// </summary>
+/// </remarks>
 public abstract class Collider2D : Component
 {
     private readonly List<string> _detects = [];
@@ -81,17 +83,23 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Raised for each thing this collider began touching since the previous step, in overlap-query
-    /// order. A handler may not reconfigure the collider. A handler that detaches it ends the
-    /// dispatch, and the contacts the loop had not reached go unannounced.
+    /// order.
     /// </summary>
+    /// <remarks>
+    /// A handler may not reconfigure the collider. A handler that detaches it ends the dispatch,
+    /// and the contacts the loop had not reached go unannounced.
+    /// </remarks>
     public event Action<ColliderContact2D>? ContactEntered;
 
     /// <summary>
     /// Raised for each thing this collider stopped touching since the previous step, and for
     /// everything it had announced entering when it left its scene, was disabled, stopped reporting
-    /// contacts, or was detached from its entity. Exits come in <see cref="Touching"/> order. Each
-    /// enter is paired with one exit, provided the handlers return normally.
+    /// contacts, or was detached from its entity.
     /// </summary>
+    /// <remarks>
+    /// Exits come in <see cref="Touching"/> order. Each enter is paired with one exit, provided the
+    /// handlers return normally.
+    /// </remarks>
     public event Action<ColliderContact2D>? ContactExited;
 
     /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
@@ -164,10 +172,12 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Whether contacts are settled each step and announced through <see cref="ContactEntered"/>
-    /// and <see cref="ContactExited"/>. Off by default. Turning it off raises
-    /// <see cref="ContactExited"/> for every announced contact before returning. Turning it on
-    /// announces afresh on the next step.
+    /// and <see cref="ContactExited"/>. Off by default.
     /// </summary>
+    /// <remarks>
+    /// Turning it off raises <see cref="ContactExited"/> for every announced contact before
+    /// returning. Turning it on announces afresh on the next step.
+    /// </remarks>
     public bool ReportsContacts
     {
         get => _reportsContacts;
@@ -213,15 +223,18 @@ public abstract class Collider2D : Component
     /// <summary>
     /// The layers this collider's contact queries may detect, resolved against its scene's
     /// <see cref="Scene.Collision"/> world. The engine rebuilds it from the names given to
-    /// <see cref="SetFilter"/> each time the collider joins a scene, so the filter always matches the
-    /// world the collider is in. Reads None while it is in no scene.
+    /// <see cref="SetFilter"/> each time the collider registers with a world.
     /// </summary>
+    /// <remarks>
+    /// Reads <see cref="CollisionFilter.None"/> while the collider is disabled or in no scene.
+    /// </remarks>
     public CollisionFilter Filter { get; private set; }
 
-    /// <summary>
-    /// The layer this collider is on. Other queries' filters match against it. Defaults to
+    /// <summary>The layer this collider is on.</summary>
+    /// <remarks>
+    /// Other queries' filters match against it. Defaults to
     /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
-    /// </summary>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
     public string Layer
     {
@@ -241,7 +254,7 @@ public abstract class Collider2D : Component
                 _layerIndex = layer.Index;
                 if (_world is not null)
                 {
-                    world.SetFilter(_handle, layer, Filter);
+                    world.SetLayer(_handle, layer);
                 }
 
                 return;
@@ -259,18 +272,22 @@ public abstract class Collider2D : Component
     public Aabb2D Bounds => WorldShape.Bounds;
 
     /// <summary>
-    /// Everything this collider was touching as of the last step while <see cref="ReportsContacts"/>
-    /// is on, and empty otherwise. Carried-over contacts come first, then newly entered ones, each
-    /// group in overlap-query order. During a dispatch the span can already hold contacts whose
-    /// <see cref="ContactEntered"/> has not been raised. The enter and exit pairing is a guarantee
-    /// about the events, not about this span.
+    /// Everything this collider was touching as of the last step while
+    /// <see cref="ReportsContacts"/> is on, and empty otherwise. Carried-over contacts come first,
+    /// then newly entered ones, each group in overlap-query order.
     /// </summary>
+    /// <remarks>
+    /// During a dispatch the span can already hold contacts whose <see cref="ContactEntered"/> has
+    /// not been raised. The enter and exit pairing is a guarantee about the events, not about this
+    /// span.
+    /// </remarks>
     public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
 
-    /// <summary>
-    /// Replaces the layers this collider's contact queries detect. Detection does not block movement.
-    /// <see cref="KinematicBody2D.BlocksOn"/> holds a separate filter for blocking.
-    /// </summary>
+    /// <summary>Replaces the layers this collider's contact queries detect.</summary>
+    /// <remarks>
+    /// Detection does not block movement. <see cref="KinematicBody2D.BlocksOn"/> holds a separate
+    /// filter for blocking.
+    /// </remarks>
     /// <param name="names">The layer names to hit. An empty list hits nothing.</param>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
     public void SetFilter(params ReadOnlySpan<string> names)
@@ -287,10 +304,9 @@ public abstract class Collider2D : Component
             _detects.Add(name);
         }
 
-        if (_world is { } attached)
+        if (_world is not null)
         {
             Filter = filter;
-            attached.SetFilter(_handle, attached.Layer(_layer), filter);
         }
     }
 
@@ -307,10 +323,12 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Reports whether this collider is within <see cref="CollisionTolerance.ContactSkin"/> of
-    /// <paramref name="other"/>. This is an explicit pair test, so neither collider's
-    /// <see cref="Filter"/> applies. A collider never touches itself, and a disabled collider or one
-    /// in no scene touches nothing.
+    /// <paramref name="other"/>, ignoring both colliders' <see cref="Filter"/>. A collider never
+    /// touches itself.
     /// </summary>
+    /// <remarks>
+    /// The test returns false when <paramref name="other"/> is disabled or in no scene.
+    /// </remarks>
     /// <param name="other">The collider to test against.</param>
     /// <returns>Whether the two are touching.</returns>
     /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
@@ -318,9 +336,12 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Writes where this collider touches <paramref name="other"/> to <paramref name="contact"/>.
-    /// All other rules of <see cref="Overlaps(Collider2D)"/> apply. The contact describes
-    /// <paramref name="other"/>'s surface, matching what an overlap query over the same pair reports.
     /// </summary>
+    /// <remarks>
+    /// All other rules of <see cref="Overlaps(Collider2D)"/> apply. The contact describes
+    /// <paramref name="other"/>'s surface, matching what an overlap query over the same pair
+    /// reports.
+    /// </remarks>
     public bool Overlaps(Collider2D other, out Contact2D contact)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -349,7 +370,7 @@ public abstract class Collider2D : Component
     /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit and breaks ties
     /// the way <see cref="CollisionWorld2D.Raycast"/> does.
     /// </summary>
-    /// <param name="direction">Which way to look. The method normalises it, so any non-zero length works.</param>
+    /// <param name="direction">Which way to look. Any non-zero length works.</param>
     /// <param name="distance">How far to look, in world units.</param>
     /// <param name="hit">The nearest hit, when there is one.</param>
     /// <returns>Whether the ray hit anything.</returns>
@@ -358,10 +379,13 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Casts a ray against <paramref name="filter"/> instead of <see cref="Filter"/>, for this call
-    /// only. <see cref="CollisionFilter.None"/> hits nothing, and this does not change
+    /// only.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CollisionFilter.None"/> hits nothing, and this does not change
     /// <see cref="SetFilter"/>. All other rules of
     /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
-    /// </summary>
+    /// </remarks>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
         // The world allows a zero distance, but a zero-length ray from a collider that ignores itself
@@ -378,10 +402,12 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's shape from its current place along <paramref name="translation"/> and
-    /// reports the first thing it hits, using <see cref="Filter"/> and never itself. Nothing moves. A
-    /// surface the collider already touches reports at fraction 0 when the sweep drives into it, and
-    /// is ignored when the sweep runs along it or away from it.
+    /// reports the first thing it hits, using <see cref="Filter"/> and never itself.
     /// </summary>
+    /// <remarks>
+    /// Nothing moves. A surface the collider already touches reports at fraction 0 when the sweep
+    /// drives into it, and is ignored when the sweep runs along it or away from it.
+    /// </remarks>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
     /// <param name="hit">The nearest hit, when there is one.</param>
     /// <returns>Whether the sweep hit anything.</returns>
@@ -389,17 +415,21 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call only. <see cref="CollisionFilter.None"/> hits nothing, and
-    /// this does not change <see cref="SetFilter"/>. All other rules of
-    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
+    /// <see cref="Filter"/>, for this call only.
     /// </summary>
+    /// <remarks>
+    /// <see cref="CollisionFilter.None"/> hits nothing, and this does not change
+    /// <see cref="SetFilter"/>. All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/>
+    /// apply.
+    /// </remarks>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
 
     /// <summary>
-    /// Replaces the collider's shape with <paramref name="shape"/> and updates the world holding it,
-    /// so queries see the new shape as soon as this returns. A throw leaves the collider unchanged.
+    /// Replaces the collider's shape with <paramref name="shape"/>. Queries see the new shape as
+    /// soon as this returns.
     /// </summary>
+    /// <remarks>A throw leaves the collider unchanged.</remarks>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or cannot be placed at the current offset.</exception>
     protected void SetShape(in Shape2D shape)
     {
@@ -465,7 +495,7 @@ public abstract class Collider2D : Component
         CollisionWorld2D world = scene.Collision;
         CollisionFilter filter = ResolveFilter(world, CollectionsMarshal.AsSpan(_detects));
         CollisionLayer layer = world.Layer(_layer);
-        ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, filter, this);
+        ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, this);
 
         _layerIndex = layer.Index;
 

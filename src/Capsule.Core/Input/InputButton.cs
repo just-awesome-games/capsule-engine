@@ -4,16 +4,19 @@ namespace Capsule.Input;
 
 /// <summary>
 /// One bindable digital input: a <see cref="Key"/>, a <see cref="PadButton"/>, a
-/// <see cref="MouseButton"/> or a <see cref="StickDirection"/>. It converts implicitly from any of
-/// them. The default is <see cref="None"/>, which no snapshot holds down.
+/// <see cref="MouseButton"/> or a <see cref="StickDirection"/>.
 /// </summary>
+/// <remarks>
+/// It converts implicitly from any of them. The default is <see cref="None"/>, which no snapshot
+/// holds down.
+/// </remarks>
 [JsonConverter(typeof(InputButtonJsonConverter))]
 public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputButton>
 {
     /// <summary>
     /// How far a stick must be pushed, in [0, 1] along the direction's axis, for a
-    /// <see cref="StickDirection"/> to read as held. It applies to the axis position the snapshot
-    /// carries, which is already past the run's stick deadzone.
+    /// <see cref="StickDirection"/> to read as held. The threshold applies to the snapshot's axis
+    /// position, after the stick deadzone.
     /// </summary>
     public const float StickPressPoint = 0.5f;
 
@@ -57,10 +60,10 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         (uint)_mouseButton < DeviceSnapshot.MouseCapacity;
 
     /// <summary>
-    /// Whether <paramref name="snapshot"/> holds this button down. A stick direction is down while its
-    /// axis is at or past <see cref="StickPressPoint"/> in that direction. <see cref="None"/> is never
-    /// down.
+    /// Whether <paramref name="snapshot"/> holds this button down. A stick direction is down while
+    /// its axis is at or past <see cref="StickPressPoint"/> in that direction.
     /// </summary>
+    /// <remarks><see cref="None"/> is never down.</remarks>
     public bool IsDown(in DeviceSnapshot snapshot) =>
         _key != Key.None ? snapshot.IsDown(_key)
         : _padButton != PadButton.None ? snapshot.IsDown(_padButton)
@@ -74,7 +77,7 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         : _key != Key.None || _mouseButton != MouseButton.None ? InputDevice.KeyboardMouse
         : InputDevice.Gamepad;
 
-    /// <summary>The device constant's bare name, what a caption shows, or <c>None</c> for none.</summary>
+    /// <summary>The device constant's bare name for a caption, such as <c>Space</c>, or <c>None</c>.</summary>
     public string Name => IsNone ? nameof(None) : Qualified.Name;
 
     /// <summary>Whether both name the same device constant.</summary>
@@ -120,7 +123,10 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
 
     static InputButton IParsable<InputButton>.Parse(string s, IFormatProvider? provider) => Parse(s);
 
-    /// <summary>Tries to parse the form <see cref="ToString"/> writes. Ordinal and exact, no numeric enum strings.</summary>
+    /// <summary>Tries to parse the form <see cref="ToString"/> writes.</summary>
+    /// <remarks>
+    /// Matching is ordinal and case-sensitive. Numeric enum strings, null and empty all fail.
+    /// </remarks>
     public static bool TryParse(string? s, out InputButton result)
     {
         result = None;

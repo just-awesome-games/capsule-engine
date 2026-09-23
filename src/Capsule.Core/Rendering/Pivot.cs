@@ -2,12 +2,12 @@ using System.Numerics;
 
 namespace Capsule.Rendering;
 
-/// <summary>
-/// A point on a box given as a fraction of its extent on each axis, in the Y-down plane, so (0, 0) is
-/// the box's top-left corner and (1, 1) its bottom-right. A box is placed so the point its pivot names
-/// lands on the position it is drawn at. A fraction outside [0, 1] offsets the box by a multiple of its
-/// own extent.
-/// </summary>
+/// <summary>A point on a box given as a fraction of its extent on each axis.</summary>
+/// <remarks>
+/// In the Y-down plane (0, 0) is the box's top-left corner and (1, 1) its bottom-right. A box is
+/// placed so the point its pivot names lands on the position it is drawn at. A fraction outside [0,
+/// 1] offsets the box by a multiple of its own extent.
+/// </remarks>
 public readonly record struct Pivot(float X, float Y)
 {
     /// <summary>The box's top-left corner, which is the default.</summary>

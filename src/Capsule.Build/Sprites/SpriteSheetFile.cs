@@ -35,8 +35,8 @@ internal readonly record struct SpriteSheet(
     SheetClip[] Clips);
 
 /// <summary>
-/// Reads the sprite sheet document format. The sheet is known at build time, so the generated
-/// registry carries it as literal data and no document ships or is parsed at run time.
+/// Reads the sprite sheet document format. The sheet is known at build time. The generated registry
+/// carries it as literal data, and no document ships or is parsed at run time.
 /// </summary>
 internal static class SpriteSheetFile
 {

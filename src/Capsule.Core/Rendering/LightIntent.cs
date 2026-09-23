@@ -3,13 +3,14 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// One light as the simulation wants it drawn. The renderer interpolates
-/// <see cref="PreviousPosition"/> to <see cref="Position"/> and lands the sprite's pivot there, turned
-/// by <see cref="PreviousRotation"/> interpolated to <see cref="Rotation"/> along the shortest arc, as a
-/// <see cref="SpriteIntent"/> is. The sprite is drawn additively into the frame's light map, its wider
-/// region axis spanning <c>2 * Radius</c> world units and the other axis by the region's aspect,
-/// anchored on the sprite's pivot.
+/// One light as the simulation wants it drawn. The renderer interpolates its position and rotation
+/// as it does a <see cref="SpriteIntent"/>'s and draws the sprite additively into the frame's light
+/// map, pivot on the position.
 /// </summary>
+/// <remarks>
+/// The region's wider axis spans <c>2 * Radius</c> world units, and the other axis keeps the
+/// region's aspect.
+/// </remarks>
 /// <param name="Sprite">The frame the light is drawn as. <see cref="Rendering.Sprite.Light"/> when the light carries no other sprite.</param>
 /// <param name="PreviousPosition">Where the pivot sat at the end of the previous step, in world units.</param>
 /// <param name="Position">Where the pivot sits now, in world units.</param>
@@ -17,7 +18,7 @@ namespace Capsule.Rendering;
 /// <param name="Rotation">The turn about the pivot now, in radians, clockwise positive in the Y-down space.</param>
 /// <param name="Radius">World units from the pivot to the light's falloff edge. Non-positive or non-finite draws nothing.</param>
 /// <param name="Color">The light's colour, added into the light map scaled by its alpha.</param>
-/// <param name="Intensity">How many times the colour is added. Non-positive or non-finite draws nothing.</param>
+/// <param name="Intensity">How many times the colour is added, 1 by default. Non-positive or non-finite draws nothing.</param>
 public readonly record struct LightIntent(
     Sprite Sprite,
     Vector2 PreviousPosition,

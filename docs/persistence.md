@@ -17,7 +17,7 @@ public sealed record GameSettings
 
 public static class GameSaves
 {
-    /// <summary>The settings document. A first run has none, so it reads as the default settings.</summary>
+    /// <summary>The settings document. A first run reads the default settings.</summary>
     public static readonly SaveKey<GameSettings> Settings =
         new("settings", GameSaveContext.Default.GameSettings, new GameSettings());
 }
@@ -26,12 +26,7 @@ public static class GameSaves
 internal sealed partial class GameSaveContext : JsonSerializerContext;
 ```
 
-That context is the one every NativeAOT application declares for its JSON; Capsule adds nothing to
-it.
-
-The two-argument constructor declares a key whose absent document throws on read. The three-argument one
-gives it a fallback, serialized once and deserialized afresh on each such read, so the instance is not
-handed out. `TryRead` reads a key with no fallback.
+That context is the one every NativeAOT application declares for its JSON. Capsule adds nothing to it.
 
 ## Write it and read it
 
@@ -46,7 +41,7 @@ Run.Saves.Write(GameSaves.Settings, settings);
 Run.Audio.SetVolume(AudioBuses.Sfx, settings.SoundOn ? 1f : 0f);
 ```
 
-The host restores every document before the first scene composes, so a scene reads its own state from
+The host restores every document before the first scene composes. A scene reads its own state from
 `OnStart` on:
 
 ```csharp
@@ -55,9 +50,7 @@ protected override void OnStart() =>
 ```
 
 The host persists what each step wrote or deleted after that step, the step that requests exit included,
-and once more at teardown. Reads are synchronous, so simulation code touches no file. `Exists` and
-`Delete` complete the store, `Names` lists what it holds, and a document's `SaveMetadata` is host state,
-set by the flush and visible from the next step.
+and once more at teardown. A read is served from memory, and simulation code touches no file.
 
 Split documents by how often they change: settings, a profile, a slot. Inside one document, each system
 contributes and reads back its own part.
@@ -82,12 +75,12 @@ indent, and whatever formatting the game's context declares:
 `metadata` is the engine's half and `document` the game's JSON verbatim, hand-editable. A write is staged
 as `.save.json.tmp` and swapped in, keeping the previous file as `.save.json.bak`. At restore, a file that
 does not parse is set aside as `.save.json.corrupt` and its backup restored in its place, with a warning
-either way. A field the document does not carry reads as its property's initializer, and one the game no longer
-declares is ignored. A save written by an older build still loads. Declare document properties with
-`set`. Source generation fills an `init` property from the document, and a field an older save lacks
-then reads as `default` instead of its initializer. The compiler refuses one as `CAP106`. A
-`required` member and a positional record parameter pass, because a missing field fails the read or
-takes the parameter's default, and neither is silent.
+either way. A field the document does not carry reads as its property's initializer, and one the game
+no longer declares is ignored. A save written by an older build still loads.
+
+Declare document properties with `set`. An `init` property reads as `default`, not its initializer, when
+an older save lacks its field. The compiler refuses one as `CAP106`. A `required` member and a positional
+record parameter are allowed. A missing field fails the read or takes the parameter's default.
 
 ## Where the files go
 
@@ -97,15 +90,14 @@ In reach order, each lever overriding the one above it:
    `%LOCALAPPDATA%\my-game\saves` on Windows, `$XDG_DATA_HOME/my-game/saves` (else
    `~/.local/share/my-game/saves`) on Linux, `~/Library/Application Support/my-game/saves` on macOS.
    `crash.log` sits beside `saves`.
-2. `EngineBuilder.WithLocalFolder(name)` renames the folder, so a game renamed after release keeps its
-   saves.
+2. `EngineBuilder.WithLocalFolder(name)` renames the folder. A game renamed after release keeps its
+   saves with it.
 3. `EngineBuilder.WithSaveDirectory(path)`, or `--saves <dir>`, moves the saves directory itself: a
    portable build, a fresh-install playtest.
-4. `EngineBuilder.WithSaveStorage(ISaveStorage)` replaces the medium for one shell. The medium itself is
-   the platform module's `OpenSaveStorage`, so a platform that mounts a container instead of a folder
-   answers with its own ([`architecture.md`](architecture.md#platforms)).
+4. `EngineBuilder.WithSaveStorage(ISaveStorage)` replaces the medium for one shell. The default medium
+   is the platform module's `OpenSaveStorage`, and a platform that mounts a container answers with its
+   own ([`architecture.md`](architecture.md#platforms)).
 
-A headless run persists nothing unless lever 3 or 4 names a medium, so persisted state is initial state
-and not a developer's own folder. In a test, `Run.Saves` is in memory at either boundary
-([`testing.md`](testing.md)). The cloud story is a synchronized folder, such as Steam Auto-Cloud pointed
-at the saves directory.
+A headless run persists nothing unless lever 3 or 4 names a medium. A developer's own saves never become
+its initial state. Cloud saves are a synchronized folder, such as Steam Auto-Cloud pointed at the saves
+directory.

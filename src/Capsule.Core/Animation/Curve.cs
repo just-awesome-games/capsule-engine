@@ -9,9 +9,15 @@ public readonly record struct CurveKey(float Time, float Value);
 
 /// <summary>
 /// A value over a normalised time in [0, 1], eased between adjacent keys by one <see cref="Ease"/>.
-/// Holds up to eight keys inline.
+/// It holds the first key's value before that key and the last key's value after it.
 /// </summary>
-/// <remarks>Allocates nothing.</remarks>
+/// <remarks>
+/// A curve stores up to eight keys inline.
+/// <para>
+/// Allocates nothing.
+/// </para>
+/// </remarks>
+///
 public readonly struct Curve
 {
     private readonly KeyBuffer _keys;
@@ -40,8 +46,8 @@ public readonly struct Curve
     /// <summary>A curve holding one constant value.</summary>
     public static Curve Constant(float value) => FromKeys([new CurveKey(0f, value)]);
 
-    /// <summary>The largest value any key holds. A particle emitter's bounds inflate by this.</summary>
-    public float Max => _max;
+    // The largest value any key holds. A particle emitter's bounds inflate by this.
+    internal float Max => _max;
 
     /// <summary>A constant curve, as <see cref="Constant"/>.</summary>
     public static implicit operator Curve(float value) => Constant(value);
@@ -54,13 +60,11 @@ public readonly struct Curve
 
     /// <summary>A curve through <paramref name="keys"/>, linear between them.</summary>
     /// <param name="keys">One to eight keys, with non-decreasing <see cref="CurveKey.Time"/> each in [0, 1].</param>
-    /// <exception cref="ArgumentOutOfRangeException">More than eight keys, a time outside [0, 1], or a time that decreases from the one before it.</exception>
     public static Curve FromKeys(params ReadOnlySpan<CurveKey> keys) => FromKeys(keys, Ease.Linear);
 
     /// <summary>A curve through <paramref name="keys"/>, bent by <paramref name="ease"/> between them.</summary>
     /// <param name="keys">One to eight keys, with non-decreasing <see cref="CurveKey.Time"/> each in [0, 1].</param>
     /// <param name="ease">The bend applied to the fraction between two adjacent keys.</param>
-    /// <exception cref="ArgumentOutOfRangeException">More than eight keys, a time outside [0, 1], or a time that decreases from the one before it.</exception>
     public static Curve FromKeys(ReadOnlySpan<CurveKey> keys, Ease ease)
     {
         if (keys.Length is < 1 or > 8)
@@ -86,9 +90,9 @@ public readonly struct Curve
     }
 
     /// <summary>
-    /// The curve's value at <paramref name="t"/>. Progress is clamped to [0, 1] and NaN reads as 0. A
-    /// default curve, with no keys, reads 0 everywhere.
+    /// The curve's value at <paramref name="t"/>. Progress is clamped to [0, 1] and NaN reads as 0.
     /// </summary>
+    /// <remarks>A default curve, with no keys, reads 0 everywhere.</remarks>
     public float Evaluate(float t)
     {
         t = float.IsNaN(t) ? 0f : Math.Clamp(t, 0f, 1f);

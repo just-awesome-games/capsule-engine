@@ -18,10 +18,11 @@ public enum LogLevel
     Error,
 }
 
-/// <summary>
-/// Where log lines go. The host installs one before the simulation runs. A game implements it to
-/// capture output in its own tests.
-/// </summary>
+/// <summary>Where log lines go. The host installs one before the simulation runs.</summary>
+/// <remarks>
+/// A game implements it to capture output in its own tests and passes it to
+/// <c>EngineBuilder.WithLogSink</c>.
+/// </remarks>
 public interface ILogSink
 {
     /// <summary>
@@ -31,19 +32,20 @@ public interface ILogSink
     void Write(LogLevel level, string message);
 }
 
-/// <summary>
-/// How game logic says something out loud. It is write-only telemetry, so installing a sink does not
-/// change the state a run reaches. Logging is silent until a sink is installed, which the runtime does
-/// at boot. A sink that throws is detached, and its line and everything after it are lost.
-/// </summary>
+/// <summary>How game logic says something out loud.</summary>
+/// <remarks>
+/// It is write-only telemetry. Installing a sink does not change the state a run reaches. Logging
+/// is silent until a sink is installed, which the runtime does at boot. A sink that throws is
+/// detached, and its line and everything after it are lost.
+/// </remarks>
 public static class Log
 {
     // Private, because a reader would let a game call a sink directly and bypass the containment below,
     // and a presence query would let a game branch on how the host was configured.
     private static ILogSink? Sink { get; set; }
 
-    /// <summary>Installs <paramref name="sink"/>, replacing whatever was there. Null silences logging.</summary>
-    public static void UseSink(ILogSink? sink) => Sink = sink;
+    // Installs sink, replacing whatever was there. Null silences logging.
+    internal static void UseSink(ILogSink? sink) => Sink = sink;
 
     /// <summary>
     /// Writes one line of detail for whoever is working on the code. The call and its message

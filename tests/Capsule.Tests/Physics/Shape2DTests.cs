@@ -48,7 +48,7 @@ public sealed class Shape2DTests
         Assert.True(placed.Bounds.Size.Y > 0f);
 
         CollisionWorld2D world = new();
-        world.Add(unit, new Vector2(Furthest, 0f), world.Layer("wall"), CollisionFilter.None);
+        world.Add(unit, new Vector2(Furthest, 0f), world.Layer("wall"));
 
         Assert.True(world.Raycast(
             new Vector2(Furthest - 10f, 0.5f),
@@ -71,7 +71,7 @@ public sealed class Shape2DTests
         Assert.True(float.IsFinite(wide.Bounds.Perimeter));
 
         CollisionWorld2D world = new();
-        world.Add(wide, Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
+        world.Add(wide, Vector2.Zero, world.Layer("wall"));
 
         Assert.True(world.Raycast(new Vector2(-10f, 5f), Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D hit));
         Assert.Equal(10f, hit.Distance, 3);
@@ -141,7 +141,7 @@ public sealed class Shape2DTests
         static (float Distance, Vector2 Normal) FirstFace(Vector2[] points)
         {
             CollisionWorld2D world = new();
-            world.Add(Shape2D.Polygon(points), Vector2.Zero, world.Layer("target"), CollisionFilter.None);
+            world.Add(Shape2D.Polygon(points), Vector2.Zero, world.Layer("target"));
 
             Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D hit));
 

@@ -53,13 +53,11 @@ public static class GameInput
     /// </summary>
     public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Click);
 
-    /// <summary>Sets the gamepad deadzones and binds every action to the devices the game supports.</summary>
+    /// <summary>Binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input, GameSettings settings)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(settings);
-
-        input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
         ActionBindings bindings = input.Bindings;
 

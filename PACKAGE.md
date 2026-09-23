@@ -2,7 +2,7 @@
 
 # Capsule Engine
 
-Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authored in code or as scene documents, and gameplay is kept separate from the graphics host so it can run in headless tests.
+Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authored in code or as scene documents. Gameplay never touches the graphics host, and it runs in headless tests.
 
 | Package | Purpose |
 | --- | --- |
@@ -13,6 +13,6 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 `JAG.Capsule.Runtime` and `JAG.Capsule.Build` carry the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the atlas packer's image codecs.
 
-Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start), then [getting started](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/getting-started.md), [input](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/input.md), [rendering](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/rendering.md), [audio](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/audio.md), [collision](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/collision.md), [assets](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/assets.md), [scene authoring](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/scenes.md), [persistence](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/persistence.md), [build and publish](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/build-and-publish.md), and [testing a game](https://github.com/just-awesome-games/capsule-engine/blob/main/docs/testing.md).
+Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 
 Capsule is licensed under the [MIT License](https://github.com/just-awesome-games/capsule-engine/blob/main/LICENSE).

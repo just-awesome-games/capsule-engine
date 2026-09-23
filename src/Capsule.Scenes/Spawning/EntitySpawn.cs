@@ -2,13 +2,13 @@ using System.Numerics;
 
 namespace Capsule.Scenes.Spawning;
 
-/// <summary>
-/// One authored placement as the entity it spawns receives it. <see cref="Position"/> is the raw authored
-/// coordinate, and the entity's constructor translates it to that entity's own anchor. The
-/// <see cref="Entity(EntitySpawn)"/> constructor applies <see cref="ZIndex"/> and
-/// <see cref="ScrollFactor"/> before the derived constructor's body runs, so the class's own writes override
-/// the document's.
-/// </summary>
+/// <summary>One authored placement as the entity it spawns receives it.</summary>
+/// <remarks>
+/// <see cref="Position"/> is the raw authored coordinate, and the entity's constructor translates it to
+/// that entity's own anchor. The <see cref="Entity(EntitySpawn)"/> constructor applies
+/// <see cref="ZIndex"/> and <see cref="ScrollFactor"/> before the derived constructor's body runs.
+/// Writes in that body override the document.
+/// </remarks>
 /// <param name="Id">The placement's id in the document's single id space.</param>
 /// <param name="Type">The spawn type the entity claimed.</param>
 /// <param name="Position">The raw authored coordinate.</param>
@@ -27,7 +27,7 @@ public readonly record struct EntitySpawn(
     int? ZIndex = null,
     Vector2? ScrollFactor = null)
 {
-    /// <summary>The same placement at the authored size, which covers the common case.</summary>
+    /// <summary>A placement at scale one.</summary>
     public EntitySpawn(int id, string type, Vector2 position)
         : this(id, type, position, Vector2.One)
     {

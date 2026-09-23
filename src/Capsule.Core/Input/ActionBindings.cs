@@ -1,9 +1,10 @@
 namespace Capsule.Input;
 
 /// <summary>
-/// Which buttons and axes stand for which actions. Written once at configuration time and read every
-/// step thereafter. A read is an array lookup and allocates nothing.
+/// Which buttons and axes stand for which actions. Written once at configuration time and read
+/// every step thereafter.
 /// </summary>
+/// <remarks>A read is an array lookup and allocates nothing.</remarks>
 public sealed class ActionBindings
 {
     // Indexed by the action's own index. A read hashes nothing. A null row is an unbound action, and
@@ -39,8 +40,8 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds <paramref name="axis"/> to <paramref name="action"/>, so its position contributes to the
-    /// action's value. A second bind accumulates with the first.
+    /// Adds the position of <paramref name="axis"/> to what <paramref name="action"/> reads. A second
+    /// bind accumulates with the first, and binding the same source again changes nothing.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed, or the axis is <see cref="PadAxis.None"/>.</exception>
     public ActionBindings BindAxis(AxisAction action, PadAxis axis)
@@ -56,9 +57,8 @@ public sealed class ActionBindings
     }
 
     /// <summary>
-    /// Adds <paramref name="axis"/> of the mouse wheel to <paramref name="action"/>, so the notches
-    /// turned each step contribute to the action's value without bound. A second bind accumulates
-    /// with the first.
+    /// Adds the notches <paramref name="axis"/> of the mouse wheel turns each step to what
+    /// <paramref name="action"/> reads, unclamped. A second bind accumulates with the first.
     /// </summary>
     /// <exception cref="ArgumentException">The action is unnamed.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The axis names no wheel axis.</exception>
@@ -130,8 +130,8 @@ public sealed class ActionBindings
     /// <summary>Buttons bound to <paramref name="action"/>. Empty when the action is unbound.</summary>
     public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
 
-    /// <summary>Whether any button bound to <paramref name="action"/> is held in <paramref name="snapshot"/>.</summary>
-    public bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot)
+    // Whether any button bound to action is held in snapshot.
+    internal bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot)
     {
         ReadOnlySpan<InputButton> buttons = Bound(_buttons, action.Index);
 
@@ -146,12 +146,9 @@ public sealed class ActionBindings
         return false;
     }
 
-    /// <summary>
-    /// What <paramref name="action"/> reads in <paramref name="snapshot"/>. Contributions from
-    /// buttons and pad axes are summed and clamped to [-1, 1]. Wheel notches bound to the action are
-    /// a count, so they add on unclamped. An unbound action reads 0.
-    /// </summary>
-    public float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
+    // What action reads in snapshot. Buttons and pad axes are summed and clamped to [-1, 1]. Wheel
+    // notches are a count and add on after the clamp. An unbound action reads 0.
+    internal float AxisValue(AxisAction action, in DeviceSnapshot snapshot)
     {
         ReadOnlySpan<AxisSource> sources = Bound(_sources, action.Index);
 

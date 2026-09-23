@@ -21,17 +21,11 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
-[`docs/getting-started.md`](docs/getting-started.md) takes it from there: three projects, a scene, and one entity on screen. A shell's only hand-written code is its entry point, against the generated `CapsuleBoot` builder:
-
-```csharp
-return CapsuleBoot.Configure("My Game", new DesktopPlatform()).WithCommandLine(args).RunScene<MainMenu>();
-```
-
-Press `` ` `` in any windowed run for the development overlay. A trimmed publish removes it and an untrimmed one carries it disabled ([`docs/debugging.md`](docs/debugging.md)).
+[`docs/getting-started.md`](docs/getting-started.md) takes it from there: three projects, a scene, and one entity on screen. Press `` ` `` in any windowed run for the development overlay ([`docs/debugging.md`](docs/debugging.md)).
 
 ## Documentation
 
-Four packages ship: `JAG.Capsule` (logic API), `JAG.Capsule.Runtime` (the neutral host), `JAG.Capsule.Runtime.Desktop` (the desktop platform module a shell references), and `JAG.Capsule.Build` (build tooling). [`PACKAGE.md`](PACKAGE.md) lists their contents. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
+Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
 
 - [`docs/getting-started.md`](docs/getting-started.md): clone, wire three projects, put one entity on screen, run it.
 - [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, input drivers, the standard command line.

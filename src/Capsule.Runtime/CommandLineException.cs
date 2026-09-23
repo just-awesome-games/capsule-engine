@@ -3,8 +3,22 @@ namespace Capsule.Runtime;
 /// <summary>
 /// Thrown by <see cref="EngineBuilder.WithCommandLine"/> for a command line the engine will not run,
 /// and for one that asked for the usage block. A shell catches it around its configuration chain and
-/// returns <see cref="Report"/> as the process's exit code.
+/// returns what <see cref="Report"/> returns.
 /// </summary>
+/// <example>
+/// <code>
+/// try
+/// {
+///     return CapsuleBoot.Configure("My Game", new DesktopPlatform())
+///         .WithCommandLine(args)
+///         .RunScene&lt;TitleScene&gt;();
+/// }
+/// catch (CommandLineException failure)
+/// {
+///     return failure.Report();
+/// }
+/// </code>
+/// </example>
 public sealed class CommandLineException : Exception
 {
     internal CommandLineException(string message, string usage, bool helpRequested)

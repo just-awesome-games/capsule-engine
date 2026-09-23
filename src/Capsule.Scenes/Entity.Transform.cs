@@ -20,19 +20,20 @@ public partial class Entity
     private bool _worldStale = true;
 
     /// <summary>
-    /// The entity's place, turn and size, local to the <see cref="Parent"/> when it has one. The position
-    /// is in the entity's own units: world units normally, canvas pixels from the anchor on a
-    /// <see cref="ScreenEntity"/>, and the parent's space under a parent. The rotation is in radians and
-    /// clockwise positive. The scale is per axis, and zero and negative axes are allowed. The turn and
-    /// the scale reach presentation only. Anything that collides follows world position.
-    /// <para>
-    /// All three values are set in one write: validated once, every collider beneath re-placed, and
-    /// rolled back together if a collider rejects the position. Every entity beneath recomposes its world
-    /// transform on its next read, and a read with no write in the ancestry costs one flag test. A turn
-    /// or a scale written outside a step becomes both ends of the next frame's interpolation, so it shows
-    /// immediately.
-    /// </para>
+    /// The entity's place, turn and size, local to the <see cref="Parent"/> when it has one. The
+    /// position is in the entity's own units: world units normally, canvas pixels from the anchor
+    /// on a <see cref="ScreenEntity"/>, and the parent's space under a parent.
     /// </summary>
+    /// <remarks>
+    /// The rotation is in radians and clockwise positive. The scale is per axis, and zero and
+    /// negative axes are allowed. The turn and the scale reach presentation only. Anything that
+    /// collides follows world position.
+    /// <para>
+    /// All three values land in one write. The write re-places every collider beneath, and all
+    /// three roll back together if a collider rejects the position. A turn or a scale written
+    /// outside a step becomes both ends of the next frame's interpolation and shows immediately.
+    /// </para>
+    /// </remarks>
     /// <exception cref="ArgumentException">A collider on this entity or a descendant cannot be placed there. Nothing changes.</exception>
     /// <exception cref="InvalidOperationException">
     /// The entity is anchored to the world origin, or the rotation is non-zero over a subtree holding a
@@ -66,18 +67,14 @@ public partial class Entity
         set => Store(_local.Position, _local.Rotation, value);
     }
 
-    /// <summary>
-    /// <see cref="Transform"/> as of the previous step. The engine manages it: the scene saves it, and
-    /// the world transform it composes, at the top of every step, and every renderer interpolates from it
-    /// by the frame alpha. <see cref="Teleport"/>, a turn or scale written outside a step, and a join
-    /// collapse it onto the current value.
-    /// </summary>
-    public Transform2D PreviousTransform => _previousLocal;
+    // Transform as of the previous step, saved at the top of every step. Renderers interpolate from it by
+    // the frame alpha. Teleport and joining a scene collapse it onto the current value. A turn or scale
+    // written outside a step collapses its rotation and scale and keeps its position.
+    internal Transform2D PreviousTransform => _previousLocal;
 
     /// <summary>
     /// <see cref="Transform"/> composed with every ancestor's, giving where the entity sits in the world,
-    /// or on the canvas under a <see cref="ScreenEntity"/> root. Cached and recomposed as
-    /// <see cref="Transform"/> describes.
+    /// or on the canvas under a <see cref="ScreenEntity"/> root.
     /// </summary>
     public Transform2D WorldTransform => World;
 
@@ -111,9 +108,13 @@ public partial class Entity
     internal ref readonly Transform2D PreviousWorld => ref _previousWorld;
 
     /// <summary>
-    /// Moves the entity with no interpolation from the old position. It writes the position and then
-    /// collapses <see cref="PreviousTransform"/> onto the current transform.
+    /// Moves the entity to <paramref name="position"/>, local to its <see cref="Parent"/>, with no
+    /// interpolation from the old position.
     /// </summary>
+    /// <remarks>
+    /// The write follows the rules <see cref="Transform"/> describes. The frame after it draws the entity
+    /// at the new position with no motion between.
+    /// </remarks>
     public void Teleport(Vector2 position)
     {
         Position = position;
@@ -270,10 +271,10 @@ public partial class Entity
     private static InvalidOperationException Turned(Component component, Entity holder, Entity carrier, float rotation) =>
         new(string.Create(
             CultureInfo.InvariantCulture,
-            $"A {component.GetType().Name} on a {holder.GetType().Name} cannot be turned, and {carrier.GetType().Name} carries a rotation of {rotation} that every entity under it inherits; clear that rotation or move the component out of the subtree."));
+            $"A {component.GetType().Name} on a {holder.GetType().Name} cannot be turned, and {carrier.GetType().Name} carries a rotation of {rotation} that every entity under it inherits. Clear that rotation or move the component out of the subtree."));
 
     private static InvalidOperationException Scaled(Component component, Entity holder, Entity carrier, Vector2 scale) =>
-        new($"A {component.GetType().Name} on a {holder.GetType().Name} cannot be scaled, and {carrier.GetType().Name} carries a scale of {DebugPanel.Format(scale)} that every entity under it inherits; reset that scale to one or move the component out of the subtree.");
+        new($"A {component.GetType().Name} on a {holder.GetType().Name} cannot be scaled, and {carrier.GetType().Name} carries a scale of {DebugPanel.Format(scale)} that every entity under it inherits. Reset that scale to one or move the component out of the subtree.");
 
     // Notifies every component on this entity, then recurses into each branch that holds a collider.
     private void NotifyMoved()

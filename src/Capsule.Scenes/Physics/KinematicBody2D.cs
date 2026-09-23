@@ -8,14 +8,17 @@ namespace Capsule.Physics;
 /// <summary>
 /// Sweeps one selected <see cref="Collider2D"/> through the scene's collision world, stopping and
 /// sliding against an independently configured set of blocking layers, and reports which way it was
-/// stopped. The caller owns velocity, acceleration and every gameplay response. This component
-/// applies no force. One body per entity, because two would each write the entity's position.
+/// stopped. The caller owns velocity, acceleration and every gameplay response.
+/// </summary>
+/// <remarks>
+/// This component applies no force. An entity holds at most one body, and attaching a second
+/// throws.
 /// <para>
 /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/> and <see cref="IsOnCeiling"/> describe the last
 /// <see cref="Move(Vector2)"/> only. A move that pressed into nothing clears them, and a zero
 /// translation clears them too.
 /// </para>
-/// </summary>
+/// </remarks>
 /// <example>
 /// <code>
 /// BoxCollider2D bodyCollider = new(new Vector2(8f, 8f));
@@ -74,10 +77,11 @@ public sealed class KinematicBody2D : Component
         _collider = collider;
     }
 
-    /// <summary>
-    /// The collider whose shape this body sweeps. Sweeping requires it to be enabled, registered in a
-    /// scene, and still attached to this body's entity. Otherwise every move and test throws.
-    /// </summary>
+    /// <summary>The collider whose shape this body sweeps.</summary>
+    /// <remarks>
+    /// Sweeping requires it to be enabled, registered in a scene, and still attached to this body's
+    /// entity. Otherwise every move and test throws.
+    /// </remarks>
     public Collider2D Collider => _collider;
 
     /// <summary>
@@ -102,13 +106,13 @@ public sealed class KinematicBody2D : Component
     /// <summary>The surfaces the most recent <see cref="Move(Vector2)"/> reached.</summary>
     public ReadOnlySpan<ColliderContact2D> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
 
-    /// <summary>Whether the last move was stopped by a floor, meaning a blocking contact whose normal points up.</summary>
+    /// <summary>Whether the last move was stopped by a floor, a blocking contact whose normal is within 45 degrees of up (negative Y).</summary>
     public bool IsOnFloor { get; private set; }
 
-    /// <summary>Whether the last move was stopped by a wall, meaning a blocking contact whose normal is neither floor nor ceiling.</summary>
+    /// <summary>Whether the last move was stopped by a wall, a blocking contact whose normal is neither floor nor ceiling.</summary>
     public bool IsOnWall { get; private set; }
 
-    /// <summary>Whether the last move was stopped by a ceiling, meaning a blocking contact whose normal points down.</summary>
+    /// <summary>Whether the last move was stopped by a ceiling, a blocking contact whose normal is within 45 degrees of down.</summary>
     public bool IsOnCeiling { get; private set; }
 
     /// <summary>The floor contact's normal, or zero when <see cref="IsOnFloor"/> is false.</summary>
@@ -177,29 +181,38 @@ public sealed class KinematicBody2D : Component
     }
 
     /// <summary>
-    /// Attempts <paramref name="translation"/> and returns the part that was applied. One call adds the
-    /// resolved translation to the entity's position, replaces <see cref="MoveContacts"/>, and sets
-    /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/>, <see cref="IsOnCeiling"/>,
-    /// <see cref="FloorNormal"/> and <see cref="WallNormal"/>. Velocity and force stay the caller's.
+    /// Attempts <paramref name="translation"/>, in world units, and returns the part that was
+    /// applied.
     /// </summary>
+    /// <remarks>
+    /// One call adds the resolved translation to the entity's position, replaces
+    /// <see cref="MoveContacts"/>, and sets <see cref="IsOnFloor"/>, <see cref="IsOnWall"/>,
+    /// <see cref="IsOnCeiling"/>, <see cref="FloorNormal"/> and <see cref="WallNormal"/>. Velocity
+    /// and force stay the caller's.
+    /// </remarks>
     public MoveResult2D Move(Vector2 translation) => MoveWith(translation, Filter);
 
     /// <summary>
     /// Attempts <paramref name="translation"/> against <paramref name="blocking"/> instead of
-    /// <see cref="Filter"/>, for this call only. <see cref="CollisionFilter.None"/> stops on nothing.
-    /// This does not change <see cref="BlocksOn"/>, so the next plain <see cref="Move(Vector2)"/> uses
-    /// the stored filter again.
+    /// <see cref="Filter"/>, for this call only.
     /// </summary>
+    /// <remarks>
+    /// <see cref="CollisionFilter.None"/> stops on nothing. The stored <see cref="BlocksOn"/>
+    /// layers are unchanged, and the next plain <see cref="Move(Vector2)"/> uses them again.
+    /// </remarks>
     public MoveResult2D Move(Vector2 translation, CollisionFilter blocking) => MoveWith(translation, blocking);
 
     /// <summary>
-    /// Reports whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be stopped
-    /// short. It sweeps the body's own collider from its current place, using <see cref="Filter"/> and
-    /// never hitting itself. Nothing moves and nothing is written, including <see cref="IsOnFloor"/>
-    /// and its peers. The axes sweep independently, as in a real move, so the translation is blocked
-    /// when either axis is blocked. An axis with no travel blocks nothing, and a surface reached exactly
-    /// at the end of the translation does not count as a block.
+    /// Reports whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be
+    /// stopped short. It sweeps the body's own collider from its current place, using
+    /// <see cref="Filter"/> and never hitting itself.
     /// </summary>
+    /// <remarks>
+    /// Nothing moves and nothing is written, including <see cref="IsOnFloor"/> and its peers. The
+    /// axes sweep independently, as in a real move, and the translation is blocked when either axis
+    /// is blocked. An axis with no travel blocks nothing, and a surface reached exactly at the end
+    /// of the translation does not count as a block.
+    /// </remarks>
     /// <param name="translation">The move to test, in world units.</param>
     /// <returns>Whether something would stop the move short.</returns>
     public bool TestMove(Vector2 translation) => TestMove(translation, Vector2.Zero);

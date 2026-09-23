@@ -5,18 +5,21 @@ namespace Capsule;
 
 /// <summary>
 /// A place, a turn and a size in the Y-down plane. <see cref="Position"/> is in the units of the
-/// space it sits in, <see cref="Rotation"/> is radians clockwise positive, and <see cref="Scale"/> is
-/// per axis. Placing a point applies scale, then turn, then offset. Two transforms compose without
-/// shear: the turns add, the scales multiply per axis, and the inner position passes through the
-/// outer as a point. A mirror, meaning one negative scale axis, conjugates the inner turn, which
-/// keeps a flipped figure's parts turning the way they were drawn. Equality compares position,
-/// rotation and scale.
+/// space it sits in, <see cref="Rotation"/> is radians clockwise positive, and <see cref="Scale"/>
+/// is per axis.
+/// </summary>
+/// <remarks>
+/// Placing a point applies scale, then turn, then offset. Two transforms compose without shear: the
+/// turns add, the scales multiply per axis, and the inner position passes through the outer as a
+/// point. A mirror, meaning one negative scale axis, conjugates the inner turn. The parts of a
+/// flipped figure keep turning the way they were drawn. Equality compares position, rotation and
+/// scale.
 /// <para>
-/// The cosine and sine of the turn are stored alongside it, evaluated once through
-/// <see cref="DeterministicMath"/>, so composition is only multiply-adds and is the same on every
+/// The cosine and sine of the turn are evaluated once through <see cref="DeterministicMath"/> and
+/// stored with it. Composition is then only multiply-adds and gives the same result on every
 /// platform.
 /// </para>
-/// </summary>
+/// </remarks>
 public readonly record struct Transform2D
 {
     private readonly float _cos;
@@ -46,7 +49,7 @@ public readonly record struct Transform2D
         _sin = sin;
     }
 
-    /// <summary>No offset, no turn and scale one, so placing a point through it leaves the point alone.</summary>
+    /// <summary>No offset, no turn and scale one. Placing a point through it leaves the point alone.</summary>
     public static Transform2D Identity => new(Vector2.Zero);
 
     /// <summary>The offset, in the units of the space this transform sits in.</summary>
@@ -58,7 +61,7 @@ public readonly record struct Transform2D
     /// <summary>The size per axis.</summary>
     public Vector2 Scale { get; }
 
-    /// <summary>Whether this transform flips handedness, which is true when one axis of <see cref="Scale"/> is negative.</summary>
+    /// <summary>Whether exactly one axis of <see cref="Scale"/> is negative, flipping handedness.</summary>
     public bool Mirrored => Scale.X * Scale.Y < 0f;
 
     /// <summary>A point of the placed space expressed in this transform's space, after scale, turn and offset.</summary>
@@ -73,8 +76,7 @@ public readonly record struct Transform2D
 
     /// <summary>
     /// The inverse of <see cref="TransformPoint"/>, giving the point in the placed space that lands on
-    /// <paramref name="world"/>. It is not finite on an axis whose scale is zero, because no point in
-    /// the placed space reaches a world point off that axis.
+    /// <paramref name="world"/>. A component is not finite on an axis whose scale is zero.
     /// </summary>
     public Vector2 InverseTransformPoint(Vector2 world)
     {
@@ -86,8 +88,8 @@ public readonly record struct Transform2D
     }
 
     /// <summary>
-    /// This transform placing <paramref name="local"/>. The result is the transform of something whose
-    /// own values are <paramref name="local"/>'s inside the space this one places.
+    /// The transform of a child whose own values are <paramref name="local"/>, placed inside the space
+    /// this transform places.
     /// </summary>
     public Transform2D Compose(Transform2D local)
     {

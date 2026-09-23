@@ -3,9 +3,9 @@ using System.ComponentModel;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// One <see cref="SceneRegistry"/> entry, identified by a class, by a document, or by both: the scene class
-/// when one claims it, the factory that constructs it, and the document backing it when one does. Build one
-/// through <see cref="FromDocument"/>, <see cref="Plain"/>, or <see cref="DocumentOnly"/>.
+/// One <see cref="SceneRegistry"/> entry: a scene class, the document backing a scene, or both, with the
+/// factory that constructs the scene. Build one through <see cref="FromDocument"/>, <see cref="Plain"/>
+/// or <see cref="DocumentOnly"/>.
 /// </summary>
 public readonly record struct SceneRegistration
 {

@@ -5,10 +5,12 @@ using Capsule.Scenes.Spawning;
 namespace Capsule.Scenes;
 
 /// <summary>
-/// The scenes one assembly declares, indexed by class and by the scene document backing each one. The
-/// registry is fixed once built. A game passes the registry its source generator emits, and hand-building
-/// one is for tests.
+/// The scenes one assembly declares, indexed by class and by the scene document backing each one,
+/// fixed once built.
 /// </summary>
+/// <remarks>
+/// A game passes the registry its source generator emits. Build one by hand only in tests.
+/// </remarks>
 public sealed class SceneRegistry
 {
     private readonly Dictionary<Type, SceneRegistration> _byType = [];
@@ -16,6 +18,7 @@ public sealed class SceneRegistry
     private readonly List<SceneRegistration> _registrations = [];
     private readonly EntityRegistry _entities;
 
+    /// <summary>A registry over <paramref name="scenes"/>.</summary>
     /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <exception cref="ArgumentException">

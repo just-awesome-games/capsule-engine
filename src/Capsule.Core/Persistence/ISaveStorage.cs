@@ -1,11 +1,13 @@
 namespace Capsule.Persistence;
 
 /// <summary>
-/// The medium a run's save documents are kept on. The host calls it on its own thread between steps,
-/// restoring once at boot and persisting or removing after each step. The desktop medium is
-/// <c>Capsule.Runtime.Persistence.DirectorySaveStorage</c>, and a platform that mounts a container
-/// replaces it through <c>EngineBuilder.WithSaveStorage</c>.
+/// The medium a run's save documents are kept on. The host calls it on its own thread between
+/// steps, restoring once at boot and persisting or removing after each step.
 /// </summary>
+/// <remarks>
+/// The desktop medium is <c>Capsule.Runtime.Persistence.DirectorySaveStorage</c>, and a platform
+/// that mounts a container replaces it through <c>EngineBuilder.WithSaveStorage</c>.
+/// </remarks>
 public interface ISaveStorage
 {
     /// <summary>

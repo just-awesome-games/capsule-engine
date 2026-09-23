@@ -8,13 +8,16 @@ namespace Capsule.Scenes.Spawning;
 public delegate Entity EntitySpawner(EntitySpawn spawn);
 
 /// <summary>
-/// Maps each spawn type to what it constructs, and is fixed once built. A game passes the registry its source
-/// generator emits, and hand-building one is for tests.
+/// Maps each spawn type to the delegate that constructs its entity, fixed once built.
 /// </summary>
+/// <remarks>
+/// A game passes the registry its source generator emits. Build one by hand only in tests.
+/// </remarks>
 public sealed class EntityRegistry
 {
     private readonly Dictionary<string, EntityRegistration> _entities;
 
+    /// <summary>A registry over <paramref name="entities"/>.</summary>
     /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry(IEnumerable<EntityRegistration> entities)
@@ -27,25 +30,25 @@ public sealed class EntityRegistry
             (string type, EntitySpawner spawner) = (entity.SpawnType, entity.Spawner);
             if (string.IsNullOrWhiteSpace(type))
             {
-                throw new ArgumentException("A spawn type is blank; give every registration a type.", nameof(entities));
+                throw new ArgumentException("A spawn type is blank. Give every registration a type.", nameof(entities));
             }
 
             if (string.Equals(type, SceneDocument.TileMapType, StringComparison.Ordinal))
             {
                 throw new ArgumentException(
                     $"The spawn type '{SceneDocument.TileMapType}' is reserved for scene-document tile-map entries, "
-                    + "which the engine composes itself; give the class its own [SpawnType].",
+                    + "which the engine composes itself. Give the class its own [SpawnType].",
                     nameof(entities));
             }
 
             if (spawner is null)
             {
-                throw new ArgumentException($"The spawn type '{type}' has no spawner; supply one.", nameof(entities));
+                throw new ArgumentException($"The spawn type '{type}' has no spawner. Supply one.", nameof(entities));
             }
 
             if (!_entities.TryAdd(type, entity))
             {
-                throw new ArgumentException($"The spawn type '{type}' appears more than once; register it once.", nameof(entities));
+                throw new ArgumentException($"The spawn type '{type}' appears more than once. Register it once.", nameof(entities));
             }
         }
     }

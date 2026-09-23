@@ -5,13 +5,15 @@ namespace Capsule.Scenes;
 
 /// <summary>
 /// One capability attached to an <see cref="Scenes.Entity"/>, such as a renderer, a collider, an
-/// animator, or a game's own. Make something a component when another entity type would attach it
-/// unchanged. A component has no position of its own and reads its entity's position and scene through
-/// the entity. The scene steps components after their entity, in attachment order. Override
-/// <see cref="OnStart"/> to find what it needs, <see cref="OnStep"/> to advance it,
-/// <see cref="OnDebugPanel"/> to expose it to the overlay, and <see cref="CollectAssets"/> to declare
-/// what it loads.
+/// animator, or a game's own.
 /// </summary>
+/// <remarks>
+/// Make something a component when another entity type would attach it unchanged. A component has
+/// no position of its own and reads its entity's position and scene through the entity. The scene
+/// steps components after their entity, in attachment order. Override <see cref="OnStart"/> to find
+/// what it needs, <see cref="OnStep"/> to advance it, <see cref="OnDebugPanel"/> to expose it to
+/// the overlay, and <see cref="CollectAssets"/> to declare what it loads.
+/// </remarks>
 public abstract class Component
 {
     private bool _started;
@@ -55,11 +57,13 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Draws this component's debug geometry through <see cref="Diagnostics.DebugDraw"/>. Called once per
-    /// fixed step after the step has fully settled, with every position, contact and the camera's framing
-    /// final, and only while a development overlay is attached. Draw here and change nothing, or a run
-    /// with the overlay will behave differently from one without it.
+    /// Draws this component's debug geometry through <see cref="Diagnostics.DebugDraw"/>. Called
+    /// once per fixed step after the step has fully settled, with every position, contact and the
+    /// camera's framing final, and only while a development overlay is attached.
     /// </summary>
+    /// <remarks>
+    /// Draw here and change nothing. A run with the overlay must behave as one without it.
+    /// </remarks>
     protected internal virtual void OnDebugDraw()
     {
     }
@@ -67,33 +71,42 @@ public abstract class Component
     /// <summary>
     /// Fills this component's section of the development overlay's panel. Write one
     /// <see cref="DebugPanel.Field(string, string?)"/> per value worth reading, and one
-    /// <see cref="DebugPanel.Command"/> or <see cref="DebugPanel.Toggle"/> per action worth offering. The
-    /// section is headed by the component's type name and shows fields first, then commands and toggles,
-    /// in write order within each group. A command or toggle runs inside the next stepped tick, ahead of
-    /// the scene's own step. Called only while the overlay is showing this component's entity, and only
-    /// after <see cref="OnStart"/>. Write the panel and change nothing outside a command, or a run
-    /// whose panel was opened will behave differently from one whose panel was not.
+    /// <see cref="DebugPanel.Command"/> or <see cref="DebugPanel.Toggle"/> per action worth
+    /// offering.
     /// </summary>
+    /// <remarks>
+    /// The section is headed by the component's type name and shows fields first, then commands and
+    /// toggles, in write order within each group. A command or toggle runs inside the next stepped
+    /// tick, ahead of the scene's own step. Called only while the overlay is showing this
+    /// component's entity, and only after <see cref="OnStart"/>. Write the panel and change nothing
+    /// outside a command. A run whose panel was opened must behave as one whose panel was not.
+    /// </remarks>
     protected internal virtual void OnDebugPanel(DebugPanel panel)
     {
     }
 
     /// <summary>
-    /// Runs once, before this component's first step and after everything added alongside it. Its entity
-    /// has started and is in a scene by then, so the scene can be searched from here. Attaching to an
-    /// entity that has already started and is in a scene runs this immediately. Attaching to an entity out
-    /// of a scene, or one queued to leave, waits until that entity is in a scene again.
+    /// Runs once, before this component's first step and after everything added alongside it. Its
+    /// entity has started and is in a scene by then.
     /// </summary>
+    /// <remarks>
+    /// Search the scene from here. Attaching to an entity that has already started and is in a
+    /// scene runs this immediately. Attaching to an entity out of a scene, or one queued to leave,
+    /// waits until that entity is in a scene again.
+    /// </remarks>
     protected internal virtual void OnStart()
     {
     }
 
     /// <summary>
     /// Runs once the component's entity is in a scene, with <see cref="Entity"/> and its
-    /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity a scene already holds runs this
-    /// immediately. Register with the scene here. The scene's other contents may not exist yet, so find
-    /// them in <see cref="OnStart"/>.
+    /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity a scene already holds
+    /// runs this immediately.
     /// </summary>
+    /// <remarks>
+    /// Register with the scene here. The scene's other contents may not exist yet. Find them in
+    /// <see cref="OnStart"/>.
+    /// </remarks>
     protected internal virtual void OnAddedToScene()
     {
     }
@@ -107,10 +120,12 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Appends assets this component declares. Collection can run before <see cref="OnStart"/>, so
-    /// declare from construction-time state. An override appends to <paramref name="assets"/> and
-    /// changes nothing else.
+    /// Appends assets this component declares. Collection can run before <see cref="OnStart"/>.
     /// </summary>
+    /// <remarks>
+    /// Declare from construction-time state. An override appends to <paramref name="assets"/> and
+    /// changes nothing else.
+    /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
         ArgumentNullException.ThrowIfNull(assets);

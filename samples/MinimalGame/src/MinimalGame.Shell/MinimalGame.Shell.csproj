@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!-- Release ships as a Windows-subsystem app, so a double-click opens no console; Debug
+    <!-- Release ships as a Windows-subsystem app, and a double-click opens no console. Debug
          keeps the console for the log sink. -->
     <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MinimalGame</AssemblyName>

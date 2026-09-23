@@ -12,8 +12,8 @@ public sealed class MoverContactTests
     {
         CollisionWorld2D world = new();
         CollisionLayer body = world.Layer("body");
-        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
-        world.Add(Shape2D.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body, CollisionFilter.None);
+        ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body);
+        world.Add(Shape2D.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body);
 
         MoveResult2D blocked = world.MoveBox(
             CollisionFixtures.Box(0f, 0f, 8f, 8f),
@@ -74,8 +74,7 @@ public sealed class MoverContactTests
             world.Add(
                 Shape2D.Circle(new Vector2(20f, 6f), 3f),
                 Vector2.Zero,
-                world.Layer("pickup"),
-                CollisionFilter.None);
+                world.Layer("pickup"));
 
             Contact2D[] contacts = new Contact2D[8];
             MoveResult2D result = world.MoveBox(
@@ -117,8 +116,7 @@ public sealed class MoverContactTests
                 world.Add(
                     Shape2D.Box(new Vector2(index * 10f, 32f), new Vector2(8f, 8f)),
                     Vector2.Zero,
-                    wall,
-                    CollisionFilter.None);
+                    wall);
             }
 
             if (churn)
@@ -131,8 +129,7 @@ public sealed class MoverContactTests
                     decoys[index] = world.Add(
                         Shape2D.Box(new Vector2(((index * 37) % 400) - 200f, ((index * 53) % 200) - 100f), new Vector2(6f, 6f)),
                         Vector2.Zero,
-                        wall,
-                        CollisionFilter.None);
+                        wall);
                 }
 
                 for (int index = decoys.Length - 1; index >= 0; index--)

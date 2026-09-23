@@ -9,8 +9,7 @@ Velocity, gravity and friction are the game's.
 ## Colliders
 
 A collider is a component that gives its entity a shape in the scene's `Scene.Collision` world. It
-registers when the entity joins a scene, unregisters when it leaves, and follows the entity's world
-position.
+registers when the entity joins a scene and unregisters when the entity leaves.
 
 | Collider | Shape |
 | --- | --- |
@@ -25,9 +24,9 @@ spinning hazard keeps its box on the root and spins a child.
 
 ## Layers and filters
 
-`Layer` names the layer a collider is on, and other queries' filters match that name. `SetFilter(names)`
-sets what this collider's own contact queries detect. Detection does not block movement.
-`KinematicBody2D.BlocksOn` owns that filter separately.
+A collider's `Layer` names the layer it is on, and other queries' filters match that name. Its
+`SetFilter(names)` sets what its own contacts detect. Detection does not block movement.
+`KinematicBody2D.BlocksOn` sets what blocks a body.
 
 ```csharp
 _hurtbox = new BoxCollider2D(new Vector2(hurtboxEdge, hurtboxEdge))
@@ -42,7 +41,7 @@ A game declares its layer names in one place, as `const string` fields at its as
 them by name. A world interns up to `CollisionWorld2D.MaxLayers` names.
 
 Every query takes the filter it matches by, and a collider's own filter does not decide what another
-query finds. `Collider2D.Overlaps(other)` consults no filter, since the caller named both colliders.
+query finds. `Collider2D.Overlaps(other)` consults no filter.
 `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted by any
 world.
 
@@ -63,20 +62,16 @@ private void OnHurtboxEntered(ColliderContact2D contact)
 }
 ```
 
-A contact carries `Layer`, `Point`, `Normal`, and `OtherCollider` for a collider or `Tile` for a tile map's
-cell.
+A contact names the other side as `OtherCollider` for a collider or `Tile` for a tile map's cell, and
 `OtherEntity` reaches the entity behind either. In a Y-down world, standing on something gives a normal
-of `(0, -1)`. `Touching` is everything the collider was touching as of the last step, with no budget.
+of `(0, -1)`. `Touching` is everything the collider was touching as of the last step.
 
-A handler sees the settled state and cannot reconfigure the collider it was raised for. `Enabled`,
-`Offset`, `Layer`, `ReportsContacts`, `SetFilter` and the subclass's shape throw for the length of the
-dispatch. A handler may detach the collider, which takes it out of the world, gives it the exits it owes
-and ends its enters for the step.
+A handler sees the settled state. `Collider2D` documents what a handler may and may not change.
 
 ## Moving a body
 
 `KinematicBody2D` sweeps one of its entity's colliders along a translation and stops it on what it
-blocks on, one axis at a time, so stopping on one axis leaves the other free:
+blocks on. It moves one axis at a time, and stopping on one axis leaves the other free:
 
 ```csharp
 BoxCollider2D bodyCollider = new(Body);
@@ -106,15 +101,11 @@ if (_body.IsOnFloor)
 }
 ```
 
-`Move` translates the entity, repopulates `MoveContacts`, and sets `IsOnFloor`, `IsOnWall`,
-`IsOnCeiling`, `FloorNormal` and `WallNormal`. It returns a `MoveResult2D` carrying the translation
-applied, `BlockedX` and `BlockedY`, the total `ContactCount`, and `ContactsAlongX`, how many of the
-contacts the X sweep wrote. `TestMove(translation)` answers whether the move would be blocked, moving
-nothing.
+`Move` reports the surfaces it reached on the body and returns a `MoveResult2D`. `TestMove` answers
+whether a move would be blocked and moves nothing.
 
-A move keeps `CollisionTolerance.LinearSlop` from what stopped it, and something it came to rest against
-is still within `CollisionTolerance.ContactSkin` on the following step, so contact reporting stays
-stable.
+A move stops `CollisionTolerance.LinearSlop` short of what stopped it. A surface it came to rest against
+is still within `CollisionTolerance.ContactSkin` on the following step, and its contact holds steady.
 
 ### Riding and shoving
 
@@ -125,12 +116,8 @@ _body.MovedBy(CollisionLayers.Platform);
 _body.Crushed += OnCrushed;
 ```
 
-A body whose last `Move` stopped on such a collider rides it, and one such collider moving into the
-body shoves it out of the way, sweeping against the body's blocking layers, which include
-the layers it is moved by. A rider is carried exactly, whether its platform steps before or after it.
-The pusher is never stopped. A body it pins against something the body cannot pass raises `Crushed`
-on every move that pins it, and stays where the shove left it. The handler receives the pusher's
-contact, and `Normal * Depth` leads out of it.
+A body rides such a collider when its last `Move` stopped on it, and such a collider moving into the
+body shoves it. A shove that pins the body against something it cannot pass raises `Crushed`.
 
 ## Terrain
 
@@ -142,7 +129,8 @@ the tile's current type.
 
 ## Queries
 
-Every query is on the scene's world, allocation-free, and writes into a span the caller owns:
+Every query is on the scene's world and allocates nothing. A query that finds many things writes them
+into a span the caller owns:
 
 ```csharp
 Span<Contact2D> contacts = stackalloc Contact2D[8];
@@ -159,15 +147,9 @@ int found = Scene.Collision.OverlapAll(Shape2D.Circle(Vector2.Zero, 24f), Positi
 | `Move`, `MoveBox` | The swept, axis-by-axis move `KinematicBody2D` is built on. |
 
 An overlap or move query returns the total number of overlaps, not the number written. The span holds
-the first of them in the documented order, so a count above the span's length means the rest were
-counted and not written. Grid cells come first, in the order their grids were added and row-major
-within each, and colliders follow by handle.
+the first of them in the documented order. A count above the span's length means the rest were counted
+and not written. Grid cells come first, in the order their grids were added and row-major within each,
+and colliders follow by handle.
 
-Every query takes an `ignore` handle, usually the caster's own collider. A query throws while the
-collider it is on is disabled or in no scene, and a filter built from another world's layers is refused.
-
-## Without a scene
-
-`CollisionWorld2D` is usable on its own, and geometry is tested at that boundary. Add shapes with
-`Add`, terrain with `AddGrid`, intern layers with `Layer(name)`, build filters with
-`CreateFilter(names)`, then query ([`testing.md`](testing.md)).
+A world query takes an `ignore` handle, usually the caster's own collider. A query on a collider throws
+while that collider is disabled or in no scene. A filter built from another world's layers is refused.

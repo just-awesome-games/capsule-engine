@@ -14,8 +14,7 @@ namespace Capsule.Rendering;
 /// </param>
 /// <param name="Sockets">
 /// The named points this frame carries, in <paramref name="Pivot"/>'s texel space, and empty by
-/// default. It is a view over memory the caller keeps, and a generated frame reads one shared table
-/// without allocating. Names are unique within a frame.
+/// default. The frame holds the caller's memory without copying it. Names are unique within a frame.
 /// </param>
 public readonly record struct Sprite(
     TextureHandle Texture,
@@ -29,6 +28,9 @@ public readonly record struct Sprite(
     /// </summary>
     public static Sprite White => new(TextureHandle.White, new TextureRegion(0, 0, 1, 1));
 
-    /// <summary>The engine's radial light: full at the centre, falling to nothing at the edge, anchored at its centre. A <see cref="LightIntent"/> with no other sprite draws this one.</summary>
+    /// <summary>
+    /// The engine's radial light, full at the centre and falling to nothing at the edge, anchored at its
+    /// centre. A <see cref="LightIntent"/> with no other sprite draws this one.
+    /// </summary>
     public static Sprite Light => new(TextureHandle.Light, new TextureRegion(0, 0, 128, 128), new Vector2(64f, 64f));
 }

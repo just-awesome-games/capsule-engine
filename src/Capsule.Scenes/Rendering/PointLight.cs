@@ -6,25 +6,30 @@ using Capsule.UI;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Draws its entity's light into the frame's light map.
+/// Draws its entity's light additively into the frame's light map as its
+/// <see cref="PointLight.Sprite"/>.
+/// </summary>
+/// <remarks>
+/// Two lights add, and a light brightens the sprites it overlaps. <see cref="Renderer.ZIndex"/> has
+/// no effect on a light. Drawing under a <see cref="ScreenEntity"/> throws, because the screen
+/// layer is never lit. A cone or any other shape is a <see cref="Rendering.Sprite"/> from a sheet,
+/// turned by the entity.
+/// </remarks>
 /// <example>
 /// <code>
 /// Add(new SpriteRenderer(CapsuleAssets.Sprites.Props.Lamp.Frames.Lit));
 /// Add(new PointLight { Radius = 48f, Color = ColorRgba.Orange });
 /// </code>
 /// </example>
-/// The light is drawn as its sprite, additively, into the frame's light map, so two lights add and a
-/// light lights the sprites it sits on. <see cref="Renderer.ZIndex"/> orders nothing for a light, since additive
-/// light is order-free. Under a <see cref="ScreenEntity"/> drawing throws: the screen layer is
-/// never lit. A cone or any other shape is a <see cref="Rendering.Sprite"/> from a sheet, turned by the
-/// entity.
-/// </summary>
 public sealed class PointLight : Renderer
 {
     private float _radius = 32f;
     private float _intensity = 1f;
 
-    /// <summary>World units from the entity to the light's falloff edge. Must be finite and non-negative.</summary>
+    /// <summary>
+    /// World units from the light's point to its falloff edge, 32 by default. The larger axis of the
+    /// entity's world scale multiplies it.
+    /// </summary>
     public float Radius
     {
         get => _radius;
@@ -43,10 +48,12 @@ public sealed class PointLight : Renderer
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <summary>
-    /// How many times the colour is added. Must be finite and non-negative. A light of one on a white
-    /// ambient brightens what it reaches towards white, up to twice the authored colour. Above one
-    /// widens that core, one quad per whole unit and 16 at most.
+    /// How many times the colour is added, 1 by default. Zero adds nothing.
     /// </summary>
+    /// <remarks>
+    /// A light of one on a white ambient brightens what it reaches towards white, up to twice the
+    /// authored colour. Above one widens that core, one quad per whole unit and 16 at most.
+    /// </remarks>
     public float Intensity
     {
         get => _intensity;
@@ -64,7 +71,7 @@ public sealed class PointLight : Renderer
     /// <summary>The frame the light is drawn as. <see cref="Rendering.Sprite.Light"/> by default, the engine's radial falloff.</summary>
     public Sprite Sprite { get; set; } = Sprite.Light;
 
-    /// <summary>The point in the entity's own space the light is placed at, placed by the entity's world transform.</summary>
+    /// <summary>The point in the entity's own space where the light sits, placed by the entity's world transform. Zero by default.</summary>
     public Vector2 Offset { get; set; }
 
     /// <summary>
@@ -77,7 +84,7 @@ public sealed class PointLight : Renderer
             : default;
 
     /// <inheritdoc/>
-    public override void Draw(FrameView view)
+    protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
 

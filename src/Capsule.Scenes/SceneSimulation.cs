@@ -4,7 +4,10 @@ using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
-/// <summary>Runs a <see cref="Scenes.Scene"/> through Capsule's fixed-step lifecycle.</summary>
+/// <summary>
+/// Runs a <see cref="Scenes.Scene"/> through Capsule's fixed-step lifecycle. A
+/// <see cref="SimulationHost"/> or the engine's host steps it.
+/// </summary>
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
     private readonly FrameView _view = new();
@@ -68,12 +71,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>What to draw. One instance, filled at construction and rewritten after each completed step.</summary>
     public FrameView View => _view;
 
-    /// <summary>
-    /// Advances the scene by exactly one fixed step and rebuilds <see cref="View"/>. Exceptions from
-    /// scene, entity, component, contact, camera or renderer callbacks propagate to the caller. A step
-    /// that throws may have already changed simulation state, so do not continue that simulation.
-    /// </summary>
-    public void Step(in StepContext context) => Step(in context, null);
+    // Advances the scene by exactly one fixed step and rebuilds View. What a callback throws
+    // propagates, and a step that throws can leave the state half-changed.
+    internal void Step(in StepContext context) => Step(in context, null);
+
+    void ISimulation.Step(in StepContext context) => Step(in context, null);
 
     // The host's before-step action runs after the mixer's step opens, so the sounds it plays and stops
     // belong to this step, and before the scene's own step, so the step reads its changes.
@@ -133,6 +135,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     internal bool TryTakeFrameCapture(out string path) => Run.TryTakeFrameCapture(out path);
 
     /// <summary>Takes the deferred transition the last step requested, when there is one.</summary>
+    /// <exception cref="ObjectDisposedException">This simulation has been disposed.</exception>
     public bool TryTakeTransition(out SceneTransition transition)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

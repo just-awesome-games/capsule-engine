@@ -2,10 +2,14 @@ using System.Numerics;
 
 namespace Capsule.Input;
 
-/// <summary>Action-level input derived from consecutive deterministic device snapshots.</summary>
-public sealed class InputState(ActionBindings bindings)
+/// <summary>
+/// Action-level input derived from consecutive device snapshots. The engine owns the run's instance,
+/// reached as <see cref="StepContext.Input"/>, and advances it once per fixed step before the step
+/// runs.
+/// </summary>
+public sealed class InputState
 {
-    private readonly ActionBindings _bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
+    private readonly ActionBindings _bindings;
 
     // How far the pointer moves in one step before the mouse counts as used. Mouse sensors report a
     // pixel of drift while a hand rests on a pad.
@@ -16,10 +20,14 @@ public sealed class InputState(ActionBindings bindings)
     private InputDevice _activeDevice;
     private bool _activeDeviceChanged;
 
+    internal InputState(ActionBindings bindings) =>
+        _bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
+
     /// <summary>
     /// Where the pointer sits this step, in canvas pixels from the canvas's top-left corner.
-    /// Unclamped. A pointer off the canvas reads outside it.
+    /// Unclamped.
     /// </summary>
+    /// <remarks>A pointer off the canvas reads outside it.</remarks>
     public Vector2 Pointer => _current.Pointer;
 
     /// <summary>Whether the pointer sits somewhere other than where it was the previous step.</summary>
@@ -30,8 +38,9 @@ public sealed class InputState(ActionBindings bindings)
 
     /// <summary>
     /// Wheel notches turned this step, and zero while the wheel rests. X positive scrolls right, Y
-    /// positive scrolls away from the user. Unbounded. A flick reads several notches at once.
+    /// positive scrolls away from the user.
     /// </summary>
+    /// <remarks>Unbounded. A flick reads several notches at once.</remarks>
     public Vector2 Scroll => _current.Scroll;
 
     /// <summary>The device the player last used, which a button prompt reads.</summary>
@@ -39,17 +48,17 @@ public sealed class InputState(ActionBindings bindings)
     /// It becomes <see cref="InputDevice.Gamepad"/> on a step a pad button goes down or a pad axis is
     /// off centre, and <see cref="InputDevice.KeyboardMouse"/> on a step a key or mouse button goes
     /// down, the wheel turns or the pointer moves more than two canvas pixels. A button that stays
-    /// held changes nothing. The pad wins a step both devices act on. The seed is part of the run's
-    /// initial state, from a pad found at boot. Every later value is derived from the snapshots
-    /// alone, and a replay reproduces it.
+    /// held changes nothing. The pad wins a step both devices act on. A run starts on
+    /// <see cref="InputDevice.Gamepad"/> when it finds a pad at boot and no input driver plays it.
+    /// Every later value is derived from the snapshots alone, and a replay reproduces it.
     /// </remarks>
     public InputDevice ActiveDevice => _activeDevice;
 
     /// <summary>Whether <see cref="ActiveDevice"/> is not what it was the previous step.</summary>
     public bool ActiveDeviceChanged => _activeDeviceChanged;
 
-    /// <summary>Advances to a snapshot. Repeating a snapshot produces no second edge.</summary>
-    public void Advance(in DeviceSnapshot snapshot)
+    // Advances to a snapshot. Repeating a snapshot produces no second edge.
+    internal void Advance(in DeviceSnapshot snapshot)
     {
         _previous = _current;
         _current = snapshot;
@@ -89,9 +98,10 @@ public sealed class InputState(ActionBindings bindings)
     public bool IsHeld(InputAction action) => _bindings.IsAnyDown(action, _current);
 
     /// <summary>
-    /// What <paramref name="action"/> reads this step. Buttons and pad axes contribute within [-1, 1],
-    /// and wheel notches bound to it add on unbounded. An unbound action reads 0.
+    /// What <paramref name="action"/> reads this step. Buttons and pad axes contribute within [-1,
+    /// 1], and wheel notches bound to it add on unbounded.
     /// </summary>
+    /// <remarks>An unbound action reads 0.</remarks>
     public float Axis(AxisAction action) => _bindings.AxisValue(action, _current);
 
     /// <summary>Whether <paramref name="action"/> went down on the edge into this step.</summary>

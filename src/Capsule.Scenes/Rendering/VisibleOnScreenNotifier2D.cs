@@ -5,17 +5,18 @@ using Capsule.Scenes;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and reports
-/// when it comes on screen and when it leaves. The rect is corner-anchored like a
-/// <see cref="Physics.BoxCollider2D"/>: its corner sits at the entity's position plus <see cref="Offset"/>
-/// and it spans <see cref="Size"/> world units from there.
-/// <para>
-/// This is simulation state, settled once per step after the step's deferred adds land, so from its
-/// entity's first step <see cref="IsOnScreen"/> and the events describe that step's frame. Sharing an
-/// edge with the region is not being on screen. An entity whose <see cref="Entity.ScrollFactor"/> is
-/// not one rejects this component: it would draw somewhere other than the rect this measures.
-/// </para>
+/// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and
+/// reports when it comes on screen and when it leaves. The rect is corner-anchored like a
+/// <see cref="Physics.BoxCollider2D"/>: its corner sits at the entity's position plus
+/// <see cref="Offset"/> and it spans <see cref="Size"/> world units from there.
 /// </summary>
+/// <remarks>
+/// This is simulation state, settled once per step after the step's deferred adds land. From its
+/// entity's first step, <see cref="IsOnScreen"/> and the events describe that step's frame. Sharing
+/// an edge with the region is not being on screen. Rotation and scale anywhere in the entity's
+/// ancestry, and an <see cref="Entity.ScrollFactor"/> other than one, are refused while the
+/// notifier is present.
+/// </remarks>
 public sealed class VisibleOnScreenNotifier2D : Component
 {
     private Vector2 _size;
@@ -32,10 +33,11 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// </summary>
     public event Action? ScreenEntered;
 
-    /// <summary>
-    /// Raised when the rect stops overlapping the visible region, and once for a notifier that was on screen
-    /// when it left its scene or was detached from its entity, which keeps every enter paired with one exit.
-    /// </summary>
+    /// <summary>Raised when the rect stops overlapping the visible region.</summary>
+    /// <remarks>
+    /// A notifier on screen when it leaves its scene or is detached raises it once more. Every
+    /// enter is paired with one exit.
+    /// </remarks>
     public event Action? ScreenExited;
 
     /// <summary>The extent the rect spans from its corner, in world units.</summary>

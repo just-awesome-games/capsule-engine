@@ -12,8 +12,8 @@ public sealed class CollisionGuardTests
         CollisionWorld2D first = new();
         CollisionWorld2D second = new();
         GridCollider2D terrain = CollisionFixtures.Paint(first, "##");
-        ColliderHandle foreign = first.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, first.Layer("item"), CollisionFilter.None);
-        ColliderHandle own = second.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, second.Layer("item"), CollisionFilter.None);
+        ColliderHandle foreign = first.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, first.Layer("item"));
+        ColliderHandle own = second.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, second.Layer("item"));
 
         // Same slot, same generation, different world: identity has to say so.
         Assert.NotEqual(foreign, own);
@@ -28,7 +28,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(
             () => second.OverlapBoxAll(terrain.CellBounds(0, 0), first.CreateFilter(CollisionFixtures.Solid), default));
         Assert.Throws<ArgumentException>(
-            () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Layer("item"), CollisionFilter.None));
+            () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Layer("item")));
         Assert.Throws<ArgumentException>(
             () => second.Raycast(Vector2.Zero, Vector2.UnitX, 10f, CollisionFilter.Everything, out _, foreign));
         Assert.Throws<ArgumentException>(
@@ -48,11 +48,9 @@ public sealed class CollisionGuardTests
         CollisionFilter foreign = first.CreateFilter("wall");
         CollisionLayer item = second.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
-        ColliderHandle handle = second.Add(box, Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle handle = second.Add(box, Vector2.Zero, item);
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
 
-        Assert.Throws<ArgumentException>(() => second.Add(box, Vector2.Zero, item, foreign));
-        Assert.Throws<ArgumentException>(() => second.SetFilter(handle, item, foreign));
         Assert.Throws<ArgumentException>(() => second.Raycast(Vector2.Zero, Vector2.UnitX, 10f, foreign, out _));
         Assert.Throws<ArgumentException>(() => second.RaycastAll(Vector2.Zero, Vector2.UnitX, 10f, foreign, default));
         Assert.Throws<ArgumentException>(() => second.ShapeCast(box, Vector2.Zero, new Vector2(10f, 0f), foreign, out _));
@@ -61,9 +59,6 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(() => second.OverlapColliderAll(handle, foreign, default));
         Assert.Throws<ArgumentException>(() => second.Move(box, Vector2.Zero, new Vector2(10f, 0f), foreign, default));
         Assert.Throws<ArgumentException>(() => second.MoveBox(probe, new Vector2(10f, 0f), foreign, default));
-
-        // None of that disturbed the filter the collider was actually registered with.
-        Assert.Equal(CollisionFilter.None, second.FilterOf(handle));
     }
 
     // One NaN bound does not stay in its own proxy: the tree unions boxes as it balances, so it would
@@ -74,12 +69,12 @@ public sealed class CollisionGuardTests
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
-        ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item, CollisionFilter.None);
+        ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item);
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => world.Add(box, new Vector2(float.NaN, 0f), item, CollisionFilter.None));
+            () => world.Add(box, new Vector2(float.NaN, 0f), item));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => world.Add(box, new Vector2(0f, float.PositiveInfinity), item, CollisionFilter.None));
+            () => world.Add(box, new Vector2(0f, float.PositiveInfinity), item));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.SetPosition(bystander, new Vector2(float.NaN, 0f)));
         Assert.Throws<ArgumentOutOfRangeException>(
@@ -110,8 +105,8 @@ public sealed class CollisionGuardTests
         CollisionLayer item = world.Layer("item");
         Shape2D wide = Shape2D.Box(Vector2.Zero, new Vector2(1e38f, 1e38f));
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
-        ColliderHandle far = world.Add(wide, new Vector2(-2e38f, 0f), item, CollisionFilter.None);
-        ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item, CollisionFilter.None);
+        ColliderHandle far = world.Add(wide, new Vector2(-2e38f, 0f), item);
+        ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item);
 
         // Both positions are finite; the displacement between them is not.
         Assert.Throws<ArgumentOutOfRangeException>(() => world.SetPosition(far, new Vector2(2e38f, 0f)));
@@ -138,10 +133,10 @@ public sealed class CollisionGuardTests
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
 
-        ColliderHandle removed = world.Add(box, Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle removed = world.Add(box, Vector2.Zero, item);
         world.Remove(removed);
 
-        ColliderHandle reused = world.Add(box, Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle reused = world.Add(box, Vector2.Zero, item);
         Assert.Equal(removed.Index, reused.Index);
         Assert.NotEqual(removed, reused);
 
@@ -187,11 +182,11 @@ public sealed class CollisionGuardTests
     {
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
-        ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle handle = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, item);
         Shape2D none = default;
 
         Assert.Equal(0, none.PointCount);
-        Assert.Throws<ArgumentException>(() => world.Add(none, Vector2.Zero, item, CollisionFilter.None));
+        Assert.Throws<ArgumentException>(() => world.Add(none, Vector2.Zero, item));
         Assert.Throws<ArgumentException>(() => world.SetShape(handle, none));
         Assert.Throws<ArgumentException>(
             () => world.ShapeCast(none, Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, out _));

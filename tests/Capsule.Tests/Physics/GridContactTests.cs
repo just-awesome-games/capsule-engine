@@ -50,7 +50,7 @@ public sealed class GridContactTests
         const float Half = 0.5f * CollisionTolerance.ContactSkin;
 
         // Resting on the face: inside the skin, on the outward side.
-        ColliderHandle above = world.Add(box, new Vector2(20f, 8f - Half), world.Layer("body"), CollisionFilter.Everything);
+        ColliderHandle above = world.Add(box, new Vector2(20f, 8f - Half), world.Layer("body"));
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
         Assert.Equal(1, world.OverlapColliderAll(above, CollisionFilter.Everything, contacts));
@@ -58,7 +58,7 @@ public sealed class GridContactTests
         world.Remove(above);
 
         // The same box the same distance the other side of the plane, having passed through it.
-        ColliderHandle below = world.Add(box, new Vector2(20f, 16f + Half), world.Layer("body"), CollisionFilter.Everything);
+        ColliderHandle below = world.Add(box, new Vector2(20f, 16f + Half), world.Layer("body"));
 
         Assert.Equal(0, world.OverlapColliderAll(below, CollisionFilter.Everything, contacts));
     }
@@ -191,8 +191,7 @@ public sealed class GridContactTests
         ColliderHandle circle = world.Add(
             Shape2D.Circle(Vector2.Zero, 4f),
             new Vector2(14f, 12.52f),
-            world.Layer("body"),
-            CollisionFilter.Everything);
+            world.Layer("body"));
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 

@@ -7,22 +7,36 @@ using Capsule.Scenes;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Draws its entity as one run of text inside a box, at one font pixel per unit of the entity's space
-/// times the scale of the entity's <see cref="Entity.WorldTransform"/>. Coordinates are Y-down, in world
-/// units under a world root and canvas pixels under a screen root.
-/// <para>
-/// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>, and defaults to
-/// the box's top-left corner. <see cref="HorizontalAlignment"/> and <see cref="VerticalAlignment"/> then
-/// move the text inside the box and never move the box. A <see cref="Size"/> of zero makes the box the
-/// measured run. To centre a label on its point, use <see cref="Capsule.Rendering.Pivot.Center"/>.
-/// </para>
+/// Draws its entity as one run of text inside a box, at one font pixel per unit of the entity's
+/// space times the scale of the entity's <see cref="Entity.WorldTransform"/>.
 /// </summary>
+/// <remarks>
+/// Text cannot turn. Rotation anywhere in the entity's ancestry is refused while a label is
+/// present. Coordinates are Y-down, in world units under a world root and canvas pixels under a
+/// screen root.
+/// <para>
+/// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>, and
+/// defaults to the box's top-left corner. <see cref="HorizontalAlignment"/> and
+/// <see cref="VerticalAlignment"/> then move the text inside the box and never move the box. A
+/// <see cref="Size"/> of zero makes the box the measured run. To centre a label on its point, use
+/// <see cref="Capsule.Rendering.Pivot.Center"/>.
+/// </para>
+/// </remarks>
 /// <param name="font">The font the run is drawn with.</param>
 /// <param name="text">The text to draw. Empty by default, which draws nothing.</param>
 public sealed class Label(BitmapFont font, string text = "") : Renderer
 {
     /// <summary>The font the run is laid out and drawn with.</summary>
-    public BitmapFont Font { get; set; } = font ?? throw new ArgumentNullException(nameof(font));
+    public BitmapFont Font
+    {
+        get;
+
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = font ?? throw new ArgumentNullException(nameof(font));
 
     // The text in the form it was last written: either a string, or a span copied into a buffer this label
     // owns and grows only when a longer span arrives. _text holds the string form and is null after a span
@@ -31,12 +45,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private ReadOnlyMemory<char> _memory = text.AsMemory();
     private char[] _buffer = [];
 
-    /// <summary>
-    /// The text to draw. Empty draws nothing. A <c>\n</c> starts a new line, and a codepoint
-    /// <see cref="Font"/> has no glyph for draws nothing and advances nothing. After
-    /// <see cref="SetText"/> the getter returns the same characters as a string, built on the first read
-    /// after each write.
-    /// </summary>
+    /// <summary>The text to draw. Empty draws nothing.</summary>
+    /// <remarks>
+    /// A <c>\n</c> starts a new line, and a codepoint <see cref="Font"/> has no glyph for draws
+    /// nothing and advances nothing. After <see cref="SetText"/> the getter returns the same
+    /// characters as a string, built on the first read after each write.
+    /// </remarks>
     public string Text
     {
         get => _text ??= _memory.ToString();
@@ -51,11 +65,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     }
 
     /// <summary>
-    /// Sets <see cref="Text"/> from a span. It copies the characters into a buffer the label owns, so the
-    /// caller's span may change as soon as this returns, and it allocates nothing once the label has held a
-    /// run this long. Use it for a readout rewritten every frame. A string assignment covers the usual
-    /// case.
+    /// Sets <see cref="Text"/> from a span, for a readout rewritten every frame.
     /// </summary>
+    /// <remarks>
+    /// The label copies the characters into a buffer it owns. The caller's span may change as soon as
+    /// this returns. The call allocates nothing once the label has held a run this long.
+    /// </remarks>
     public void SetText(ReadOnlySpan<char> text)
     {
         if (_buffer.Length < text.Length)
@@ -81,9 +96,10 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public Pivot Pivot { get; set; }
 
     /// <summary>
-    /// The box the run is laid out in, in the entity's units. A non-positive component uses the measured
-    /// run on that axis, which is the default on both axes. <see cref="Wrap"/> wraps inside a positive X.
+    /// The box the run is laid out in, in the entity's units. A non-positive component uses the
+    /// measured run on that axis, which is the default on both axes.
     /// </summary>
+    /// <remarks><see cref="Wrap"/> wraps inside a positive X.</remarks>
     public Vector2 Size { get; set; }
 
     /// <summary>
@@ -105,22 +121,28 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public VerticalAlignment VerticalAlignment { get; set; }
 
     /// <summary>
-    /// How many of <see cref="Text"/>'s leading codepoints are drawn, or null, the default, to draw them
-    /// all. Zero draws nothing. Layout always runs over the whole text, so revealing a line one codepoint
-    /// at a time never reflows it. A line break and a codepoint the font has no glyph for each count as
-    /// one codepoint.
+    /// How many of <see cref="Text"/>'s leading codepoints are drawn, or null, the default, to draw
+    /// them all. Zero draws nothing.
     /// </summary>
+    /// <remarks>
+    /// Layout always runs over the whole text. Revealing a line one codepoint at a time never
+    /// reflows it. A line break and a codepoint the font has no glyph for each count as one
+    /// codepoint.
+    /// </remarks>
     public int? VisibleCharacters { get; set; }
 
     /// <summary>A tint multiplied into every texel. White by default, which draws the font pages unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <summary>
-    /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that is
-    /// positive and the measured run elsewhere, placed by <see cref="Pivot"/> at the entity's position plus
-    /// <see cref="Offset"/>. Each read lays the text out again, in the space and under the rules
-    /// <see cref="Renderer.Bounds"/> states.
+    /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that
+    /// is positive and the measured run elsewhere, placed by <see cref="Pivot"/> at the entity's
+    /// position plus <see cref="Offset"/>.
     /// </summary>
+    /// <remarks>
+    /// Each read lays the text out again, in the space and under the rules
+    /// <see cref="Renderer.Bounds"/> states.
+    /// </remarks>
     public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 
     /// <inheritdoc/>
@@ -132,7 +154,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     }
 
     /// <inheritdoc/>
-    public override void Draw(FrameView view)
+    protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
 

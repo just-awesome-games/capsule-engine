@@ -10,8 +10,8 @@ public sealed class RaycastTests
     {
         CollisionWorld2D world = new();
         CollisionLayer wall = world.Layer("wall");
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
-        world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall);
+        world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall);
 
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, out RayHit2D hit));
 
@@ -27,8 +27,8 @@ public sealed class RaycastTests
         CollisionWorld2D world = new();
         CollisionLayer wall = world.Layer("wall");
         CollisionLayer ghost = world.Layer("ghost");
-        ColliderHandle near = world.Add(Shape2D.Box(new Vector2(10f, -8f), new Vector2(8f, 16f)), Vector2.Zero, ghost, CollisionFilter.None);
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
+        ColliderHandle near = world.Add(Shape2D.Box(new Vector2(10f, -8f), new Vector2(8f, 16f)), Vector2.Zero, ghost);
+        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall);
 
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Of(wall), out RayHit2D filtered));
         Assert.Equal(40f, filtered.Distance, 3);
@@ -41,7 +41,7 @@ public sealed class RaycastTests
     public void Raycast_StopsShortOfSomethingBeyondItsDistance()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, world.Layer("wall"));
 
         Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 39f, CollisionFilter.Everything, out _));
     }
@@ -52,7 +52,7 @@ public sealed class RaycastTests
     public void Raycast_StartingInsideAColliderReportsTheNearestSideRatherThanNoNormal()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(20f, 8f)), Vector2.Zero, world.Layer("wall"), CollisionFilter.None);
+        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(20f, 8f)), Vector2.Zero, world.Layer("wall"));
 
         Assert.True(world.Raycast(new Vector2(4f, 2f), Vector2.UnitX, 40f, CollisionFilter.Everything, out RayHit2D hit));
 
@@ -65,9 +65,9 @@ public sealed class RaycastTests
     {
         CollisionWorld2D world = new();
         CollisionLayer wall = world.Layer("wall");
-        world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall, CollisionFilter.None);
-        world.Add(Shape2D.Circle(new Vector2(120f, 0f), 6f), Vector2.Zero, wall, CollisionFilter.None);
+        world.Add(Shape2D.Box(new Vector2(80f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall);
+        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, wall);
+        world.Add(Shape2D.Circle(new Vector2(120f, 0f), 6f), Vector2.Zero, wall);
 
         Span<RayHit2D> hits = stackalloc RayHit2D[8];
         int count = world.RaycastAll(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, hits);
@@ -97,8 +97,7 @@ public sealed class RaycastTests
             world.Add(
                 Shape2D.Box(new Vector2(index * 20f, 0f), new Vector2(8f, 16f)),
                 Vector2.Zero,
-                wall,
-                CollisionFilter.None);
+                wall);
         }
 
         Span<RayHit2D> hits = stackalloc RayHit2D[3];
@@ -120,8 +119,8 @@ public sealed class RaycastTests
         CollisionLayer item = world.Layer("item");
 
         // Both start on the grid's own left face at x = 0, so all three hits are at distance 4.
-        ColliderHandle first = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(1f, 8f)), Vector2.Zero, item, CollisionFilter.None);
-        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(2f, 8f)), Vector2.Zero, item, CollisionFilter.None);
+        ColliderHandle first = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(1f, 8f)), Vector2.Zero, item);
+        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(0f, 4f), new Vector2(2f, 8f)), Vector2.Zero, item);
 
         Span<RayHit2D> hits = stackalloc RayHit2D[4];
         int count = world.RaycastAll(new Vector2(-4f, 4f), Vector2.UnitX, 20f, CollisionFilter.Everything, hits);
@@ -138,12 +137,12 @@ public sealed class RaycastTests
     public void Raycast_ReachesEveryShapeTheUnionShips()
     {
         CollisionWorld2D world = new();
-        world.Add(Shape2D.Circle(new Vector2(20f, 0f), 4f), Vector2.Zero, world.Layer("target"), CollisionFilter.None);
+        world.Add(Shape2D.Circle(new Vector2(20f, 0f), 4f), Vector2.Zero, world.Layer("target"));
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D circle));
         Assert.Equal(16f, circle.Distance, 3);
 
         CollisionWorld2D capsules = new();
-        capsules.Add(Shape2D.Capsule(new Vector2(20f, -10f), new Vector2(20f, 10f), 3f), Vector2.Zero, capsules.Layer("target"), CollisionFilter.None);
+        capsules.Add(Shape2D.Capsule(new Vector2(20f, -10f), new Vector2(20f, 10f), 3f), Vector2.Zero, capsules.Layer("target"));
         Assert.True(capsules.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D capsule));
         Assert.Equal(17f, capsule.Distance, 3);
 
@@ -151,8 +150,7 @@ public sealed class RaycastTests
         polygons.Add(
             Shape2D.Polygon([new Vector2(20f, -8f), new Vector2(36f, 0f), new Vector2(20f, 8f)]),
             Vector2.Zero,
-            polygons.Layer("target"),
-            CollisionFilter.None);
+            polygons.Layer("target"));
         Assert.True(polygons.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D polygon));
         Assert.Equal(20f, polygon.Distance, 3);
 
@@ -160,8 +158,7 @@ public sealed class RaycastTests
         rounded.Add(
             Shape2D.Polygon([new Vector2(20f, -8f), new Vector2(36f, 0f), new Vector2(20f, 8f)], 2f),
             Vector2.Zero,
-            rounded.Layer("target"),
-            CollisionFilter.None);
+            rounded.Layer("target"));
         Assert.True(rounded.Raycast(Vector2.Zero, Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D roundedHit));
         Assert.Equal(18f, roundedHit.Distance, 3);
     }

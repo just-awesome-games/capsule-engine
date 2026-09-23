@@ -84,8 +84,7 @@ internal static class CollisionWorkload
             world.Add(
                 Shape2D.Box(Vector2.Zero, new Vector2(12f, 12f)),
                 new Vector2(index * spacing, ((FloorRow - 1 - (index % 3)) * TileSize) + 4f),
-                actor,
-                CollisionFilter.None);
+                actor);
         }
 
         return world;

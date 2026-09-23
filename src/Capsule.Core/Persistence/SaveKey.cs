@@ -22,10 +22,11 @@ public abstract class SaveKey
         Name = name;
     }
 
-    /// <summary>
-    /// The document's name, one safe file name, compared ordinally. A file system that folds case maps
-    /// two names differing only by case onto one file. A game must not declare such a pair.
-    /// </summary>
+    /// <summary>The document's name, one safe file name, compared ordinally.</summary>
+    /// <remarks>
+    /// A file system that folds case maps two names differing only by case onto one file. A game
+    /// must not declare such a pair.
+    /// </remarks>
     public string Name { get; }
 }
 
@@ -46,10 +47,9 @@ public abstract class SaveKey
 /// </example>
 public sealed class SaveKey<T> : SaveKey
 {
-    /// <summary>A key with no fallback, so reading its absent document throws.</summary>
+    /// <summary>A key with no fallback. <see cref="SaveStore.Read{T}"/> of its absent document throws.</summary>
     /// <param name="name">One safe file name.</param>
     /// <param name="typeInfo">The game context's entry for <typeparamref name="T"/>.</param>
-    /// <exception cref="ArgumentException">The name is not one safe file name.</exception>
     public SaveKey(string name, JsonTypeInfo<T> typeInfo)
         : base(name)
     {
@@ -60,12 +60,11 @@ public sealed class SaveKey<T> : SaveKey
 
     /// <summary>
     /// A key whose absent document reads as <paramref name="fallback"/>. The fallback is serialized
-    /// once here and deserialized afresh on each such read, so this instance is never handed out.
+    /// once here, and each such read deserializes a fresh copy.
     /// </summary>
     /// <param name="name">One safe file name.</param>
     /// <param name="typeInfo">The game context's entry for <typeparamref name="T"/>.</param>
     /// <param name="fallback">What an absent document reads as.</param>
-    /// <exception cref="ArgumentException">The name is not one safe file name.</exception>
     /// <exception cref="JsonException">The fallback cannot be serialized through the type info.</exception>
     public SaveKey(string name, JsonTypeInfo<T> typeInfo, T fallback)
         : this(name, typeInfo)

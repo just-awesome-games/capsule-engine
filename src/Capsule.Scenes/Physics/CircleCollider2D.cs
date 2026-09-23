@@ -3,9 +3,12 @@ using Capsule.Diagnostics;
 namespace Capsule.Physics;
 
 /// <summary>
-/// A circular collider centred on the entity's position plus <see cref="Collider2D.Offset"/>. The offset
-/// places its centre, unlike <see cref="BoxCollider2D"/>, which the offset anchors by its corner.
+/// A circular collider centred on the entity's position plus <see cref="Collider2D.Offset"/>.
 /// </summary>
+/// <remarks>
+/// The offset places the circle's centre. A <see cref="BoxCollider2D"/>'s offset places its corner
+/// instead.
+/// </remarks>
 public sealed class CircleCollider2D : Collider2D
 {
     private float _radius;

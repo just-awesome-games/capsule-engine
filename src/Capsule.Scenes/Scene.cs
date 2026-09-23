@@ -16,10 +16,13 @@ namespace Capsule.Scenes;
 /// <summary>
 /// An ordered world of entities with a <see cref="Camera"/> that frames it and a
 /// <see cref="Collision"/> world it collides through. Mutations requested during a step are
-/// deferred until the step ends. Populate the scene with <see cref="Add"/>, search it with
-/// <see cref="FindSingle{T}"/>, and override <see cref="OnStart"/>, <see cref="OnStep"/>,
-/// <see cref="OnLateStep"/> and <see cref="CollectAssets"/> to give it behaviour and assets.
+/// deferred until the step ends.
 /// </summary>
+/// <remarks>
+/// Populate the scene with <see cref="Add"/>, search it with <see cref="FindSingle{T}"/>, and override
+/// <see cref="OnStart"/>, <see cref="OnStep"/>, <see cref="OnLateStep"/> and
+/// <see cref="CollectAssets"/> to give it behaviour and assets.
+/// </remarks>
 public class Scene
 {
     internal const string NoRunYet =
@@ -79,7 +82,9 @@ public class Scene
     /// The world a scene document describes: one <see cref="TileMap"/> or game entity per entry,
     /// in authored order. The document is construction data and is not retained.
     /// </summary>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SpawnException">
+    /// A placement's spawn type is claimed by no entity, or its class returned no entity.
+    /// </exception>
     public Scene(SceneContent content)
     {
         ArgumentNullException.ThrowIfNull(content.Document);
@@ -121,10 +126,12 @@ public class Scene
 
     /// <summary>
     /// The camera framing this scene. A scene always has one, and installing another cuts to it.
+    /// </summary>
+    /// <remarks>
     /// When the scene comes from a document that authors a scroll origin, that origin is written to
     /// the camera. A camera installed before the scene starts becomes the opening camera. One
     /// installed later runs its <see cref="Scenes.Camera.OnStart"/> immediately.
-    /// </summary>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The camera already frames another scene.</exception>
     public Camera Camera
     {
@@ -149,10 +156,11 @@ public class Scene
     }
 
     /// <summary>
-    /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> registers here
-    /// when its entity joins the scene, and a <see cref="Tiles.TileMap"/> registers the grid it
-    /// draws. Game code queries this world directly for rays, sweeps and overlaps.
+    /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> registers
+    /// here when its entity joins the scene, and a <see cref="Tiles.TileMap"/> registers the grid
+    /// it draws.
     /// </summary>
+    /// <remarks>Game code queries this world directly for rays, sweeps and overlaps.</remarks>
     public CollisionWorld2D Collision { get; } = new();
 
     /// <summary>
@@ -176,23 +184,28 @@ public class Scene
 
     /// <summary>
     /// World units the scene spans from its origin at (0, 0). Zero unless the scene sets it.
-    /// A scene composed from a document spans its authored size, or else its tile maps' largest dimensions.
     /// </summary>
+    /// <remarks>
+    /// A scene composed from a document spans its authored size, or else its tile maps' largest
+    /// dimensions.
+    /// </remarks>
     public Vector2 Size { get; protected set; }
 
-    /// <summary>The colour behind everything the scene draws.</summary>
+    /// <summary>The colour behind everything the scene draws, defaulting to black.</summary>
     public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
 
     /// <summary>
-    /// The colour the world is lit by where no light reaches, white by default, which is the world at
-    /// its authored colour. A light adds to it and brightens up to twice that colour. The screen layer
-    /// is never lit.
+    /// The colour the world is lit by where no light reaches, defaulting to white. White draws the
+    /// world at its authored colour.
     /// </summary>
+    /// <remarks>
+    /// A light adds to it and brightens up to twice that colour. The screen layer is never lit.
+    /// </remarks>
     public ColorRgba Ambient { get; protected set; } = ColorRgba.White;
 
     /// <summary>
-    /// The sampling policy for world-space textures. Defaults to the game's setting, or to
-    /// <see cref="TextureSampling.Linear"/> when the game has none, until the scene sets its own.
+    /// The sampling for world-space textures. A scene that sets none takes <see cref="Run.Sampling"/>
+    /// when it starts, and reads <see cref="TextureSampling.Linear"/> before then.
     /// </summary>
     public TextureSampling Sampling
     {
@@ -245,20 +258,23 @@ public class Scene
     protected object? EntryPayload { get; private set; }
 
     /// <summary>
-    /// Every entity held in step order: roots in addition order, each followed by its subtree.
-    /// Invalidated by mutations.
+    /// Every entity held in step order: roots in addition order, each followed by its subtree. The span
+    /// is invalid once an entity is added or removed.
     /// </summary>
     public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
 
     /// <summary>
-    /// Adds a root entity and its subtree. During a step the add is deferred to the end of the step.
+    /// Adds a root entity and its subtree. During a step the add is deferred to the end of the
+    /// step.
+    /// </summary>
+    /// <remarks>
     /// An entity with a parent joins through that parent and is refused here.
     /// <para>
     /// A component may refuse the scene from its entry hook. The entity stays in the scene with the
     /// components before it registered and the rest unregistered. If the add was deferred, the
     /// refusal surfaces at the queue drain instead of from this call.
     /// </para>
-    /// </summary>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The scene has stopped, the entity is already in a scene or queued, the entity has a parent,
     /// or a component refused the scene.
@@ -278,11 +294,13 @@ public class Scene
 
     /// <summary>
     /// Removes an entity and its subtree. During a step the remove is deferred and idempotent.
+    /// </summary>
+    /// <remarks>
     /// An entity still queued for addition attaches and detaches in the same drain, with matching
     /// hooks. Children detach first, deepest and last-parented first. A child removed by itself
     /// releases its <see cref="Entity.Parent"/> and becomes a root. Every removal hook runs, and
     /// failures propagate once detachment finishes.
-    /// </summary>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is not in it.</exception>
     public void Remove(Entity entity)
     {
@@ -320,7 +338,10 @@ public class Scene
         _freezeTicks = Math.Max(_freezeTicks, ticks);
     }
 
-    /// <summary>Finds the first active entity assignable to <typeparamref name="T"/>.</summary>
+    /// <summary>
+    /// The first entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>, or null when
+    /// there is none.
+    /// </summary>
     public T? FindFirst<T>()
         where T : Entity
     {
@@ -335,7 +356,7 @@ public class Scene
         return null;
     }
 
-    /// <summary>Finds the only active entity assignable to <typeparamref name="T"/>.</summary>
+    /// <summary>The only entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>.</summary>
     /// <exception cref="InvalidOperationException">There is not exactly one matching entity.</exception>
     public T FindSingle<T>()
         where T : Entity
@@ -383,38 +404,46 @@ public class Scene
     }
 
     /// <summary>
-    /// Runs after every entity's <see cref="Entity.OnLateStep"/> and before the frame is built. Set
-    /// the scene's camera policy here. The camera's own <see cref="Scenes.Camera.OnLateStep"/> and its
-    /// follow run afterwards and frame the result.
+    /// Runs after every entity's <see cref="Entity.OnLateStep"/> and before the frame is built.
     /// </summary>
+    /// <remarks>
+    /// Set the scene's camera policy here. The camera's own <see cref="Scenes.Camera.OnLateStep"/>
+    /// and its follow run afterwards and frame the result.
+    /// </remarks>
     protected virtual void OnLateStep(in StepContext context)
     {
     }
 
     /// <summary>
     /// Draws the scene's own debug geometry, as <see cref="Component.OnDebugDraw"/> describes.
-    /// Draws nothing by default. The camera, the entities and their components draw after it.
+    /// Draws nothing by default.
     /// </summary>
+    /// <remarks>The camera, the entities and their components draw after it.</remarks>
     protected virtual void OnDebugDraw()
     {
     }
 
     /// <summary>
     /// Fills the scene's section of the development overlay's scene page, as
-    /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default. The run's seed,
-    /// <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>, <see cref="Sampling"/>, the
-    /// camera and <see cref="Paused"/> are written before this call, and the scene's entities are listed
-    /// after it.
+    /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default.
     /// </summary>
+    /// <remarks>
+    /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>,
+    /// <see cref="Sampling"/>, the camera and <see cref="Paused"/> are written before this call,
+    /// and the scene's entities are listed after it.
+    /// </remarks>
     protected virtual void OnDebugPanel(DebugPanel panel)
     {
     }
 
     /// <summary>
     /// Appends assets this scene declares beyond those owned by its entities and components.
-    /// Collection can run before <see cref="OnStart"/>, so declare from construction-time state.
-    /// An override appends to <paramref name="assets"/> and changes nothing else.
+    /// Collection can run before <see cref="OnStart"/>.
     /// </summary>
+    /// <remarks>
+    /// Declare from construction-time state. An override appends to <paramref name="assets"/> and
+    /// changes nothing else.
+    /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
         ArgumentNullException.ThrowIfNull(assets);

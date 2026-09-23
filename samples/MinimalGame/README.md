@@ -1,7 +1,7 @@
 # MinimalGame
 
-A small, complete Capsule game. It is where each engine feature gets played and reviewed, and CI builds
-it against the shipped packages to prove them. Its layout is the one
+A small, complete Capsule game. Each engine feature is played and reviewed here, and CI builds the game
+against the shipped packages. Its layout is the one
 [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes. Start reading at `GameBoot.cs`
 and `Scenes/`.
 

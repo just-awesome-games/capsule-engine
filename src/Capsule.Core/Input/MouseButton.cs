@@ -6,7 +6,7 @@ namespace Capsule.Input;
 /// </summary>
 public enum MouseButton
 {
-    /// <summary>No button. It is the default, and an unassigned <see cref="MouseButton"/> does not mean a real button.</summary>
+    /// <summary>No button, and the default.</summary>
     None,
 
     /// <summary>The primary button, which is the left one under a right-handed mouse mapping.</summary>

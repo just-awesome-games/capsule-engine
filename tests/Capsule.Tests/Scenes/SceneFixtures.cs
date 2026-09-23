@@ -258,7 +258,7 @@ internal static class SceneFixtures
 
     internal sealed class StripeRenderer(ColorRgba color) : Renderer
     {
-        public override void Draw(FrameView view)
+        protected internal override void Draw(FrameView view)
         {
             Entity entity = Entity!;
             view.Add(new SpriteIntent(

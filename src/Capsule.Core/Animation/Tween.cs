@@ -3,10 +3,10 @@ namespace Capsule.Animation;
 /// <summary>
 /// A tick cursor over one eased run from 0 to 1. Its owner holds it, steps it each step, and writes
 /// <see cref="Value"/> wherever it belongs.
-/// <para>
-/// This is a mutable value. Copying it copies the position, and the copy steps independently.
-/// </para>
 /// </summary>
+/// <remarks>
+/// This is a mutable value. Copying it copies the position, and the copy steps independently.
+/// </remarks>
 /// <example>
 /// <code>
 /// _knockback.Start(12, Ease.OutQuad);
@@ -38,25 +38,28 @@ public struct Tween
     public TweenLoop Loop { get; private set; }
 
     /// <summary>
-    /// Passes completed since <see cref="Start"/>, one per <see cref="Duration"/> ticks a loop runs.
-    /// A <see cref="TweenLoop.Repeat"/> counts wraps and a <see cref="TweenLoop.PingPong"/> counts
-    /// ends reached. A finished <see cref="TweenLoop.Once"/> reads 1.
+    /// Passes completed since <see cref="Start"/>, one per <see cref="Duration"/> ticks a loop
+    /// runs. A <see cref="TweenLoop.Repeat"/> counts wraps and a <see cref="TweenLoop.PingPong"/>
+    /// counts ends reached.
     /// </summary>
+    /// <remarks>A finished <see cref="TweenLoop.Once"/> reads 1.</remarks>
     public int Passes { get; private set; }
 
     /// <summary>
     /// Whether the run has spent its last tick or been stopped. False before the first start, and
-    /// always false on a looping run.
+    /// false on a looping run until <see cref="Stop"/>.
     /// </summary>
     public bool IsFinished { get; private set; }
 
     /// <summary>
-    /// Whether the last <see cref="Step"/> ended a pass. It holds for that one step and the next step
-    /// clears it. A pass ends on the final tick of a <see cref="TweenLoop.Once"/>, on the step that
-    /// wrapped a <see cref="TweenLoop.Repeat"/>, and at either end of a
-    /// <see cref="TweenLoop.PingPong"/> swing. <see cref="Seek"/> and <see cref="Stop"/> do not raise
-    /// it.
+    /// Whether the last <see cref="Step"/> ended a pass. It holds for that one step and the next
+    /// step clears it.
     /// </summary>
+    /// <remarks>
+    /// A pass ends on the final tick of a <see cref="TweenLoop.Once"/>, on the step that wrapped a
+    /// <see cref="TweenLoop.Repeat"/>, and at either end of a <see cref="TweenLoop.PingPong"/>
+    /// swing. <see cref="Seek"/> and <see cref="Stop"/> do not raise it.
+    /// </remarks>
     public bool JustFinished { get; private set; }
 
     /// <summary>Whether the tween has started and has ticks still to spend.</summary>
@@ -64,10 +67,13 @@ public struct Tween
 
     /// <summary>
     /// The eased position of the run. It reads <c>0</c> while no tick is spent or before the first
-    /// start, and <c>1</c> once finished or at the far end of a swing, whatever the curve. An
-    /// overshooting curve leaves <c>[0, 1]</c> in between. A <see cref="TweenLoop.Repeat"/> never
-    /// reads 1, because the tick that would is the 0 its next pass opens on.
+    /// start, and <c>1</c> once finished or at the far end of a swing, whatever the curve.
     /// </summary>
+    /// <remarks>
+    /// An overshooting curve leaves <c>[0, 1]</c> in between. A running
+    /// <see cref="TweenLoop.Repeat"/> never reads 1. The tick that would reach 1 opens the next
+    /// pass at 0.
+    /// </remarks>
     public readonly float Value
     {
         get
@@ -92,10 +98,10 @@ public struct Tween
     /// <param name="ticks">Fixed steps one pass of the run takes. At least one.</param>
     /// <param name="ease">The curve to read the run through. Linear by default.</param>
     /// <param name="loop">What to do with the tick after the last. Finish by default.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The loop mode is not a declared <see cref="TweenLoop"/>.</exception>
     public void Start(int ticks, Ease ease = Ease.Linear, TweenLoop loop = TweenLoop.Once)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticks);
+        Guard.RequireEase(ease, nameof(ease));
 
         if (loop is < TweenLoop.Once or > TweenLoop.PingPong)
         {
@@ -181,12 +187,14 @@ public struct Tween
 
     /// <summary>
     /// Positions the run where <paramref name="tick"/> calls to <see cref="Step"/> would leave it,
-    /// <see cref="Passes"/> included. Tick 0 is the state <see cref="Start"/> left. A looping run
-    /// takes the tick within its period. On a <see cref="TweenLoop.Once"/>, a tick at or past
-    /// <see cref="Duration"/> gives the finished run.
+    /// <see cref="Passes"/> included. Tick 0 is the state <see cref="Start"/> left.
     /// </summary>
+    /// <remarks>
+    /// A looping run takes the tick within its period. On a <see cref="TweenLoop.Once"/>, a tick at
+    /// or past <see cref="Duration"/> gives the finished run.
+    /// </remarks>
     /// <param name="tick">Ticks into the run. Must not be negative.</param>
-    /// <exception cref="InvalidOperationException">The tween has never been started, so it has no run to seek.</exception>
+    /// <exception cref="InvalidOperationException">The tween has never been started.</exception>
     public void Seek(int tick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);

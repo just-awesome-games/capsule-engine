@@ -49,6 +49,8 @@ internal static class RegistryProviderSource
                 public global::System.Type DeclaringType { get; }
             }
 
+            /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c>. Generated code. Do not edit.</summary>
+            [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
             public static class {{providerName}}
             {
