@@ -101,25 +101,7 @@ public sealed class TileGrid
         }
     }
 
-    // Handed to a tilemap collider, which reads this array in place instead of copying it, because a
-    // room-scale grid holds tens of thousands of ints.
-    internal int[] Cells => _tiles;
-
     internal ReadOnlySpan<Sprite?> Sprites => _sprites;
-
-    /// <summary>Returns the palette index at a tile coordinate, and 0 where the grid is empty.</summary>
-    public int TileAt(int x, int y)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(x);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(x, Width);
-        ArgumentOutOfRangeException.ThrowIfNegative(y);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(y, Height);
-
-        return _tiles[(y * Width) + x];
-    }
-
-    /// <summary>Returns the tile type name at a tile coordinate, and <see cref="EmptyTileType"/> where the grid is empty.</summary>
-    public string TileTypeAt(int x, int y) => _tileTypes[TileAt(x, y)].Type;
 
     private void Validate()
     {
@@ -284,7 +266,7 @@ public sealed class TileGrid
     private void ValidateTiles()
     {
         // Computes in long, because an int product wraps and 65536 x 65536 wrapping to 0 would let an
-        // empty tiles array pass here and fail later inside TileAt.
+        // empty tiles array pass here and fail later when a cell is read.
         long expected = (long)Width * Height;
         if (_tiles.Length != expected)
         {

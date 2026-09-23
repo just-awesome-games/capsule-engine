@@ -156,6 +156,39 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         }));
     }
 
+    // The lift carries a rider on every step, and on every stroke towards the crate it shoves the
+    // crate that walks back against it.
+    [Fact]
+    public void APlatformCarryingARiderAndShovingABody_AllocatesNothingPerStep()
+    {
+        Scene scene = CollisionWorkload.Room();
+        CollisionWorkload.Lift lift = new(new Vector2(96f, 632f));
+        CollisionWorkload.Hauled rider = new(new Vector2(104f, 600f), walk: 0f);
+        CollisionWorkload.Hauled crate = new(new Vector2(140f, 620f), walk: -1f);
+        scene.Add(lift);
+        scene.Add(rider);
+        scene.Add(crate);
+
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
+        InputState input = new(new ActionBindings());
+        float seat = 0f;
+
+        Report("lift with a rider and a crate", Measure(step =>
+        {
+            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
+            if (step == WarmupSteps)
+            {
+                seat = rider.Position.X - lift.Position.X;
+            }
+
+            return (int)crate.Position.X + crate.Crushes;
+        }));
+
+        // The rider kept its seat through every measured step, so the carry ran on each of them.
+        Assert.Equal(seat, rider.Position.X - lift.Position.X, 0.01f);
+        Assert.True(crate.Position.X > lift.Position.X);
+    }
+
     private static (long Bytes, long Guard) Measure(Func<int, int> step)
     {
         long guard = 0;

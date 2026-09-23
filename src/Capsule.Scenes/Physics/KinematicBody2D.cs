@@ -46,6 +46,19 @@ public sealed class KinematicBody2D : Component
 
     private readonly Collider2D _collider;
     private readonly List<string> _blocksOn = [];
+    private readonly List<string> _movedBy = [];
+
+    private Scene? _scene;
+
+    // BlocksOn's names resolved in the current scene's world. Filter adds the MovedBy layers to it.
+    private CollisionFilter _blocksOnFilter;
+
+    // The collider this body rides, as found by its last Move. Only a Move changes it.
+    private Collider2D? _floor;
+
+    // True while this body writes its own position. A collider that moves because of that write, such
+    // as one on a child entity, cannot carry or shove the body again.
+    private bool _moving;
 
     private Contact2D[] _found = new Contact2D[16];
     private ColliderContact2D[] _moveContacts = new ColliderContact2D[16];
@@ -68,10 +81,23 @@ public sealed class KinematicBody2D : Component
     public Collider2D Collider => _collider;
 
     /// <summary>
-    /// The filter built from <see cref="BlocksOn"/> for the current scene's collision world. Reads
-    /// <see cref="CollisionFilter.None"/> while this component is in no scene.
+    /// The layers that stop this body, its <see cref="BlocksOn"/> and <see cref="MovedBy"/> layers, built
+    /// for the current scene's collision world. Reads <see cref="CollisionFilter.None"/> while this
+    /// component is in no scene.
     /// </summary>
     public CollisionFilter Filter { get; private set; }
+
+    /// <summary>
+    /// Raised when a collider on a <see cref="MovedBy"/> layer moves into this body and the body cannot
+    /// get out of the way.
+    /// </summary>
+    /// <remarks>
+    /// The contact describes the pusher's surface, and <c>Normal * Depth</c> leads out of it. The
+    /// pusher is never stopped, and the body stays where the shove left it. The event is raised on every
+    /// move that pins the body. A handler may call <see cref="Move(Vector2)"/> and
+    /// <see cref="TestMove(Vector2)"/>.
+    /// </remarks>
+    public event Action<ColliderContact2D>? Crushed;
 
     /// <summary>The surfaces the most recent <see cref="Move(Vector2)"/> reached.</summary>
     public ReadOnlySpan<ColliderContact2D> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
@@ -115,7 +141,38 @@ public sealed class KinematicBody2D : Component
 
         if (InScene)
         {
-            Filter = filter;
+            _blocksOnFilter = filter;
+            Filter = filter | MovedByFilter;
+        }
+    }
+
+    /// <summary>
+    /// Replaces the layers whose moving colliders move this body. A body standing on one rides it, and
+    /// one moving into the body shoves it.
+    /// </summary>
+    /// <remarks>
+    /// A layer that moves the body also blocks it. The body rides the floor its last
+    /// <see cref="Move(Vector2)"/> stopped on, and is carried exactly whether that floor steps before
+    /// or after it. A wall or ceiling stops a carry or a shove.
+    /// </remarks>
+    /// <param name="names">
+    /// The layer names that move this body. An empty list, the default, moves it by nothing.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
+    public void MovedBy(params ReadOnlySpan<string> names)
+    {
+        CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, names);
+
+        _movedBy.Clear();
+        foreach (string name in names)
+        {
+            _movedBy.Add(name);
+        }
+
+        if (InScene)
+        {
+            SetMovedBy(filter);
+            Filter = _blocksOnFilter | filter;
         }
     }
 
@@ -196,7 +253,7 @@ public sealed class KinematicBody2D : Component
         }
 
         // A world translation equals a local one here, because nothing above a body is turned or scaled.
-        entity.Position += result.Translation;
+        Displace(entity, result.Translation);
         _moveContactCount = Collider2D.Describe(
             world,
             _found.AsSpan(0, result.ContactCount),
@@ -205,6 +262,142 @@ public sealed class KinematicBody2D : Component
         Classify(result);
 
         return result;
+    }
+
+    // The MovedBy layers resolved in the current scene's world, or None in no scene.
+    internal CollisionFilter MovedByFilter { get; private set; }
+
+    // Whether this body is moved by the layer with this interned index.
+    internal bool IsMovedBy(int layerIndex) => (MovedByFilter.Bits & (1UL << layerIndex)) != 0;
+
+    // Sweeps a riding body along its floor's motion with its own blocking filter. A body writing its
+    // own position is never moved again.
+    internal void Carry(Vector2 motion)
+    {
+        if (_moving
+            || _collider.World is not { } world
+            || Entity is not { } entity
+            || !ReferenceEquals(_collider.Entity, entity))
+        {
+            return;
+        }
+
+        MoveResult2D result = world.Move(
+            world.ShapeOf(_collider.Handle),
+            entity.WorldPosition,
+            motion,
+            Filter,
+            default,
+            _collider.Handle);
+
+        Displace(entity, result.Translation);
+    }
+
+    // Shoves the body by what is left of the pusher's move after meeting it, or leaves a rider where
+    // its carry put it. A shove that falls short by more than the mover's slop raises Crushed with the
+    // pusher's surface where the two met, and the shortfall along its normal as the depth.
+    internal void Shove(Collider2D pusher, Vector2 remainder, Vector2 normal, Vector2 point)
+    {
+        if (_moving)
+        {
+            return;
+        }
+
+        Vector2 applied = Vector2.Zero;
+        if (!ReferenceEquals(_floor, pusher)
+            && _collider.World is { } sweeping
+            && Entity is { } entity
+            && ReferenceEquals(_collider.Entity, entity))
+        {
+            MoveResult2D result = sweeping.MovePast(
+                sweeping.ShapeOf(_collider.Handle),
+                entity.WorldPosition,
+                remainder,
+                Filter,
+                _collider.Handle,
+                pusher.Handle);
+
+            applied = result.Translation;
+            Displace(entity, applied);
+        }
+
+        float shortfall = Vector2.Dot(remainder - applied, normal);
+        if (shortfall > CollisionTolerance.LinearSlop && pusher.World is { } world)
+        {
+            Contact2D contact = new(
+                CollisionTarget.ForCollider(pusher.Handle, world.LayerOf(pusher.Handle)),
+                point,
+                normal,
+                shortfall);
+            Crushed?.Invoke(Collider2D.Describe(world, contact));
+        }
+    }
+
+    // Called by a collider this body rides as it leaves the world. The collider has already let go.
+    internal void ForgetFloor(Collider2D floor)
+    {
+        if (ReferenceEquals(_floor, floor))
+        {
+            _floor = null;
+        }
+    }
+
+    // Replaces the effective moved-by layers, keeping the scene's union current. A changed set drops
+    // the riding link, which the next Move finds again.
+    private void SetMovedBy(CollisionFilter effective)
+    {
+        if (effective == MovedByFilter)
+        {
+            return;
+        }
+
+        _scene!.CountMovedBy(MovedByFilter, -1);
+        MovedByFilter = effective;
+        _scene.CountMovedBy(effective, 1);
+        Unride();
+    }
+
+    private void Displace(Entity entity, Vector2 translation)
+    {
+        if (translation == Vector2.Zero)
+        {
+            return;
+        }
+
+        _moving = true;
+        try
+        {
+            entity.Position += translation;
+        }
+        finally
+        {
+            _moving = false;
+        }
+    }
+
+    private void Ride(Collider2D? floor)
+    {
+        if (ReferenceEquals(_floor, floor))
+        {
+            return;
+        }
+
+        Unride();
+        if (floor is not null)
+        {
+            floor.AddRider(this);
+            _floor = floor;
+        }
+    }
+
+    // Clears the riding link both ways.
+    internal void Unride()
+    {
+        if (_floor is { } floor)
+        {
+            _floor = null;
+            floor.RemoveRider(this);
+        }
     }
 
     private CollisionWorld2D RequireSweepable(out Entity entity)
@@ -261,13 +454,28 @@ public sealed class KinematicBody2D : Component
                 "A KinematicBody2D's collider must be attached to the same entity before that entity joins a scene.");
         }
 
-        Filter = Collider2D.ResolveFilter(Entity!.Scene.Collision, CollectionsMarshal.AsSpan(_blocksOn));
+        _scene = Entity!.Scene;
+        _blocksOnFilter = Collider2D.ResolveFilter(_scene.Collision, CollectionsMarshal.AsSpan(_blocksOn));
+        MovedByFilter = Collider2D.ResolveFilter(_scene.Collision, CollectionsMarshal.AsSpan(_movedBy));
+        Filter = _blocksOnFilter | MovedByFilter;
+        _scene.CountMovedBy(MovedByFilter, 1);
+        _collider.Body = this;
     }
 
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
+        Unride();
+        _scene?.CountMovedBy(MovedByFilter, -1);
+        _scene = null;
+        if (ReferenceEquals(_collider.Body, this))
+        {
+            _collider.Body = null;
+        }
+
         Filter = CollisionFilter.None;
+        MovedByFilter = CollisionFilter.None;
+        _blocksOnFilter = CollisionFilter.None;
         _moveContactCount = 0;
         IsOnFloor = false;
         IsOnWall = false;
@@ -281,6 +489,7 @@ public sealed class KinematicBody2D : Component
     // the Y sweep's, and each range is judged by its own axis flag.
     private void Classify(in MoveResult2D result)
     {
+        Collider2D? ridden = null;
         IsOnFloor = false;
         IsOnWall = false;
         IsOnCeiling = false;
@@ -304,6 +513,14 @@ public sealed class KinematicBody2D : Component
                     IsOnFloor = true;
                     FloorNormal = normal;
                 }
+
+                // Grid cells never carry, because a grid is anchored.
+                if (ridden is null
+                    && _moveContacts[index].OtherCollider is { } other
+                    && MovedByFilter.Admits(_moveContacts[index].Layer))
+                {
+                    ridden = other;
+                }
             }
             else if (upwards < -FloorDot)
             {
@@ -315,5 +532,7 @@ public sealed class KinematicBody2D : Component
                 WallNormal = normal;
             }
         }
+
+        Ride(ridden);
     }
 }

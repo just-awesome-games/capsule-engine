@@ -6,9 +6,10 @@ using MinimalGame.Game.Entities;
 namespace MinimalGame.Game.Drivers;
 
 /// <summary>
-/// Plays the room with nobody at the keyboard: walks right along the floor, through the hazard and
-/// under the first ledge, jumps up through it and lands on top, walks on a little, fires a bolt at
-/// the pointer, then picks Quit from the pause menu so the run ends by the game's own exit route.
+/// Plays the room with nobody at the keyboard: jumps to break the brick overhead, walks right along
+/// the floor, through the hazard and under the first ledge, jumps up through it and lands on top,
+/// walks on a little, fires a bolt at the pointer, then picks Quit from the pause menu so the run
+/// ends by the game's own exit route.
 /// Every count is in fixed steps. Run it with <c>--scene room --driver Walkthrough</c>, with or
 /// without <c>--headless</c>; it plays the same steps either way and closes itself.
 /// </summary>
@@ -23,6 +24,10 @@ public sealed class Walkthrough : IInputDriver
     private static IInputDriver Script()
     {
         InputScript script = new();
+
+        // IsOnFloor is state as of the last move, so the jump waits one step for the spawn to land.
+        // The head-bump breaks the brick over the spawn, and the fall is back on the floor inside a second.
+        script.Wait(1).Tap(Key.Space).Wait(60);
 
         // 128 world units at the walk speed, which parks the body fully beneath the first ledge. The
         // hazard on the way freezes the room for a few steps, and the walk is held that much longer.

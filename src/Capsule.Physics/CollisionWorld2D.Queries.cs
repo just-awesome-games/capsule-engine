@@ -184,7 +184,7 @@ public sealed partial class CollisionWorld2D
         }
 
         accumulator.Found++;
-        Contact2D contact = new(target, point, normal);
+        Contact2D contact = new(target, point, normal, 0f);
 
         if (byHandle)
         {
@@ -248,6 +248,9 @@ public sealed partial class CollisionWorld2D
 
         return separation;
     }
+
+    // How far a pair overlaps, from its signed separation. A pair within the skin but apart overlaps by nothing.
+    private static float DepthOf(float separation) => MathF.Max(0f, -separation);
 
     // The same against a grid cell or one of its faces, which stays an Aabb2D for a box mover. Only the
     // iterated routines read the hull a Shape2D carries, and building one per cell costs a tenth of a
@@ -357,7 +360,8 @@ public sealed partial class CollisionWorld2D
         return slot.InUse
             && slot.Grid is null
             && filter.Admits(slot.Layer)
-            && !IsIgnored(ignore, index, slot.Generation);
+            && !IsIgnored(ignore, index, slot.Generation)
+            && index != _passThrough;
     }
 
     private void RaycastGrids(
@@ -614,7 +618,7 @@ public sealed partial class CollisionWorld2D
                 for (int x = minX; x <= maxX; x++)
                 {
                     if (!TryCell(grid, x, y, filter, out CellState2D state, out CollisionLayer layer)
-                        || !CellContact(grid, x, y, state, world, tolerance, out Vector2 normal, out Vector2 point))
+                        || !CellContact(grid, x, y, state, world, tolerance, out Vector2 normal, out Vector2 point, out float separation))
                     {
                         continue;
                     }
@@ -625,7 +629,8 @@ public sealed partial class CollisionWorld2D
                         contacts[written++] = new Contact2D(
                             CollisionTarget.ForGridCell(grid.Handle, x, y, layer),
                             point,
-                            normal);
+                            normal,
+                            DepthOf(separation));
                     }
                 }
             }
@@ -647,16 +652,19 @@ public sealed partial class CollisionWorld2D
         in Shape2D world,
         float tolerance,
         out Vector2 normal,
-        out Vector2 point)
+        out Vector2 point,
+        out float nearest)
     {
         if ((state & CellState2D.Solid) != 0)
         {
-            return Separation(world, grid.CellBox(x, y), out normal, out point) <= tolerance;
+            nearest = Separation(world, grid.CellBox(x, y), out normal, out point);
+
+            return nearest <= tolerance;
         }
 
         normal = Vector2.Zero;
         point = Vector2.Zero;
-        float nearest = float.PositiveInfinity;
+        nearest = float.PositiveInfinity;
 
         foreach (CellState2D face in Faces)
         {
@@ -971,6 +979,88 @@ public sealed partial class CollisionWorld2D
         }
     }
 
+    // Writes the handles of every shape collider whose broadphase box meets `box`, skipping grids and
+    // `ignore`, and returns how many there were. A collider's shove gathers its candidates here.
+    internal int CollidersNear(in Aabb2D box, ColliderHandle ignore, Span<ColliderHandle> found)
+    {
+        NearVisitor visitor = new(this, ignore, found);
+        _tree.Query(box, ulong.MaxValue, ref visitor);
+
+        return visitor.Found;
+    }
+
+    // Sweeps a collider's shape from `from` along `translation` against one other collider, and
+    // reports the fraction at which it drives into it, with the point and the target's normal there.
+    // A pair the sweep runs along or away from is no hit.
+    internal bool SweepPair(
+        ColliderHandle mover,
+        Vector2 from,
+        Vector2 translation,
+        ColliderHandle target,
+        out float fraction,
+        out Vector2 normal,
+        out Vector2 point)
+    {
+        Shape2D moving = _slots[RequireShapeSlot(mover)].Local.Translated(from);
+        ref ColliderSlot other = ref _slots[RequireShapeSlot(target)];
+
+        return Sweep(moving, translation, other.World, out fraction, out normal, out point)
+            && Vector2.Dot(translation, normal) < 0f;
+    }
+
+    // Moves a shape as Move does, also passing through `pusher`. A shove sweeps the body it moves this
+    // way, because a pusher that outran the body already lies across the body's path.
+    internal MoveResult2D MovePast(
+        in Shape2D shape,
+        Vector2 origin,
+        Vector2 translation,
+        CollisionFilter filter,
+        ColliderHandle ignore,
+        ColliderHandle pusher)
+    {
+        _passThrough = RequireShapeSlot(pusher);
+        try
+        {
+            return Move(shape, origin, translation, filter, default, ignore);
+        }
+        finally
+        {
+            _passThrough = -1;
+        }
+    }
+
+    private ref struct NearVisitor : ITreeVisitor2D
+    {
+        private readonly CollisionWorld2D _world;
+        private readonly ColliderHandle _ignore;
+        private readonly Span<ColliderHandle> _found;
+
+        // How many colliders the box met, span or no span.
+        internal int Found;
+
+        internal NearVisitor(CollisionWorld2D world, ColliderHandle ignore, Span<ColliderHandle> found)
+        {
+            _world = world;
+            _ignore = ignore;
+            _found = found;
+        }
+
+        public bool Visit(int proxyId)
+        {
+            if (_world.TryProxy(proxyId, CollisionFilter.Everything, _ignore, out int index))
+            {
+                if (Found < _found.Length)
+                {
+                    _found[Found] = _world.HandleAt(index);
+                }
+
+                Found++;
+            }
+
+            return true;
+        }
+    }
+
     private ref struct TouchVisitor : ITreeVisitor2D
     {
         private readonly CollisionWorld2D _world;
@@ -1016,7 +1106,8 @@ public sealed partial class CollisionWorld2D
 
             ref ColliderSlot slot = ref _world._slots[index];
 
-            if (Separation(_shape, slot.World, out Vector2 normal, out Vector2 point) > _tolerance)
+            float separation = Separation(_shape, slot.World, out Vector2 normal, out Vector2 point);
+            if (separation > _tolerance)
             {
                 return true;
             }
@@ -1026,7 +1117,7 @@ public sealed partial class CollisionWorld2D
                 _contacts,
                 _first,
                 ref _written,
-                new Contact2D(CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer), point, normal));
+                new Contact2D(CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation)));
 
             return true;
         }

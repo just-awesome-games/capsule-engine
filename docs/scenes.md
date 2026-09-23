@@ -127,6 +127,8 @@ Each other palette entry carries a `type` name and may carry:
 A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, an unknown face name,
 `collidableFaces` on a tile with no `layer`, and an empty `collidableFaces` fail the document. A tile map
 whose palette collides with nothing registers no collider ([`collision.md`](collision.md#terrain)).
+`TileMap.SetTile` changes what a cell draws and collides as at run time, `TileMap.RemoveTile` clears it,
+`TileMap.TileAt` reads it, and `TileMap.CellAt` finds the cell a world position falls in.
 
 ### Entries and composition
 

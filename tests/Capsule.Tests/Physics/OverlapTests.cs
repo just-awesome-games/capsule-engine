@@ -148,4 +148,31 @@ public sealed class OverlapTests
             CollisionFilter.Everything,
             out _));
     }
+
+    // Depth is the way out: stepping the query by Normal * Depth leaves it touching and no deeper.
+    // One box overlaps another by 3 across X and a lone solid cell by 2 down Y.
+    [Fact]
+    public void AnOverlap_ReportsItsDepth_AndMovingByNormalTimesDepthLeavesTheShapesTouching()
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, "...", ".#.", "...");
+        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), new Vector2(60f, 0f), world.Layer("item"), CollisionFilter.None);
+        Span<Contact2D> contacts = stackalloc Contact2D[4];
+
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(55f, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(new Vector2(-1f, 0f), contacts[0].Normal);
+        Assert.Equal(3f, contacts[0].Depth, CollisionFixtures.Tolerance);
+
+        Vector2 outOfBox = contacts[0].Normal * contacts[0].Depth;
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(55f + outOfBox.X, 0f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(0f, contacts[0].Depth);
+
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 10f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
+        Assert.Equal(2f, contacts[0].Depth, CollisionFixtures.Tolerance);
+
+        Vector2 outOfCell = contacts[0].Normal * contacts[0].Depth;
+        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 10f + outOfCell.Y, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(0f, contacts[0].Depth);
+    }
 }

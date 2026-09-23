@@ -133,4 +133,56 @@ internal static class CollisionWorkload
             }
         }
     }
+
+    /// <summary>A slab on the platform layer that paces the floor, moved only by writes to its position.</summary>
+    internal sealed class Lift : Entity
+    {
+        private const float Speed = 2f;
+        private const float Reach = 64f;
+
+        private readonly float _start;
+        private float _direction = 1f;
+
+        internal Lift(Vector2 position)
+            : base(position)
+        {
+            _start = position.X;
+            Add(new BoxCollider2D(new Vector2(32f, 8f)) { Layer = Platform });
+        }
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            float x = Position.X + (_direction * Speed);
+            if (x <= _start || x >= _start + Reach)
+            {
+                _direction = -_direction;
+            }
+
+            Position = new Vector2(x, Position.Y);
+        }
+    }
+
+    /// <summary>A falling body moved by the platform layer, walking at a fixed speed.</summary>
+    internal sealed class Hauled : Entity
+    {
+        private readonly KinematicBody2D _mover;
+        private readonly float _walk;
+
+        internal Hauled(Vector2 position, float walk)
+            : base(position)
+        {
+            _walk = walk;
+            BoxCollider2D collider = new(new Vector2(12f, 12f));
+            Add(collider);
+            _mover = new KinematicBody2D(collider);
+            _mover.BlocksOn(Solid, Platform);
+            _mover.MovedBy(Platform);
+            _mover.Crushed += _ => Crushes++;
+            Add(_mover);
+        }
+
+        internal int Crushes { get; private set; }
+
+        protected internal override void OnStep(in StepContext context) => _mover.Move(new Vector2(_walk, 4f));
+    }
 }

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Physics;
 
@@ -53,6 +54,20 @@ public abstract class Collider2D : Component
 
     // True while this collider's own enter and exit handlers are running.
     private bool _dispatching;
+
+    // The interned index of Layer in the world this collider is registered with.
+    private int _layerIndex;
+
+    // The bodies whose last move stopped on this collider, grown once and never shrunk. A slot empties
+    // to null while this collider is carrying, and is compacted once the carry is done.
+    private KinematicBody2D?[] _riders = [];
+    private int _riderCount;
+    private bool _ridersEmptied;
+
+    // The colliders near this one's last move, allocated on its first shove. Each collider owns its
+    // own, and _pushing keeps a nested move of this one from reusing it.
+    private ColliderHandle[]? _near;
+    private bool _pushing;
 
     /// <summary>The collider's starting shape, expressed relative to the entity's position.</summary>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/> with no points.</exception>
@@ -223,6 +238,7 @@ public abstract class Collider2D : Component
                 CollisionLayer layer = world.Layer(value);
 
                 _layer = value;
+                _layerIndex = layer.Index;
                 if (_world is not null)
                 {
                     world.SetFilter(_handle, layer, Filter);
@@ -234,6 +250,9 @@ public abstract class Collider2D : Component
             _layer = value;
         }
     }
+
+    // The body that sweeps this collider while both are in a scene, or null.
+    internal KinematicBody2D? Body { get; set; }
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
@@ -445,7 +464,10 @@ public abstract class Collider2D : Component
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
         CollisionFilter filter = ResolveFilter(world, CollectionsMarshal.AsSpan(_detects));
-        ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, world.Layer(_layer), filter, this);
+        CollisionLayer layer = world.Layer(_layer);
+        ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, filter, this);
+
+        _layerIndex = layer.Index;
 
         _world = world;
         Filter = filter;
@@ -466,6 +488,8 @@ public abstract class Collider2D : Component
 
         _scene?.UntrackContacts(this);
         world.Remove(_handle);
+        ReleaseRiders();
+        Body?.Unride();
 
         Filter = CollisionFilter.None;
         _world = null;
@@ -500,7 +524,196 @@ public abstract class Collider2D : Component
         }
     }
 
-    internal override void OnEntityMoved() => _world?.SetPosition(_handle, Entity!.WorldPosition);
+    // A collider no body is moved by only follows its entity. One that is carries its riders by the
+    // same translation and then shoves the bodies it moved into.
+    internal override void OnEntityMoved()
+    {
+        if (_world is not { } world)
+        {
+            return;
+        }
+
+        Vector2 position = Entity!.WorldPosition;
+        bool moves = _riderCount > 0 || (_scene!.MovedByLayers & (1UL << _layerIndex)) != 0;
+
+        // A move made from inside this collider's own carry, by a Crushed handler, only follows the
+        // entity. Carrying again would reuse the buffer the outer carry is reading.
+        if (!moves || _pushing)
+        {
+            world.SetPosition(_handle, position);
+            return;
+        }
+
+        Vector2 from = world.PositionOf(_handle);
+        Vector2 motion = position - from;
+        world.SetPosition(_handle, position);
+        if (motion == Vector2.Zero)
+        {
+            return;
+        }
+
+        _pushing = true;
+        try
+        {
+            CarryRiders(motion);
+
+            // A handler raised during the carry may have disabled or detached this collider.
+            if (_world is not null)
+            {
+                ShoveBodies(world, from, motion);
+            }
+        }
+        finally
+        {
+            _pushing = false;
+            CompactRiders();
+        }
+    }
+
+    internal void AddRider(KinematicBody2D body)
+    {
+        if (_riderCount == _riders.Length)
+        {
+            Array.Resize(ref _riders, Math.Max(4, _riders.Length * 2));
+        }
+
+        _riders[_riderCount++] = body;
+    }
+
+    internal void RemoveRider(KinematicBody2D body)
+    {
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (!ReferenceEquals(_riders[index], body))
+            {
+                continue;
+            }
+
+            if (_pushing)
+            {
+                _riders[index] = null;
+                _ridersEmptied = true;
+                return;
+            }
+
+            _riderCount--;
+            _riders[index] = _riders[_riderCount];
+            _riders[_riderCount] = null;
+            return;
+        }
+    }
+
+    // A carried rider's colliders move in turn, which carries whatever rides them. The count is read
+    // once, so a body that lands here mid-carry waits for the next move.
+    private void CarryRiders(Vector2 motion)
+    {
+        int count = _riderCount;
+        for (int index = 0; index < count && _world is not null; index++)
+        {
+            if (_riders[index] is { } rider
+                && rider.IsMovedBy(_layerIndex)
+                && !MovesWith(rider.Entity))
+            {
+                rider.Carry(motion);
+            }
+        }
+    }
+
+    // Shoves each body this collider's move drove into by the travel left after meeting it, and checks
+    // each rider a carry could not clear. The move is swept from where the collider was, so a body
+    // thinner than the move is still met.
+    private void ShoveBodies(CollisionWorld2D world, Vector2 from, Vector2 motion)
+    {
+        if ((_scene!.MovedByLayers & (1UL << _layerIndex)) == 0)
+        {
+            return;
+        }
+
+        Aabb2D reach = _local.Translated(from).Bounds.Union(world.WorldShapeOf(_handle).Bounds)
+            .Expanded(CollisionTolerance.ContactSkin);
+
+        _near ??= new ColliderHandle[8];
+        int count = world.CollidersNear(reach, _handle, _near);
+        if (count > _near.Length)
+        {
+            Array.Resize(ref _near, count);
+            count = world.CollidersNear(reach, _handle, _near);
+        }
+
+        for (int index = 0; index < count && _world is not null; index++)
+        {
+            ColliderHandle near = _near[index];
+            if (!world.Contains(near)
+                || world.UserDataOf(near) is not Collider2D { Body: { } body }
+                || !body.IsMovedBy(_layerIndex)
+                || MovesWith(body.Entity)
+                || !world.SweepPair(
+                    _handle,
+                    from,
+                    motion,
+                    near,
+                    out float fraction,
+                    out Vector2 normal,
+                    out Vector2 point))
+            {
+                continue;
+            }
+
+            // The sweep reports the body's normal. The pusher's surface faces the other way.
+            body.Shove(this, motion * (1f - fraction), -normal, point);
+        }
+    }
+
+    // Whether an entity is this collider's own or one of its ancestors, which move with it already.
+    private bool MovesWith(Entity? other)
+    {
+        for (Entity? entity = Entity; entity is not null; entity = entity.Parent)
+        {
+            if (ReferenceEquals(entity, other))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CompactRiders()
+    {
+        if (!_ridersEmptied)
+        {
+            return;
+        }
+
+        _ridersEmptied = false;
+        int kept = 0;
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (_riders[index] is { } rider)
+            {
+                _riders[kept++] = rider;
+            }
+        }
+
+        Array.Clear(_riders, kept, _riderCount - kept);
+        _riderCount = kept;
+    }
+
+    // Lets go of every rider as this collider leaves the world.
+    private void ReleaseRiders()
+    {
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (_riders[index] is { } rider)
+            {
+                _riders[index] = null;
+                rider.ForgetFloor(this);
+            }
+        }
+
+        _riderCount = 0;
+        _ridersEmptied = false;
+    }
 
     internal void SettleContacts()
     {
@@ -658,16 +871,14 @@ public abstract class Collider2D : Component
         return found.Length;
     }
 
-    private static ColliderContact2D Describe(CollisionWorld2D world, in Contact2D contact)
+    internal static ColliderContact2D Describe(CollisionWorld2D world, in Contact2D contact)
     {
         object? owner = world.UserDataOf(contact.Target.Collider);
         Collider2D? otherCollider = contact.Target.IsGridCell ? null : owner as Collider2D;
-        GridCellContact2D? cell = contact.Target.IsGridCell
-            ? new GridCellContact2D(
-                world.GridOf(contact.Target.Collider)!,
-                contact.Target.CellX,
-                contact.Target.CellY,
-                owner)
+
+        // A grid no tile map owns reports no tile. The raw target still names its cell.
+        TileContact2D? tile = contact.Target.IsGridCell && owner is TileMap map
+            ? new TileContact2D(map, contact.Target.CellX, contact.Target.CellY)
             : null;
 
         return new ColliderContact2D(
@@ -675,8 +886,9 @@ public abstract class Collider2D : Component
             contact.Target,
             contact.Point,
             contact.Normal,
+            contact.Depth,
             otherCollider,
-            cell);
+            tile);
     }
 
     // Resolves layer names to a filter in this world, interning each name as it goes, because a

@@ -1,14 +1,18 @@
 using System.Numerics;
 using Capsule.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Physics;
 
-/// <summary>One grid cell reached by a collider contact.</summary>
-/// <param name="Grid">The collision grid that owns the cell.</param>
+/// <summary>One tile-map cell reached by a collider contact.</summary>
+/// <param name="Map">The tile map that holds the cell.</param>
 /// <param name="X">The cell's column.</param>
 /// <param name="Y">The cell's row.</param>
-/// <param name="Owner">The object supplied when the grid was registered, or null when none was.</param>
-public readonly record struct GridCellContact2D(GridCollider2D Grid, int X, int Y, object? Owner);
+public readonly record struct TileContact2D(TileMap Map, int X, int Y)
+{
+    /// <summary>The tile type name the cell holds now.</summary>
+    public string Type => Map.TileAt(X, Y);
+}
 
 /// <summary>Something a <see cref="Collider2D"/> is touching, described in the game's own terms.</summary>
 public readonly struct ColliderContact2D
@@ -20,15 +24,17 @@ public readonly struct ColliderContact2D
         CollisionTarget target,
         Vector2 point,
         Vector2 normal,
+        float depth,
         Collider2D? otherCollider,
-        GridCellContact2D? cell)
+        TileContact2D? tile)
     {
         _world = world;
         Target = target;
         Point = point;
         Normal = normal;
+        Depth = depth;
         OtherCollider = otherCollider;
-        Cell = cell;
+        Tile = tile;
     }
 
     /// <summary>The collision layer the touched thing is on.</summary>
@@ -43,14 +49,20 @@ public readonly struct ColliderContact2D
     /// </summary>
     public Vector2 Normal { get; }
 
-    /// <summary>The other collider, or null when <see cref="Cell"/> names a grid cell.</summary>
+    /// <summary>
+    /// How far the two shapes overlap along <see cref="Normal"/>, so <c>Normal * Depth</c> leads out of
+    /// the touched thing. Zero when they merely touch, and on every contact a sweep reports.
+    /// </summary>
+    public float Depth { get; }
+
+    /// <summary>The other collider, or null when a grid cell was touched.</summary>
     public Collider2D? OtherCollider { get; }
 
-    /// <summary>The grid cell touched, or null when <see cref="OtherCollider"/> holds another collider.</summary>
-    public GridCellContact2D? Cell { get; }
+    /// <summary>The tile-map cell touched, or null when the contact is not a tile map's cell.</summary>
+    public TileContact2D? Tile { get; }
 
-    /// <summary>The entity behind <see cref="OtherCollider"/>, or the grid's owner when a cell was touched.</summary>
-    public Entity? OtherEntity => OtherCollider?.Entity ?? Cell?.Owner as Entity;
+    /// <summary>The entity behind <see cref="OtherCollider"/>, or the tile map when a tile was touched.</summary>
+    public Entity? OtherEntity => OtherCollider?.Entity ?? Tile?.Map;
 
     /// <summary>
     /// The touched surface's layer as the name it was interned under, which is the readable form for a

@@ -16,7 +16,8 @@ namespace MinimalGame.Game.Entities;
 /// The walking, falling, jumping body the <c>player</c> document entries spawn.
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body. The body collider is what
 /// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
-/// reports <c>hazard</c> contacts alone. Everything visual hangs on the nested <see cref="Visual"/>
+/// reports <c>hazard</c> contacts alone. The body rides and is shoved by anything on the
+/// <c>platform</c> layer, and being crushed kills. Everything visual hangs on the nested <see cref="Visual"/>
 /// child, which reads the facts this root publishes; a shot leaves from the muzzle socket of the
 /// frame that child draws, so the root fires in its late step, once the frame has settled. On
 /// keyboard and mouse a shot aims at the pointer, and on a pad it flies along the facing. Its
@@ -88,6 +89,8 @@ public sealed class Player : Entity
 
         _body = new KinematicBody2D(bodyCollider);
         _body.BlocksOn(CollisionLayers.Blocking);
+        _body.MovedBy(CollisionLayers.Platform);
+        _body.Crushed += OnCrushed;
         Add(_body);
 
         float hurtboxEdge = BodyPixels - (_tuning.HurtboxInset * 2);
@@ -164,6 +167,20 @@ public sealed class Player : Entity
         if (_body.IsOnCeiling)
         {
             _velocity.Y = 0f;
+            BreakBricksOverhead();
+        }
+    }
+
+    // A brick struck from below breaks: terrain that changes at run time.
+    private void BreakBricksOverhead()
+    {
+        foreach (ColliderContact2D contact in _body.MoveContacts)
+        {
+            if (contact.Normal.Y > 0f && contact.Tile is { Type: TileTypes.Brick } tile)
+            {
+                tile.Map.RemoveTile(tile.X, tile.Y);
+                Scene.Add(_sparks.Take().Burst(contact.Point));
+            }
         }
     }
 
@@ -223,6 +240,13 @@ public sealed class Player : Entity
 
     private void OnHurtboxExited(ColliderContact2D contact) =>
         Log.Info(FormattableString.Invariant($"exited {contact.LayerName} at {contact.Point}"));
+
+    // Crushing kills outright. The scene returns to the menu once health reads zero.
+    private void OnCrushed(ColliderContact2D contact)
+    {
+        Health = 0;
+        Log.Info("crushed");
+    }
 
     /// <summary>
     /// Everything the player looks like: the sprite, its animator, facing and squash-and-stretch,

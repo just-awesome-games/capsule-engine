@@ -32,7 +32,7 @@ public sealed class TileGridTests
     {
         TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1]);
 
-        Assert.Equal("hazard", grid.TileTypeAt(1, 0));
+        Assert.Equal("hazard", grid.TileTypes[grid.Tiles[1]].Type);
         Assert.Null(grid.TileTypes[1].Cell);
         Assert.Null(grid.Texture);
         Assert.Null(grid.Sprites[1]);
@@ -45,22 +45,6 @@ public sealed class TileGridTests
             () => new TileGrid(16, 65536, 65536, [TileGrid.EmptyTile], []));
 
         Assert.Contains("requires 4294967296", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TileTypeAt_ReadsTheGridRowMajor()
-    {
-        TileGrid grid = new(
-            16,
-            2,
-            2,
-            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("wall", 1)],
-            [0, 1, 2, 0],
-            Atlas,
-            2);
-
-        Assert.Equal("ground", grid.TileTypeAt(1, 0));
-        Assert.Equal("wall", grid.TileTypeAt(0, 1));
     }
 
     // A cell is read across a row of Columns and then down, square at the grid's tile size, so

@@ -38,6 +38,9 @@ public class Scene
 
     private readonly SceneRenderIndex _renderIndex = new();
     private readonly SettleList<Collider2D> _contactReporters = new();
+
+    // How many bodies in this scene are moved by each collision layer, indexed by layer.
+    private readonly int[] _movedByCounts = new int[CollisionWorld2D.MaxLayers];
     private readonly SettleList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
 
     // The frame's visible region, held so notifiers settle against it.
@@ -612,6 +615,30 @@ public class Scene
     }
 
     internal void TrackContacts(Collider2D collider) => _contactReporters.Add(collider);
+
+    // One bit per layer some body in this scene is moved by. A collider on none of them shoves nothing.
+    internal ulong MovedByLayers { get; private set; }
+
+    // Adds or withdraws one body's moved-by layers from the scene's union.
+    internal void CountMovedBy(CollisionFilter filter, int delta)
+    {
+        ulong bits = filter.Bits;
+        while (bits != 0)
+        {
+            int layer = BitOperations.TrailingZeroCount(bits);
+            bits &= bits - 1;
+
+            _movedByCounts[layer] += delta;
+            if (_movedByCounts[layer] > 0)
+            {
+                MovedByLayers |= 1UL << layer;
+            }
+            else
+            {
+                MovedByLayers &= ~(1UL << layer);
+            }
+        }
+    }
 
     internal void UntrackContacts(Collider2D collider) => _contactReporters.Remove(collider);
 

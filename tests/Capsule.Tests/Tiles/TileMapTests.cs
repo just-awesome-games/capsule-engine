@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -69,7 +70,7 @@ public sealed class TileMapTests
 
         Assert.Equal(8, tiles.TileSize);
         Assert.Equal(new Vector2(16, 8), tiles.Size);
-        Assert.Equal("solid", tiles.TileTypeAt(1, 0));
+        Assert.Equal("solid", tiles.TileAt(1, 0));
         Assert.Equal(
             new TextureRegion(8, 8, 8, 8),
             Assert.Single(simulation.View.Sprites.ToArray()).Sprite.Region);
@@ -150,8 +151,69 @@ public sealed class TileMapTests
 
         SceneSimulation simulation = new(scene);
 
-        Assert.Equal("hazard", tiles.TileTypeAt(0, 0));
+        Assert.Equal("hazard", tiles.TileAt(0, 0));
         Assert.Empty(simulation.View.Sprites.ToArray());
+    }
+
+    // Clearing a solid cell changes what the map collides as and nothing else: the body standing on it
+    // falls on its next move, the reporting collider exits at the next settle, the face the cell hid
+    // on its neighbour stops a sweep, and the grid the map was built from still reads as authored.
+    [Fact]
+    public void SetTile_ChangesTheMapsCollision_AndLeavesTheGridItWasBuiltFromAlone()
+    {
+        TileGrid grid = SceneFixtures.TerrainGrid("....", "....", ".##.");
+        TileMap map = new(grid);
+        SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
+        body.Collider.SetFilter("solid");
+        body.Collider.ReportsContacts = true;
+        int exits = 0;
+        body.Collider.ContactExited += _ => exits++;
+
+        Scene scene = new();
+        scene.Add(map);
+        scene.Add(body);
+        using SceneSimulation simulation = new(scene);
+        body.Mover.Move(new Vector2(0f, 40f));
+        simulation.Step(SceneFixtures.Step(0));
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Single(body.Collider.Touching.ToArray());
+
+        map.RemoveTile(1, 2);
+
+        Assert.Equal(TileGrid.EmptyTileType, map.TileAt(1, 2));
+        simulation.Step(SceneFixtures.Step(1));
+        Assert.Equal(1, exits);
+
+        body.Mover.Move(new Vector2(0f, 4f));
+        Assert.False(body.Mover.IsOnFloor);
+
+        MoveResult2D swept = scene.Collision.MoveBox(
+            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
+            new Vector2(20f, 0f),
+            scene.Collision.CreateFilter("solid"),
+            default);
+        Assert.True(swept.BlockedX);
+        Assert.Equal(8f, swept.Translation.X, 0.01f);
+
+        Assert.Equal("solid", new TileMap(grid).TileAt(1, 2));
+
+        ArgumentException unknown = Assert.Throws<ArgumentException>(() => map.SetTile(0, 0, "lava"));
+        Assert.Contains("lava", unknown.Message, StringComparison.Ordinal);
+        Assert.Contains("empty, solid", unknown.Message, StringComparison.Ordinal);
+    }
+
+    // Floor, not truncation: a position a fraction left of the origin is in cell -1, and one exactly
+    // on a cell edge is in the cell that edge opens. A quotient past the int range pins to its end.
+    [Theory]
+    [InlineData(8, -0.5f, 0f, -1, 0)]
+    [InlineData(8, 8f, 16f, 1, 2)]
+    [InlineData(8, 7.99f, 0f, 0, 0)]
+    [InlineData(1, 2147483648f, 0f, int.MaxValue, 0)]
+    public void CellAt_FloorsAWorldPositionToTheCellItFallsIn(int tileSize, float x, float y, int cellX, int cellY)
+    {
+        TileMap map = new(new TileGrid(tileSize, 1, 1, [TileGrid.EmptyTile], [0]));
+
+        Assert.Equal((cellX, cellY), map.CellAt(new Vector2(x, y)));
     }
 
     private static TileGrid Run() =>

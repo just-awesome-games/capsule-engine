@@ -19,8 +19,8 @@ public sealed class ColliderContactEventTests
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
-        body.Collider.ContactEntered += contact => log.Add($"+{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
-        body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
+        body.Collider.ContactEntered += contact => log.Add($"+{contact.LayerName}({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
+        body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
 
         scene.Add(body);
         using SimulationHost run = new(scene);
@@ -231,7 +231,7 @@ public sealed class ColliderContactEventTests
         // of the two new ones instead, each group in that world order.
         Assert.Equal(
             ["(2,1)", "(0,1)", "(1,1)"],
-            body.Collider.Touching.ToArray().Select(contact => $"({contact.Cell!.Value.X},{contact.Cell.Value.Y})"));
+            body.Collider.Touching.ToArray().Select(contact => $"({contact.Tile!.Value.X},{contact.Tile.Value.Y})"));
 
         // Leaving from that mixed set rather than from a settled one, so the exits are ordered by a
         // Touching that still deviates from the world's order.
@@ -273,7 +273,7 @@ public sealed class ColliderContactEventTests
 
         ColliderContact2D[] landed = body.Mover.MoveContacts.ToArray();
         Assert.True(landed.Length >= 40, $"the move landed on {landed.Length} cells, which does not exercise a full buffer.");
-        Assert.Equal(landed.Length, landed.Select(contact => contact.Cell!.Value.X).Distinct().Count());
+        Assert.Equal(landed.Length, landed.Select(contact => contact.Tile!.Value.X).Distinct().Count());
         Assert.Equal(8f, body.Position.Y, CollisionFixtures.Tolerance);
 
         simulation.Step(SceneFixtures.Step(0));
@@ -292,8 +292,8 @@ public sealed class ColliderContactEventTests
         {
             Collider = new BoxCollider2D(new Vector2(40f, 8f)) { ReportsContacts = true };
             Collider.SetFilter("solid");
-            Collider.ContactEntered += contact => Log.Add($"+({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
-            Collider.ContactExited += contact => Log.Add($"-({contact.Cell!.Value.X},{contact.Cell.Value.Y})");
+            Collider.ContactEntered += contact => Log.Add($"+({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
+            Collider.ContactExited += contact => Log.Add($"-({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
             Add(Collider);
         }
 

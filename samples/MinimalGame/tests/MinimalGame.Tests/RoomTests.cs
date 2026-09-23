@@ -4,6 +4,8 @@ using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tiles;
+using MinimalGame.Game;
 using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Tests;
@@ -20,6 +22,9 @@ public sealed class RoomTests
 
     // A jump's arc: rise and fall against the default gravity is well under two seconds.
     private const int JumpBudget = 120;
+
+    // The brick sits in tile row 8, whose cells end at this height.
+    private const float BrickRowBottom = 144f;
 
     [Fact]
     public void HoldingRight_WalksThePlayerAtItsWalkSpeedAlongTheFloor()
@@ -217,6 +222,59 @@ public sealed class RoomTests
             room.Simulation.View.Sprites.ToArray(),
             sprite => sprite.Position == second.Position);
         Assert.Equal(frame.Position, frame.PreviousPosition);
+    }
+
+    // The lift carries whatever stands on it: set down on its top at the low point, the player rides
+    // a whole swing up and back with its feet on the slab and the floor under it on every step.
+    [Fact]
+    public void APlayerOnTheLift_RidesAFullSwingWithItsFeetOnTheSlab()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+        KinematicBody2D body = player.Get<KinematicBody2D>();
+        Lift lift = room.Scene.FindSingle<Lift>();
+        player.Teleport(lift.Position + new Vector2(12f, -8f));
+
+        float highest = lift.Position.Y;
+        for (int step = 0; step < 300; step++)
+        {
+            room.Step();
+
+            Assert.True(body.IsOnFloor, $"the player lost the lift on step {step}");
+            Assert.Equal(lift.Position.Y, PlayerFeet(player), RestTolerance);
+            highest = MathF.Min(highest, lift.Position.Y);
+        }
+
+        Assert.True(highest < RoomFixture.FloorTop - 60f, "the lift never rose");
+    }
+
+    // The brick over the spawn breaks at the first head-bump and reads empty from then on, so the
+    // second jump rises through the row it filled.
+    [Fact]
+    public void AJumpFromTheSpawn_BreaksTheBrickOverhead_AndTheNextJumpRisesThroughItsRow()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+        KinematicBody2D body = player.Get<KinematicBody2D>();
+        TileMap map = room.Scene.FindSingle<TileMap>();
+        Assert.Equal(TileTypes.Brick, map.TileAt(2, 8));
+
+        room.Play(new InputScript().Wait(1).Tap(Key.Space).Build());
+        Assert.True(room.RunUntil(() => body.IsOnFloor, JumpBudget), "the player never landed");
+        Assert.Equal(TileGrid.EmptyTileType, map.TileAt(2, 8));
+
+        room.Step(DeviceSnapshot.Of(Key.Space));
+        float highestFeet = PlayerFeet(player);
+        Assert.True(
+            room.RunUntil(
+                () =>
+                {
+                    highestFeet = MathF.Min(highestFeet, PlayerFeet(player));
+                    return body.IsOnFloor;
+                },
+                JumpBudget),
+            "the player never landed");
+        Assert.True(highestFeet < BrickRowBottom, "the second jump never rose past the brick's row");
     }
 
     // Position is the body's top-left corner; the feet are its bottom edge.

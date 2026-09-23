@@ -42,6 +42,9 @@ public sealed partial class CollisionWorld2D
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
 
+    // The slot a MovePast sweep passes through, or -1. Only one sweep runs at a time.
+    private int _passThrough = -1;
+
     /// <summary>A world holding nothing, with only <see cref="DefaultLayerName"/> interned.</summary>
     public CollisionWorld2D() => Layer(DefaultLayerName);
 
@@ -585,12 +588,13 @@ public sealed partial class CollisionWorld2D
 
         // The same measurement the overlap walk makes. A pair test and an overlap query describe a
         // contact identically.
-        if (Separation(_slots[index].World, target.World, out Vector2 normal, out Vector2 point) > CollisionTolerance.ContactSkin)
+        float separation = Separation(_slots[index].World, target.World, out Vector2 normal, out Vector2 point);
+        if (separation > CollisionTolerance.ContactSkin)
         {
             return false;
         }
 
-        contact = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal);
+        contact = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, DepthOf(separation));
 
         return true;
     }

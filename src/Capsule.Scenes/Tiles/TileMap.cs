@@ -16,10 +16,17 @@ namespace Capsule.Tiles;
 /// in the map's own <see cref="Entity.ZIndex"/> band, so one value puts every tile behind or in front
 /// of the rest of the scene. Tiles follow the map's <see cref="Entity.ScrollFactor"/>,
 /// which a grid with a colliding palette rejects.
+/// <para>
+/// The map copies the grid's cells when it is built, and <see cref="SetTile"/> changes that copy. The
+/// <see cref="TileGrid"/> handed in is never written, so a scene rebuilt from it starts as authored.
+/// </para>
 /// </summary>
 public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
+
+    // The map's own palette indices, row-major. Drawing, reading and SetTile all use this copy.
+    private readonly int[] _cells;
 
     private CollisionWorld2D? _world;
 
@@ -31,9 +38,10 @@ public sealed class TileMap : Entity
 
         Anchored = true;
         _grid = grid;
+        _cells = grid.Tiles.ToArray();
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 
-        Add(new VisibleTiles(grid));
+        Add(new VisibleTiles(grid, _cells));
     }
 
     /// <summary>The edge length of one tile, taken from <see cref="TileGrid.TileSize"/>.</summary>
@@ -57,11 +65,56 @@ public sealed class TileMap : Entity
     /// </summary>
     public GridCollider2D? Collision { get; private set; }
 
-    /// <summary>Returns the palette index at a tile coordinate, and 0 where the grid is empty.</summary>
-    public int TileAt(int x, int y) => _grid.TileAt(x, y);
+    /// <summary>
+    /// Returns the tile type name at a tile coordinate, and <see cref="TileGrid.EmptyTileType"/> where
+    /// the map is empty.
+    /// </summary>
+    public string TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]].Type;
 
-    /// <summary>Returns the tile type name at a tile coordinate.</summary>
-    public string TileTypeAt(int x, int y) => _grid.TileTypeAt(x, y);
+    /// <summary>
+    /// Returns the tile coordinate of the cell a world position falls in. The cell may lie outside the
+    /// map.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// var (x, y) = map.CellAt(Position);
+    /// string tile = map.TileAt(x, y);
+    /// </code>
+    /// </example>
+    public (int X, int Y) CellAt(Vector2 position)
+    {
+        Guard.Finite(position, nameof(position));
+
+        return (GridCollider2D.FloorDiv(position.X, TileSize), GridCollider2D.FloorDiv(position.Y, TileSize));
+    }
+
+    /// <summary>Clears the tile at a tile coordinate to <see cref="TileGrid.EmptyTileType"/>.</summary>
+    public void RemoveTile(int x, int y) => SetTile(x, y, TileGrid.EmptyTileType);
+
+    /// <summary>
+    /// Changes the tile at a tile coordinate to the palette entry named <paramref name="type"/>, which
+    /// sets what the cell draws and collides as.
+    /// </summary>
+    /// <param name="x">The tile column.</param>
+    /// <param name="y">The tile row.</param>
+    /// <param name="type">
+    /// A tile type name from the grid's palette. <see cref="TileGrid.EmptyTileType"/> clears the cell.
+    /// </param>
+    /// <exception cref="ArgumentException">The palette has no tile type named <paramref name="type"/>.</exception>
+    public void SetTile(int x, int y, string type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        int index = IndexOf(x, y);
+        int palette = PaletteIndexOf(type);
+        if (_cells[index] == palette)
+        {
+            return;
+        }
+
+        _cells[index] = palette;
+        Collision?.SetCell(x, y, palette);
+    }
 
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
@@ -93,7 +146,7 @@ public sealed class TileMap : Entity
                 palette[index].CollidableFaces);
         }
 
-        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _grid.Cells, profiles, this);
+        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _cells, profiles, this);
     }
 
     /// <inheritdoc/>
@@ -108,14 +161,46 @@ public sealed class TileMap : Entity
         _world = null;
     }
 
-    private sealed class VisibleTiles(TileGrid grid) : Renderer
+    private int IndexOf(int x, int y)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(x);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(x, Width);
+        ArgumentOutOfRangeException.ThrowIfNegative(y);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(y, Height);
+
+        return (y * Width) + x;
+    }
+
+    private int PaletteIndexOf(string type)
+    {
+        ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
+        for (int index = 0; index < palette.Length; index++)
+        {
+            if (string.Equals(palette[index].Type, type, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        string[] names = new string[palette.Length];
+        for (int index = 0; index < names.Length; index++)
+        {
+            names[index] = palette[index].Type;
+        }
+
+        throw new ArgumentException(
+            $"The palette has no tile type \"{type}\". Use one of: {string.Join(", ", names)}.",
+            nameof(type));
+    }
+
+    private sealed class VisibleTiles(TileGrid grid, int[] cells) : Renderer
     {
         public override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
-            ReadOnlySpan<int> tiles = grid.Tiles;
+            ReadOnlySpan<int> tiles = cells;
             ReadOnlySpan<Sprite?> sprites = grid.Sprites;
             Vector2 size = new(grid.TileSize, grid.TileSize);
 

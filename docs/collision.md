@@ -63,7 +63,8 @@ private void OnHurtboxEntered(ColliderContact2D contact)
 }
 ```
 
-A contact carries `Layer`, `Point`, `Normal`, and either `OtherCollider` or the grid `Cell` it reached.
+A contact carries `Layer`, `Point`, `Normal`, and `OtherCollider` for a collider or `Tile` for a tile map's
+cell.
 `OtherEntity` reaches the entity behind either. In a Y-down world, standing on something gives a normal
 of `(0, -1)`. `Touching` is everything the collider was touching as of the last step, with no budget.
 
@@ -115,13 +116,29 @@ A move keeps `CollisionTolerance.LinearSlop` from what stopped it, and something
 is still within `CollisionTolerance.ContactSkin` on the following step, so contact reporting stays
 stable.
 
+### Riding and shoving
+
+A body is moved by the colliders on the layers it names, and by nothing by default:
+
+```csharp
+_body.MovedBy(CollisionLayers.Platform);
+_body.Crushed += OnCrushed;
+```
+
+A body whose last `Move` stopped on such a collider rides it, and one such collider moving into the
+body shoves it out of the way, sweeping against the body's blocking layers, which include
+the layers it is moved by. A rider is carried exactly, whether its platform steps before or after it.
+The pusher is never stopped. A body it pins against something the body cannot pass raises `Crushed`
+on every move that pins it, and stays where the shove left it. The handler receives the pusher's
+contact, and `Normal * Depth` leads out of it.
+
 ## Terrain
 
 A tile map's palette declares the layer each tile type is on and which of its sides collide, and the map
 registers one `GridCollider2D` that is its own broadphase ([`scenes.md`](scenes.md#the-tile-map-entry)).
 A tile map whose palette collides with nothing registers no collider. A query or a body meets a tile
-when its own filter names that tile's layer, and a contact from one carries the grid, the cell and the
-grid's owner.
+when its own filter names that tile's layer, and a contact from one carries the tile map, the cell and
+the tile's current type.
 
 ## Queries
 

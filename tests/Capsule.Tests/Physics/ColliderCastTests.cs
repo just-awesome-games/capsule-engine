@@ -26,7 +26,7 @@ public sealed class ColliderCastTests
             body.Mover.MoveContacts.ToArray(),
             contact =>
             {
-                Assert.True(contact.Cell.HasValue);
+                Assert.True(contact.Tile.HasValue);
                 Assert.Equal("solid", contact.LayerName);
                 Assert.Equal(new Vector2(0f, -1f), contact.Normal);
             });
@@ -69,7 +69,7 @@ public sealed class ColliderCastTests
         ColliderContact2D contact = Assert.Single(entered);
         Assert.Same(enemy, contact.OtherEntity);
         Assert.Same(enemy.Collider, contact.OtherCollider);
-        Assert.Null(contact.Cell);
+        Assert.Null(contact.Tile);
         Assert.True(float.IsFinite(contact.Point.X));
         Assert.True(float.IsFinite(contact.Point.Y));
     }

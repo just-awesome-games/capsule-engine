@@ -23,4 +23,9 @@ public readonly record struct ShapeCastHit2D(CollisionTarget Target, Vector2 Poi
 /// <param name="Target">What is being touched.</param>
 /// <param name="Point">A world-space point on the touched surface.</param>
 /// <param name="Normal">The unit surface normal at the contact, pointing from the target towards the collider.</param>
-public readonly record struct Contact2D(CollisionTarget Target, Vector2 Point, Vector2 Normal);
+/// <param name="Depth">
+/// How far the two shapes overlap along <paramref name="Normal"/>, so moving the collider by
+/// <c>Normal * Depth</c> leaves the pair touching. Zero when they merely touch, and on every contact a
+/// sweep reports.
+/// </param>
+public readonly record struct Contact2D(CollisionTarget Target, Vector2 Point, Vector2 Normal, float Depth);

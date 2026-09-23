@@ -14,9 +14,10 @@ public sealed class GridCollider2D
     private readonly CellFaces2D[] _faces;
 
     // One byte per cell, holding whether it is a solid box and which sides a query can meet. Derived
-    // once so the mover's inner loop never reads the palette. Face culling on a solid cell is
-    // geometric, and a query that filters part of the grid out re-decides it through NeighbourAdmits.
-    // A cell with fewer than four faces keeps what it declared.
+    // when the grid is built and when a cell changes, so the mover's inner loop never reads the
+    // palette. Face culling on a solid cell is geometric, and a query that filters part of the grid
+    // out re-decides it through NeighbourAdmits. A cell with fewer than four faces keeps what it
+    // declared.
     private readonly CellState2D[] _state;
 
     // Derived alongside _state, giving a query the layer of a colliding cell in one indirection.
@@ -62,8 +63,8 @@ public sealed class GridCollider2D
     /// <summary>The world region the grid covers, from the origin.</summary>
     public Aabb2D Bounds { get; }
 
-    // The union of the layers of cells that collide. A query whose filter names none of them skips
-    // the grid without walking a cell.
+    // The union of the layers of cells that collide, or of cells that once did. A query whose filter
+    // names none of them skips the grid without walking a cell.
     internal CollisionFilter Layers { get; private set; }
 
     /// <summary>
@@ -164,7 +165,7 @@ public sealed class GridCollider2D
     {
         float cell = MathF.Floor(world / cellSize);
 
-        return cell < int.MinValue ? int.MinValue : cell > int.MaxValue ? int.MaxValue : (int)cell;
+        return cell < int.MinValue ? int.MinValue : cell >= int.MaxValue ? int.MaxValue : (int)cell;
     }
 
     private static CellState2D FacesOf(CellFaces2D faces)
@@ -194,57 +195,86 @@ public sealed class GridCollider2D
         return state;
     }
 
+    // Writes one cell's palette index and re-derives it and its four neighbours, whose face culling
+    // reads it. The layer union only widens. A superset still skips no query it should answer.
+    internal void SetCell(int x, int y, int palette)
+    {
+        RequireOnGrid(x, y);
+        ArgumentOutOfRangeException.ThrowIfNegative(palette);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(palette, _layers.Length);
+
+        int index = (y * Width) + x;
+        if (_cells[index] == palette)
+        {
+            return;
+        }
+
+        _cells[index] = palette;
+        DeriveCell(x, y);
+        DeriveCell(x - 1, y);
+        DeriveCell(x + 1, y);
+        DeriveCell(x, y - 1);
+        DeriveCell(x, y + 1);
+    }
+
     private void DeriveCells()
     {
-        CollisionFilter layers = CollisionFilter.None;
-
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
             {
-                int index = (y * Width) + x;
-                int palette = _cells[index];
-                if (_layers[palette] is not { } layer)
-                {
-                    continue;
-                }
-
-                if (_faces[palette] != CellFaces2D.All)
-                {
-                    _state[index] = FacesOf(_faces[palette]);
-                }
-                else
-                {
-                    CellState2D state = CellState2D.Solid;
-                    if (!IsSolid(x - 1, y))
-                    {
-                        state |= CellState2D.FaceMinX;
-                    }
-
-                    if (!IsSolid(x + 1, y))
-                    {
-                        state |= CellState2D.FaceMaxX;
-                    }
-
-                    if (!IsSolid(x, y - 1))
-                    {
-                        state |= CellState2D.FaceMinY;
-                    }
-
-                    if (!IsSolid(x, y + 1))
-                    {
-                        state |= CellState2D.FaceMaxY;
-                    }
-
-                    _state[index] = state;
-                }
-
-                _cellLayers[index] = layer;
-                layers = layers.With(layer);
+                DeriveCell(x, y);
             }
         }
+    }
 
-        Layers = layers;
+    private void DeriveCell(int x, int y)
+    {
+        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        {
+            return;
+        }
+
+        int index = (y * Width) + x;
+        int palette = _cells[index];
+        if (_layers[palette] is not { } layer)
+        {
+            _state[index] = CellState2D.None;
+            return;
+        }
+
+        if (_faces[palette] != CellFaces2D.All)
+        {
+            _state[index] = FacesOf(_faces[palette]);
+        }
+        else
+        {
+            CellState2D state = CellState2D.Solid;
+            if (!IsSolid(x - 1, y))
+            {
+                state |= CellState2D.FaceMinX;
+            }
+
+            if (!IsSolid(x + 1, y))
+            {
+                state |= CellState2D.FaceMaxX;
+            }
+
+            if (!IsSolid(x, y - 1))
+            {
+                state |= CellState2D.FaceMinY;
+            }
+
+            if (!IsSolid(x, y + 1))
+            {
+                state |= CellState2D.FaceMaxY;
+            }
+
+            _state[index] = state;
+        }
+
+        _cellLayers[index] = layer;
+        Layers = Layers.With(layer);
     }
 
     private bool IsSolid(int x, int y)
