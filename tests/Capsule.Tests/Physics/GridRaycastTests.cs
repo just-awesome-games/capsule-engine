@@ -59,29 +59,20 @@ public sealed class GridRaycastTests
         Assert.Equal(new Vector2(0f, -1f), hit.Normal);
     }
 
-    // A face is one-directional, so the same primitive the other way up is what a body under reversed
-    // gravity lands on. The ray starts 16 units outward of the plane, then turns round inside the cell,
-    // and finally runs along the plane itself, which is no crossing either.
-    [Theory]
-    [InlineData(CellFaces2D.Top, 0f, 1f, -1f, 30f)]
-    [InlineData(CellFaces2D.Bottom, 48f, -1f, 1f, 18f)]
-    public void Raycast_CrossesAFaceOnlyFromItsOutwardSide(
-        CellFaces2D face,
-        float from,
-        float towards,
-        float normalY,
-        float inward)
+    // A one-way edge is crossed only from above. The ray starts 16 units above the line, then turns
+    // round inside the cell, and finally runs along the line itself, which is no crossing either.
+    [Fact]
+    public void Raycast_CrossesAOneWayEdgeOnlyFromAbove()
     {
-        CollisionWorld2D world = CollisionFixtures.OneFace(face);
-        Vector2 along = new(0f, towards);
+        CollisionWorld2D world = CollisionFixtures.OneWay();
 
-        Assert.True(world.Raycast(new Vector2(24f, from), along, 64f, CollisionFilter.Everything, out RayHit2D hit));
+        Assert.True(world.Raycast(new Vector2(24f, 0f), Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D hit));
         Assert.Equal(16f, hit.Distance, 3);
-        Assert.Equal(new Vector2(0f, normalY), hit.Normal);
+        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
         Assert.Equal(world.Layer(CollisionFixtures.Ledge), hit.Target.Layer);
 
-        Assert.False(world.Raycast(new Vector2(24f, inward), -along, 64f, CollisionFilter.Everything, out _));
-        Assert.False(world.Raycast(new Vector2(0f, from + (towards * 16f)), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
+        Assert.False(world.Raycast(new Vector2(24f, 30f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out _));
+        Assert.False(world.Raycast(new Vector2(0f, 16f), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
     }
 
     // A filter turns the cells it excludes into empty space, faces included: the seam a wall shares with

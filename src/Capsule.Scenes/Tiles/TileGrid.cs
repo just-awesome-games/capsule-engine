@@ -156,35 +156,50 @@ public sealed class TileGrid
                 throw Malformed($"tileTypes[{i}] draws cell {cell}. Count cells from 0.", "tileTypes");
             }
 
-            if ((definition.CollidableFaces & ~CellFaces2D.All) != 0)
-            {
-                throw Malformed(
-                    $"tileTypes[{i}] declares collidableFaces {(int)definition.CollidableFaces}. Use a combination of the four tile sides.",
-                    "tileTypes");
-            }
-
             if (definition.Layer is { } layer)
             {
                 if (string.IsNullOrWhiteSpace(layer))
                 {
                     throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
                 }
-
-                // A tile on a layer with no faces collides with nothing, which is a mistake.
-                // Decoration names no layer instead.
-                if (definition.CollidableFaces == CellFaces2D.None)
-                {
-                    throw Malformed(
-                        $"tileTypes[{i}] is on a layer but has no collidableFaces. Give it at least one face, or drop the layer if it should not collide.",
-                        "tileTypes");
-                }
             }
-            else if (definition.CollidableFaces != CellFaces2D.All)
+            else if (definition.Shape is not null || definition.OneWay)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares collidableFaces but no layer and collides as nothing. Add a layer or drop the faces.",
+                    $"tileTypes[{i}] declares {(definition.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
                     "tileTypes");
             }
+
+            if (definition.SolidSides && !definition.OneWay)
+            {
+                throw Malformed(
+                    $"tileTypes[{i}] declares solidSides but no oneWay. Add oneWay, or drop solidSides for a tile solid from every side.",
+                    "tileTypes");
+            }
+
+            if (definition.Shape is { } shape)
+            {
+                ValidateShape(shape, i);
+            }
+        }
+    }
+
+    // A tile's shape is a plain convex polygon inside its own tile. Shape2D already refused a concave one.
+    private void ValidateShape(in Shape2D shape, int index)
+    {
+        if (shape.Kind is not (ShapeKind2D.Polygon or ShapeKind2D.Box) || shape.Radius != 0f)
+        {
+            throw Malformed(
+                $"tileTypes[{index}] has a {shape.Kind} shape of radius {shape.Radius}. Give a tile a polygon of 3 or 4 points with no radius.",
+                "tileTypes");
+        }
+
+        Aabb2D bounds = shape.Bounds;
+        if (bounds.Min.X < 0f || bounds.Min.Y < 0f || bounds.Max.X > TileSize || bounds.Max.Y > TileSize)
+        {
+            throw Malformed(
+                $"tileTypes[{index}] has a shape point outside its tile. Keep every point within [0, {TileSize}] on both axes, measured from the tile's top-left corner.",
+                "tileTypes");
         }
     }
 

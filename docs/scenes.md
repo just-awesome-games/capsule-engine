@@ -50,7 +50,7 @@ list of entries:
         "tileTypes": [
           { "type": "empty" },
           { "type": "ground", "cell": 0, "layer": "solid" },
-          { "type": "ledge", "cell": 2, "layer": "ledge", "collidableFaces": ["top"] }
+          { "type": "ledge", "cell": 2, "layer": "ledge", "oneWay": true }
         ],
         "tiles": [
           0, 0, 2, 0,
@@ -122,10 +122,12 @@ Each other palette entry carries a `type` name and may carry:
 | `columns` | How many cells wide that texture is. Required with `texture`, at least 1, absent without one. |
 | `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent is a semantic tile: queryable, may collide, draws nothing. |
 | `layer` | The collision layer every tile of this type is on, one name the game owns. A query or mover meets the tile when its own filter names that layer. Absent is decoration. Several types may share a layer. |
-| `collidableFaces` | Which sides collide, an array of `"left"`, `"right"`, `"top"` or `"bottom"` (grid directions in a Y-down world). Absent is all four, a solid tile, and a side shared with an adjacent four-sided tile generates no contact. A smaller set is that many one-directional edges, each stopping what crosses it into the tile. |
+| `shape` | The convex polygon the tile collides as, three or four `[x, y]` points in pixels from the tile's top-left corner with Y down, each within `[0, tileSize]`. `[[0, 16], [16, 0], [16, 16]]` is a 16-pixel slope rising to the right. Absent is the whole tile. |
+| `oneWay` | `true` for a tile that blocks only a body coming down onto it from above ([`collision.md`](collision.md#one-way-surfaces)). Absent is `false`. |
+| `solidSides` | `true` for a `oneWay` tile that also blocks from the sides and passes a body only from below. Without `oneWay` it fails the document. Absent is `false`. |
 
-A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, an unknown face name,
-`collidableFaces` on a tile with no `layer`, and an empty `collidableFaces` fail the document. A tile map
+A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, a `shape` or `oneWay` on a
+tile with no `layer`, and a `shape` that is not convex or reaches outside its tile fail the document. A tile map
 whose palette collides with nothing registers no collider ([`collision.md`](collision.md#terrain)).
 `TileMap.SetTile` changes what a cell draws and collides as at run time, `TileMap.RemoveTile` clears it,
 `TileMap.TileAt` reads it, and `TileMap.CellAt` finds the cell a world position falls in.

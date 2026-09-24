@@ -17,6 +17,9 @@ public static class GameInput
     /// <summary>Leaves the floor.</summary>
     public static readonly InputAction Jump = new("jump");
 
+    /// <summary>Held with Jump to drop through a one-way ledge or platform.</summary>
+    public static readonly InputAction Drop = new("drop");
+
     /// <summary>Fires a bolt from the muzzle, in the direction the player faces.</summary>
     public static readonly InputAction Shoot = new("shoot");
 
@@ -69,6 +72,9 @@ public static class GameInput
 
         bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
         bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
+
+        // The same keys MenuDown takes: menus read MenuDown and play reads Drop, never both at once.
+        bindings.Bind(Drop, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 
         // The same keys the Move axis takes: no scene reads both, so one device can serve either.
         bindings.Bind(MenuLeft, Key.Left, Key.A, PadButton.DPadLeft, StickDirection.LeftStickLeft);

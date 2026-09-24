@@ -182,17 +182,33 @@ internal sealed class TileTypeJson
     [JsonPropertyOrder(2)]
     public string? Layer { get; set; }
 
-    // Absent for a tile type that collides on every side, which is the default.
-    [JsonPropertyName("collidableFaces")]
+    // Absent for a tile type that collides as its whole tile, which is the default.
+    [JsonPropertyName("shape")]
     [JsonPropertyOrder(3)]
-    public string?[]? CollidableFaces { get; set; }
+    public float[]?[]? Shape { get; set; }
 
-    // Mapped only so the reader can point at what replaced it, and held as a raw element because presence is
-    // all that matters. An absent field leaves ValueKind Undefined.
-    [JsonPropertyName("collision")]
+    // Absent for a tile type that blocks from every side, which is the default. The writer never emits false.
+    [JsonPropertyName("oneWay")]
     [JsonPropertyOrder(4)]
+    public bool? OneWay { get; set; }
+
+    // Absent for a tile type that passes a mover from the sides, which is the default. The writer never
+    // emits false.
+    [JsonPropertyName("solidSides")]
+    [JsonPropertyOrder(5)]
+    public bool? SolidSides { get; set; }
+
+    // Mapped only so the reader can point at what replaced them, and held as raw elements because presence
+    // is all that matters. An absent field leaves ValueKind Undefined.
+    [JsonPropertyName("collision")]
+    [JsonPropertyOrder(6)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public JsonElement Collision { get; set; }
+
+    [JsonPropertyName("collidableFaces")]
+    [JsonPropertyOrder(7)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public JsonElement CollidableFaces { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

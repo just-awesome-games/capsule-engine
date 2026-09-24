@@ -19,7 +19,7 @@ public sealed class ColliderCastTests
 
         MoveResult2D result = body.Mover.Move(new Vector2(0f, 60f));
 
-        Assert.True(result.BlockedY);
+        Assert.True(result.Blocked);
         Assert.Equal(24f, body.Position.Y, CollisionFixtures.Tolerance);
         Assert.NotEmpty(body.Mover.MoveContacts.ToArray());
         Assert.All(
@@ -62,7 +62,7 @@ public sealed class ColliderCastTests
         MoveResult2D result = player.Mover.Move(new Vector2(12f, 0f));
         simulation.Step(SceneFixtures.Step(0));
 
-        Assert.False(result.BlockedX);
+        Assert.False(result.Blocked);
         Assert.Equal(new Vector2(12f, 0f), player.Position);
         Assert.Empty(player.Mover.MoveContacts.ToArray());
 
@@ -90,13 +90,13 @@ public sealed class ColliderCastTests
         // there as far as this move is concerned.
         MoveResult2D through = body.Mover.Move(new Vector2(0f, 60f), CollisionFilter.None);
 
-        Assert.False(through.BlockedY);
+        Assert.False(through.Blocked);
         Assert.Equal(68f, body.Position.Y, CollisionFixtures.Tolerance);
         Assert.Equal(standing, body.Mover.Filter);
 
         // And the next plain move resolves against the standing filter again.
         body.Teleport(new Vector2(8f, 8f));
-        Assert.True(body.Mover.Move(new Vector2(0f, 60f)).BlockedY);
+        Assert.True(body.Mover.Move(new Vector2(0f, 60f)).Blocked);
     }
 
     [Fact]

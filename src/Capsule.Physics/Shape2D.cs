@@ -169,6 +169,16 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(ShapeKind2D.Segment, ends, 2, 0f, cell);
     }
 
+    // One edge of a grid cell, from start to end at any angle. The grid validated both points.
+    internal static Shape2D Segment(Vector2 start, Vector2 end)
+    {
+        PointBuffer ends = default;
+        ends[0] = start;
+        ends[1] = end;
+
+        return new Shape2D(ShapeKind2D.Segment, ends, 2, 0f, new Aabb2D(Vector2.Min(start, end), Vector2.Max(start, end)));
+    }
+
     /// <summary>The point at <paramref name="index"/>, in the shape's own space.</summary>
     public Vector2 Point(int index)
     {

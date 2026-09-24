@@ -30,6 +30,7 @@ The gate is `sh hooks/pre-commit` from the sample root.
 
 - Move: A/D, the arrows, the d-pad or the left stick.
 - Jump: Space or the south pad button.
+- Drop through a ledge: hold down and press Jump.
 - Shoot: the left mouse button or the west pad button.
 - Pause: Escape or Start.
 

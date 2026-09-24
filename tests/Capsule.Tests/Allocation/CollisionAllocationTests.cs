@@ -30,7 +30,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
             MoveResult2D result = world.MoveBox(box, new Vector2(direction * 2f, 4f), filter, contacts);
             box = box.Translated(result.Translation);
 
-            if (result.BlockedX)
+            if (MathF.Abs(result.Translation.X) < 1f)
             {
                 direction = -direction;
             }
@@ -154,6 +154,9 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
             simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
             return walker.Contacts;
         }));
+
+        // The walk went over the hill, so the measured steps include grounded moves on slope tiles.
+        Assert.True(walker.Position.X > 528f);
     }
 
     // The lift carries a rider on every step, and on every stroke towards the crate it shoves the

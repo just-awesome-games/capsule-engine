@@ -79,12 +79,12 @@ public sealed class ColliderContactReportTests
         Assert.Empty(entered);
 
         // Rising through it is not blocked, and meets nothing on the way.
-        Assert.False(body.Mover.Move(new Vector2(0f, -20f)).BlockedY);
+        Assert.False(body.Mover.Move(new Vector2(0f, -20f)).Blocked);
         run.Step();
         Assert.Empty(entered);
 
         // Falling back onto it lands, and the contact carries the face's own normal.
-        Assert.True(body.Mover.Move(new Vector2(0f, 20f)).BlockedY);
+        Assert.True(body.Mover.Move(new Vector2(0f, 20f)).Blocked);
         run.Step();
 
         ColliderContact2D contact = Assert.Single(entered);
@@ -100,7 +100,7 @@ public sealed class ColliderContactReportTests
             16,
             3,
             3,
-            [TileGrid.EmptyTile, new TileDefinition("ledge", null, "platform", CellFaces2D.Top)],
+            [TileGrid.EmptyTile, new TileDefinition("ledge", null, "platform", OneWay: true)],
             [0, 0, 0, 1, 1, 1, 0, 0, 0])));
 
         return scene;
@@ -114,7 +114,6 @@ public sealed class ColliderContactReportTests
 
         Assert.NotNull(map.Collision);
         Assert.Equal(4, map.Collision.Width);
-        Assert.Equal(CellFaces2D.All, map.Collision.FacesAt(0, 1));
         Assert.Equal("solid", scene.Collision.NameOf(map.Collision.LayerAt(0, 1)!.Value));
 
         scene.Remove(map);

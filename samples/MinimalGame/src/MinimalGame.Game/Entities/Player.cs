@@ -87,7 +87,8 @@ public sealed class Player : Entity
         BoxCollider2D bodyCollider = new(Body);
         Add(bodyCollider);
 
-        _body = new KinematicBody2D(bodyCollider);
+        // Grounded walks the hill at the speed it is given and follows the ground down its far side.
+        _body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded };
         _body.BlocksOn(CollisionLayers.Blocking);
         _body.MovedBy(CollisionLayers.Platform);
         _body.Crushed += OnCrushed;
@@ -137,16 +138,25 @@ public sealed class Player : Entity
         ShotThisStep = context.Input.WasPressed(GameInput.Shoot);
 
         // The body applies no forces: velocity is the game's, every step.
-        _velocity.X = context.Input.Axis(GameInput.Move) * _tuning.WalkSpeed;
+        float move = context.Input.Axis(GameInput.Move);
+        _velocity.X = move * WalkSpeed(move);
         _velocity.Y += _tuning.Gravity * delta;
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
         bool wasOnFloor = _body.IsOnFloor;
         if (wasOnFloor && context.Input.WasPressed(GameInput.Jump))
         {
-            _velocity.Y = -_tuning.JumpSpeed;
-            JumpedThisStep = true;
-            Log.Info("jumped");
+            if (context.Input.IsHeld(GameInput.Drop))
+            {
+                // Through the one-way ledge or platform underfoot. On solid ground it changes nothing.
+                _body.DropThrough();
+            }
+            else
+            {
+                _velocity.Y = -_tuning.JumpSpeed;
+                JumpedThisStep = true;
+                Log.Info("jumped");
+            }
         }
 
         _body.Move(_velocity * delta);
@@ -169,6 +179,21 @@ public sealed class Player : Entity
             _velocity.Y = 0f;
             BreakBricksOverhead();
         }
+    }
+
+    // The body keeps the speed it is given along a slope, so how a climb feels is the game's call. A
+    // floor facing the way the player walks is a descent and speeds the walk, and one facing back
+    // slows it.
+    private float WalkSpeed(float move)
+    {
+        if (!_body.IsOnFloor || move == 0f)
+        {
+            return _tuning.WalkSpeed;
+        }
+
+        float downhill = Vector2.Dot(_body.FloorNormal, new Vector2(MathF.Sign(move), 0f));
+
+        return _tuning.WalkSpeed * (1f + (_tuning.SlopeSpeed * downhill));
     }
 
     // A brick struck from below breaks: terrain that changes at run time.
@@ -259,6 +284,7 @@ public sealed class Player : Entity
     {
         private readonly Player _player;
         private readonly PlayerTuning _tuning;
+        private readonly Vector2 _pivot;
         private readonly SpriteAnimator _animator;
 
         private float _facing = 1f;
@@ -268,6 +294,7 @@ public sealed class Player : Entity
             : base(player, pivot)
         {
             _player = player;
+            _pivot = pivot;
             _tuning = tuning;
 
             SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0);
@@ -313,11 +340,26 @@ public sealed class Player : Entity
             }
 
             Scale = new Vector2(_facing * _squash.X, _squash.Y);
+            Position = _pivot + new Vector2(0f, FeetGap());
 
             // The grace reads as a red blink. The root owns the rule and this child owns the look.
             int grace = _player.InvulnerableTicksLeft;
             Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
             Visible = grace / _tuning.BlinkTicks % 2 == 0;
+        }
+
+        // The box rests on its corner on a slope, which leaves the bottom-centre in the air. The feet
+        // are drawn onto the ground under the centre instead. Half the body's width reaches a 45 degree
+        // slope's surface.
+        private float FeetGap()
+        {
+            KinematicBody2D body = _player._body;
+            Vector2 feet = _player.Position + new Vector2(BodyPixels / 2f, BodyPixels);
+            float reach = (BodyPixels / 2f) + CollisionTolerance.ContactSkin;
+
+            return body.IsOnFloor && Scene.Collision.Raycast(feet, Vector2.UnitY, reach, body.Filter, out RayHit2D hit, body.Collider.Handle)
+                ? hit.Distance
+                : 0f;
         }
 
         // Towards the target by at most maxDelta, landing on it exactly.

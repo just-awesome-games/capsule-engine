@@ -143,6 +143,7 @@ public sealed class EntityDebugPanelTests
         Assert.True(heading >= 0);
         Assert.Equal(
             [
+                ("Mode", "Floating"),
                 ("IsOnFloor", "True"),
                 ("IsOnWall", "False"),
                 ("IsOnCeiling", "False"),

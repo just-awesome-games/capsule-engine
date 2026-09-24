@@ -4,14 +4,15 @@ using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Physics;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Allocation;
 
 /// <summary>
-/// A room the size a Capsule game actually ships: a tiled floor and ceiling with platforms, a
-/// scattering of entity colliders, and one mover walking the length of it.
+/// A room the size a Capsule game actually ships: a tiled floor and ceiling with platforms, a hill of
+/// two slope tiles, a scattering of entity colliders, and one mover walking the length of it.
 /// </summary>
 internal static class CollisionWorkload
 {
@@ -27,13 +28,18 @@ internal static class CollisionWorkload
     private const int FloorRow = 40;
     private const int RoofRow = 30;
 
+    // The hill's two columns, which the walker reaches during the measured steps.
+    private const int HillColumn = 30;
+
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     private static readonly TileDefinition[] Palette =
     [
         TileGrid.EmptyTile,
         new(Solid, 0, Solid),
-        new(Platform, 1, Platform, CellFaces2D.Top),
+        new(Platform, 1, Platform, OneWay: true),
+        new("slope-up", 0, Solid, CollisionFixtures.SlopeUp),
+        new("slope-down", 0, Solid, CollisionFixtures.SlopeDown),
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
@@ -63,6 +69,9 @@ internal static class CollisionWorkload
             }
         }
 
+        cells[((FloorRow - 1) * TilesWide) + HillColumn] = 3;
+        cells[((FloorRow - 1) * TilesWide) + HillColumn + 1] = 4;
+
         return cells;
     }
 
@@ -73,7 +82,9 @@ internal static class CollisionWorkload
         [
             new(null),
             new(world.Layer(Solid)),
-            new(world.Layer(Platform), CellFaces2D.Top),
+            new(world.Layer(Platform), OneWay: true),
+            new(world.Layer(Solid), CollisionFixtures.SlopeUp),
+            new(world.Layer(Solid), CollisionFixtures.SlopeDown),
         ];
         world.AddGrid(TileSize, TilesWide, TilesHigh, Cells(), profiles);
 
@@ -99,7 +110,7 @@ internal static class CollisionWorkload
             new EntityRegistry([])));
     }
 
-    /// <summary>An entity that walks right, falls, and turns around at the far wall.</summary>
+    /// <summary>A grounded entity that walks right over the hill, falls, and turns around at the far wall.</summary>
     internal sealed class Walker : Entity
     {
         private readonly BoxCollider2D _collider;
@@ -115,7 +126,7 @@ internal static class CollisionWorkload
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;
             Add(_collider);
-            _mover = new KinematicBody2D(_collider);
+            _mover = new KinematicBody2D(_collider) { Mode = BodyMode.Grounded };
             _mover.BlocksOn(Solid, Platform);
             Add(_mover);
         }
@@ -124,9 +135,9 @@ internal static class CollisionWorkload
 
         protected internal override void OnStep(in StepContext context)
         {
-            MoveResult2D result = _mover.Move(new Vector2(_direction * 2f, 4f));
+            _mover.Move(new Vector2(_direction * 2f, 4f));
 
-            if (result.BlockedX)
+            if (_mover.IsOnWall)
             {
                 _direction = -_direction;
             }

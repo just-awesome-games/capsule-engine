@@ -45,7 +45,7 @@ internal static class CrowdWorkload
     [
         TileGrid.EmptyTile,
         new(Solid, 0, Solid),
-        new(Platform, 1, Platform, CellFaces2D.Top),
+        new(Platform, 1, Platform, OneWay: true),
     ];
 
     internal static Scene Room()
@@ -111,7 +111,7 @@ internal static class CrowdWorkload
             collider.SetFilter(Solid, Platform);
             Add(collider);
 
-            _body = new KinematicBody2D(collider);
+            _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded };
             _body.BlocksOn(Solid, Platform);
             Add(_body);
 
@@ -126,9 +126,9 @@ internal static class CrowdWorkload
 
         protected internal override void OnStep(in StepContext context)
         {
-            MoveResult2D result = _body.Move(new Vector2(_direction * 2f, 4f));
+            _body.Move(new Vector2(_direction * 2f, 4f));
 
-            if (result.BlockedX)
+            if (_body.IsOnWall)
             {
                 _direction = -_direction;
             }

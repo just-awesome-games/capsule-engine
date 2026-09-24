@@ -145,7 +145,9 @@ public sealed class TileMap : Entity
         {
             profiles[index] = new CellProfile2D(
                 palette[index].Layer is { } layer ? _world.Layer(layer) : null,
-                palette[index].CollidableFaces);
+                palette[index].Shape,
+                palette[index].OneWay,
+                palette[index].SolidSides);
         }
 
         Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _cells, profiles, this);
@@ -284,10 +286,10 @@ public sealed class TileMap : Entity
         }
     }
 
-    // Draws the grid's faces on the Colliders channel. It draws only the faces a query can meet, and only
-    // for the cells the camera's view reaches plus one cell of margin, which keeps a large grid cheap
-    // to draw. The derived state culls the shared faces inside a solid run, and a wall shows as its
-    // outline. The map is anchored, so its faces carry no motion.
+    // Draws the grid's live edges on the Colliders channel, only for the cells the camera's view reaches
+    // plus one cell of margin, which keeps a large grid cheap to draw. The derived state culls the shared
+    // sides inside a solid run, and a wall shows as its outline. The map is anchored, so its edges carry
+    // no motion.
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()
     {
@@ -312,6 +314,12 @@ public sealed class TileMap : Entity
             for (int x = minX; x <= maxX; x++)
             {
                 CellState2D state = grid.StateAt(x, y);
+                if ((state & CellState2D.Edges) != 0)
+                {
+                    DrawEdges(grid, x, y, state);
+                    continue;
+                }
+
                 DrawFace(grid, x, y, state, CellState2D.FaceMinX);
                 DrawFace(grid, x, y, state, CellState2D.FaceMaxX);
                 DrawFace(grid, x, y, state, CellState2D.FaceMinY);
@@ -327,6 +335,19 @@ public sealed class TileMap : Entity
         int cell = GridCollider2D.FloorDiv(edge, cellSize);
 
         return cell * cellSize == edge ? cell - 1 : cell;
+    }
+
+    private static void DrawEdges(GridCollider2D grid, int x, int y, CellState2D state)
+    {
+        ReadOnlySpan<CellEdge2D> edges = grid.EdgesAt(x, y);
+        Vector2 corner = grid.CellCorner(x, y);
+        for (int index = 0; index < edges.Length; index++)
+        {
+            if ((state & GridCollider2D.EdgeBit(index)) != 0)
+            {
+                DebugDraw.Line(DebugDraw.Colliders, corner + edges[index].Start, corner + edges[index].End);
+            }
+        }
     }
 
     private static void DrawFace(GridCollider2D grid, int x, int y, CellState2D state, CellState2D face)

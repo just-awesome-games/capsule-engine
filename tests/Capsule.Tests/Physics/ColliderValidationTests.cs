@@ -105,7 +105,7 @@ public sealed class ColliderValidationTests
         second.Add(body);
 
         Assert.True(body.Collider.Filter.Matches(second.Collision.Layer("solid")));
-        Assert.True(body.Mover.Move(new Vector2(0f, 60f)).BlockedY);
+        Assert.True(body.Mover.Move(new Vector2(0f, 60f)).Blocked);
     }
 
     // Layer names are interned where they are first needed, and the world's table is the whole of

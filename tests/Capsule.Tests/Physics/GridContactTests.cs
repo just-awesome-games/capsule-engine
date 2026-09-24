@@ -3,7 +3,7 @@ using Capsule.Physics;
 
 namespace Capsule.Tests.Physics;
 
-// Overlaps and sweeps against grid cells, where a one-way face is a surface only from the side it
+// Overlaps and sweeps against grid cells, where a one-way edge is a surface only from the side it
 // faces and only along the extent it spans.
 public sealed class GridContactTests
 {
@@ -25,7 +25,7 @@ public sealed class GridContactTests
     }
 
     [Fact]
-    public void Overlap_TreatsATopFaceCellAsItsEdgeRatherThanItsBody()
+    public void Overlap_TreatsAOneWayCellAsItsEdgeRatherThanItsBody()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----");
@@ -39,10 +39,10 @@ public sealed class GridContactTests
         Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 12f, 8f, 8f), CollisionFilter.Everything, contacts));
     }
 
-    // A face is a surface only from the side it faces. Both boxes are within the skin of the plane;
+    // An edge is a surface only from the side it faces. Both boxes are within the skin of the plane;
     // only the one that has not passed through is touching anything.
     [Fact]
-    public void OverlapCollider_ReportsATopFaceToAColliderAboveItAndNotToOneBelow()
+    public void OverlapCollider_ReportsAOneWayEdgeToAColliderAboveItAndNotToOneBelow()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----");
@@ -63,98 +63,46 @@ public sealed class GridContactTests
         Assert.Equal(0, world.OverlapColliderAll(below, CollisionFilter.Everything, contacts));
     }
 
-    // Sidedness is read off the authored plane, so all four faces answer alike. Read off the
-    // narrowphase, an exact tie resolves towards -X and -Y and a box centred on the plane would contact
-    // Top and Left and nothing for Bottom and Right.
-    [Theory]
-    [InlineData(CellFaces2D.Top, 24f, 16f, 0f, -1f)]
-    [InlineData(CellFaces2D.Bottom, 24f, 32f, 0f, 1f)]
-    [InlineData(CellFaces2D.Left, 16f, 24f, -1f, 0f)]
-    [InlineData(CellFaces2D.Right, 32f, 24f, 1f, 0f)]
-    public void OverlapBox_CentredExactlyOnAFacePlane_TouchesItWithThatFacesNormal(
-        CellFaces2D face,
-        float centerX,
-        float centerY,
-        float outwardX,
-        float outwardY)
+    // Sidedness is read off the authored line. Read off the narrowphase, an exact tie resolves towards
+    // -X and -Y, and a box centred on the line would contact it or not by accident.
+    [Fact]
+    public void OverlapBox_CentredExactlyOnAOneWayEdge_TouchesItWithItsNormal()
     {
-        CollisionWorld2D world = CollisionFixtures.OneFace(face);
+        CollisionWorld2D world = CollisionFixtures.OneWay();
         Span<Contact2D> contacts = stackalloc Contact2D[8];
 
         int count = world.OverlapBoxAll(
-            Aabb2D.FromCenter(new Vector2(centerX, centerY), new Vector2(8f, 8f)),
+            Aabb2D.FromCenter(new Vector2(24f, 16f), new Vector2(8f, 8f)),
             CollisionFilter.Everything,
             contacts);
 
         Assert.Equal(1, count);
         Assert.Equal((1, 1), (contacts[0].Target.CellX, contacts[0].Target.CellY));
-        Assert.Equal(new Vector2(outwardX, outwardY), contacts[0].Normal);
+        Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
     }
 
-    // The mirror of the boundary: a centre a skin past the plane has gone through, and the face it came
-    // through is behind it. The box still straddles the plane, so only sidedness rejects it.
-    [Theory]
-    [InlineData(CellFaces2D.Top, 24f, 16f, 0f, 1f)]
-    [InlineData(CellFaces2D.Bottom, 24f, 32f, 0f, -1f)]
-    [InlineData(CellFaces2D.Left, 16f, 24f, 1f, 0f)]
-    [InlineData(CellFaces2D.Right, 32f, 24f, -1f, 0f)]
-    public void OverlapBox_CentredPastAFacePlane_TouchesNothing(
-        CellFaces2D face,
-        float planeX,
-        float planeY,
-        float inwardX,
-        float inwardY)
+    // An edge is a segment with extent, so meeting it at one endpoint and nowhere along it is not
+    // crossing it. The box starts flush against the line and off the near end of the edge by its own
+    // width. The difference between passing through and landing is one slop of overlap along it.
+    [Fact]
+    public void ShapeCast_MeetingAnEdgeAtOneEndpointOnly_SweepsThroughIt()
     {
-        CollisionWorld2D world = CollisionFixtures.OneFace(face);
-        Vector2 center = new Vector2(planeX, planeY)
-            + (new Vector2(inwardX, inwardY) * CollisionTolerance.ContactSkin);
-
-        Span<Contact2D> contacts = stackalloc Contact2D[8];
-
-        Assert.Equal(
-            0,
-            world.OverlapBoxAll(
-                Aabb2D.FromCenter(center, new Vector2(8f, 8f)),
-                CollisionFilter.Everything,
-                contacts));
-    }
-
-    // A face is a segment with extent, so meeting it at one endpoint and nowhere along it is not
-    // crossing it. Each box starts flush against the plane and off the near end of the edge by its own
-    // width; the difference between passing through and landing is one slop of overlap along it.
-    [Theory]
-    [InlineData(CellFaces2D.Top, 12f, 12f, 0f, 32f, 0f, -1f)]
-    [InlineData(CellFaces2D.Bottom, 12f, 32f, 0f, -32f, 0f, 1f)]
-    [InlineData(CellFaces2D.Left, 12f, 12f, 32f, 0f, -1f, 0f)]
-    [InlineData(CellFaces2D.Right, 32f, 12f, -32f, 0f, 1f, 0f)]
-    public void ShapeCast_MeetingAFaceAtOneEndpointOnly_SweepsThroughIt(
-        CellFaces2D face,
-        float originX,
-        float originY,
-        float translationX,
-        float translationY,
-        float outwardX,
-        float outwardY)
-    {
-        CollisionWorld2D world = CollisionFixtures.OneFace(face);
+        CollisionWorld2D world = CollisionFixtures.OneWay();
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f));
-        Vector2 origin = new(originX, originY);
-        Vector2 translation = new(translationX, translationY);
-        Vector2 outward = new(outwardX, outwardY);
+        Vector2 origin = new(12f, 12f);
+        Vector2 translation = new(0f, 32f);
 
         Assert.False(world.ShapeCast(box, origin, translation, CollisionFilter.Everything, out _));
 
-        Vector2 along = new Vector2(MathF.Abs(outwardY), MathF.Abs(outwardX)) * CollisionTolerance.LinearSlop;
-
         Assert.True(world.ShapeCast(
             box,
-            origin + along,
+            origin + new Vector2(CollisionTolerance.LinearSlop, 0f),
             translation,
             CollisionFilter.Everything,
             out ShapeCastHit2D hit));
 
         Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
-        Assert.Equal(outward, hit.Normal);
+        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
         Assert.Equal(0f, hit.Fraction);
     }
 
@@ -180,7 +128,7 @@ public sealed class GridContactTests
     // The normal is the face's own, not the narrowphase's: a rounded shape resting past the end of a
     // face is nearest its endpoint, where GJK answers with the diagonal from that corner.
     [Fact]
-    public void OverlapCollider_PastTheEndOfATopFace_ReportsTheFacesOwnNormal()
+    public void OverlapCollider_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal()
     {
         CollisionWorld2D world = new();
 

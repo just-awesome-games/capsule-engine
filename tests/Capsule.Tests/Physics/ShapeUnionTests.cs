@@ -67,7 +67,7 @@ public sealed class ShapeUnionTests
             CollisionFilter.Everything,
             default);
 
-        Assert.True(moved.BlockedX);
+        Assert.True(moved.Blocked);
         Assert.InRange(moved.Translation.X, 1f, 99f);
     }
 

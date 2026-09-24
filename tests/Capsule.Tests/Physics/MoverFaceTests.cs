@@ -8,7 +8,7 @@ public sealed class MoverFaceTests
     private const float Tolerance = CollisionFixtures.Tolerance;
 
     [Fact]
-    public void MoveBox_IsNeverStoppedSidewaysByATopFace()
+    public void MoveBox_IsNeverStoppedSidewaysByAOneWayEdge()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "----", "----");
@@ -19,12 +19,12 @@ public sealed class MoverFaceTests
             CollisionFilter.Everything,
             default);
 
-        Assert.False(sideways.BlockedX);
+        Assert.False(sideways.Blocked);
         Assert.Equal(40f, sideways.Translation.X, Tolerance);
     }
 
     [Fact]
-    public void MoveBox_FallsPastATopFaceItAlreadyStartedBelow()
+    public void MoveBox_FallsPastAOneWayEdgeItAlreadyStartedBelow()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
@@ -35,7 +35,7 @@ public sealed class MoverFaceTests
             CollisionFilter.Everything,
             default);
 
-        Assert.False(result.BlockedY);
+        Assert.False(result.Blocked);
         Assert.Equal(20f, result.Translation.Y, Tolerance);
     }
 
@@ -47,7 +47,7 @@ public sealed class MoverFaceTests
     [InlineData(ShapeKind2D.Circle)]
     [InlineData(ShapeKind2D.Capsule)]
     [InlineData(ShapeKind2D.Box)]
-    public void ShapeCast_PastTheEndOfATopFace_ReportsTheFacesOwnNormal(ShapeKind2D kind)
+    public void ShapeCast_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal(ShapeKind2D kind)
     {
         CollisionWorld2D world = new();
 
@@ -71,7 +71,7 @@ public sealed class MoverFaceTests
     [Theory]
     [InlineData(ShapeKind2D.Circle)]
     [InlineData(ShapeKind2D.Capsule)]
-    public void Move_PastTheEndOfATopFace_ReportsTheFacesOwnNormal(ShapeKind2D kind)
+    public void Move_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal(ShapeKind2D kind)
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..", ".-");
@@ -84,7 +84,7 @@ public sealed class MoverFaceTests
             CollisionFilter.Everything,
             contacts);
 
-        Assert.True(result.BlockedY);
+        Assert.True(result.Blocked);
         Assert.NotEqual(0, result.ContactCount);
         Assert.All(
             contacts[..result.ContactCount].ToArray(),
@@ -100,39 +100,6 @@ public sealed class MoverFaceTests
         _ => Shape2D.Box(Aabb2D.FromCenter(Vector2.Zero, new Vector2(8f, 8f))),
     };
 
-    // A face is a direction, so the same primitive pointed the other way is what a body under
-    // reversed gravity stands on. The middle cell's Top plane is y = 16 and its Bottom plane
-    // y = 32, so a landing move gives up whatever of its 20 units of travel the plane takes.
-    [Theory]
-    [InlineData(CellFaces2D.Top, 4f, 20f, 4f, 36f, -20f)]
-    [InlineData(CellFaces2D.Bottom, 44f, -20f, -12f, 4f, 20f)]
-    public void MoveBox_LandsOnAFaceFromItsOutwardSideAndPassesItFromTheOther(
-        CellFaces2D face,
-        float landingFrom,
-        float onto,
-        float landedBy,
-        float passingFrom,
-        float through)
-    {
-        CollisionWorld2D world = CollisionFixtures.OneFace(face);
-
-        MoveResult2D landing = world.MoveBox(
-            CollisionFixtures.Box(20f, landingFrom, 8f, 8f),
-            new Vector2(0f, onto),
-            CollisionFilter.Everything,
-            default);
-        Assert.True(landing.BlockedY);
-        Assert.Equal(landedBy, landing.Translation.Y, Tolerance);
-
-        MoveResult2D passing = world.MoveBox(
-            CollisionFixtures.Box(20f, passingFrom, 8f, 8f),
-            new Vector2(0f, through),
-            CollisionFilter.Everything,
-            default);
-        Assert.False(passing.BlockedY);
-        Assert.Equal(through, passing.Translation.Y, Tolerance);
-    }
-
     [Fact]
     public void MoveBox_IsStoppedByTheFaceASolidCellSharesWithOneTheFilterExcludes()
     {
@@ -145,7 +112,7 @@ public sealed class MoverFaceTests
             world.CreateFilter(CollisionFixtures.Climb),
             default);
 
-        Assert.True(result.BlockedX);
+        Assert.True(result.Blocked);
         Assert.Equal(-24f, result.Translation.X, Tolerance);
     }
 }

@@ -22,13 +22,13 @@ public sealed class MoverSweepTests
 
         // The wall's left face is at x = 32, so an 8-wide box starting at 0 may travel 24.
         Assert.Equal(24f, result.Translation.X, Tolerance);
-        Assert.True(result.BlockedX);
+        Assert.True(result.Blocked);
         Assert.Equal(1, result.ContactCount);
         Assert.Equal(new Vector2(-1f, 0f), contacts[0].Normal);
         Assert.Equal((2, 0), (contacts[0].Target.CellX, contacts[0].Target.CellY));
     }
 
-    // Stopping on X must not stop Y, or a box pressed against a wall stops falling.
+    // Meeting a wall must not stop the fall, or a box pressed against a wall hangs there.
     [Fact]
     public void MoveBox_SlidesAlongASurfaceInsteadOfStoppingDead()
     {
@@ -43,8 +43,7 @@ public sealed class MoverSweepTests
 
         Assert.Equal(4f, result.Translation.X, Tolerance);
         Assert.Equal(10f, result.Translation.Y, Tolerance);
-        Assert.True(result.BlockedX);
-        Assert.False(result.BlockedY);
+        Assert.True(result.Blocked);
     }
 
     // The seam between two tiles of one flat run is not a face and must never catch a box.
@@ -69,8 +68,8 @@ public sealed class MoverSweepTests
         Assert.Equal(8f, box.Min.Y, Tolerance);
     }
 
-    // Each sweep meets faces only along the axis it travels, so a leading corner landing exactly
-    // on a seam has no tie to resolve.
+    // A leading corner landing exactly on a seam meets the surface and not the seam, then slides along
+    // the surface for the rest of the move.
     [Fact]
     public void MoveBox_DrivingItsLeadingCornerIntoACellSeam_LandsOnTheSurface()
     {
@@ -85,8 +84,7 @@ public sealed class MoverSweepTests
 
         Assert.Equal(16f, result.Translation.X, Tolerance);
         Assert.Equal(8f, result.Translation.Y, Tolerance);
-        Assert.True(result.BlockedY);
-        Assert.False(result.BlockedX);
+        Assert.True(result.Blocked);
     }
 
     [Fact]
@@ -141,12 +139,11 @@ public sealed class MoverSweepTests
 
         MoveResult2D result = world.MoveBox(
             new Aabb2D(Vector2.Zero, new Vector2(4f, 0.008f)),
-            new Vector2(10f, 5f),
+            new Vector2(10f, 0f),
             CollisionFilter.Everything,
             default);
 
-        Assert.False(result.BlockedX);
-        Assert.False(result.BlockedY);
-        Assert.Equal(new Vector2(10f, 5f), result.Translation);
+        Assert.False(result.Blocked);
+        Assert.Equal(new Vector2(10f, 0f), result.Translation);
     }
 }

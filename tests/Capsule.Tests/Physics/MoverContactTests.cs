@@ -22,7 +22,7 @@ public sealed class MoverContactTests
             default,
             self);
 
-        Assert.True(blocked.BlockedX);
+        Assert.True(blocked.Blocked);
         Assert.Equal(32f, blocked.Translation.X, Tolerance);
 
         MoveResult2D unfiltered = world.MoveBox(
@@ -32,7 +32,7 @@ public sealed class MoverContactTests
             default,
             self);
 
-        Assert.False(unfiltered.BlockedX);
+        Assert.False(unfiltered.Blocked);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class MoverContactTests
                 CollisionFilter.Everything,
                 contacts);
 
-            Assert.True(result.BlockedY);
+            Assert.True(result.Blocked);
 
             return [.. contacts[..result.ContactCount].Select(contact => contact.Target.Collider.Index)];
         }

@@ -194,7 +194,7 @@ public static class SceneDocumentFile
         string json = JsonSerializer.Serialize(file, SceneDocumentJsonContext.Default.SceneDocumentJson);
 
         // The serializer emits the platform newline, but the format always uses LF.
-        return TileRows(json.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", placements);
+        return ShapeLines(TileRows(json.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", placements));
     }
 
     /// <summary>Writes <paramref name="document"/> to <paramref name="path"/> in canonical form.</summary>
@@ -408,9 +408,9 @@ public static class SceneDocumentFile
                 Type = palette[i].Type,
                 Cell = palette[i].Cell,
                 Layer = palette[i].Layer,
-                CollidableFaces = palette[i].Layer is null
-                    ? null
-                    : TileFaceNames.Format(palette[i].CollidableFaces),
+                Shape = FormatShape(palette[i].Shape),
+                OneWay = palette[i].OneWay ? true : null,
+                SolidSides = palette[i].SolidSides ? true : null,
             };
         }
 
@@ -468,14 +468,22 @@ public static class SceneDocumentFile
             if (tileType.Collision.ValueKind != JsonValueKind.Undefined)
             {
                 throw new SceneDocumentFormatException(
-                    $"tileTypes[{i}] declares collision, which the format no longer supports. Write the tile's layer as layer and its colliding sides as collidableFaces.");
+                    $"tileTypes[{i}] declares collision, which the format no longer supports. Write the tile's layer as layer.");
+            }
+
+            if (tileType.CollidableFaces.ValueKind != JsonValueKind.Undefined)
+            {
+                throw new SceneDocumentFormatException(
+                    $"tileTypes[{i}] declares collidableFaces, which the format no longer supports. Write a tile that blocks only from above as oneWay, and a partial tile as its shape.");
             }
 
             tileTypes[i] = new TileDefinition(
                 tileType.Type ?? string.Empty,
                 tileType.Cell,
                 tileType.Layer,
-                ParseFaces(tileType.CollidableFaces, i));
+                ParseShape(tileType.Shape, i),
+                tileType.OneWay ?? false,
+                tileType.SolidSides ?? false);
         }
 
         return new TileGrid(
@@ -501,25 +509,93 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\". Write one asset path under assets/textures, extension included, with forward slashes and no empty, \".\" or \"..\" segment.");
     }
 
-    // Parses the named sides into a face set. An absent list means every face, and a layer with no
-    // named faces collides on every side. TileGrid checks whether the set suits the tile.
-    private static CellFaces2D ParseFaces(string?[]? faces, int index)
+    // Reads a tile's shape as a convex polygon of [x, y] points. TileGrid checks that it fits its tile.
+    private static Shape2D? ParseShape(float[]?[]? points, int index)
     {
-        if (faces is null)
+        if (points is null)
         {
-            return CellFaces2D.All;
+            return null;
         }
 
-        CellFaces2D parsed = CellFaces2D.None;
-        foreach (string? face in faces)
+        if (points.Length is < 3 or > Shape2D.MaxPoints)
         {
-            parsed |= TileFaceNames.TryParse(face, out CellFaces2D one)
-                ? one
-                : throw new SceneDocumentFormatException(
-                    $"tileTypes[{index}].collidableFaces holds \"{face}\". Use one of {string.Join(", ", TileFaceNames.All)}.");
+            throw new SceneDocumentFormatException(
+                $"tileTypes[{index}].shape has {points.Length} points. Write 3 or {Shape2D.MaxPoints} [x, y] points.");
         }
 
-        return parsed;
+        Span<Vector2> corners = stackalloc Vector2[points.Length];
+        for (int corner = 0; corner < points.Length; corner++)
+        {
+            if (points[corner] is not { Length: 2 } point)
+            {
+                throw new SceneDocumentFormatException(
+                    $"tileTypes[{index}].shape[{corner}] is not a point. Write each point as [x, y].");
+            }
+
+            corners[corner] = new Vector2(point[0], point[1]);
+        }
+
+        try
+        {
+            return Shape2D.Polygon(corners);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new SceneDocumentFormatException($"tileTypes[{index}].shape is not a convex polygon. {ex.Message}", ex);
+        }
+    }
+
+    private static float[][]? FormatShape(Shape2D? shape)
+    {
+        if (shape is not { } polygon)
+        {
+            return null;
+        }
+
+        float[][] points = new float[polygon.PointCount][];
+        for (int corner = 0; corner < points.Length; corner++)
+        {
+            Vector2 point = polygon.Point(corner);
+            points[corner] = [point.X, point.Y];
+        }
+
+        return points;
+    }
+
+    // Rewrites each shape array onto one line. The serializer writes one number per line, which hides a
+    // polygon's points from a reader.
+    private static string ShapeLines(string json)
+    {
+        const string Key = "\"shape\": [";
+        StringBuilder rewritten = new(json.Length);
+        int cursor = 0;
+
+        while (json.IndexOf(Key, cursor, StringComparison.Ordinal) is var open and >= 0)
+        {
+            int close = open + Key.Length;
+            for (int depth = 1; depth > 0; close++)
+            {
+                depth += json[close] switch
+                {
+                    '[' => 1,
+                    ']' => -1,
+                    _ => 0,
+                };
+            }
+
+            rewritten.Append(json, cursor, open - cursor).Append("\"shape\": ");
+            foreach (char character in json.AsSpan(open + Key.Length - 1, close - (open + Key.Length - 1)))
+            {
+                if (!char.IsWhiteSpace(character))
+                {
+                    rewritten.Append(character).Append(character == ',' ? " " : string.Empty);
+                }
+            }
+
+            cursor = close;
+        }
+
+        return rewritten.Append(json, cursor, json.Length - cursor).ToString();
     }
 
     private static SceneDocumentJson Deserialize(string json)

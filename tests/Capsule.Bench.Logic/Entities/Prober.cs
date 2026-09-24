@@ -76,7 +76,7 @@ public sealed class Prober : Entity
         }
 
         MoveResult2D result = _mover.Move(new Vector2(_direction * 2f, 4f));
-        if (result.BlockedX)
+        if (_mover.IsOnWall)
         {
             _direction = -_direction;
         }

@@ -17,21 +17,6 @@ public sealed class GridColliderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => world.AddGrid(0, 1, 1, [0], CollisionFixtures.Profiles(world)));
     }
 
-    // A cell on a layer with no face collides with nothing: a mistake rather than a way to spell an
-    // empty cell, which is a profile on no layer.
-    [Fact]
-    public void AddGrid_RefusesAProfileOnLayersWithNoFaces()
-    {
-        CollisionWorld2D world = new();
-
-        Assert.Throws<ArgumentException>(() => world.AddGrid(
-            16,
-            1,
-            1,
-            [0],
-            [new CellProfile2D(world.Layer(CollisionFixtures.Solid), CellFaces2D.None)]));
-    }
-
     [Fact]
     public void AddGrid_OwnsItsCellsAfterRegistration()
     {
@@ -44,7 +29,6 @@ public sealed class GridColliderTests
 
         Assert.Null(grid.LayerAt(0, 0));
         Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(1, 0));
-        Assert.Equal(CellFaces2D.All, grid.FacesAt(1, 0));
 
         Assert.True(world.Raycast(new Vector2(24f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out RayHit2D hit));
         Assert.Equal((1, 0), (hit.Target.CellX, hit.Target.CellY));
@@ -106,8 +90,8 @@ public sealed class GridColliderTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(2, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(0, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.FacesAt(2, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.FacesAt(0, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.CellBounds(2, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.CellBounds(0, -1));
     }
 
     // A grid is a collider like any other as far as the ignore argument is concerned.
@@ -146,7 +130,7 @@ public sealed class GridColliderTests
             CollisionFilter.Everything,
             default,
             floor.Handle);
-        Assert.False(through.BlockedY);
+        Assert.False(through.Blocked);
         Assert.Equal(20f, through.Translation.Y, CollisionFixtures.Tolerance);
 
         // The same move with nothing ignored still lands on it.
@@ -154,7 +138,7 @@ public sealed class GridColliderTests
             CollisionFixtures.Box(52f, 4f, 8f, 8f),
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
-            default).BlockedY);
+            default).Blocked);
 
         Assert.False(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),

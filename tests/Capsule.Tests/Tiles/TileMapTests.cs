@@ -192,7 +192,7 @@ public sealed class TileMapTests
             new Vector2(20f, 0f),
             scene.Collision.CreateFilter("solid"),
             default);
-        Assert.True(swept.BlockedX);
+        Assert.True(swept.Blocked);
         Assert.Equal(8f, swept.Translation.X, 0.01f);
 
         Assert.Equal("solid", new TileMap(grid).TileAt(1, 2));

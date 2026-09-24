@@ -38,6 +38,8 @@ public abstract class Collider2D : Component
     private string _layer = CollisionWorld2D.DefaultLayerName;
     private bool _enabled = true;
     private bool _reportsContacts;
+    private bool _oneWay;
+    private bool _solidSides;
 
     private CollisionWorld2D? _world;
     private Scene? _scene;
@@ -204,6 +206,48 @@ public abstract class Collider2D : Component
             {
                 _scene!.UntrackContacts(this);
                 EndAnnouncedContacts();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether this collider lets a mover pass from below and blocks it from above, and from the sides too
+    /// while <see cref="SolidSides"/> is set.
+    /// </summary>
+    /// <remarks>
+    /// A one-way collider stops a sweep only on a surface that faces up, or with
+    /// <see cref="SolidSides"/> on any surface that does not face down, and only when the mover started
+    /// clear of it. A mover rising through it or already inside it passes, and
+    /// <see cref="KinematicBody2D.DropThrough"/> passes it from above. It shoves and carries a body only
+    /// through the surfaces that stop a sweep. Contacts and overlaps are reported as usual.
+    /// </remarks>
+    public bool OneWay
+    {
+        get => _oneWay;
+        set
+        {
+            RequireNotDispatching();
+            _oneWay = value;
+            if (_world is { } world)
+            {
+                world.SetOneWay(_handle, value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether this one-way collider also blocks a mover from the sides, passing it only from below.
+    /// </summary>
+    public bool SolidSides
+    {
+        get => _solidSides;
+        set
+        {
+            RequireNotDispatching();
+            _solidSides = value;
+            if (_world is { } world)
+            {
+                world.SetSolidSides(_handle, value);
             }
         }
     }
@@ -496,6 +540,8 @@ public abstract class Collider2D : Component
         CollisionFilter filter = ResolveFilter(world, CollectionsMarshal.AsSpan(_detects));
         CollisionLayer layer = world.Layer(_layer);
         ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, this);
+        world.SetOneWay(handle, _oneWay);
+        world.SetSolidSides(handle, _solidSides);
 
         _layerIndex = layer.Index;
 

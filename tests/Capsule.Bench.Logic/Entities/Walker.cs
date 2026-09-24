@@ -23,7 +23,7 @@ public sealed class Walker : Entity
         collider.SetFilter(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(collider);
 
-        _body = new KinematicBody2D(collider);
+        _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded };
         _body.BlocksOn(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_body);
 
@@ -38,7 +38,8 @@ public sealed class Walker : Entity
 
     protected override void OnStep(in StepContext context)
     {
-        if (_body.Move(new Vector2(_direction * 2f, 4f)).BlockedX)
+        _body.Move(new Vector2(_direction * 2f, 4f));
+        if (_body.IsOnWall)
         {
             _direction = -_direction;
         }

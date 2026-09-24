@@ -16,7 +16,7 @@ public enum ShapeKind2D
     Polygon,
 
     /// <summary>
-    /// A segment with no interior, used by one side of a grid collider. No public factory builds one.
+    /// A segment with no interior, used by one edge of a grid cell. No public factory builds one.
     /// </summary>
     Segment,
 }

@@ -164,6 +164,8 @@ public sealed partial class CollisionWorld2D
         slot.Layer = layer;
         slot.UserData = userData;
         slot.Grid = null;
+        slot.OneWay = false;
+        slot.SolidSides = false;
         slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index, CollisionFilter.Of(layer).Bits);
 
         return HandleAt(index);
@@ -245,6 +247,12 @@ public sealed partial class CollisionWorld2D
         _tree.MoveProxy(slot.ProxyId, placed.Bounds, Vector2.Zero);
     }
 
+    // Sets whether a collider blocks only a mover landing on it from above.
+    internal void SetOneWay(ColliderHandle handle, bool oneWay) => _slots[RequireShapeSlot(handle)].OneWay = oneWay;
+
+    // Sets whether a one-way collider also blocks from the sides.
+    internal void SetSolidSides(ColliderHandle handle, bool solidSides) => _slots[RequireShapeSlot(handle)].SolidSides = solidSides;
+
     // Replaces the layer a collider is on.
     internal void SetLayer(ColliderHandle handle, CollisionLayer layer)
     {
@@ -319,34 +327,32 @@ public sealed partial class CollisionWorld2D
             throw new ArgumentException("profiles is empty. Supply at least one profile for the cells to index.", nameof(profiles));
         }
 
-        CollisionLayer?[] layers = new CollisionLayer?[profiles.Length];
-        CellFaces2D[] faces = new CellFaces2D[profiles.Length];
         for (int index = 0; index < profiles.Length; index++)
         {
             CellProfile2D profile = profiles[index];
 
-            if ((profile.Faces & ~CellFaces2D.All) != 0)
-            {
-                throw new ArgumentException(
-                    $"profiles[{index}] declares faces {(int)profile.Faces}, which is not a combination of the four cell sides.",
-                    nameof(profiles));
-            }
-
             if (profile.Layer is { } layer)
             {
                 RequireOwn(layer);
-
-                if (profile.Faces == CellFaces2D.None)
-                {
-                    throw new ArgumentException(
-                        $"profiles[{index}] is on a layer but declares no faces. Use a null layer for a cell that collides as nothing.",
-                        nameof(profiles));
-                }
-
-                layers[index] = layer;
+            }
+            else if (profile.Shape is not null || profile.OneWay)
+            {
+                throw new ArgumentException(
+                    $"profiles[{index}] declares a shape or one-way but no layer. Give it a layer, or drop both.",
+                    nameof(profiles));
             }
 
-            faces[index] = profile.Faces;
+            if (profile.SolidSides && !profile.OneWay)
+            {
+                throw new ArgumentException(
+                    $"profiles[{index}] declares solid sides but is not one-way. Make it one-way, or drop solid sides.",
+                    nameof(profiles));
+            }
+
+            if (profile.Shape is { } shape)
+            {
+                RequireCellShape(shape, cellSize, index);
+            }
         }
 
         for (int index = 0; index < cells.Length; index++)
@@ -371,8 +377,7 @@ public sealed partial class CollisionWorld2D
             width,
             height,
             (int[])cells.Clone(),
-            layers,
-            faces);
+            profiles);
 
         slot.Grid = grid;
         _grids.Add(grid);
@@ -471,7 +476,7 @@ public sealed partial class CollisionWorld2D
 
         Shape2D moving = shape.Translated(origin);
         CastAccumulator accumulator = default;
-        Cast(moving, translation, filter, ignore, default, ref accumulator);
+        Cast(moving, translation, filter, ignore, default, false, ref accumulator);
 
         if (!accumulator.Hit)
         {
@@ -574,14 +579,14 @@ public sealed partial class CollisionWorld2D
     /// as far along <paramref name="translation"/> world units as it can go.
     /// </summary>
     /// <remarks>
-    /// The move runs one axis at a time, X to its first contact and then Y from there. A block on one
-    /// axis leaves the other free. The move is swept and tunnels through nothing at any speed. It skips
-    /// <paramref name="ignore"/>. <paramref name="contacts"/> receives the surfaces reached, the X
-    /// sweep's first and then the Y sweep's. Within each sweep, grid cells come in traversal order and
-    /// then colliders by handle. The span may be empty. Nothing in the world moves. The caller adds
+    /// The move sweeps to the first surface, stops a slop short of it, and slides what is left along
+    /// that surface, in at most four sweeps. It tunnels through nothing at any speed. It skips
+    /// <paramref name="ignore"/>. <paramref name="contacts"/> receives the surfaces reached, pass by
+    /// pass. Within each pass, grid cells come in traversal order and then colliders by handle. The
+    /// span may be empty. Nothing in the world moves. The caller adds
     /// <see cref="MoveResult2D.Translation"/> to its own position.
     /// </remarks>
-    /// <returns>How far the shape actually moved, which axes were blocked, and how many surfaces it reached.</returns>
+    /// <returns>How far the shape actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public MoveResult2D Move(
         in Shape2D shape,
@@ -601,26 +606,14 @@ public sealed partial class CollisionWorld2D
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
-        Vector2 at = origin;
-        Vector2 applied = Vector2.Zero;
-        int written = 0;
-        int found = 0;
-
-        bool blockedX = SweepAxis(shape, ref at, translation.X, true, filter, ignore, contacts, ref written, ref found, out float movedX);
-        applied.X = movedX;
-        int alongX = written;
-
-        bool blockedY = SweepAxis(shape, ref at, translation.Y, false, filter, ignore, contacts, ref written, ref found, out float movedY);
-        applied.Y = movedY;
-
-        return new MoveResult2D(applied, blockedX, blockedY, found, alongX);
+        return Slide(shape, origin, translation, filter, contacts, ignore);
     }
 
     /// <summary>
     /// Moves an axis-aligned box, already placed. The box form of
     /// <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
-    /// <returns>How far the box actually moved, which axes were blocked, and how many surfaces it reached.</returns>
+    /// <returns>How far the box actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
     /// <exception cref="ArgumentException">The box is one <see cref="Shape2D.Box(in Aabb2D)"/> refuses, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public MoveResult2D MoveBox(
         in Aabb2D box,
@@ -646,6 +639,24 @@ public sealed partial class CollisionWorld2D
         }
 
         return direction / length;
+    }
+
+    // A grid cell's shape is a plain convex polygon inside its cell.
+    private static void RequireCellShape(in Shape2D shape, int cellSize, int index)
+    {
+        if (shape.Kind is not (ShapeKind2D.Polygon or ShapeKind2D.Box) || shape.Radius != 0f)
+        {
+            throw new ArgumentException(
+                $"profiles[{index}] has a {shape.Kind} shape of radius {shape.Radius}. Use a polygon with no radius.",
+                "profiles");
+        }
+
+        if (shape.Bounds.Min.X < 0f || shape.Bounds.Min.Y < 0f || shape.Bounds.Max.X > cellSize || shape.Bounds.Max.Y > cellSize)
+        {
+            throw new ArgumentException(
+                $"profiles[{index}] has a shape reaching outside its {cellSize}-unit cell. Keep every point within [0, {cellSize}].",
+                "profiles");
+        }
     }
 
     private static void RequireShape(in Shape2D shape, string parameterName)
@@ -766,6 +777,8 @@ public sealed partial class CollisionWorld2D
         internal int ProxyId;
         internal int Generation;
         internal bool InUse;
+        internal bool OneWay;
+        internal bool SolidSides;
     }
 
     private struct RayAccumulator
@@ -778,6 +791,10 @@ public sealed partial class CollisionWorld2D
 
     private struct CastAccumulator
     {
+        // How far below zero a normal's dot with the translation must reach for the sweep to drive
+        // into it, set once per cast.
+        internal float Lean;
+
         // Where the contact band opened. Fraction is the primary hit inside it.
         internal float Band;
         internal float Fraction;

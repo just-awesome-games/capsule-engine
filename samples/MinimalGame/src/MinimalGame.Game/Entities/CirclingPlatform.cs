@@ -9,6 +9,7 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// A slab that circles its spawn point at a constant rate. A body moved by its layer rides it round.
+/// It is one-way, so the player jumps up through it and drops down through it.
 /// </summary>
 public sealed class CirclingPlatform : Entity
 {
@@ -26,7 +27,7 @@ public sealed class CirclingPlatform : Entity
         : base(spawn)
     {
         _centre = Position;
-        Add(new BoxCollider2D(Size) { Layer = CollisionLayers.Platform });
+        Add(new BoxCollider2D(Size) { Layer = CollisionLayers.Platform, OneWay = true });
         Add(new ColorRect(Size) { Color = ColorRgba.FromHex("#88627a") });
         Teleport(Place(_tick));
     }

@@ -6,6 +6,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Tests.Physics;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
@@ -26,6 +27,9 @@ internal static class SceneFixtures
     /// <summary>The viewport span a scene opens at unless a test needs another.</summary>
     internal static readonly Vector2 Viewport = new(320, 180);
 
+    /// <summary>The top half of a tile.</summary>
+    internal static readonly Shape2D HalfHeight = Shape2D.Polygon([new(0f, 0f), new(TileSize, 0f), new(TileSize, TileSize / 2f), new(0f, TileSize / 2f)]);
+
     internal delegate void StepHook(Scene scene, in StepContext context);
 
     /// <summary>A frame of <see cref="Atlas"/> cut from its top-left corner.</summary>
@@ -39,12 +43,7 @@ internal static class SceneFixtures
         new([.. entities], TerrainId + 1);
 
     /// <summary>One palette entry: <paramref name="type"/> drawing <paramref name="cell"/>.</summary>
-    internal static TileDefinition Tile(
-        string type,
-        int cell,
-        string? layer = null,
-        CellFaces2D collidableFaces = CellFaces2D.All) =>
-        new(type, cell, layer, collidableFaces);
+    internal static TileDefinition Tile(string type, int cell, string? layer = null) => new(type, cell, layer);
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", 0)], [0, 1, 0, 0, 0, 0], Atlas, 1);
@@ -55,7 +54,11 @@ internal static class SceneFixtures
             new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows))], TerrainId + 1),
             Registry()));
 
-    /// <summary>The grid behind <see cref="Terrain"/>: every '#' collides on the layer "solid".</summary>
+    /// <summary>
+    /// The grid behind <see cref="Terrain"/>. Every '#' is a solid tile on the layer "solid", '-' a one-way
+    /// tile, '=' a one-way tile with solid sides and '~' the top half of one, '/' a 45 degree slope rising
+    /// to the right and '\' one falling to the right, all on that layer.
+    /// </summary>
     internal static TileGrid TerrainGrid(params string[] rows)
     {
         int width = rows[0].Length;
@@ -64,7 +67,16 @@ internal static class SceneFixtures
         {
             for (int x = 0; x < width; x++)
             {
-                cells[(y * width) + x] = rows[y][x] == '#' ? 1 : 0;
+                cells[(y * width) + x] = rows[y][x] switch
+                {
+                    '#' => 1,
+                    '-' => 2,
+                    '/' => 3,
+                    '\\' => 4,
+                    '=' => 5,
+                    '~' => 6,
+                    _ => 0,
+                };
             }
         }
 
@@ -72,7 +84,15 @@ internal static class SceneFixtures
             TileSize,
             width,
             rows.Length,
-            [TileGrid.EmptyTile, new TileDefinition("solid", 0, "solid")],
+            [
+                TileGrid.EmptyTile,
+                new TileDefinition("solid", 0, "solid"),
+                new TileDefinition("ledge", 0, "solid", OneWay: true),
+                new TileDefinition("slope-up", 0, "solid", CollisionFixtures.SlopeUp),
+                new TileDefinition("slope-down", 0, "solid", CollisionFixtures.SlopeDown),
+                new TileDefinition("girder", 0, "solid", OneWay: true, SolidSides: true),
+                new TileDefinition("half-girder", 0, "solid", HalfHeight, OneWay: true, SolidSides: true),
+            ],
             cells,
             Atlas,
             1);
