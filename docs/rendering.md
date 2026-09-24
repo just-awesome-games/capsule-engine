@@ -96,16 +96,54 @@ delay or a lifetime.
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
 is handed. The sheet format, atlases and where sprites come from are [`assets.md`](assets.md).
 
-## Hiding and fading
+## Hiding, fading and flashing
 
 `Entity.Visible` and `Entity.Tint` hide and colour an entity and everything beneath it.
-`Renderer.Visible` and a renderer's own `Color` do the same for one renderer. None of them stops the
-entity stepping:
+`Renderer.Visible` and a renderer's own `Color` do the same for one renderer. `Entity.Flash` mixes
+every sprite beneath the entity towards `Entity.FlashColor`, white by default, after the tint and after
+any material. At 1 a sprite is a silhouette of that colour. None of them stops the entity stepping:
 
 ```csharp
+Flash = grace > 0 ? 1f - Math.Min(sinceHit / (float)_tuning.HurtFlashTicks, 1f) : 0f;
 Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
-Visible = grace / _tuning.BlinkTicks % 2 == 0;
+Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
 ```
+
+## Your own shader
+
+A shader is a fragment function authored at `Assets/Shaders/<name>.fx` in HLSL
+([`assets.md`](assets.md#shaders)). It declares its parameters and exactly one
+`float4 Fragment(SpritePixel pixel)`, and returns a premultiplied colour. `pixel.Texel` is the
+sprite's premultiplied texel, `pixel.Tint` its premultiplied tint and `pixel.UV` its texture
+coordinate, which on an atlas page is the page's. A parameter is a global `float`, `float2`,
+`float3`, `float4` or `Texture2D`, and reads zero until a material sets it. `Sample(texture, uv)`
+reads a texture parameter with the frame's sampling, clamped at its edges, and `SampleSprite(uv)`
+reads the sprite's texture at another point. A stone-statue look:
+
+```hlsl
+float Amount;
+
+float4 Fragment(SpritePixel pixel)
+{
+    float4 color = pixel.Texel * pixel.Tint;
+    float grey = dot(color.rgb, float3(0.299, 0.587, 0.114));
+    color.rgb = lerp(color.rgb, grey.xxx, Amount);
+    return color;
+}
+```
+
+A `Material` binds it with its parameter values, and `Renderer.Material` draws a renderer with it:
+
+```csharp
+Material stone = new(CapsuleAssets.Shaders.Desaturate);
+stone.Set("Amount", 1f);
+sprite.Material = stone;
+```
+
+Draw order never changes for a material. Neighbouring sprites draw in one batch when they share a
+texture and a material instance, so renderers that look alike share one `Material`. Tint, blend mode
+and flash never split a batch. Lines, the light map and the development overlay draw with the engine's
+own shader.
 
 ## Two layers, and draw order
 

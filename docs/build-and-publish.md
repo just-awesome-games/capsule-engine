@@ -23,6 +23,7 @@ my-game/
         Atlases/
         Audio/
         Fonts/
+        Shaders/
     MyGame.Shell/
       MyGame.Shell.csproj
   tests/
@@ -262,9 +263,9 @@ to the importing project unless a row says otherwise.
 
 | Property | Default | Effect |
 | --- | --- | --- |
-| `CapsuleAssetSourcesDir` | `Assets` under the importing project | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Atlases/`, `Audio/` and `Fonts/` trees. A named directory must exist. |
+| `CapsuleAssetSourcesDir` | `Assets` under the importing project | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Atlases/`, `Audio/`, `Fonts/` and `Shaders/` trees. A named directory must exist. |
 | `CapsuleImportScenes` | `true` for the logic library, else `false` | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`. A role-free test or tool can opt in. |
-| `CapsuleShipAssets` | `true` for the logic library, else `false` | Ships admitted textures, audio and font pages under `assets/`. |
+| `CapsuleShipAssets` | `true` for the logic library, else `false` | Ships admitted textures, audio, font pages and compiled shaders under `assets/`. |
 | `CapsuleImportAudio` | `true` for the logic library, else `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here. |
 | `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |

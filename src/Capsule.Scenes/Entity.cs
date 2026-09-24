@@ -427,7 +427,7 @@ public partial class Entity
     /// <summary>
     /// Fills this entity's panel section. The engine writes <see cref="Name"/>,
     /// <see cref="Transform"/>, <see cref="WorldTransform"/>, <see cref="ZIndex"/>,
-    /// <see cref="ScrollFactor"/>, <see cref="Visible"/>, <see cref="Tint"/>,
+    /// <see cref="ScrollFactor"/>, <see cref="Visible"/>, <see cref="Tint"/>, <see cref="Flash"/>,
     /// <see cref="StepMode"/> and <c>Remove</c> before this call.
     /// </summary>
     /// <remarks>Components fill their sections after.</remarks>
@@ -483,6 +483,11 @@ public partial class Entity
         foreach (Component component in Components)
         {
             component.CollectAssets(assets);
+
+            if (component is Renderer { Material: { } material })
+            {
+                assets.Add(material);
+            }
         }
     }
 
@@ -633,6 +638,7 @@ public partial class Entity
         panel.Field("ScrollFactor", ScrollFactor);
         panel.Toggle("Visible", Visible, value => Visible = value);
         panel.Field("Tint", Tint);
+        panel.Field("Flash", Flash);
         panel.Field("StepMode", StepMode);
         panel.Command("Remove", () => SceneOrNull?.Remove(this));
 

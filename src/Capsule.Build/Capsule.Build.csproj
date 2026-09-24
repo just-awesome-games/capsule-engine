@@ -51,6 +51,7 @@
     <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.ShaderTools.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />
     <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
          pair from a package or an engine clone. -->

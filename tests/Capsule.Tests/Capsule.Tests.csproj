@@ -44,6 +44,21 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The shader tools ShaderBuildTests compiles through, named as the build targets name them. -->
+  <Import Project="../../build/Capsule.ShaderTools.targets" />
+  <ItemGroup>
+    <PackageDownload Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
+    <PackageDownload Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CapsuleDxc</_Parameter1>
+      <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CapsuleSpirvCross</_Parameter1>
+      <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <!-- A copy of samples/MinimalGame's room.ogg, mono 44.1 kHz, 176 400 frames; the fixture
          VorbisAllocationTests plays and loops. -->

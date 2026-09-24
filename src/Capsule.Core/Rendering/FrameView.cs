@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
 
@@ -35,6 +36,12 @@ public sealed class FrameView
     private Vector2 _scrollFactor = Vector2.One;
     private ColorRgba _tint = ColorRgba.White;
     private bool _tinted;
+    private ColorRgba _flash;
+    private bool _flashing;
+
+    // Whether a stored sprite takes the tint or the flash, so an unstyled store costs one flag test.
+    private bool _styled;
+    private Material? _material;
 
     private Vector2 _canvas;
 
@@ -95,16 +102,25 @@ public sealed class FrameView
         }
     }
 
-    // The colour the running renderer's entity is tinted by, and white outside a renderer. The scene sets
-    // it before each Draw. Only the leaves that store an intent apply it, so an expansion such as text
-    // is tinted once. A white tint costs one flag test.
-    internal ColorRgba Tint
+    // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
+    // composed flash, the colour in RGB and the amount in alpha, transparent outside a renderer. The
+    // scene sets both before each Draw. Only the leaves that store an intent apply them, so an
+    // expansion such as text is tinted once, and the flash applies to sprites only, since only a
+    // sprite draws through the shader that mixes it. White and transparent cost one flag test.
+    internal void SetStyle(ColorRgba tint, ColorRgba flash)
     {
-        set
-        {
-            _tint = value;
-            _tinted = value != ColorRgba.White;
-        }
+        _tint = tint;
+        _tinted = tint != ColorRgba.White;
+        _flash = flash;
+        _flashing = flash.A != 0;
+        _styled = _tinted || _flashing;
+    }
+
+    // The running renderer's material, and null for the engine's own shader outside a renderer. A
+    // sprite stored under a material other than its layer's last opens a run in MaterialRuns.
+    internal Material? Material
+    {
+        set => _material = value;
     }
 
     // The layer the Add overloads draw onto when none is named. The scene sets it to the running
@@ -189,6 +205,13 @@ public sealed class FrameView
     // before the first run draws with the world. Invalidated by the next mutation.
     internal ReadOnlySpan<ParallaxLayer> ParallaxLayers => CollectionsMarshal.AsSpan(_parallax);
 
+    // The runs of Sprites and of ScreenSprites drawn by one material, in list order and back-to-back. A
+    // run opens where the material changed and closes where the next one opens. Invalidated by the
+    // next mutation.
+    internal ReadOnlySpan<MaterialRun> MaterialRuns => CollectionsMarshal.AsSpan(_world.Runs);
+
+    internal ReadOnlySpan<MaterialRun> ScreenMaterialRuns => CollectionsMarshal.AsSpan(_screen.Runs);
+
     /// <summary>
     /// Submission counts from the current rewrite, across both layers, lines included.
     /// </summary>
@@ -216,7 +239,7 @@ public sealed class FrameView
     internal void AddUnculled(in SpriteIntent sprite)
     {
         _submitted++;
-        Of(Space).Sprites.Add(_tinted ? sprite with { Color = ColorRgba.Multiply(sprite.Color, _tint) } : sprite);
+        Store(Of(Space), in sprite);
     }
 
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
@@ -233,7 +256,7 @@ public sealed class FrameView
             return;
         }
 
-        layer.Sprites.Add(_tinted ? sprite with { Color = ColorRgba.Multiply(sprite.Color, _tint) } : sprite);
+        Store(layer, in sprite);
     }
 
     /// <summary>Adds a light, culled through its swept region against the world layer as a sprite is.</summary>
@@ -502,6 +525,25 @@ public sealed class FrameView
         }
     }
 
+    // The one store point every sprite passes, where the running entity's tint and flash apply.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Store(Layer layer, in SpriteIntent sprite)
+    {
+        if (!ReferenceEquals(_material, layer.RunMaterial))
+        {
+            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, _material));
+            layer.RunMaterial = _material;
+        }
+
+        layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
+    }
+
+    private SpriteIntent Styled(in SpriteIntent sprite) => sprite with
+    {
+        Color = _tinted ? ColorRgba.Multiply(sprite.Color, _tint) : sprite.Color,
+        Flash = _flashing ? _flash : sprite.Flash,
+    };
+
     // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
@@ -509,11 +551,14 @@ public sealed class FrameView
         _world.Lines.Clear();
         _screen.Sprites.Clear();
         _screen.Lines.Clear();
+        _world.ClearRuns();
+        _screen.ClearRuns();
         _parallax.Clear();
         _lights.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
-        Tint = ColorRgba.White;
+        SetStyle(ColorRgba.White, default);
+        _material = null;
         _scrollFactor = Vector2.One;
         LitWorld = false;
         _ambient = ColorRgba.White;
@@ -544,8 +589,19 @@ public sealed class FrameView
 
         internal List<LineIntent> Lines { get; } = [];
 
+        internal List<MaterialRun> Runs { get; } = [];
+
+        // The material of the last run opened, null before the first.
+        internal Material? RunMaterial { get; set; }
+
         internal Rect Bounds { get; set; }
 
         internal bool Culls { get; set; }
+
+        internal void ClearRuns()
+        {
+            Runs.Clear();
+            RunMaterial = null;
+        }
     }
 }

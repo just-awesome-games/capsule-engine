@@ -2,6 +2,7 @@ using Capsule.Build.Atlases;
 using Capsule.Build.Audio;
 using Capsule.Build.Keys;
 using Capsule.Build.Scenes;
+using Capsule.Build.Shaders;
 using Capsule.Build.Sprites;
 
 namespace Capsule.Build;
@@ -22,6 +23,12 @@ internal static class BuildRun
 
     /// <summary>The sheet set rendered as a single C# file a game compiles against.</summary>
     private const string SpriteRegistryFile = "CapsuleAssets.Sprites.g.cs";
+
+    /// <summary>The shader set rendered as a single C# file a game compiles against.</summary>
+    private const string ShaderRegistryFile = "CapsuleAssets.Shaders.g.cs";
+
+    /// <summary>Where composed and compiled shaders are kept, below the output directory.</summary>
+    private const string ShadersDirectory = "shaders";
 
     /// <summary>Where atlas pages, stamps and the map are written, below the output directory.</summary>
     private const string AtlasesDirectory = "atlases";
@@ -67,6 +74,7 @@ internal static class BuildRun
         DocumentSource[] scenes = Sources(keyed, "scenes");
         DocumentSource[] clips = Sources(keyed, "audio");
         DocumentSource[] sheets = Sources(keyed, "sprites");
+        DocumentSource[] shaders = Sources(keyed, "shaders");
 
         int failed = 0;
 
@@ -96,11 +104,27 @@ internal static class BuildRun
                 error);
         }
 
+        // The shipped-asset lines of everything the run derives: compiled shaders, atlas pages and the
+        // atlas map.
+        List<string> derivedLines = [];
+
+        // Left alone when nothing asked for shaders, for the same reason as the audio registry.
+        if (shaders.Length > 0)
+        {
+            failed += ShaderTool.Emit(
+                shaders,
+                requests.ShaderTools,
+                Path.Combine(outputDirectory, ShadersDirectory),
+                Path.Combine(outputDirectory, ShaderRegistryFile),
+                derivedLines,
+                output,
+                error);
+        }
+
         HashSet<string> packedTextures = new(StringComparer.Ordinal);
-        List<string> atlasLines = [];
         try
         {
-            failed += AtlasTool.Pack(keyed, Path.Combine(outputDirectory, AtlasesDirectory), output, error, packedTextures, atlasLines);
+            failed += AtlasTool.Pack(keyed, Path.Combine(outputDirectory, AtlasesDirectory), output, error, packedTextures, derivedLines);
         }
         catch (Exception ex) when (IsReportable(ex))
         {
@@ -111,7 +135,7 @@ internal static class BuildRun
 
         try
         {
-            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory, packedTextures, atlasLines, sceneFields);
+            KeyTool.WriteManifests(keyed, outputDirectory, scenesDirectory, packedTextures, derivedLines, sceneFields);
 
             if (failed == 0)
             {

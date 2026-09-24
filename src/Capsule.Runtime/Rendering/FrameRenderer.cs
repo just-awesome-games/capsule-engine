@@ -60,11 +60,15 @@ internal sealed class FrameRenderer : IDisposable
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
-    internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures)
+    //
+    // effects: The shaders sprites draw with. The caller owns it, and this renderer resolves the
+    // textures its materials bind.
+    internal FrameRenderer(GraphicsDevice device, (int Width, int Height)? renderResolution, TextureStore textures, EffectStore effects)
     {
         _device = device;
-        _batcher = new SpriteBatcher(device);
+        _batcher = new SpriteBatcher(device, effects);
         _textures = textures;
+        effects.WholeTexture = WholeTexture;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
         _light = BuildLightTexture(device);
@@ -160,7 +164,7 @@ internal sealed class FrameRenderer : IDisposable
             }
 
             DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns);
         }
         else
         {
@@ -178,7 +182,7 @@ internal sealed class FrameRenderer : IDisposable
             // centred in it on whole pixels, so nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling);
+                DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns);
             }
 
             _device.SetRenderTarget(null);
@@ -186,7 +190,7 @@ internal sealed class FrameRenderer : IDisposable
 
             if (!layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling);
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns);
             }
         }
 
@@ -226,14 +230,15 @@ internal sealed class FrameRenderer : IDisposable
         }
 
         // DrawScreen restores the full back buffer itself. A view with an empty screen layer writes
-        // nothing here.
+        // nothing here. The overlay draws with Capsule's own shader whatever its view carries.
         DrawScreen(
             view,
             alpha: 1f,
             new ScreenPlacement(System.Numerics.Vector2.Zero, scale),
             width,
             height,
-            TextureSampling.Point);
+            TextureSampling.Point,
+            materials: default);
     }
 
     // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
@@ -277,7 +282,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = world.TopLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Lines, default, default, default, ref pass);
         _batcher.End();
     }
 
@@ -425,7 +430,13 @@ internal sealed class FrameRenderer : IDisposable
 
             if (sprites[index].Blend == BlendMode.Additive)
             {
-                SpriteIntent halved = sprites[index] with { Color = Scaled(sprites[index].Color, MapScale) };
+                // The flash's colour halves with the tint and its amount stays, so the map holds half of
+                // exactly what the world draws.
+                SpriteIntent halved = sprites[index] with
+                {
+                    Color = Scaled(sprites[index].Color, MapScale),
+                    Flash = Scaled(sprites[index].Flash, MapScale),
+                };
                 DrawSprite(in halved, ref pass);
             }
         }
@@ -533,7 +544,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = topLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
+        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, view.Camera.ScrollOrigin, view.MaterialRuns, ref pass);
         _batcher.End();
 
         if (view.LitWorld && _lightMap is { } map)
@@ -553,7 +564,8 @@ internal sealed class FrameRenderer : IDisposable
         in ScreenPlacement placement,
         int surfaceWidth,
         int surfaceHeight,
-        TextureSampling sampling)
+        TextureSampling sampling,
+        ReadOnlySpan<MaterialRun> materials)
     {
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
         ReadOnlySpan<LineIntent> lines = view.ScreenLines;
@@ -580,21 +592,24 @@ internal sealed class FrameRenderer : IDisposable
             LineScale = placement.Scale,
         };
 
-        DrawIntents(sprites, lines, default, default, ref pass);
+        DrawIntents(sprites, lines, default, default, materials, ref pass);
         _batcher.End();
     }
 
     // Draws the sprites, then the lines, each scrolled run from its own layer's corner, formed as the
-    // run opens. The runs are in list order, and a single cursor walks them.
+    // run opens, and each material run with its material. The runs are in list order, and one cursor
+    // walks each kind. Lines draw with Capsule's own shader.
     private void DrawIntents(
         ReadOnlySpan<SpriteIntent> sprites,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<ParallaxLayer> layers,
         Vector2 scrollOrigin,
+        ReadOnlySpan<MaterialRun> materials,
         ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
+        int nextMaterial = 0;
         for (int index = 0; index < sprites.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
@@ -603,9 +618,16 @@ internal sealed class FrameRenderer : IDisposable
                 next++;
             }
 
+            while (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite <= index)
+            {
+                _batcher.SetMaterial(materials[nextMaterial].Material);
+                nextMaterial++;
+            }
+
             DrawSprite(in sprites[index], ref pass);
         }
 
+        _batcher.SetMaterial(null);
         pass.LayerCorner = frameCorner;
         next = 0;
         for (int index = 0; index < lines.Length; index++)
@@ -701,8 +723,13 @@ internal sealed class FrameRenderer : IDisposable
             sprite.FlipX,
             sprite.FlipY,
             sprite.Color,
-            sprite.Blend);
+            sprite.Blend,
+            sprite.Flash);
     }
+
+    // A texture a material binds, whole and never through an atlas page.
+    private Texture2D WholeTexture(TextureHandle handle) =>
+        handle.IsEngineOwned ? EngineTexture(handle) : _textures.GetWhole(handle);
 
     private Texture2D EngineTexture(in TextureHandle handle) =>
         _engineTextures.TryGetValue(handle, out Texture2D? texture)

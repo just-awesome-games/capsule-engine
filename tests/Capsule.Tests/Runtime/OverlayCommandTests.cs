@@ -61,9 +61,9 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("Nudger", overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
+            ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
             Named(overlay));
-        Assert.Equal(7, overlay.Focus);
+        Assert.Equal(8, overlay.Focus);
 
         Press(overlay, scheduler, host, Key.Down);
         Press(overlay, scheduler, host, Key.Down);

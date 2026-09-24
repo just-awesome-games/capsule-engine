@@ -1,9 +1,10 @@
 using System.Globalization;
+using Capsule.Build.Shaders;
 
 namespace Capsule.Build;
 
 /// <summary>One authored source the targets ask the build pass about.</summary>
-/// <param name="Group">The domain root it was authored under: textures, fonts, audio, scenes or atlases.</param>
+/// <param name="Group">The domain root it was authored under: textures, fonts, audio, scenes, sprites, atlases or shaders.</param>
 /// <param name="Path">Its path below that root as the platform spelled it. The key pass normalizes it.</param>
 /// <param name="Extension">The extension the shipped file carries, empty for a document.</param>
 /// <param name="Source">Where the source is, relative to the working directory.</param>
@@ -16,21 +17,31 @@ internal readonly record struct AssetRequest(string Group, string Path, string E
 /// </summary>
 /// <param name="TileSize">The tile size every imported grid must match, or null to impose none.</param>
 /// <param name="Assets">The sources to key, in the order the targets composed them.</param>
-internal readonly record struct BuildRequests(int? TileSize, IReadOnlyList<AssetRequest> Assets)
+/// <param name="ShaderTools">The shader tools the build downloaded, or null when the game has no shader.</param>
+internal readonly record struct BuildRequests(
+    int? TileSize,
+    IReadOnlyList<AssetRequest> Assets,
+    ShaderTools? ShaderTools = null)
 {
     /// <summary>The separator a request line and every derived line write between fields.</summary>
     internal const char Separator = '|';
 
     private const string TileSizeOption = "tile-size";
 
+    private const string DxcOption = "shader-dxc";
+
+    private const string SpirvCrossOption = "shader-spirv-cross";
+
     /// <summary>Every group the targets ask about, in the order they are written.</summary>
-    private static readonly string[] Groups = ["textures", "fonts", "audio", "scenes", "sprites", "atlases"];
+    private static readonly string[] Groups = ["textures", "fonts", "audio", "scenes", "sprites", "atlases", "shaders"];
 
     /// <summary>Reads the manifest at <paramref name="path"/>, ignoring any line it does not name.</summary>
     /// <exception cref="FormatException">An option line states a value that is no value.</exception>
     internal static BuildRequests Read(string path)
     {
         int? tileSize = null;
+        string? dxc = null;
+        string? spirvCross = null;
         List<AssetRequest> assets = [];
 
         foreach (string line in File.ReadAllLines(path))
@@ -53,6 +64,18 @@ internal readonly record struct BuildRequests(int? TileSize, IReadOnlyList<Asset
                 continue;
             }
 
+            if (fields is [DxcOption, string dxcPackage])
+            {
+                dxc = dxcPackage;
+                continue;
+            }
+
+            if (fields is [SpirvCrossOption, string spirvCrossPackage])
+            {
+                spirvCross = spirvCrossPackage;
+                continue;
+            }
+
             if (fields is [string group, string authored, string extension, string source]
                 && Array.IndexOf(Groups, group) >= 0)
             {
@@ -61,6 +84,8 @@ internal readonly record struct BuildRequests(int? TileSize, IReadOnlyList<Asset
             }
         }
 
-        return new BuildRequests(tileSize, assets);
+        ShaderTools? tools = dxc is not null && spirvCross is not null ? new ShaderTools(dxc, spirvCross) : null;
+
+        return new BuildRequests(tileSize, assets, tools);
     }
 }

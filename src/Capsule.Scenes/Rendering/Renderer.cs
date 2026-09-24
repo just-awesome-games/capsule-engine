@@ -48,6 +48,18 @@ public abstract class Renderer : Component
     public bool Visible { get; set; } = true;
 
     /// <summary>
+    /// The material this renderer draws with, and null for the engine's own sprite shader, the
+    /// default.
+    /// </summary>
+    /// <remarks>
+    /// Neighbouring sprites draw in one batch when they share a texture and a material instance.
+    /// A material held at construction is loaded with the scene, and one set later loads on its
+    /// first draw. <see cref="Entity.Tint"/> and <see cref="Entity.Flash"/> apply whatever the
+    /// material.
+    /// </remarks>
+    public Material? Material { get; set; }
+
+    /// <summary>
     /// The rect this renderer covers, in the space it draws in: world units under a world root, or
     /// canvas pixels with the anchor resolved under a screen root. It reads the entity's current
     /// world transform.
@@ -98,5 +110,6 @@ public abstract class Renderer : Component
     {
         panel.Toggle("Visible", Visible, value => Visible = value);
         panel.Field("ZIndex", ZIndex);
+        panel.Field("Material", Material is { } material ? material.Shader.Name : "default");
     }
 }

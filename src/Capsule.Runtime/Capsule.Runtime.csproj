@@ -17,6 +17,11 @@
     <EmbeddedResource Include="Assets/default-font.png"
                       LogicalName="Capsule.Runtime.Assets.default-font.png"
                       Visible="false" />
+    <!-- Capsule's sprite shader, compiled by CapsuleBuildSpriteShader below, so a game drawing only
+         with it needs no shader tools. -->
+    <EmbeddedResource Include="$(IntermediateOutputPath)capsule/sprite.mgfx"
+                      LogicalName="Capsule.Runtime.Rendering.Shaders.sprite.mgfx"
+                      Visible="false" />
     <None Include="../../THIRD-PARTY-NOTICES.md"
           Pack="true"
           PackagePath="/"
@@ -49,6 +54,49 @@
   <ItemGroup>
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
+
+  <!-- The sprite shader is built from the template in Capsule.Build, through the same tools and
+       code a game's shaders compile through. The tool is referenced for build order only, and no
+       package this project packs depends on it. -->
+  <Import Project="../../build/Capsule.ShaderTools.targets" />
+  <ItemGroup>
+    <PackageDownload Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
+    <PackageDownload Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
+    <ProjectReference Include="../Capsule.Build/Capsule.Build.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      ExcludeAssets="all"
+                      PrivateAssets="all"
+                      Private="false" />
+  </ItemGroup>
+
+  <Target Name="CapsuleResolveSpriteShaderTool" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild Projects="../Capsule.Build/Capsule.Build.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleSpriteShaderTool" />
+    </MSBuild>
+    <ItemGroup>
+      <_CapsuleSpriteShaderToolAssembly Include="%(_CapsuleSpriteShaderTool.RootDir)%(_CapsuleSpriteShaderTool.Directory)*.dll" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CapsuleBuildSpriteShader"
+          BeforeTargets="PrepareResources"
+          DependsOnTargets="CapsuleResolveSpriteShaderTool"
+          Inputs="@(_CapsuleSpriteShaderToolAssembly);../../build/Capsule.ShaderTools.targets"
+          Outputs="$(IntermediateOutputPath)capsule/sprite.mgfx">
+    <PropertyGroup>
+      <_CapsuleDotNetHost>$(DOTNET_HOST_PATH)</_CapsuleDotNetHost>
+      <_CapsuleDotNetHost Condition="'$(_CapsuleDotNetHost)' == ''">dotnet</_CapsuleDotNetHost>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_CapsuleDotNetHost)&quot; &quot;@(_CapsuleSpriteShaderTool)&quot; --engine-shader &quot;$(IntermediateOutputPath)capsule/sprite.mgfx&quot; --dxc &quot;$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))&quot; --spirv-cross &quot;$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))&quot;"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)capsule/sprite.mgfx;$(IntermediateOutputPath)capsule/capsule-sprite.fx" />
+    </ItemGroup>
+  </Target>
 
   <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>

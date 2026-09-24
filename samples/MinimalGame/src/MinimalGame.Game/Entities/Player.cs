@@ -341,11 +341,19 @@ public sealed class Player : Entity
 
             Scale = new Vector2(_facing * _squash.X, _squash.Y);
             Position = _pivot + new Vector2(0f, FeetGap());
+        }
 
-            // The grace reads as a red blink. The root owns the rule and this child owns the look.
+        // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
+        // and this child owns the look. Read after contacts, so the step a hit lands on draws white
+        // and the hitstop holds it.
+        protected override void OnLateStep(in StepContext context)
+        {
             int grace = _player.InvulnerableTicksLeft;
+            int sinceHit = _tuning.InvulnerableTicks - grace;
+
+            Flash = grace > 0 ? 1f - Math.Min(sinceHit / (float)_tuning.HurtFlashTicks, 1f) : 0f;
             Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
-            Visible = grace / _tuning.BlinkTicks % 2 == 0;
+            Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
         }
 
         // The box rests on its corner on a slope, which leaves the bottom-centre in the air. The feet

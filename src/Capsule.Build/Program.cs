@@ -17,11 +17,23 @@ internal static class Program
           Every source is attempted. Exit 0 when all succeeded, 1 when any failed, 2 on a usage
           error. <dir>/build.stamp is written last. A failed run leaves it stale.
 
+          'shader-dxc|<dir>' and 'shader-spirv-cross|<dir>' name the package folders of the shader
+          tools the build downloaded.
+
           Capsule's build hooks are the only callers.
+
+        Capsule.Build --engine-shader <out.mgfx> --dxc <dir> --spirv-cross <dir>
+
+          Compiles the engine's own sprite shader to <out.mgfx>. The runtime's build runs it.
         """;
 
     private static int Main(string[] args)
     {
+        if (args is ["--engine-shader", string effect, "--dxc", string dxc, "--spirv-cross", string spirvCross])
+        {
+            return Shaders.ShaderTool.EmitEngineShader(effect, new Shaders.ShaderTools(dxc, spirvCross), Console.Out, Console.Error);
+        }
+
         if (args is not ["--requests", string requests, "--out", string outputDirectory])
         {
             Console.Error.WriteLine(Usage);

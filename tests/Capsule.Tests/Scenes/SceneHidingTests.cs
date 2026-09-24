@@ -80,20 +80,49 @@ public sealed class SceneHidingTests
         Assert.Equal(new ColorRgba(128, 83, 0, 128), Assert.Single(simulation.View.Lights.ToArray()).Color);
     }
 
+    // Two nested flashes are one mix with the parent's applied over the child's, composed in float and
+    // rounded once where the intent is stored. A sprite under no flash is stored as its renderer made it.
+    [Fact]
+    public void AFlashComposedDownTheTree_ReachesTheStoredIntent_AndAnUnflashedOneIsUnchanged()
+    {
+        Entity parent = new Node(Vector2.Zero) { Flash = 0.5f, FlashColor = new ColorRgba(255, 0, 0) };
+        Entity child = new(parent, Vector2.Zero) { Flash = 0.5f, FlashColor = new ColorRgba(0, 0, 255, 7) };
+        child.Add(new SpriteRenderer(SceneFixtures.Frame(4, 4)));
+
+        ColorRgba odd = new(201, 37, 90, 180);
+        Entity plain = new Node(Vector2.Zero);
+        SpriteRenderer unflashed = new(SceneFixtures.Frame(4, 4)) { Color = odd };
+        plain.Add(unflashed);
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(parent);
+        scene.Add(plain);
+        using SceneSimulation simulation = new(scene);
+
+        SpriteIntent[] sprites = simulation.View.Sprites.ToArray();
+        Assert.Equal(2, sprites.Length);
+
+        // 1 - (1 - 0.5)(1 - 0.5) = 0.75 mixed, two thirds of it the parent's red. The parent's half is
+        // stored as 128, which rounds the amount up to 192.
+        Assert.Equal(new ColorRgba(170, 0, 85, 192), sprites[0].Flash);
+        Assert.Equal(ColorRgba.White, sprites[0].Color);
+        Assert.Equal(new SpriteIntent(SceneFixtures.Frame(4, 4), Vector2.Zero, Vector2.Zero, 0f, 0f, new Vector2(4f, 4f), false, false, odd), sprites[1]);
+    }
+
     // The composed state is cached like the world transform. A parent change must re-stale it, or a
     // child read once under no parent keeps drawing as it did there.
     [Fact]
     public void AnEntityReparentedAfterItsStateWasRead_TakesItsNewParentsTintAndVisibility()
     {
         Entity child = new Node(Vector2.Zero);
-        Assert.True(child.TryGetDrawTint(out ColorRgba before));
+        Assert.True(child.TryGetDrawStyle(out ColorRgba before, out _));
         Assert.Equal(ColorRgba.White, before);
 
         ColorRgba shade = new(10, 20, 30, 40);
         Entity tinted = new Node(Vector2.Zero) { Tint = shade };
         child.Parent = tinted;
 
-        Assert.True(child.TryGetDrawTint(out ColorRgba under));
+        Assert.True(child.TryGetDrawStyle(out ColorRgba under, out _));
         Assert.Equal(shade, under);
 
         Entity hidden = new Node(Vector2.Zero) { Visible = false };

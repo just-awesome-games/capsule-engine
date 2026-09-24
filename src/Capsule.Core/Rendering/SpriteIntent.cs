@@ -36,6 +36,10 @@ public readonly record struct SpriteIntent(
     ColorRgba Color,
     BlendMode Blend = BlendMode.Alpha)
 {
+    // The composed Entity.Flash of the renderer that stored this intent: the colour it mixes towards
+    // in RGB and the amount in alpha. Set by the frame at store and by nothing a game writes.
+    internal ColorRgba Flash { get; init; }
+
     // The anchor a backend draws from, in region texels. It mirrors on a flipped axis, so the pivot texel
     // stays on the position whichever way the frame faces.
     internal Vector2 DrawOrigin => new(

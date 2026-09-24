@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- The two native tools a shader compiles through, one version each, in this file alone. The
+       game build targets, the runtime's own sprite shader and the engine's tests all download them
+       with a PackageDownload of these versions and name their package folders to Capsule.Build. -->
+  <PropertyGroup>
+    <CapsuleDxcVersion>1.9.2607.1</CapsuleDxcVersion>
+    <CapsuleSpirvCrossVersion>1.4.350</CapsuleSpirvCrossVersion>
+  </PropertyGroup>
+
+</Project>

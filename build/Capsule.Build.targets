@@ -81,7 +81,7 @@
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           BeforeTargets="AssignTargetPaths">
     <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
-           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under Scenes/, assets under Textures/, Audio/ and Fonts/), or leave it unset to look for them at &lt;importing project&gt;/Assets." />
+           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources (scene sources under Scenes/, assets under Textures/, Audio/, Fonts/ and Shaders/), or leave it unset to look for them at &lt;importing project&gt;/Assets." />
   </Target>
 
   <!-- Development-only exclusions must exist before authoring-source globs are evaluated. -->
@@ -107,6 +107,11 @@
       <CapsuleAssetDomain>fonts</CapsuleAssetDomain>
       <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
     </CapsuleAsset>
+    <CapsuleAsset Include="$(CapsuleAssetSourcesDir)/Shaders/**/*.fx"
+                  Exclude="@(_CapsuleDevelopmentOnly)">
+      <CapsuleAssetDomain>shaders</CapsuleAssetDomain>
+      <CapsuleAssetPath>%(RecursiveDir)%(Filename)</CapsuleAssetPath>
+    </CapsuleAsset>
 
     <!-- Not a CapsuleAsset, since a manifest does not ship. %(Filename) leaves one extension on a
          '*.atlas.json', so both come off here. -->
@@ -116,9 +121,23 @@
     </CapsuleAtlasManifest>
 
     <!-- Reject unsupported files inside known asset domains. -->
-    <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/Textures/**/*;$(CapsuleAssetSourcesDir)/Audio/**/*;$(CapsuleAssetSourcesDir)/Fonts/**/*"
+    <_CapsuleDomainFile Include="$(CapsuleAssetSourcesDir)/Textures/**/*;$(CapsuleAssetSourcesDir)/Audio/**/*;$(CapsuleAssetSourcesDir)/Fonts/**/*;$(CapsuleAssetSourcesDir)/Shaders/**/*"
                         Exclude="@(_CapsuleDevelopmentOnly);$(CapsuleAssetSourcesDir)/**/.capsuleignore" />
     <_CapsuleUnknownAsset Include="@(_CapsuleDomainFile)" Exclude="@(CapsuleAsset)" />
+
+    <!-- The shader sources on their own, globbed again because evaluation cannot filter by
+         metadata. The run compiles each, so each is an input, and the shader tools are downloaded
+         only while one exists. -->
+    <_CapsuleShaderSource Include="$(CapsuleAssetSourcesDir)/Shaders/**/*.fx"
+                          Exclude="@(_CapsuleDevelopmentOnly)" />
+  </ItemGroup>
+
+  <!-- The shader tools are native binaries for every desktop host, downloaded, never referenced,
+       and only for a game that has a shader. -->
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.ShaderTools.targets" />
+  <ItemGroup Condition="'@(_CapsuleShaderSource)' != ''">
+    <PackageDownload Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
+    <PackageDownload Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
@@ -152,7 +171,7 @@
           BeforeTargets="AssignTargetPaths">
 
     <Error Condition="'@(_CapsuleUnknownAsset)' != ''"
-           Text="Capsule: @(_CapsuleUnknownAsset, ' ') has an extension its asset domain does not admit; Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .fnt and .png. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)'." />
+           Text="Capsule: @(_CapsuleUnknownAsset, ' ') has an extension its asset domain does not admit; Textures/ takes .png, Audio/ takes .ogg and .wav, Fonts/ takes .fnt and .png, Shaders/ takes .fx. Correct the extension, or move the file out of the domain roots under '$(CapsuleAssetSourcesDir)'." />
   </Target>
 
   <!-- Authoring modules populate CapsuleSceneDocument before this collection target. -->
@@ -180,6 +199,7 @@
       <CapsuleSceneDocumentsOutDir>$(CapsuleObjDir)/scenes</CapsuleSceneDocumentsOutDir>
       <CapsuleAudioRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Audio.g.cs</CapsuleAudioRegistryFile>
       <CapsuleSpriteRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Sprites.g.cs</CapsuleSpriteRegistryFile>
+      <CapsuleShaderRegistryFile>$(CapsuleObjDir)/CapsuleAssets.Shaders.g.cs</CapsuleShaderRegistryFile>
       <CapsuleRequestProjectDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)'))</CapsuleRequestProjectDir>
     </PropertyGroup>
 
@@ -246,12 +266,13 @@
          An unset property leaves an empty entry, which the list drops. -->
     <PropertyGroup>
       <_CapsuleTileSizeOption Condition="'$(CapsuleTileSize)' != ''">tile-size|$(CapsuleTileSize)</_CapsuleTileSizeOption>
+      <_CapsuleShaderToolsOption Condition="'@(_CapsuleShaderSource)' != ''">shader-dxc|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'));shader-spirv-cross|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_CapsuleShaderToolsOption>
     </PropertyGroup>
 
     <!-- Rewritten only when the authored set or an option changes. That makes it the incremental
        input. -->
     <WriteLinesToFile File="$(CapsuleBuildRequestFile)"
-                      Lines="$(_CapsuleTileSizeOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)');@(_CapsuleSheetRequest->'sprites|%(RawKey)||%(Relative)');@(_CapsuleAtlasRequest->'atlases|%(CapsuleAssetPath)||%(Relative)')"
+                      Lines="$(_CapsuleTileSizeOption);$(_CapsuleShaderToolsOption);@(_CapsuleAssetRequest->'%(CapsuleAssetDomain)|%(CapsuleAssetPath)|%(Extension)|%(Relative)');@(_CapsuleSceneRequest->'scenes|%(RawKey)||%(Relative)');@(_CapsuleSheetRequest->'sprites|%(RawKey)||%(Relative)');@(_CapsuleAtlasRequest->'atlases|%(CapsuleAssetPath)||%(Relative)')"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
   </Target>
@@ -262,7 +283,7 @@
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleReadsAssetSources)' == 'true'"
           DependsOnTargets="CapsuleBuildRequests;ResolveProjectReferences"
-          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleSheetRequest);@(_CapsuleAudioSource);@(_CapsuleAtlasRequest);@(_CapsuleTextureSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
+          Inputs="$(CapsuleBuildRequestFile);@(_CapsuleSceneRequest);@(_CapsuleSheetRequest);@(_CapsuleAudioSource);@(_CapsuleShaderSource);@(_CapsuleAtlasRequest);@(_CapsuleTextureSource);@(_CapsuleBuildTool);@(_CapsuleBuildToolAssembly)"
           Outputs="$(CapsuleBuildStampFile)">
 
     <Error Condition="!Exists('@(_CapsuleBuildTool)')"
@@ -339,12 +360,18 @@
       <Compile Include="$(CapsuleSpriteRegistryFile)" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' and '@(_CapsuleShaderSource)' != '' and Exists('$(CapsuleShaderRegistryFile)')">
+      <Compile Include="$(CapsuleShaderRegistryFile)" />
+    </ItemGroup>
+
     <!-- The run's outputs go out together or not at all: a clean that took the registry but left the
          stamp would leave the next build skipping the tool and compiling without it. -->
     <ItemGroup>
       <FileWrites Include="$(CapsuleBuildStampFile);$(CapsuleObjDir)/shipped-assets.txt;$(CapsuleObjDir)/scene-content.txt" />
       <FileWrites Include="$(CapsuleAudioRegistryFile)" Condition="Exists('$(CapsuleAudioRegistryFile)')" />
       <FileWrites Include="$(CapsuleSpriteRegistryFile)" Condition="Exists('$(CapsuleSpriteRegistryFile)')" />
+      <FileWrites Include="$(CapsuleShaderRegistryFile)" Condition="Exists('$(CapsuleShaderRegistryFile)')" />
+      <FileWrites Include="$(CapsuleObjDir)/shaders/**/*" />
       <FileWrites Include="@(_CapsuleDerivedScene)" />
       <FileWrites Include="$(CapsuleObjDir)/atlases/**/*" />
     </ItemGroup>

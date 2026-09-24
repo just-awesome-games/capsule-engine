@@ -43,6 +43,7 @@ internal sealed class CapsuleGame : Game
     private readonly IDisposable? _overlayHost;
 
     private TextureStore _textures = null!;
+    private EffectStore _effects = null!;
     private FrameRenderer _renderer = null!;
 
     // All null when the sound device would not open, which makes every command and preload a no-op
@@ -132,6 +133,7 @@ internal sealed class CapsuleGame : Game
     protected override void LoadContent()
     {
         _textures = new TextureStore(GraphicsDevice, _builder.Platform);
+        _effects = new EffectStore(GraphicsDevice, _builder.Platform);
 
         if (SoundDevice.TryOpen(_builder.Platform) is { } device)
         {
@@ -172,7 +174,7 @@ internal sealed class CapsuleGame : Game
         }
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
-        _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures);
+        _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
 
         // Update samples the mouse before the first Draw places the layer, so the mapping is settled
         // here and the first step reads a canvas position.
@@ -334,6 +336,7 @@ internal sealed class CapsuleGame : Game
 
             // Null when construction failed before LoadContent ran.
             _renderer?.Dispose();
+            _effects?.Dispose();
             _textures?.Dispose();
         }
 
@@ -345,12 +348,14 @@ internal sealed class CapsuleGame : Game
     private void PrepareAssets(AssetCollection preloads)
     {
         _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
+        _effects.Load(preloads.Shaders);
     }
 
     private void PrefetchAssets(AssetCollection preloads)
     {
         _textures.Prefetch(preloads);
         _sounds?.Prefetch(preloads);
+        _effects.Load(preloads.Shaders);
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event

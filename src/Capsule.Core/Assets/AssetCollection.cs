@@ -1,4 +1,5 @@
 using Capsule.Audio;
+using Capsule.Rendering;
 
 namespace Capsule.Assets;
 
@@ -12,6 +13,8 @@ public sealed class AssetCollection
     private readonly HashSet<TextureHandle> _textureSet = [];
     private readonly List<AudioClip> _clips = [];
     private readonly HashSet<AudioClip> _clipSet = [];
+    private readonly List<Shader> _shaders = [];
+    private readonly HashSet<Shader> _shaderSet = [];
 
     /// <summary>
     /// Adds one texture unless it was already declared. The engine's own textures, the white texel and
@@ -60,7 +63,27 @@ public sealed class AssetCollection
         }
     }
 
+    // A renderer's material: its shader, and every texture set on it. The scene collects this for each
+    // renderer it holds, so no renderer declares its own.
+    internal void Add(Material material)
+    {
+        if (_shaderSet.Add(material.Shader))
+        {
+            _shaders.Add(material.Shader);
+        }
+
+        for (int i = 0; i < material.Shader.Parameters.Length; i++)
+        {
+            if (material.TryGetTexture(i, out TextureHandle texture) && texture.Name is not null)
+            {
+                Add(texture);
+            }
+        }
+    }
+
     internal IReadOnlyList<TextureHandle> Textures => _textures;
+
+    internal IReadOnlyList<Shader> Shaders => _shaders;
 
     internal IReadOnlyList<AudioClip> Clips => _clips;
 }

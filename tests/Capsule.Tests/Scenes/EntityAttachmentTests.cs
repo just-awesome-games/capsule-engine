@@ -129,6 +129,7 @@ public sealed class EntityAttachmentTests
                 ("ScrollFactor", "(1, 1)"),
                 ("Visible", null),
                 ("Tint", "#ffffffff"),
+                ("Flash", "0"),
                 ("StepMode", "Inherit"),
                 ("Remove", null),
             ],

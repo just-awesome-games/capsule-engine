@@ -6,7 +6,7 @@ with no string in sight, and control what is loaded when.
 ## Named assets
 
 Assets are authored under `Assets/<Domain>/` in the logic project and ship under `assets/<domain>/` at
-their key. The domains are `Textures/`, `Sprites/`, `Atlases/`, `Audio/`, `Fonts/` and `Scenes/`.
+their key. The domains are `Textures/`, `Sprites/`, `Atlases/`, `Audio/`, `Fonts/`, `Shaders/` and `Scenes/`.
 
 A key is the authored path below the domain root, forward slashes and no extension, with every
 directory segment and the file stem normalized to the kebab form of the identifier it names. `Enemies/Bat.png`,
@@ -141,6 +141,14 @@ A font and its pages are keyed off their authored paths, and a page beside its f
 description naming a page the game does not ship fails the build. Drawing text, and the font that needs no
 asset, is [`rendering.md`](rendering.md#text).
 
+## Shaders
+
+`Assets/Shaders/` takes `.fx`, a fragment function the build wraps in the engine's sprite shader and
+compiles ([`rendering.md`](rendering.md#your-own-shader)). Each ships compiled as
+`assets/shaders/<key>.mgfx` and is named as `CapsuleAssets.Shaders.<Path>`, carrying the parameters the
+build read from it. A compile error fails the build at the shader's file and line. Shaders compile on
+any desktop operating system with nothing to install.
+
 ## Loading and residency
 
 A scene collects what it needs before it starts, and the runtime preloads it at the scene boundary. Files
@@ -151,7 +159,8 @@ protected internal override void CollectAssets(AssetCollection assets) => assets
 ```
 
 `Scene.CollectAssets`, `Entity.CollectAssets` and `Component.CollectAssets` are the hooks. The engine's
-renderers, audio sources and labels declare what they hold. An entity that attaches its components in its
+renderers, audio sources and labels declare what they hold, and a renderer's material declares its
+shader and its textures. An entity that attaches its components in its
 constructor is preloaded with them. A resource the scene did not collect loads on first rendered or
 audible use, logs that at info, and is cached for the rest of that scene. The outgoing scene's resources
 are released at transition or exit, except those the incoming preload also uses. A packed texture is

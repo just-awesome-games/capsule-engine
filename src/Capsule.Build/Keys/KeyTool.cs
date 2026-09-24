@@ -85,7 +85,7 @@ internal static class KeyTool
     /// <param name="outputDirectory">Where the manifests are written.</param>
     /// <param name="derivedScenesDirectory">Where the scene importer writes its documents.</param>
     /// <param name="packedTextures">The texture keys an atlas packed. Those textures do not ship on their own.</param>
-    /// <param name="atlasLines">The shipped-asset lines for every atlas page and map.</param>
+    /// <param name="atlasLines">The shipped-asset lines for every atlas page and map, and every compiled shader.</param>
     /// <param name="sceneFields">Every scene's baseScene and camera, keyed the way the scene itself is.</param>
     internal static void WriteManifests(
         IReadOnlyList<KeyedAsset> keyed,
@@ -117,9 +117,9 @@ internal static class KeyTool
                 sceneContent.Add(
                     $"{entry.Key}{BuildRequests.Separator}{baseScene}{BuildRequests.Separator}{camera}{BuildRequests.Separator}{derived}{entry.Key}{Document}");
             }
-            // An atlas manifest and a sprite sheet are compiled in, not shipped, and a texture an
-            // atlas packed ships as part of that atlas page.
-            else if (entry.Group is not ("atlases" or "sprites")
+            // An atlas manifest and a sprite sheet are compiled in, not shipped, a shader ships as the
+            // effect compiled from it, and a texture an atlas packed ships as part of that atlas page.
+            else if (entry.Group is not ("atlases" or "sprites" or "shaders")
                 && !(entry.Group == "textures" && packedTextures.Contains(entry.Key)))
             {
                 shipped.Add(

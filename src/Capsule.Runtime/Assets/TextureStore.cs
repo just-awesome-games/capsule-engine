@@ -51,6 +51,19 @@ internal sealed class TextureStore : IDisposable
             ? new TextureSlice(Get(slot.Page, handle), slot.X, slot.Y)
             : new TextureSlice(Get(handle, handle), 0, 0);
 
+    // The handle's own file, for a material that binds it whole. A packed handle has no file of its
+    // own, and its page would bind every other member with it.
+    internal Texture2D GetWhole(in TextureHandle handle)
+    {
+        if (_atlases.TryGet(handle, out _))
+        {
+            throw new InvalidOperationException(
+                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Remove it from every atlas manifest under Assets/Atlases/.");
+        }
+
+        return Get(handle, handle);
+    }
+
     public void Dispose() => _textures.Dispose();
 
     private Texture2D Get(in TextureHandle file, in TextureHandle drawn)
