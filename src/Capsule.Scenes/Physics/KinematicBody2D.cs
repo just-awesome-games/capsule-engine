@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
@@ -39,8 +40,10 @@ namespace Capsule.Physics;
 /// </example>
 public sealed class KinematicBody2D : Component
 {
-    // Y-down, so up is negative Y. Make this a property when a consumer needs to flip gravity.
-    private static readonly Vector2 Up = new(0f, -1f);
+    // Y-down, so up is negative Y. Make this an instance property when a consumer needs to flip gravity.
+    // A static readonly field would cost a class-initialisation check at every use without tiered
+    // compilation. This form compiles to a constant.
+    private static Vector2 Up => new(0f, -1f);
 
     // How far a normal's cosine to up may fall short of MaxFloorAngle's and still count. An exact
     // 45 degree edge then reads as a floor at the default.
@@ -320,29 +323,31 @@ public sealed class KinematicBody2D : Component
         bool through = _dropThrough;
         _dropThrough = false;
 
-        MoveSweep sweep = Resolve(world, shape, origin, translation, blocking, through);
-        if (sweep.Found > _found.Length)
+        MoveResult2D result = Resolve(world, shape, origin, translation, blocking, through);
+        if (result.ContactCount > _found.Length)
         {
-            Array.Resize(ref _found, sweep.Found);
-            Array.Resize(ref _stopped, sweep.Found);
-            sweep = Resolve(world, shape, origin, translation, blocking, through);
+            Array.Resize(ref _found, result.ContactCount);
+            Array.Resize(ref _stopped, result.ContactCount);
+            result = Resolve(world, shape, origin, translation, blocking, through);
         }
 
         // A world translation equals a local one here, because nothing above a body is turned or scaled.
-        Displace(entity, sweep.Applied);
+        Displace(entity, result.Translation);
         _moveContactCount = Collider2D.Describe(
             world,
-            _found.AsSpan(0, sweep.Found),
+            _found.AsSpan(0, result.ContactCount),
             ref _moveContacts);
 
         Classify();
 
-        return sweep.Result;
+        return result;
     }
 
     // Runs the whole move against the world without writing the body. It is pure, so an overflowing
-    // contact span can be grown and the move run again.
-    private MoveSweep Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through)
+    // contact span can be grown and the move run again. Kept out of line, because each inlined copy
+    // would add a sweep that MoveWith's frame zeroes on every move.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private MoveResult2D Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through)
     {
         MoveSweep sweep = new(world, shape, origin, blocking, _collider.Handle, through, _found, _stopped);
 
@@ -355,7 +360,7 @@ public sealed class KinematicBody2D : Component
             Walk(ref sweep, translation, through);
         }
 
-        return sweep;
+        return sweep.Result;
     }
 
     // The grounded move. The part across up walks along the floor at its own length, the part along
@@ -363,13 +368,15 @@ public sealed class KinematicBody2D : Component
     private void Walk(ref MoveSweep sweep, Vector2 translation, bool through)
     {
         float rise = Vector2.Dot(translation, Up);
-        Vector2 lateral = translation - (Up * rise);
-        float length = lateral.Length();
+
+        // Lateral is horizontal while up is -Y, so its length and direction need no square root.
+        float length = MathF.Abs(translation.X);
 
         if (length > 0f)
         {
-            Vector2 direction = lateral / length;
-            if (IsOnFloor)
+            Vector2 direction = new(MathF.Sign(translation.X), 0f);
+            // A lateral direction already runs along a flat floor.
+            if (IsOnFloor && FloorNormal != Up)
             {
                 direction = Tangent(direction, FloorNormal);
             }
