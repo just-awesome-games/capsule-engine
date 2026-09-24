@@ -13,7 +13,7 @@ namespace Capsule.Bench.Logic.Components;
 /// </summary>
 public sealed class SpriteField(Sprite frame, float extent, Vector2 stage, int count, bool switches = false) : Renderer
 {
-    public static readonly Sprite Tile = new(CapsuleAssets.Textures.Tile, new TextureRegion(0, 0, 32, 32), new Vector2(16f, 16f));
+    public static readonly Sprite Tile = new(CapsuleAssets.Textures.TileTexture, new TextureRegion(0, 0, 32, 32), new Vector2(16f, 16f));
 
     public static readonly ColorRgba[] Tints =
     [

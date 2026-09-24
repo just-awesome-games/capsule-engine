@@ -267,7 +267,7 @@ public sealed class SceneGeneratorTests
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
         SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
-        Scene composed = registry.CreateFromDocument("halls/hall", document);
+        Scene composed = registry.CreateFromDocument("scenes/halls/hall", document);
 
         Assert.True(assembly.GetType("Game.Z.PlayableRoom")!.IsInstanceOfType(composed));
     }
@@ -284,13 +284,13 @@ public sealed class SceneGeneratorTests
             public sealed class Room01(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/room-01.scene.json", null),
+            ("room-01.scene.json", null),
             ("scenes/halls/hall.scene.json", null));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
         Assert.Contains("SceneRegistration.FromDocument(typeof(global::Game.Room01), \"room-01\"", generated, StringComparison.Ordinal);
-        Assert.Contains("SceneRegistration.DocumentOnly(\"halls/hall\"", generated, StringComparison.Ordinal);
+        Assert.Contains("SceneRegistration.DocumentOnly(\"scenes/halls/hall\"", generated, StringComparison.Ordinal);
     }
 
     // A document naming a base its own class also claims is a contradiction, not a precedence
@@ -307,7 +307,7 @@ public sealed class SceneGeneratorTests
             public sealed class Room01(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/room-01.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+            ("room-01.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
         Assert.Equal("CAP027", error.Id);
@@ -373,7 +373,7 @@ public sealed class SceneGeneratorTests
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
         SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
-        Scene composed = registry.CreateFromDocument("halls/hall", document);
+        Scene composed = registry.CreateFromDocument("scenes/halls/hall", document);
 
         Assert.True(assembly.GetType("Game.PlayableRoom")!.IsInstanceOfType(composed));
         Assert.IsType<TileMap>(composed.Entities[0]);

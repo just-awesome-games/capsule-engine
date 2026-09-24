@@ -5,8 +5,8 @@ give a settings screen volume sliders.
 
 ## Clips and buses
 
-A clip is authored under the logic project's `Assets/Audio/` and named in code as
-`CapsuleAssets.Audio.<Key>` ([`assets.md`](assets.md#audio)). Playback state is computed from the
+A clip is authored under the logic project's `Assets/` and named in code as
+an `AudioClip` member of `CapsuleAssets` ([`assets.md`](assets.md#audio)). Playback state is computed from the
 duration the build measured and never read back from a device.
 
 A bus is a named group that voices are mixed and paused through. A game declares its buses at its
@@ -32,7 +32,7 @@ state belong to the run and stand across every scene transition.
 scene:
 
 ```csharp
-_footfall = new AudioSource(CapsuleAssets.Audio.StepSoft) { Bus = AudioBuses.Sfx };
+_footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
 Add(_footfall);
 ```
 
@@ -49,7 +49,7 @@ if (_body.IsOnFloor && !wasOnFloor)
 `AudioSource`'s voice does not:
 
 ```csharp
-AudioClip theme = CapsuleAssets.Audio.Theme;
+AudioClip theme = CapsuleAssets.Audio.ThemeSound;
 Voice voice = Run.Audio.Play(new AudioPlayback(theme) { Bus = AudioBuses.Music, Loop = true });
 ```
 
@@ -71,7 +71,7 @@ it. A crossfade eases the incoming voice in while the outgoing one eases out, at
 ```csharp
 Music = Run.Audio.CrossFade(
     menuTheme,
-    new AudioPlayback(CapsuleAssets.Audio.Music.Room) { Bus = AudioBuses.Music, Loop = true },
+    new AudioPlayback(CapsuleAssets.Audio.Music.RoomSound) { Bus = AudioBuses.Music, Loop = true },
     seconds: 2f);
 ```
 

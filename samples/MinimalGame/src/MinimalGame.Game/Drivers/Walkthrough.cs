@@ -10,7 +10,7 @@ namespace MinimalGame.Game.Drivers;
 /// the floor, through the hazard and under the first ledge, jumps up through it and lands on top,
 /// walks on a little, fires a bolt at the pointer, then picks Quit from the pause menu so the run
 /// ends by the game's own exit route.
-/// Every count is in fixed steps. Run it with <c>--scene room --driver Walkthrough</c>, with or
+/// Every count is in fixed steps. Run it with <c>--scene scenes/room --driver Walkthrough</c>, with or
 /// without <c>--headless</c>; it plays the same steps either way and closes itself.
 /// </summary>
 public sealed class Walkthrough : IInputDriver

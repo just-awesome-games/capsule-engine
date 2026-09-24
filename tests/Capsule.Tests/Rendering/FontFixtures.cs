@@ -11,7 +11,7 @@ internal static class FontFixtures
 
     internal const int Grin = 0x1F600;
 
-    internal static readonly TextureHandle Page = TextureHandle.FontPage("menu", ".png");
+    internal static readonly TextureHandle Page = new("fonts/menu", ".png");
 
     internal static readonly Glyph A = new('A', 0, new TextureRegion(0, 0, 4, 6), 1, 2, 5);
 

@@ -25,7 +25,7 @@ internal readonly record struct SheetClipFrame(string Frame, int Ticks);
 internal readonly record struct SheetClip(string Name, bool Loop, SheetClipFrame[] Frames);
 
 /// <summary>One validated sprite sheet: the texture it cuts from, its sockets, frames and clips.</summary>
-/// <param name="TextureKey">The texture's key under the textures root.</param>
+/// <param name="TextureKey">The texture's key.</param>
 /// <param name="TextureExtension">The extension the sheet spelled the texture with.</param>
 internal readonly record struct SpriteSheet(
     string TextureKey,
@@ -40,9 +40,6 @@ internal readonly record struct SpriteSheet(
 /// </summary>
 internal static class SpriteSheetFile
 {
-    /// <summary>The extension a sheet document is authored under.</summary>
-    internal const string Extension = ".sheet.json";
-
     private const int SupportedFormat = 1;
 
     /// <summary>Reads and validates the sheet at <paramref name="path"/>.</summary>
@@ -89,21 +86,18 @@ internal static class SpriteSheetFile
     {
         if (path is not { Length: > 0 })
         {
-            throw new FormatException("names no texture. A sheet cuts its frames from one texture under assets/textures.");
+            throw new FormatException("names no texture. A sheet cuts its frames from one texture.");
         }
 
         if (!AssetPaths.TrySplit(path, out string name, out string extension))
         {
             throw new FormatException(
-                $"has texture \"{path}\". A texture is one asset's path under assets/textures, extension included, as \"player.png\" or \"actors/player.png\", with forward slashes and no empty, \".\" or \"..\" segment.");
+                $"has texture \"{path}\". A texture is named by its key, extension included, as \"player.png\" or \"actors/player.png\", with forward slashes and no empty, \".\" or \"..\" segment.");
         }
 
         // A texture is reached by its key however the document spelled it. The handle emitted here
         // names the key the build ships the texture under.
-        return TypeNaming.NormalizeKey(name, out string? rejected) is { } key
-            ? (key, extension)
-            : throw new FormatException(
-                $"has texture \"{path}\", whose \"{rejected}\" is no C# name. Every segment of a texture path is letters, digits, '-' and '_', and does not start with a digit.");
+        return (Keys.Of(name, $"has texture \"{path}\""), extension);
     }
 
     private static string[] Sockets(List<SocketJson>? declared)
@@ -114,7 +108,7 @@ internal static class SpriteSheetFile
         }
 
         // Sockets have their own name space. A socket may share a name with a frame or a clip.
-        Names named = new(SpriteRegistrySource.SocketsClass);
+        Names named = new(SpriteStep.SocketsClass);
         string[] sockets = new string[declared.Count];
 
         for (int i = 0; i < declared.Count; i++)
@@ -138,7 +132,7 @@ internal static class SpriteSheetFile
         }
 
         SheetFrame[] frames = new SheetFrame[declared.Count];
-        Names named = new(SpriteRegistrySource.FramesClass);
+        Names named = new(SpriteStep.FramesClass);
         bool[] set = new bool[sockets.Length];
 
         for (int i = 0; i < declared.Count; i++)
@@ -251,7 +245,7 @@ internal static class SpriteSheetFile
         SheetClip[] clips = new SheetClip[declared.Count];
 
         // Frames and clips are separate name spaces. A frame and a clip may share a name.
-        Names named = new(SpriteRegistrySource.ClipsClass);
+        Names named = new(SpriteStep.ClipsClass);
 
         for (int i = 0; i < declared.Count; i++)
         {

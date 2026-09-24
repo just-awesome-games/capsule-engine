@@ -78,7 +78,7 @@ public sealed class CommandLineTests : IDisposable
     [Fact]
     public void Scene_BootsADocumentByItsKey()
     {
-        string documents = Path.Combine(_workspace.Root, "assets", "scenes", "halls");
+        string documents = Path.Combine(_workspace.Root, "assets", "halls");
         Directory.CreateDirectory(documents);
         File.WriteAllText(Path.Combine(documents, "hall.scene.json"), """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
 

@@ -102,14 +102,15 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Select(static (candidate, _) => candidate.Camera!.Value);
 
         // Every scene document the build shipped, whether or not a class claims it, with the
-        // baseScene and camera keys it authors, resolved once by the build's own parser and handed
-        // over as build metadata. A document the metadata never reached (a binary asset never is
-        // one, but the host may still hand one over unopened) carries neither.
-        IncrementalValuesProvider<SceneDocumentInfo> documents = context.AdditionalTextsProvider
-            .Combine(context.AnalyzerConfigOptionsProvider)
-            .Select(static (input, _) => AssetFile.From(input.Left, input.Right))
-            .Where(static file => file.InDomain(SceneRegistrySource.Domain))
-            .Select(static (file, _) => new SceneDocumentInfo(file.Authored, file.BaseScene, file.Camera));
+        // baseScene and camera keys it authors, resolved once by the build's own parser. The build
+        // marks each document's key constant in CapsuleAssets with them.
+        IncrementalValuesProvider<SceneDocumentInfo> documents = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                SceneRegistrySource.DocumentAttribute,
+                static (node, _) => node is VariableDeclaratorSyntax,
+                static (marked, _) => SceneRegistrySource.DescribeDocument(marked))
+            .Where(static document => document is not null)
+            .Select(static (document, _) => document!.Value);
 
         // Keys are measured against the declared root namespace, or the assembly name when the
         // project leaves it to MSBuild's default.

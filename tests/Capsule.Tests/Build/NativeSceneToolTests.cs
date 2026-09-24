@@ -1,4 +1,3 @@
-using Capsule.Build;
 using Capsule.Build.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Tests.Documents;
@@ -10,126 +9,129 @@ public sealed class NativeSceneToolTests
 {
     private const string Authored = SceneDocumentFixtures.AuthoredTileMapAndPlayer;
 
+    private const string Shipped = ToolWorkspace.Out + "/assets/scenes/";
+
     [Fact]
-    public void Import_ReEmitsCanonicallyUnderTheSourceStemIntoAnOutputDirectoryItCreates()
+    public void ADocument_ShipsReEmittedCanonicallyAtItsKey()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("hall.scene.json", Authored);
-        const string Output = "obj/capsule/scenes";
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/hall.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.Import(Output, Sources("hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
+        workspace.Succeed();
 
-        Assert.Equal(0, exitCode);
-        string emitted = File.ReadAllText(Path.Combine(Output, "hall.scene.json"));
-        SceneDocument derived = SceneDocumentFile.Load(Path.Combine(Output, "hall.scene.json"));
+        string emitted = File.ReadAllText(Shipped + "hall.scene.json");
+        SceneDocument derived = SceneDocumentFile.Load(Shipped + "hall.scene.json");
         Assert.Equal(SceneDocumentFile.ToJson(derived), emitted);
         Assert.NotEqual(Authored, emitted);
         Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
         Assert.Equal("player", derived.Entries[1].Entity!.Value.Type);
     }
 
-    // A texture is reached by its key, so the derived document names the path the build ships it at.
-    [Fact]
-    public void Import_ReEmitsATileMapTextureAsItsKey()
+    // A texture is reached by its key, so the derived document names the path the build ships it at
+    // however the document spelled it.
+    [Theory]
+    [InlineData("Terrain/Cave_Wall.png")]
+    [InlineData("terrain/cave-wall.png")]
+    public void ATileMapTexture_IsReEmittedAsItsKey(string spelled)
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write(
-            "hall.scene.json",
-            Authored.Replace("\"terrain.png\"", "\"Terrain/Cave_Wall.png\"", StringComparison.Ordinal));
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/hall.scene.json", Authored.Replace("\"terrain.png\"", $"\"{spelled}\"", StringComparison.Ordinal));
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
+        workspace.Succeed();
 
-        Assert.Equal(0, exitCode);
-        SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
-        Assert.Equal("terrain/cave-wall", derived.Entries[0].TileMap!.Value.Grid.Texture?.Name);
+        Assert.Equal("terrain/cave-wall", SceneDocumentFile.Load(Shipped + "hall.scene.json").Entries[0].TileMap!.Value.Grid.Texture?.Name);
     }
 
     [Fact]
-    public void Import_StampsAnUnstampedDocumentWithTheSourcePathItWasHanded()
+    public void AnUnstampedDocument_IsStampedWithItsSourcePath()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("rooms/hall.scene.json", Authored);
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/rooms/hall.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("rooms/hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
+        workspace.Succeed();
 
-        Assert.Equal(0, exitCode);
-        SceneDocument derived = SceneDocumentFile.Load("scenes/hall.scene.json");
-        Assert.Equal(NativeSceneImporter.ToolName, derived.Source?.Tool);
-        Assert.Equal("rooms/hall.scene.json", derived.Source?.Path);
+        SceneDocument derived = SceneDocumentFile.Load(Shipped + "rooms/hall.scene.json");
+        Assert.Equal(SceneStep.ToolName, derived.Source?.Tool);
+        Assert.Equal("Assets/Scenes/rooms/hall.scene.json", derived.Source?.Path);
     }
 
-    // A module's document arrives stamped with the file a person edited; that provenance is kept.
+    // A module's document arrives stamped with the file a person edited; that provenance is kept,
+    // and the key the module claims is where it ships.
     [Fact]
-    public void Import_PreservesTheSourceBlockOfADocumentAModuleDerived()
+    public void AModulesDocument_KeepsItsSourceBlockAndShipsAtTheKeyItClaims()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
+        using ToolWorkspace workspace = new();
         SceneDocument stamped = new(
             SceneDocumentFile.Parse(Authored).Entries.ToArray(),
             3,
             new SceneDocumentSource("editor", "Assets/Scenes/hall.editor", new string('a', 64)));
-        workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
+        string derived = workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
 
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("obj/editor/hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, TextWriter.Null);
+        workspace.Succeed($"scene|{Path.GetFullPath(derived)}|Upper_Halls/Hall");
 
-        Assert.Equal(0, exitCode);
-        Assert.Equal(stamped.Source, SceneDocumentFile.Load("scenes/hall.scene.json").Source);
+        Assert.Equal(stamped.Source, SceneDocumentFile.Load(ToolWorkspace.Out + "/assets/upper-halls/hall.scene.json").Source);
     }
 
     [Fact]
-    public void Import_FailsAMalformedDocumentByNameAndStillImportsTheOthers()
+    public void AMalformedDocument_FailsByNameAndTheOthersStillDerive()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("hall.scene.json", Authored);
-        workspace.Write("broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/hall.scene.json", Authored);
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
-        StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("broken.scene.json", "hall.scene.json"), tileSize: null, Fields(), TextWriter.Null, error);
+        string errors = workspace.Fail();
 
-        Assert.Equal(1, exitCode);
-        Assert.Contains("broken.scene.json", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("declares no properties", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists("scenes/broken.scene.json"));
-        Assert.True(File.Exists("scenes/hall.scene.json"));
+        Assert.Contains("Assets/Scenes/broken.scene.json", errors, StringComparison.Ordinal);
+        Assert.Contains("declares no properties", errors, StringComparison.Ordinal);
+        Assert.False(File.Exists(Shipped + "broken.scene.json"));
+        Assert.True(File.Exists(Shipped + "hall.scene.json"));
     }
 
     [Fact]
-    public void Import_FailsADocumentWhoseTileSizeIsNotTheDeclaredOne()
+    public void ADocumentWhoseTileSizeIsNotTheDeclaredOne_Fails()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("hall.scene.json", Authored);
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/hall.scene.json", Authored);
 
-        StringWriter error = new();
-        int exitCode = SceneDocumentTool.Import("scenes", Sources("hall.scene.json"), tileSize: 8, Fields(), TextWriter.Null, error);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("hall.scene.json", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists("scenes/hall.scene.json"));
+        Assert.Contains("Assets/Scenes/hall.scene.json", workspace.Fail("tile-size|8"), StringComparison.Ordinal);
+        Assert.False(File.Exists(Shipped + "hall.scene.json"));
     }
 
-    // A key nests, so a document filed under a directory ships under it.
+    // Every shipped document reaches the generator with its baseScene and camera, and its key reaches
+    // the game as a constant.
     [Fact]
-    public void Import_WritesANestedKeyAtItsPath()
+    public void EveryDocument_IsHandedToTheGeneratorAndNamedInCode()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("stage-1/room-01.scene.json", Authored);
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/Dev/Room_Wide.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "camera": "follow", "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/room.scene.json", Authored);
 
-        int exitCode = SceneDocumentTool.Import(
-            "scenes",
-            [new DocumentSource("stage-1/room-01", "stage-1/room-01.scene.json")],
-            tileSize: null,
-            Fields(),
-            TextWriter.Null,
-            TextWriter.Null);
+        workspace.Succeed();
 
-        Assert.Equal(0, exitCode);
-        Assert.True(File.Exists("scenes/stage-1/room-01.scene.json"));
+        string generated = workspace.Generated.Replace("\r\n", "\n", StringComparison.Ordinal);
+        Assert.Contains(
+            "[CapsuleGeneratedSceneDocument(BaseScene = \"playable-room\", Camera = \"follow\")]\n                public const string RoomWideScene = \"scenes/dev/room-wide\";",
+            generated,
+            StringComparison.Ordinal);
+        Assert.Contains("[CapsuleGeneratedSceneDocument]\n            public const string RoomScene = \"scenes/room\";", generated, StringComparison.Ordinal);
     }
 
-    // The stem at the root is the key a source carries when nothing states one.
-    private static DocumentSource[] Sources(params string[] paths) =>
-        [.. paths.Select(static path => new DocumentSource(
-            Path.GetFileName(path)[..^SceneDocumentTool.DocumentExtension.Length], path))];
+    // A key that cannot be a member where it lands is refused by the build, never left to fail as a
+    // C# error in generated code.
+    [Theory]
+    [InlineData("already declared", "Assets/halls.scene.json", "Assets/halls-scene/hall.scene.json")]
+    [InlineData("inside a generated class of that name", "Assets/room-scene/room.scene.json")]
+    public void ADocumentKeyNoMemberCanTake_FailsTheBuildNamingTheDocument(string because, params string[] documents)
+    {
+        using ToolWorkspace workspace = new();
+        foreach (string document in documents)
+        {
+            workspace.Write(document, """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+        }
 
-    // No test here reads what Import resolved, only whether the derived document lands.
-    private static Dictionary<string, (string? BaseScene, string? Camera)> Fields() => new(StringComparer.Ordinal);
+        string errors = workspace.Fail();
+
+        Assert.Contains(because, errors, StringComparison.Ordinal);
+        Assert.Contains(documents[^1], errors, StringComparison.Ordinal);
+    }
 }

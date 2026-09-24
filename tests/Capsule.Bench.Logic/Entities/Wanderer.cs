@@ -7,7 +7,7 @@ namespace Capsule.Bench.Logic.Entities;
 /// <summary>A root that drifts up and down the viewport's height at its own speed, turning at the edges, with a shadow child drawn in its band.</summary>
 public sealed class Wanderer : Entity
 {
-    private static readonly Sprite Frame = new(CapsuleAssets.Textures.Terrain, new TextureRegion(0, 0, 8, 8));
+    private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 8, 8));
 
     private float _speed;
 

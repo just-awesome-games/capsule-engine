@@ -15,7 +15,7 @@ internal sealed class EffectStore : IDisposable
 {
     private const string SpriteShaderResource = "Capsule.Runtime.Rendering.Shaders.sprite.mgfx";
 
-    private static readonly AssetFiles Files = new("shaders", "Shader", "shader");
+    private static readonly AssetFiles Files = new("Shader", "shader");
 
     private readonly GraphicsDevice _device;
     private readonly HostPlatform _platform;

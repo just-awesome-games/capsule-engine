@@ -9,18 +9,19 @@ Data and behaviour are separate halves, and a game takes either or both:
 
 | Combination | What the game writes | How it boots |
 | --- | --- | --- |
-| Document only | `test.scene.json` under the logic project's `Assets/Scenes/`, and no class | `test` registers itself and `RunScene(CapsuleAssets.Scenes.Test)` composes a plain `Scene` from it |
-| Document naming a `baseScene` | that document, naming an abstract `class Base : Scene` under `baseScene`, and no class of its own | The generator emits a sealed scene deriving from `Base`, and `RunScene(CapsuleAssets.Scenes.Test)` composes it from the document |
-| Document and class | that document, plus `class Test : Scene` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene(CapsuleAssets.Scenes.Test)` loads the document and then constructs `Test`. Name the document by its key even when a class claims it, because the key survives adding or removing the class. `RunScene<Test>()` also works |
+| Document only | `Assets/Scenes/test.scene.json` in the logic project, and no class | `scenes/test` registers itself and `RunScene(CapsuleAssets.Scenes.TestScene)` composes a plain `Scene` from it |
+| Document naming a `baseScene` | that document, naming an abstract `class Base : Scene` under `baseScene`, and no class of its own | The generator emits a sealed scene deriving from `Base`, and `RunScene(CapsuleAssets.Scenes.TestScene)` composes it from the document |
+| Document and class | that document, plus `class Test : Scene` in `MyGame.Scenes` with the constructor `public Test(SceneContent content) : base(content)` | `RunScene(CapsuleAssets.Scenes.TestScene)` loads the document and then constructs `Test`. Name the document by its key even when a class claims it, because the key survives adding or removing the class. `RunScene<Test>()` also works |
 | Class only | `class Test : Scene` with a public parameterless constructor | `RunScene<Test>()` runs the scene as it builds itself |
 
-The `SceneContent` constructor is the opt-in. Taking one and handing it to `base` claims the document keyed
-as the class's namespace names ([Entries and composition](#entries-and-composition)), unless
-`[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A
+The `SceneContent` constructor is the opt-in. Taking one and handing it to `base` claims the document at
+the path the class's namespace names under `Assets/`, so `MyGame.Scenes.Test` claims
+`Assets/Scenes/test.scene.json`, unless `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A
 composed scene's assets are collected before `OnStart` ([`assets.md`](assets.md#loading-and-residency)).
 
-Every document has a generated key constant under `CapsuleAssets.Scenes`, one nested class per directory.
-`halls/hall` is `CapsuleAssets.Scenes.Halls.Hall`. `--scene` takes a scene class name or a document key, and a
+Every document has a generated key constant in `CapsuleAssets`, one nested class per folder.
+`Assets/Scenes/halls/hall.scene.json` is `CapsuleAssets.Scenes.Halls.HallScene`, whose value is
+`scenes/halls/hall`. `--scene` takes a scene class name or a document key, and a
 class name wins when a value is both.
 
 ## Format
@@ -118,7 +119,7 @@ Each other palette entry carries a `type` name and may carry:
 
 | Field | Meaning |
 | --- | --- |
-| `texture` | The key under the textures root, extension included, of the texture every drawn tile is cut from, spelt any way ([`assets.md`](assets.md#named-assets)). Forward slashes, no empty, `.` or `..` segment. Absent on a grid that draws nothing. |
+| `texture` | The texture's key, extension included, of the texture every drawn tile is cut from, spelt any way ([`assets.md`](assets.md#named-assets)). Forward slashes, no empty, `.` or `..` segment. Absent on a grid that draws nothing. |
 | `columns` | How many cells wide that texture is. Required with `texture`, at least 1, absent without one. |
 | `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent is a semantic tile: queryable, may collide, draws nothing. |
 | `layer` | The collision layer every tile of this type is on, one name the game owns. A query or mover meets the tile when its own filter names that layer. Absent is decoration. Several types may share a layer. |
@@ -138,22 +139,24 @@ Every `type` other than `tile-map` names an entity class in the game's own logic
 scene claims a document. A concrete `Entity` with one public constructor taking an `EntitySpawn` (beside any
 other constructor) claims the key its namespace names, and `[SpawnType("key")]` names another key.
 
-One rule covers scenes, entities and cameras: the type's namespace under the assembly's root namespace,
-minus a leading `Scenes`, `Entities` or `Cameras` segment and minus a trailing segment repeating the
-type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type name.
-`MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`,
-`MyGame.Scenes.Stage1.Room01` claims `stage-1/room-01`, and `MyGame.Scenes.Crowd1k` claims `crowd-1k`.
+One rule covers entities, cameras and a document's `baseScene`: the type's namespace under the assembly's
+root namespace, minus a leading `Entities`, `Cameras` or `Scenes` segment and minus a trailing segment
+repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type
+name. `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`,
+and `MyGame.Scenes.PlayableRoom` is the `baseScene` `playable-room`. A class claiming a document keeps the
+leading segment, since the document's key is its path: `MyGame.Scenes.Stage1.Room01` claims
+`scenes/stage-1/room-01`.
 A type outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the
 scene at load. A claiming constructor that does
 not pass its spawn to a base constructor taking one is `CAP026` at that constructor.
 
 ## From source to game
 
-Documents are authored under the logic project's `Assets/Scenes/`. The build validates each, re-emits it
-canonically under `obj/`, stamps its provenance, and copies it to `assets/scenes/<key>.scene.json` beside the
-executable. A document's key is its path under the scenes root without either extension, normalized as
-[named assets](assets.md#named-assets) defines. A document registers itself: the class whose own key matches
-composes it, and one no class claims composes a plain `Scene`. Two sources
+Documents are authored anywhere under the logic project's `Assets/`. The build validates each, re-emits it
+canonically, stamps its provenance, and ships it at `assets/<key>.scene.json` beside the executable. A
+document's key is its path without either extension, keyed as [named assets](assets.md#named-assets)
+defines. A document registers itself: the class claiming its key composes it, and one no class claims
+composes a plain `Scene`. Two sources
 sharing a key fail the build, and derived documents are not committed. The logic role imports scenes on its
 own, and any other project opts in with `CapsuleImportScenes`. `CapsuleTileSize` declares the tile size every
 scene must match ([`build-and-publish.md`](build-and-publish.md#build-properties)).
@@ -164,9 +167,10 @@ An editor's own format enters through an authoring module: a package whose `buil
 document per source into their own `obj/` space and add each to the `CapsuleSceneDocument` item from a target
 running `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine validates, canonicalizes and ships them
 like hand-authored documents, preserving the module's `source` block. A module states each document's key as
-`%(CapsuleDocumentKey)`: the root-relative path with no extension, `/`-joined segments of ASCII letters,
-digits, hyphens and underscores, none a reserved Windows device name. A document naming none is keyed by its
-stem at the root. The engine normalizes the key, and no module implements the key rule. Sprite sheets enter
+`%(CapsuleDocumentKey)`: its source's path under `Assets/` with no extension, `/`-joined segments of ASCII
+letters, digits, hyphens and underscores, none a reserved Windows device name. A document naming none is
+keyed by its stem. The engine keys it as [named assets](assets.md#named-assets) defines, and no module
+implements the key rule. Sprite sheets enter
 the same way, on `CapsuleSheetDocument` ([`assets.md`](assets.md#authoring-tools)).
 
 Three rules hold a module's targets:

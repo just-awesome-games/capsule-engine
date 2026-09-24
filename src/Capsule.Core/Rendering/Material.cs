@@ -13,7 +13,7 @@ namespace Capsule.Rendering;
 /// </remarks>
 /// <example>
 /// <code>
-/// private static readonly Material Stone = new(CapsuleAssets.Shaders.Desaturate);
+/// private static readonly Material Stone = new(CapsuleAssets.Shaders.DesaturateShader);
 ///
 /// Stone.Set("Amount", 1f);
 /// sprite.Material = Stone;
@@ -88,7 +88,7 @@ public sealed class Material
     {
         if (value.Name is null || value.Extension is null)
         {
-            throw new ArgumentException("A default TextureHandle names no texture. Pass a CapsuleAssets.Textures handle.", nameof(value));
+            throw new ArgumentException("A default TextureHandle names no texture. Pass a texture's CapsuleAssets member.", nameof(value));
         }
 
         _textures[Slot(name, ShaderParameterKind.Texture)] = value;

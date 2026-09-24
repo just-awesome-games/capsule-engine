@@ -3,8 +3,8 @@ using System.ComponentModel;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// A fragment shader the game authors at <c>Assets/Shaders/{name}.fx</c>, named by the build as
-/// <c>CapsuleAssets.Shaders.{Name}</c>. A <see cref="Material"/> binds it to renderers.
+/// A fragment shader the game authors as <c>{name}.fx</c> under <c>Assets/</c>, named by the build as
+/// <c>CapsuleAssets.{Folders}.{Name}Shader</c>. A <see cref="Material"/> binds it to renderers.
 /// </summary>
 /// <remarks>
 /// It carries the parameters the build read from the compiled shader, which is how
@@ -15,8 +15,8 @@ public sealed class Shader
 {
     private readonly ShaderParameter[] _parameters;
 
-    /// <summary>A shader shipped at <c>assets/shaders/{name}.mgfx</c>. Called by generated code.</summary>
-    /// <param name="name">The source's path under the shaders root, forward slashes and no extension.</param>
+    /// <summary>A shader shipped at <c>assets/{name}.mgfx</c>. Called by generated code.</summary>
+    /// <param name="name">The source's path under <c>Assets/</c>, forward slashes and no extension.</param>
     /// <param name="parameters">Every parameter the game's source declares, each name once.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public Shader(string name, params ShaderParameter[] parameters)

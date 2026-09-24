@@ -59,7 +59,7 @@ public sealed class Player : Entity
 
     // Authored bottom-centre in every frame, so a flip keeps the frame over the body and a squash
     // keeps its feet on the floor.
-    private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.Player.Frames.Idle0.Pivot;
+    private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0.Pivot;
 
     // Entity-specific components
     private readonly Visual _visual;
@@ -105,7 +105,7 @@ public sealed class Player : Entity
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
 
-        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft) { Bus = AudioBuses.Sfx };
+        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
         Add(_footfall);
 
         // A burst on landing, from the body's bottom centre: the pattern for a one-shot effect tied
@@ -297,9 +297,9 @@ public sealed class Player : Entity
             _pivot = pivot;
             _tuning = tuning;
 
-            SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0);
+            SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
             Add(sprite);
-            Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.Player.Sockets.Muzzle);
+            Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.PlayerSheet.Sockets.Muzzle);
 
             _animator = new SpriteAnimator(sprite);
             Add(_animator);
@@ -328,7 +328,7 @@ public sealed class Player : Entity
 
             // Asked every step: the animator ignores the clip already playing, so the cycle runs
             // instead of restarting on frame 0.
-            _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
+            _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
 
             if (_player.JumpedThisStep)
             {

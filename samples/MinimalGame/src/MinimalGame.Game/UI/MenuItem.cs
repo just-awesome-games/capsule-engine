@@ -32,7 +32,7 @@ public sealed class MenuItem : ScreenEntity
     {
         _bar = new ColorRect(Vector2.Zero) { ZIndex = -1, Visible = false };
 
-        _caption = new Label(CapsuleAssets.Fonts.Menu, text)
+        _caption = new Label(CapsuleAssets.Fonts.MenuFont, text)
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Middle,
@@ -86,7 +86,7 @@ public sealed class MenuItem : ScreenEntity
     // The box grows with the caption, so focused ink never runs off the bar.
     private void Grow(string text)
     {
-        Vector2 measured = CapsuleAssets.Fonts.Menu.Measure(text);
+        Vector2 measured = CapsuleAssets.Fonts.MenuFont.Measure(text);
         Vector2 box = new(Math.Max(MinWidth, measured.X + (2f * HorizontalPadding)), BoxHeight);
 
         // The bar, the caption and the focus box are one box centred on the entity, so all three hang

@@ -105,7 +105,7 @@ public sealed class AudioProbeOggTests
         using SceneDocumentFixtures.Workspace workspace = new();
         File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000], Comments(["LOOPSTART=one bar"])));
 
-        AudioFormatException refused = Assert.Throws<AudioFormatException>(() => AudioProbe.Measure("clip.ogg"));
+        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
 
         Assert.Contains("LOOPSTART=\"one bar\"", refused.Message, StringComparison.Ordinal);
     }
@@ -121,7 +121,7 @@ public sealed class AudioProbeOggTests
             "clip.ogg",
             Ogg(48000, [0, 24000], Comments([$"LOOPSTART={start}", $"LOOPEND={end}"])));
 
-        AudioFormatException refused = Assert.Throws<AudioFormatException>(() => AudioProbe.Measure("clip.ogg"));
+        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
 
         Assert.Contains($"[{start}, {end})", refused.Message, StringComparison.Ordinal);
         Assert.Contains("24000 sample(s)", refused.Message, StringComparison.Ordinal);
@@ -137,8 +137,8 @@ public sealed class AudioProbeOggTests
         file[28] = 5;
         File.WriteAllBytes("clip.ogg", file);
 
-        AudioFormatException refused =
-            Assert.Throws<AudioFormatException>(() => AudioProbe.Measure("clip.ogg"));
+        FormatException refused =
+            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
 
         Assert.Contains("Vorbis", refused.Message, StringComparison.Ordinal);
     }

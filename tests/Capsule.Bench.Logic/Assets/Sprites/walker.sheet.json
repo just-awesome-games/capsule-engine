@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "texture": "walker.png",
+  "texture": "textures/walker.png",
   "frames": [
     { "name": "walk-0", "x": 0, "y": 0, "width": 16, "height": 24 },
     { "name": "walk-1", "x": 16, "y": 0, "width": 16, "height": 24 },

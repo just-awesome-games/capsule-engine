@@ -34,7 +34,6 @@ public sealed class AtlasMapTests
         Assert.True(map.TryGet(Tiles, out AtlasSlot tiles));
         Assert.Equal(new AtlasSlot(Page0, 40, 1), tiles);
         Assert.False(map.TryGet(Loose, out _));
-        Assert.False(map.TryGet(TextureHandle.FontPage("actors/hero", ".png"), out _));
     }
 
     [Fact]

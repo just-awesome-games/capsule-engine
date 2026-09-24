@@ -1,14 +1,14 @@
-using Capsule.Build;
-using Capsule.Build.Keys;
 using Capsule.Generators;
+using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// A key is the authored path normalized segment by segment, so the engine dictates no spelling
-/// below a domain root: whatever a game called a directory or a file, one asset has one key, one
-/// identifier and one shipped path.
+/// An asset's type is its extension, its key is its path under <c>Assets/</c> normalized segment by
+/// segment, and it ships at that path. The engine dictates neither how a game organizes what it
+/// authors nor how it spells it: one asset has one key, one member and one shipped path.
 /// </summary>
+[Collection(SceneWorkspaceCollection.Name)]
 public sealed class AssetKeyTests
 {
     [Theory]
@@ -37,88 +37,54 @@ public sealed class AssetKeyTests
         Assert.Equal(rejected, named);
     }
 
+    // Organized by type or by object, a file ships at its path and is a member of its folder's class
+    // named for its file and its type. A player's texture, sheet and sound share a folder and a name.
+    [Fact]
+    public void AFile_ShipsAtItsPathAndIsNamedForItsFileAndType()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Textures/Enemies/Bat.png", string.Empty);
+        workspace.Write("Assets/Player/player.png", string.Empty);
+        workspace.Write(
+            "Assets/Player/player.sheet.json",
+            """{ "formatVersion": 1, "texture": "player/player.png", "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }""");
+        workspace.Write("Assets/Player/Step_Soft.wav", AudioProbeFixtures.Wav(1, 16, 22050, 441));
+        workspace.Write("Assets/Player/notes.txt", "a file of no type the build reads");
+
+        workspace.Succeed();
+
+        Assert.Equal(["player/player.png", "player/step-soft.wav", "textures/enemies/bat.png"], workspace.Shipped);
+        Assert.Contains("TextureHandle PlayerTexture => new global::Capsule.Assets.TextureHandle(\"player/player\", \".png\");", workspace.Generated, StringComparison.Ordinal);
+        Assert.Contains("public static class PlayerSheet", workspace.Generated, StringComparison.Ordinal);
+        Assert.Contains("AudioClip StepSoftSound =>", workspace.Generated, StringComparison.Ordinal);
+        Assert.Contains("TextureHandle BatTexture =>", workspace.Generated, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TheKeyPass_NamesTheSourceAndTheSegmentItCannotName()
     {
-        using Workspace workspace = new();
-        StringWriter error = new();
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Textures/01-intro/Hero.png", string.Empty);
 
-        int exitCode = Derive(workspace, error, "textures|01-intro/Hero|.png|Assets/Textures/01-intro/Hero.png");
+        string errors = workspace.Fail();
 
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Assets/Textures/01-intro/Hero.png", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("01-intro", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Assets/Textures/01-intro/Hero.png", errors, StringComparison.Ordinal);
+        Assert.Contains("\"01-intro\" is no C# name", errors, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void TwoSpellingsOfOneKey_FailTheBuildNamingBoth()
+    // Two spellings of one path are one asset, as are two formats of one sound.
+    [Theory]
+    [InlineData("Assets/Textures/Foot_Step.png", "Assets/Textures/foot-step.png")]
+    [InlineData("Assets/Audio/hit.ogg", "Assets/Audio/hit.wav")]
+    public void TwoSpellingsOfOneKey_FailTheBuildNamingBoth(string first, string second)
     {
-        using Workspace workspace = new();
-        StringWriter error = new();
+        using ToolWorkspace workspace = new();
+        workspace.Write(first, string.Empty);
+        workspace.Write(second, string.Empty);
 
-        int exitCode = Derive(
-            workspace,
-            error,
-            "textures|Enemies/Bat|.png|Assets/Textures/Enemies/Bat.png",
-            "textures|enemies/bat|.png|Assets/Textures/enemies/bat.png");
+        string errors = workspace.Fail();
 
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Assets/Textures/Enemies/Bat.png", error.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Assets/Textures/enemies/bat.png", error.ToString(), StringComparison.Ordinal);
-    }
-
-    // The same key in two domains is two assets, as two spellings of one are one. A sprite sheet is
-    // keyed like everything else and ships nowhere: it is compiled into the game.
-    [Fact]
-    public void TheKeyPass_ShipsEachAssetAtItsKey()
-    {
-        using Workspace workspace = new();
-
-        int exitCode = Derive(
-            workspace,
-            TextWriter.Null,
-            "textures|Enemies/Bat|.png|Assets/Textures/Enemies/Bat.png",
-            "audio|Music/Main_Theme|.ogg|Assets/Audio/Music/Main_Theme.ogg",
-            "scenes|Stage1/Room01||Assets/Scenes/Stage1/Room01.scene.json",
-            "sprites|Props/Crate||Assets/Sprites/Props/Crate.sheet.json");
-
-        Assert.Equal(0, exitCode);
-        Assert.Equal(
-            ["assets/textures/enemies/bat.png|Assets/Textures/Enemies/Bat.png", "assets/audio/music/main-theme.ogg|Assets/Audio/Music/Main_Theme.ogg"],
-            workspace.Read("shipped-assets.txt"));
-        Assert.Equal(
-            ["stage-1/room-01|||derived/stage-1/room-01.scene.json"],
-            workspace.Read("scene-content.txt"));
-    }
-
-    private static int Derive(Workspace workspace, TextWriter error, params string[] requests)
-    {
-        string requestFile = Path.Combine(workspace.Root, "requests.txt");
-        File.WriteAllLines(requestFile, requests);
-
-        List<KeyedAsset> keyed = [];
-        if (KeyTool.Derive(BuildRequests.Read(requestFile).Assets, keyed, error) > 0)
-        {
-            return 1;
-        }
-
-        KeyTool.WriteManifests(keyed, workspace.Root, "derived/", [], [], new Dictionary<string, (string? BaseScene, string? Camera)>());
-
-        return 0;
-    }
-
-    private sealed class Workspace : IDisposable
-    {
-        internal Workspace()
-        {
-            Root = Path.Combine(Path.GetTempPath(), "capsule-keys-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Root);
-        }
-
-        internal string Root { get; }
-
-        internal string[] Read(string name) => File.ReadAllLines(Path.Combine(Root, name));
-
-        public void Dispose() => Directory.Delete(Root, recursive: true);
+        Assert.Contains(first, errors, StringComparison.Ordinal);
+        Assert.Contains(second, errors, StringComparison.Ordinal);
     }
 }

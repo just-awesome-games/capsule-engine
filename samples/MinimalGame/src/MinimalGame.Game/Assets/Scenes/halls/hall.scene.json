@@ -18,7 +18,7 @@
         "tileSize": 16,
         "width": 4,
         "height": 2,
-        "texture": "tiles.png",
+        "texture": "textures/tiles.png",
         "columns": 2,
         "tileTypes": [
           {

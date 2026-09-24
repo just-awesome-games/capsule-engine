@@ -14,13 +14,13 @@ internal sealed class AtlasMap
 {
     internal static readonly AtlasMap Empty = new([]);
 
-    private const string MapPath = "assets/textures/atlases.json";
+    private const string MapPath = "assets/atlases.json";
 
     private readonly Dictionary<TextureHandle, AtlasSlot> _slots;
 
     private AtlasMap(Dictionary<TextureHandle, AtlasSlot> slots) => _slots = slots;
 
-    // The map shipped under the textures root, or Empty when none shipped.
+    // The map shipped at the content root, or Empty when none shipped.
     internal static AtlasMap Load(HostPlatform platform)
     {
         Stream file;

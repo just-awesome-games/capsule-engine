@@ -6,34 +6,18 @@ namespace Capsule.Tests.Generators;
 // pipeline is held to caching an unchanged compilation and not only to the source it emits.
 public sealed class GeneratorCachingTests
 {
-    private const string Font = """
-        info face="Test" size=12
-        common lineHeight=15 base=12 scaleW=32 scaleH=32 pages=1
-        page id=0 file="menu.png"
-        chars count=1
-        char id=65 x=0 y=0 width=4 height=6 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15
-        """;
-
     [Fact]
-    public void ASecondRunOverAnUnchangedCompilation_ParsesNothingAgain()
+    public void ASecondRunOverAnUnchangedCompilation_WalksNoReferencedAssemblyAgain()
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
-            ("fonts/menu.fnt", Font),
-            ("fonts/menu.png", null),
-            ("textures/hero.png", null));
+            ("scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}"""));
 
-        // The names the generators hand WithTrackingName: the '.fnt' read, and the walk over every
-        // referenced assembly's registry metadata.
-        AssertCached(result, "FontParse");
-        AssertCached(result, "BootModel");
-    }
-
-    private static void AssertCached(GeneratorDriverRunResult result, string step)
-    {
+        // The name the generator hands WithTrackingName for its walk over every referenced
+        // assembly's registry metadata.
         List<IncrementalGeneratorRunStep> runs = [];
         foreach (GeneratorRunResult generator in result.Results)
         {
-            if (generator.TrackedSteps.TryGetValue(step, out var tracked))
+            if (generator.TrackedSteps.TryGetValue("BootModel", out var tracked))
             {
                 runs.AddRange(tracked);
             }
@@ -46,6 +30,6 @@ public sealed class GeneratorCachingTests
                 run.Outputs,
                 output => Assert.True(
                     output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"'{step}' ran again for {output.Reason}.")));
+                    $"'BootModel' ran again for {output.Reason}.")));
     }
 }

@@ -12,7 +12,7 @@ namespace Capsule.Build.Audio;
 /// </summary>
 internal static class AudioProbe
 {
-    /// <summary>The extensions the audio domain admits, lower-case and dotted.</summary>
+    /// <summary>The extensions a sound is admitted by, lower-case and dotted.</summary>
     internal const string WavExtension = ".wav";
 
     /// <inheritdoc cref="WavExtension"/>
@@ -24,7 +24,7 @@ internal static class AudioProbe
     internal readonly record struct Measurement(double DurationSeconds, AudioLoopRegion Loop);
 
     /// <summary>Measures <paramref name="path"/>.</summary>
-    /// <exception cref="AudioFormatException">
+    /// <exception cref="FormatException">
     /// The file is malformed, truncated, of an unsupported shape, or names a loop region its own
     /// length cannot hold.
     /// </exception>
@@ -44,7 +44,7 @@ internal static class AudioProbe
             return Ogg(stream);
         }
 
-        throw new AudioFormatException(
+        throw new FormatException(
             $"carries extension \"{extension}\". Audio ships as {WavExtension} or {OggExtension}.");
     }
 
@@ -57,7 +57,7 @@ internal static class AudioProbe
 
         if (!Is(riff[..4], "RIFF") || !Is(riff[8..12], "WAVE"))
         {
-            throw new AudioFormatException("is no RIFF/WAVE file.");
+            throw new FormatException("is no RIFF/WAVE file.");
         }
 
         Span<byte> chunk = stackalloc byte[8];
@@ -79,7 +79,7 @@ internal static class AudioProbe
             {
                 if (size < format.Length)
                 {
-                    throw new AudioFormatException(
+                    throw new FormatException(
                         $"carries a {Number(size)}-byte 'fmt ' chunk. A WAVE format chunk is at least {Number(format.Length)} bytes.");
                 }
 
@@ -88,7 +88,7 @@ internal static class AudioProbe
                 int tag = BinaryPrimitives.ReadUInt16LittleEndian(format);
                 if (tag is not 1 and not 3)
                 {
-                    throw new AudioFormatException(
+                    throw new FormatException(
                         $"is WAVE format {Number(tag)}. Capsule reads PCM (1) and IEEE float (3). Re-encode it as 16-bit PCM.");
                 }
 
@@ -107,7 +107,7 @@ internal static class AudioProbe
 
             if (next > stream.Length)
             {
-                throw new AudioFormatException("ends inside a RIFF chunk. The file is truncated.");
+                throw new FormatException("ends inside a RIFF chunk. The file is truncated.");
             }
 
             stream.Seek(next, SeekOrigin.Begin);
@@ -115,13 +115,13 @@ internal static class AudioProbe
 
         if (rate == 0 || channels == 0 || bits == 0 || bits % 8 != 0)
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 "carries no usable 'fmt ' chunk. Its rate, channel count or sample width is zero or not a whole number of bytes.");
         }
 
         if (dataBytes < 0)
         {
-            throw new AudioFormatException("carries no 'data' chunk, so its length cannot be measured.");
+            throw new FormatException("carries no 'data' chunk, so its length cannot be measured.");
         }
 
         long frames = dataBytes / (channels * (bits / 8));
@@ -140,7 +140,7 @@ internal static class AudioProbe
         Span<byte> header = stackalloc byte[Header];
         if (size < Header)
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 $"carries a {Number(size)}-byte 'smpl' chunk. A sampler chunk is at least {Number(Header)} bytes.");
         }
 
@@ -154,7 +154,7 @@ internal static class AudioProbe
 
         if (size < Header + Loop)
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 $"declares {Number(loops)} sample loop(s) in a {Number(size)}-byte 'smpl' chunk, which holds none.");
         }
 
@@ -188,12 +188,12 @@ internal static class AudioProbe
         {
             if (!Is(page[..4], "OggS"))
             {
-                throw new AudioFormatException("is no Ogg stream, or carries a page Capsule could not find the start of.");
+                throw new FormatException("is no Ogg stream, or carries a page Capsule could not find the start of.");
             }
 
             if (page[4] != 0)
             {
-                throw new AudioFormatException($"carries an Ogg page of version {Number(page[4])}. Only version 0 is defined.");
+                throw new FormatException($"carries an Ogg page of version {Number(page[4])}. Only version 0 is defined.");
             }
 
             long granule = BinaryPrimitives.ReadInt64LittleEndian(page[6..14]);
@@ -212,7 +212,7 @@ internal static class AudioProbe
 
             if (body + payload > stream.Length)
             {
-                throw new AudioFormatException("ends inside an Ogg page. The file is truncated.");
+                throw new FormatException("ends inside an Ogg page. The file is truncated.");
             }
 
             if (!opened)
@@ -239,12 +239,12 @@ internal static class AudioProbe
 
         if (!opened)
         {
-            throw new AudioFormatException("holds no Ogg page.");
+            throw new FormatException("holds no Ogg page.");
         }
 
         if (frames < 0)
         {
-            throw new AudioFormatException("carries no Ogg granule position, so its length cannot be measured.");
+            throw new FormatException("carries no Ogg granule position, so its length cannot be measured.");
         }
 
         long? start = null;
@@ -282,7 +282,7 @@ internal static class AudioProbe
 
         if (opening[0] != 3 || !Is(opening[1..], "vorbis"))
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 "follows its Vorbis identification header with no comment header. Capsule reads Ogg Vorbis.");
         }
 
@@ -353,7 +353,7 @@ internal static class AudioProbe
 
         if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long samples))
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 $"tags {Encoding.UTF8.GetString(name)}=\"{text}\". A loop tag is a whole number of samples.");
         }
 
@@ -370,7 +370,7 @@ internal static class AudioProbe
 
         if (first < 0 || first >= last || last > frames)
         {
-            throw new AudioFormatException(
+            throw new FormatException(
                 $"names a loop region of samples [{Number(first)}, {Number(last)}) in {Number(frames)} sample(s). A region starts at or after zero, ends after it starts, and ends no later than the clip.");
         }
 
@@ -383,20 +383,20 @@ internal static class AudioProbe
 
         if (payload < identification.Length)
         {
-            throw new AudioFormatException("opens with a page too short to hold a Vorbis identification header.");
+            throw new FormatException("opens with a page too short to hold a Vorbis identification header.");
         }
 
         Read(stream, identification);
 
         if (identification[0] != 1 || !Is(identification[1..7], "vorbis"))
         {
-            throw new AudioFormatException("opens with no Vorbis identification header. Capsule reads Ogg Vorbis.");
+            throw new FormatException("opens with no Vorbis identification header. Capsule reads Ogg Vorbis.");
         }
 
         uint rate = BinaryPrimitives.ReadUInt32LittleEndian(identification[12..]);
         if (rate == 0)
         {
-            throw new AudioFormatException("declares a Vorbis sample rate of zero.");
+            throw new FormatException("declares a Vorbis sample rate of zero.");
         }
 
         return rate;
@@ -426,7 +426,7 @@ internal static class AudioProbe
 
         if (read < buffer.Length)
         {
-            throw new AudioFormatException("ends inside a header. The file is truncated.");
+            throw new FormatException("ends inside a header. The file is truncated.");
         }
 
         return true;
@@ -440,7 +440,7 @@ internal static class AudioProbe
         }
         catch (EndOfStreamException ex)
         {
-            throw new AudioFormatException("ends where more of it was expected. The file is truncated.", ex);
+            throw new FormatException("ends where more of it was expected. The file is truncated.", ex);
         }
     }
 
@@ -505,7 +505,7 @@ internal static class AudioProbe
             {
                 if (_closing)
                 {
-                    throw new AudioFormatException(
+                    throw new FormatException(
                         "ends its Vorbis comment header before the comments it declares. The packet is truncated.");
                 }
 
@@ -533,7 +533,7 @@ internal static class AudioProbe
 
                 if (!TryRead(stream, header) || !Is(header[..4], "OggS"))
                 {
-                    throw new AudioFormatException(
+                    throw new FormatException(
                         "ends before the page continuing its Vorbis comment header. The file is truncated.");
                 }
 

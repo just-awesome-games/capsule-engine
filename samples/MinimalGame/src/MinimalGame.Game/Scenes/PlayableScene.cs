@@ -33,8 +33,8 @@ public abstract class PlayableScene : Scene
     {
         Player = FindSingle<Player>();
 
-        // Crossfades from whatever was playing, or fades in alone under --scene room.
-        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Room);
+        // Crossfades from whatever was playing, or fades in alone under --scene scenes/room.
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.RoomSound);
     }
 
     // The scene steps through its own pause and owns the key that opens and closes it. Losing window

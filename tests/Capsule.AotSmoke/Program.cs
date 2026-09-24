@@ -78,15 +78,15 @@ internal static class Program
 
         // The generated sprite for the module-derived sheet, referenced so a key that stopped
         // reaching the build tool is a compile error rather than a silent gap.
-        Sprite module = CapsuleAssets.Sprites.Smoke.Module.Frames.Only;
-        bool keptTexture = Shipped(CapsuleAssets.Textures.Kept) && module.Texture.Name == CapsuleAssets.Textures.Kept.Name;
+        Sprite module = CapsuleAssets.Smoke.ModuleSheet.Frames.Only;
+        bool keptTexture = Shipped(CapsuleAssets.Textures.KeptTexture) && module.Texture.Name == CapsuleAssets.Textures.KeptTexture.Name;
         bool developmentTexture = File.Exists(Path.Combine(AppContext.BaseDirectory, DevelopmentTexturePath));
 
         if (!keptTexture || developmentTexture == shipping)
         {
             Console.Error.WriteLine(
                 FormattableString.Invariant(
-                    $"AOT smoke failed (5): the textures beside this executable must hold {CapsuleAssets.Textures.Kept.Name} (present {keptTexture}), and {DevelopmentTexturePath} (present {developmentTexture}) in a non-shipping build only (shipping {shipping})."));
+                    $"AOT smoke failed (5): the textures beside this executable must hold {CapsuleAssets.Textures.KeptTexture.Name} (present {keptTexture}), and {DevelopmentTexturePath} (present {developmentTexture}) in a non-shipping build only (shipping {shipping})."));
 
             return 5;
         }
@@ -162,18 +162,18 @@ internal static class Program
         SceneDocument fixture = Document(NativeScenePath);
 
         return fixture.Source is { Tool: "native" }
-            && Shipped(CapsuleAssets.Textures.Pixel)
-            && Shipped("fonts", "menu", ".png")
+            && Shipped(CapsuleAssets.Textures.PixelTexture)
+            && Shipped("fonts/menu.png")
 
             // Compiled into the game, so it is not beside the executable.
-            && !Shipped("fonts", "menu", ".fnt")
-            && Shipped(CapsuleAssets.Textures.TileSets.CaveWall)
-            && CapsuleAssets.Textures.TileSets.CaveWall.Name == "tile-sets/cave-wall"
-            && fixture.Entries[1].TileMap?.Grid.Texture?.Name == "tile-sets/cave-wall";
+            && !Shipped("fonts/menu.fnt")
+            && Shipped(CapsuleAssets.Textures.TileSets.CaveWallTexture)
+            && CapsuleAssets.Textures.TileSets.CaveWallTexture.Name == "textures/tile-sets/cave-wall"
+            && fixture.Entries[1].TileMap?.Grid.Texture?.Name == "textures/tile-sets/cave-wall";
     }
 
-    private static bool Shipped(TextureHandle texture) => Shipped("textures", texture.Name, texture.Extension);
+    private static bool Shipped(TextureHandle texture) => Shipped(texture.Name + texture.Extension);
 
-    private static bool Shipped(string domain, string name, string extension) =>
-        File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", domain, name + extension));
+    private static bool Shipped(string path) =>
+        File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", path));
 }

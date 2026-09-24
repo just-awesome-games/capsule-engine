@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Capsule.Build;
 using Capsule.Build.Atlases;
 using Capsule.Tests.Documents;
 using StbImageSharp;
@@ -13,111 +12,116 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class AtlasToolTests
 {
-    private const string Out = "obj/capsule";
+    private const string Page = ToolWorkspace.Out + "/assets/atlases/game.0.png";
 
-    private const string Stamp = Out + "/build.stamp";
-
-    private const string Page = Out + "/atlases/game.0.png";
+    private const string Map = ToolWorkspace.Out + "/assets/atlases.json";
 
     private const string Manifest = "Assets/Atlases/game.atlas.json";
 
     [Fact]
     public void ARunWithAnAtlas_ShipsItsPagesAndMapInsteadOfItsMembers()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        WritePng(workspace, "Assets/Textures/Actors/Hero.png", 4, 3);
-        WritePng(workspace, "Assets/Textures/loose.png", 2, 2);
-        workspace.Write(Manifest, """{ "textures": ["actors/*"] }""");
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/Actors/Hero.png", 4, 3);
+        workspace.WritePng("Assets/Textures/loose.png", 2, 2);
+        workspace.Write(Manifest, """{ "textures": ["textures/actors/*"] }""");
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, Requests(["Actors/Hero", "loose"]));
+        workspace.Succeed();
 
-        Assert.Equal(0, exitCode);
-        Assert.Equal(string.Empty, error.ToString());
-        Assert.True(File.Exists(Stamp));
+        Assert.Equal(["atlases.json", "atlases/game.0.png", "textures/loose.png"], workspace.Shipped);
 
-        string[] shipped = File.ReadAllLines(Out + "/shipped-assets.txt");
-        Assert.Contains("assets/textures/loose.png|Assets/Textures/loose.png", shipped);
-        Assert.DoesNotContain(shipped, static line => line.Contains("actors/hero", StringComparison.Ordinal));
-        Assert.Contains(shipped, static line => line.StartsWith("assets/textures/game.0.png|", StringComparison.Ordinal) && line.EndsWith("/atlases/game.0.png", StringComparison.Ordinal));
-        Assert.Contains(shipped, static line => line.StartsWith("assets/textures/atlases.json|", StringComparison.Ordinal));
-
-        string map = File.ReadAllText(Out + "/atlases/atlases.json");
-        Assert.Contains("\"actors/hero\"", map, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"loose\"", map, StringComparison.Ordinal);
-        Assert.Contains("\"page\": \"game.0\"", map, StringComparison.Ordinal);
+        string map = File.ReadAllText(Map);
+        Assert.Contains("\"textures/actors/hero\"", map, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"textures/loose\"", map, StringComparison.Ordinal);
+        Assert.Contains("\"page\": \"atlases/game.0\"", map, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ASecondRunOverUnchangedInputs_RepacksNothingAndAChangedMemberRepacks()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        WritePng(workspace, "Assets/Textures/hero.png", 4, 3);
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/hero.png", 4, 3);
         workspace.Write(Manifest, """{ "textures": ["**"] }""");
-        string[] requests = Requests(["hero"]);
 
-        Assert.Equal(0, Run(workspace, TextWriter.Null, requests));
+        workspace.Succeed();
         DateTime packed = File.GetLastWriteTimeUtc(Page);
-        string map = File.ReadAllText(Out + "/atlases/atlases.json");
+        string map = File.ReadAllText(Map);
 
-        StringWriter output = new();
-        Assert.Equal(0, BuildRun.Run(workspace.Write("requests.txt", string.Join('\n', requests)), Out, output, TextWriter.Null));
+        workspace.Succeed();
 
-        Assert.Contains("atlas game: up to date", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("atlas atlases/game: up to date", workspace.Output, StringComparison.Ordinal);
         Assert.Equal(packed, File.GetLastWriteTimeUtc(Page));
-        Assert.Equal(map, File.ReadAllText(Out + "/atlases/atlases.json"));
+        Assert.Equal(map, File.ReadAllText(Map));
 
-        WritePng(workspace, "Assets/Textures/hero.png", 4, 3, seed: 7);
-        output = new StringWriter();
-        Assert.Equal(0, BuildRun.Run(workspace.Write("requests.txt", string.Join('\n', requests)), Out, output, TextWriter.Null));
+        workspace.WritePng("Assets/Textures/hero.png", 4, 3, seed: 7);
+        workspace.Succeed();
 
-        Assert.Contains("atlas game: 1 texture(s) packed", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("atlas atlases/game: 1 texture(s) packed", workspace.Output, StringComparison.Ordinal);
+    }
+
+    // The runtime finds a packed texture by its handle, which the map spells in lower case, so an
+    // extension the author capitalized is lowered everywhere the build writes it.
+    [Fact]
+    public void ATextureSpelledInUpperCase_IsNamedAndShippedInLowerCase()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/Hero.PNG", 4, 3);
+        workspace.WritePng("Assets/Textures/Loose.PNG", 2, 2);
+        workspace.Write(Manifest, """{ "textures": ["textures/hero"] }""");
+
+        workspace.Succeed();
+
+        Assert.Contains("TextureHandle(\"textures/hero\", \".png\")", workspace.Generated, StringComparison.Ordinal);
+        Assert.Equal(["atlases.json", "atlases/game.0.png", "textures/loose.png"], workspace.Shipped);
+    }
+
+    // Removing the last atlas leaves nothing of it shipping.
+    [Fact]
+    public void ARunWithoutTheAtlas_ShipsItsMembersAndNoPage()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/hero.png", 4, 3);
+        workspace.Write(Manifest, """{ "textures": ["**"] }""");
+        workspace.Succeed();
+
+        File.Delete(Manifest);
+        workspace.Succeed();
+
+        Assert.Equal(["textures/hero.png"], workspace.Shipped);
     }
 
     [Fact]
     public void ATextureTwoAtlasesMatch_FailsNamingBothManifests()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        WritePng(workspace, "Assets/Textures/hero.png", 4, 3);
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/hero.png", 4, 3);
         workspace.Write(Manifest, """{ "textures": ["**"] }""");
-        workspace.Write("Assets/Atlases/other.atlas.json", """{ "textures": ["hero"] }""");
+        workspace.Write("Assets/Atlases/other.atlas.json", """{ "textures": ["textures/hero"] }""");
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, [.. Requests(["hero"]), "atlases|other||Assets/Atlases/other.atlas.json"]);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Assets/Atlases/other.atlas.json: packs 'Assets/Textures/hero.png', which 'Assets/Atlases/game.atlas.json' already packs", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists(Stamp));
+        Assert.Contains(
+            "Assets/Atlases/other.atlas.json: packs 'Assets/Textures/hero.png', which 'Assets/Atlases/game.atlas.json' already packs",
+            workspace.Fail(),
+            StringComparison.Ordinal);
     }
 
     [Fact]
     public void APatternMatchingNothing_FailsNamingThePattern()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        WritePng(workspace, "Assets/Textures/hero.png", 4, 3);
-        workspace.Write(Manifest, """{ "textures": ["hero", "props/**"] }""");
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/hero.png", 4, 3);
+        workspace.Write(Manifest, """{ "textures": ["textures/hero", "props/**"] }""");
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, Requests(["hero"]));
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("\"props/**\" matches no texture", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists(Stamp));
+        Assert.Contains("\"props/**\" matches no texture", workspace.Fail(), StringComparison.Ordinal);
     }
 
     [Fact]
     public void ATextureLargerThanAPage_FailsNamingTheTexture()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        WritePng(workspace, "Assets/Textures/wide.png", 63, 2);
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/Textures/wide.png", 63, 2);
         workspace.Write(Manifest, """{ "textures": ["**"], "maxSize": 64 }""");
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, Requests(["wide"]));
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Assets/Textures/wide.png: is 63x2", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists(Stamp));
+        Assert.Contains("Assets/Textures/wide.png: is 63x2", workspace.Fail(), StringComparison.Ordinal);
     }
 
     // A 2x2 member placed at (1, 1) on a 6x6 page: its own texels land where placed, its edges and
@@ -132,7 +136,7 @@ public sealed class AtlasToolTests
         ImageResult member = new() { Width = 2, Height = 2, Data = [.. red, .. green, .. blue, .. clear] };
         byte[] page = new byte[6 * 6 * 4];
 
-        AtlasTool.Blit(page, 6, member, 1, 1);
+        AtlasStep.Blit(page, 6, member, 1, 1);
 
         (int X, int Y, byte[] Expected)[] texels =
         [
@@ -156,7 +160,7 @@ public sealed class AtlasToolTests
     [InlineData("**/oak", "oak", true)]
     public void AGlob_MatchesWholeSegmentsAndAnyDepthOnlyThroughDoubleStar(string pattern, string key, bool expected)
     {
-        Regex match = AtlasTool.ReadManifest($$"""{ "textures": ["{{pattern}}"] }""").Patterns[0].Match;
+        Regex match = AtlasStep.ReadManifest($$"""{ "textures": ["{{pattern}}"] }""").Patterns[0].Match;
 
         Assert.Equal(expected, match.IsMatch(key));
     }
@@ -168,34 +172,8 @@ public sealed class AtlasToolTests
     [InlineData("""{ "textures": ["Actors/*.png"] }""", "*.png")]
     public void ReadManifest_RefusesADocumentOutsideTheFormatNamingTheDefect(string json, string defect)
     {
-        FormatException error = Assert.Throws<FormatException>(() => AtlasTool.ReadManifest(json));
+        FormatException error = Assert.Throws<FormatException>(() => AtlasStep.ReadManifest(json));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
-    }
-
-    private static string[] Requests(string[] texturePaths) =>
-        [.. texturePaths.Select(static path => $"textures|{path}|.png|Assets/Textures/{path}.png"), $"atlases|game||{Manifest}"];
-
-    private static int Run(SceneDocumentFixtures.Workspace workspace, TextWriter error, string[] manifest)
-    {
-        string requests = workspace.Write("requests.txt", string.Join('\n', manifest));
-
-        return BuildRun.Run(requests, Out, TextWriter.Null, error);
-    }
-
-    // An opaque PNG whose texels are a fixed function of position and seed, so a one-byte change is
-    // a different file.
-    private static void WritePng(SceneDocumentFixtures.Workspace workspace, string name, int width, int height, int seed = 1)
-    {
-        byte[] texels = new byte[width * height * 4];
-        for (int i = 0; i < width * height; i++)
-        {
-            texels[i * 4] = (byte)(i * seed);
-            texels[(i * 4) + 3] = 255;
-        }
-
-        using MemoryStream png = new();
-        AtlasTool.Encode(texels, width, height, png);
-        File.WriteAllBytes(workspace.Write(name, string.Empty), png.ToArray());
     }
 }

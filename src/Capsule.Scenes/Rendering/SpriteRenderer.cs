@@ -161,7 +161,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// the animator, reads the socket of the frame that will be drawn.
     /// </para>
     /// </remarks>
-    /// <param name="name">The socket's name as the sheet declared it. <c>CapsuleAssets.Sprites.&lt;Sheet&gt;.Sockets</c> lists them.</param>
+    /// <param name="name">The socket's name as the sheet declared it. The sheet's generated <c>Sockets</c> class lists them.</param>
     /// <exception cref="InvalidOperationException">The renderer is attached to no entity. Attach it first.</exception>
     public Entity Socket(string name)
     {

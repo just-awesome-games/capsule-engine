@@ -18,7 +18,7 @@ namespace Capsule.Audio;
 /// <param name="clip">The clip <see cref="Play()"/> starts.</param>
 /// <example>
 /// <code>
-/// _footfall = new AudioSource(CapsuleAssets.Audio.StepSoft) { Bus = AudioBuses.Sfx };
+/// _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
 /// Add(_footfall);
 ///
 /// // On the step the body lands:

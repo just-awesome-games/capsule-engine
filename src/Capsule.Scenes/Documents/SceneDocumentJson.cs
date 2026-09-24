@@ -143,7 +143,7 @@ internal sealed class TileGridJson
     [JsonPropertyOrder(2)]
     public int Height { get; set; }
 
-    // One asset path under assets/textures, extension included and forward slashes only. Absent on a grid
+    // The texture's path under Assets/, extension included and forward slashes only. Absent on a grid
     // that draws nothing. Columns is nullable, to make a texture with no columns raise the grid's error
     // instead of reading as 0.
     [JsonPropertyName("texture")]

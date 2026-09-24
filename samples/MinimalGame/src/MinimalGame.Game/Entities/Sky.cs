@@ -14,7 +14,7 @@ namespace MinimalGame.Game.Entities;
 public sealed class Sky : Entity
 {
     /// <summary>The whole of <c>textures/backdrops/sky.png</c>, anchored at its top-left corner.</summary>
-    private static readonly Sprite Dusk = new(CapsuleAssets.Textures.Backdrops.Sky, new TextureRegion(0, 0, 320, 180));
+    private static readonly Sprite Dusk = new(CapsuleAssets.Textures.Backdrops.SkyTexture, new TextureRegion(0, 0, 320, 180));
 
     public Sky(EntitySpawn spawn)
         : base(spawn)

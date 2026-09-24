@@ -79,21 +79,6 @@ internal static class RegistryDiagnostics
         "A game-shell project must reference a game-logic assembly",
         "This project's file declares <CapsuleGameShell> but the project references no assembly declaring <CapsuleGameLogic>, so its entry point would name no scenes. Reference the game's logic project");
 
-    internal static readonly DiagnosticDescriptor DuplicateAssetIdentifier = Asset(
-        "CAP016",
-        "Two sources in one directory claim one name",
-        "'{0}' and '{1}' both declare '{2}' in '{3}'. Two names differing only in their separators are one C# name, so rename one");
-
-    internal static readonly DiagnosticDescriptor UnsafeAssetName = Asset(
-        "CAP017",
-        "An asset name must become an identifier",
-        "'{0}' cannot be named in code. Every directory and file name under a domain root is " + SegmentGrammar);
-
-    internal static readonly DiagnosticDescriptor AssetNamedAfterItsDomain = Asset(
-        "CAP018",
-        "A source cannot take a name its enclosing class reserves",
-        "'{0}' declares '{1}' in '{2}', a name the generated registry reserves there. Rename the file or its directory");
-
     internal static readonly DiagnosticDescriptor UnsafeSpawnType = Scene(
         "CAP019",
         "A spawn type must be a portable key",
@@ -108,18 +93,6 @@ internal static class RegistryDiagnostics
         "CAP021",
         "A scene document key must be nameable segment by segment",
         "'{0}' claims a scene document key whose segment '{1}' names nothing. Every segment of a key is " + SegmentGrammar);
-
-    internal static readonly DiagnosticDescriptor UnreadableFont = Asset(
-        "CAP022",
-        "A bitmap font source cannot be compiled",
-        "'{0}' {1}",
-        CapsuleDocs.Fonts);
-
-    internal static readonly DiagnosticDescriptor UnshippedFontPage = Asset(
-        "CAP023",
-        "A bitmap font names a page the game does not ship",
-        "'{0}' {1}",
-        CapsuleDocs.Fonts);
 
     internal static readonly DiagnosticDescriptor SpawnNotPassedToBase = Scene(
         "CAP026",
@@ -165,6 +138,4 @@ internal static class RegistryDiagnostics
     private static DiagnosticDescriptor Scene(string id, string title, string message, string page = CapsuleDocs.Scenes) =>
         new(id, title, message, "Capsule.Scenes", DiagnosticSeverity.Error, true, null, CapsuleDocs.At(page));
 
-    private static DiagnosticDescriptor Asset(string id, string title, string message, string page = CapsuleDocs.NamedAssets) =>
-        new(id, title, message, "Capsule.Assets", DiagnosticSeverity.Error, true, null, CapsuleDocs.At(page));
 }

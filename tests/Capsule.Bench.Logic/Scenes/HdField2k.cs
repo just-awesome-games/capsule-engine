@@ -11,7 +11,7 @@ namespace Capsule.Bench.Logic.Scenes;
 public sealed class HdField2k : SpriteFieldScene
 {
     public HdField2k()
-        : base(new Sprite(CapsuleAssets.Textures.HdAtlas, new TextureRegion(0, 0, 256, 256), new Vector2(128f, 128f)), 256f, World.HdViewportSize, count: 2_000)
+        : base(new Sprite(CapsuleAssets.Textures.HdAtlasTexture, new TextureRegion(0, 0, 256, 256), new Vector2(128f, 128f)), 256f, World.HdViewportSize, count: 2_000)
     {
     }
 }

@@ -1,5 +1,3 @@
-using Capsule.Build;
-using Capsule.Build.Sprites;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
@@ -11,8 +9,6 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class SpriteToolTests
 {
-    private const string Generated = "obj/capsule/CapsuleAssets.Sprites.g.cs";
-
     private const string Player = """
         { "formatVersion": 1,
           "texture": "actors/player.png",
@@ -45,7 +41,7 @@ public sealed class SpriteToolTests
         string generated = Emitted(("actors/player", Player));
 
         Assert.Contains("public static class Actors", generated, StringComparison.Ordinal);
-        Assert.Contains("public static class Player", generated, StringComparison.Ordinal);
+        Assert.Contains("public static class PlayerSheet", generated, StringComparison.Ordinal);
         Assert.Contains("public static global::Capsule.Rendering.Sprite Idle0 => new global::Capsule.Rendering.Sprite(", generated, StringComparison.Ordinal);
         Assert.Contains("new global::Capsule.Assets.TextureHandle(\"actors/player\", \".png\"),", generated, StringComparison.Ordinal);
         Assert.Contains("new global::Capsule.Rendering.TextureRegion(0, 0, 8, 8),", generated, StringComparison.Ordinal);
@@ -110,7 +106,7 @@ public sealed class SpriteToolTests
     {
         string generated = Emitted(("prop", Prop), ("actors/player", Player));
 
-        Assert.Contains("The sheets authored under <c>sprites/actors</c>.", generated, StringComparison.Ordinal);
+        Assert.Contains("Every asset authored under <c>sprites/actors</c>.", generated, StringComparison.Ordinal);
     }
 
     // The sheet's own spelling of the texture is normalized to the key the build ships it under, so a
@@ -138,24 +134,19 @@ public sealed class SpriteToolTests
     [Fact]
     public void TwoSheetsThatBecomeOneIdentifier_FailTheBuild() =>
         Assert.Contains(
-            "already declared in that directory",
+            "already claims",
             Refused(("main-prop", Prop), ("main_prop", Prop)),
             StringComparison.Ordinal);
 
-    // 'Frames', 'Clips' and 'Sockets' are the classes a sheet declares inside itself, and 'Sprites'
-    // is the class every sheet is declared on, so a sheet of any of those names is CS0542.
-    [Theory]
-    [InlineData("frames")]
-    [InlineData("clips")]
-    [InlineData("sockets")]
-    [InlineData("sprites")]
-    public void AKeyTheGeneratedClassesCannotDeclare_FailsTheBuild(string key) =>
-        Assert.Contains("name it something else", Refused((key, Prop)), StringComparison.Ordinal);
-
-    // A directory takes any of those names: only a leaf declares the three classes.
+    // A sheet's class is named for its file and its type, so no sheet name is one of the classes a
+    // sheet declares inside itself. One filed in a folder of its class's own name is CS0542.
     [Fact]
-    public void ADirectoryNamedAfterASheetsOwnClasses_IsDeclared() =>
-        Assert.Contains("public static class Prop", Emitted(("frames/prop", Prop)), StringComparison.Ordinal);
+    public void ASheetInAFolderOfItsClassesName_FailsTheBuild() =>
+        Assert.Contains("inside a generated class of that name", Refused(("prop-sheet/prop", Prop)), StringComparison.Ordinal);
+
+    [Fact]
+    public void ASheetNamedAfterItsOwnClasses_IsDeclared() =>
+        Assert.Contains("public static class FramesSheet", Emitted(("frames", Prop)), StringComparison.Ordinal);
 
     // A null where the format declares an optional member is that member left out, so a tool writing
     // its whole schema out authors the same sheet as one that omits what it has nothing to say about.
@@ -350,41 +341,30 @@ public sealed class SpriteToolTests
 
     private static string Emitted(params (string Key, string Json)[] sheets)
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
+        using ToolWorkspace workspace = Authored(sheets);
+        workspace.Succeed();
 
-        Assert.Equal(0, Emit(workspace, TextWriter.Null, sheets));
-
-        return File.ReadAllText(Generated);
+        return workspace.Generated;
     }
 
     private static string Refused(params (string Key, string Json)[] sheets)
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        StringWriter error = new();
+        using ToolWorkspace workspace = Authored(sheets);
 
-        Assert.Equal(1, Emit(workspace, error, sheets));
-
-        return error.ToString();
+        return workspace.Fail();
     }
 
-    private static int Emit(
-        SceneDocumentFixtures.Workspace workspace,
-        TextWriter error,
-        (string Key, string Json)[] sheets)
+    // Every sheet here cuts from one of these two textures, which a build copies and never decodes.
+    private static ToolWorkspace Authored((string Key, string Json)[] sheets)
     {
-        List<DocumentSource> sources = [];
+        ToolWorkspace workspace = new();
+        workspace.Write("Assets/p.png", string.Empty);
+        workspace.Write("Assets/actors/player.png", string.Empty);
         foreach ((string key, string json) in sheets)
         {
-            sources.Add(new DocumentSource(key, workspace.Write($"Assets/Sprites/{key}.sheet.json", json)));
+            workspace.Write($"Assets/Sprites/{key}.sheet.json", json);
         }
 
-        Directory.CreateDirectory("obj/capsule");
-
-        return SpriteTool.Emit(
-            sources,
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["p"] = ".png", ["actors/player"] = ".png" },
-            Generated,
-            TextWriter.Null,
-            error);
+        return workspace;
     }
 }

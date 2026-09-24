@@ -426,7 +426,7 @@ public static class SceneDocumentFile
         };
     }
 
-    // Formats the texture's full path under the textures root, extension included. The build's
+    // Formats the texture's key, extension included. The build's
     // allow-list decides which extensions are valid. This checks that the path round-trips.
     private static string? TextureName(TextureHandle? texture)
     {
@@ -506,7 +506,7 @@ public static class SceneDocumentFile
         return AssetPaths.TrySplit(texture, out string name, out string extension)
             ? new TextureHandle(name, extension)
             : throw new SceneDocumentFormatException(
-                $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\". Write one asset path under assets/textures, extension included, with forward slashes and no empty, \".\" or \"..\" segment.");
+                $"the '{SceneDocument.TileMapType}' entry's grid has texture \"{texture}\". Write the texture's path under Assets/, extension included, with forward slashes and no empty, \".\" or \"..\" segment.");
     }
 
     // Reads a tile's shape as a convex polygon of [x, y] points. TileGrid checks that it fits its tile.

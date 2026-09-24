@@ -1,13 +1,13 @@
 namespace Capsule.Audio;
 
 /// <summary>
-/// Pure data naming <c>assets/audio/{Name}{Extension}</c> beside the executable, with the duration
+/// Pure data naming <c>assets/{Name}{Extension}</c> beside the executable, with the duration
 /// the build measured from the source and the loop region it read out of it. <c>Name</c> is the
 /// source's path under the <c>audio</c> root: one or more forward-slash-separated portable
 /// file-name segments, none of them empty, <c>.</c> or <c>..</c>, and no extension.
 /// </summary>
 /// <remarks><c>Extension</c> begins with one dot and contains no other dot or separator.</remarks>
-/// <param name="Name">The source's path under the audio root.</param>
+/// <param name="Name">The source's path under <c>Assets/</c>.</param>
 /// <param name="Extension">
 /// The source's extension, leading dot included, either <c>.wav</c> or <c>.ogg</c>. The host holds a
 /// <c>.wav</c> clip resident for every scene that uses it, and decodes a <c>.ogg</c> clip on its

@@ -54,7 +54,7 @@ public sealed class HeadlessRunTests
         HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
-            .RunHeadless(CapsuleAssets.Scenes.Room, new Walkthrough());
+            .RunHeadless(CapsuleAssets.Scenes.RoomScene, new Walkthrough());
 
         Assert.True(result.ExitRequested, "the walkthrough ran out of script before it pressed Quit");
     }
@@ -157,7 +157,7 @@ public sealed class HeadlessRunTests
                     }
 
                     TitleDied = true;
-                    RoomIsPlaying = scene.Run.Game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
+                    RoomIsPlaying = scene.Run.Game.Music.IsPlaying(CapsuleAssets.Audio.Music.RoomSound);
                 }
 
                 snapshot = _quit.Next();
@@ -237,7 +237,7 @@ public sealed class HeadlessRunTests
                         return tick < Budget;
                     }
 
-                    RoomIsPlaying = game.Music.IsPlaying(CapsuleAssets.Audio.Music.Room);
+                    RoomIsPlaying = game.Music.IsPlaying(CapsuleAssets.Audio.Music.RoomSound);
                     ExactlyOneVoiceIsLive = scene.Run.Audio.IsLive(_firstRoom) != scene.Run.Audio.IsLive(_secondRoom);
                 }
 

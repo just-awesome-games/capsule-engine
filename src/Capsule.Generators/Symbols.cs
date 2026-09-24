@@ -21,7 +21,6 @@ internal static class Symbols
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
     internal const string RegistryProviderAttribute = "Capsule.Generated.CapsuleGeneratedRegistryProviderAttribute";
     internal const string RegistryClaimAttribute = "Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute";
-    internal const string TextureHandle = "Capsule.Assets.TextureHandle";
 
     // MSBuild passes a boolean property through verbatim, so compare it case-insensitively.
     internal static bool Declares(AnalyzerConfigOptions options, string key) =>

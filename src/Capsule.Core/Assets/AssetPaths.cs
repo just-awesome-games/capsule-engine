@@ -2,8 +2,8 @@ namespace Capsule.Assets;
 
 // The two spellings the build's own tree is named by:
 //
-//   a path is an asset's place under its domain root, extension included: "enemies/bat.png".
-//   a key is a document's place under its root, without extensions: "stage-1/room-01".
+//   a path is an asset's place under Assets/, extension included: "enemies/bat.png".
+//   a key is a document's place under Assets/, without extensions: "scenes/stage-1/room-01".
 //
 // Neither can reach outside the directory the build owns. This file is also compiled into
 // Capsule.Generators, which references no engine assembly, so nothing here may use a type

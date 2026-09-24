@@ -8,9 +8,9 @@ namespace Capsule.Scenes;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class SceneDocumentAttribute : Attribute
 {
-    /// <param name="name">The document's key under the scenes root, without the <c>.scene.json</c> suffix.</param>
+    /// <param name="name">The document's key, its path under <c>Assets/</c> without the <c>.scene.json</c> suffix.</param>
     public SceneDocumentAttribute(string name) => Name = name;
 
-    /// <summary>The document's key under the scenes root, without the <c>.scene.json</c> suffix.</summary>
+    /// <summary>The document's key, its path under <c>Assets/</c> without the <c>.scene.json</c> suffix.</summary>
     public string Name { get; }
 }

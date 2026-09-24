@@ -73,9 +73,9 @@ entity's position, a `Color`, and a `ZIndex` of its own within the entity's band
 | `NineSlice` | A sprite stretched to `Size` with its `Insets` corners kept. |
 
 ```csharp
-SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.Player.Frames.Idle0);
+SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
 Add(sprite);
-Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.Player.Sockets.Muzzle);
+Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.PlayerSheet.Sockets.Muzzle);
 
 _animator = new SpriteAnimator(sprite);
 Add(_animator);
@@ -86,7 +86,7 @@ Animation is simulation state and means the same at any frame rate. `Play` does 
 is already playing, and a step may ask for the clip its state implies every step:
 
 ```csharp
-_animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.Player.Clips.Walk : CapsuleAssets.Sprites.Actors.Player.Clips.Idle);
+_animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
 ```
 
 A `Tween` is an eased value that counts its duration in whole fixed steps. It drives a flash, a slide
@@ -111,7 +111,7 @@ Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
 
 ## Your own shader
 
-A shader is a fragment function authored at `Assets/Shaders/<name>.fx` in HLSL
+A shader is a fragment function authored as `<name>.fx` under `Assets/` in HLSL
 ([`assets.md`](assets.md#shaders)). It declares its parameters and exactly one
 `float4 Fragment(SpritePixel pixel)`, and returns a premultiplied colour. `pixel.Texel` is the
 sprite's premultiplied texel, `pixel.Tint` its premultiplied tint and `pixel.UV` its texture
@@ -135,7 +135,7 @@ float4 Fragment(SpritePixel pixel)
 A `Material` binds it with its parameter values, and `Renderer.Material` draws a renderer with it:
 
 ```csharp
-Material stone = new(CapsuleAssets.Shaders.Desaturate);
+Material stone = new(CapsuleAssets.Shaders.DesaturateShader);
 stone.Set("Amount", 1f);
 sprite.Material = stone;
 ```
@@ -216,7 +216,7 @@ right, one glyph per codepoint, with the kerning the font declares. There is no 
 bidirectional layout and no distance field.
 
 ```csharp
-Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
+Add(new Label(CapsuleAssets.Fonts.MenuFont, "Minimal Game")
 {
     Pivot = Pivot.Top,
     HorizontalAlignment = HorizontalAlignment.Center,
@@ -224,7 +224,7 @@ Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
 ```
 
 `BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under
-`Assets/Fonts/` ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout pass every placement comes
+`Assets/` ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout pass every placement comes
 from. Code that emits its own per-glyph sprites enumerates it for the geometry the engine draws and
 measures.
 

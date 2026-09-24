@@ -58,7 +58,7 @@ internal sealed class TextureStore : IDisposable
         if (_atlases.TryGet(handle, out _))
         {
             throw new InvalidOperationException(
-                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Remove it from every atlas manifest under Assets/Atlases/.");
+                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Remove it from every atlas manifest.");
         }
 
         return Get(handle, handle);

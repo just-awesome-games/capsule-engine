@@ -34,7 +34,7 @@ public static class FixtureInput
     }
 }
 
-[SceneDocument("fixture")]
+[SceneDocument("scenes/fixture")]
 public sealed class FixtureScene(SceneContent content) : Scene(content)
 {
     // What the last scene start read, for the shell to check after the run: a fixture's static.
@@ -70,13 +70,13 @@ public sealed class FixtureLabel : Entity
     public FixtureLabel(Vector2 position)
         : base(position)
     {
-        Add(new Label(CapsuleAssets.Fonts.Menu, Text));
+        Add(new Label(CapsuleAssets.Fonts.MenuFont, Text));
     }
 }
 
 public sealed class FixtureEntity : Entity
 {
-    private static readonly Sprite Visual = new(CapsuleAssets.Textures.Pixel, new TextureRegion(0, 0, 1, 1));
+    private static readonly Sprite Visual = new(CapsuleAssets.Textures.PixelTexture, new TextureRegion(0, 0, 1, 1));
 
     public FixtureEntity(EntitySpawn spawn)
         : base(spawn)

@@ -4,9 +4,10 @@ using Microsoft.CodeAnalysis;
 namespace Capsule.Tests.Generators;
 
 /// <summary>
-/// Where a type is declared is the key it claims: its namespace under the assembly's root, minus
-/// the <c>Entities</c> or <c>Scenes</c> segment that only says which registry it is in, and minus a
-/// folder repeating the type's own name.
+/// Where a type is declared is the key it claims: its namespace under the assembly's root, minus a
+/// folder repeating the type's own name. An entity's key drops an <c>Entities</c> segment, which only
+/// says which registry it is in. A scene claims the document at its namespace's path under
+/// <c>Assets/</c>, so <c>Game.Scenes.Room</c> composes <c>Assets/Scenes/room.scene.json</c>.
 /// </summary>
 public sealed class RegistryKeyTests
 {
@@ -35,9 +36,10 @@ public sealed class RegistryKeyTests
     }
 
     [Theory]
-    [InlineData("Game.Scenes", "Room01", "room-01")]
-    [InlineData("Game.Scenes.Stage1", "Room01", "stage-1/room-01")]
-    [InlineData("Game.Scenes.Room01", "Room01", "room-01")]
+    [InlineData("Game.Scenes", "Room01", "scenes/room-01")]
+    [InlineData("Game.Scenes.Stage1", "Room01", "scenes/stage-1/room-01")]
+    [InlineData("Game.Scenes.Room01", "Room01", "scenes/room-01")]
+    [InlineData("Game.Levels", "Room01", "levels/room-01")]
     public void AScene_ClaimsTheKeyItsNamespaceNames(string space, string type, string key)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""

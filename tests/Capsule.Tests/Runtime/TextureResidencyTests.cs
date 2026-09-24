@@ -10,34 +10,20 @@ public sealed class TextureResidencyTests
 
     private static readonly TextureHandle Tiles = new("tiles", ".png");
 
-    // A handle's name is the source's path under its own root, so a nested asset resolves to a
-    // nested file — with the format's separator, whatever the platform's is — and a bitmap font's
-    // pages ship under the fonts root beside the font they were cut for. What the handle names is
-    // what Open reads once the file ships there.
+    // A handle's name is the source's path under Assets/, so a nested asset resolves to a nested file,
+    // with the format's separator whatever the platform's is. What the handle names is what Open
+    // reads once the file ships there.
     [Theory]
-    [InlineData("hero", false, "assets/textures/hero.png")]
-    [InlineData("enemies/bat", false, "assets/textures/enemies/bat.png")]
-    [InlineData("ui/menu", true, "assets/fonts/ui/menu.png")]
-    public void AHandle_NamesAndLocatesItsFileUnderItsOwnDomain(string name, bool fontPage, string expected)
+    [InlineData("hero", "assets/hero.png")]
+    [InlineData("textures/enemies/bat", "assets/textures/enemies/bat.png")]
+    public void AHandle_NamesAndLocatesItsFileAtItsPath(string name, string expected)
     {
-        TextureHandle handle = fontPage ? TextureHandle.FontPage(name, ".png") : new TextureHandle(name, ".png");
+        TextureHandle handle = new(name, ".png");
         using Shipped shipped = new(handle);
 
         Assert.Equal(expected, TextureFiles.RelativePathOf(handle));
         using Stream opened = TextureFiles.Open(shipped.Platform, handle);
         Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), Assert.IsType<FileStream>(opened).Name);
-    }
-
-    // One name under two roots is two files and therefore two textures, which the store has to keep
-    // apart.
-    [Fact]
-    public void ATextureAndAFontPageOfOneName_AreNotOneHandle()
-    {
-        TextureHandle texture = new("menu", ".png");
-        TextureHandle page = TextureHandle.FontPage("menu", ".png");
-
-        Assert.NotEqual(texture, page);
-        Assert.Equal(page, TextureHandle.FontPage("menu", ".png"));
     }
 
     [Fact]
@@ -49,14 +35,14 @@ public sealed class TextureResidencyTests
             () => TextureFiles.Open(shipped.Platform, Hero));
 
         Assert.Contains("'hero'", error.Message, StringComparison.Ordinal);
-        Assert.Contains("assets/textures/hero.png", error.Message, StringComparison.Ordinal);
+        Assert.Contains("assets/hero.png", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Open_RejectsAHandleThatWouldResolveOutsideTheTexturesRoot()
+    public void Open_RejectsAHandleThatWouldResolveOutsideTheContentRoot()
     {
         using Shipped shipped = new();
-        string outside = System.IO.Path.Combine(shipped.BaseDirectory, "assets", "outside.png");
+        string outside = System.IO.Path.Combine(shipped.BaseDirectory, "outside.png");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outside)!);
         File.WriteAllBytes(outside, []);
         TextureHandle escaping = new("../outside", ".png");

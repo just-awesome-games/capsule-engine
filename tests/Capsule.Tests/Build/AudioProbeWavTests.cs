@@ -61,8 +61,8 @@ public sealed class AudioProbeWavTests
         file[20] = 0x11;
         File.WriteAllBytes("clip.wav", file);
 
-        AudioFormatException refused =
-            Assert.Throws<AudioFormatException>(() => AudioProbe.Measure("clip.wav"));
+        FormatException refused =
+            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.wav"));
 
         Assert.Contains("PCM", refused.Message, StringComparison.Ordinal);
     }

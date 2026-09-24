@@ -5,29 +5,50 @@ with no string in sight, and control what is loaded when.
 
 ## Named assets
 
-Assets are authored under `Assets/<Domain>/` in the logic project and ship under `assets/<domain>/` at
-their key. The domains are `Textures/`, `Sprites/`, `Atlases/`, `Audio/`, `Fonts/`, `Shaders/` and `Scenes/`.
+Assets are authored anywhere under `Assets/` in the logic project, organized by type, by object or any
+other way. `CapsuleAssets` mirrors that tree, one nested class per folder, and names each file for its
+name and its type:
 
-A key is the authored path below the domain root, forward slashes and no extension, with every
-directory segment and the file stem normalized to the kebab form of the identifier it names. `Enemies/Bat.png`,
-`enemies/bat.png` and `enemies/Bat.png` are one asset with one identifier `CapsuleAssets.Textures.Enemies.Bat`,
-one key `enemies/bat`, and one shipped path `assets/textures/enemies/bat.png`. `Stage1`, `stage1` and
-`stage-1` are one segment, `stage-1`. The build normalizes every key a game or an authoring module hands
-it, and the runtime sees keys only. A document names an asset by key and extension, `"enemies/bat.png"`,
-spelt however the author likes.
+| Extension | Type | `Assets/Player/player.*` is |
+| --- | --- | --- |
+| `.png` | A texture | `CapsuleAssets.Player.PlayerTexture`, a `TextureHandle` |
+| `.sheet.json` | A sprite sheet | `CapsuleAssets.Player.PlayerSheet`, a class of frames, clips and sockets |
+| `.wav`, `.ogg` | A sound | `CapsuleAssets.Player.PlayerSound`, an `AudioClip` |
+| `.fnt` | A bitmap font | `CapsuleAssets.Player.PlayerFont`, a `BitmapFont` |
+| `.fx` | A shader | `CapsuleAssets.Player.PlayerShader`, a `Shader` |
+| `.scene.json` | A scene document | `CapsuleAssets.Player.PlayerScene`, the document's key |
+| `.atlas.json` | An atlas manifest | Not named |
 
-A segment that is no C# identifier, two sources keying the same, and C# identifier collisions fail the
-build naming the files. Each generated domain and directory class exposes an allocation-free `All` span
-over the handles beneath it. `CapsuleAssets.Scenes` is the exception and holds scene document keys
-([`scenes.md`](scenes.md)).
+A file of one type shares its name with files of others and with its folder, so a player's texture, sheet
+and sounds sit together in `Player/`. The build reads no other file, so an editor's own sources can sit
+beside what it exports.
+
+What ships beside the executable is the same tree under `assets/`: a texture or sound as authored, and
+a scene document or shader in its compiled form. A sheet and a font's description compile into the
+game and ship nothing. The build lays it out under the logic project's
+`obj/.../capsule/assets/` first.
+
+A key is a file's path below `Assets/`, forward slashes and no extension, with every folder and the file
+name normalized to the kebab form of the identifier it names. An extension ships in lower case. `Enemies/Bat.png` and `enemies/bat.png` are
+one texture with one key `enemies/bat`, one member `CapsuleAssets.Enemies.BatTexture`, and one shipped
+path `assets/enemies/bat.png`. `Stage1`, `stage1` and `stage-1` are one segment, `stage-1`. The build
+normalizes every key a game or an authoring module hands it, and the runtime sees keys only. A document
+names an asset by key and extension, `"enemies/bat.png"`, spelt however the author likes.
+
+A segment that is no C# identifier, two files of one type keying the same, such as `hit.wav` and `hit.ogg`,
+and a name C# would refuse fail the build naming the files. A folder's class exists once a file under it
+does.
+
+Every `CapsuleAssets` member is written by the build. An editor that refreshes its build when the project's
+files change updates them as a file is added, renamed, moved or deleted. An edit inside a file reaches
+them on the next build.
 
 ## Textures
 
-`Assets/Textures/**/*.png` ships as `assets/textures/<key>.png` and is named as
-`CapsuleAssets.Textures.<Path>`. A `Sprite` is a region of a texture with its own pivot:
+A `.png` is a texture. A `Sprite` is a region of one with its own pivot:
 
 ```csharp
-private static readonly Sprite Field = new(CapsuleAssets.Textures.Hazard, new TextureRegion(0, 0, 16, 24), Body / 2f);
+private static readonly Sprite Field = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(0, 0, 16, 24), Body / 2f);
 ```
 
 `TextureHandle.White` and `Sprite.White` are a built-in white texel, for flat colour with no asset.
@@ -37,12 +58,10 @@ private static readonly Sprite Field = new(CapsuleAssets.Textures.Hazard, new Te
 A sheet names one texture, the frames it cuts from it, any clips played over those frames, and any
 sockets its frames set. Playback is [`rendering.md`](rendering.md#renderers).
 
-Sheets are authored under `Assets/Sprites/` and compiled by the build tool into game code under
-`CapsuleAssets.Sprites`. A misspelt frame, clip or socket is a build error naming the file and the
-member, and no sheet ships. An edited sheet reaches IntelliSense on the next build. A sheet's key is its path under the
-sprites root without either extension, and each directory in it becomes a nested class:
-`actors/player.sheet.json` declares `CapsuleAssets.Sprites.Actors.Player`, with `Frames.Idle0` a `Sprite`
-carrying its sockets, `Clips.Idle` a `SpriteClip` and `Sockets.Muzzle` the socket's name.
+A `.sheet.json` is compiled by the build into game code. A misspelt frame, clip or socket is a build
+error naming the file and the member, and no sheet ships. `Sprites/actors/player.sheet.json` declares
+`CapsuleAssets.Sprites.Actors.PlayerSheet`, with `Frames.Idle0` a `Sprite` carrying its sockets,
+`Clips.Idle` a `SpriteClip` and `Sockets.Muzzle` the socket's name.
 
 Format version 1, UTF-8 JSON:
 
@@ -65,7 +84,7 @@ Format version 1, UTF-8 JSON:
 | Field | Meaning |
 | --- | --- |
 | `formatVersion` | Required, and must be supported. |
-| `texture` | The key under the textures root, extension included, of the texture every frame is cut from. Forward slashes, no empty, `.` or `..` segment, any spelling of the key. A texture the game does not ship fails the sheet. Geometry is authored here, not inferred from the image. |
+| `texture` | The texture's key, extension included, of the texture every frame is cut from. Forward slashes, no empty, `.` or `..` segment, any spelling of the key. A texture the game does not ship fails the sheet. Geometry is authored here, not inferred from the image. |
 | `sockets` | Optional, each carrying a `name`, declared between `texture` and `frames`. Absent or empty generates no `Sockets` class. A declared socket no frame sets is an error at the declaration. |
 | `frames` | At least one. Each carries `name`, `x`, `y`, `width`, `height`, an optional `pivot` and an optional `sockets`, in that order. |
 | `clips` | Optional, each carrying `name`, an optional `loop`, and `frames`, in that order. Absent or empty is a sheet of frames only, with no `Clips` class generated. |
@@ -93,7 +112,7 @@ An atlas is a build-time packing of textures onto shared pages, declared by a ma
 game code. The runtime serves a packed handle from its page and moves the region by where that texture's
 texels landed. Adding, splitting or removing an atlas changes no C# and no document.
 
-`Assets/Atlases/<name>.atlas.json`:
+`<name>.atlas.json`, anywhere under `Assets/`:
 
 ```json
 {
@@ -115,38 +134,36 @@ scaling and tiling at a region's edge then read no neighbour. When a page is ful
 `<name>.1` and so on, each trimmed to its packed extent rounded up to a multiple of four. A member that
 cannot fit a page with its border fails the build naming the texture.
 
-Pages ship straight-alpha at `assets/textures/<name>.<n>.png`, beside one map at
-`assets/textures/atlases.json` naming each packed key's page and the texel its `(0, 0)` landed on. A packed
-member does not ship on its own. Each atlas keeps a stamp over its manifest and members, and editing one
-texture repacks only the atlas holding it. `CapsuleAssets.Textures` is derived from the sources, and
-packing leaves it unchanged.
+Pages ship straight-alpha beside their manifest, `Atlases/game.atlas.json` packing onto
+`assets/atlases/game.0.png`, with one map at `assets/atlases.json` naming each packed key's page and the
+texel its `(0, 0)` landed on. A packed member does not ship on its own. Each atlas keeps a stamp over its
+manifest and members, and editing one texture repacks only the atlas holding it. A texture's member is
+derived from its source, and packing leaves it unchanged.
 
 ## Audio
 
-`Assets/Audio/` takes `.wav` and `.ogg`, and no MP3. Each source is measured at build time into
-`CapsuleAssets.Audio.<Key>` as an `AudioClip` carrying its duration and any loop region the file declares. A
+A sound is a `.wav` or an `.ogg`, and no MP3. Each is measured at build time into an `AudioClip`
+carrying its duration and any loop region the file declares. A
 source the build cannot measure, or whose region does not fit it, fails the build naming the file. Playing
 them is [`audio.md`](audio.md).
 
 ## Fonts
 
-A bitmap font is authored under `Assets/Fonts/` in any directory shape.
+A bitmap font is a `.fnt` and the `.png` pages it names beside it.
 
 | Extension | What it is |
 | --- | --- |
 | `.fnt` | A BMFont description, text flavour, unpacked. Its metrics, glyphs and kerning compile into the logic assembly as a `BitmapFont`. The file does not ship. |
-| `.png` | A page the description names. Ships under `assets/fonts/` at its own key. |
+| `.png` | A page the description names, beside it. It is an ordinary texture, and no atlas packs it. |
 
-A font and its pages are keyed off their authored paths, and a page beside its font ships beside it. A
-description naming a page the game does not ship fails the build. Drawing text, and the font that needs no
-asset, is [`rendering.md`](rendering.md#text).
+A font naming a page the game does not author fails the build, as does a defect in the description, at
+its line. Drawing text, and the font that needs no asset, is [`rendering.md`](rendering.md#text).
 
 ## Shaders
 
-`Assets/Shaders/` takes `.fx`, a fragment function the build wraps in the engine's sprite shader and
-compiles ([`rendering.md`](rendering.md#your-own-shader)). Each ships compiled as
-`assets/shaders/<key>.mgfx` and is named as `CapsuleAssets.Shaders.<Path>`, carrying the parameters the
-build read from it. A compile error fails the build at the shader's file and line. Shaders compile on
+A shader is an `.fx`, a fragment function the build wraps in the engine's sprite shader and
+compiles ([`rendering.md`](rendering.md#your-own-shader)). Each ships compiled at its path as `.mgfx`,
+and its member carries the parameters the build read from it. A compile error fails the build at the shader's file and line. Shaders compile on
 any desktop operating system with nothing to install.
 
 ## Loading and residency

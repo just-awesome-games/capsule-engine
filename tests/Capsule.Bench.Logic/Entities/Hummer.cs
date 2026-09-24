@@ -21,7 +21,7 @@ public sealed class Hummer : Entity
         : base(position)
     {
         _phase = index * 7;
-        _source = new AudioSource(CapsuleAssets.Audio.Hum)
+        _source = new AudioSource(CapsuleAssets.Audio.HumSound)
         {
             Bus = index % 2 == 0 ? Ambience : Sfx,
             Loop = true,

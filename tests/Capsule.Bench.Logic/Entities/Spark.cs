@@ -6,7 +6,7 @@ namespace Capsule.Bench.Logic.Entities;
 
 public sealed class Spark : Entity
 {
-    private static readonly Sprite Frame = new(CapsuleAssets.Textures.Terrain, new TextureRegion(0, 0, 4, 4));
+    private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 4, 4));
 
     private readonly Vector2 _velocity;
     private int _life = 180;

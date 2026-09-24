@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Capsule.Build;
 using Capsule.Build.Shaders;
 using Capsule.Tests.Documents;
 
@@ -13,8 +12,6 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class ShaderBuildTests
 {
-    private const string Out = "obj/capsule";
-
     // A stone-statue look: the texel's luminance, mixed in by Amount and stained by a texture, with a
     // parameter of every kind a Material sets.
     private const string Stone = """
@@ -39,35 +36,28 @@ public sealed class ShaderBuildTests
     [Fact]
     public void AShader_ShipsCompiled_WithItsParameterTableInTheGeneratedKey()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
+        using ToolWorkspace workspace = new();
         workspace.Write("Assets/Shaders/Effects/Stone.fx", Stone);
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, "shaders|Effects/Stone|.fx|Assets/Shaders/Effects/Stone.fx");
+        workspace.Succeed(ToolsLine);
 
-        Assert.True(exitCode == 0, error.ToString());
         Assert.Contains(
-            """new global::Capsule.Rendering.Shader("effects/stone", new global::Capsule.Rendering.ShaderParameter("Amount", global::Capsule.Rendering.ShaderParameterKind.Float), new global::Capsule.Rendering.ShaderParameter("Scroll", global::Capsule.Rendering.ShaderParameterKind.Vector2), new global::Capsule.Rendering.ShaderParameter("Stain", global::Capsule.Rendering.ShaderParameterKind.Vector3), new global::Capsule.Rendering.ShaderParameter("Glow", global::Capsule.Rendering.ShaderParameterKind.Vector4), new global::Capsule.Rendering.ShaderParameter("Grain", global::Capsule.Rendering.ShaderParameterKind.Texture));""",
-            File.ReadAllText(Out + "/CapsuleAssets.Shaders.g.cs"),
+            """new global::Capsule.Rendering.Shader("shaders/effects/stone", new global::Capsule.Rendering.ShaderParameter("Amount", global::Capsule.Rendering.ShaderParameterKind.Float), new global::Capsule.Rendering.ShaderParameter("Scroll", global::Capsule.Rendering.ShaderParameterKind.Vector2), new global::Capsule.Rendering.ShaderParameter("Stain", global::Capsule.Rendering.ShaderParameterKind.Vector3), new global::Capsule.Rendering.ShaderParameter("Glow", global::Capsule.Rendering.ShaderParameterKind.Vector4), new global::Capsule.Rendering.ShaderParameter("Grain", global::Capsule.Rendering.ShaderParameterKind.Texture));""",
+            workspace.Generated,
             StringComparison.Ordinal);
-
-        string shipped = Assert.Single(File.ReadAllLines(Out + "/shipped-assets.txt"));
-        Assert.StartsWith("assets/shaders/effects/stone.mgfx|", shipped, StringComparison.Ordinal);
-        Assert.True(File.Exists(shipped.Split('|')[1]));
+        Assert.Equal(["shaders/effects/stone.mgfx"], workspace.Shipped);
     }
 
     [Fact]
     public void AShaderThatDoesNotCompile_FailsAtTheGamesFileAndLine()
     {
-        using SceneDocumentFixtures.Workspace workspace = new();
+        using ToolWorkspace workspace = new();
         workspace.Write("Assets/Shaders/broken.fx", "float4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * Glow;\n}\n");
 
-        StringWriter error = new();
-        int exitCode = Run(workspace, error, "shaders|broken|.fx|Assets/Shaders/broken.fx");
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("Assets/Shaders/broken.fx(3,26): error : use of undeclared identifier 'Glow'", error.ToString(), StringComparison.Ordinal);
-        Assert.False(File.Exists(Out + "/build.stamp"));
+        Assert.Contains(
+            "Assets/Shaders/broken.fx(3,26): error : use of undeclared identifier 'Glow'",
+            workspace.Fail(ToolsLine),
+            StringComparison.Ordinal);
     }
 
     // The container is read back by MonoGame's own effect reader, run without a device, and every
@@ -98,14 +88,7 @@ public sealed class ShaderBuildTests
             parameters.Select(static parameter => (string)parameter.GetType().GetProperty("Name")!.GetValue(parameter)!));
     }
 
-    private static int Run(SceneDocumentFixtures.Workspace workspace, TextWriter error, params string[] manifest)
-    {
-        string requests = workspace.Write(
-            "requests.txt",
-            string.Join('\n', [$"shader-dxc|{Tools.Dxc}", $"shader-spirv-cross|{Tools.SpirvCross}", .. manifest]));
-
-        return BuildRun.Run(requests, Out, TextWriter.Null, error);
-    }
+    private static string ToolsLine => $"shader-tools|{Tools.Dxc}|{Tools.SpirvCross}";
 
     private static string Metadata(string key) =>
         typeof(ShaderBuildTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(attribute => attribute.Key == key).Value!;

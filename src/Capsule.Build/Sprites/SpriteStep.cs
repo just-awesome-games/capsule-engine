@@ -1,19 +1,16 @@
-using System.Globalization;
 using System.Text;
+using Capsule.Build.Registry;
 using Capsule.Generators;
 
 namespace Capsule.Build.Sprites;
 
 /// <summary>
-/// Renders every sheet a game authors as typed members of <c>CapsuleAssets.Sprites</c>: each frame a
-/// sprite over one shared socket table, each clip one shared clip, each socket a name constant. A
-/// misspelt frame, clip or socket is a compile error, and no sheet ships beside the executable.
+/// Every sprite sheet, compiled into a class of typed members: each frame a sprite over one shared
+/// socket table, each clip one shared clip, each socket a name constant. A misspelt frame, clip or
+/// socket is a compile error, and no sheet ships beside the executable.
 /// </summary>
-internal static class SpriteRegistrySource
+internal static class SpriteStep
 {
-    /// <summary>The generated class every sheet is declared under.</summary>
-    internal const string RegistryClass = "Sprites";
-
     /// <summary>The generated class a sheet's frames are declared on.</summary>
     internal const string FramesClass = "Frames";
 
@@ -22,8 +19,6 @@ internal static class SpriteRegistrySource
 
     /// <summary>The generated class a sheet's socket names are declared on.</summary>
     internal const string SocketsClass = "Sockets";
-
-    private const string Domain = "sprites";
 
     private const string SocketType = "global::Capsule.Rendering.SpriteSocket";
 
@@ -37,24 +32,32 @@ internal static class SpriteRegistrySource
 
     private const string ClipType = "global::Capsule.Animation.SpriteClip";
 
-    /// <summary>Whether <paramref name="identifier"/> is a name a sheet's own classes take.</summary>
-    internal static bool Reserves(string identifier, bool leaf) =>
-        leaf && identifier is FramesClass or ClipsClass or SocketsClass;
+    internal static void Build(BuildPass pass)
+    {
+        Dictionary<string, string> textures = pass.Of(AssetType.Textures)
+            .ToDictionary(static texture => texture.Key, static texture => texture.Extension, StringComparer.Ordinal);
 
-    // No 'All' set. A sheet is a pair of classes, not one member, so the domain has no single type to
-    // hand a span of.
-    internal static RegistryDomain<SpriteSheet> Registry() =>
-        new(
-            RegistryClass,
-            Domain,
-            memberType: null,
-            noun: "sheet",
-            "Every sprite sheet this game authors, as frames and clips.",
-            AppendSheet);
+        foreach ((Source sheet, SpriteSheet document) in pass.Each(
+            pass.Of(AssetType.Sprites),
+            source =>
+            {
+                SpriteSheet sheet = SpriteSheetFile.Read(source.Path);
+
+                // Resolved by key against what the build ships, and carrying the shipped extension,
+                // however the sheet spelled it.
+                return textures.TryGetValue(sheet.TextureKey, out string? extension)
+                    ? sheet with { TextureExtension = extension }
+                    : throw new FormatException(
+                        $"cuts from texture \"{sheet.TextureKey}{sheet.TextureExtension}\", which this game does not ship. Author it at Assets/{sheet.TextureKey}{sheet.TextureExtension}.");
+            }))
+        {
+            pass.Declare(sheet, (source, indent, identifier) => AppendSheet(source, indent, identifier, document));
+        }
+    }
 
     private static void AppendSheet(StringBuilder source, string indent, string identifier, SpriteSheet document)
     {
-        string texture = $"new {TextureType}({Literal(document.TextureKey)}, {Literal(document.TextureExtension)})";
+        string texture = $"new {TextureType}({Literal.Of(document.TextureKey)}, {Literal.Of(document.TextureExtension)})";
         string frames = indent + "    ";
         string member = frames + "    ";
 
@@ -89,8 +92,8 @@ internal static class SpriteRegistrySource
                 {
                     SheetSocket socket = frame.Sockets[j];
                     source.AppendLine().Append(member).Append("    new ").Append(SocketType).Append('(')
-                        .Append(Literal(socket.Name)).Append(", new ").Append(VectorType).Append('(')
-                        .Append(Number(socket.X)).Append(", ").Append(Number(socket.Y)).Append("))")
+                        .Append(Literal.Of(socket.Name)).Append(", new ").Append(VectorType).Append('(')
+                        .Append(Literal.Of(socket.X)).Append(", ").Append(Literal.Of(socket.Y)).Append("))")
                         .Append(j + 1 < frame.Sockets.Length ? "," : string.Empty);
                 }
 
@@ -98,18 +101,18 @@ internal static class SpriteRegistrySource
             }
 
             source.Append(member).Append("/// <summary><c>").Append(frame.Name).Append("</c>: ")
-                .Append(Number(frame.Width)).Append('x').Append(Number(frame.Height))
-                .Append(" at (").Append(Number(frame.X)).Append(", ").Append(Number(frame.Y)).Append(')');
+                .Append(Literal.Of(frame.Width)).Append('x').Append(Literal.Of(frame.Height))
+                .Append(" at (").Append(Literal.Of(frame.X)).Append(", ").Append(Literal.Of(frame.Y)).Append(')');
             AppendSocketNames(source, frame);
             source.AppendLine(".</summary>");
             source.Append(member).Append("public static ").Append(SpriteType).Append(' ')
                 .Append(Identifier(frame.Name)).Append(" => new ").Append(SpriteType).AppendLine("(");
             source.Append(member).Append("    ").Append(texture).AppendLine(",");
             source.Append(member).Append("    new ").Append(RegionType).Append('(')
-                .Append(Number(frame.X)).Append(", ").Append(Number(frame.Y)).Append(", ")
-                .Append(Number(frame.Width)).Append(", ").Append(Number(frame.Height)).AppendLine("),");
+                .Append(Literal.Of(frame.X)).Append(", ").Append(Literal.Of(frame.Y)).Append(", ")
+                .Append(Literal.Of(frame.Width)).Append(", ").Append(Literal.Of(frame.Height)).AppendLine("),");
             source.Append(member).Append("    new ").Append(VectorType).Append('(')
-                .Append(Number(frame.PivotX)).Append(", ").Append(Number(frame.PivotY)).Append(')');
+                .Append(Literal.Of(frame.PivotX)).Append(", ").Append(Literal.Of(frame.PivotY)).Append(')');
 
             if (frame.Sockets.Length > 0)
             {
@@ -140,7 +143,7 @@ internal static class SpriteRegistrySource
 
                 source.Append(member).Append("/// <summary><c>").Append(socket).AppendLine("</c>.</summary>");
                 source.Append(member).Append("public const string ").Append(Identifier(socket))
-                    .Append(" = ").Append(Literal(socket)).AppendLine(";");
+                    .Append(" = ").Append(Literal.Of(socket)).AppendLine(";");
             }
 
             source.Append(frames).AppendLine("}");
@@ -167,8 +170,8 @@ internal static class SpriteRegistrySource
             }
 
             source.Append(member).Append("/// <summary><c>").Append(clip.Name).Append("</c>: ")
-                .Append(Number(clip.Frames.Length)).Append(clip.Frames.Length == 1 ? " frame, " : " frames, ")
-                .Append(Number(TotalTicks(clip))).Append(" ticks, ")
+                .Append(Literal.Of(clip.Frames.Length)).Append(clip.Frames.Length == 1 ? " frame, " : " frames, ")
+                .Append(Literal.Of(TotalTicks(clip))).Append(" ticks, ")
                 .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
 
             // A property with a field initializer, not an expression body. A clip is immutable, so
@@ -195,7 +198,7 @@ internal static class SpriteRegistrySource
                     source.Append(", ");
                 }
 
-                source.Append(Number(clip.Frames[j].Ticks));
+                source.Append(Literal.Of(clip.Frames[j].Ticks));
             }
 
             source.Append(" },").AppendLine();
@@ -238,13 +241,4 @@ internal static class SpriteRegistrySource
 
     // The document has already been validated. A name that is not an identifier cannot reach here.
     private static string Identifier(string name) => TypeNaming.ToIdentifier(name)!;
-
-    private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
-
-    // Round-trippable, and suffixed because the pivot is a float and an unsuffixed literal would be
-    // a double the constructor cannot take.
-    private static string Number(float value) => value.ToString("R", CultureInfo.InvariantCulture) + "F";
-
-    private static string Literal(string value) =>
-        "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 }

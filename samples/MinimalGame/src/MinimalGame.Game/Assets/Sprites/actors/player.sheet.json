@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "texture": "actors/player.png",
+  "texture": "textures/actors/player.png",
   "sockets": [
     {
       "name": "muzzle"

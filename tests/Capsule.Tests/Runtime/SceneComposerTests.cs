@@ -17,7 +17,7 @@ public sealed class SceneComposerTests : IDisposable
     private const string DocumentName = "hall";
 
     private static readonly string DocumentPath =
-        Path.Combine(AppContext.BaseDirectory, "assets", "scenes", DocumentName + ".scene.json");
+        Path.Combine(AppContext.BaseDirectory, "assets", DocumentName + ".scene.json");
 
     // A game boots a document-backed scene by its class; nothing in game code names the document.
     // Losing the turn from one into the other boots an empty room rather than failing.

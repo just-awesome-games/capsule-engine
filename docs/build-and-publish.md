@@ -17,13 +17,6 @@ my-game/
     MyGame.Game/
       MyGame.Game.csproj
       Assets/
-        Scenes/
-        Sprites/
-        Textures/
-        Atlases/
-        Audio/
-        Fonts/
-        Shaders/
     MyGame.Shell/
       MyGame.Shell.csproj
   tests/
@@ -36,8 +29,9 @@ my-game/
   MyGame.slnx
 ```
 
-The authoring tree lives inside the logic project, the role that reads it. The build derives `assets/`
-beside the executable, and the shell receives it through its project reference.
+The authoring tree lives inside the logic project, the role that reads it, in whatever folders the game
+chooses ([`assets.md`](assets.md#named-assets)). The build derives the same tree as `assets/` beside the
+executable, and the shell receives it through its project reference.
 
 Inside the logic project, one folder vocabulary: `Scenes/`, `Entities/`, `Components/`, `Cameras/`, `UI/`,
 `Drivers/`, with `Assets/` beside them holding no code. A concept gets its folder as soon as it has one
@@ -256,17 +250,15 @@ to the importing project unless a row says otherwise.
 
 | Property | Value | Effect |
 | --- | --- | --- |
-| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, compiles sprite sheets, and defaults scene import and asset shipping on. Set it on the substrate-free logic library. |
+| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleImportScenes` on. Set it on the substrate-free logic library. |
 | `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it on the executable shell. |
 
 ### Authoring sources and output
 
 | Property | Default | Effect |
 | --- | --- | --- |
-| `CapsuleAssetSourcesDir` | `Assets` under the importing project | Locates the authored `Scenes/`, `Sprites/`, `Textures/`, `Atlases/`, `Audio/`, `Fonts/` and `Shaders/` trees. A named directory must exist. |
-| `CapsuleImportScenes` | `true` for the logic library, else `false` | Validates and canonically re-emits `*.scene.json` sources, then ships them under `assets/scenes/`. A role-free test or tool can opt in. |
-| `CapsuleShipAssets` | `true` for the logic library, else `false` | Ships admitted textures, audio, font pages and compiled shaders under `assets/`. |
-| `CapsuleImportAudio` | `true` for the logic library, else `false` | Measures every `Audio/` source and compiles it into `CapsuleAssets.Audio`. Nothing ships from here. |
+| `CapsuleAssetSourcesDir` | `Assets` under the importing project | Locates the authoring tree. A named directory must exist. |
+| `CapsuleImportScenes` | `true` for the logic library, else `false` | Reads the authoring tree: derives scene documents, measures and compiles assets, and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
 | `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |
 

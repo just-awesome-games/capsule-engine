@@ -20,10 +20,10 @@ public sealed class Transition : Scene
     protected override void OnStep(in StepContext context) => Run.RequestScene<PageA>();
 
     /// <summary>The half drawing <c>transition-a</c>.</summary>
-    public sealed class PageA() : TransitionHalf<PageB>(CapsuleAssets.Textures.TransitionA, 64, 16f, World.ViewportSize, 400);
+    public sealed class PageA() : TransitionHalf<PageB>(CapsuleAssets.Textures.TransitionATexture, 64, 16f, World.ViewportSize, 400);
 
     /// <summary>The half drawing <c>transition-b</c>.</summary>
-    public sealed class PageB() : TransitionHalf<PageA>(CapsuleAssets.Textures.TransitionB, 64, 16f, World.ViewportSize, 400);
+    public sealed class PageB() : TransitionHalf<PageA>(CapsuleAssets.Textures.TransitionBTexture, 64, 16f, World.ViewportSize, 400);
 }
 
 /// <summary>One half of a transition workload: a field of one page, declared at construction, that prefetches <typeparamref name="TNext"/> on arrival and requests it every 120 steps.</summary>

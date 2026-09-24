@@ -16,7 +16,7 @@
         "tileSize": 1,
         "width": 1,
         "height": 1,
-        "texture": "TileSets/Cave_Wall.png",
+        "texture": "Textures/TileSets/Cave_Wall.png",
         "columns": 1,
         "tileTypes": [
           {

@@ -27,14 +27,14 @@ public sealed class Walker : Entity
         _body.BlocksOn(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_body);
 
-        SpriteRenderer renderer = new(CapsuleAssets.Sprites.Walker.Frames.Walk0);
+        SpriteRenderer renderer = new(CapsuleAssets.Sprites.WalkerSheet.Frames.Walk0);
         Add(renderer);
 
         _animator = new SpriteAnimator(renderer);
         Add(_animator);
     }
 
-    protected override void OnStart() => _animator.Play(CapsuleAssets.Sprites.Walker.Clips.Walk);
+    protected override void OnStart() => _animator.Play(CapsuleAssets.Sprites.WalkerSheet.Clips.Walk);
 
     protected override void OnStep(in StepContext context)
     {

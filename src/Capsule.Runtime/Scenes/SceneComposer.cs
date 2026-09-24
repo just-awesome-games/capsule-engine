@@ -10,7 +10,7 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
     // Where the scene-document build hook lands its output in a shell's content, and the extension it
     // writes. A document name resolves against these.
-    private const string DocumentDirectory = "assets/scenes";
+    private const string DocumentDirectory = "assets";
     private const string DocumentExtension = ".scene.json";
 
     private string? _heldName;

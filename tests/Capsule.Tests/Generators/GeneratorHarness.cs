@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Capsule.Build.Scenes;
 using Capsule.Generators;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
@@ -17,7 +18,6 @@ internal static class GeneratorHarness
 {
     internal const string CapsuleEntitiesFile = "CapsuleEntities.g.cs";
     internal const string CapsuleScenesFile = "CapsuleScenes.g.cs";
-    internal const string CapsuleAssetsFile = "CapsuleAssets.g.cs";
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
     internal const string CapsuleInputDriversFile = "CapsuleInputDrivers.g.cs";
 
@@ -144,9 +144,7 @@ internal static class GeneratorHarness
         bool logic,
         params (string Path, string? Content)[] assets)
     {
-        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> declared) = Assets(assets);
-
-        return Run(Created("AssetSpecs", source, References), logic, shell: !logic, texts, declared);
+        return Run(Created("AssetSpecs", source, References, Documents(assets)), logic, shell: !logic);
     }
 
     /// <summary>The generated registry as the game runs it, so a member hands back what it declares.</summary>
@@ -160,64 +158,26 @@ internal static class GeneratorHarness
         return Assembly.Load(image.ToArray());
     }
 
-    /// <summary>Compiles game code against the assets the asset hook would hand the compiler beside it.</summary>
-    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileAgainstAssets(
-        string source,
-        params string[] assetPaths)
+    // Each '<key>.scene.json' document, its path under Assets/, as the build hands it to the
+    // generator: a key constant marked with the build's own attribute, carrying the baseScene and
+    // camera its parser read.
+    private static string Documents((string Path, string? Content)[] documents)
     {
-        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> assets) =
-            Assets([.. assetPaths.Select(static path => (path, (string?)null))]);
+        const string Extension = ".scene.json";
 
-        return Run(Created("ResidencySpecs", source, References), logic: true, shell: false, texts, assets);
-    }
+        IEnumerable<string> constants = documents
+            .Where(static document => document.Path.EndsWith(Extension, StringComparison.Ordinal))
+            .Select(static (document, index) =>
+            {
+                SceneSettings? settings = document.Content is null ? null : SceneDocumentFile.Parse(document.Content).Settings;
 
-    // Each path is '<domain>/<path under the domain root>', as the asset hook hands the generator
-    // beside the file.
-    private static (ImmutableArray<AdditionalText> Texts, Dictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> Assets) Assets(
-        (string Path, string? Content)[] assetPaths)
-    {
-        const string SceneDocumentExtension = ".scene.json";
+                return $"[{SceneStep.DocumentAttributeName}(BaseScene = {Quoted(settings?.BaseScene)}, Camera = {Quoted(settings?.Camera)})] "
+                    + $"public const string Document{index} = \"{document.Path[..^Extension.Length]}\";";
+            });
 
-        Dictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> assets = new(StringComparer.Ordinal);
-        ImmutableArray<AdditionalText>.Builder texts = ImmutableArray.CreateBuilder<AdditionalText>(assetPaths.Length);
-        foreach ((string path, string? content) in assetPaths)
-        {
-            int separator = path.IndexOf('/', StringComparison.Ordinal);
-            string relative = path[(separator + 1)..];
-            string domain = path[..separator];
+        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', constants)}\n}}\n{SceneStep.DocumentAttribute}}}\n";
 
-            // A scene document's metadata is its key, the build's own derivation: the fixed
-            // '.scene.json' suffix comes off whole, not just the file's last extension.
-            string metadataPath = domain == "scenes" && relative.EndsWith(SceneDocumentExtension, StringComparison.Ordinal)
-                ? relative[..^SceneDocumentExtension.Length]
-                : StripLastExtension(relative);
-
-            // The real build hands the generator a scene document's baseScene and camera already
-            // resolved by its own parser. The harness stands in for that build, so it resolves them
-            // here the same way rather than leaving the generator to read the document's text.
-            (string? baseScene, string? camera) = domain == "scenes" && content is not null
-                ? SceneDocumentBaseAndCamera(content)
-                : (null, null);
-
-            assets[path] = (domain, metadataPath, baseScene, camera);
-            texts.Add(new AssetText(path, content));
-        }
-
-        return (texts.ToImmutable(), assets);
-
-        static string StripLastExtension(string relative)
-        {
-            int dot = relative.LastIndexOf('.');
-
-            return dot < 0 ? relative : relative[..dot];
-        }
-    }
-
-    private static (string? BaseScene, string? Camera) SceneDocumentBaseAndCamera(string content)
-    {
-        SceneDocument document = SceneDocumentFile.Parse(content);
-
-        return (document.Settings.BaseScene, document.Settings.Camera);
+        static string Quoted(string? value) => value is null ? "null" : $"\"{value}\"";
     }
 
     /// <summary>
@@ -226,14 +186,12 @@ internal static class GeneratorHarness
     /// </summary>
     internal static GeneratorDriverRunResult RanTwice(params (string Path, string? Content)[] assets)
     {
-        (ImmutableArray<AdditionalText> texts, Dictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> declared) = Assets(assets);
-        CSharpCompilation compilation = Created("CachingSpecs", "namespace Game; public sealed class Marker;", References);
+        CSharpCompilation compilation = Created("CachingSpecs", "namespace Game; public sealed class Marker;", References, Documents(assets));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            [new RegistryGenerator().AsSourceGenerator(), new AssetRegistryGenerator().AsSourceGenerator()],
-            additionalTexts: texts,
+            [new RegistryGenerator().AsSourceGenerator()],
             parseOptions: null,
-            optionsProvider: new DeclaredRole(logic: true, shell: false, declared),
+            optionsProvider: new DeclaredRole(logic: true, shell: false),
             driverOptions: new GeneratorDriverOptions(
                 IncrementalGeneratorOutputKind.None,
                 trackIncrementalGeneratorSteps: true));
@@ -249,7 +207,6 @@ internal static class GeneratorHarness
             Created("KeySpecs", source, References),
             logic: true,
             shell: false,
-            assets: null,
             rootNamespace: rootNamespace);
 
     private enum Role
@@ -270,10 +227,14 @@ internal static class GeneratorHarness
         return MetadataReference.CreateFromImage(image.ToArray());
     }
 
-    private static CSharpCompilation Created(string assemblyName, string source, ImmutableArray<MetadataReference> references) =>
+    private static CSharpCompilation Created(
+        string assemblyName,
+        string source,
+        ImmutableArray<MetadataReference> references,
+        string? documents = null) =>
         CSharpCompilation.Create(
             assemblyName,
-            [CSharpSyntaxTree.ParseText(source)],
+            [CSharpSyntaxTree.ParseText(source), .. documents is null ? [] : new[] { CSharpSyntaxTree.ParseText(documents) }],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
@@ -284,17 +245,12 @@ internal static class GeneratorHarness
         CSharpCompilation compilation,
         bool logic,
         bool shell,
-        ImmutableArray<AdditionalText>? texts = null,
-        IReadOnlyDictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)>? assets = null,
         string? rootNamespace = null)
     {
-        // Both generators, as the compiler loads them: they ship in one assembly, so a spec over
-        // either runs against what the other emits into the same compilation.
         CSharpGeneratorDriver.Create(
-                [new RegistryGenerator().AsSourceGenerator(), new AssetRegistryGenerator().AsSourceGenerator()],
-                additionalTexts: texts,
+                [new RegistryGenerator().AsSourceGenerator()],
                 parseOptions: null,
-                optionsProvider: new DeclaredRole(logic, shell, assets, rootNamespace))
+                optionsProvider: new DeclaredRole(logic, shell, rootNamespace))
             .RunGeneratorsAndUpdateCompilation(compilation, out Compilation updated, out ImmutableArray<Diagnostic> diagnostics);
 
         return (diagnostics, updated);
@@ -352,40 +308,19 @@ internal static class GeneratorHarness
         return references.ToImmutable();
     }
 
-    private sealed class AssetText(string path, string? content) : AdditionalText
-    {
-        public override string Path { get; } = path;
-
-        // Null where the compiler could not read the file, which is every binary asset.
-        public override SourceText? GetText(CancellationToken cancellationToken = default) =>
-            content is null ? null : SourceText.From(content);
-    }
-
     /// <summary>The roles a project declares, as the compiler hands them to a generator or analyzer.</summary>
     internal sealed class DeclaredRole : AnalyzerConfigOptionsProvider
     {
         private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false, rootNamespace: null);
 
-        private readonly IReadOnlyDictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)> _assets;
-
-        internal DeclaredRole(
-            bool logic,
-            bool shell,
-            IReadOnlyDictionary<string, (string Domain, string Path, string? BaseScene, string? Camera)>? assets = null,
-            string? rootNamespace = null)
-        {
+        internal DeclaredRole(bool logic, bool shell, string? rootNamespace = null) =>
             GlobalOptions = new Properties(logic, shell, rootNamespace);
-            _assets = assets ?? new Dictionary<string, (string, string, string?, string?)>(StringComparer.Ordinal);
-        }
 
         public override AnalyzerConfigOptions GlobalOptions { get; }
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
 
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) =>
-            _assets.TryGetValue(textFile.Path, out (string Domain, string Path, string? BaseScene, string? Camera) asset)
-                ? new AssetMetadata(asset.Domain, asset.Path, asset.BaseScene, asset.Camera)
-                : None;
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => None;
 
         private sealed class Properties(bool logic, bool shell, string? rootNamespace) : AnalyzerConfigOptions
         {
@@ -413,42 +348,5 @@ internal static class GeneratorHarness
             }
         }
 
-        private sealed class AssetMetadata(string domain, string path, string? baseScene, string? camera) : AnalyzerConfigOptions
-        {
-            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
-            {
-                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetDomain", StringComparison.Ordinal))
-                {
-                    value = domain;
-
-                    return true;
-                }
-
-                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetPath", StringComparison.Ordinal))
-                {
-                    value = path;
-
-                    return true;
-                }
-
-                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetBaseScene", StringComparison.Ordinal) && baseScene is not null)
-                {
-                    value = baseScene;
-
-                    return true;
-                }
-
-                if (string.Equals(key, "build_metadata.AdditionalFiles.CapsuleAssetCamera", StringComparison.Ordinal) && camera is not null)
-                {
-                    value = camera;
-
-                    return true;
-                }
-
-                value = null;
-
-                return false;
-            }
-        }
     }
 }

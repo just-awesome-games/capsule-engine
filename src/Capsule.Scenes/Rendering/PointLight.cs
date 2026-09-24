@@ -17,7 +17,7 @@ namespace Capsule.Rendering;
 /// </remarks>
 /// <example>
 /// <code>
-/// Add(new SpriteRenderer(CapsuleAssets.Sprites.Props.Lamp.Frames.Lit));
+/// Add(new SpriteRenderer(CapsuleAssets.Sprites.Props.LampSheet.Frames.Lit));
 /// Add(new PointLight { Radius = 48f, Color = ColorRgba.Orange });
 /// </code>
 /// </example>

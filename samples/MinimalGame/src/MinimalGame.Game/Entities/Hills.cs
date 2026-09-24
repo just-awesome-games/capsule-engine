@@ -14,7 +14,7 @@ namespace MinimalGame.Game.Entities;
 public sealed class Hills : Entity
 {
     /// <summary>The whole of <c>textures/backdrops/hills.png</c>, anchored at its top-left corner.</summary>
-    private static readonly Sprite Silhouette = new(CapsuleAssets.Textures.Backdrops.Hills, new TextureRegion(0, 0, 160, 64));
+    private static readonly Sprite Silhouette = new(CapsuleAssets.Textures.Backdrops.HillsTexture, new TextureRegion(0, 0, 160, 64));
 
     public Hills(EntitySpawn spawn)
         : base(spawn)

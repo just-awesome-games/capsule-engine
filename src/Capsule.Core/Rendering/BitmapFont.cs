@@ -118,9 +118,8 @@ public sealed partial class BitmapFont
     /// The texture pages this font's glyphs are cut from, in the order the font declares them.
     /// </summary>
     /// <remarks>
-    /// <see cref="Glyph.Page"/> indexes into this. A game's font ships its pages under
-    /// <c>assets/fonts/</c>. <see cref="Default"/>'s page is engine-owned and ships with the
-    /// runtime.
+    /// <see cref="Glyph.Page"/> indexes into this. A game's font pages are its own textures.
+    /// <see cref="Default"/>'s page is engine-owned and ships with the runtime.
     /// </remarks>
     public ReadOnlySpan<TextureHandle> Pages => _pages;
 

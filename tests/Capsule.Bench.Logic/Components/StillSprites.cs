@@ -16,7 +16,7 @@ public sealed class StillSprites : Renderer
         {
             int quadrant = i % 4;
             Sprite frame = new(
-                CapsuleAssets.Textures.Tile,
+                CapsuleAssets.Textures.TileTexture,
                 new TextureRegion((quadrant & 1) * 16, (quadrant >> 1) * 16, 16, 16),
                 new Vector2(8f, 8f));
             Vector2 position = new(24f + ((i % Columns) * 24f), 24f + ((i / Columns) * 24f));

@@ -26,7 +26,7 @@ public sealed class TitleMenu : ScreenEntity
     public TitleMenu()
         : base(Anchor.Top, new Vector2(0f, TitleMargin))
     {
-        Add(new Label(CapsuleAssets.Fonts.Menu, "Minimal Game")
+        Add(new Label(CapsuleAssets.Fonts.MenuFont, "Minimal Game")
         {
             Pivot = Pivot.Top,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -51,7 +51,7 @@ public sealed class TitleMenu : ScreenEntity
         Scene.Add(_exit);
     }
 
-    private void StartGame() => Run.RequestScene(CapsuleAssets.Scenes.Room);
+    private void StartGame() => Run.RequestScene(CapsuleAssets.Scenes.RoomScene);
 
     private void OpenOptions() => Run.RequestScene<Options>();
 

@@ -9,7 +9,7 @@ internal static class AudioFiles
 {
     private const string OggExtension = ".ogg";
 
-    private static readonly AssetFiles Files = new("audio", "Audio clip", "clip");
+    private static readonly AssetFiles Files = new("Audio clip", "clip");
 
     // Whether the clip is decoded as it plays instead of held in memory for the scene. The extension
     // decides: .wav is resident, .ogg streams.

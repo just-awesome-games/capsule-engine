@@ -3,89 +3,75 @@ using Capsule.Build.Shaders;
 
 namespace Capsule.Build;
 
-/// <summary>One authored source the targets ask the build pass about.</summary>
-/// <param name="Group">The domain root it was authored under: textures, fonts, audio, scenes, sprites, atlases or shaders.</param>
-/// <param name="Path">Its path below that root as the platform spelled it. The key pass normalizes it.</param>
-/// <param name="Extension">The extension the shipped file carries, empty for a document.</param>
-/// <param name="Source">Where the source is, relative to the working directory.</param>
-internal readonly record struct AssetRequest(string Group, string Path, string Extension, string Source);
+/// <summary>One source the targets hand the build, as a line of the manifest named it.</summary>
+/// <param name="Path">Where the source is, relative to the working directory and with forward slashes.</param>
+/// <param name="Document">The type a module derived it as, or null for a file under the asset root.</param>
+/// <param name="Key">The key a module claims for its document, or empty to key it by its stem.</param>
+internal readonly record struct Request(string Path, AssetType? Document = null, string Key = "");
 
 /// <summary>
-/// The manifest a build writes and a run reads: option lines, then one
-/// <c>group|path|extension|source</c> request per line. It is rewritten whenever the authored set or
-/// a declared option changes, and it is the pass's incremental input.
+/// The manifest the targets write and a run reads, one <c>kind|value...</c> line each:
+/// <c>root|&lt;dir&gt;</c>, <c>tile-size|&lt;px&gt;</c>, <c>shader-tools|&lt;dxc&gt;|&lt;spirv-cross&gt;</c>,
+/// then one <c>asset|&lt;path&gt;</c> per file under the asset root and one
+/// <c>scene|&lt;path&gt;|&lt;key&gt;</c> or <c>sheet|&lt;path&gt;|&lt;key&gt;</c> per document a
+/// module derived. The targets rewrite it whenever the authored set or an option changes, which
+/// makes it the run's incremental input.
 /// </summary>
+/// <param name="AssetRoot">The authoring tree, <c>Assets/</c>, relative to the working directory.</param>
 /// <param name="TileSize">The tile size every imported grid must match, or null to impose none.</param>
-/// <param name="Assets">The sources to key, in the order the targets composed them.</param>
 /// <param name="ShaderTools">The shader tools the build downloaded, or null when the game has no shader.</param>
-internal readonly record struct BuildRequests(
-    int? TileSize,
-    IReadOnlyList<AssetRequest> Assets,
-    ShaderTools? ShaderTools = null)
+/// <param name="Sources">Every source, in the order the targets wrote them.</param>
+internal sealed record BuildRequests(string AssetRoot, int? TileSize, ShaderTools? ShaderTools, IReadOnlyList<Request> Sources)
 {
-    /// <summary>The separator a request line and every derived line write between fields.</summary>
-    internal const char Separator = '|';
-
-    private const string TileSizeOption = "tile-size";
-
-    private const string DxcOption = "shader-dxc";
-
-    private const string SpirvCrossOption = "shader-spirv-cross";
-
-    /// <summary>Every group the targets ask about, in the order they are written.</summary>
-    private static readonly string[] Groups = ["textures", "fonts", "audio", "scenes", "sprites", "atlases", "shaders"];
-
-    /// <summary>Reads the manifest at <paramref name="path"/>, ignoring any line it does not name.</summary>
-    /// <exception cref="FormatException">An option line states a value that is no value.</exception>
+    /// <summary>Reads the manifest at <paramref name="path"/>.</summary>
+    /// <exception cref="FormatException">A line is of no kind the manifest declares, or states no value.</exception>
     internal static BuildRequests Read(string path)
     {
+        string root = string.Empty;
         int? tileSize = null;
-        string? dxc = null;
-        string? spirvCross = null;
-        List<AssetRequest> assets = [];
+        ShaderTools? tools = null;
+        List<Request> sources = [];
 
         foreach (string line in File.ReadAllLines(path))
         {
-            string entry = line.Trim();
-            if (entry.Length == 0)
+            if (line.Trim().Length == 0)
             {
                 continue;
             }
 
-            // At most four fields, since a source path takes the whole remainder of the line.
-            string[] fields = entry.Split(Separator, 4);
-
-            if (fields is [TileSizeOption, string declared])
+            switch (line.Split('|'))
             {
-                tileSize = int.TryParse(declared, NumberStyles.None, CultureInfo.InvariantCulture, out int size) && size > 0
-                    ? size
-                    : throw new FormatException(
-                        $"declares a tile size of \"{declared}\". A declared tile size is a positive whole number of pixels.");
-                continue;
-            }
-
-            if (fields is [DxcOption, string dxcPackage])
-            {
-                dxc = dxcPackage;
-                continue;
-            }
-
-            if (fields is [SpirvCrossOption, string spirvCrossPackage])
-            {
-                spirvCross = spirvCrossPackage;
-                continue;
-            }
-
-            if (fields is [string group, string authored, string extension, string source]
-                && Array.IndexOf(Groups, group) >= 0)
-            {
-                // MSBuild hands over the path as the platform spelled it. Keys use forward slashes.
-                assets.Add(new AssetRequest(group, authored.Replace('\\', '/'), extension, source));
+                case ["root", string directory]:
+                    root = Relative(directory);
+                    break;
+                case ["tile-size", string declared]:
+                    tileSize = int.TryParse(declared, NumberStyles.None, CultureInfo.InvariantCulture, out int size) && size > 0
+                        ? size
+                        : throw new FormatException(
+                            $"declares a tile size of \"{declared}\". A declared tile size is a positive whole number of pixels.");
+                    break;
+                case ["shader-tools", string dxc, string spirvCross]:
+                    tools = new ShaderTools(dxc, spirvCross);
+                    break;
+                case ["asset", string asset]:
+                    sources.Add(new Request(Relative(asset)));
+                    break;
+                case ["scene", string document, string key]:
+                    sources.Add(new Request(Relative(document), AssetType.Scenes, key));
+                    break;
+                case ["sheet", string document, string key]:
+                    sources.Add(new Request(Relative(document), AssetType.Sprites, key));
+                    break;
+                default:
+                    throw new FormatException($"holds the line \"{line}\", which is no kind of line this build reads.");
             }
         }
 
-        ShaderTools? tools = dxc is not null && spirvCross is not null ? new ShaderTools(dxc, spirvCross) : null;
-
-        return new BuildRequests(tileSize, assets, tools);
+        return new BuildRequests(root, tileSize, tools, sources);
     }
+
+    // Every path a message names is relative to the project, the working directory, so a build log
+    // and a document's provenance carry no machine's own layout.
+    private static string Relative(string path) =>
+        System.IO.Path.GetRelativePath(Environment.CurrentDirectory, path).Replace('\\', '/');
 }

@@ -12,7 +12,7 @@ public sealed class Layer : Entity
     public Layer(EntitySpawn spawn)
         : base(spawn)
     {
-        Sprite band = new(CapsuleAssets.Textures.Strip, new TextureRegion(0, ((spawn.Id - 1) % 8) * 16, 128, 16));
+        Sprite band = new(CapsuleAssets.Textures.StripTexture, new TextureRegion(0, ((spawn.Id - 1) % 8) * 16, 128, 16));
 
         Add(new SpriteRenderer(band) { Tiling = new Vector2(float.PositiveInfinity, 0f) });
     }

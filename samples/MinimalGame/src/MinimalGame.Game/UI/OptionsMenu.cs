@@ -60,7 +60,7 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _settings = Run.Saves.Read(GameSaves.Settings);
         Refresh(InputDevice.KeyboardMouse);
-        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
 
     /// <inheritdoc/>

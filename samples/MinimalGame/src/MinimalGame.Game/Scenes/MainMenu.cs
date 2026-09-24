@@ -19,8 +19,8 @@ public sealed class MainMenu : Scene
     /// <inheritdoc/>
     protected override void OnStart()
     {
-        Run.Game.Music.Play(CapsuleAssets.Audio.Music.Title);
-        Run.PrefetchScene(CapsuleAssets.Scenes.Room);
+        Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
+        Run.PrefetchScene(CapsuleAssets.Scenes.RoomScene);
     }
 
     /// <inheritdoc/>

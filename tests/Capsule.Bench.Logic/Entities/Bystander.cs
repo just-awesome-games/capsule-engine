@@ -8,7 +8,7 @@ namespace Capsule.Bench.Logic.Entities;
 // Only every third one draws, so most are stepped and culled without submitting anything.
 public sealed class Bystander : Entity
 {
-    private static readonly Sprite Frame = new(CapsuleAssets.Textures.Terrain, new TextureRegion(0, 0, 16, 16));
+    private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 16, 16));
 
     private readonly Vector2 _drift;
 

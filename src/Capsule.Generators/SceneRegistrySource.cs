@@ -14,20 +14,15 @@ internal static class SceneRegistrySource
 {
     private const string FileName = "CapsuleScenes.g.cs";
 
-    private const string KeysFileName = "CapsuleAssets.Scenes.g.cs";
-
-    private const string KeysClass = "Scenes";
-
-    private const string DocumentExtension = ".scene.json";
-
-    // Scene and baseScene keys drop this namespace segment, since it repeats the domain.
+    // A baseScene key drops this namespace segment, since it repeats the domain. A class claiming a
+    // document keeps it: its namespace under the root is the document's path under Assets/.
     private const string DomainSegment = "Scenes";
 
     // Camera keys drop this namespace segment instead, since it repeats theirs.
     private const string CameraDomainSegment = "Cameras";
 
-    /// <summary>The asset domain a shipped scene document is authored under.</summary>
-    internal const string Domain = "scenes";
+    /// <summary>What the build marks each shipped scene document's key constant with.</summary>
+    internal const string DocumentAttribute = "Capsule.Generated.CapsuleGeneratedSceneDocumentAttribute";
 
     // A document's baseScene and camera are resolved against every Scene and Camera subclass the
     // assembly declares, so every one is modeled here whether or not a document ever names it.
@@ -339,61 +334,34 @@ internal static class SceneRegistrySource
         unclaimed.Sort(static (left, right) => string.CompareOrdinal(left.DocumentName, right.DocumentName));
 
         context.AddSource(FileName, SourceText.From(Render(registered, unclaimed, cameraExpressions), Encoding.UTF8));
-        context.AddSource(KeysFileName, SourceText.From(Keys(context, registered, unclaimed), Encoding.UTF8));
     }
 
-    // Every registered document's key as a constant on CapsuleAssets.Scenes, one nested class per
-    // key directory. A refused class claim is reported at the class. A shipped document has no file
-    // location the generator can see.
-    private static string Keys(
-        SourceProductionContext context, List<Registration> registered, List<UnclaimedDocument> unclaimed)
+    /// <summary>
+    /// The document a key constant the build marked describes, with the baseScene and camera the
+    /// build's own parser read out of it. Null for a constant holding no key.
+    /// </summary>
+    internal static SceneDocumentInfo? DescribeDocument(GeneratorAttributeSyntaxContext marked)
     {
-        List<KeyValuePair<string, Location>> named = [];
-        foreach (Registration entry in registered)
+        if (marked.TargetSymbol is not IFieldSymbol { HasConstantValue: true, ConstantValue: string key })
         {
-            if (entry.DocumentName is { } name)
+            return null;
+        }
+
+        string? baseScene = null;
+        string? camera = null;
+        foreach (KeyValuePair<string, TypedConstant> named in marked.Attributes[0].NamedArguments)
+        {
+            if (named.Key == "BaseScene")
             {
-                named.Add(new KeyValuePair<string, Location>(name, entry.Model.At.Location()));
+                baseScene = named.Value.Value as string;
+            }
+            else if (named.Key == "Camera")
+            {
+                camera = named.Value.Value as string;
             }
         }
 
-        foreach (UnclaimedDocument document in unclaimed)
-        {
-            named.Add(new KeyValuePair<string, Location>(document.DocumentName, Location.None));
-        }
-
-        named.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
-
-        RegistryDomain<string> tree = new(
-            KeysClass,
-            Domain,
-            null,
-            "scene document",
-            "The key of every scene document shipped at <c>assets/" + Domain + "</c>.",
-            AppendKey);
-        foreach (KeyValuePair<string, Location> key in named)
-        {
-            string display = Domain + "/" + key.Key + DocumentExtension;
-            if (TypeNaming.NormalizeKey(key.Key, out _) is null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(RegistryDiagnostics.UnsafeAssetName, key.Value, display));
-                continue;
-            }
-
-            tree.Add(key.Key, display, key.Key, AssetRegistrySource.Refused<string>(context, key.Value));
-        }
-
-        StringBuilder source = RegistryFile.Open();
-        tree.Append(source, "        ");
-
-        return RegistryFile.Close(source);
-    }
-
-    private static void AppendKey(StringBuilder source, string indent, string identifier, string key)
-    {
-        source.Append(indent).Append("/// <summary>The scene document <c>").Append(key).AppendLine("</c>.</summary>");
-        source.Append(indent).Append("public const string ").Append(identifier)
-            .Append(" = ").Append(SymbolDisplay.FormatLiteral(key, quote: true)).AppendLine(";");
+        return new SceneDocumentInfo(key, baseScene, camera);
     }
 
     private static string? ResolveCamera(SourceProductionContext context, SceneDocumentInfo document, Dictionary<string, CameraModel> cameras)
@@ -451,8 +419,8 @@ internal static class SceneRegistrySource
 
     // The internal sealed scene a document's baseScene generates, named from the document's own key.
     // Each segment's identifier follows a '_', which no identifier contains. Two keys then share a
-    // name only when they share every segment's identifier, and the key tree refuses that pair as
-    // CAP016. A segment naming no identifier is refused there as CAP017.
+    // name only when they share every segment's identifier, and the build refuses that pair when it
+    // declares the keys on CapsuleAssets.Scenes.
     private static string GeneratedSceneClassName(string documentKey)
     {
         StringBuilder name = new("CapsuleGeneratedScene");
@@ -491,7 +459,7 @@ internal static class SceneRegistrySource
         // meets the document at the key it ships under.
         string? documentName = model.Declared is { } declared
             ? Normalized(context, model, declared)
-            : TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+            : TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, domainSegment: string.Empty);
 
         if (documentName is null)
         {

@@ -16,7 +16,7 @@ public sealed class Lights256 : SpriteFieldScene
     private const int LightCount = 256;
 
     public Lights256()
-        : base(new Sprite(CapsuleAssets.Textures.HdAtlas, new TextureRegion(0, 0, 256, 256), new Vector2(128f, 128f)), 256f, World.HdViewportSize, count: 2_000)
+        : base(new Sprite(CapsuleAssets.Textures.HdAtlasTexture, new TextureRegion(0, 0, 256, 256), new Vector2(128f, 128f)), 256f, World.HdViewportSize, count: 2_000)
     {
         Ambient = new ColorRgba(40, 42, 56);
         Add(new Holder(new LightField(World.HdViewportSize, LightCount)));

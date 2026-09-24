@@ -7,7 +7,7 @@
     <RootNamespace>Capsule.Build</RootNamespace>
     <AssemblyName>Capsule.Build</AssemblyName>
     <PackageId>JAG.Capsule.Build</PackageId>
-    <Description>Build integration, source generators, analyzers, atlas packing, and scene-document tooling for Capsule games.</Description>
+    <Description>The Capsule build: asset keying, scene, sprite, font, audio and shader compilation, atlas packing, source generators and analyzers for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
@@ -28,9 +28,8 @@
 
   <ItemGroup>
     <!-- Compiled rather than referenced: the generator ships as an analyzer, and a second copy of
-         these rules would let the audio and asset registries name a file differently. -->
+         the naming rule would let a document's key and a scene class's key drift apart. -->
     <Compile Include="../Capsule.Generators/TypeNaming.cs" Link="TypeNaming.cs" />
-    <Compile Include="../Capsule.Generators/RegistryTree.cs" Link="RegistryTree.cs" />
   </ItemGroup>
 
   <!-- Atlas packing decodes and encodes PNGs here and nowhere else: both are pure managed, so the

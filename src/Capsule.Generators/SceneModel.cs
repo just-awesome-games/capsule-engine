@@ -47,8 +47,8 @@ internal readonly record struct SceneModel(
 }
 
 /// <summary>
-/// One scene document the build ships, keyed the way the asset hook already keys it, with the two
-/// top-level fields <see cref="SceneRegistrySource"/> resolves before the document is otherwise read.
+/// One scene document the build ships, keyed as the build keys it, with the two top-level fields
+/// <see cref="SceneRegistrySource"/> resolves before the document is otherwise read.
 /// </summary>
 internal readonly record struct SceneDocumentInfo(string Key, string? BaseScene, string? Camera);
 

@@ -122,7 +122,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
     {
         // Beside the executable, where SceneComposer looks; SceneComposerTests writes here too.
         // StageAllocationCollection disables parallelization, so the delete below cannot race it.
-        string directory = Path.Combine(AppContext.BaseDirectory, "assets", "scenes");
+        string directory = Path.Combine(AppContext.BaseDirectory, "assets");
         string path = Path.Combine(directory, StageWorkload.DocumentName + ".scene.json");
         Directory.CreateDirectory(directory);
 
@@ -151,7 +151,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         }
         finally
         {
-            Directory.Delete(directory, recursive: true);
+            File.Delete(path);
         }
     }
 

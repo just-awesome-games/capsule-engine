@@ -6,7 +6,7 @@ namespace Capsule.Bench.Logic.Entities;
 
 public sealed class Mote : Entity
 {
-    private static readonly Sprite Frame = new(CapsuleAssets.Textures.Terrain, new TextureRegion(0, 0, 4, 4));
+    private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 4, 4));
 
     public Mote()
         : base(Vector2.Zero)

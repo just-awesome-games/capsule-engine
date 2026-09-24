@@ -10,7 +10,7 @@
         "tileSize": 16,
         "width": 256,
         "height": 48,
-        "texture": "terrain.png",
+        "texture": "textures/terrain.png",
         "columns": 2,
         "tileTypes": [
           {"type": "empty"},

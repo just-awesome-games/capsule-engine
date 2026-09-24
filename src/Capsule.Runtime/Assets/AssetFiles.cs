@@ -2,17 +2,17 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime.Assets;
 
-// Where a named asset's file is, as a content path. One instance per shipped domain, so resolution
+// Where a named asset's file is, as a content path. One instance per asset type, so resolution
 // and its failure are testable without a device.
-internal sealed class AssetFiles(string domain, string noun, string parameterName)
+internal sealed class AssetFiles(string noun, string parameterName)
 {
-    // The asset's file, relative to the publish root. A name is its source's path under the domain
-    // root, and a nested asset resolves to a nested file.
+    // The asset's file, relative to the publish root. A name is its source's path under Assets/, and
+    // a nested asset resolves to a nested file.
     internal string RelativePathOf(string? name, string? extension)
     {
         Validate(name, extension);
 
-        return "assets/" + domain + "/" + name + extension;
+        return "assets/" + name + extension;
     }
 
     // Opens the asset's shipped file through the platform. The caller disposes the stream.
@@ -33,7 +33,7 @@ internal sealed class AssetFiles(string domain, string noun, string parameterNam
         }
     }
 
-    // Every segment must be one safe directory name, which keeps a name inside the domain root. No
+    // Every segment must be one safe directory name, which keeps a name inside assets/. No
     // separator but '/', no '.' or '..', no rooted or device path.
     private void Validate(string? name, string? extension)
     {
@@ -67,6 +67,6 @@ internal sealed class AssetFiles(string domain, string noun, string parameterNam
 
     private ArgumentException Invalid(string? name, string? extension) =>
         new(
-            $"{noun} handle ('{name}', '{extension}') does not name one portable file under assets/{domain}.",
+            $"{noun} handle ('{name}', '{extension}') does not name one portable file under assets/.",
             parameterName);
 }
