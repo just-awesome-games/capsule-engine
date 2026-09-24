@@ -174,6 +174,7 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--driver", "Idler")]
     [InlineData("--headless")]
     [InlineData("--frames", "frames.csv")]
+    [InlineData("--uncapped")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(
@@ -199,6 +200,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
     }
 
     // The defect and the usage block as the shell prints them, with the exit code it returns.

@@ -10,6 +10,7 @@ namespace Capsule.Bench;
 internal sealed record SuiteRecord(
     string Timestamp,
     string Label,
+    bool Uncapped,
     string Commit,
     string Configuration,
     string Os,
@@ -56,7 +57,7 @@ internal sealed record DrawTiming(double Median, double P95, double Max);
 internal sealed record StepTiming(double Median, double P95);
 
 // Milliseconds from one frame's start to the next: the display's rate when the host keeps up, and
-// in its tail the hitches the median hides.
+// in its tail the hitches the median hides. Uncapped, it is the host's true frame cost.
 internal sealed record IntervalTiming(double Median, double P95, double Max);
 
 [JsonSerializable(typeof(SuiteRecord))]

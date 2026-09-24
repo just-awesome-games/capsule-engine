@@ -14,6 +14,7 @@ internal sealed class CommandLine
           --headless                 run with no window, which needs a driver
           --scene <Name>             boot the scene of that class name, else of that document key
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
+          --uncapped                 present without waiting for vertical sync
 
         """;
 
@@ -38,6 +39,8 @@ internal sealed class CommandLine
     internal string? FramesPath { get; private set; }
 
     internal double? FramesSeconds { get; private set; }
+
+    internal bool Uncapped { get; private set; }
 
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
@@ -93,6 +96,10 @@ internal sealed class CommandLine
                     }
 
                     parsed.FramesSeconds = seconds;
+                    break;
+
+                case "--uncapped" when development:
+                    parsed.Uncapped = true;
                     break;
 
                 case "--saves":

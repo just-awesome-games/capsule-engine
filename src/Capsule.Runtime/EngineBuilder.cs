@@ -86,6 +86,9 @@ public sealed class EngineBuilder
 
     internal bool Fullscreen { get; private set; }
 
+    // Set only by the development flag --uncapped. The host then presents without waiting for vertical sync.
+    internal bool Uncapped { get; private set; }
+
     internal (int Width, int Height)? RenderResolution { get; private set; }
 
     internal double StepSeconds { get; private set; } = 1.0 / StepContext.DefaultStepHertz;
@@ -423,6 +426,8 @@ public sealed class EngineBuilder
                     + $"Name a class ({Scenes.RegisteredClassNames()}) or a document key ({Scenes.RegisteredDocumentKeys()}).");
             }
         }
+
+        Uncapped = parsed.Uncapped;
 
         _headless = parsed.Headless;
         if (_headless && Driver is null)

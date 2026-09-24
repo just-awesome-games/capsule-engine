@@ -8,7 +8,7 @@ using Capsule.Bench.Logic.Drivers;
 
 namespace Capsule.Bench;
 
-// `suite [--label <text>]`: every workload in Workloads.All, each in a child process of this same
+// `suite [--label <text>] [--uncapped]`: every workload in Workloads.All, each in a child process of this same
 // binary on the engine's own command line, in the lane its [Workload] attribute names, then one
 // record under results/ beside this source.
 internal static class Suite
@@ -24,6 +24,7 @@ internal static class Suite
     internal static int Run(string[] args)
     {
         string? label = null;
+        bool uncapped = false;
         for (int index = 0; index < args.Length; index++)
         {
             if (args[index] == "--label" && index + 1 < args.Length && label is null)
@@ -32,8 +33,14 @@ internal static class Suite
                 continue;
             }
 
+            if (args[index] == "--uncapped" && !uncapped)
+            {
+                uncapped = true;
+                continue;
+            }
+
             Console.Error.WriteLine($"unknown suite option '{args[index]}'.");
-            Console.Error.WriteLine("usage: Capsule.Bench suite [--label <text>]");
+            Console.Error.WriteLine("usage: Capsule.Bench suite [--label <text>] [--uncapped]");
             return 2;
         }
 
@@ -63,7 +70,7 @@ internal static class Suite
 
             WorkloadRecord? workload = lane.Kind == WorkloadKind.Simulation
                 ? Headless(executable, name, lane)
-                : Windowed(executable, name, lane, label);
+                : Windowed(executable, name, lane, label, uncapped);
             if (workload is null)
             {
                 return 1;
@@ -77,6 +84,7 @@ internal static class Suite
         SuiteRecord record = new(
             started.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             label,
+            uncapped,
             Machine.Commit(sourceDirectory),
             Machine.Configuration,
             Machine.Os,
@@ -123,7 +131,8 @@ internal static class Suite
 
     // `--scene X --frames <csv> 6`: the host writes a row per frame; the first WarmUpFrames are
     // dropped, and gen-0 is counted from the last warm-up row so the first measured frame counts.
-    private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label)
+    // Uncapped, the host presents without vertical sync and the interval is the true frame cost.
+    private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
     {
         string csv = Path.Combine(ArtifactsDirectory, workload + ".csv");
         bool captured = workload is "Still" or "StillLit";
@@ -132,6 +141,11 @@ internal static class Suite
         if (captured)
         {
             arguments.AddRange(["--driver", nameof(StillCapture)]);
+        }
+
+        if (uncapped)
+        {
+            arguments.Add("--uncapped");
         }
 
         if (!RunChild(executable, workload, arguments, static _ => false))

@@ -163,7 +163,7 @@ parser of its own:
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
 ```
 
-`--driver`, `--headless`, `--scene`, `--frames`, `--saves`, `--help` are the flags, as `--help`
+`--driver`, `--headless`, `--scene`, `--frames`, `--uncapped`, `--saves`, `--help` are the flags, as `--help`
 prints and `EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`.
 A refused flag and `--help` both throw `CommandLineException`, which the shell catches around its
 configuration chain and reports as the process's exit code.

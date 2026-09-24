@@ -108,6 +108,7 @@ internal sealed class CapsuleGame : Game
             // restores the configured window.
             HardwareModeSwitch = false,
             IsFullScreen = builder.Fullscreen,
+            SynchronizeWithVerticalRetrace = !builder.Uncapped,
         };
 
         IsFixedTimeStep = false;
