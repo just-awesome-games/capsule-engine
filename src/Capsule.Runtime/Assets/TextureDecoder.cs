@@ -40,6 +40,25 @@ internal static class TextureDecoder
         }
     }
 
+    // Premultiply's inverse, rounded to nearest. A texel premultiplied at low alpha lost precision
+    // that no inverse recovers, and a fully transparent texel comes back black.
+    internal static void Unpremultiply(Span<byte> texels)
+    {
+        for (int index = 0; index < texels.Length; index += 4)
+        {
+            byte alpha = texels[index + 3];
+            if (alpha is 0 or 255)
+            {
+                continue;
+            }
+
+            float scale = 255f / alpha;
+            texels[index] = (byte)MathF.Min(255f, MathF.Round(texels[index] * scale));
+            texels[index + 1] = (byte)MathF.Min(255f, MathF.Round(texels[index + 1] * scale));
+            texels[index + 2] = (byte)MathF.Min(255f, MathF.Round(texels[index + 2] * scale));
+        }
+    }
+
     // DefaultColorProcessors.PremultiplyAlpha's arithmetic to the bit, float scale included.
     private static void Premultiply(ReadOnlySpan<byte> straight, Span<byte> premultiplied)
     {

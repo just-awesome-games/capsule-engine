@@ -20,6 +20,9 @@ public sealed class MainMenu : Scene
     protected override void OnStart()
     {
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
+
+        // A room's crosshair does not follow the player out.
+        Run.Cursor.Image = null;
         Run.PrefetchScene(CapsuleAssets.Scenes.RoomScene);
     }
 

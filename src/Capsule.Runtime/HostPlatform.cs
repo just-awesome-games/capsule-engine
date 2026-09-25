@@ -56,6 +56,17 @@ public abstract class HostPlatform
     /// </remarks>
     protected internal virtual bool HasInputFocus(WindowHandle window) => true;
 
+    /// <summary>Holds the pointer inside the window, or releases it. Does nothing by default.</summary>
+    /// <remarks>
+    /// Called on the game thread when the run's cursor changes. The platform releases the hold while
+    /// the window is unfocused and restores it when focus returns.
+    /// </remarks>
+    /// <param name="window">The window to hold the pointer in.</param>
+    /// <param name="confined">Whether to hold the pointer or release it.</param>
+    protected internal virtual void ConfineCursor(WindowHandle window, bool confined)
+    {
+    }
+
     /// <summary>
     /// Calls <paramref name="redraw"/> whenever the window is resized or exposed inside the
     /// platform's own event handling, for a host whose modal resize blocks the game loop.

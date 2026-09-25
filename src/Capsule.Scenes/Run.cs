@@ -53,6 +53,7 @@ public sealed class Run
         Random = random;
         Audio = new AudioMixer();
         Rumble = new Rumble();
+        Cursor = new Cursor();
         Saves = new SaveStore();
     }
 
@@ -138,6 +139,9 @@ public sealed class Run
     /// pad.
     /// </remarks>
     public Rumble Rumble { get; }
+
+    /// <summary>The run's mouse cursor, owned by the engine and the same instance for the whole run.</summary>
+    public Cursor Cursor { get; }
 
     /// <summary>
     /// The run's save documents, one store shared by every scene it opens. The host restores it before

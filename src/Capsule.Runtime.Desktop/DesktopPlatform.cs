@@ -43,6 +43,10 @@ public sealed class DesktopPlatform : HostPlatform
     protected override bool HasInputFocus(WindowHandle window) => SdlPlatform.HasInputFocus(window.Value);
 
     /// <inheritdoc/>
+    protected override void ConfineCursor(WindowHandle window, bool confined) =>
+        SdlPlatform.ConfineCursor(window.Value, confined);
+
+    /// <inheritdoc/>
     protected override IDisposable? WatchWindowRedraw(WindowHandle window, Action<int, int> redraw)
     {
         ArgumentNullException.ThrowIfNull(redraw);

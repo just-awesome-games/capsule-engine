@@ -1,4 +1,6 @@
+using System.Numerics;
 using Capsule;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
 using MinimalGame.Game.UI;
@@ -13,6 +15,9 @@ namespace MinimalGame.Game.Scenes;
 /// </summary>
 public abstract class PlayableScene : Scene
 {
+    // The centre texel is the hotspot, so a bolt flies where the crosshair points.
+    private static readonly Sprite Crosshair = new(CapsuleAssets.Textures.CrosshairTexture, new TextureRegion(0, 0, 9, 9), new Vector2(4f, 4f));
+
     private readonly PauseMenu _pauseMenu = new();
 
     /// <summary>The room's spark pool, as far up as sparks reach and no further.</summary>
@@ -57,6 +62,10 @@ public abstract class PlayableScene : Scene
                 _pauseMenu.Open();
             }
         }
+
+        // The pause menu is pointed at with the system arrow. Set every step because the next room
+        // starts before this one stops, and clearing it on stop would take the next room's crosshair.
+        Run.Cursor.Image = Paused ? null : Crosshair;
     }
 
     // Health is spent by a contact handler, so the death test runs where contacts have settled: the

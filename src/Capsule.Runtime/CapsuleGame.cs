@@ -30,6 +30,10 @@ internal sealed class CapsuleGame : Game
     // Null when the simulation is not a run of scenes, which has no rumble to apply.
     private readonly GamepadRumble? _rumble;
 
+    // Null until LoadContent, and null for a simulation that is not a run of scenes, which keeps the
+    // system arrow.
+    private CursorApplier? _cursor;
+
     // Null unless the builder opted in, and owned by the builder. The frame path guards every use
     // with a null check.
     private readonly FrameDiagnostics? _diagnostics;
@@ -40,6 +44,7 @@ internal sealed class CapsuleGame : Game
     private readonly Action<FrameRenderer>? _stepOverlay;
     private readonly Action<FrameRenderer>? _drawOverlay;
     private readonly Action<AudioPlayer>? _followOverlayHold;
+    private readonly Func<bool>? _overlayOpen;
     private readonly IDisposable? _overlayHost;
 
     private TextureStore _textures = null!;
@@ -86,6 +91,7 @@ internal sealed class CapsuleGame : Game
                 OverlayHost.ScaleFor(renderer.BackBufferSize.Height));
             _stepOverlay = renderer => overlay.Step(renderer);
             _drawOverlay = overlay.Draw;
+            _overlayOpen = () => overlay.IsOpen;
             // The subscription is built here so the audio player's suspension is reachable only
             // through this block, and a shipping publish trims it with the overlay.
             _followOverlayHold = audio => overlay.HoldChanged = held =>
@@ -113,7 +119,11 @@ internal sealed class CapsuleGame : Game
         };
 
         IsFixedTimeStep = false;
-        IsMouseVisible = true;
+        if (scenes is null)
+        {
+            IsMouseVisible = true;
+        }
+
         Window.Title = builder.WindowTitle;
         Window.AllowUserResizing = builder.Resizable;
 
@@ -175,6 +185,15 @@ internal sealed class CapsuleGame : Game
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
+
+        if (_scenes is not null)
+        {
+            _cursor = new CursorApplier(
+                GraphicsDevice,
+                _textures,
+                shown => IsMouseVisible = shown,
+                confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
+        }
 
         // Update samples the mouse before the first Draw places the layer, so the mapping is settled
         // here and the first step reads a canvas position.
@@ -262,6 +281,16 @@ internal sealed class CapsuleGame : Game
                 gameTime.ElapsedGameTime.TotalSeconds);
         }
 
+        // Every frame, after the steps, so the pointer follows the settled run and the overlay.
+        if (_cursor is { } cursor && _scenes is { } pointed)
+        {
+            cursor.Apply(
+                pointed.Run.Cursor,
+                _scheduler.ActiveDevice == InputDevice.Gamepad,
+                _overlayOpen?.Invoke() ?? false,
+                _renderer.ScreenLayer.Scale);
+        }
+
         _audio?.Update();
 
         if (exiting)
@@ -322,6 +351,9 @@ internal sealed class CapsuleGame : Game
             _rumble?.Silence();
 
             _overlayHost?.Dispose();
+
+            // Null when construction failed before LoadContent ran.
+            _cursor?.Dispose();
 
             // Disposed ahead of the renderer, which the watch draws through.
             _redrawWatch?.Dispose();

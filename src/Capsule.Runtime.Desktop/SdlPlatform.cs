@@ -35,6 +35,9 @@ internal static class SdlPlatform
     // gained focus would claim the global mouse and play at full volume.
     internal static bool HasInputFocus(nint window) => (SDL_GetWindowFlags(window) & InputFocusFlag) != 0;
 
+    // SDL releases the grab while the window is unfocused and takes it again on focus return.
+    internal static void ConfineCursor(nint window, bool confined) => SDL_SetWindowMouseGrab(window, confined ? 1 : 0);
+
     // The operating system's own handle for the window, an HWND on Windows, or zero when SDL will
     // not report one. A backend window handle is SDL's own opaque pointer, not this.
     internal static nint NativeWindowHandle(nint window)
@@ -148,6 +151,10 @@ internal static class SdlPlatform
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowFlags")]
     private static extern uint SDL_GetWindowFlags(nint window);
+
+    // The grab flag is an SDL_bool, an int in SDL2's ABI.
+    [DllImport(LibraryName, EntryPoint = "SDL_SetWindowMouseGrab")]
+    private static extern void SDL_SetWindowMouseGrab(nint window, int grabbed);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowSize")]
     private static extern void SDL_GetWindowSize(nint window, out int width, out int height);

@@ -28,7 +28,7 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
 
 - [`docs/getting-started.md`](docs/getting-started.md): clone, wire three projects, put one entity on screen, run it.
-- [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, input drivers, the standard command line.
+- [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, the cursor, input drivers, the standard command line.
 - [`docs/rendering.md`](docs/rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
 - [`docs/collision.md`](docs/collision.md): colliders, layers, contacts, kinematic movement, queries.

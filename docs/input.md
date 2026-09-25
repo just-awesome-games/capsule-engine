@@ -98,6 +98,18 @@ Run.Rumble.Volume = settings.RumbleStrength;
 
 When the host rests the motors is on `Run.Rumble`. A headless run rumbles nothing.
 
+## The cursor
+
+`Run.Cursor` is the pointer the window shows. A step sets it and the host applies it after the step.
+Hide it, confine it, or draw a sprite in its place with the pivot as the hotspot.
+
+```csharp
+Run.Cursor.Visible = false;
+Run.Cursor.Image = new Sprite(CapsuleAssets.Textures.CrosshairTexture, new TextureRegion(0, 0, 9, 9), new Vector2(4f, 4f));
+```
+
+When the host overrides the game's cursor is on the `Cursor` type.
+
 ## Play a run with no one at the keyboard
 
 An input driver supplies the `DeviceSnapshot` sequence a run sees. Under the

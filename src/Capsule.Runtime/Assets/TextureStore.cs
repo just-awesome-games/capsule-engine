@@ -1,5 +1,6 @@
 using Capsule.Assets;
 using Capsule.Diagnostics;
+using Capsule.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -22,8 +23,11 @@ internal sealed class TextureStore : IDisposable
 
     private readonly AtlasMap _atlases;
 
+    private readonly HostPlatform _platform;
+
     internal TextureStore(GraphicsDevice device, HostPlatform platform)
     {
+        _platform = platform;
         _atlases = AtlasMap.Load(platform);
         TexelPool pool = new();
         _textures = new(Decode, UploadBytesPerFrame);
@@ -62,6 +66,50 @@ internal sealed class TextureStore : IDisposable
         }
 
         return Get(handle, handle);
+    }
+
+    // The handle's texels inside region as straight RGBA, row by row, decoded from its file or its
+    // page. Residency is untouched, so a caller outside the frame path can read any handle. Throws
+    // when the file is missing or the region falls outside the handle's texels.
+    internal byte[] ReadRegion(in TextureHandle handle, TextureRegion region) =>
+        ReadRegion(_platform, _atlases, handle, region);
+
+    internal static byte[] ReadRegion(HostPlatform platform, AtlasMap atlases, in TextureHandle handle, TextureRegion region)
+    {
+        (TextureHandle file, int offsetX, int offsetY) = atlases.TryGet(handle, out AtlasSlot slot)
+            ? (slot.Page, slot.X, slot.Y)
+            : (handle, 0, 0);
+
+        TexelPool pool = new();
+        DecodedTexture decoded;
+        using (Stream stream = TextureFiles.Open(platform, file))
+        {
+            decoded = TextureDecoder.Decode(stream, pool, handle.Name);
+        }
+
+        int left = offsetX + region.X;
+        int top = offsetY + region.Y;
+        if (region.X < 0 || region.Y < 0 || region.Width <= 0 || region.Height <= 0
+            || left + region.Width > decoded.Width || top + region.Height > decoded.Height)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(region),
+                region,
+                $"The region falls outside the {decoded.Width} by {decoded.Height} texels of '{handle.Name}'. Cut the sprite from inside its texture.");
+        }
+
+        byte[] texels = new byte[region.Width * region.Height * 4];
+        int rowBytes = region.Width * 4;
+        for (int row = 0; row < region.Height; row++)
+        {
+            int from = (((top + row) * decoded.Width) + left) * 4;
+            decoded.Texels.AsSpan(from, rowBytes).CopyTo(texels.AsSpan(row * rowBytes, rowBytes));
+        }
+
+        pool.Return(decoded.Texels);
+        TextureDecoder.Unpremultiply(texels);
+
+        return texels;
     }
 
     public void Dispose() => _textures.Dispose();
