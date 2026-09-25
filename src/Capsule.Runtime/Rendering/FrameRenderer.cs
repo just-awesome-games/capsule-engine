@@ -377,14 +377,15 @@ internal sealed class FrameRenderer : IDisposable
         // exactly One/One. Every quad here is additive.
         _batcher.Begin(in worldToScreen, Sampler(view.Sampling), BlendState.AlphaBlend);
 
-        DrawLights(view.Lights, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
-        DrawAdditiveSprites(view.Sprites, view.ParallaxLayers, view.Camera.ScrollOrigin, ref pass);
+        Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
+        DrawLights(view.Lights, view.ParallaxLayers, parallax, ref pass);
+        DrawAdditiveSprites(view.Sprites, view.ParallaxLayers, parallax, ref pass);
 
         _batcher.End();
         _device.SetRenderTarget(null);
     }
 
-    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<ParallaxLayer> layers, Vector2 scrollOrigin, ref Pass pass)
+    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<ParallaxLayer> layers, Vector2 parallax, ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
@@ -392,7 +393,7 @@ internal sealed class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstLight <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
                 next++;
             }
 
@@ -416,7 +417,7 @@ internal sealed class FrameRenderer : IDisposable
         pass.LayerCorner = frameCorner;
     }
 
-    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<ParallaxLayer> layers, Vector2 scrollOrigin, ref Pass pass)
+    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<ParallaxLayer> layers, Vector2 parallax, ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
@@ -424,7 +425,7 @@ internal sealed class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
                 next++;
             }
 
@@ -544,7 +545,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = topLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, view.Camera.ScrollOrigin, view.MaterialRuns, ref pass);
+        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter), view.MaterialRuns, ref pass);
         _batcher.End();
 
         if (view.LitWorld && _lightMap is { } map)
@@ -603,7 +604,7 @@ internal sealed class FrameRenderer : IDisposable
         ReadOnlySpan<SpriteIntent> sprites,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<ParallaxLayer> layers,
-        Vector2 scrollOrigin,
+        Vector2 parallax,
         ReadOnlySpan<MaterialRun> materials,
         ref Pass pass)
     {
@@ -614,7 +615,7 @@ internal sealed class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
                 next++;
             }
 
@@ -634,7 +635,7 @@ internal sealed class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstLine <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, scrollOrigin, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
                 next++;
             }
 

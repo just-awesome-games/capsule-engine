@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Rendering;
+using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
@@ -78,7 +79,8 @@ public sealed class ParallaxTests
 
         simulation.Step(SceneFixtures.Step());
 
-        // The real camera shows world [368, 432]; the layer's camera has its corner at half that.
+        // The real camera shows world [368, 432] about 400. The layer's camera is centred halfway from
+        // the scroll centre at 32 to that, at 216, and shows [184, 248].
         Assert.Equal([176f, 192f, 208f, 224f, 240f], simulation.View.Sprites.ToArray().Select(tile => tile.Position.X));
     }
 
@@ -94,14 +96,14 @@ public sealed class ParallaxTests
         Vector2[] factors = [Vector2.One, Vector2.Zero, new Vector2(0.5f, 0.5f), new Vector2(1.2f, 1.2f), new Vector2(2f, 0.5f), new Vector2(-0.5f, 1f)];
         // Up to the four-to-one aspect the camera's own cull covers.
         Vector2[] outputs = [new Vector2(320, 180), new Vector2(640, 180), new Vector2(320, 400), new Vector2(720, 180)];
-        Vector2 origin = new(160, 90);
+        Vector2 scrollCenter = new(160, 90);
         CameraView camera = new(
             new Vector2(30, 40),
             new Vector2(1300, 700),
             new Vector2(320, 180),
             fit,
             bounded ? new Rect(0, 0, 1200, 600) : null,
-            origin)
+            scrollCenter)
         {
             PreviousSize = new Vector2(400, 225),
             PreviousOffset = new Vector2(-6, 4),
@@ -120,7 +122,8 @@ public sealed class ParallaxTests
                     CameraView still = camera.At(alpha);
                     Vector2 span = still.ResolveSpan(output);
                     Rect real = still.Place(1f, span);
-                    Rect drawn = new(origin + ((real.Position - origin) * factor), span);
+                    Vector2 center = scrollCenter + ((real.Position + (span / 2f) - scrollCenter) * factor);
+                    Rect drawn = new(center - (span / 2f), span);
 
                     Assert.True(
                         drawn.Left >= cull.Left && drawn.Top >= cull.Top && drawn.Right <= cull.Right && drawn.Bottom <= cull.Bottom,
@@ -142,15 +145,69 @@ public sealed class ParallaxTests
     }
 
     [Fact]
-    public void TheCamerasScrollOrigin_TravelsWithTheView()
+    public void TheCamerasScrollCenter_TravelsWithTheView()
     {
         SceneFixtures.HookScene scene = new(SceneFixtures.Opens(new Vector2(300, 40)));
-        scene.Camera.ScrollOrigin = new Vector2(160, 90);
+        scene.Camera.ScrollCenter = new Vector2(160, 90);
 
         SceneSimulation simulation = new(scene);
 
-        Assert.Equal(new Vector2(160, 90), simulation.View.Camera.ScrollOrigin);
-        Assert.Throws<ArgumentOutOfRangeException>(() => scene.Camera.ScrollOrigin = new Vector2(float.NaN, 0));
+        Assert.Equal(new Vector2(160, 90), simulation.View.Camera.ScrollCenter);
+        Assert.Throws<ArgumentOutOfRangeException>(() => scene.Camera.ScrollCenter = new Vector2(float.NaN, 0));
+    }
+
+    // Unset, the scroll centre is half the declared viewport. A camera centred there draws every
+    // layer as authored, whatever span the fit places, and a simple scene authors nothing.
+    [Theory]
+    [InlineData(ViewportFit.Letterbox)]
+    [InlineData(ViewportFit.Expand)]
+    public void AnUnsetScrollCenter_DrawsTheFirstScreenAsAuthored(ViewportFit fit)
+    {
+        Vector2 viewport = new(256, 224);
+        SceneFixtures.HookScene scene = new(opened =>
+        {
+            SceneFixtures.Open(opened, viewport / 2f, viewport);
+            opened.Camera.Fit = fit;
+        });
+        SceneSimulation simulation = new(scene);
+
+        Assert.Null(scene.Camera.ScrollCenter);
+        Assert.Equal(viewport / 2f, simulation.View.Camera.ScrollCenter);
+
+        foreach (Vector2 factor in new[] { Vector2.Zero, new Vector2(0.5f, 0.25f), new Vector2(-1f, 2f) })
+        {
+            (Rect frame, Vector2 layer) = Drawn(simulation.View.Camera, new Vector2(2560, 1080), factor);
+            Assert.Equal(frame.Left, layer.X, 0.001f);
+            Assert.Equal(frame.Top, layer.Y, 0.001f);
+        }
+    }
+
+    // A layer is measured from the view's centre, the one point the fit and the zoom leave in place.
+    // At one camera centre a half-speed layer lands the same distance from it under a letterbox, a
+    // wider output under Expand, and a zoom.
+    [Theory]
+    [InlineData(ViewportFit.Letterbox, 1f, 1920f)]
+    [InlineData(ViewportFit.Expand, 1f, 1920f)]
+    [InlineData(ViewportFit.Expand, 1f, 2520f)]
+    [InlineData(ViewportFit.Letterbox, 2f, 1920f)]
+    public void AScrolledLayer_HoldsItsPlaceAboutTheCentreAtAnyAspectAndZoom(ViewportFit fit, float zoom, float outputWidth)
+    {
+        Vector2 center = new(1000, 112);
+        SceneFixtures.HookScene scene = new(opened =>
+        {
+            SceneFixtures.Open(opened, center, new Vector2(256, 224));
+            opened.Camera.Fit = fit;
+            opened.Camera.Zoom = zoom;
+        });
+        SceneSimulation simulation = new(scene);
+
+        (Rect frame, Vector2 layer) = Drawn(simulation.View.Camera, new Vector2(outputWidth, 1080), new Vector2(0.5f, 0.5f));
+        Vector2 authored = new(700, 150);
+        Vector2 drawn = frame.Position + (authored - layer);
+
+        // Moved by (centre - (128, 112)) * (1 - 0.5) from where it was authored.
+        Assert.Equal(1136f, drawn.X, 0.001f);
+        Assert.Equal(150f, drawn.Y, 0.001f);
     }
 
     [Theory]
@@ -210,20 +267,20 @@ public sealed class ParallaxTests
         Assert.Equal(Vector2.One, element.ScrollFactor);
     }
 
-    // The document's origin is the scene's, so a camera the scene installs over the default one
+    // The document's scroll centre is the scene's, so a camera the scene installs over the default one
     // takes it too.
     [Fact]
-    public void ADocumentsScrollOrigin_ReachesTheCameraTheSceneInstalls()
+    public void ADocumentsScrollCenter_ReachesTheCameraTheSceneInstalls()
     {
-        SceneDocument document = new([], 1, settings: new SceneSettings { ScrollOrigin = new Vector2(160, 90) });
+        SceneDocument document = new([], 1, settings: new SceneSettings { ScrollCenter = new Vector2(160, 90) });
         Camera installed = new();
         Scene scene = new ComposedScene(SceneFixtures.Content(document, SceneFixtures.Registry()), installed);
 
         SceneSimulation simulation = new(scene);
 
         Assert.Same(installed, scene.Camera);
-        Assert.Equal(new Vector2(160, 90), installed.ScrollOrigin);
-        Assert.Equal(new Vector2(160, 90), simulation.View.Camera.ScrollOrigin);
+        Assert.Equal(new Vector2(160, 90), installed.ScrollCenter);
+        Assert.Equal(new Vector2(160, 90), simulation.View.Camera.ScrollCenter);
     }
 
     // The document supplies the factor ahead of the constructor's body: a class that sets none
@@ -259,6 +316,16 @@ public sealed class ParallaxTests
     {
         Assert.Throws<InvalidOperationException>(
             () => new Colliding(new EntitySpawn(1, "colliding", Vector2.Zero, Vector2.One, ScrollFactor: Half)));
+    }
+
+    // The frame the host places for this view on an output, and the corner of the layer at factor, as
+    // the host draws it.
+    private static (Rect Frame, Vector2 Layer) Drawn(in CameraView camera, Vector2 output, Vector2 factor)
+    {
+        Vector2 span = camera.ResolveSpan(output);
+        Rect frame = camera.Place(1f, span);
+
+        return (frame, ScrollLayout.Corner(frame.Position, ScrollLayout.Parallax(frame.Position, span, camera.ScrollCenter), factor));
     }
 
     private sealed class ScreenFixed : Entity

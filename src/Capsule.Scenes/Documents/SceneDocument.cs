@@ -175,11 +175,11 @@ public sealed class SceneDocument
                 nameof(Settings));
         }
 
-        if (settings.ScrollOrigin is { } origin && (!float.IsFinite(origin.X) || !float.IsFinite(origin.Y)))
+        if (settings.ScrollCenter is { } center && (!float.IsFinite(center.X) || !float.IsFinite(center.Y)))
         {
             throw Malformed(string.Create(
                 CultureInfo.InvariantCulture,
-                $"scrollOrigin is ({origin.X}, {origin.Y}), which is not a position. Make both components finite."),
+                $"scrollCenter is ({center.X}, {center.Y}), which is not a position. Make both components finite."),
                 nameof(Settings));
         }
 

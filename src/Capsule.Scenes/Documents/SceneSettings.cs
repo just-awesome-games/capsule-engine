@@ -18,8 +18,8 @@ public sealed record SceneSettings
     /// <summary>The scene's <see cref="Scene.Size"/> in world units, in place of the extent of its tile maps.</summary>
     public Vector2? Size { get; init; }
 
-    /// <summary>The <see cref="Scenes.Camera.ScrollOrigin"/> written to every camera installed in the scene.</summary>
-    public Vector2? ScrollOrigin { get; init; }
+    /// <summary>The <see cref="Scenes.Camera.ScrollCenter"/> written to every camera installed in the scene.</summary>
+    public Vector2? ScrollCenter { get; init; }
 
     /// <summary>The scene's <see cref="Scene.ClearColor"/>, which is opaque.</summary>
     public ColorRgba? ClearColor { get; init; }

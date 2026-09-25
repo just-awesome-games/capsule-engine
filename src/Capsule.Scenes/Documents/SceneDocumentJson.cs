@@ -30,11 +30,11 @@ internal sealed class SceneDocumentJson
     [JsonPropertyOrder(3)]
     public float[]? Size { get; set; }
 
-    // Absent when the document authors no origin, and WhenWritingNull keeps it out. Nullable so the reader
-    // reports a wrong component count.
-    [JsonPropertyName("scrollOrigin")]
+    // Absent when the document authors no scroll centre, and WhenWritingNull keeps it out. Nullable so the
+    // reader reports a wrong component count.
+    [JsonPropertyName("scrollCenter")]
     [JsonPropertyOrder(4)]
-    public float[]? ScrollOrigin { get; set; }
+    public float[]? ScrollCenter { get; set; }
 
     // A colour is "#rrggbb" or "#rrggbbaa" and sampling is "linear" or "point". The reader parses all
     // three, and WhenWritingNull keeps an absent one out.

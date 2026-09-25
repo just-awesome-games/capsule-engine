@@ -34,7 +34,7 @@ list of entries:
 {
   "formatVersion": 6,
   "size": [320, 192],
-  "scrollOrigin": [0, 192],
+  "scrollCenter": [160, 288],
   "ambient": "#484c68",
   "entities": [
     {
@@ -70,7 +70,7 @@ list of entries:
 
 A top-level key sets the `Scene` property of the same name before any subclass constructor body runs, and
 code assigning that property still wins. The top-level keys run in the order `formatVersion`, `baseScene`,
-`camera`, `size`, `scrollOrigin`, `clearColor`, `ambient`, `sampling`, `entities`, `nextEntityId`, `source`.
+`camera`, `size`, `scrollCenter`, `clearColor`, `ambient`, `sampling`, `entities`, `nextEntityId`, `source`.
 
 - `formatVersion` is required and must be supported.
 - `baseScene` names an abstract `Scene` subclass. The generator emits the sealed scene deriving from it
@@ -81,8 +81,8 @@ code assigning that property still wins. The top-level keys run in the order `fo
   subclass assigning `Camera` in its own constructor body still wins.
 - `size` is `[w, h]`, both finite and greater than zero, and sets `Scene.Size`. Absent keeps the extent of the
   document's tile maps.
-- `scrollOrigin` is `[x, y]`, both finite. It is the camera corner at which every layer sits as authored, written as `ScrollOrigin` to every camera the
-  composed scene installs. Absent leaves each camera its own, zero unless it set one.
+- `scrollCenter` is `[x, y]`, both finite. It is the camera centre at which every layer sits as authored, written as `ScrollCenter` to every camera the
+  composed scene installs. Absent leaves each camera its own, which is half its viewport unless it set one.
 - `clearColor` is `"#rrggbb"` or `"#rrggbbaa"` with an `ff` alpha, and sets `Scene.ClearColor`. Code spells
   the same value `ColorRgba.FromHex("#484c68")`. Hex reads in either case and is written lowercase as
   `"#rrggbb"`. There is no shorthand or named form.

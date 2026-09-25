@@ -1,6 +1,6 @@
 {
   "formatVersion": 6,
-  "scrollOrigin": [-100, -50],
+  "scrollCenter": [220, 130],
   "entities": [
     { "id": 1, "type": "still-field", "x": 0, "y": 0 },
     { "id": 2, "type": "ruler", "x": 0, "y": 0 },

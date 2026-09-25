@@ -7,15 +7,15 @@ namespace Capsule.Tests.Documents;
 public sealed class ScrollFieldsTests
 {
     // Both fields are optional and additive under the current format: a document authoring neither
-    // reads as it always did, and one authoring both is written back byte for byte, the origin after
+    // reads as it always did, and one authoring both is written back byte for byte, the centre after
     // the version and the factor after the band.
     [Fact]
-    public void ScrollOriginAndScrollFactor_RoundTripCanonicallyOnEveryEntryType()
+    public void ScrollCenterAndScrollFactor_RoundTripCanonicallyOnEveryEntryType()
     {
         string json = """
             {
               "formatVersion": 6,
-              "scrollOrigin": [
+              "scrollCenter": [
                 160,
                 90
               ],
@@ -83,7 +83,7 @@ public sealed class ScrollFieldsTests
 
         SceneDocument document = SceneDocumentFile.Parse(json);
 
-        Assert.Equal(new Vector2(160, 90), document.Settings.ScrollOrigin);
+        Assert.Equal(new Vector2(160, 90), document.Settings.ScrollCenter);
         Assert.Equal(new Vector2(0.5f, 1f), document.Entries[0].TileMap!.Value.ScrollFactor);
         Assert.Equal(new EntityPlacement(2, "sky", 8f, 0f, ScrollFactor: Vector2.Zero), document.Entries[1].Entity);
 
@@ -101,9 +101,9 @@ public sealed class ScrollFieldsTests
 
         string json = SceneDocumentFile.ToJson(document);
 
-        Assert.DoesNotContain("scrollOrigin", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("scrollCenter", json, StringComparison.Ordinal);
         Assert.DoesNotContain("scrollFactor", json, StringComparison.Ordinal);
-        Assert.Null(SceneDocumentFile.Parse(json).Settings.ScrollOrigin);
+        Assert.Null(SceneDocumentFile.Parse(json).Settings.ScrollCenter);
     }
 
     [Theory]
@@ -126,15 +126,15 @@ public sealed class ScrollFieldsTests
     }
 
     [Theory]
-    [InlineData("[160]", "scrollOrigin of 1 components")]
-    [InlineData("[160, 90, 0]", "scrollOrigin of 3 components")]
-    public void Parse_RejectsAScrollOriginThatIsNotTwoComponents(string origin, string expected)
+    [InlineData("[160]", "scrollCenter of 1 components")]
+    [InlineData("[160, 90, 0]", "scrollCenter of 3 components")]
+    public void Parse_RejectsAScrollCenterThatIsNotTwoComponents(string center, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$"""
                 {
                   "formatVersion": 6,
-                  "scrollOrigin": {{origin}},
+                  "scrollCenter": {{center}},
                   "entities": [],
                   "nextEntityId": 1
                 }
@@ -146,15 +146,15 @@ public sealed class ScrollFieldsTests
     // JSON has no number for them, so a non-finite component reaches the document only from code and
     // fails it the way a bad scale does.
     [Fact]
-    public void ANonFiniteFactorOrOrigin_FailsTheDocument()
+    public void ANonFiniteFactorOrScrollCenter_FailsTheDocument()
     {
         ArgumentException factor = Assert.Throws<ArgumentException>(
             () => new SceneDocument([new EntityPlacement(1, "coin", 0f, 0f, ScrollFactor: new Vector2(float.NaN, 1f))], 2));
-        ArgumentException origin = Assert.Throws<ArgumentException>(
-            () => new SceneDocument([], 1, settings: new SceneSettings { ScrollOrigin = new Vector2(0f, float.PositiveInfinity) }));
+        ArgumentException center = Assert.Throws<ArgumentException>(
+            () => new SceneDocument([], 1, settings: new SceneSettings { ScrollCenter = new Vector2(0f, float.PositiveInfinity) }));
 
         Assert.Contains("not a scroll factor", factor.Message, StringComparison.Ordinal);
-        Assert.Contains("scrollOrigin", origin.Message, StringComparison.Ordinal);
+        Assert.Contains("scrollCenter", center.Message, StringComparison.Ordinal);
     }
 
     // A grid answers queries at its authored cells, so one that scrolls collides as nothing.

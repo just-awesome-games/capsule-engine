@@ -52,8 +52,8 @@ public class Scene
     private Camera _camera = new();
     private Run? _run;
 
-    // The scroll origin authored in the document, written to each camera installed.
-    private Vector2? _scrollOrigin;
+    // The scroll centre authored in the document, written to each camera installed.
+    private Vector2? _scrollCenter;
 
     private bool _stepping;
     private bool _starting;
@@ -128,7 +128,7 @@ public class Scene
     /// The camera framing this scene. A scene always has one, and installing another cuts to it.
     /// </summary>
     /// <remarks>
-    /// When the scene comes from a document that authors a scroll origin, that origin is written to
+    /// When the scene comes from a document that authors a scroll centre, that centre is written to
     /// the camera. A camera installed before the scene starts becomes the opening camera. One
     /// installed later runs its <see cref="Scenes.Camera.OnStart"/> immediately.
     /// </remarks>
@@ -949,7 +949,7 @@ public class Scene
     private void Apply(SceneContent content)
     {
         SceneSettings settings = content.Document.Settings;
-        _scrollOrigin = settings.ScrollOrigin;
+        _scrollCenter = settings.ScrollCenter;
 
         // Installation into the scene happens at start, so this only picks which camera that is.
         if (content.Camera is { } camera)
@@ -982,9 +982,9 @@ public class Scene
     {
         RequireUnowned(camera);
 
-        if (_scrollOrigin is { } origin)
+        if (_scrollCenter is { } center)
         {
-            camera.ScrollOrigin = origin;
+            camera.ScrollCenter = center;
         }
 
         camera.SceneOrNull = this;

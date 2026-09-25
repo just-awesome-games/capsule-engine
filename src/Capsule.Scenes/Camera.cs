@@ -118,19 +118,27 @@ public partial class Camera
     }
 
     /// <summary>
-    /// The camera corner at which every entity sits where it was authored, whatever its
-    /// <see cref="Entity.ScrollFactor"/>. An entity with factor <c>f</c> draws as if the camera's
-    /// corner sat at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>, where Corner is the
-    /// top-left of the world rect the frame places.
+    /// The camera centre at which every entity sits where it was authored, whatever its
+    /// <see cref="Entity.ScrollFactor"/>, or null for half of <see cref="ViewportSize"/>.
     /// </summary>
-    /// <remarks>Set it for a room whose first screen is not at the world origin.</remarks>
-    public Vector2 ScrollOrigin
+    /// <remarks>
+    /// An entity with factor <c>f</c> draws moved by <c>(Centre - ScrollCenter) * (1 - f)</c>, where
+    /// Centre is the centre of the world rect the frame places. Null reads <see cref="ViewportSize"/>
+    /// before <see cref="Zoom"/> and before <see cref="Fit"/> widens it, and a camera centred on the
+    /// first screen draws it as authored. Set it for a room whose first screen is elsewhere. A game that
+    /// changes <see cref="ViewportSize"/> at run time sets it to keep every layer where it was.
+    /// </remarks>
+    public Vector2? ScrollCenter
     {
         get;
 
         set
         {
-            Guard.Finite(value, nameof(value));
+            if (value is { } center)
+            {
+                Guard.Finite(center, nameof(value));
+            }
+
             field = value;
         }
     }
@@ -280,8 +288,11 @@ public partial class Camera
         _previousOffset = Offset + ShakeOffset;
     }
 
+    // ScrollCenter, or half the declared viewport when unset.
+    private Vector2 ResolvedScrollCenter => ScrollCenter ?? (ViewportSize / 2f);
+
     // What the renderer draws this camera as, and what the simulation measures visibility against.
-    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize / Zoom, Fit, Bounds, ScrollOrigin)
+    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize / Zoom, Fit, Bounds, ResolvedScrollCenter)
     {
         PreviousSize = ViewportSize / _previousZoom,
         PreviousOffset = _previousOffset,
@@ -307,9 +318,9 @@ public partial class Camera
 
     private CanvasMap CurrentCanvasMap() => _canvasMap ?? Frame(Vector2.Zero).Map;
 
-    // A layer at factor f is drawn as if the camera's corner sat at O + (K - O) * f, where O is
-    // ScrollOrigin and K the placed region's corner. A canvas point lands (O - K) * (1 - f) away from
-    // its world point on that layer.
+    // A layer at factor f is drawn as if the camera's centre sat at C + (c - C) * f, where C is the
+    // resolved ScrollCenter and c the placed region's centre. A canvas point lands (C - c) * (1 - f)
+    // away from its world point on that layer.
     private static Vector2 LayerShift(in CanvasMap map, Vector2 scrollFactor) =>
         map.Parallax * (Vector2.One - scrollFactor);
 
@@ -334,7 +345,7 @@ public partial class Camera
         // An output too small to place the world on falls back to the declared letterbox for the map.
         Rect region = view.Place(1f, layout.Span);
 
-        return (region, CanvasMap.Resolve(layout, region, ScrollOrigin) ?? Declared(view).Map);
+        return (region, CanvasMap.Resolve(layout, region, ResolvedScrollCenter) ?? Declared(view).Map);
     }
 
     // The host's layout of the frame on an output of this extent, or null when the output or the
@@ -367,7 +378,7 @@ public partial class Camera
             Pixels(canvas.Y));
         Rect region = view.Place(1f, fitted.Span);
 
-        return (region, CanvasMap.Resolve(fitted, region, ScrollOrigin) ?? CanvasMap.Identity);
+        return (region, CanvasMap.Resolve(fitted, region, ResolvedScrollCenter) ?? CanvasMap.Identity);
     }
 
     private Vector2 Canvas => _scene?.RunOrNull?.Canvas ?? Run.StandardCanvas;
@@ -378,7 +389,7 @@ public partial class Camera
 
     // A canvas point c lands on the world at Origin + c * Scale. Origin is the world point under the
     // canvas's top-left corner, Scale the world units one canvas pixel spans, and Parallax the settled
-    // ScrollOrigin less the placed region's top-left corner.
+    // scroll centre less the placed region's centre.
     private readonly record struct CanvasMap(Vector2 Origin, float Scale, Vector2 Parallax)
     {
         internal static CanvasMap Identity => new(Vector2.Zero, 1f, Vector2.Zero);
@@ -386,7 +397,7 @@ public partial class Camera
         // Canvas to surface: a screen layer drawn on the surface lands at OnSurface. Otherwise it lands
         // in the back buffer at Layer, and the surface's present is undone from there. Surface to world:
         // the world's fit on the surface, from the region's corner.
-        internal static CanvasMap? Resolve(in ScreenLayout layout, in Rect region, Vector2 scrollOrigin)
+        internal static CanvasMap? Resolve(in ScreenLayout layout, in Rect region, Vector2 scrollCenter)
         {
             ScreenPlacement onSurface = layout.ScreenOnSurface
                 ? layout.OnSurface
@@ -407,7 +418,7 @@ public partial class Camera
             return new CanvasMap(
                 corner + ((onSurface.Origin - new Vector2(world.X, world.Y)) / world.Scale),
                 onSurface.Scale / world.Scale,
-                scrollOrigin - corner);
+                scrollCenter - (corner + (layout.Span / 2f)));
         }
     }
 

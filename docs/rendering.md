@@ -170,9 +170,10 @@ and moves it from the game's own focus actions, pointer included.
 
 ## Parallax
 
-An entity may carry a `ScrollFactor`, and the host draws it by a virtual camera whose corner is moved
-by that factor about `Camera.ScrollOrigin`. Zero on both axes pins the entity to the screen, and one
-is the world. Draw order is the same `ZIndex` sum whatever the factor:
+An entity may carry a `ScrollFactor`, and the host draws it by a virtual camera whose centre is moved
+by that factor about `Camera.ScrollCenter`. Zero on both axes pins the entity to the screen, and one
+is the world. The scroll centre defaults to half the camera's `ViewportSize`, and a camera centred there
+draws every layer as authored. A layer holds its place at any output aspect or zoom. Draw order is the same `ZIndex` sum whatever the factor:
 
 ```csharp
 public Sky(EntitySpawn spawn)

@@ -52,8 +52,8 @@ public sealed class FrameView
     /// </summary>
     /// <remarks>
     /// Inside a renderer on an entity whose scroll factor is not one, this is the view that entity
-    /// is drawn by: the swept region moved by the factor about the camera's scroll origin, widened
-    /// where the factor lets the layer outrun the frame. Its <see cref="CameraView.SweptBounds"/>
+    /// is drawn by: the swept region moved by the factor about the camera's scroll centre, widened
+    /// where the factor holds the layer back from the frame. Its <see cref="CameraView.SweptBounds"/>
     /// cover everything the frame can draw of that entity. A renderer can cull against them without
     /// knowing the factor.
     /// </remarks>

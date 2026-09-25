@@ -51,7 +51,7 @@ public sealed class SceneDocumentRoundTripTests
                 320,
                 180
               ],
-              "scrollOrigin": [
+              "scrollCenter": [
                 160,
                 90
               ],
@@ -79,7 +79,7 @@ public sealed class SceneDocumentRoundTripTests
                 BaseScene = "playable-room",
                 Camera = "game-camera",
                 Size = new Vector2(320, 180),
-                ScrollOrigin = new Vector2(160, 90),
+                ScrollCenter = new Vector2(160, 90),
                 ClearColor = new ColorRgba(16, 24, 32),
                 Ambient = new ColorRgba(72, 76, 104),
                 Sampling = TextureSampling.Point,

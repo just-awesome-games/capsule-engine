@@ -196,7 +196,7 @@ public partial class Entity
     /// </summary>
     /// <remarks>
     /// The root's factor applies to its whole subtree. The factor affects drawing only. Position,
-    /// colliders and bounds stay in authored space. The camera's <see cref="Camera.ScrollOrigin"/>
+    /// colliders and bounds stay in authored space. The camera's <see cref="Camera.ScrollCenter"/>
     /// anchors every layer.
     /// </remarks>
     /// <exception cref="InvalidOperationException">

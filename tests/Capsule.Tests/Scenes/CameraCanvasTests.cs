@@ -36,7 +36,7 @@ public sealed class CameraCanvasTests
     {
         (int Width, int Height)? resolution = resolutionWidth > 0 ? (resolutionWidth, resolutionHeight) : null;
         Vector2 canvas = new(canvasWidth, canvasHeight);
-        Camera camera = Settle(fit, resolution, canvas, scrollOrigin: Vector2.Zero);
+        Camera camera = Settle(fit, resolution, canvas, scrollCenter: null);
 
         CameraView view = camera.ToView();
         ScreenLayout layout = FrameLayout.Layout(resolution, view, canvas, TextureSampling.Point, OutputWidth, OutputHeight);
@@ -57,34 +57,35 @@ public sealed class CameraCanvasTests
 
     // The host draws a layer at factor f as if the camera's corner sat at ScrollLayout.Corner, and an
     // intent keeps its offset from that corner. The point on the layer is the one drawn over the
-    // world point the plain overload names. A scroll origin moved after the settle takes effect at the
+    // world point the plain overload names. A scroll centre moved after the settle takes effect at the
     // next one, as the host's frame does.
     [Fact]
     public void AScrollFactor_LandsOnThePointOfThatLayerDrawnUnderTheCanvasPoint()
     {
-        Vector2 origin = new(40f, 20f);
-        Camera camera = Settle(ViewportFit.Expand, (320, 180), new Vector2(320f, 180f), origin);
-        camera.ScrollOrigin = new Vector2(-500f, 900f);
+        Vector2 scrollCenter = new(40f, 20f);
+        Camera camera = Settle(ViewportFit.Expand, (320, 180), new Vector2(320f, 180f), scrollCenter);
+        camera.ScrollCenter = new Vector2(-500f, 900f);
         Vector2 corner = new(camera.VisibleRegion.Left, camera.VisibleRegion.Top);
+        Vector2 parallax = ScrollLayout.Parallax(corner, camera.VisibleRegion.Size, scrollCenter);
         Vector2 point = new(200f, 30f);
 
         foreach (Vector2 factor in new[] { Vector2.Zero, new Vector2(0.5f, 0.25f), Vector2.One, new Vector2(2f, -1f) })
         {
             Vector2 onLayer = camera.CanvasToWorld(point, factor);
-            Vector2 drawnAt = corner + (onLayer - ScrollLayout.Corner(corner, origin, factor));
+            Vector2 drawnAt = corner + (onLayer - ScrollLayout.Corner(corner, parallax, factor));
 
             AssertNear(camera.CanvasToWorld(point), drawnAt);
             AssertNear(point, camera.WorldToCanvas(onLayer, factor));
         }
     }
 
-    private static Camera Settle(ViewportFit fit, (int Width, int Height)? resolution, Vector2 canvas, Vector2 scrollOrigin)
+    private static Camera Settle(ViewportFit fit, (int Width, int Height)? resolution, Vector2 canvas, Vector2? scrollCenter)
     {
         SceneFixtures.HookScene scene = new(start: opened =>
         {
             SceneFixtures.Open(opened, Center, Size);
             opened.Camera.Fit = fit;
-            opened.Camera.ScrollOrigin = scrollOrigin;
+            opened.Camera.ScrollCenter = scrollCenter;
         });
 
         // Left undisposed: stopping the scene releases the camera and the framing it settled.

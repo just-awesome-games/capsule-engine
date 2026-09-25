@@ -12,10 +12,10 @@ namespace Capsule.Rendering;
 /// <param name="Size">World units the viewport spans as of the current fixed step, read per <see cref="Fit"/>.</param>
 /// <param name="Fit">How <see cref="Size"/> answers an output of a different aspect ratio.</param>
 /// <param name="Bounds">The world rect the visible region is confined to, or null to leave it free.</param>
-/// <param name="ScrollOrigin">
-/// The top-left corner a scroll factor moves nothing at. An entity with a factor of <c>f</c> is
-/// drawn as if by this view with its corner at <c>ScrollOrigin + (Corner - ScrollOrigin) * f</c>,
-/// where the corner is that of the world rect the frame places.
+/// <param name="ScrollCenter">
+/// The centre a scroll factor moves nothing at. An entity with a factor of <c>f</c> is drawn as if
+/// by this view centred at <c>ScrollCenter + (Centre - ScrollCenter) * f</c>, where the centre is
+/// that of the world rect the frame places.
 /// </param>
 public readonly record struct CameraView(
     Vector2 PreviousCenter,
@@ -23,7 +23,7 @@ public readonly record struct CameraView(
     Vector2 Size,
     ViewportFit Fit = ViewportFit.Letterbox,
     Rect? Bounds = null,
-    Vector2 ScrollOrigin = default)
+    Vector2 ScrollCenter = default)
 {
     // How far from square an output may be before a fit that follows its aspect reveals world this view
     // culled. A step's render intent is drawn on whatever output the frame has by then, so a fit other
@@ -164,33 +164,28 @@ public readonly record struct CameraView(
 
     // The view an entity with this scroll factor is drawn by, shaped so its SweptBounds cover every rect
     // the frame can draw that entity's layer at. A frame places the real view at a span s' no wider than
-    // the cull span s, with its centre within (s - s') / 2 of the endpoints confined at s, so the
-    // placed rect's corner K lies in [Kmin, Kmax - s'] where [Kmin, Kmax] is SweptBounds. The layer's
-    // rect is [O + (K - O) f, O + (K - O) f + s']. For f >= 0 that lies within the map of
-    // [Kmin, Kmax - t s] widened by s on the far side, tightly at t = min(1, 1/f). A negative f reverses
-    // the map, so t = 0 and the far-side widening grows to (1 - f) s.
+    // the cull span s, inside SweptBounds [Kmin, Kmax], so its centre c lies in
+    // [Kmin + s'/2, Kmax - s'/2]. The layer's rect is s' wide about C + (c - C) f, where C is
+    // ScrollCenter. Mapping the two ends of SweptBounds by f and widening each side by
+    // s max(0, 1 - |f|) / 2 covers it for every s' and either sign of f. That range is never narrower
+    // than s, so a view of the cull size centred s/2 inside each end sweeps exactly it.
     internal CameraView ScrolledBy(Vector2 factor)
     {
         Rect swept = SweptBounds;
         Vector2 span = CullSpan();
-        Vector2 near = new(swept.Left, swept.Top);
-        Vector2 far = new(swept.Right - (Reach(factor.X) * span.X), swept.Bottom - (Reach(factor.Y) * span.Y));
-
-        float widen = MathF.Max(1f, MathF.Max(1f - factor.X, 1f - factor.Y));
-        Vector2 half = span * widen / 2f;
+        Vector2 near = ScrollCenter + ((new Vector2(swept.Left, swept.Top) - ScrollCenter) * factor);
+        Vector2 far = ScrollCenter + ((new Vector2(swept.Right, swept.Bottom) - ScrollCenter) * factor);
+        Vector2 margin = span * Vector2.Max(Vector2.Zero, Vector2.One - Vector2.Abs(factor)) / 2f;
+        Vector2 half = span / 2f;
 
         return new CameraView(
-            ScrollOrigin + ((near - ScrollOrigin) * factor) + half,
-            ScrollOrigin + ((far - ScrollOrigin) * factor) + half,
-            CullSize() * widen,
+            Vector2.Min(near, far) - margin + half,
+            Vector2.Max(near, far) + margin - half,
+            CullSize(),
             Fit,
             Bounds: null,
-            ScrollOrigin);
+            ScrollCenter);
     }
-
-    // How much of the cull span the far endpoint's corner is pulled back before the map. It is the full
-    // span up to a factor of one, and 1/f of it past that.
-    private static float Reach(float factor) => factor >= 0f ? MathF.Min(1f, 1f / factor) : 0f;
 
     // The larger of the two sizes on each axis, which covers every size interpolated between them.
     private Vector2 CullSize() => Vector2.Max(PreviousSize, Size);
