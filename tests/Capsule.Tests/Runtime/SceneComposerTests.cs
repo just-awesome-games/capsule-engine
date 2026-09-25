@@ -17,7 +17,7 @@ public sealed class SceneComposerTests : IDisposable
     private const string DocumentName = "hall";
 
     private static readonly string DocumentPath =
-        Path.Combine(AppContext.BaseDirectory, "assets", DocumentName + ".scene.json");
+        Path.Combine(AppContext.BaseDirectory, "assets", DocumentName + ShippedSceneDocument.Extension);
 
     // A game boots a document-backed scene by its class; nothing in game code names the document.
     // Losing the turn from one into the other boots an empty room rather than failing.
@@ -45,8 +45,23 @@ public sealed class SceneComposerTests : IDisposable
         SpawnException failure = Assert.Throws<SpawnException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
 
-        Assert.Contains(DocumentName + ".scene.json", failure.Message, StringComparison.Ordinal);
+        Assert.Contains(DocumentName + ShippedSceneDocument.Extension, failure.Message, StringComparison.Ordinal);
         Assert.Contains("wyvern", failure.Message, StringComparison.Ordinal);
+    }
+
+    // A shipped file that is not gzip reports the documented exception type with its path.
+    [Fact]
+    public void AShippedDocumentThatIsNotGzip_FailsAsAMalformedDocumentNamingItsFile()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
+        File.WriteAllText(DocumentPath, SceneDocumentFile.ToJson(SceneFixtures.Room()));
+        SceneComposer composer = new(Registry(), new DesktopPlatform());
+
+        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
+            () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
+
+        Assert.Contains(DocumentName + ShippedSceneDocument.Extension, failure.Message, StringComparison.Ordinal);
+        Assert.Contains("not valid gzip", failure.Message, StringComparison.Ordinal);
     }
 
     public void Dispose() => File.Delete(DocumentPath);
@@ -54,7 +69,7 @@ public sealed class SceneComposerTests : IDisposable
     private static void Write(SceneDocument document)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
-        SceneDocumentFile.Save(document, DocumentPath);
+        ShippedSceneDocument.Write(document, DocumentPath);
     }
 
     private static SceneRegistry Registry() =>

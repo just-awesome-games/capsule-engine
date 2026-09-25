@@ -8,10 +8,9 @@ namespace Capsule.Runtime.Scenes;
 // Holds only the current parsed document so restarts do not touch disk.
 internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
-    // Where the scene-document build hook lands its output in a shell's content, and the extension it
-    // writes. A document name resolves against these.
+    // Where the scene-document build hook lands its output in a shell's content. A document name
+    // resolves against it and the shipped extension.
     private const string DocumentDirectory = "assets";
-    private const string DocumentExtension = ".scene.json";
 
     private string? _heldName;
     private SceneDocument? _held;
@@ -27,18 +26,14 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         _ => throw new InvalidOperationException($"'{target.Kind}' names no scene to compose."),
     };
 
-    // What SceneDocumentFile.Load does for a path, over the platform's content instead.
+    // What SceneDocumentFile.Load does for a path, over the platform's shipped content instead.
     private SceneDocument Load(string path)
     {
-        string json;
-        using (StreamReader reader = new(platform.OpenContent(path)))
-        {
-            json = reader.ReadToEnd();
-        }
+        using Stream content = platform.OpenContent(path);
 
         try
         {
-            return SceneDocumentFile.Parse(json);
+            return ShippedSceneDocument.Read(content);
         }
         catch (SceneDocumentFormatException exception)
         {
@@ -48,7 +43,7 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 
     private static string DocumentFileName(string name) =>
         AssetPaths.IsKey(name)
-            ? name + DocumentExtension
+            ? name + ShippedSceneDocument.Extension
             : throw new ArgumentException(
                 $"A scene document name is '/'-joined key segments of ASCII letters, digits, '-' and '_', none of them a reserved Windows device name (nul, con, ...), with no extension: '{name}'.",
                 nameof(name));

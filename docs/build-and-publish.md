@@ -245,7 +245,7 @@ On Windows the native link needs the MSVC Build Tools with the C++ workload. A B
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`, or the link fails with
 `'vswhere.exe' is not recognized`.
 
-Scene documents and atlas maps ship compact. A publish holds no `.pdb`. A NativeAOT publish defaults
+Scene documents ship compact and gzipped, and atlas maps ship compact. A publish holds no `.pdb`. A NativeAOT publish defaults
 `StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`, which a project can set back. Its
 symbols go to `CapsuleSymbolsDirectory`, beside the publish directory. A crash log's frames then read
 `MyGame!<BaseAddress>+0x296cd`. To decode one, copy the shipped executable into the symbols directory and

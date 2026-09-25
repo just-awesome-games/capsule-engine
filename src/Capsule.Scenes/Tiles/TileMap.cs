@@ -26,10 +26,16 @@ public sealed class TileMap : Entity
 {
     private readonly TileGrid _grid;
 
-    // The map's own palette indices, row-major. Drawing, reading and SetTile all use this copy.
+    // The map's own palette indices and transforms, row-major. Drawing, reading and SetTile all use
+    // this copy.
     private readonly int[] _cells;
+    private readonly TileTransform[] _transforms;
 
     private CollisionWorld2D? _world;
+
+    // The collider's profile index for each palette entry and transform, at (palette * Count) +
+    // transform. Only a shaped entry has a profile per transform. Null while the map has no collider.
+    private int[]? _profiles;
 
     /// <param name="grid">The grid to hold and draw. Its palette decides what each tile looks like.</param>
     public TileMap(TileGrid grid)
@@ -40,9 +46,10 @@ public sealed class TileMap : Entity
         Anchored = true;
         _grid = grid;
         _cells = grid.Tiles.ToArray();
+        _transforms = grid.Transforms.ToArray();
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 
-        Add(new VisibleTiles(grid, _cells));
+        Add(new VisibleTiles(grid, _cells, _transforms));
     }
 
     /// <summary>The edge length of one tile, taken from <see cref="TileGrid.TileSize"/>.</summary>
@@ -73,6 +80,9 @@ public sealed class TileMap : Entity
     /// </summary>
     public string TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]].Type;
 
+    /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
+    public TileTransform TransformAt(int x, int y) => _transforms[IndexOf(x, y)];
+
     /// <summary>
     /// Returns the tile coordinate of the cell a world position falls in. The cell may lie outside the
     /// map, where <see cref="TileAt"/> throws.
@@ -90,32 +100,55 @@ public sealed class TileMap : Entity
         return (GridCollider2D.FloorDiv(position.X, TileSize), GridCollider2D.FloorDiv(position.Y, TileSize));
     }
 
-    /// <summary>Clears the tile at a tile coordinate to <see cref="TileGrid.EmptyTileType"/>.</summary>
+    /// <summary>
+    /// Clears the tile at a tile coordinate to <see cref="TileGrid.EmptyTileType"/> with
+    /// <see cref="TileTransform.None"/>.
+    /// </summary>
     public void RemoveTile(int x, int y) => SetTile(x, y, TileGrid.EmptyTileType);
 
     /// <summary>
-    /// Changes the tile at a tile coordinate to the palette entry named <paramref name="type"/>, which
-    /// sets what the cell draws and collides as.
+    /// Changes the tile at a tile coordinate to the palette entry named <paramref name="type"/>, facing
+    /// the way <paramref name="transform"/> says. This sets what the cell draws and collides as.
     /// </summary>
     /// <param name="x">The tile column.</param>
     /// <param name="y">The tile row.</param>
     /// <param name="type">
     /// A tile type name from the grid's palette. <see cref="TileGrid.EmptyTileType"/> clears the cell.
     /// </param>
+    /// <param name="transform">
+    /// How the tile is mirrored or turned. The default paints it as authored, whichever way the cell
+    /// faced before.
+    /// </param>
     /// <exception cref="ArgumentException">The palette has no tile type named <paramref name="type"/>.</exception>
-    public void SetTile(int x, int y, string type)
+    /// <example>
+    /// <code>
+    /// map.SetTile(x, y, "slope", TileTransform.FlipX);
+    /// </code>
+    /// </example>
+    public void SetTile(int x, int y, string type, TileTransform transform = TileTransform.None)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (!TileTransforms.IsDefined(transform))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(transform),
+                transform,
+                $"transform is {(byte)transform}. Use a TileTransform in 0..{TileTransforms.Count - 1}.");
+        }
 
         int index = IndexOf(x, y);
         int palette = PaletteIndexOf(type);
-        if (_cells[index] == palette)
+        if (_cells[index] == palette && _transforms[index] == transform)
         {
             return;
         }
 
         _cells[index] = palette;
-        Collision?.SetCell(x, y, palette);
+        _transforms[index] = transform;
+        if (Collision is { } collider)
+        {
+            collider.SetCell(x, y, _profiles![(palette * TileTransforms.Count) + (int)transform]);
+        }
     }
 
     /// <inheritdoc/>
@@ -140,17 +173,51 @@ public sealed class TileMap : Entity
         _world = Scene.Collision;
 
         ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
-        CellProfile2D[] profiles = new CellProfile2D[palette.Length];
-        for (int index = 0; index < profiles.Length; index++)
+        int shaped = 0;
+        foreach (TileDefinition definition in palette)
         {
-            profiles[index] = new CellProfile2D(
-                palette[index].Layer is { } layer ? _world.Layer(layer) : null,
-                palette[index].Shape,
-                palette[index].OneWay,
-                palette[index].SolidSides);
+            shaped += definition.Shape is null ? 0 : 1;
         }
 
-        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, _cells, profiles, this);
+        // The palette's own profiles come first, so an untransformed cell's profile index is its palette
+        // index. Each shaped entry then appends one profile per other transform. Only the shape turns,
+        // and a one-way tile still passes bodies from below.
+        CellProfile2D[] profiles = new CellProfile2D[palette.Length + (shaped * (TileTransforms.Count - 1))];
+        int[] lookup = new int[palette.Length * TileTransforms.Count];
+        int next = palette.Length;
+        for (int index = 0; index < palette.Length; index++)
+        {
+            TileDefinition definition = palette[index];
+            CellProfile2D profile = new(
+                definition.Layer is { } layer ? _world.Layer(layer) : null,
+                definition.Shape,
+                definition.OneWay,
+                definition.SolidSides);
+            profiles[index] = profile;
+
+            for (int transform = 0; transform < TileTransforms.Count; transform++)
+            {
+                int slot = (index * TileTransforms.Count) + transform;
+                if (transform == 0 || definition.Shape is not { } shape)
+                {
+                    lookup[slot] = index;
+                    continue;
+                }
+
+                profiles[next] = profile with { Shape = TileTransforms.Apply(shape, _grid.TileSize, (TileTransform)transform) };
+                lookup[slot] = next++;
+            }
+        }
+
+        // The collider keeps its own profile indices. The map's cells stay palette indices.
+        int[] cells = new int[_cells.Length];
+        for (int index = 0; index < cells.Length; index++)
+        {
+            cells[index] = lookup[(_cells[index] * TileTransforms.Count) + (int)_transforms[index]];
+        }
+
+        _profiles = lookup;
+        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, cells, profiles, this);
     }
 
     /// <inheritdoc/>
@@ -163,6 +230,7 @@ public sealed class TileMap : Entity
 
         Collision = null;
         _world = null;
+        _profiles = null;
     }
 
     private int IndexOf(int x, int y)
@@ -197,7 +265,7 @@ public sealed class TileMap : Entity
             nameof(type));
     }
 
-    private sealed class VisibleTiles(TileGrid grid, int[] cells) : Renderer
+    private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms) : Renderer
     {
         protected internal override void Draw(FrameView view)
         {
@@ -205,8 +273,10 @@ public sealed class TileMap : Entity
 
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
             ReadOnlySpan<int> tiles = cells;
+            ReadOnlySpan<TileTransform> facings = transforms;
             ReadOnlySpan<Sprite?> sprites = grid.Sprites;
             Vector2 size = new(grid.TileSize, grid.TileSize);
+            float half = grid.TileSize / 2f;
 
             for (int y = minY; y < maxY; y++)
             {
@@ -218,18 +288,19 @@ public sealed class TileMap : Entity
                         continue;
                     }
 
-                    // Terrain never moves or flips, and its frames anchor at their own corner, so the
-                    // cell's corner serves as both ends of the interpolation.
-                    Vector2 corner = new(x * grid.TileSize, y * grid.TileSize);
+                    // Terrain never moves, and its frames pivot on their centre. The cell's centre serves
+                    // as both ends of the interpolation, and a mirror or turn stays inside the cell.
+                    Vector2 centre = new((x * grid.TileSize) + half, (y * grid.TileSize) + half);
+                    ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf(facings[row + x]);
                     view.Add(new SpriteIntent(
                         sprite,
-                        corner,
-                        corner,
-                        PreviousRotation: 0f,
-                        Rotation: 0f,
+                        centre,
+                        centre,
+                        pose.Rotation,
+                        pose.Rotation,
                         size,
-                        FlipX: false,
-                        FlipY: false,
+                        pose.FlipX,
+                        pose.FlipY,
                         ColorRgba.White));
                 }
             }

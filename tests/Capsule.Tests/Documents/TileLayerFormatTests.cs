@@ -42,6 +42,30 @@ public sealed class TileLayerFormatTests
         Assert.Null(Palette(SceneDocumentFile.Parse(written))[1].Shape);
     }
 
+    // Transforms are written one grid row per line like tiles, and only when a tile is mirrored or turned.
+    [Fact]
+    public void Transforms_SurviveARoundTrip_AndAreAbsentWhenEveryTileIsAsAuthored()
+    {
+        TileGrid grid = new(
+            16,
+            2,
+            2,
+            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)],
+            [1, 1, 0, 1],
+            Atlas,
+            4,
+            [TileTransform.FlipX, TileTransform.None, TileTransform.None, TileTransform.Rotate90]);
+        string written = SceneDocumentFile.ToJson(new SceneDocument([new TileMapPlacement(1, grid)], 2));
+
+        Assert.Contains("\"transforms\": [\n          1, 0,\n          0, 5\n        ]", written, StringComparison.Ordinal);
+        Assert.Equal(grid.Transforms.ToArray(), Grid(SceneDocumentFile.Parse(written)).Transforms.ToArray());
+        Assert.Equal(written, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(written)));
+
+        string untransformed = SceneDocumentFile.ToJson(Document("solid"));
+        Assert.DoesNotContain("transforms", untransformed, StringComparison.Ordinal);
+        Assert.Equal(new TileTransform[2], Grid(SceneDocumentFile.Parse(untransformed)).Transforms.ToArray());
+    }
+
     [Fact]
     public void AVersionOneDocument_IsRefused()
     {
@@ -88,8 +112,9 @@ public sealed class TileLayerFormatTests
         Assert.Contains("no cell and no layer", error.Message, StringComparison.Ordinal);
     }
 
-    private static ReadOnlySpan<TileDefinition> Palette(SceneDocument document) =>
-        document.Entries[0].TileMap!.Value.Grid.TileTypes;
+    private static ReadOnlySpan<TileDefinition> Palette(SceneDocument document) => Grid(document).TileTypes;
+
+    private static TileGrid Grid(SceneDocument document) => document.Entries[0].TileMap!.Value.Grid;
 
     private static SceneDocument Document(string? layer, Shape2D? shape = null, bool oneWay = false) =>
         new(

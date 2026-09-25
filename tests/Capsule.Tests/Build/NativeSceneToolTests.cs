@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Capsule.Build.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Tests.Documents;
@@ -11,16 +12,24 @@ public sealed class NativeSceneToolTests
 
     private const string Shipped = ToolWorkspace.Out + "/assets/scenes/";
 
+    // A gzip header with a timestamp would make every build of an unchanged document new bytes.
     [Fact]
-    public void ADocument_ShipsReEmittedCompactlyAtItsKey()
+    public void ADocument_ShipsCompactAndGzippedAtItsKey_AndEveryBuildWritesTheSameBytes()
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
+        string path = Shipped + "hall.scene.json.gz";
 
         workspace.Succeed();
+        byte[] shipped = File.ReadAllBytes(path);
+        File.Delete(path);
+        workspace.Succeed();
 
-        string emitted = File.ReadAllText(Shipped + "hall.scene.json");
-        SceneDocument derived = SceneDocumentFile.Load(Shipped + "hall.scene.json");
+        Assert.Equal(shipped, File.ReadAllBytes(path));
+        Assert.Equal([0x1f, 0x8b, 0, 0, 0, 0], [shipped[0], shipped[1], .. shipped[4..8]]);
+        using StreamReader inflated = new(new GZipStream(new MemoryStream(shipped), CompressionMode.Decompress));
+        string emitted = inflated.ReadToEnd();
+        SceneDocument derived = SceneDocumentFile.Parse(emitted);
         Assert.Equal(SceneDocumentFile.ToJson(derived, compact: true), emitted);
         Assert.NotEqual(Authored, emitted);
         Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
@@ -39,7 +48,7 @@ public sealed class NativeSceneToolTests
 
         workspace.Succeed();
 
-        Assert.Equal("terrain/cave-wall", SceneDocumentFile.Load(Shipped + "hall.scene.json").Entries[0].TileMap!.Value.Grid.Texture?.Name);
+        Assert.Equal("terrain/cave-wall", Load(Shipped + "hall.scene.json.gz").Entries[0].TileMap!.Value.Grid.Texture?.Name);
     }
 
     [Fact]
@@ -50,7 +59,7 @@ public sealed class NativeSceneToolTests
 
         workspace.Succeed();
 
-        SceneDocument derived = SceneDocumentFile.Load(Shipped + "rooms/hall.scene.json");
+        SceneDocument derived = Load(Shipped + "rooms/hall.scene.json.gz");
         Assert.Equal(SceneStep.ToolName, derived.Source?.Tool);
         Assert.Equal("Assets/Scenes/rooms/hall.scene.json", derived.Source?.Path);
     }
@@ -69,7 +78,7 @@ public sealed class NativeSceneToolTests
 
         workspace.Succeed($"scene|{Path.GetFullPath(derived)}|Upper_Halls/Hall");
 
-        Assert.Equal(stamped.Source, SceneDocumentFile.Load(ToolWorkspace.Out + "/assets/upper-halls/hall.scene.json").Source);
+        Assert.Equal(stamped.Source, Load(ToolWorkspace.Out + "/assets/upper-halls/hall.scene.json.gz").Source);
     }
 
     [Fact]
@@ -83,8 +92,8 @@ public sealed class NativeSceneToolTests
 
         Assert.Contains("Assets/Scenes/broken.scene.json", errors, StringComparison.Ordinal);
         Assert.Contains("declares no properties", errors, StringComparison.Ordinal);
-        Assert.False(File.Exists(Shipped + "broken.scene.json"));
-        Assert.True(File.Exists(Shipped + "hall.scene.json"));
+        Assert.False(File.Exists(Shipped + "broken.scene.json.gz"));
+        Assert.True(File.Exists(Shipped + "hall.scene.json.gz"));
     }
 
     [Fact]
@@ -94,7 +103,7 @@ public sealed class NativeSceneToolTests
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
 
         Assert.Contains("Assets/Scenes/hall.scene.json", workspace.Fail("tile-size|8"), StringComparison.Ordinal);
-        Assert.False(File.Exists(Shipped + "hall.scene.json"));
+        Assert.False(File.Exists(Shipped + "hall.scene.json.gz"));
     }
 
     // Every shipped document reaches the generator with its baseScene and camera, and its key reaches
@@ -133,5 +142,12 @@ public sealed class NativeSceneToolTests
 
         Assert.Contains(because, errors, StringComparison.Ordinal);
         Assert.Contains(documents[^1], errors, StringComparison.Ordinal);
+    }
+
+    private static SceneDocument Load(string path)
+    {
+        using FileStream shipped = File.OpenRead(path);
+
+        return ShippedSceneDocument.Read(shipped);
     }
 }

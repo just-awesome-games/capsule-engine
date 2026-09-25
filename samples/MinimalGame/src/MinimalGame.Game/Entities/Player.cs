@@ -34,6 +34,9 @@ public sealed class Player : Entity
     /// <summary>The velocity the body moves at, in world units per second, as of the last step.</summary>
     public Vector2 Velocity => _velocity;
 
+    /// <summary>Whether the body stood on a floor after the last step.</summary>
+    public bool IsOnFloor => _body.IsOnFloor;
+
     /// <summary>Whether the last step took off from the floor; cleared as each step begins.</summary>
     public bool JumpedThisStep { get; private set; }
 
@@ -326,9 +329,14 @@ public sealed class Player : Entity
                 _facing = velocity.X < 0f ? -1f : 1f;
             }
 
-            // Asked every step: the animator ignores the clip already playing, so the cycle runs
-            // instead of restarting on frame 0.
-            _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
+            // Airborne, the clip holds on its frame. The grounded clip is chosen again on landing.
+            _animator.Paused = !_player.IsOnFloor;
+            if (!_animator.Paused)
+            {
+                // Asked every step: the animator ignores the clip already playing, so the cycle runs
+                // instead of restarting on frame 0.
+                _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
+            }
 
             if (_player.JumpedThisStep)
             {

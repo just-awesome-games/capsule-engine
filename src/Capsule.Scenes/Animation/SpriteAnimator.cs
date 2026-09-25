@@ -57,6 +57,30 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </remarks>
     public int Tick => Clip is { } clip ? _playback.TickOf(clip.FrameTicks) : 0;
 
+    /// <summary>Whether the clip holds on its current frame while the entity keeps stepping.</summary>
+    /// <remarks>
+    /// A held clip keeps drawing its frame. Its <see cref="Tick"/> does not advance and
+    /// <see cref="IsFinished"/> does not change. Both <c>Play</c> overloads leave this as it is. A
+    /// clip played while held draws its frame and stays held. Removal from the scene clears it.
+    /// <para>
+    /// After at least one held step, the animator's first step after this clears advances from the
+    /// held tick. A held step spends the step a <c>Play</c> holds its first frame for. A
+    /// <c>Play</c> followed by a clear with no held step between them keeps that first step.
+    /// </para>
+    /// <para>
+    /// This holds one clip's playback. Hit-stop and a pause menu hold whole entities with
+    /// <see cref="Scene.Freeze(int)"/> and <see cref="Scene.Paused"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// Showing one frame of a clip, frozen:
+    /// <code>
+    /// _animator.Play(clip, atTick: 6);
+    /// _animator.Paused = true;
+    /// </code>
+    /// </example>
+    public bool Paused { get; set; }
+
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
     {
@@ -144,10 +168,11 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
-    /// <summary>Rewinds to <see cref="Clip"/>'s first frame and keeps the clip. A reused entity replays it as a new one would.</summary>
+    /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
+        Paused = false;
         if (Clip is not { } clip)
         {
             return;
@@ -164,6 +189,14 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     {
         if (Clip is not { } clip)
         {
+            return;
+        }
+
+        // A played frame is on screen for the whole pause. A paused step therefore spends the step
+        // Play would otherwise hold back.
+        if (Paused)
+        {
+            _pendingStart = false;
             return;
         }
 
@@ -207,6 +240,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         panel.Field("Tick", Tick);
         panel.Field("Loop", clip.Loop);
         panel.Field("IsFinished", IsFinished);
+        panel.Field("Paused", Paused);
         panel.Command("Restart", () => Play(clip, restart: true));
     }
 }

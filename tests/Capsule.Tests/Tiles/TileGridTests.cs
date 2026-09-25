@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Tests.Scenes;
@@ -66,7 +67,7 @@ public sealed class TileGridTests
             4);
 
         Assert.Equal<Sprite?>(
-            new Sprite(Atlas, new TextureRegion(expectedX, expectedY, 16, 16)),
+            new Sprite(Atlas, new TextureRegion(expectedX, expectedY, 16, 16), new Vector2(8, 8)),
             grid.Sprites[1]);
     }
 

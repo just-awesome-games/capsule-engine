@@ -80,8 +80,8 @@ public sealed class ParallaxTests
         simulation.Step(SceneFixtures.Step());
 
         // The real camera shows world [368, 432] about 400. The layer's camera is centred halfway from
-        // the scroll centre at 32 to that, at 216, and shows [184, 248].
-        Assert.Equal([176f, 192f, 208f, 224f, 240f], simulation.View.Sprites.ToArray().Select(tile => tile.Position.X));
+        // the scroll centre at 32 to that, at 216, and shows [184, 248]. Each tile is placed by its centre.
+        Assert.Equal([184f, 200f, 216f, 232f, 248f], simulation.View.Sprites.ToArray().Select(tile => tile.Position.X));
     }
 
     // Whatever the fit, the bounds, the alpha, a zoom, an offset and the placed span, the rect a layer

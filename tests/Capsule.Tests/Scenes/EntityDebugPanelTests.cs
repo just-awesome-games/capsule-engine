@@ -184,6 +184,7 @@ public sealed class EntityDebugPanelTests
                 ("Tick", animator.Tick.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("Loop", "True"),
                 ("IsFinished", "False"),
+                ("Paused", "False"),
                 ("Restart", null),
             ],
             rows[(heading + 1)..]);

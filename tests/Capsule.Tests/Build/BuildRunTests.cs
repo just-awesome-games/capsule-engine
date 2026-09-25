@@ -59,7 +59,7 @@ public sealed class BuildRunTests
         workspace.Write("Assets/Textures/hero.png", string.Empty);
         workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
         workspace.Succeed();
-        string[] outputs = ["CapsuleAssets.g.cs", "capsule-scenes.txt", "assets/textures/hero.png", "assets/scenes/room.scene.json"];
+        string[] outputs = ["CapsuleAssets.g.cs", "capsule-scenes.txt", "assets/textures/hero.png", "assets/scenes/room.scene.json.gz"];
         DateTime[] written = [.. outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output)))];
 
         workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");

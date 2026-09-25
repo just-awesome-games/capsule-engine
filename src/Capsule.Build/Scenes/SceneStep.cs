@@ -8,8 +8,8 @@ using Capsule.Tiles;
 namespace Capsule.Build.Scenes;
 
 /// <summary>
-/// Every scene document, authored or derived by a module, validated and re-emitted compact where it
-/// ships, and each key declared as a constant. The indented canonical form is the authoring format.
+/// Every scene document, authored or derived by a module, validated and re-emitted compact and gzipped
+/// where it ships, and each key declared as a constant. The indented canonical form is the authoring format.
 /// </summary>
 internal static class SceneStep
 {
@@ -43,8 +43,8 @@ internal static class SceneStep
             source =>
             {
                 SceneDocument document = Import(source.Path, pass.Requests.TileSize);
-                string shipped = pass.Shipped.Claim(source.Key + AssetType.Scenes.Extensions[0]);
-                AtomicFile.Write(shipped, path => File.WriteAllText(path, SceneDocumentFile.ToJson(document, compact: true)));
+                string shipped = pass.Shipped.Claim(source.Key + ShippedSceneDocument.Extension);
+                AtomicFile.Write(shipped, path => ShippedSceneDocument.Write(document, path));
                 pass.Output.WriteLine($"scenes: {source.Path} -> {source.Key}");
 
                 return document;
@@ -136,5 +136,6 @@ internal static class SceneStep
                 grid.TileTypes.ToArray(),
                 grid.Tiles.ToArray(),
                 texture,
-                grid.Columns);
+                grid.Columns,
+                grid.Transforms.ToArray());
 }

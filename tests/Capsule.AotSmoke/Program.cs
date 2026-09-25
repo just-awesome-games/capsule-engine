@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Capsule.AotSmoke.Logic;
@@ -19,7 +20,7 @@ internal static class Program
 
     private const long DrivenSteps = IdleSteps + 1;
 
-    private const string NativeScenePath = "assets/scenes/fixture.scene.json";
+    private const string NativeScenePath = "assets/scenes/fixture.scene.json.gz";
 
     // The document's one entity and its one tile, plus a glyph per character of the label: a font
     // that generated nothing, or a page that did not ship, draws fewer than this.
@@ -152,8 +153,12 @@ internal static class Program
             .WithoutLogging()
             .RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
 
-    private static SceneDocument Document(string path) =>
-        SceneDocumentFile.Load(Path.Combine(AppContext.BaseDirectory, path));
+    private static SceneDocument Document(string path)
+    {
+        using StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, path)), CompressionMode.Decompress));
+
+        return SceneDocumentFile.Parse(inflated.ReadToEnd());
+    }
 
     // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another, and the document
     // names it under the authored spelling: this is where the whole key path is proved end to end.

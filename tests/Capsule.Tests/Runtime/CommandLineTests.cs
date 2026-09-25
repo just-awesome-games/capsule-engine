@@ -3,6 +3,7 @@ using Capsule.Persistence;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Persistence;
 
@@ -80,7 +81,9 @@ public sealed class CommandLineTests : IDisposable
     {
         string documents = Path.Combine(_workspace.Root, "assets", "halls");
         Directory.CreateDirectory(documents);
-        File.WriteAllText(Path.Combine(documents, "hall.scene.json"), """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+        ShippedSceneDocument.Write(
+            SceneDocumentFile.Parse("""{"formatVersion": 6, "entities": [], "nextEntityId": 1}"""),
+            Path.Combine(documents, "hall" + ShippedSceneDocument.Extension));
 
         int before = Hall.Openings;
         EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root))

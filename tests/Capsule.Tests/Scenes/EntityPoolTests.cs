@@ -142,6 +142,7 @@ public sealed class EntityPoolTests
 
         Assert.True(first.Animator.FrameIndex > 0, "the walk never advanced past frame 0");
         Assert.True(first.Emitter.Alive > 0, "the emitter's prewarm never filled it");
+        first.Animator.Paused = true;
 
         scene.Remove(first);
 
@@ -149,6 +150,7 @@ public sealed class EntityPoolTests
         Assert.Same(first, second);
         Assert.Equal(0, second.Animator.FrameIndex);
         Assert.Same(Walk, second.Animator.Clip);
+        Assert.False(second.Animator.Paused);
         Assert.Equal(0, second.Emitter.Alive);
 
         scene.Add(second);

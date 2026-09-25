@@ -113,8 +113,11 @@ Invalid documents throw `SceneDocumentFormatException`.
 
 `tile-map` is reserved by the engine. A document may carry any number, interleaved with game entities, all
 anchored at the world origin and drawn by their `zIndex` bands. Its properties are `tileSize`, `width`,
-`height`, `texture`, `columns`, `tileTypes` and `tiles`. Palette index 0 is `empty`, carrying neither cell nor
-layer. `tiles` holds `width x height` palette indices, one grid row per line so a map reads as its shape.
+`height`, `texture`, `columns`, `tileTypes`, `tiles` and `transforms`. Palette index 0 is `empty`, carrying
+neither cell nor layer. `tiles` holds `width x height` palette indices, one grid row per line so a map reads
+as its shape. `transforms` is an optional grid of the same shape that mirrors or turns each tile's drawing
+and collision shape: 1 mirrors it left to right, 2 top to bottom, 4 swaps its axes before either, the sum
+combines them, and absent is all 0.
 Each other palette entry carries a `type` name and may carry:
 
 | Field | Meaning |
@@ -153,9 +156,9 @@ not pass its spawn to a base constructor taking one is `CAP026` at that construc
 ## From source to game
 
 Documents are authored anywhere under the logic project's `Assets/`. The build validates each, re-emits it
-canonically, stamps its provenance, and ships it at `assets/<key>.scene.json` beside the executable. A
-document's key is its path without either extension, keyed as [named assets](assets.md#named-assets)
-defines. A document registers itself: the class claiming its key composes it, and one no class claims
+canonically, stamps its provenance, and ships it gzipped at `assets/<key>.scene.json.gz` beside the
+executable. `gzip -d` restores the compact JSON. A document's key is its source path without either
+extension, keyed as [named assets](assets.md#named-assets) defines. A document registers itself: the class claiming its key composes it, and one no class claims
 composes a plain `Scene`. Two sources
 sharing a key fail the build, and derived documents are not committed. The logic role imports scenes on its
 own, and any other project opts in with `CapsuleImportScenes`. `CapsuleTileSize` declares the tile size every

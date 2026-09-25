@@ -220,8 +220,9 @@ public static class SceneDocumentFile
             new(new JsonSerializerOptions(SceneDocumentJsonContext.Default.Options) { WriteIndented = false });
     }
 
-    // Rewrites each tiles array to one line per grid row. The serializer writes one index per line,
-    // which stretches a small map over hundreds of lines and hides its shape from an editor.
+    // Rewrites each tiles and transforms array to one line per grid row. The serializer writes one
+    // index per line, which stretches a small map over hundreds of lines and hides its shape from an
+    // editor.
     private static string TileRows(string json, ReadOnlySpan<SceneDocumentEntry> placements)
     {
         StringBuilder rewritten = new(json.Length);
@@ -234,35 +235,65 @@ public static class SceneDocumentFile
                 continue;
             }
 
-            int open = json.IndexOf("\"tiles\": [", cursor, StringComparison.Ordinal);
-            if (open < 0)
+            TileGrid grid = tileMap.Grid;
+            cursor = GridRows(json, cursor, rewritten, "tiles", grid.Tiles.ToArray(), grid.Width);
+            if (Transformed(grid) is { } transforms)
             {
-                break;
+                cursor = GridRows(json, cursor, rewritten, "transforms", transforms, grid.Width);
             }
-
-            int close = json.IndexOf(']', open);
-            int indent = open - (json.LastIndexOf('\n', open) + 1);
-            ReadOnlySpan<int> tiles = tileMap.Grid.Tiles;
-
-            rewritten.Append(json, cursor, open - cursor).Append("\"tiles\": [");
-            for (int i = 0; i < tiles.Length; i++)
-            {
-                rewritten
-                    .Append(i == 0 ? string.Empty : ",")
-                    .Append(i % tileMap.Grid.Width == 0 ? "\n" + new string(' ', indent + 2) : " ")
-                    .Append(tiles[i].ToString(CultureInfo.InvariantCulture));
-            }
-
-            if (tiles.Length > 0)
-            {
-                rewritten.Append('\n').Append(' ', indent);
-            }
-
-            rewritten.Append(']');
-            cursor = close + 1;
         }
 
         return rewritten.Append(json, cursor, json.Length - cursor).ToString();
+    }
+
+    // Copies the JSON up to the named array and writes the array one grid row per line. Returns where
+    // the copy resumes.
+    private static int GridRows(string json, int cursor, StringBuilder rewritten, string name, int[] values, int width)
+    {
+        string key = $"\"{name}\": [";
+        int open = json.IndexOf(key, cursor, StringComparison.Ordinal);
+        if (open < 0)
+        {
+            return cursor;
+        }
+
+        int close = json.IndexOf(']', open);
+        int indent = open - (json.LastIndexOf('\n', open) + 1);
+
+        rewritten.Append(json, cursor, open - cursor).Append(key);
+        for (int i = 0; i < values.Length; i++)
+        {
+            rewritten
+                .Append(i == 0 ? string.Empty : ",")
+                .Append(i % width == 0 ? "\n" + new string(' ', indent + 2) : " ")
+                .Append(values[i].ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (values.Length > 0)
+        {
+            rewritten.Append('\n').Append(' ', indent);
+        }
+
+        rewritten.Append(']');
+        return close + 1;
+    }
+
+    // The grid's transforms as the document writes them, or null when every tile is drawn as authored.
+    private static int[]? Transformed(TileGrid grid)
+    {
+        ReadOnlySpan<TileTransform> transforms = grid.Transforms;
+        if (!transforms.ContainsAnyExcept(TileTransform.None))
+        {
+            return null;
+        }
+
+        int[] written = new int[transforms.Length];
+        for (int i = 0; i < written.Length; i++)
+        {
+            written[i] = (int)transforms[i];
+        }
+
+        return written;
     }
 
     private static bool IsTileMap(SceneEntryJson entry) =>
@@ -439,6 +470,7 @@ public static class SceneDocumentFile
             Columns = grid.Texture is null ? null : grid.Columns,
             TileTypes = tileTypes,
             Tiles = [.. grid.Tiles],
+            Transforms = Transformed(grid),
         };
     }
 
@@ -497,7 +529,32 @@ public static class SceneDocumentFile
             tileTypes,
             tiles,
             ParseTexture(grid.Texture),
-            grid.Columns ?? 0);
+            grid.Columns ?? 0,
+            ParseTransforms(grid.Transforms));
+    }
+
+    // Absent means every tile is drawn as authored. TileGrid checks the count against the grid.
+    private static TileTransform[]? ParseTransforms(int[]? transforms)
+    {
+        if (transforms is null)
+        {
+            return null;
+        }
+
+        TileTransform[] parsed = new TileTransform[transforms.Length];
+        for (int i = 0; i < parsed.Length; i++)
+        {
+            if (transforms[i] is < 0 or >= TileTransforms.Count)
+            {
+                throw new SceneDocumentFormatException(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"transforms[{i}] is {transforms[i]}. Use 0 for a tile as authored, or add 1 to mirror it left to right, 2 to mirror it top to bottom and 4 to swap its axes, up to {TileTransforms.Count - 1}."));
+            }
+
+            parsed[i] = (TileTransform)transforms[i];
+        }
+
+        return parsed;
     }
 
     private static TextureHandle? ParseTexture(string? texture)

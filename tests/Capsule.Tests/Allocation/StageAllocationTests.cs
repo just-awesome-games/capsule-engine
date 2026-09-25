@@ -123,12 +123,12 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         // Beside the executable, where SceneComposer looks; SceneComposerTests writes here too.
         // StageAllocationCollection disables parallelization, so the delete below cannot race it.
         string directory = Path.Combine(AppContext.BaseDirectory, "assets");
-        string path = Path.Combine(directory, StageWorkload.DocumentName + ".scene.json");
+        string path = Path.Combine(directory, StageWorkload.DocumentName + ShippedSceneDocument.Extension);
         Directory.CreateDirectory(directory);
 
         try
         {
-            SceneDocumentFile.Save(StageWorkload.Build(), path);
+            ShippedSceneDocument.Write(StageWorkload.Build(), path);
 
             SceneComposer composer = new(StageWorkload.Scenes(), new DesktopPlatform());
             using SceneHost host = new(

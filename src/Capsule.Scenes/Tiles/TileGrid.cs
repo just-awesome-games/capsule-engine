@@ -13,6 +13,7 @@ public sealed class TileGrid
 
     private readonly TileDefinition[] _tileTypes;
     private readonly int[] _tiles;
+    private readonly TileTransform[] _transforms;
 
     // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
     // per tile. An entry is null when its tile type draws nothing.
@@ -28,6 +29,10 @@ public sealed class TileGrid
     /// How many cells wide <paramref name="texture"/> is. This turns a cell number into a source
     /// region. Pass at least 1 with a texture, and 0 without one.
     /// </param>
+    /// <param name="transforms">
+    /// How each tile is mirrored or turned, row-major and parallel to <paramref name="tiles"/>, or null
+    /// for a grid of tiles drawn as authored.
+    /// </param>
     /// <exception cref="ArgumentException">The grid is malformed. The message names the defect.</exception>
     public TileGrid(
         int tileSize,
@@ -36,7 +41,8 @@ public sealed class TileGrid
         IReadOnlyList<TileDefinition> tileTypes,
         IReadOnlyList<int> tiles,
         TextureHandle? texture = null,
-        int columns = 0)
+        int columns = 0,
+        IReadOnlyList<TileTransform>? transforms = null)
     {
         ArgumentNullException.ThrowIfNull(tileTypes);
         ArgumentNullException.ThrowIfNull(tiles);
@@ -50,6 +56,10 @@ public sealed class TileGrid
         _tiles = [.. tiles];
 
         Validate();
+
+        // Sized after Validate, which bounds the grid's area.
+        _transforms = transforms is null ? new TileTransform[_tiles.Length] : [.. transforms];
+        ValidateTransforms();
 
         _sprites = CutCells();
     }
@@ -82,6 +92,12 @@ public sealed class TileGrid
 
     /// <summary>Palette indices, row-major from the top row, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
+
+    /// <summary>
+    /// How each tile is mirrored or turned, parallel to <see cref="Tiles"/>. Every entry is
+    /// <see cref="TileTransform.None"/> on a grid built without transforms.
+    /// </summary>
+    public ReadOnlySpan<TileTransform> Transforms => _transforms;
 
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides
@@ -300,6 +316,27 @@ public sealed class TileGrid
         }
     }
 
+    private void ValidateTransforms()
+    {
+        if (_transforms.Length != _tiles.Length)
+        {
+            throw Malformed(
+                $"transforms has {_transforms.Length} entries but width {Width} x height {Height} requires {_tiles.Length}. Give one per tile, or pass null for none.",
+                "transforms");
+        }
+
+        for (int i = 0; i < _transforms.Length; i++)
+        {
+            if (!TileTransforms.IsDefined(_transforms[i]))
+            {
+                throw Malformed(
+                    $"transforms[{i}] is {(byte)_transforms[i]}. Use a TileTransform in 0..{TileTransforms.Count - 1}.",
+                    "transforms");
+            }
+        }
+    }
+
+    // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell.
     private Sprite?[] CutCells()
     {
         Sprite?[] sprites = new Sprite?[_tileTypes.Length];
@@ -318,7 +355,7 @@ public sealed class TileGrid
             sprites[i] = new Sprite(
                 texture,
                 new TextureRegion(cell % Columns * TileSize, cell / Columns * TileSize, TileSize, TileSize),
-                Vector2.Zero);
+                new Vector2(TileSize / 2f, TileSize / 2f));
         }
 
         return sprites;

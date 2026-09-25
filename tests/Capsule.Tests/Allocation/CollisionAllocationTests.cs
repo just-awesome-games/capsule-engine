@@ -3,6 +3,8 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
+using Capsule.Tiles;
 using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
@@ -141,6 +143,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
     public void AColliderWalkingASceneWithContactEvents_AllocatesNothingPerStep()
     {
         Scene scene = CollisionWorkload.Room();
+        TileMap terrain = SceneFixtures.TerrainOf(scene);
         CollisionWorkload.Walker walker = new(CollisionWorkload.Mover.Min);
         scene.Add(walker);
 
@@ -149,8 +152,10 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         // One input state for the run: building one a step is the harness allocating, not the step.
         InputState input = new(new ActionBindings());
 
+        // A roof cell far from the walk is repainted every step, turning the other way each time.
         Report("walker in a scene", Measure(step =>
         {
+            terrain.SetTile(200, 20, "slope-up", (step & 1) == 0 ? TileTransform.FlipX : TileTransform.Rotate90);
             simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
             return walker.Contacts;
         }));

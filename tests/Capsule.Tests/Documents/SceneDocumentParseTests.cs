@@ -94,6 +94,7 @@ public sealed class SceneDocumentParseTests
     [InlineData(null, "null", "the 'tile-map' entry's grid has no tiles")]
     [InlineData("""[{"type": "empty"}, null]""", "[0, 1]", "tileTypes[1] is null")]
     [InlineData(null, "[0, 7]", "tiles[1] is 7")]
+    [InlineData(null, "[0, 1], \"transforms\": [0, 8]", "transforms[1] is 8")]
     // A palette field the format does not define, as a typo spells one.
     [InlineData("""[{"type": "empty"}, {"type": "ground", "sprite": "wall.png"}]""", "[0, 1]", "the 'tile-map' entry's properties are not")]
     public void Parse_RefusesAMalformedGridWithTheDefectNamed(string? tileTypes, string tiles, string expected)

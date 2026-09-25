@@ -162,6 +162,12 @@ internal sealed class TileGridJson
     [JsonPropertyName("tiles")]
     [JsonPropertyOrder(6)]
     public int[]? Tiles { get; set; }
+
+    // Absent for a grid whose every tile is drawn as authored. The writer emits it only when a tile is
+    // mirrored or turned.
+    [JsonPropertyName("transforms")]
+    [JsonPropertyOrder(7)]
+    public int[]? Transforms { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

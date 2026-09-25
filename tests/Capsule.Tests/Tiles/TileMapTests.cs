@@ -26,7 +26,7 @@ public sealed class TileMapTests
         Assert.Equal(2, simulation.View.Sprites.Length);
 
         SpriteIntent terrain = simulation.View.Sprites[0];
-        Assert.Equal(new Vector2(SceneFixtures.TileSize, 0), terrain.Position);
+        Assert.Equal(new Vector2(SceneFixtures.TileSize * 1.5f, SceneFixtures.TileSize / 2f), terrain.Position);
         Assert.Equal(terrain.Position, terrain.PreviousPosition);
         Assert.Equal(new Vector2(SceneFixtures.TileSize, SceneFixtures.TileSize), terrain.Size);
         Assert.Equal(SceneFixtures.Atlas, terrain.Sprite.Texture);
@@ -87,7 +87,7 @@ public sealed class TileMapTests
         SceneSimulation simulation = new(scene);
 
         SpriteIntent tile = Assert.Single(simulation.View.Sprites.ToArray());
-        Assert.Equal(new Vector2(8, 0), tile.Position);
+        Assert.Equal(new Vector2(12, 4), tile.Position);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class TileMapTests
         SceneSimulation simulation = new(scene);
 
         Assert.Equal(
-            [new Vector2(0, 0), new Vector2(8, 0)],
+            [new Vector2(4, 4), new Vector2(12, 4)],
             simulation.View.Sprites.ToArray().Select(tile => tile.Position));
     }
 

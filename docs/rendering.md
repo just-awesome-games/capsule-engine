@@ -89,6 +89,10 @@ is already playing, and a step may ask for the clip its state implies every step
 _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
 ```
 
+`Paused` holds a clip on its current frame while the entity keeps stepping. Clearing it resumes from
+that frame. `Play` leaves it set. Hit-stop holds the whole entity, and that is `Scene.Freeze` in
+[`entities.md`](entities.md#pausing).
+
 A `Tween` is an eased value that counts its duration in whole fixed steps. It drives a flash, a slide
 or any one-off eased value. A `Countdown` is the same timer with no value to read, for a cooldown, a
 delay or a lifetime.
