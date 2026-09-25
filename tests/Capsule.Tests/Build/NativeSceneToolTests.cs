@@ -12,7 +12,7 @@ public sealed class NativeSceneToolTests
     private const string Shipped = ToolWorkspace.Out + "/assets/scenes/";
 
     [Fact]
-    public void ADocument_ShipsReEmittedCanonicallyAtItsKey()
+    public void ADocument_ShipsReEmittedCompactlyAtItsKey()
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
@@ -21,7 +21,7 @@ public sealed class NativeSceneToolTests
 
         string emitted = File.ReadAllText(Shipped + "hall.scene.json");
         SceneDocument derived = SceneDocumentFile.Load(Shipped + "hall.scene.json");
-        Assert.Equal(SceneDocumentFile.ToJson(derived), emitted);
+        Assert.Equal(SceneDocumentFile.ToJson(derived, compact: true), emitted);
         Assert.NotEqual(Authored, emitted);
         Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
         Assert.Equal("player", derived.Entries[1].Entity!.Value.Type);

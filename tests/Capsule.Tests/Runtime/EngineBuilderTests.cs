@@ -1,9 +1,11 @@
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Input;
+using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
+using Capsule.Runtime.Persistence;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
 
@@ -108,6 +110,25 @@ public sealed class EngineBuilderTests
         Assert.Throws<ArgumentException>(() => ConfiguredBuilder().RunScene(documentName));
     }
 
+    // The first scene composes before any window opens, and a failure there is a crash like one in
+    // the loop. Nothing ships here, so the scene document is missing.
+    [Fact]
+    public void RunScene_ReportsAFirstSceneThatFailsToComposeToTheCrashLog()
+    {
+        CrashRecordingPlatform platform = new();
+        EngineBuilder builder = CapsuleEngine.Configure(
+                GameName,
+                platform,
+                new SceneRegistry(
+                    new EntityRegistry([]),
+                    [SceneRegistration.DocumentOnly("rooms/room-01", static content => new Room01(content!.Value))]))
+            .WithoutLogging();
+
+        FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => builder.RunScene("rooms/room-01"));
+
+        Assert.Same(failure, Assert.Single(platform.Reported));
+    }
+
     private static EngineBuilder SceneBuilder(string gameName = GameName) =>
         CapsuleEngine.Configure(gameName, new DesktopPlatform(), new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
@@ -136,4 +157,16 @@ public sealed class EngineBuilderTests
     }
 
     private sealed class Room01(SceneContent content) : Scene(content);
+
+    // Ships nothing, keeps saves nowhere and records what the run reports as a crash.
+    private sealed class CrashRecordingPlatform : HostPlatform
+    {
+        internal List<Exception> Reported { get; } = [];
+
+        protected internal override Stream OpenContent(string relativePath) => throw new FileNotFoundException(null, relativePath);
+
+        protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => new DirectorySaveStorage(Path.Combine(Path.GetTempPath(), "capsule-never-written"));
+
+        protected internal override void ReportCrash(string localFolderName, Exception exception) => Reported.Add(exception);
+    }
 }

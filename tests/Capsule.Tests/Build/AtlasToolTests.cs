@@ -33,7 +33,7 @@ public sealed class AtlasToolTests
         string map = File.ReadAllText(Map);
         Assert.Contains("\"textures/actors/hero\"", map, StringComparison.Ordinal);
         Assert.DoesNotContain("\"textures/loose\"", map, StringComparison.Ordinal);
-        Assert.Contains("\"page\": \"atlases/game.0\"", map, StringComparison.Ordinal);
+        Assert.Contains("\"page\":\"atlases/game.0\"", map, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -59,6 +59,7 @@
 
   <!-- Development-only exclusions must exist before the authoring glob is evaluated. -->
   <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Publish.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />

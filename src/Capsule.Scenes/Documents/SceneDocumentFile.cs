@@ -129,7 +129,11 @@ public static class SceneDocumentFile
 
     /// <summary>Serializes <paramref name="document"/> to its canonical text.</summary>
     /// <exception cref="SceneDocumentFormatException">A grid names a texture that has no written form.</exception>
-    public static string ToJson(SceneDocument document)
+    public static string ToJson(SceneDocument document) => ToJson(document, compact: false);
+
+    // The build ships the compact form. Only the runtime reads it, and whitespace is most of an
+    // indented document's size.
+    internal static string ToJson(SceneDocument document, bool compact)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -191,6 +195,11 @@ public static class SceneDocumentFile
                 : null,
         };
 
+        if (compact)
+        {
+            return JsonSerializer.Serialize(file, Compact.Context.SceneDocumentJson);
+        }
+
         string json = JsonSerializer.Serialize(file, SceneDocumentJsonContext.Default.SceneDocumentJson);
 
         // The serializer emits the platform newline, but the format always uses LF.
@@ -203,6 +212,13 @@ public static class SceneDocumentFile
     /// <exception cref="IOException">The file cannot be written.</exception>
     public static void Save(SceneDocument document, string path) =>
         File.WriteAllText(path, ToJson(document), Utf8NoBom);
+
+    // Nested so a game, which only reads documents, never builds it.
+    private static class Compact
+    {
+        internal static readonly SceneDocumentJsonContext Context =
+            new(new JsonSerializerOptions(SceneDocumentJsonContext.Default.Options) { WriteIndented = false });
+    }
 
     // Rewrites each tiles array to one line per grid row. The serializer writes one index per line,
     // which stretches a small map over hundreds of lines and hides its shape from an editor.

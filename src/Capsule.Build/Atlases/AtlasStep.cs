@@ -426,6 +426,5 @@ internal sealed class AtlasEntryJson
 [JsonSerializable(typeof(AtlasManifestJson))]
 internal sealed partial class AtlasManifestJsonContext : JsonSerializerContext;
 
-[JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(AtlasMapJson))]
 internal sealed partial class AtlasMapJsonContext : JsonSerializerContext;

@@ -1,0 +1,13 @@
+<!-- Substrate resources a Capsule host never reaches, removed from a NativeAOT publish. Capsule
+     always embeds its own Icon.bmp and never constructs the 3D effects, which survive only through
+     the substrate's content-reader table. SpriteEffect stays. -->
+<linker>
+  <assembly fullname="MonoGame.Framework">
+    <resource name="MonoGame.bmp" action="remove" />
+    <resource name="Microsoft.Xna.Framework.Platform.Graphics.Effect.Resources.AlphaTestEffect.ogl.mgfxo" action="remove" />
+    <resource name="Microsoft.Xna.Framework.Platform.Graphics.Effect.Resources.BasicEffect.ogl.mgfxo" action="remove" />
+    <resource name="Microsoft.Xna.Framework.Platform.Graphics.Effect.Resources.DualTextureEffect.ogl.mgfxo" action="remove" />
+    <resource name="Microsoft.Xna.Framework.Platform.Graphics.Effect.Resources.EnvironmentMapEffect.ogl.mgfxo" action="remove" />
+    <resource name="Microsoft.Xna.Framework.Platform.Graphics.Effect.Resources.SkinnedEffect.ogl.mgfxo" action="remove" />
+  </assembly>
+</linker>

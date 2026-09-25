@@ -523,22 +523,32 @@ public sealed class EngineBuilder
             return 0;
         }
 
-        // Installed before composing, because a scene's OnStart logs while RunHost builds the host.
-        InstallLogging();
+        // Everything from here on reaches the crash log, the first scene's composition included. The
+        // exception is rethrown to preserve the exit code and the debugger break.
+        try
+        {
+            // Installed before composing, because a scene's OnStart logs while RunHost builds the host.
+            InstallLogging();
 
-        SceneComposer composer = new(Scenes, Platform);
+            SceneComposer composer = new(Scenes, Platform);
 
-        ISaveStorage storage = _saveStorage
-            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : Platform.OpenSaveStorage(_localFolderName));
+            ISaveStorage storage = _saveStorage
+                ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : Platform.OpenSaveStorage(_localFolderName));
 
-        using SceneHost host = new(
-            opening,
-            composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
-            storage,
-            _runStart);
+            using SceneHost host = new(
+                opening,
+                composer.Resolve,
+                new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
+                storage,
+                _runStart);
 
-        RunHost(host, host);
+            RunHost(host, host);
+        }
+        catch (Exception exception) when (_writesCrashLog)
+        {
+            Platform.ReportCrash(_localFolderName, exception);
+            throw;
+        }
 
         return 0;
     }
@@ -549,41 +559,31 @@ public sealed class EngineBuilder
         : _commandLineScene is { } scene ? SceneTransition.ToScene(scene, target.Payload)
         : target;
 
-    // Builds the host and runs simulation until it requests exit, reporting an escaping exception to
-    // the platform's crash log. The exception is rethrown to preserve the exit code and the debugger
-    // break.
+    // Builds the host and runs simulation until it requests exit.
     private void RunHost(ISimulation simulation, SceneHost? scenes)
     {
+        // Declared first so the host is disposed before it, with its last frame already written.
+        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
+            ? null
+            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+
+        using CapsuleGame game = new(this, simulation, scenes, diagnostics);
+
+        if (_consoleSink is not null)
+        {
+            _consoleSink.Tick = () => game.SimulationTick;
+        }
+
         try
         {
-            // Declared first so the host is disposed before it, with its last frame already written.
-            using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
-                ? null
-                : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
-
-            using CapsuleGame game = new(this, simulation, scenes, diagnostics);
-
+            game.Run();
+        }
+        finally
+        {
             if (_consoleSink is not null)
             {
-                _consoleSink.Tick = () => game.SimulationTick;
+                _consoleSink.Tick = null;
             }
-
-            try
-            {
-                game.Run();
-            }
-            finally
-            {
-                if (_consoleSink is not null)
-                {
-                    _consoleSink.Tick = null;
-                }
-            }
-        }
-        catch (Exception exception) when (_writesCrashLog)
-        {
-            Platform.ReportCrash(_localFolderName, exception);
-            throw;
         }
     }
 

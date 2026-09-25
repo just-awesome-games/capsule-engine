@@ -1,0 +1,71 @@
+<Project>
+
+  <!-- What a publish holds. It carries no symbols and no method names. The build's symbols go to
+       CapsuleSymbolsDirectory beside it, where a crash log's addresses decode against them. -->
+
+  <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
+       against the native symbols, and a managed publish keeps its method names. Imported after the
+       development-only targets set CapsuleShipping. -->
+  <PropertyGroup Condition="'$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
+    <StackTraceSupport Condition="'$(StackTraceSupport)' == ''">false</StackTraceSupport>
+    <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
+  </PropertyGroup>
+
+  <!-- Symbols are generated as usual and never copied into the publish directory. -->
+  <PropertyGroup>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup>
+
+  <!-- Only when the substrate is compiled in. The compiler fails a substitution naming an assembly
+       it was not given, and ignores a resource the assembly does not hold. -->
+  <Target Name="CapsuleRemoveSubstrateResources"
+          Condition="'$(PublishAot)' == 'true'"
+          BeforeTargets="WriteIlcRspFileForCompilation">
+    <ItemGroup Condition="'@(IlcReference->WithMetadataValue('Filename', 'MonoGame.Framework'))' != ''">
+      <IlcArg Include="--substitution:$(MSBuildThisFileDirectory)Capsule.SubstrateResources.xml" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Reference symbols leave the publish list. They are the build's symbols in a managed publish,
+       and describe no code in a native one, where the native pdb replaces them. -->
+  <Target Name="CapsuleCollectPublishSymbols" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <_CapsuleReferenceSymbol Include="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+      <ResolvedFileToPublish Remove="@(_CapsuleReferenceSymbol)" />
+
+      <_CapsulePublishSymbol Include="@(_CapsuleReferenceSymbol)" Condition="'$(PublishAot)' != 'true'" />
+      <!-- NativeAOT empties this list, so it holds the entry pdb of a managed publish only. -->
+      <_CapsulePublishSymbol Include="@(_DebugSymbolsIntermediatePath)" Condition="'$(_DebugSymbolsProduced)' == 'true'">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+      </_CapsulePublishSymbol>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CapsuleCopyPublishSymbols" AfterTargets="Publish">
+    <PropertyGroup>
+      <_CapsulePublishDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_CapsulePublishDirectory>
+      <CapsuleSymbolsDirectory Condition="'$(CapsuleSymbolsDirectory)' == ''">$([System.IO.Path]::TrimEndingDirectorySeparator('$(_CapsulePublishDirectory)'))-symbols</CapsuleSymbolsDirectory>
+      <CapsuleSymbolsDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(CapsuleSymbolsDirectory)'))</CapsuleSymbolsDirectory>
+
+      <!-- The native symbols' name, as the NativeAOT publish targets spell it: a pdb on Windows,
+           a .dbg file or a .dSYM bundle elsewhere. -->
+      <_CapsuleNativeSymbols Condition="'$(PublishAot)' == 'true' and '$(OS)' == 'Windows_NT'">$(TargetName)$(NativeSymbolExt)</_CapsuleNativeSymbols>
+      <_CapsuleNativeSymbols Condition="'$(PublishAot)' == 'true' and '$(OS)' != 'Windows_NT'">$(TargetName)$(NativeBinaryExt)$(NativeSymbolExt)</_CapsuleNativeSymbols>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_CapsuleNativeSymbols)' != ''">
+      <_CapsulePublishSymbol Include="$(NativeOutputPath)$(_CapsuleNativeSymbols)" Condition="'$(NativeSymbolExt)' != '.dSYM' and Exists('$(NativeOutputPath)$(_CapsuleNativeSymbols)')">
+        <RelativePath>$(_CapsuleNativeSymbols)</RelativePath>
+      </_CapsulePublishSymbol>
+      <_CapsulePublishSymbol Include="$(NativeOutputPath)$(_CapsuleNativeSymbols)/**/*" Condition="'$(NativeSymbolExt)' == '.dSYM'">
+        <RelativePath>$(_CapsuleNativeSymbols)/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+      </_CapsulePublishSymbol>
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_CapsulePublishSymbol)"
+          DestinationFiles="@(_CapsulePublishSymbol->'$(CapsuleSymbolsDirectory)%(RelativePath)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Condition="'@(_CapsulePublishSymbol)' != ''" Text="$(MSBuildProjectName) symbols -> $(CapsuleSymbolsDirectory)" />
+  </Target>
+
+</Project>

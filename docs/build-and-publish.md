@@ -241,6 +241,17 @@ the window and input, `openal.dll` for sound. The window's library is required. 
 an output device the run plays silently and logs that once. Sound follows the operating system's default
 output as it moves. The publish gates the [NativeAOT floor](architecture.md#nativeaot-floor).
 
+On Windows the native link needs the MSVC Build Tools with the C++ workload. A Build Tools-only install
+also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`, or the link fails with
+`'vswhere.exe' is not recognized`.
+
+Scene documents and atlas maps ship compact. A publish holds no `.pdb`. A NativeAOT publish defaults
+`StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`, which a project can set back. Its
+symbols go to `CapsuleSymbolsDirectory`, beside the publish directory. A crash log's frames then read
+`MyGame!<BaseAddress>+0x296cd`. To decode one, copy the shipped executable into the symbols directory and
+run `llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship
+`llvm-symbolizer` under `VC/Tools/MSVC/<version>/bin/Hostx64/x64`.
+
 ## Build properties
 
 Ordinary MSBuild properties, each set in the narrowest project that owns it. Paths are absolute or relative
@@ -261,6 +272,7 @@ to the importing project unless a row says otherwise.
 | `CapsuleImportScenes` | `true` for the logic library, else `false` | Reads the authoring tree: derives scene documents, measures and compiles assets, and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
 | `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |
+| `CapsuleSymbolsDirectory` | the publish directory's path with `-symbols` appended | Receives a publish's symbols: the native pdb under NativeAOT, the managed pdbs otherwise. |
 
 ### Package and source properties
 

@@ -48,6 +48,7 @@
     <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
     <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
     <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.Publish.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Capsule.ShaderTools.targets" Pack="true" PackagePath="buildTransitive/" />
@@ -56,6 +57,7 @@
          pair from a package or an engine clone. -->
     <None Include="../../build/Icon.ico" Pack="true" PackagePath="buildTransitive/" />
     <None Include="../../build/Icon.bmp" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="../../build/Capsule.SubstrateResources.xml" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 
   <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and its
