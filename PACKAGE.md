@@ -15,4 +15,4 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 
-Capsule is licensed under the [MIT License](https://github.com/just-awesome-games/capsule-engine/blob/main/LICENSE).
+Capsule is licensed under the [Mozilla Public License 2.0](https://github.com/just-awesome-games/capsule-engine/blob/main/LICENSE).

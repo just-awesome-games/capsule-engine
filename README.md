@@ -45,5 +45,5 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup and the gate, [`AGENTS.md`](AGENTS.md) for the rules no compiler enforces, [`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community expectations.
 
-Capsule is licensed under the [MIT License](LICENSE).
+Capsule is licensed under the [Mozilla Public License 2.0](LICENSE).
 The runtime's embedded font is covered by the [third-party notices](THIRD-PARTY-NOTICES.md).
