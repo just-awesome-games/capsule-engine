@@ -88,22 +88,6 @@ public sealed class TileLayerFormatTests
         Assert.Contains("no cell and no layer", error.Message, StringComparison.Ordinal);
     }
 
-    // A retired field of any value is refused with the pointer to what replaced it.
-    [Theory]
-    [InlineData("collision", "null")]
-    [InlineData("collision", "{ \"shape\": \"box\" }")]
-    [InlineData("collidableFaces", "[\"top\"]")]
-    public void ARetiredCollisionField_IsRefusedWithThePointerToItsReplacements(string field, string value)
-    {
-        string written = SceneDocumentFile.ToJson(Document("solid"))
-            .Replace("\"layer\": \"solid\"", $"\"{field}\": {value}", StringComparison.Ordinal);
-
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(written));
-
-        Assert.Contains($"tileTypes[1] declares {field}", error.Message, StringComparison.Ordinal);
-    }
-
     private static ReadOnlySpan<TileDefinition> Palette(SceneDocument document) =>
         document.Entries[0].TileMap!.Value.Grid.TileTypes;
 

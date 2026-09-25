@@ -197,18 +197,6 @@ internal sealed class TileTypeJson
     [JsonPropertyName("solidSides")]
     [JsonPropertyOrder(5)]
     public bool? SolidSides { get; set; }
-
-    // Mapped only so the reader can point at what replaced them, and held as raw elements because presence
-    // is all that matters. An absent field leaves ValueKind Undefined.
-    [JsonPropertyName("collision")]
-    [JsonPropertyOrder(6)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement Collision { get; set; }
-
-    [JsonPropertyName("collidableFaces")]
-    [JsonPropertyOrder(7)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public JsonElement CollidableFaces { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

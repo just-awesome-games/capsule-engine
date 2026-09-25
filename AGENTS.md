@@ -20,7 +20,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - A member is public iff a game calls it or any plausible 2D game must. Test-only and cross-assembly engine members are internal, reached through `InternalsVisibleTo`.
 - Generated code is game code: a member only a generator calls stays public and carries `[EditorBrowsable(Never)]`.
 - Engine-owned state has no public setter. Generated roots are named for the engine: `CapsuleBoot`, `CapsuleScenes`, `CapsuleEntities`, `CapsuleAssets`.
-- Before 1.0 a breaking public change takes a minor release and migrates the known consumers in the same wave.
+- Before 1.0 a breaking public change takes a minor release and migrates the known consumers in the same wave. A removed field or property is deleted outright. No code stays behind to point at its replacement.
 
 ## Docs
 

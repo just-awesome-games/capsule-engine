@@ -465,18 +465,6 @@ public static class SceneDocumentFile
                     $"tileTypes[{i}] is null. Write an object naming a tile type.");
             }
 
-            if (tileType.Collision.ValueKind != JsonValueKind.Undefined)
-            {
-                throw new SceneDocumentFormatException(
-                    $"tileTypes[{i}] declares collision, which the format no longer supports. Write the tile's layer as layer.");
-            }
-
-            if (tileType.CollidableFaces.ValueKind != JsonValueKind.Undefined)
-            {
-                throw new SceneDocumentFormatException(
-                    $"tileTypes[{i}] declares collidableFaces, which the format no longer supports. Write a tile that blocks only from above as oneWay, and a partial tile as its shape.");
-            }
-
             tileTypes[i] = new TileDefinition(
                 tileType.Type ?? string.Empty,
                 tileType.Cell,
