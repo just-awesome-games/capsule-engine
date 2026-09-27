@@ -1,6 +1,6 @@
 using System.Text;
+using Capsule.Assets;
 using Capsule.Build.Registry;
-using Capsule.Generators;
 
 namespace Capsule.Build.Sprites;
 
@@ -240,5 +240,5 @@ internal static class SpriteStep
     }
 
     // The document has already been validated. A name that is not an identifier cannot reach here.
-    private static string Identifier(string name) => TypeNaming.ToIdentifier(name)!;
+    private static string Identifier(string name) => AssetPaths.ToIdentifier(name)!;
 }

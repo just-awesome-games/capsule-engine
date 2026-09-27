@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Capsule.Assets;
 
 namespace Capsule.Build.Registry;
 
@@ -12,6 +13,26 @@ namespace Capsule.Build.Registry;
 internal sealed class CapsuleAssetsFile
 {
     internal const string FileName = "CapsuleAssets.g.cs";
+
+    // What marks a texture or sound member with the key and extension a scene document names it by. The
+    // generator reads it from source to check and resolve an authored asset. It is conditional on a
+    // symbol no build defines, so the compiler leaves it out of the assembly.
+    internal const string AssetAttributeName = "CapsuleGeneratedAsset";
+
+    internal const string AssetAttribute = """
+            /// <summary>A texture or sound, with the key and extension a scene document names it by. Generated code.</summary>
+            [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
+            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+            [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
+            internal sealed class CapsuleGeneratedAssetAttribute : global::System.Attribute
+            {
+                /// <summary>The asset's key and extension.</summary>
+                public CapsuleGeneratedAssetAttribute(string path)
+                {
+                }
+            }
+
+        """;
 
     private readonly List<(Source Source, MemberWriter Write)> _declared = [];
 
@@ -37,7 +58,7 @@ internal sealed class CapsuleAssetsFile
             .OrderBy(static entry => entry.Source.Key, StringComparer.Ordinal)
             .ThenBy(static entry => entry.Source.Type.Suffix, StringComparer.Ordinal))
         {
-            string name = Generators.TypeNaming.ToIdentifier(source.Key[(source.Key.LastIndexOf('/') + 1)..]) + source.Type.Suffix;
+            string name = AssetPaths.ToIdentifier(source.Key[(source.Key.LastIndexOf('/') + 1)..]) + source.Type.Suffix;
             if (root.Add(source.Key, name, source.Path, write) is { } because)
             {
                 error.WriteLine($"{source.Path}: is keyed \"{source.Key}\", {because}");

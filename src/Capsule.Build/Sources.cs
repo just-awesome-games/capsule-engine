@@ -1,5 +1,4 @@
 using Capsule.Assets;
-using Capsule.Generators;
 
 namespace Capsule.Build;
 
@@ -100,7 +99,7 @@ internal static class Keys
     internal static string Of(string path, string? subject = null)
     {
         subject ??= $"is authored at \"{path}\"";
-        if (TypeNaming.NormalizeKey(path, out string? rejected) is not { } key)
+        if (AssetPaths.NormalizeKey(path, out string? rejected) is not { } key)
         {
             throw new FormatException(
                 $"{subject}, whose \"{rejected}\" is no C# name. Every segment of an asset's path is letters, digits, '-' and '_', and does not start with a digit.");

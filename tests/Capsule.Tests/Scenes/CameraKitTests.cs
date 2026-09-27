@@ -91,15 +91,23 @@ public sealed class CameraKitTests
         Assert.Equal(target, leader.Center.X - trailer.Center.X, 1e-2f);
     }
 
+    // A subject the scene's start moves after the follow, as an arrival moves the player, is framed
+    // where it stands once the scene has started. The host draws that frame before the first step.
     [Fact]
-    public void AFollowBeforeTheFirstSettle_CutsToTheSubject()
+    public void AFollowDuringStart_CutsToTheSubjectWhereTheStartLeavesIt_BeforeTheFirstStep()
     {
         Still subject = new(new Vector2(500f, 300f));
-        (SceneSimulation simulation, _) = Following(subject, c => c.SmoothTime = 1f);
+        SceneFixtures.HookScene scene = new(start: s =>
+        {
+            s.Camera.SmoothTime = 1f;
+            s.Camera.Follow(subject);
+            subject.Position = new Vector2(-200f, 40f);
+        });
+        scene.Add(subject);
 
-        simulation.Step(SceneFixtures.Step());
+        SceneSimulation simulation = new(scene);
 
-        Assert.Equal(new Vector2(500f, 300f), simulation.View.Camera.Center);
+        Assert.Equal(new Vector2(-200f, 40f), simulation.View.Camera.Center);
         Assert.Equal(simulation.View.Camera.Center, simulation.View.Camera.PreviousCenter);
     }
 

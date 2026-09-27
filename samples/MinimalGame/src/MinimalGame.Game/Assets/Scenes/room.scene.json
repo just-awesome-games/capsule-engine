@@ -139,7 +139,13 @@
       "id": 9,
       "type": "shuttle",
       "x": 184,
-      "y": 168
+      "y": 168,
+      "properties": {
+        "path": [
+          [0, 0],
+          [48, 0]
+        ]
+      }
     },
     {
       "id": 11,
@@ -172,7 +178,26 @@
       "properties": {
         "lift": 11
       }
+    },
+    {
+      "id": 14,
+      "type": "door",
+      "x": 608,
+      "y": 144,
+      "properties": {
+        "destination": "scenes/halls/hall",
+        "arriveAt": "west"
+      }
+    },
+    {
+      "id": 15,
+      "type": "entrance",
+      "x": 584,
+      "y": 168,
+      "properties": {
+        "key": "east"
+      }
     }
   ],
-  "nextEntityId": 14
+  "nextEntityId": 16
 }

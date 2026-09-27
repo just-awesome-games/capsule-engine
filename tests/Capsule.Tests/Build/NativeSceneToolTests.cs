@@ -107,7 +107,7 @@ public sealed class NativeSceneToolTests
     }
 
     // Every shipped document reaches the generator with its baseScene, camera and game entries, and its
-    // key reaches the game as a constant.
+    // key reaches the game as a SceneKey.
     [Fact]
     public void EveryDocument_IsHandedToTheGeneratorAndNamedInCode()
     {
@@ -119,10 +119,10 @@ public sealed class NativeSceneToolTests
 
         string generated = workspace.Generated.Replace("\r\n", "\n", StringComparison.Ordinal);
         Assert.Matches(
-            """\[CapsuleGeneratedSceneDocument\(Path = "[^"]*Assets/Scenes/Dev/Room_Wide\.scene\.json", BaseScene = "playable-room", Camera = "follow"\)\]\n +public const string RoomWideScene = "scenes/dev/room-wide";""",
+            """\[CapsuleGeneratedSceneDocument\(Key = "scenes/dev/room-wide", Path = "[^"]*Assets/Scenes/Dev/Room_Wide\.scene\.json", BaseScene = "playable-room", Camera = "follow"\)\]\n +public static global::Capsule\.Scenes\.SceneKey RoomWideScene => new global::Capsule\.Scenes\.SceneKey\("scenes/dev/room-wide"\);""",
             generated);
         Assert.Matches(
-            """\[CapsuleGeneratedSceneDocument\(Path = "[^"]*Assets/Scenes/room\.scene\.json"\)\]\n +\[CapsuleGeneratedPlacement\(2, "player", Line = \d+, Column = 5\)\]\n +public const string RoomScene = "scenes/room";""",
+            """\[CapsuleGeneratedSceneDocument\(Key = "scenes/room", Path = "[^"]*Assets/Scenes/room\.scene\.json"\)\]\n +\[CapsuleGeneratedPlacement\(2, "player", Line = \d+, Column = 5\)\]\n +public static global::Capsule\.Scenes\.SceneKey RoomScene => new global::Capsule\.Scenes\.SceneKey\("scenes/room"\);""",
             generated);
     }
 

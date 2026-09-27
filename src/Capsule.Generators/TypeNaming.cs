@@ -1,113 +1,16 @@
 using System.Text;
+using Capsule.Assets;
 
 namespace Capsule.Generators;
 
 internal static class TypeNaming
 {
-    internal static string FromTypeName(string typeName)
-    {
-        StringBuilder id = new(typeName.Length + 4);
-
-        for (int i = 0; i < typeName.Length; i++)
-        {
-            char character = typeName[i];
-
-            if (char.IsDigit(character))
-            {
-                if (i > 0 && char.IsLetter(typeName[i - 1]))
-                {
-                    id.Append('-');
-                }
-
-                id.Append(character);
-                continue;
-            }
-
-            if (!char.IsUpper(character))
-            {
-                id.Append(character);
-                continue;
-            }
-
-            bool startsWord = i > 0
-                && (!char.IsUpper(typeName[i - 1]) || (i + 1 < typeName.Length && char.IsLower(typeName[i + 1])));
-            if (startsWord)
-            {
-                id.Append('-');
-            }
-
-            id.Append(char.ToLowerInvariant(character));
-        }
-
-        return id.ToString();
-    }
-
-    // Reduces every '/'-joined segment to the kebab form of the identifier it names, so
-    // "Enemies/Bat", "enemies/bat" and "enemies/Bat" are one key. Idempotent, since the kebab form
-    // of an identifier names that identifier again. Returns null when a segment names no
-    // identifier, and hands that segment back in rejected.
-    internal static string? NormalizeKey(string key, out string? rejected)
-    {
-        rejected = null;
-        StringBuilder normalized = new(key.Length + 4);
-        int start = 0;
-
-        while (true)
-        {
-            int slash = key.IndexOf('/', start);
-            int end = slash < 0 ? key.Length : slash;
-            string segment = key.Substring(start, end - start);
-
-            if (ToIdentifier(segment) is not { } identifier)
-            {
-                rejected = segment;
-                return null;
-            }
-
-            normalized.Append(FromTypeName(identifier));
-
-            if (slash < 0)
-            {
-                return normalized.ToString();
-            }
-
-            normalized.Append('/');
-            start = slash + 1;
-        }
-    }
-
-    internal static string? ToIdentifier(string name)
-    {
-        StringBuilder identifier = new(name.Length);
-        bool startOfWord = true;
-
-        foreach (char character in name)
-        {
-            if (character is '-' or '_')
-            {
-                startOfWord = true;
-                continue;
-            }
-
-            bool legal = character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
-            if (!legal)
-            {
-                return null;
-            }
-
-            identifier.Append(startOfWord ? char.ToUpperInvariant(character) : character);
-            startOfWord = false;
-        }
-
-        return identifier.Length > 0 && !char.IsDigit(identifier[0]) ? identifier.ToString() : null;
-    }
-
     // The key a type claims: its namespace under the root, minus a leading domain segment and a
     // trailing segment repeating its own name, kebab-cased per segment and joined with '/'. A type
     // outside the root namespace claims just its kebab-cased name.
     internal static string KeyFor(string containingNamespace, string typeName, string rootNamespace, string domainSegment)
     {
-        string name = FromTypeName(typeName);
+        string name = AssetPaths.FromTypeName(typeName);
         if (Relative(containingNamespace, rootNamespace) is not { } relative)
         {
             return name;
@@ -130,7 +33,7 @@ internal static class TypeNaming
         StringBuilder key = new();
         for (int i = start; i < end; i++)
         {
-            key.Append(FromTypeName(relative[i])).Append('/');
+            key.Append(AssetPaths.FromTypeName(relative[i])).Append('/');
         }
 
         return key.Append(name).ToString();

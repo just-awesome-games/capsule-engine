@@ -14,6 +14,10 @@ public partial class Camera
     // How far ahead of the subject the camera aims, eased toward the lookahead's target.
     private Vector2 _lead;
 
+    // A Follow before the first settle cuts to its subject when its scene finishes starting, or at that
+    // settle when this camera was installed later.
+    private bool _cutToSubject;
+
     /// <summary>The entity this camera follows, or null when it follows none.</summary>
     public Entity? Subject { get; private set; }
 
@@ -80,28 +84,41 @@ public partial class Camera
 
     /// <summary>
     /// Frames <paramref name="subject"/> from this step on, or holds the framing when it is null. A call
-    /// before this camera's first settle cuts to a subject in this scene or in none yet, and a later one
-    /// glides to it.
+    /// before this camera's first settle cuts to the subject where it stands once the scene finishes
+    /// starting, or at that settle for a camera installed later.
     /// </summary>
     /// <remarks>
-    /// The subject never leaves the frame, whatever its speed. A subject outside this camera's scene, or
-    /// paused or frozen, holds the camera until it steps in this scene again.
+    /// A later call glides to the subject. The cut goes only to a subject in this camera's scene or in
+    /// none yet. The subject never leaves the frame, whatever its speed. A subject outside this camera's
+    /// scene, or paused or frozen, holds the camera until it steps in this scene again.
     /// </remarks>
     public void Follow(Entity? subject)
     {
         Subject = subject;
         ResetFollow(Center);
-
-        if (subject is not null && !_settled && (subject.SceneOrNull is null || ReferenceEquals(subject.SceneOrNull, _scene)))
-        {
-            Teleport(subject.WorldPosition);
-        }
+        _cutToSubject = subject is not null && !_settled;
     }
 
     private void ResetFollow(Vector2 center)
     {
         _focus = center;
         _lead = Vector2.Zero;
+    }
+
+    // The cut a Follow before the first settle asked for, taken where the subject stands by then.
+    internal void CutToSubject()
+    {
+        if (!_cutToSubject)
+        {
+            return;
+        }
+
+        _cutToSubject = false;
+
+        if (Subject is { } subject && (subject.SceneOrNull is null || ReferenceEquals(subject.SceneOrNull, _scene)))
+        {
+            Teleport(subject.WorldPosition);
+        }
     }
 
     private void DrawDeadzone()

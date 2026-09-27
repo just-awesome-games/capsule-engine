@@ -238,13 +238,10 @@ public sealed class Run
     /// Asks the host to replace the current scene after the current step with the scene the named
     /// document backs, or with a plain <see cref="Scene"/> composed from it when no class claims it.
     /// </summary>
-    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="payload">State offered to the scene that opens.</param>
-    public void RequestScene(string name, object? payload = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        TryRequest(SceneTransition.ToName(name, payload));
-    }
+    public void RequestScene(SceneKey scene, object? payload = null) =>
+        TryRequest(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     /// <summary>Starts loading the media <typeparamref name="TScene"/> preloads after the current step.</summary>
     /// <remarks>
@@ -256,12 +253,9 @@ public sealed class Run
         Prefetch(SceneTransition.ToScene(typeof(TScene), null));
 
     /// <summary>Prefetches the named document's scene, as <see cref="PrefetchScene{TScene}"/> does for a class.</summary>
-    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
-    public void PrefetchScene(string name)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        Prefetch(SceneTransition.ToName(name, null));
-    }
+    /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
+    public void PrefetchScene(SceneKey scene) =>
+        Prefetch(SceneTransition.ToName(scene.Required(nameof(scene)), null));
 
     /// <summary>Asks the host to reconstruct the current scene after the current step.</summary>
     public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));

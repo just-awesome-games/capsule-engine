@@ -214,7 +214,7 @@ public static class SceneDocumentFile
         string json = JsonSerializer.Serialize(file, SceneDocumentJsonContext.Default.SceneDocumentJson);
 
         // The serializer emits the platform newline, but the format always uses LF.
-        return ShapeLines(TileRows(json.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", placements));
+        return ShapeLines(TileRows(NumberLines(json.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n"), placements));
     }
 
     /// <summary>Writes <paramref name="document"/> to <paramref name="path"/> in canonical form.</summary>
@@ -233,6 +233,46 @@ public static class SceneDocumentFile
 
     // A tile-map entry's type field as the indented writer emits it, at an entry's own depth.
     private const string TileMapField = "\n      \"type\": \"" + SceneDocument.TileMapType + "\",";
+
+    // Rewrites each array holding only numbers onto one line, as "size": [96, 80]. The serializer writes one
+    // number per line, which hides a pair's meaning from a reader. A tile map's grids are laid out by row after.
+    private static string NumberLines(string json)
+    {
+        StringBuilder rewritten = new(json.Length);
+        int cursor = 0;
+        bool quoted = false;
+        for (int i = 0; i < json.Length; i++)
+        {
+            char character = json[i];
+            if (quoted)
+            {
+                // An escape takes the character after it, a quote included.
+                i += character == '\\' ? 1 : 0;
+                quoted = character != '"';
+                continue;
+            }
+
+            quoted = character == '"';
+            int close = character == '[' ? json.IndexOfAny(['[', ']', '{', '"'], i + 1) : -1;
+            string[] numbers = close >= 0 && json[close] == ']' ? json[(i + 1)..close].Split(',') : [];
+            if (numbers.Length == 0 || !Array.TrueForAll(numbers, static number => number.Trim() is [>= '0' and <= '9' or '-', ..]))
+            {
+                continue;
+            }
+
+            rewritten.Append(json, cursor, i - cursor).Append('[');
+            for (int n = 0; n < numbers.Length; n++)
+            {
+                rewritten.Append(n == 0 ? string.Empty : ", ").Append(numbers[n].Trim());
+            }
+
+            rewritten.Append(']');
+            cursor = close + 1;
+            i = close;
+        }
+
+        return rewritten.Append(json, cursor, json.Length - cursor).ToString();
+    }
 
     // Rewrites each tiles and transforms array to one line per grid row. The serializer writes one
     // index per line, which stretches a small map over hundreds of lines and hides its shape from an

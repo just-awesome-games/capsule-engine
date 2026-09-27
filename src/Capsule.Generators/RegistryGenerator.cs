@@ -108,10 +108,19 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValuesProvider<SceneDocumentInfo> documents = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 SceneRegistrySource.DocumentAttribute,
-                static (node, _) => node is VariableDeclaratorSyntax,
+                static (node, _) => node is PropertyDeclarationSyntax,
                 static (marked, _) => SceneRegistrySource.DescribeDocument(marked))
             .Where(static document => document is not null)
             .Select(static (document, _) => document!.Value);
+
+        // Every texture and sound the build declared, which a placement's asset member names by key.
+        IncrementalValuesProvider<AssetModel> assets = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AssetModel.Attribute,
+                static (node, _) => node is PropertyDeclarationSyntax,
+                static (marked, _) => AssetModel.From(marked))
+            .Where(static asset => asset is not null)
+            .Select(static (asset, _) => asset!.Value);
 
         // Keys are measured against the declared root namespace, or the assembly name when the
         // project leaves it to MSBuild's default.
@@ -158,10 +167,15 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 
         // Every entry of every document is checked against the class claiming its type here.
         context.RegisterSourceOutput(
-            entities.Collect().Combine(registries).Combine(rootNamespace).Combine(documents.Collect()),
+            entities.Collect().Combine(registries).Combine(rootNamespace).Combine(documents.Collect()).Combine(assets.Collect()),
             static (production, input) =>
                 EntityRegistrySource.Emit(
-                    production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
+                    production,
+                    input.Left.Left.Left.Left,
+                    input.Left.Left.Left.Right,
+                    input.Left.Left.Right,
+                    input.Left.Right,
+                    new AssetTable(input.Right, input.Left.Right)));
 
         context.RegisterSourceOutput(
             scenes.Collect()

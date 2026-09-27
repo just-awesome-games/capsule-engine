@@ -5,8 +5,9 @@ namespace Capsule.Tests.Documents;
 
 public sealed class EntryPropertiesFormatTests
 {
-    // A game entry's properties are its class's to read, so the importer keeps them as authored.
-    // A property named like a grid or palette field sits ahead of the tile map and stays as written.
+    // A game entry's properties are its class's to read, so the importer keeps their values. An array of
+    // numbers is written on one line, so a path is one point per line. A property named like a grid or
+    // palette field sits ahead of the tile map and stays out of the grid's layout.
     [Fact]
     public void AGameEntrysProperties_AreAFixedPointOfTheImporter_BesideATileMap()
     {
@@ -21,12 +22,13 @@ public sealed class EntryPropertiesFormatTests
                   "y": 0,
                   "properties": {
                     "rise": 96.5,
-                    "tiles": [
-                      1,
-                      2
-                    ],
+                    "tiles": [1, 2],
                     "shape": [
                       "["
+                    ],
+                    "path": [
+                      [0, 0],
+                      [48, -1.5]
                     ],
                     "label": null
                   }
@@ -75,11 +77,11 @@ public sealed class EntryPropertiesFormatTests
 
         Assert.Equal(
             [
-                "CapsuleGeneratedSceneDocument(Path = \"Assets/Scenes/room.scene.json\")",
+                "CapsuleGeneratedSceneDocument(Key = \"scenes/room\", Path = \"Assets/Scenes/room.scene.json\")",
                 "CapsuleGeneratedPlacement(1, \"coin\", Line = 2, Column = 3)",
                 "CapsuleGeneratedPlacement(2, \"lift\", \"on\", true, \"ticks\", 40, \"rise\", 96.5D, \"far\", 3000000000D, "
                     + "\"label\", \"a\\\"b\", \"none\", null, \"size\", new object[] { 2, 2.5D }, \"route\", typeof(object), Line = 3, Column = 3)",
             ],
-            SceneStep.Attributes(SceneDocumentFile.Parse(json), "Assets/Scenes/room.scene.json", json));
+            SceneStep.Attributes(SceneDocumentFile.Parse(json), "scenes/room", "Assets/Scenes/room.scene.json", json));
     }
 }

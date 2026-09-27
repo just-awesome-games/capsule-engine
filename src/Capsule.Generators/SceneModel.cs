@@ -53,8 +53,10 @@ internal readonly record struct SceneModel(
 /// </summary>
 /// <param name="Source">The file an authoring module derived the document from, or null.</param>
 /// <param name="Path">The file the build read, where an entry's error is reported, or null.</param>
+/// <param name="Member">The fully qualified <c>CapsuleAssets</c> member holding the document's key.</param>
 internal readonly record struct SceneDocumentInfo(
     string Key,
+    string Member,
     string? BaseScene,
     string? Camera,
     string? Source,

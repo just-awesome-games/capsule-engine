@@ -1,5 +1,5 @@
 using System.Text;
-using Capsule.Generators;
+using Capsule.Assets;
 
 namespace Capsule.Build.Registry;
 
@@ -38,7 +38,7 @@ internal sealed class RegistryFolder(string identifier, string key)
 
         for (int i = 0; i < segments.Length - 1; i++)
         {
-            string identifier = TypeNaming.ToIdentifier(segments[i])!;
+            string identifier = AssetPaths.ToIdentifier(segments[i])!;
             string nested = folder._key + segments[i] + "/";
 
             if (folder.Refused(identifier, nested) is { } because)

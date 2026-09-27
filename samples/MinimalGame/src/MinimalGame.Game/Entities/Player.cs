@@ -140,7 +140,7 @@ public sealed class Player : Entity
         // The edges are this step's facts: the visual, stepping after this root, reads them once.
         JumpedThisStep = false;
         LandedThisStep = false;
-        ShotThisStep = context.Input.WasPressed(GameInput.Shoot);
+        ShotThisStep = context.Input.IsHeld(GameInput.Shoot);
 
         // The body applies no forces: velocity is the game's, every step.
         float move = context.Input.Axis(GameInput.Move);

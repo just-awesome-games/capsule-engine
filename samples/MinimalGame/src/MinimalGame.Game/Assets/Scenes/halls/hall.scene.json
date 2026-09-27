@@ -40,7 +40,26 @@
       "type": "player",
       "x": 16,
       "y": 8
+    },
+    {
+      "id": 4,
+      "type": "door",
+      "x": 48,
+      "y": -16,
+      "properties": {
+        "destination": "scenes/room",
+        "arriveAt": "east"
+      }
+    },
+    {
+      "id": 5,
+      "type": "entrance",
+      "x": 24,
+      "y": 8,
+      "properties": {
+        "key": "west"
+      }
     }
   ],
-  "nextEntityId": 4
+  "nextEntityId": 6
 }

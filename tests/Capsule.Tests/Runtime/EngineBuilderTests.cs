@@ -107,7 +107,7 @@ public sealed class EngineBuilderTests
     [InlineData("rooms/room one")]
     public void RunScene_RejectsADocumentNameThatIsNoSafePath(string documentName)
     {
-        Assert.Throws<ArgumentException>(() => ConfiguredBuilder().RunScene(documentName));
+        Assert.Throws<ArgumentException>(() => ConfiguredBuilder().RunScene(new SceneKey(documentName)));
     }
 
     // The first scene composes before any window opens, and a failure there is a crash like one in
@@ -124,7 +124,7 @@ public sealed class EngineBuilderTests
                     [SceneRegistration.DocumentOnly("rooms/room-01", static content => new Room01(content!.Value))]))
             .WithoutLogging();
 
-        FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => builder.RunScene("rooms/room-01"));
+        FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => builder.RunScene(new SceneKey("rooms/room-01")));
 
         Assert.Same(failure, Assert.Single(platform.Reported));
     }

@@ -463,18 +463,14 @@ public sealed class EngineBuilder
     /// Runs the scene the named document backs from <paramref name="driver"/>, as
     /// <see cref="RunHeadless{TScene}(IInputDriver, object?)"/> runs a class.
     /// </summary>
-    /// <param name="sceneName">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
-    /// <param name="payload">Boot state, as <see cref="RunScene(string, object?)"/> takes it.</param>
-    /// <exception cref="ArgumentException">The name is no '/'-joined key.</exception>
+    /// <param name="payload">Boot state, as <see cref="RunScene(SceneKey, object?)"/> takes it.</param>
+    /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public HeadlessRunResult RunHeadless(string sceneName, IInputDriver driver, object? payload = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
-
-        return RunHeadless(SceneTransition.ToName(sceneName, payload), driver);
-    }
+    public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, object? payload = null) =>
+        RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver);
 
     /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
@@ -498,17 +494,13 @@ public sealed class EngineBuilder
     /// composed from it when no class claims it. A restart reuses the parsed document instead of
     /// reading the file again.
     /// </summary>
-    /// <param name="name">The document's key under the scene root, without <c>.scene.json</c>.</param>
+    /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="payload">Boot state, as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
-    /// <exception cref="ArgumentException">The name is no '/'-joined key.</exception>
+    /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
-    public int RunScene(string name, object? payload = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
-        return RunWindowed(SceneTransition.ToName(name, payload));
-    }
+    public int RunScene(SceneKey scene, object? payload = null) =>
+        RunWindowed(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     // Opens the window, or plays the driver with no window under --headless, and runs until the game
     // requests exit.

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
 using Capsule.Generators;
 using Capsule.Scenes;
@@ -159,23 +160,37 @@ internal static class GeneratorHarness
     }
 
     // Each '<key>.scene.json' document, its path under Assets/, as the build hands it to the
-    // generator: a key constant marked with the build's own attribute, carrying what its parser read.
+    // generator: a key member marked with the build's own attribute, carrying what its parser read. A
+    // '.png', '.wav' or '.ogg' path is a texture or sound member marked with the key a document names it by.
     private static string Documents((string Path, string? Content)[] documents)
     {
         const string Extension = ".scene.json";
 
-        IEnumerable<string> constants = documents
-            .Where(static document => document.Path.EndsWith(Extension, StringComparison.Ordinal))
+        IEnumerable<string> members = documents
             .Select(static (document, index) =>
             {
-                IEnumerable<string> attributes = document.Content is null
-                    ? [SceneStep.DocumentAttributeName]
-                    : SceneStep.Attributes(SceneDocumentFile.Parse(document.Content), document.Path, document.Content);
+                if (!document.Path.EndsWith(Extension, StringComparison.Ordinal))
+                {
+                    string name = document.Path[..Math.Max(0, document.Path.LastIndexOf('.'))];
+                    string extension = document.Path[name.Length..];
 
-                return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public const string Document{index} = \"{document.Path[..^Extension.Length]}\";";
+                    return extension switch
+                    {
+                        ".png" => $"[{CapsuleAssetsFile.AssetAttributeName}(\"{document.Path}\")] public static global::Capsule.Assets.TextureHandle Asset{index} => new(\"{name}\", \"{extension}\");",
+                        ".wav" or ".ogg" => $"[{CapsuleAssetsFile.AssetAttributeName}(\"{document.Path}\")] public static global::Capsule.Audio.AudioClip Asset{index} => new(\"{name}\", \"{extension}\", 0.5D);",
+                        _ => string.Empty,
+                    };
+                }
+
+                string key = document.Path[..^Extension.Length];
+                IEnumerable<string> attributes = document.Content is null
+                    ? [$"{SceneStep.DocumentAttributeName}(Key = \"{key}\")"]
+                    : SceneStep.Attributes(SceneDocumentFile.Parse(document.Content), key, document.Path, document.Content);
+
+                return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{index} => new(\"{key}\");";
             });
 
-        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', constants)}\n}}\n{SceneStep.DocumentAttribute}}}\n";
+        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{SceneStep.DocumentAttribute}{CapsuleAssetsFile.AssetAttribute}}}\n";
     }
 
     /// <summary>

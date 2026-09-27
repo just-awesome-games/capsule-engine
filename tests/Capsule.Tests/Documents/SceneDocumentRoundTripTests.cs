@@ -47,14 +47,8 @@ public sealed class SceneDocumentRoundTripTests
               "formatVersion": 7,
               "baseScene": "playable-room",
               "camera": "game-camera",
-              "size": [
-                320,
-                180
-              ],
-              "scrollCenter": [
-                160,
-                90
-              ],
+              "size": [320, 180],
+              "scrollCenter": [160, 90],
               "clearColor": "#101820",
               "ambient": "#484c68",
               "sampling": "point",
@@ -338,7 +332,7 @@ public sealed class SceneDocumentRoundTripTests
         string json = SceneDocumentFile.ToJson(document);
         SceneDocument round = SceneDocumentFile.Parse(json);
 
-        Assert.Contains("\"scale\": [\n        2,\n        3\n      ]", json, StringComparison.Ordinal);
+        Assert.Contains("\"scale\": [2, 3]", json, StringComparison.Ordinal);
         Assert.Equal(1, json.Split("\"scale\"").Length - 1);
         Assert.Equal(document.Entries[0].Entity, round.Entries[0].Entity);
         Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleX);
@@ -361,10 +355,7 @@ public sealed class SceneDocumentRoundTripTests
                   "x": 8,
                   "y": 0,
                   "rotation": -22.5,
-                  "scale": [
-                    2,
-                    1
-                  ],
+                  "scale": [2, 1],
                   "zIndex": 3
                 },
                 {

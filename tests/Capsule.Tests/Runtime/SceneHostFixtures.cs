@@ -10,7 +10,7 @@ internal static class SceneHostFixtures
 
     /// <summary>Requests the document "boss-room", the named target these specs resolve.</summary>
     internal static void RequestsBossRoom(Scene scene, in StepContext context) =>
-        scene.Run.RequestScene("boss-room");
+        scene.Run.RequestScene(new SceneKey("boss-room"));
 
     /// <summary>Hands over to <see cref="SecondScene"/> with a payload on its first step.</summary>
     internal sealed class FirstScene(List<string> log) : Scene

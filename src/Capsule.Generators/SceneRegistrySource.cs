@@ -339,16 +339,17 @@ internal static class SceneRegistrySource
     }
 
     /// <summary>
-    /// The document a key constant the build marked describes, with the baseScene and camera the
-    /// build's own parser read out of it. Null for a constant holding no key.
+    /// The document a key member the build marked describes, with the baseScene and camera the
+    /// build's own parser read out of it. Null for a member whose mark names no key.
     /// </summary>
     internal static SceneDocumentInfo? DescribeDocument(GeneratorAttributeSyntaxContext marked)
     {
-        if (marked.TargetSymbol is not IFieldSymbol { HasConstantValue: true, ConstantValue: string key })
+        if (marked.TargetSymbol is not IPropertySymbol member)
         {
             return null;
         }
 
+        string? key = null;
         string? baseScene = null;
         string? camera = null;
         string? source = null;
@@ -357,6 +358,9 @@ internal static class SceneRegistrySource
         {
             switch (named.Key)
             {
+                case "Key":
+                    key = named.Value.Value as string;
+                    break;
                 case "BaseScene":
                     baseScene = named.Value.Value as string;
                     break;
@@ -372,6 +376,11 @@ internal static class SceneRegistrySource
             }
         }
 
+        if (key is null)
+        {
+            return null;
+        }
+
         ImmutableArray<PlacementModel>.Builder placements = ImmutableArray.CreateBuilder<PlacementModel>();
         foreach (AttributeData attribute in marked.TargetSymbol.GetAttributes())
         {
@@ -381,7 +390,9 @@ internal static class SceneRegistrySource
             }
         }
 
-        return new SceneDocumentInfo(key, baseScene, camera, source, path, new(placements.ToImmutable()));
+        string qualified = member.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + member.Name;
+
+        return new SceneDocumentInfo(key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()));
     }
 
     private static string? ResolveCamera(SourceProductionContext context, SceneDocumentInfo document, Dictionary<string, CameraModel> cameras)
@@ -446,7 +457,7 @@ internal static class SceneRegistrySource
         StringBuilder name = new("CapsuleGeneratedScene");
         foreach (string part in documentKey.Split('/'))
         {
-            name.Append('_').Append(TypeNaming.ToIdentifier(part));
+            name.Append('_').Append(AssetPaths.ToIdentifier(part));
         }
 
         return name.ToString();
@@ -499,7 +510,7 @@ internal static class SceneRegistrySource
 
     private static string? Normalized(SourceProductionContext context, SceneModel model, string declared)
     {
-        if (TypeNaming.NormalizeKey(declared, out string? rejected) is { } key)
+        if (AssetPaths.NormalizeKey(declared, out string? rejected) is { } key)
         {
             return key;
         }

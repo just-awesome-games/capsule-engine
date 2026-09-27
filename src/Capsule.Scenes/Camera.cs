@@ -33,7 +33,7 @@ public partial class Camera
     private bool _started;
     private Scene? _scene;
 
-    // Whether this camera has settled in its scene. A Follow before then is a cut.
+    // Whether this camera has settled in its scene. A Follow before then cuts at the first settle.
     private bool _settled;
 
     // Collapses the interpolated framing at the next settle.
@@ -242,6 +242,7 @@ public partial class Camera
     /// </summary>
     public void Teleport(Vector2 center)
     {
+        _cutToSubject = false;
         Center = center;
         PreviousCenter = center;
         ResetFollow(center);
@@ -303,6 +304,7 @@ public partial class Camera
     // measured against the step's output. An empty output measures the declared span.
     internal void Settle(in StepContext context)
     {
+        CutToSubject();
         StepFollow(context.DeltaSeconds, context.Output);
         StepShake(context.DeltaSeconds);
 

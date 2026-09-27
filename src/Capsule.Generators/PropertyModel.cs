@@ -16,6 +16,12 @@ internal enum PropertyKind
 
     // An entity class or an interface, written as the id of another entry and set once every entry is constructed.
     Reference,
+
+    // A [Flags] enum, read as member names joined by commas, each matched by the generated switch.
+    Flags,
+
+    // One of PropertySchema.Assets, read as a key its generated lookup resolves to a CapsuleAssets member.
+    Asset,
 }
 
 /// <summary>
@@ -35,9 +41,10 @@ internal enum PropertyKind
 /// <param name="TypeParameters">The declaring type's type parameters, outer types' first, or empty.</param>
 /// <param name="TypeArguments">What the entity's base closes those parameters with, fully qualified.</param>
 /// <param name="Constraints">The <c>where</c> clauses on those parameters, fully qualified, or empty.</param>
-/// <param name="Type">The fully qualified type, without the <c>?</c> of a nullable one.</param>
+/// <param name="Type">The fully qualified type, or an array's element type, without the <c>?</c> of a nullable one.</param>
 /// <param name="DisplayType">The member's type as a message names it.</param>
 /// <param name="Nullable">Whether a JSON null is accepted.</param>
+/// <param name="Array">Whether the member is an array of <paramref name="Type"/>, written as a JSON array.</param>
 /// <param name="Names">An enum's members or a type's definitions, each with its JSON name.</param>
 /// <param name="Converter">The fully qualified converter a converted type declares.</param>
 /// <param name="Refusal">Why a placement cannot set the member and the fix, or null when it can.</param>
@@ -58,6 +65,7 @@ internal readonly record struct PropertyModel(
     string Type,
     string DisplayType,
     bool Nullable,
+    bool Array,
     EquatableArray<(string Json, string Member)> Names,
     string? Converter,
     string? Refusal,
@@ -66,7 +74,21 @@ internal readonly record struct PropertyModel(
 {
     internal bool Settable => Refusal is null && Clash is null;
 
-    // C#'s required on anything but an [Authorable] entity reference, which only code can satisfy.
+    /// <summary>The member's type as C# declares it, fully qualified.</summary>
+    internal string Declared => Type + (Array ? "[]" : string.Empty) + (Nullable ? "?" : string.Empty);
+
+    /// <summary>An array's element type, or the member's own type, as a message names it.</summary>
+    internal string ElementDisplay
+    {
+        get
+        {
+            string display = DisplayType.TrimEnd('?');
+
+            return Array ? display.Substring(0, display.Length - "[]".Length) : display;
+        }
+    }
+
+    // C#'s required on anything but an [Authorable] entity reference or array of them, which only code can satisfy.
     internal bool CodeOnly => RequiredKeyword && !(Authorable && Kind == PropertyKind.Reference);
 }
 
@@ -79,6 +101,18 @@ internal readonly record struct AuthorableFault(DeclaredAt At, string Member, st
 /// <param name="Form">What to write, as a build failure names it.</param>
 /// <param name="Accepts">Whether a value, as the build's placement attribute carries it, is in this form.</param>
 internal sealed record BuiltInForm(string Type, string Read, string Form, Func<object?, bool> Accepts);
+
+/// <summary>An asset type a scene document names by key, resolved at load through a generated lookup.</summary>
+/// <param name="Type">The type as the generator displays it fully qualified.</param>
+/// <param name="Read">The <c>EntityProperties</c> method the spawner reads it with, which also names its lookup.</param>
+/// <param name="Form">What to write, as a build failure names it.</param>
+/// <param name="Fix">What to write in place of a key the build did not declare.</param>
+/// <param name="Scene">Whether it is keyed as a scene document, without an extension, where otherwise by key and extension.</param>
+internal sealed record AssetForm(string Type, string Read, string Form, string Fix, bool Scene)
+{
+    /// <summary>The generated switch resolving a key to the member the build declared it on.</summary>
+    internal string Lookup => "Find" + Read;
+}
 
 // A placement sets the members its class marks [Authorable]. Every other field and property a key could name
 // is kept with the reason a placement cannot set it.
@@ -104,12 +138,27 @@ internal static class PropertySchema
     private const string Converter = "System.Text.Json.Serialization.JsonConverter`1";
     private const string Flags = "System.FlagsAttribute";
 
+    // A new asset type is one entry here, one read method of the same name on EntityProperties, and the build's
+    // CapsuleGeneratedAsset attribute on its CapsuleAssets members. Lookups are generated in this order.
+    internal static readonly AssetForm[] Assets =
+    [
+        new("global::Capsule.Assets.TextureHandle", "Texture", "a texture's key and extension in quotes, as \"textures/hazard.png\"",
+            "Write the key and extension of a texture under Assets/", Scene: false),
+        new("global::Capsule.Audio.AudioClip", "Sound", "a sound's key and extension in quotes, as \"audio/step.wav\"",
+            "Write the key and extension of a sound under Assets/", Scene: false),
+        new("global::Capsule.Scenes.SceneKey", "Scene", "a scene document's key in quotes, as \"scenes/halls/hall\"",
+            "Write the key of a scene document under Assets/, with no extension", Scene: true),
+    ];
+
     private static readonly string Supported =
-        $"Use {string.Join(", ", BuiltIns.Select(static form => form.Type.Replace("global::", string.Empty)))}, a non-[Flags] enum or a nullable of one of those, an Entity class or an interface, "
+        $"Use {string.Join(", ", BuiltIns.Select(static form => form.Type).Concat(Assets.Select(static asset => asset.Type)).Select(static type => type.Replace("global::", string.Empty)))}, "
+        + "an enum or a nullable of one of those, an Entity class or an interface, an array of any type here but a nullable or an array, "
         + "declare [JsonConverter(typeof(...))] on the type, or give a readonly struct, or a record class without settable members, "
         + "public static readonly fields of its own type for a document to name";
 
     internal static BuiltInForm? BuiltIn(string type) => Array.Find(BuiltIns, form => form.Type == type);
+
+    internal static AssetForm? Asset(string type) => Array.Find(Assets, form => form.Type == type);
 
     /// <summary>Whether a member of <paramref name="type"/> names another entry: an entity class or any interface.</summary>
     internal static bool IsReference(ITypeSymbol type, Compilation compilation) =>
@@ -224,8 +273,26 @@ internal static class PropertySchema
             nullable = true;
         }
 
+        // An array is its element type written as a JSON array. Only the array itself may be null.
+        string? elementRefusal = null;
+        IArrayTypeSymbol? array = type as IArrayTypeSymbol;
+        if (array is not null)
+        {
+            type = array.ElementType;
+            if (array.Rank != 1 || type is IArrayTypeSymbol)
+            {
+                elementRefusal = $"has type '{declared.ToDisplayString()}'. A scene document carries a one-dimensional array of single values. Declare T[] of a type a single member accepts";
+            }
+            else if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T }
+                || (type.IsReferenceType && array.ElementNullableAnnotation == NullableAnnotation.Annotated))
+            {
+                elementRefusal = $"has type '{declared.ToDisplayString()}', whose elements may be null. Make the elements non-nullable, or make the array itself nullable";
+            }
+        }
+
         (PropertyKind kind, string? converter, EquatableArray<(string, string)> names, string? unsupported) =
-            Classify(type, nullable && type.IsValueType, compilation);
+            Classify(type, array is null && nullable && type.IsValueType, compilation, (array is null ? type : declared).ToDisplayString());
+        unsupported = elementRefusal ?? unsupported;
         bool reference = kind == PropertyKind.Reference;
         bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
         string? refusal = mark is null
@@ -256,6 +323,7 @@ internal static class PropertySchema
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             nullable,
+            array is not null,
             names,
             converter,
             refusal,
@@ -292,19 +360,31 @@ internal static class PropertySchema
         return where < 0 ? string.Empty : display.Substring(where);
     }
 
-    // A built-in form first, then an entity reference, then a converter the type declares, then the type's own definitions.
+    // A built-in form or an asset first, then an entity reference, then an enum, then a converter the type declares,
+    // then the refusal of any other collection, then the type's own definitions.
     private static (PropertyKind Kind, string? Converter, EquatableArray<(string, string)> Names, string? Refusal) Classify(
         ITypeSymbol type,
         bool nullableValue,
-        Compilation compilation)
+        Compilation compilation,
+        string display)
     {
-        string unsupported = $"has type '{type.ToDisplayString()}', which a scene document cannot carry. {Supported}";
-        if (BuiltIn(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)) is not null)
+        string unsupported = $"has type '{display}', which a scene document cannot carry. {Supported}";
+        string qualified = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (BuiltIn(qualified) is not null)
         {
             return (PropertyKind.BuiltIn, null, default, null);
         }
 
-        if (IsReference(type, compilation))
+        if (Asset(qualified) is not null)
+        {
+            return (PropertyKind.Asset, null, default, null);
+        }
+
+        ITypeSymbol? element = type.SpecialType == SpecialType.System_String ? null : Enumerated(type);
+        string collection = $"has type '{display}', which a scene document cannot carry. An array is the one collection a document writes. Declare '{element?.ToDisplayString()}[]'";
+
+        // A collection interface .NET declares is a list to write as an array, and any other interface names an entity.
+        if (IsReference(type, compilation) && !(element is not null && type.TypeKind == TypeKind.Interface && IsSystem(type)))
         {
             return (PropertyKind.Reference, null, default, null);
         }
@@ -314,9 +394,11 @@ internal static class PropertySchema
             return (PropertyKind.Converted, null, default, unsupported);
         }
 
-        if (named.TypeKind == TypeKind.Enum && Symbols.Attribute(named, compilation, Flags) is null)
+        if (named.TypeKind == TypeKind.Enum)
         {
-            return (PropertyKind.Named, null, Names(named, static field => field.HasConstantValue), null);
+            PropertyKind kind = Symbols.Attribute(named, compilation, Flags) is null ? PropertyKind.Named : PropertyKind.Flags;
+
+            return (kind, null, Names(named, static field => field.HasConstantValue), null);
         }
 
         // A nullable value type wraps only the built-in forms above.
@@ -335,6 +417,11 @@ internal static class PropertySchema
                     $"has type '{named.ToDisplayString()}', whose [JsonConverter] names '{converter?.ToDisplayString() ?? "no type"}'. Name a non-abstract JsonConverter<{named.ToDisplayString()}> this assembly can see, with a public parameterless constructor");
         }
 
+        if (element is not null)
+        {
+            return (PropertyKind.Converted, null, default, collection);
+        }
+
         // Every placement naming a definition shares one instance, so only a readonly struct or a record class
         // without settable members can declare them. What a member's own type allows is not policed.
         bool immutable = named is { TypeKind: TypeKind.Struct, IsReadOnly: true }
@@ -347,6 +434,19 @@ internal static class PropertySchema
             ? (PropertyKind.Converted, null, default, unsupported)
             : (PropertyKind.Named, null, definitions, null);
     }
+
+    private static bool IsSystem(ITypeSymbol type)
+    {
+        string space = type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+
+        return space == "System" || space.StartsWith("System.", StringComparison.Ordinal);
+    }
+
+    // The element type of a collection other than an array, or null for a type that is none.
+    private static ITypeSymbol? Enumerated(ITypeSymbol type) =>
+        (type is INamedTypeSymbol named ? type.AllInterfaces.Prepend(named) : (IEnumerable<INamedTypeSymbol>)type.AllInterfaces)
+            .FirstOrDefault(static candidate => candidate.OriginalDefinition.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T)
+            ?.TypeArguments[0];
 
     private static bool HasSettableMembers(INamedTypeSymbol record)
     {

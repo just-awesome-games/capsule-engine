@@ -26,13 +26,18 @@ internal static class SceneStep
 
     internal const string PlacementAttributeName = "CapsuleGeneratedPlacement";
 
+    private const string KeyType = "global::Capsule.Scenes.SceneKey";
+
     internal const string DocumentAttribute = """
             /// <summary>A shipped scene document, with the settings the build read from it. Generated code.</summary>
-            [global::System.AttributeUsage(global::System.AttributeTargets.Field)]
+            [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
             [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
             internal sealed class CapsuleGeneratedSceneDocumentAttribute : global::System.Attribute
             {
+                /// <summary>The document's key.</summary>
+                public string? Key { get; set; }
+
                 /// <summary>The key of the abstract scene the document derives from, or null.</summary>
                 public string? BaseScene { get; set; }
 
@@ -51,7 +56,7 @@ internal static class SceneStep
             /// Each property is its name, then its JSON value as a C# constant: a bool, an int, a double, a string,
             /// null or an object array. A JSON object is written typeof(object), since only a converter reads one.
             /// </remarks>
-            [global::System.AttributeUsage(global::System.AttributeTargets.Field, AllowMultiple = true)]
+            [global::System.AttributeUsage(global::System.AttributeTargets.Property, AllowMultiple = true)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
             [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
             internal sealed class CapsuleGeneratedPlacementAttribute : global::System.Attribute
@@ -89,11 +94,11 @@ internal static class SceneStep
             pass.Assets.Beside(DocumentAttribute);
         }
 
-        // The generator composes the scene registry from these constants and checks every entry against
+        // The generator composes the scene registry from these members and checks every entry against
         // the class claiming its type, so each carries what it cannot read out of the document itself.
         foreach ((Source document, SceneDocument scene) in documents)
         {
-            List<string> attributes = Attributes(scene, document.Path, File.ReadAllText(document.Path));
+            List<string> attributes = Attributes(scene, document.Key, document.Path, File.ReadAllText(document.Path));
 
             pass.Declare(document, (source, indent, identifier) =>
             {
@@ -103,18 +108,19 @@ internal static class SceneStep
                     source.Append(indent).Append('[').Append(attribute).AppendLine("]");
                 }
 
-                source.Append(indent).Append("public const string ").Append(identifier).Append(" = ").Append(Literal.Of(document.Key)).AppendLine(";");
+                source.Append(indent).Append("public static ").Append(KeyType).Append(' ').Append(identifier)
+                    .Append(" => new ").Append(KeyType).Append('(').Append(Literal.Of(document.Key)).AppendLine(");");
             });
         }
     }
 
     /// <summary>
-    /// The attributes marking one document's key constant: its settings, then one per game entry with where the
-    /// entry starts in <paramref name="json"/>, the text of the file at <paramref name="path"/>.
+    /// The attributes marking one document's key member: its key and settings, then one per game entry with
+    /// where the entry starts in <paramref name="json"/>, the text of the file at <paramref name="path"/>.
     /// </summary>
-    internal static List<string> Attributes(SceneDocument scene, string path, string json)
+    internal static List<string> Attributes(SceneDocument scene, string key, string path, string json)
     {
-        List<string> named = [$"Path = {Literal.Of(path)}"];
+        List<string> named = [$"Key = {Literal.Of(key)}", $"Path = {Literal.Of(path)}"];
         if (scene.Settings.BaseScene is { } baseScene)
         {
             named.Add($"BaseScene = {Literal.Of(baseScene)}");

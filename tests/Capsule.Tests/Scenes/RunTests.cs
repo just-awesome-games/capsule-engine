@@ -76,6 +76,18 @@ public sealed class RunTests
         Assert.False(run.TryTakeTransition(out _));
     }
 
+    // A default key names no document, and the request fails at the call that made it.
+    [Fact]
+    public void ADefaultSceneKey_IsRefusedAtTheRequest()
+    {
+        Run run = new();
+
+        ArgumentException refused = Assert.Throws<ArgumentException>(() => run.RequestScene(default));
+
+        Assert.Contains("Pass a CapsuleAssets.Scenes member.", refused.Message, StringComparison.Ordinal);
+        Assert.False(run.TryTakeTransition(out _));
+    }
+
     [Fact]
     public void RequestExit_TwiceProducesOneExit()
     {

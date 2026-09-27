@@ -27,6 +27,7 @@ internal static class AudioStep
                 return measured;
             }))
         {
+            pass.Assets.Beside(CapsuleAssetsFile.AssetAttribute);
             pass.Declare(clip, (source, indent, identifier) => AppendClip(source, indent, identifier, clip, measured));
         }
     }
@@ -50,6 +51,8 @@ internal static class AudioStep
         }
 
         source.AppendLine(".</summary>");
+        source.Append(indent).Append('[').Append(CapsuleAssetsFile.AssetAttributeName).Append('(')
+            .Append(Literal.Of(audio.Key + audio.Extension)).AppendLine(")]");
         source.Append(indent).Append("public static ").Append(ClipType).Append(' ').Append(identifier)
             .Append(" => new ").Append(ClipType).Append('(').Append(Literal.Of(audio.Key)).Append(", ")
             .Append(Literal.Of(audio.Extension)).Append(", ").Append(Literal.Of(duration));

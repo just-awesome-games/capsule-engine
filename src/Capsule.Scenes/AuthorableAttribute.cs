@@ -1,64 +1,57 @@
 namespace Capsule.Scenes;
 
-/// <summary>Marks an entity's field or property as one a scene document's placement may set.</summary>
+/// <summary>Marks an entity's field or property as one a scene document's placement sets.</summary>
 /// <remarks>
 /// <para>
-/// Mark an instance field that is not <see langword="readonly"/>, or an instance property with a <c>set</c>
-/// or <c>init</c> accessor, of any access. A member declared on a base class counts, and an override keeps
-/// the mark of the member it overrides. The entry's <c>properties</c> key is the member's name camel-cased,
-/// with a leading underscore dropped: <c>Speed</c> and <c>_speed</c> are both <c>"speed"</c>.
-/// </para>
-/// <para>
-/// An authored value is set before the derived constructor body runs, like the position. An entity reference
-/// is the exception and is set once every entry is constructed. A key the entry omits leaves the member's
-/// initializer, as does every member of a spawn built in code.
+/// The entry's <c>properties</c> key is the member's name camel-cased, a leading underscore dropped. A
+/// value lands before the derived constructor body runs, and an entity reference once every entry is
+/// built. An omitted key, like every member of a spawn built in code, keeps the initializer. The build
+/// checks each placement and names what a member cannot take.
 /// </para>
 /// <list type="table">
 /// <listheader><term>Member type</term><description>JSON form</description></listheader>
-/// <item><term><see langword="bool"/></term><description><c>true</c> or <c>false</c></description></item>
-/// <item><term><see langword="int"/></term><description>a whole number in range</description></item>
-/// <item><term><see langword="float"/></term><description>a finite number</description></item>
-/// <item><term><see langword="string"/></term><description>a string</description></item>
 /// <item>
-/// <term>an enum without <see cref="FlagsAttribute"/></term>
-/// <description>a member's name camel-cased: <c>IceCave</c> is <c>"iceCave"</c></description>
-/// </item>
-/// <item><term><see cref="System.Numerics.Vector2"/></term><description><c>[x, y]</c>, both finite</description></item>
-/// <item>
-/// <term><see cref="Capsule.Rendering.ColorRgba"/></term>
-/// <description><c>"#rrggbb"</c> or <c>"#rrggbbaa"</c></description>
-/// </item>
-/// <item><term>a nullable of any of these</term><description>the same, or <c>null</c></description></item>
-/// <item>
-/// <term>a definition type</term>
-/// <description>a definition's name camel-cased: <c>Default</c> is <c>"default"</c>. A value several placements share is a definition.</description>
+/// <term><see langword="bool"/>, <see langword="int"/>, <see langword="float"/>, <see langword="string"/></term>
+/// <description>the JSON value</description>
 /// </item>
 /// <item>
-/// <term>a type declaring <see cref="System.Text.Json.Serialization.JsonConverterAttribute"/></term>
-/// <description>the form its converter reads</description>
+/// <term><see cref="System.Numerics.Vector2"/>, <see cref="Capsule.Rendering.ColorRgba"/></term>
+/// <description><c>[x, y]</c>; <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c></description>
 /// </item>
 /// <item>
-/// <term>an <see cref="Entity"/> subclass or an interface</term>
-/// <description>the target entry's id, read from <see cref="Entity.OnStart"/> on</description>
+/// <term>an enum</term>
+/// <description>
+/// a member's name camel-cased, <c>"iceCave"</c>; a <see cref="FlagsAttribute"/> enum's joined by commas,
+/// <c>"spikes, fire"</c>
+/// </description>
 /// </item>
+/// <item>
+/// <term><see cref="Capsule.Assets.TextureHandle"/>, <see cref="Capsule.Audio.AudioClip"/></term>
+/// <description>key and extension, <c>"textures/hazard.png"</c>, preloaded with the scene</description>
+/// </item>
+/// <item><term><see cref="SceneKey"/></term><description>the document's key, <c>"scenes/halls/hall"</c></description></item>
+/// <item>
+/// <term>an <see cref="Entity"/> subclass or interface</term>
+/// <description>the target entry's id, readable from <see cref="Entity.OnStart"/> on</description>
+/// </item>
+/// <item>
+/// <term>a definition: a <see langword="readonly"/> struct or immutable record with <c>public static readonly</c> instances</term>
+/// <description>an instance's name camel-cased, <c>"default"</c>, shared by every placement naming it</description>
+/// </item>
+/// <item>
+/// <term>a type with <see cref="System.Text.Json.Serialization.JsonConverterAttribute"/></term>
+/// <description>its converter's form, checked at load</description>
+/// </item>
+/// <item><term><c>T[]</c> of any of these</term><description><c>[a, b, c]</c></description></item>
+/// <item><term>a nullable of any of these</term><description>also <c>null</c></description></item>
 /// </list>
-/// <para>
-/// A definition type is a <see langword="readonly"/> struct, or a record class without settable members.
-/// Its <c>public static readonly</c> fields of its own type are its definitions, and every placement naming
-/// one shares that instance.
-/// </para>
-/// <para>
-/// A converter is a <c>JsonConverter&lt;T&gt;</c> of exactly the member's type, visible to the game's
-/// assembly, with a public parameterless constructor. A type the table covers keeps its table form. The
-/// build checks every placement against its class, and a converter's value is checked when the scene loads.
-/// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// public sealed class Door : Entity
 /// {
 ///     [Authorable(Required = true)]
-///     public string Target { get; private set; } = string.Empty;
+///     public SceneKey Target { get; private set; }
 ///
 ///     [Authorable]
 ///     private float _speed = 40f;
@@ -70,16 +63,12 @@ namespace Capsule.Scenes;
 ///     }
 /// }
 /// </code>
-/// The placement: <c>{ "id": 7, "type": "door", "x": 32, "y": 0, "properties": { "target": "hall", "speed": 60 } }</c>.
+/// The placement: <c>{ "id": 7, "type": "door", "x": 32, "y": 0, "properties": { "target": "scenes/hall", "speed": 60 } }</c>.
 /// </example>
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false)]
 public sealed class AuthorableAttribute : Attribute
 {
     /// <summary>Whether every document placement must author the member.</summary>
-    /// <remarks>
-    /// A spawn built in code still leaves the initializer. Give a required member of a reference type a
-    /// usable one, such as <c>string.Empty</c>. A mandatory entity reference uses C#'s <see langword="required"/>
-    /// instead, since code and the scene both set it after construction. This property is for every other member.
-    /// </remarks>
+    /// <remarks>A mandatory entity reference, or array of them, uses C#'s <see langword="required"/> instead.</remarks>
     public bool Required { get; set; }
 }

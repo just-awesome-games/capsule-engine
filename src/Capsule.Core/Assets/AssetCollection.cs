@@ -63,6 +63,20 @@ public sealed class AssetCollection
         }
     }
 
+    // Every texture and clip another collection holds, in its order.
+    internal void Add(AssetCollection other)
+    {
+        foreach (TextureHandle texture in other._textures)
+        {
+            Add(texture);
+        }
+
+        foreach (AudioClip clip in other._clips)
+        {
+            Add(clip);
+        }
+    }
+
     // A renderer's material: its shader, and every texture set on it. The scene collects this for each
     // renderer it holds, so no renderer declares its own.
     internal void Add(Material material)

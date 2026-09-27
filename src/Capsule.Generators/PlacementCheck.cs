@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Capsule.Assets;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -69,11 +70,13 @@ internal static class PlacementCheck
 {
     /// <param name="entities">Every registered entity, by key.</param>
     /// <param name="claimed">Every key any entity class claims, faulted or not.</param>
+    /// <param name="assets">Every texture, sound and scene document the build declared.</param>
     internal static void Run(
         SourceProductionContext context,
         ImmutableArray<SceneDocumentInfo> documents,
         Dictionary<string, EntityModel> entities,
-        HashSet<string> claimed)
+        HashSet<string> claimed,
+        AssetTable assets)
     {
         foreach (SceneDocumentInfo document in documents.OrderBy(static document => document.Key, StringComparer.Ordinal))
         {
@@ -102,7 +105,7 @@ internal static class PlacementCheck
                 }
                 else
                 {
-                    Check(context, at, named, entry, entity, placement, new Placed(document, entities));
+                    Check(context, at, named, entry, entity, placement, new Placed(document, entities, assets));
                 }
             }
         }
@@ -128,24 +131,9 @@ internal static class PlacementCheck
             {
                 Report(context, at, RegistryDiagnostics.UnsettableEntryProperty, document, entry, name, $"{entity.DisplayName}.{property.Name}", refusal);
             }
-            else if (property.Clash is not null)
+            else if (property.Clash is null)
             {
-                continue;
-            }
-            else if (!Accepts(property, value))
-            {
-                Report(
-                    context, at, RegistryDiagnostics.MismatchedEntryProperty, document, entry, name, Found(value), entity.DisplayName, property.DisplayType,
-                    value is null ? Form(property) + ", or make the member nullable" : Form(property));
-            }
-            else if (property.Kind == PropertyKind.Named && value is string named && !property.Names.Items.Any(known => known.Json == named))
-            {
-                string names = string.Join(", ", property.Names.Items.Select(static known => known.Json));
-                Report(context, at, RegistryDiagnostics.UnknownEntryName, document, entry, name, Found(value), property.DisplayType.TrimEnd('?'), names);
-            }
-            else if (property.Kind == PropertyKind.Reference && value is int id)
-            {
-                CheckTarget(context, at, document, entry, name, id, entity, property, placed);
+                CheckValue(new Checked(context, at, document, entry, entity, property, placed), name, value);
             }
         }
 
@@ -158,40 +146,121 @@ internal static class PlacementCheck
         }
     }
 
-    // A reference must name a game entry of the same document whose class the member can hold. An entry whose
-    // type no sound class claims is already its own error.
-    private static void CheckTarget(
-        SourceProductionContext context, Location at, string document, string entry, string name, int id, EntityModel entity, PropertyModel property, Placed placed)
+    // Every member refuses null unless it is nullable. An array's elements are each checked as a single value,
+    // and a report names the element by its index.
+    private static void CheckValue(Checked check, string name, object? value)
     {
-        PlacementModel target = placed.Document.Placements.Items.FirstOrDefault(other => other.Id == id);
-        if (target.Type is null)
+        PropertyModel property = check.Property;
+        string subject = $"'{name}'";
+        if (value is null)
         {
-            Report(context, at, RegistryDiagnostics.UnknownEntityReference, document, entry, name, id);
+            if (!property.Nullable)
+            {
+                check.Report(RegistryDiagnostics.MismatchedEntryProperty, subject, "null", check.Entity.DisplayName, property.DisplayType, Form(property) + ", or make the member nullable");
+            }
         }
-        else if (placed.Entities.TryGetValue(target.Type, out EntityModel targeted) && !targeted.AssignableTo.Items.Contains(property.Type))
+        else if (!property.Array)
         {
-            Report(
-                context, at, RegistryDiagnostics.MismatchedEntityReference, document, entry, name, id, targeted.DisplayName,
-                $"{entity.DisplayName}.{property.Name}", property.DisplayType.TrimEnd('?'));
+            CheckElement(check, subject, value);
+        }
+        else if (value is not EquatableArray<object?> elements)
+        {
+            check.Report(RegistryDiagnostics.MismatchedEntryProperty, subject, Found(value), check.Entity.DisplayName, property.DisplayType, Form(property));
+        }
+        else
+        {
+            for (int i = 0; i < elements.Items.Length; i++)
+            {
+                CheckElement(check, string.Format(CultureInfo.InvariantCulture, "'{0}' element {1}", name, i), elements.Items[i]);
+            }
         }
     }
 
-    // A converter is the only judge of its type's JSON, and it reads at load. Every member refuses null
-    // unless it is nullable.
-    private static bool Accepts(PropertyModel property, object? value) => value is null
-        ? property.Nullable
-        : property.Kind switch
+    // A converter is the only judge of its type's JSON, and it reads at load.
+    private static void CheckElement(Checked check, string subject, object? value)
+    {
+        PropertyModel property = check.Property;
+        bool accepted = value is not null && property.Kind switch
         {
             PropertyKind.BuiltIn => PropertySchema.BuiltIn(property.Type)!.Accepts(value),
-            PropertyKind.Named => value is string,
             PropertyKind.Reference => value is int,
-            _ => true,
+            PropertyKind.Converted => true,
+            _ => value is string,
         };
 
-    private static string Form(PropertyModel property) => property.Kind switch
+        if (!accepted)
+        {
+            check.Report(RegistryDiagnostics.MismatchedEntryProperty, subject, Found(value), check.Entity.DisplayName, property.ElementDisplay, ElementForm(property));
+
+            return;
+        }
+
+        string names = string.Join(", ", property.Names.Items.Select(static known => known.Json));
+        switch (property.Kind)
+        {
+            case PropertyKind.Named when !Names(property, (string)value!):
+                check.Report(RegistryDiagnostics.UnknownEntryName, subject, Found(value), property.ElementDisplay, names);
+                break;
+
+            case PropertyKind.Flags when ((string)value!).Trim().Length > 0:
+                foreach (string flag in ((string)value!).Split(',').Select(static flag => flag.Trim()).Where(flag => !Names(property, flag)))
+                {
+                    check.Report(
+                        RegistryDiagnostics.UnknownEntryName, subject, $"the name \"{flag}\" in {Found(value)}", property.ElementDisplay,
+                        names + ", joined by commas");
+                }
+
+                break;
+
+            case PropertyKind.Asset:
+                CheckAsset(check, subject, (string)value!);
+                break;
+
+            case PropertyKind.Reference:
+                CheckTarget(check, subject, (int)value!);
+                break;
+        }
+    }
+
+    private static bool Names(PropertyModel property, string name) => property.Names.Items.Any(known => known.Json == name);
+
+    // A key is checked as the load resolves it: normalized, then looked up among the assets the build declared.
+    private static void CheckAsset(Checked check, string subject, string authored)
+    {
+        AssetForm form = PropertySchema.Asset(check.Property.Type)!;
+        string? keyed = form.Scene ? AssetPaths.NormalizeKey(authored, out _) : AssetPaths.NormalizePath(authored);
+        if (keyed is null || !check.Placed.Assets.Of(form).ContainsKey(keyed))
+        {
+            check.Report(RegistryDiagnostics.UnknownAssetKey, subject, Found(authored), check.Property.ElementDisplay, keyed ?? authored, form.Fix);
+        }
+    }
+
+    // A reference must name a game entry of the same document whose class the member can hold. An entry whose
+    // type no sound class claims is already its own error.
+    private static void CheckTarget(Checked check, string subject, int id)
+    {
+        PlacementModel target = check.Placed.Document.Placements.Items.FirstOrDefault(other => other.Id == id);
+        if (target.Type is null)
+        {
+            check.Report(RegistryDiagnostics.UnknownEntityReference, subject, id);
+        }
+        else if (check.Placed.Entities.TryGetValue(target.Type, out EntityModel targeted) && !targeted.AssignableTo.Items.Contains(check.Property.Type))
+        {
+            check.Report(
+                RegistryDiagnostics.MismatchedEntityReference, subject, id, targeted.DisplayName,
+                $"{check.Entity.DisplayName}.{check.Property.Name}", check.Property.ElementDisplay);
+        }
+    }
+
+    private static string Form(PropertyModel property) =>
+        property.Array ? "an array, [a, b, c], of " + ElementForm(property) : ElementForm(property);
+
+    private static string ElementForm(PropertyModel property) => property.Kind switch
     {
         PropertyKind.BuiltIn => PropertySchema.BuiltIn(property.Type)!.Form,
         PropertyKind.Named => "a name in quotes",
+        PropertyKind.Flags => "member names in quotes, joined by commas",
+        PropertyKind.Asset => PropertySchema.Asset(property.Type)!.Form,
         PropertyKind.Reference => PropertySchema.ReferenceForm,
         _ => "the form its converter reads",
     };
@@ -223,6 +292,16 @@ internal static class PlacementCheck
     private static void Report(SourceProductionContext context, Location at, DiagnosticDescriptor descriptor, params object[] arguments) =>
         context.ReportDiagnostic(Diagnostic.Create(descriptor, at, arguments));
 
-    // The document being checked and every registered entity by key, which a reference's target is checked against.
-    private readonly record struct Placed(SceneDocumentInfo Document, Dictionary<string, EntityModel> Entities);
+    // The document being checked, every registered entity by key, which a reference's target is checked against,
+    // and every asset the build declared, which an asset key is checked against.
+    private readonly record struct Placed(SceneDocumentInfo Document, Dictionary<string, EntityModel> Entities, AssetTable Assets);
+
+    // One authored member of one entry being checked, and where its failures report.
+    private readonly record struct Checked(
+        SourceProductionContext Context, Location At, string Document, string Entry, EntityModel Entity, PropertyModel Property, Placed Placed)
+    {
+        // Each report names the document and the entry first.
+        internal void Report(DiagnosticDescriptor descriptor, params object[] arguments) =>
+            PlacementCheck.Report(Context, At, descriptor, [Document, Entry, .. arguments]);
+    }
 }

@@ -69,6 +69,9 @@ public class Scene
     private bool _pausedThisStep;
     private bool _frozenThisStep;
 
+    // Every texture and sound the document's placements author, which the preload collects. Null for a scene built in code.
+    private readonly AssetCollection? _authoredAssets;
+
     // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
     // own randomness stream. A new scene instance starts at 0.
     private ulong _nextParticleStream;
@@ -95,6 +98,7 @@ public class Scene
 
         // References are set once every entry is constructed. A reference may name a later entry.
         Dictionary<int, Entity> placed = [];
+        _authoredAssets = new AssetCollection();
         foreach (SceneDocumentEntry entry in content.Document.Entries)
         {
             if (entry.TileMap is { } tileMap)
@@ -124,7 +128,7 @@ public class Scene
                     ZIndex = placement.ZIndex,
                     ScrollFactor = placement.ScrollFactor,
                 };
-                Entity entity = content.Entities.Create(spawn, new EntityProperties(placement));
+                Entity entity = content.Entities.Create(spawn, new EntityProperties(placement, assets: _authoredAssets));
                 Add(entity);
                 placed.Add(placement.Id, entity);
             }
@@ -360,7 +364,7 @@ public class Scene
     /// there is none.
     /// </summary>
     public T? FindFirst<T>()
-        where T : Entity
+        where T : class
     {
         foreach (Entity entity in Entities)
         {
@@ -373,10 +377,44 @@ public class Scene
         return null;
     }
 
+    /// <summary>
+    /// The first entity in <see cref="Entities"/> assignable to <typeparamref name="T"/> for which
+    /// <paramref name="match"/> returns true, or null when there is none.
+    /// </summary>
+    /// <remarks>It scans the whole scene. Call it at start or on an event, not every step.</remarks>
+    public T? FindFirst<T>(Func<T, bool> match)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(match);
+
+        foreach (Entity entity in Entities)
+        {
+            if (entity is T found && match(found))
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Every entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>, in step order.</summary>
+    /// <remarks>It walks the scene as it stands. An add or remove during a step lands when the step ends.</remarks>
+    /// <example>
+    /// <code>
+    /// foreach (IEnemy enemy in FindAll&lt;IEnemy&gt;())
+    /// {
+    ///     enemy.Alert();
+    /// }
+    /// </code>
+    /// </example>
+    public EntityWalk<T> FindAll<T>()
+        where T : class => new(_entities);
+
     /// <summary>The only entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>.</summary>
     /// <exception cref="InvalidOperationException">There is not exactly one matching entity.</exception>
     public T FindSingle<T>()
-        where T : Entity
+        where T : class
     {
         T? found = null;
 
@@ -470,6 +508,10 @@ public class Scene
     {
         AssetCollection assets = new();
         CollectAssets(assets);
+        if (_authoredAssets is { } authored)
+        {
+            assets.Add(authored);
+        }
 
         foreach (Entity entity in _entities)
         {
@@ -500,6 +542,9 @@ public class Scene
         Install(_camera);
 
         OnStart();
+
+        // The frame drawn before the first step shows the subject where every start hook left it.
+        Camera.CutToSubject();
 
         // A scene's first frame never interpolates.
         Camera.SavePrevious();
@@ -1117,6 +1162,41 @@ public class Scene
 
     // A list that can be walked while its callbacks modify it. Entries added during a walk are
     // skipped until the next one.
+    /// <summary>The entities of a scene assignable to <typeparamref name="T"/>, walked by <see langword="foreach"/>.</summary>
+    /// <typeparam name="T">The class or interface the walk yields.</typeparam>
+    public struct EntityWalk<T>
+        where T : class
+    {
+        private readonly List<Entity> _entities;
+        private int _index;
+
+        internal EntityWalk(List<Entity> entities)
+        {
+            _entities = entities;
+            _index = -1;
+        }
+
+        /// <summary>The entity the walk stands on.</summary>
+        public readonly T Current => (T)(object)_entities[_index];
+
+        /// <summary>The walk itself, which <see langword="foreach"/> binds to.</summary>
+        public readonly EntityWalk<T> GetEnumerator() => this;
+
+        /// <summary>Steps to the next entity assignable to <typeparamref name="T"/>, or returns false past the last.</summary>
+        public bool MoveNext()
+        {
+            while (++_index < _entities.Count)
+            {
+                if (_entities[_index] is T)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     private sealed class SettleList<T>
         where T : class
     {

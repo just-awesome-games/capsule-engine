@@ -1,4 +1,4 @@
-using Capsule.Generators;
+using Capsule.Assets;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
@@ -22,10 +22,10 @@ public sealed class AssetKeyTests
     [InlineData("BodyText", "body-text")]
     public void EverySpellingOfAPath_KeysTheSame(string authored, string key)
     {
-        Assert.Equal(key, TypeNaming.NormalizeKey(authored, out _));
+        Assert.Equal(key, AssetPaths.NormalizeKey(authored, out _));
 
         // Idempotent: the key of a key is that key, so an already-normalized game keeps its paths.
-        Assert.Equal(key, TypeNaming.NormalizeKey(key, out _));
+        Assert.Equal(key, AssetPaths.NormalizeKey(key, out _));
     }
 
     [Theory]
@@ -33,7 +33,7 @@ public sealed class AssetKeyTests
     [InlineData("enemies/bat.small", "bat.small")]
     public void ASegmentThatIsNoIdentifier_HasNoKey(string authored, string rejected)
     {
-        Assert.Null(TypeNaming.NormalizeKey(authored, out string? named));
+        Assert.Null(AssetPaths.NormalizeKey(authored, out string? named));
         Assert.Equal(rejected, named);
     }
 

@@ -157,12 +157,12 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor MismatchedEntryProperty = Scene(
         "CAP038",
         "A scene document entry's value has the wrong JSON type",
-        "Scene document {0}: {1} sets '{2}' to {3}, but '{4}' takes {5}. Write {6}");
+        "Scene document {0}: {1} sets {2} to {3}, but '{4}' takes {5}. Write {6}");
 
     internal static readonly DiagnosticDescriptor UnknownEntryName = Scene(
         "CAP039",
         "A scene document entry names nothing its member's type declares",
-        "Scene document {0}: {1} sets '{2}' to {3}, which names nothing '{4}' declares. Write one of: {5}");
+        "Scene document {0}: {1} sets {2} to {3}, which names nothing '{4}' declares. Write one of: {5}");
 
     internal static readonly DiagnosticDescriptor MissingEntryProperty = Scene(
         "CAP040",
@@ -177,12 +177,17 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor UnknownEntityReference = Scene(
         "CAP042",
         "A scene document entry's reference must name an entity of the document",
-        "Scene document {0}: {1} sets '{2}' to {3}, which names no entity in the document. Write the id of an entity entry");
+        "Scene document {0}: {1} sets {2} to {3}, which names no entity in the document. Write the id of an entity entry");
 
     internal static readonly DiagnosticDescriptor MismatchedEntityReference = Scene(
         "CAP043",
         "A scene document entry's reference must name an entity its member takes",
-        "Scene document {0}: {1} sets '{2}' to entity {3}, a '{4}', but '{5}' takes '{6}'. Write the id of an entity that is a '{6}'");
+        "Scene document {0}: {1} sets {2} to entity {3}, a '{4}', but '{5}' takes '{6}'. Write the id of an entity that is a '{6}'");
+
+    internal static readonly DiagnosticDescriptor UnknownAssetKey = Scene(
+        "CAP044",
+        "A scene document entry's asset key must name an asset the game ships",
+        "Scene document {0}: {1} sets {2} to {3}, but no {4} keys as \"{5}\". {6}");
 
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";

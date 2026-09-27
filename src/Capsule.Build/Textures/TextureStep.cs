@@ -25,9 +25,12 @@ internal static class TextureStep
                 return source;
             }))
         {
+            pass.Assets.Beside(CapsuleAssetsFile.AssetAttribute);
             pass.Declare(texture, (source, indent, identifier) =>
             {
                 source.Append(indent).Append("/// <summary><c>").Append(texture.Key).Append(texture.Extension).AppendLine("</c>.</summary>");
+                source.Append(indent).Append('[').Append(CapsuleAssetsFile.AssetAttributeName).Append('(')
+                    .Append(Literal.Of(texture.Key + texture.Extension)).AppendLine(")]");
                 source.Append(indent).Append("public static ").Append(HandleType).Append(' ').Append(identifier)
                     .Append(" => new ").Append(HandleType).Append('(').Append(Literal.Of(texture.Key)).Append(", ")
                     .Append(Literal.Of(texture.Extension)).AppendLine(");");

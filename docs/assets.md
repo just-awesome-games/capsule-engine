@@ -16,7 +16,7 @@ name and its type:
 | `.wav`, `.ogg` | A sound | `CapsuleAssets.Player.PlayerSound`, an `AudioClip` |
 | `.fnt` | A bitmap font | `CapsuleAssets.Player.PlayerFont`, a `BitmapFont` |
 | `.fx` | A shader | `CapsuleAssets.Player.PlayerShader`, a `Shader` |
-| `.scene.json` | A scene document | `CapsuleAssets.Player.PlayerScene`, the document's key |
+| `.scene.json` | A scene document | `CapsuleAssets.Player.PlayerScene`, a `SceneKey` |
 | `.atlas.json` | An atlas manifest | Not named |
 
 A file of one type shares its name with files of others and with its folder, so a player's texture, sheet

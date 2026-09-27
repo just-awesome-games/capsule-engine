@@ -83,7 +83,7 @@ public sealed class SceneHostRunStateTests
         static void CapturesThenLeaves(Scene scene, in StepContext context)
         {
             scene.Run.CaptureFrame("shot.png");
-            scene.Run.RequestScene("boss-room");
+            scene.Run.RequestScene(new SceneKey("boss-room"));
         }
 
         HookScene arrival = new();

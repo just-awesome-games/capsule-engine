@@ -19,8 +19,8 @@ the path the class's namespace names under `Assets/`, so `MyGame.Scenes.Test` cl
 `Assets/Scenes/test.scene.json`, unless `[SceneDocument("key")]` names another. A class declaring both constructor shapes is a compile error. A
 composed scene's assets are collected before `OnStart` ([`assets.md`](assets.md#loading-and-residency)).
 
-Every document has a generated key constant in `CapsuleAssets`, one nested class per folder.
-`Assets/Scenes/halls/hall.scene.json` is `CapsuleAssets.Scenes.Halls.HallScene`, whose value is
+Every document has a generated `SceneKey` in `CapsuleAssets`, one nested class per folder.
+`Assets/Scenes/halls/hall.scene.json` is `CapsuleAssets.Scenes.Halls.HallScene`, whose `Name` is
 `scenes/halls/hall`. `--scene` takes a scene class name or a document key, and a
 class name wins when a value is both.
 
@@ -173,8 +173,8 @@ public float Rise { get; set; } = 64f;
 { "id": 11, "type": "lift", "x": 496, "y": 170, "properties": { "rise": 40 } }
 ```
 
-The XML documentation on `AuthorableAttribute` states which members qualify, how a key is named and each
-type's JSON form.
+The XML documentation on `AuthorableAttribute` states how a key is named and each type's JSON form. The
+build names what a member cannot take.
 
 ## From source to game
 

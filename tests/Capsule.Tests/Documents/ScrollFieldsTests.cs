@@ -15,10 +15,7 @@ public sealed class ScrollFieldsTests
         string json = """
             {
               "formatVersion": 7,
-              "scrollCenter": [
-                160,
-                90
-              ],
+              "scrollCenter": [160, 90],
               "entities": [
                 {
                   "id": 1,
@@ -26,10 +23,7 @@ public sealed class ScrollFieldsTests
                   "x": 0,
                   "y": 0,
                   "zIndex": -20,
-                  "scrollFactor": [
-                    0.5,
-                    1
-                  ],
+                  "scrollFactor": [0.5, 1],
                   "properties": {
                     "tileSize": 16,
                     "width": 1,
@@ -49,25 +43,16 @@ public sealed class ScrollFieldsTests
                   "type": "sky",
                   "x": 8,
                   "y": 0,
-                  "scrollFactor": [
-                    0,
-                    0
-                  ]
+                  "scrollFactor": [0, 0]
                 },
                 {
                   "id": 3,
                   "type": "coin",
                   "x": 0,
                   "y": 0,
-                  "scale": [
-                    2,
-                    2
-                  ],
+                  "scale": [2, 2],
                   "zIndex": 3,
-                  "scrollFactor": [
-                    1,
-                    1
-                  ]
+                  "scrollFactor": [1, 1]
                 },
                 {
                   "id": 4,

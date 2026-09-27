@@ -9,7 +9,8 @@ namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// What every playable scene is made of, with the level left to the document: the head-up display,
-/// the pause menu, and returning to the <see cref="MainMenu"/> at no health. A level is a document
+/// the pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> payload names, and
+/// returning to the <see cref="MainMenu"/> at no health. A level is a document
 /// that names it as its <c>baseScene</c>. The camera comes from the document, and the display and the
 /// menu are installed in the constructor so their contents are collected for its preload.
 /// </summary>
@@ -37,6 +38,14 @@ public abstract class PlayableScene : Scene
     protected override void OnStart()
     {
         Player = FindSingle<Player>();
+
+        if (EntryPayload is Arrival arrival)
+        {
+            Entrance entrance = FindFirst<Entrance>(entrance => entrance.Key == arrival.Entrance)
+                ?? throw new InvalidOperationException(
+                    $"No entrance in this room has the key \"{arrival.Entrance}\". Place an entrance with that key, or fix the arriveAt that leads here.");
+            Player.Teleport(entrance.Position);
+        }
 
         // Crossfades from whatever was playing, or fades in alone under --scene scenes/room.
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.RoomSound);

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Capsule.Assets;
-using Capsule.Generators;
 
 namespace Capsule.Build.Sprites;
 
@@ -335,7 +334,7 @@ internal static class SpriteSheetFile
                     $"has {position} as a second \"{name}\". Names are unique within their list, since a game reaches each by name.");
             }
 
-            if (TypeNaming.ToIdentifier(name) is not { } identifier)
+            if (AssetPaths.ToIdentifier(name) is not { } identifier)
             {
                 throw new FormatException(
                     $"has {position} named \"{name}\", which is no C# name. A name is letters, digits, '-' and '_', and does not start with a digit.");
