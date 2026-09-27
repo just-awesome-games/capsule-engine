@@ -22,6 +22,10 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - Engine-owned state has no public setter. Generated roots are named for the engine: `CapsuleBoot`, `CapsuleScenes`, `CapsuleEntities`, `CapsuleAssets`.
 - Before 1.0 a breaking public change takes a minor release and migrates the known consumers in the same wave. A removed field or property is deleted outright. No code stays behind to point at its replacement.
 
+## Code
+
+- A type declares its state first: constants, static fields, fields and auto-properties or other state-holding properties. Constructors follow, then every other member.
+
 ## Docs
 
 - XML documentation is the API reference. A consumer holding the package and its XML does not read engine source, and a source read to learn a contract is fixed with a bug's priority.

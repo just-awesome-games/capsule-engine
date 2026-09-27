@@ -127,12 +127,19 @@ public sealed class SceneRegistry
 
         SceneContent content = new(document, _entities);
 
-        if (!_byDocumentName.TryGetValue(name, out SceneRegistration claimed))
+        try
         {
-            return new Scene(content);
+            return _byDocumentName.TryGetValue(name, out SceneRegistration claimed)
+                ? claimed.Create(content)
+                : new Scene(content);
         }
+        catch (SceneDocumentFormatException exception)
+        {
+            // An entry's properties are read as it spawns, and only this layer knows the document's key.
+            string derived = document.Source is { } source ? $" (from {source.Path})" : string.Empty;
 
-        return claimed.Create(content);
+            throw new SceneDocumentFormatException($"scene document '{name}'{derived}: {exception.Message}", exception);
+        }
     }
 
     private SceneRegistration Find(Type sceneType)

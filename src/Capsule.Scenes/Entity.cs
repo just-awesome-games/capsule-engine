@@ -84,18 +84,24 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Spawns from a document placement. The position, <see cref="ZIndex"/> and
-    /// <see cref="ScrollFactor"/> land before the subclass constructor body runs, and writes in that body
-    /// override them.
+    /// Places the entity from a document placement or a spawn built in code. The position,
+    /// <see cref="Rotation"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/> and every
+    /// <see cref="AuthorableAttribute"/> value a placement authors land before the subclass constructor
+    /// body runs, and writes in that body override them.
     /// </summary>
     /// <remarks>
     /// <see cref="EntitySpawn.Scale"/> is left to the subclass. An entity with a different anchor adjusts
     /// the position: <c>spawn with { Position = spawn.Position + anchor }</c>.
+    /// A class holding a collider or body refuses a turned spawn when it adds that component. To turn
+    /// only what can turn, it sets <c>Rotation = 0</c> first and reads <see cref="EntitySpawn.Rotation"/>
+    /// itself.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The scroll factor is not one on an entity that refuses one.</exception>
     protected Entity(EntitySpawn spawn)
         : this(spawn.Position)
     {
+        Rotation = spawn.Rotation;
+
         if (spawn.ZIndex is { } band)
         {
             ZIndex = band;
@@ -105,6 +111,8 @@ public partial class Entity
         {
             ScrollFactor = factor;
         }
+
+        spawn.Apply?.Invoke(this, spawn.Properties);
     }
 
     /// <summary>The entity this one is placed by, or null for a root.</summary>

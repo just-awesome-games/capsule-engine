@@ -268,10 +268,15 @@ public partial class Entity
         Guard.Finite(scale, nameof(scale));
     }
 
-    private static InvalidOperationException Turned(Component component, Entity holder, Entity carrier, float rotation) =>
-        new(string.Create(
+    private static InvalidOperationException Turned(Component component, Entity holder, Entity carrier, float rotation)
+    {
+        string what = component.GetType().Name;
+        string by = carrier.GetType().Name;
+
+        return new(string.Create(
             CultureInfo.InvariantCulture,
-            $"A {component.GetType().Name} on a {holder.GetType().Name} cannot be turned, and {carrier.GetType().Name} carries a rotation of {rotation} that every entity under it inherits. Clear that rotation or move the component out of the subtree."));
+            $"A {what} on a {holder.GetType().Name} cannot be turned, and {by} carries a rotation of {rotation} radians that every entity under it inherits. Clear that rotation, whether placed or set in code, or move the {what} out of the subtree. To turn only what can turn, set Rotation = 0 in the {by} constructor before adding the {what} and read spawn.Rotation."));
+    }
 
     private static InvalidOperationException Scaled(Component component, Entity holder, Entity carrier, Vector2 scale) =>
         new($"A {component.GetType().Name} on a {holder.GetType().Name} cannot be scaled, and {carrier.GetType().Name} carries a scale of {DebugPanel.Format(scale)} that every entity under it inherits. Reset that scale to one or move the component out of the subtree.");

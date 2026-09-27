@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 
@@ -66,7 +67,7 @@ public sealed class RandomSourceInScenesTests
         RandomSource run = new(0x5EED);
         SceneFixtures.SpawnScene scene = new(
             SceneFixtures.Registry(("prober", static spawn => new SpawnedProber(spawn))),
-            new EntitySpawn(1, "prober", Vector2.Zero));
+            new EntityPlacement(1, "prober", 0f, 0f));
 
         SpawnedProber prober = Assert.IsType<SpawnedProber>(scene.Entities[0]);
 

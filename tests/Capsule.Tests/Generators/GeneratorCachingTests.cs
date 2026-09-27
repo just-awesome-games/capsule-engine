@@ -10,7 +10,7 @@ public sealed class GeneratorCachingTests
     public void ASecondRunOverAnUnchangedCompilation_WalksNoReferencedAssemblyAgain()
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
-            ("scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}"""));
+            ("scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}"""));
 
         // The name the generator hands WithTrackingName for its walk over every referenced
         // assembly's registry metadata.

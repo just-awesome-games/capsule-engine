@@ -159,8 +159,7 @@ internal static class GeneratorHarness
     }
 
     // Each '<key>.scene.json' document, its path under Assets/, as the build hands it to the
-    // generator: a key constant marked with the build's own attribute, carrying the baseScene and
-    // camera its parser read.
+    // generator: a key constant marked with the build's own attribute, carrying what its parser read.
     private static string Documents((string Path, string? Content)[] documents)
     {
         const string Extension = ".scene.json";
@@ -169,15 +168,14 @@ internal static class GeneratorHarness
             .Where(static document => document.Path.EndsWith(Extension, StringComparison.Ordinal))
             .Select(static (document, index) =>
             {
-                SceneSettings? settings = document.Content is null ? null : SceneDocumentFile.Parse(document.Content).Settings;
+                IEnumerable<string> attributes = document.Content is null
+                    ? [SceneStep.DocumentAttributeName]
+                    : SceneStep.Attributes(SceneDocumentFile.Parse(document.Content), document.Path, document.Content);
 
-                return $"[{SceneStep.DocumentAttributeName}(BaseScene = {Quoted(settings?.BaseScene)}, Camera = {Quoted(settings?.Camera)})] "
-                    + $"public const string Document{index} = \"{document.Path[..^Extension.Length]}\";";
+                return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public const string Document{index} = \"{document.Path[..^Extension.Length]}\";";
             });
 
         return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', constants)}\n}}\n{SceneStep.DocumentAttribute}}}\n";
-
-        static string Quoted(string? value) => value is null ? "null" : $"\"{value}\"";
     }
 
     /// <summary>

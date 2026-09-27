@@ -315,7 +315,7 @@ public sealed class ParallaxTests
     public void ASpawnsFactor_IsRefusedByTheColliderTheBodyAttaches()
     {
         Assert.Throws<InvalidOperationException>(
-            () => new Colliding(new EntitySpawn(1, "colliding", Vector2.Zero, Vector2.One, ScrollFactor: Half)));
+            () => new Colliding(new EntitySpawn(Vector2.Zero) { ScrollFactor = Half }));
     }
 
     // The frame the host places for this view on an output, and the corner of the layer at factor, as

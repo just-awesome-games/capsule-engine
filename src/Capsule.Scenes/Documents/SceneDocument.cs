@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Capsule.Assets;
 using Capsule.Rendering;
 
@@ -123,6 +124,29 @@ public sealed class SceneDocument
                     $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale. Make both factors finite and greater than zero."));
             }
 
+            // What each key means is the claiming class's contract, checked when the build compiles and again
+            // when the entry spawns.
+            if (entity is { Properties.ValueKind: not JsonValueKind.Object })
+            {
+                throw Malformed(
+                    $"entity id {entry.Id} has properties that are not an object. Write them as {{ \"name\": value }}, or omit them.");
+            }
+
+            // The build writes each property value and array element as a C# constant, and a number beyond
+            // double range has no literal. A nested object is left to the converter that reads it.
+            if (entity is { Properties: { } properties } && !properties.EnumerateObject().All(static member => Finite(member.Value)))
+            {
+                throw Malformed(
+                    $"entity id {entry.Id} has a property number beyond the range of a double. Write a finite number.");
+            }
+
+            if (entity is { } turned && !float.IsFinite(turned.RotationDegrees))
+            {
+                throw Malformed(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"entity id {entry.Id} has rotation {turned.RotationDegrees}, which is not a turn. Make it a finite number of degrees."));
+            }
+
             if (entry.ScrollFactor is { } factor && (!float.IsFinite(factor.X) || !float.IsFinite(factor.Y)))
             {
                 throw Malformed(string.Create(
@@ -226,6 +250,13 @@ public sealed class SceneDocument
             throw Malformed($"source.hash is '{source.Hash}'. Write 64 lowercase hex characters.", nameof(Source));
         }
     }
+
+    private static bool Finite(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Number => value.TryGetDouble(out double number) && double.IsFinite(number),
+        JsonValueKind.Array => value.EnumerateArray().All(Finite),
+        _ => true,
+    };
 
     private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
 

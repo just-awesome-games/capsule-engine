@@ -53,7 +53,7 @@ namespace MinimalGame.Game.Entities;
 /// the run.</param>
 /// <param name="HurtShake">How hard the camera shakes when a hit lands, from 0 to 1. Raise it for a
 /// heavier hit, lower it towards zero to let the freeze carry the hit alone.</param>
-public readonly record struct PlayerTuning(
+public sealed record class PlayerTuning(
     float WalkSpeed,
     float SlopeSpeed,
     float Gravity,

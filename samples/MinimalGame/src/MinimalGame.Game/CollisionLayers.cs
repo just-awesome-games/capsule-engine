@@ -2,7 +2,7 @@ namespace MinimalGame.Game;
 
 public static class CollisionLayers
 {
-    /// <summary>The layer the player runs on, and the one the camera follows.</summary>
+    /// <summary>The layer the player's body is on.</summary>
     public const string Player = "player";
 
     /// <summary>The layer the floor and walls are on, and what the player collides with.</summary>

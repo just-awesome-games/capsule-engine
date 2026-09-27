@@ -2,34 +2,53 @@ using System.Numerics;
 
 namespace Capsule.Scenes.Spawning;
 
-/// <summary>One authored placement as the entity it spawns receives it.</summary>
+/// <summary>Where and how an entity is placed, as its constructor receives it.</summary>
 /// <remarks>
-/// <see cref="Position"/> is the raw authored coordinate, and the entity's constructor translates it to
-/// that entity's own anchor. The <see cref="Entity(EntitySpawn)"/> constructor applies
-/// <see cref="ZIndex"/> and <see cref="ScrollFactor"/> before the derived constructor's body runs.
-/// Writes in that body override the document.
+/// A document placement arrives as a spawn, and code builds one to place the same entity through the
+/// same constructor. The <see cref="Entity(EntitySpawn)"/> constructor applies it.
+/// <para>
+/// Build one with <c>new EntitySpawn(position)</c>. <c>default(EntitySpawn)</c> skips the initializers
+/// and has a scale of zero.
+/// </para>
 /// </remarks>
-/// <param name="Id">The placement's id in the document's single id space.</param>
-/// <param name="Type">The spawn type the entity claimed.</param>
-/// <param name="Position">The raw authored coordinate.</param>
-/// <param name="Scale">
-/// The raw authored scale factors, positive and finite on both axes. The entity's constructor decides what
-/// they mean: the entity's own <see cref="Entity.Scale"/>, a collider shape run through
-/// <see cref="Capsule.Physics.Shape2D.Scaled"/>, or nothing.
+/// <example>
+/// <code>
+/// scene.Add(new Spike(new EntitySpawn(position) { Rotation = MathF.PI / 2f }));
+/// scene.Add(new Lift(new EntitySpawn(position)) { Rise = 96f });
+/// </code>
+/// </example>
+/// <param name="Position">
+/// The raw placed coordinate, which the entity's constructor translates to its own anchor.
 /// </param>
-/// <param name="ZIndex">The authored draw band, or null when the placement authors none.</param>
-/// <param name="ScrollFactor">The authored scroll factor, or null when the placement authors none.</param>
-public readonly record struct EntitySpawn(
-    int Id,
-    string Type,
-    Vector2 Position,
-    Vector2 Scale,
-    int? ZIndex = null,
-    Vector2? ScrollFactor = null)
+public readonly record struct EntitySpawn(Vector2 Position)
 {
-    /// <summary>A placement at scale one.</summary>
-    public EntitySpawn(int id, string type, Vector2 position)
-        : this(id, type, position, Vector2.One)
-    {
-    }
+    /// <summary>The placement's id in the document's id space, or 0 for a spawn built in code.</summary>
+    public int Id { get; internal init; }
+
+    /// <summary>The spawn type the entity claimed, or null for a spawn built in code.</summary>
+    public string? Type { get; internal init; }
+
+    /// <summary>
+    /// The turn in radians, clockwise on screen, defaulting to 0. It becomes <see cref="Entity.Rotation"/>.
+    /// </summary>
+    public float Rotation { get; init; }
+
+    /// <summary>
+    /// The raw scale factors, defaulting to one. The entity's constructor decides what they mean: its own
+    /// <see cref="Entity.Scale"/>, a collider shape run through <see cref="Capsule.Physics.Shape2D.Scaled"/>,
+    /// or nothing.
+    /// </summary>
+    public Vector2 Scale { get; init; } = Vector2.One;
+
+    /// <summary>The draw band, or null to keep the entity's own.</summary>
+    public int? ZIndex { get; init; }
+
+    /// <summary>The scroll factor, or null to keep the entity's own.</summary>
+    public Vector2? ScrollFactor { get; init; }
+
+    // A placement's authored member values and its class's generated applier. A spawn built in code
+    // carries neither, and the members stay out of the record's printed form.
+    internal EntityProperties Properties { get; init; }
+
+    internal EntityApplier? Apply { get; init; }
 }

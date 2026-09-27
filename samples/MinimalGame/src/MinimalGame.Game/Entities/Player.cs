@@ -25,36 +25,6 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 public sealed class Player : Entity
 {
-    /// <summary>The levers this player runs on, fixed for its lifetime.</summary>
-    public ref readonly PlayerTuning Tuning => ref _tuning;
-
-    /// <summary>What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent per hazard contact, never below zero.</summary>
-    public int Health { get; private set; }
-
-    /// <summary>The velocity the body moves at, in world units per second, as of the last step.</summary>
-    public Vector2 Velocity => _velocity;
-
-    /// <summary>Whether the body stood on a floor after the last step.</summary>
-    public bool IsOnFloor => _body.IsOnFloor;
-
-    /// <summary>Whether the last step took off from the floor; cleared as each step begins.</summary>
-    public bool JumpedThisStep { get; private set; }
-
-    /// <summary>Whether the last step landed on a floor; cleared as each step begins.</summary>
-    public bool LandedThisStep { get; private set; }
-
-    /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
-    public bool ShotThisStep { get; private set; }
-
-    /// <summary>Steps left of the grace after a hit, during which hazards cost nothing.</summary>
-    public int InvulnerableTicksLeft => _invulnerable.TicksLeft;
-
-    /// <summary>
-    /// The muzzle: the child the sprite's <c>muzzle</c> socket places, on whichever frame is drawn.
-    /// Its <see cref="Entity.WorldPosition"/> is where a bolt leaves from.
-    /// </summary>
-    public Entity Muzzle => _visual.Muzzle;
-
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
@@ -70,13 +40,27 @@ public sealed class Player : Entity
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
-    private readonly PlayerTuning _tuning = PlayerTuning.Default;
     private readonly BoltTuning _bolt = BoltTuning.Default;
     private readonly EntityPool<SparkBurst> _sparks = new(() => new SparkBurst(), capacity: 8);
     private readonly EntityPool<Bolt> _bolts;
 
+    [Authorable]
+    private PlayerTuning _tuning = PlayerTuning.Default;
+
     private Vector2 _velocity;
     private Countdown _invulnerable;
+
+    /// <summary>What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent per hazard contact, never below zero.</summary>
+    public int Health { get; private set; }
+
+    /// <summary>Whether the last step took off from the floor; cleared as each step begins.</summary>
+    public bool JumpedThisStep { get; private set; }
+
+    /// <summary>Whether the last step landed on a floor; cleared as each step begins.</summary>
+    public bool LandedThisStep { get; private set; }
+
+    /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
+    public bool ShotThisStep { get; private set; }
 
     public Player(EntitySpawn spawn)
         : base(spawn)
@@ -87,7 +71,7 @@ public sealed class Player : Entity
 
         _visual = new Visual(this, FramePivot, _tuning);
 
-        BoxCollider2D bodyCollider = new(Body);
+        BoxCollider2D bodyCollider = new(Body) { Layer = CollisionLayers.Player };
         Add(bodyCollider);
 
         // Grounded walks the hill at the speed it is given and follows the ground down its far side.
@@ -127,6 +111,24 @@ public sealed class Player : Entity
         };
         Add(_dust);
     }
+
+    /// <summary>The levers this player runs on, fixed for its lifetime. A placement names one as <c>"tuning": "default"</c>.</summary>
+    public PlayerTuning Tuning => _tuning;
+
+    /// <summary>The velocity the body moves at, in world units per second, as of the last step.</summary>
+    public Vector2 Velocity => _velocity;
+
+    /// <summary>Whether the body stood on a floor after the last step.</summary>
+    public bool IsOnFloor => _body.IsOnFloor;
+
+    /// <summary>Steps left of the grace after a hit, during which hazards cost nothing.</summary>
+    public int InvulnerableTicksLeft => _invulnerable.TicksLeft;
+
+    /// <summary>
+    /// The muzzle: the child the sprite's <c>muzzle</c> socket places, on whichever frame is drawn.
+    /// Its <see cref="Entity.WorldPosition"/> is where a bolt leaves from.
+    /// </summary>
+    public Entity Muzzle => _visual.Muzzle;
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
@@ -293,6 +295,9 @@ public sealed class Player : Entity
         private float _facing = 1f;
         private Vector2 _squash = Vector2.One;
 
+        /// <summary>The child the sprite places at its <c>muzzle</c> socket.</summary>
+        internal Entity Muzzle { get; }
+
         internal Visual(Player player, Vector2 pivot, PlayerTuning tuning)
             : base(player, pivot)
         {
@@ -307,9 +312,6 @@ public sealed class Player : Entity
             _animator = new SpriteAnimator(sprite);
             Add(_animator);
         }
-
-        /// <summary>The child the sprite places at its <c>muzzle</c> socket.</summary>
-        internal Entity Muzzle { get; }
 
         /// <summary>The sign of the X the player faces along; the scale the frame is mirrored by.</summary>
         internal float Facing => _facing;

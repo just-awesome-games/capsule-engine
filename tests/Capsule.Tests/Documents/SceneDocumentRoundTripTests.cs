@@ -16,7 +16,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 6,
+              "formatVersion": 7,
               "entities": [
                 {
                   "id": 1,
@@ -44,7 +44,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 6,
+              "formatVersion": 7,
               "baseScene": "playable-room",
               "camera": "game-camera",
               "size": [
@@ -96,7 +96,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 6,
+              "formatVersion": 7,
               "entities": [
                 {
                   "id": 1,
@@ -247,7 +247,7 @@ public sealed class SceneDocumentRoundTripTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 6,",
+            "  \"formatVersion\": 7,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -344,5 +344,45 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleX);
         Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleY);
         Assert.Equal(json, SceneDocumentFile.ToJson(round));
+    }
+
+    // Rotation is degrees in the document and sits between the position and the scale. An absent one is
+    // unturned, and the canonical form writes it only where it is non-zero.
+    [Fact]
+    public void ATurnedEntry_IsAFixedPoint_AndAnUnturnedOneWritesNoRotation()
+    {
+        string json = """
+            {
+              "formatVersion": 7,
+              "entities": [
+                {
+                  "id": 1,
+                  "type": "spike",
+                  "x": 8,
+                  "y": 0,
+                  "rotation": -22.5,
+                  "scale": [
+                    2,
+                    1
+                  ],
+                  "zIndex": 3
+                },
+                {
+                  "id": 2,
+                  "type": "coin",
+                  "x": 16,
+                  "y": 0
+                }
+              ],
+              "nextEntityId": 3
+            }
+
+            """.ReplaceLineEndings("\n");
+
+        SceneDocument document = SceneDocumentFile.Parse(json);
+
+        Assert.Equal(new EntityPlacement(1, "spike", 8f, 0f, 2f, 1f, 3, RotationDegrees: -22.5f), document.Entries[0].Entity);
+        Assert.Equal(0f, document.Entries[1].Entity!.Value.RotationDegrees);
+        Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 }

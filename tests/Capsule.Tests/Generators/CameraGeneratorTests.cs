@@ -17,7 +17,7 @@ public sealed class CameraGeneratorTests
             internal sealed class GameCamera : Camera;
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 7, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
@@ -40,7 +40,7 @@ public sealed class CameraGeneratorTests
             {{declaration}}
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 6, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 7, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
         Assert.Equal("CAP029", error.Id);

@@ -33,6 +33,8 @@ internal static class Program
     // SHA-256 of the menu font page's premultiplied texels, as Texture2D.FromStream uploads them.
     private const string FontPageTexelsSha256 = "4F13FA9BDBEB25D496632C2E31133CF54C61C2593323F881F6B114384BAF7D4E";
 
+    private const string SavesFlag = "--saves";
+
     public static int Main(string[] args)
     {
         try
@@ -47,10 +49,42 @@ internal static class Program
         }
     }
 
+    // The runs check reads 0 then 1, so the saves directory must start without a runs save. A run that
+    // names no directory gets a fresh one of its own, deleted at the end. A named directory must be
+    // missing or empty, and one holding anything fails here instead of at check 2.
+    private static int Run(string[] args)
+    {
+        int flag = Array.IndexOf(args, SavesFlag);
+        if (flag >= 0)
+        {
+            // A --saves with no directory after it is left for the engine's command line to refuse.
+            string? given = flag + 1 < args.Length ? args[flag + 1] : null;
+            if (given is not null && Directory.Exists(given) && Directory.EnumerateFileSystemEntries(given).Any())
+            {
+                Console.Error.WriteLine(
+                    $"AOT smoke failed (8): the saves directory '{given}' is not empty, so the runs read cannot be trusted to start at 0. Pass an empty directory to {SavesFlag}, or omit {SavesFlag} to use a fresh temporary one.");
+
+                return 8;
+            }
+
+            return Check(args);
+        }
+
+        DirectoryInfo saves = Directory.CreateTempSubdirectory("capsule-aot-smoke-");
+        try
+        {
+            return Check([.. args, SavesFlag, saves.FullName]);
+        }
+        finally
+        {
+            saves.Delete(recursive: true);
+        }
+    }
+
     // Every check names both directions of its axis: a hook that stopped excluding and one that
     // started excluding everything must both fail here rather than downstream. Each answers with its
     // own exit code so a failure names the axis.
-    private static int Run(string[] args)
+    private static int Check(string[] args)
     {
         bool shipping = !Development.IsSupported;
         bool published = !RuntimeFeature.IsDynamicCodeSupported;
@@ -108,6 +142,16 @@ internal static class Program
         int? firstRead = FixtureScene.RunsRead;
         HeadlessRunResult second = Play(args);
         int? secondRead = FixtureScene.RunsRead;
+
+        // The fixture's beacon constructor read a private field and a generic base's member, both set through
+        // generated [UnsafeAccessor] setters, and a value read through its [JsonConverter], off its entry.
+        if (Beacon.Read != Beacon.Expected)
+        {
+            Console.Error.WriteLine(
+                $"AOT smoke failed (7): the fixture's beacon read its route, generic-base band and private charge as '{Beacon.Read}', not '{Beacon.Expected}'.");
+
+            return 7;
+        }
 
         bool contentShipped = ContentShipped();
         bool booted =

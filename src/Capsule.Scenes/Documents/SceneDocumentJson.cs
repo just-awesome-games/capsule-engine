@@ -87,12 +87,33 @@ internal sealed class SceneEntryJson
     [JsonPropertyOrder(3)]
     public float? Y { get; set; }
 
+    private float? _rotation;
+
+    // Degrees, because people write it by hand. Absent on an unturned entry, and the writer emits it only
+    // when non-zero.
+    [JsonPropertyName("rotation")]
+    [JsonPropertyOrder(4)]
+    public float? Rotation
+    {
+        get => _rotation;
+        set
+        {
+            _rotation = value;
+            HasRotation = true;
+        }
+    }
+
+    // Whether the document carried the field. The tile-map entry rejects a rotation on presence, as it
+    // does a scale.
+    [JsonIgnore]
+    public bool HasRotation { get; private set; }
+
     private float[]? _scale;
 
     // Absent on an entry at the authored size, and WhenWritingNull keeps it out. Nullable so the reader
     // reports a wrong component count.
     [JsonPropertyName("scale")]
-    [JsonPropertyOrder(4)]
+    [JsonPropertyOrder(5)]
     public float[]? Scale
     {
         get => _scale;
@@ -111,20 +132,20 @@ internal sealed class SceneEntryJson
     // Absent when the entry authors no band, and WhenWritingNull keeps it out. An authored 0 is an ordinary
     // band and is written back, so it stays distinct from an absent field.
     [JsonPropertyName("zIndex")]
-    [JsonPropertyOrder(5)]
+    [JsonPropertyOrder(6)]
     public int? ZIndex { get; set; }
 
     // Absent when the entry authors no factor, and WhenWritingNull keeps it out. Nullable so the reader
     // reports a wrong component count.
     [JsonPropertyName("scrollFactor")]
-    [JsonPropertyOrder(6)]
+    [JsonPropertyOrder(7)]
     public float[]? ScrollFactor { get; set; }
 
     // Held as raw JSON, not a typed member, because each entry type defines its own properties
-    // contract. The reader deserializes the tile-map's against TileGridJson and rejects properties on any
-    // other type.
+    // contract. The reader deserializes the tile-map's against TileGridJson. A game entry's are read
+    // key by key into its class's authorable members when it spawns.
     [JsonPropertyName("properties")]
-    [JsonPropertyOrder(7)]
+    [JsonPropertyOrder(8)]
     public JsonElement? Properties { get; set; }
 }
 

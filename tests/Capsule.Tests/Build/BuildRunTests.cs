@@ -14,7 +14,7 @@ public sealed class BuildRunTests
     public void ARunWithADefectInTwoKinds_ReportsBothAndLeavesNoStamp()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 7, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
         workspace.Write("Assets/Audio/hum.wav", "not a wav");
 
         string errors = workspace.Fail();
@@ -57,12 +57,12 @@ public sealed class BuildRunTests
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Textures/hero.png", string.Empty);
-        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
         workspace.Succeed();
         string[] outputs = ["CapsuleAssets.g.cs", "capsule-scenes.txt", "assets/textures/hero.png", "assets/scenes/room.scene.json.gz"];
         DateTime[] written = [.. outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output)))];
 
-        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
         workspace.Succeed();
 
         Assert.Equal(written, outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output))));

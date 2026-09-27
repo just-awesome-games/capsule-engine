@@ -97,7 +97,7 @@ internal static class RegistryDiagnostics
     internal static readonly DiagnosticDescriptor SpawnNotPassedToBase = Scene(
         "CAP026",
         "An entity must pass its spawn to its base constructor",
-        "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, so the authored zIndex and scrollFactor are dropped. Pass the spawn to base");
+        "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, so the authored rotation, zIndex and scrollFactor are dropped. Pass the spawn to base");
 
     internal static readonly DiagnosticDescriptor DocumentBaseSceneConflictsWithAClaim = Scene(
         "CAP027",
@@ -128,6 +128,51 @@ internal static class RegistryDiagnostics
         "CAP032",
         "Two classes claim one baseScene key",
         "'{0}' and '{1}' both claim baseScene key '{2}'. A baseScene has no attribute to override its key, so rename one class");
+
+    internal static readonly DiagnosticDescriptor DuplicateAuthorableKey = Scene(
+        "CAP033",
+        "Two [Authorable] members take one key",
+        "'{0}' takes the key '{1}', which the [Authorable] member '{2}' already takes. Rename one of them");
+
+    internal static readonly DiagnosticDescriptor UnclaimedEntryType = Scene(
+        "CAP034",
+        "A scene document entry's type must name an entity class",
+        "Scene document {0}: {1} has type '{2}', which no entity claims. Declare the entity whose namespace names that key, give one [SpawnType(\"{2}\")], or correct the type. Claimed: {3}");
+
+    internal static readonly DiagnosticDescriptor CodeOnlyEntryType = Scene(
+        "CAP035",
+        "A scene document entry's type must be an entity a placement can construct",
+        "Scene document {0}: {1} has type '{2}', but '{3}' has the C# required members {4}, which only code can set. Place this entity in code, or replace required with [Authorable(Required = true)]");
+
+    internal static readonly DiagnosticDescriptor UnknownEntryProperty = Scene(
+        "CAP036",
+        "A scene document entry sets a key its entity does not declare",
+        "Scene document {0}: {1} sets '{2}', which '{3}' does not declare. Its authorable members are: {4}. Remove the key or correct its name");
+
+    internal static readonly DiagnosticDescriptor UnsettableEntryProperty = Scene(
+        "CAP037",
+        "A scene document entry sets a member a placement cannot set",
+        "Scene document {0}: {1} sets '{2}', but '{3}' {4}");
+
+    internal static readonly DiagnosticDescriptor MismatchedEntryProperty = Scene(
+        "CAP038",
+        "A scene document entry's value has the wrong JSON type",
+        "Scene document {0}: {1} sets '{2}' to {3}, but '{4}' takes {5}. Write {6}");
+
+    internal static readonly DiagnosticDescriptor UnknownEntryName = Scene(
+        "CAP039",
+        "A scene document entry names nothing its member's type declares",
+        "Scene document {0}: {1} sets '{2}' to {3}, which names nothing '{4}' declares. Write one of: {5}");
+
+    internal static readonly DiagnosticDescriptor MissingEntryProperty = Scene(
+        "CAP040",
+        "A scene document entry omits a required member",
+        "Scene document {0}: {1} omits '{2}', which '{3}' requires. Add \"{2}\" to the entry's properties, or drop Required = true from the member");
+
+    internal static readonly DiagnosticDescriptor InvalidAuthorableMember = Scene(
+        "CAP041",
+        "An [Authorable] member must be one a placement can set",
+        "'{0}' {1}");
 
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";

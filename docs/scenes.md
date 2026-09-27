@@ -26,13 +26,13 @@ class name wins when a value is both.
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 6 as two-space-indented UTF-8 JSON with LF endings and
+`SceneDocumentFile` reads and writes format version 7 as two-space-indented UTF-8 JSON with LF endings and
 one trailing newline. A canonical document is a fixed point of the importer. A document is one uniform
 list of entries:
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "size": [320, 192],
   "scrollCenter": [160, 288],
   "ambient": "#484c68",
@@ -61,7 +61,7 @@ list of entries:
       "zIndex": -10
     },
     { "id": 2, "type": "coin", "x": 8, "y": 0 },
-    { "id": 3, "type": "banner", "x": 32, "y": 0, "scale": [2, 3], "zIndex": 10 },
+    { "id": 3, "type": "banner", "x": 32, "y": 0, "rotation": 90, "scale": [2, 3], "zIndex": 10 },
     { "id": 4, "type": "hills", "x": 0, "y": 100, "zIndex": -20, "scrollFactor": [0.5, 1] }
   ],
   "nextEntityId": 5
@@ -88,8 +88,12 @@ code assigning that property still wins. The top-level keys run in the order `fo
   `"#rrggbb"`. There is no shorthand or named form.
 - `ambient` is a colour in the same form and sets `Scene.Ambient`.
 - `sampling` is `"linear"` or `"point"` and sets `Scene.Sampling`. Absent keeps the game's setting.
-- Every entry carries `id`, `type`, `x` and `y` in that order, all required. `scale`, `zIndex`,
-  `scrollFactor` and then `properties` follow where the entry carries them.
+- Every entry carries `id`, `type`, `x` and `y` in that order, all required. `rotation`, `scale`,
+  `zIndex`, `scrollFactor` and then `properties` follow where the entry carries them.
+- `rotation` is the turn in degrees, clockwise on screen, and absent is 0. The writer emits it only where
+  it is non-zero. The spawn carries it in radians to the entity's constructor, which applies it before its
+  own body runs and may override it. A class adding a collider or body to a turned entity fails there. A
+  `rotation` on a `tile-map` entry is rejected.
 - `scale` is `[x, y]`, both finite and greater than zero, and absent is identity. It is the raw authored
   factor, and the entity's constructor decides what it scales. A `scale` on a `tile-map` entry is rejected.
 - `zIndex` is the entry's draw band ([`rendering.md`](rendering.md#two-layers-and-draw-order)). The spawn
@@ -103,9 +107,8 @@ code assigning that property still wins. The top-level keys run in the order `fo
   empty.
 - A `source` block records tool, relative source path and SHA-256 of the source closure. Its presence marks
   a derived file, and an authoring source omits it.
-- `properties` is a contract per entry type, consumed by whatever constructs that entry, and not a
-  set-by-name bag. Only the engine's `tile-map` declares one. Properties on any other type are rejected at
-  parse.
+- `properties` is an object, and its contract belongs to the entry's type. The engine's `tile-map` declares
+  its own below, and a game entity's class declares the rest ([Properties](#properties)).
 
 Invalid documents throw `SceneDocumentFormatException`.
 
@@ -142,6 +145,10 @@ Every `type` other than `tile-map` names an entity class in the game's own logic
 scene claims a document. A concrete `Entity` with one public constructor taking an `EntitySpawn` (beside any
 other constructor) claims the key its namespace names, and `[SpawnType("key")]` names another key.
 
+The spawn is what every entity honours: position, rotation, scale, band and scroll factor. A property is
+what one class declares. Code places the same entity through the same constructor with
+`new EntitySpawn(position) { Rotation = turn }`, and that spawn has id 0 and no type.
+
 One rule covers entities, cameras and a document's `baseScene`: the type's namespace under the assembly's
 root namespace, minus a leading `Entities`, `Cameras` or `Scenes` segment and minus a trailing segment
 repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type
@@ -150,8 +157,24 @@ and `MyGame.Scenes.PlayableRoom` is the `baseScene` `playable-room`. A class cla
 leading segment, since the document's key is its path: `MyGame.Scenes.Stage1.Room01` claims
 `scenes/stage-1/room-01`.
 A type outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the
-scene at load. A claiming constructor that does
-not pass its spawn to a base constructor taking one is `CAP026` at that constructor.
+build (`CAP034`), and fails the scene at load in a document the build never saw. A claiming constructor that
+does not pass its spawn to a base constructor taking one is `CAP026` at that constructor.
+
+#### Properties
+
+An entry's `properties` object sets the members its class marks `[Authorable]`:
+
+```csharp
+[Authorable]
+public float Rise { get; set; } = 64f;
+```
+
+```json
+{ "id": 11, "type": "lift", "x": 496, "y": 170, "properties": { "rise": 40 } }
+```
+
+The XML documentation on `AuthorableAttribute` states which members qualify, how a key is named and each
+type's JSON form.
 
 ## From source to game
 

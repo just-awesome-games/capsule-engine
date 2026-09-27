@@ -14,7 +14,7 @@ public sealed class ScrollFieldsTests
     {
         string json = """
             {
-              "formatVersion": 6,
+              "formatVersion": 7,
               "scrollCenter": [
                 160,
                 90
@@ -114,7 +114,7 @@ public sealed class ScrollFieldsTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$"""
                 {
-                  "formatVersion": 6,
+                  "formatVersion": 7,
                   "entities": [
                     { "id": 1, "type": "coin", "x": 0, "y": 0, "scrollFactor": {{factor}} }
                   ],
@@ -133,7 +133,7 @@ public sealed class ScrollFieldsTests
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse($$"""
                 {
-                  "formatVersion": 6,
+                  "formatVersion": 7,
                   "scrollCenter": {{center}},
                   "entities": [],
                   "nextEntityId": 1

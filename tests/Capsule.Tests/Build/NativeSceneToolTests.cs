@@ -86,7 +86,7 @@ public sealed class NativeSceneToolTests
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 6, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 7, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         string errors = workspace.Fail();
 
@@ -106,23 +106,24 @@ public sealed class NativeSceneToolTests
         Assert.False(File.Exists(Shipped + "hall.scene.json.gz"));
     }
 
-    // Every shipped document reaches the generator with its baseScene and camera, and its key reaches
-    // the game as a constant.
+    // Every shipped document reaches the generator with its baseScene, camera and game entries, and its
+    // key reaches the game as a constant.
     [Fact]
     public void EveryDocument_IsHandedToTheGeneratorAndNamedInCode()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/Dev/Room_Wide.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "camera": "follow", "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/Dev/Room_Wide.scene.json", """{"formatVersion": 7, "baseScene": "playable-room", "camera": "follow", "entities": [], "nextEntityId": 1}""");
         workspace.Write("Assets/Scenes/room.scene.json", Authored);
 
         workspace.Succeed();
 
         string generated = workspace.Generated.Replace("\r\n", "\n", StringComparison.Ordinal);
-        Assert.Contains(
-            "[CapsuleGeneratedSceneDocument(BaseScene = \"playable-room\", Camera = \"follow\")]\n                public const string RoomWideScene = \"scenes/dev/room-wide\";",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains("[CapsuleGeneratedSceneDocument]\n            public const string RoomScene = \"scenes/room\";", generated, StringComparison.Ordinal);
+        Assert.Matches(
+            """\[CapsuleGeneratedSceneDocument\(Path = "[^"]*Assets/Scenes/Dev/Room_Wide\.scene\.json", BaseScene = "playable-room", Camera = "follow"\)\]\n +public const string RoomWideScene = "scenes/dev/room-wide";""",
+            generated);
+        Assert.Matches(
+            """\[CapsuleGeneratedSceneDocument\(Path = "[^"]*Assets/Scenes/room\.scene\.json"\)\]\n +\[CapsuleGeneratedPlacement\(2, "player", Line = \d+, Column = 5\)\]\n +public const string RoomScene = "scenes/room";""",
+            generated);
     }
 
     // A key that cannot be a member where it lands is refused by the build, never left to fail as a
@@ -135,7 +136,7 @@ public sealed class NativeSceneToolTests
         using ToolWorkspace workspace = new();
         foreach (string document in documents)
         {
-            workspace.Write(document, """{"formatVersion": 6, "entities": [], "nextEntityId": 1}""");
+            workspace.Write(document, """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
         }
 
         string errors = workspace.Fail();

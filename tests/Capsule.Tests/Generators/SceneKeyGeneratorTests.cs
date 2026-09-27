@@ -21,8 +21,8 @@ public sealed class SceneKeyGeneratorTests
             public abstract class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/a/b.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""),
-            ("scenes/a-b.scene.json", """{"formatVersion": 6, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/a/b.scene.json", """{"formatVersion": 7, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""),
+            ("scenes/a-b.scene.json", """{"formatVersion": 7, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 

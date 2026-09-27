@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
@@ -15,7 +16,9 @@ public readonly record struct SceneDocumentEntry
 {
     private readonly float _scaleX;
     private readonly float _scaleY;
+    private readonly float _rotationDegrees;
     private readonly string? _type;
+    private readonly JsonElement? _properties;
     private readonly TileGrid? _grid;
 
     private SceneDocumentEntry(EntityPlacement entity)
@@ -26,9 +29,11 @@ public readonly record struct SceneDocumentEntry
         Y = entity.Y;
         _scaleX = entity.ScaleX;
         _scaleY = entity.ScaleY;
+        _rotationDegrees = entity.RotationDegrees;
         ZIndex = entity.ZIndex;
         ScrollFactor = entity.ScrollFactor;
         _type = entity.Type;
+        _properties = entity.Properties;
     }
 
     private SceneDocumentEntry(TileMapPlacement tileMap)
@@ -64,7 +69,7 @@ public readonly record struct SceneDocumentEntry
 
     /// <summary>The game-defined entity placement, or null when this is a tile map.</summary>
     public EntityPlacement? Entity =>
-        Kind == SceneEntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY, ZIndex, ScrollFactor) : null;
+        Kind == SceneEntryKind.Entity ? new EntityPlacement(Id, _type!, X, Y, _scaleX, _scaleY, ZIndex, ScrollFactor, _rotationDegrees, _properties) : null;
 
     /// <summary>The engine-native tile-map placement, or null when this is a game entity.</summary>
     public TileMapPlacement? TileMap =>

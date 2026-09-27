@@ -13,6 +13,7 @@ internal static class Symbols
     internal const string Entity = "Capsule.Scenes.Entity";
     internal const string EntitySpawn = "Capsule.Scenes.Spawning.EntitySpawn";
     internal const string SpawnTypeAttribute = "Capsule.Scenes.Spawning.SpawnTypeAttribute";
+    internal const string AuthorableAttribute = "Capsule.Scenes.AuthorableAttribute";
     internal const string Scene = "Capsule.Scenes.Scene";
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
     internal const string SceneDocumentAttribute = "Capsule.Scenes.SceneDocumentAttribute";
@@ -73,58 +74,18 @@ internal static class Symbols
         return false;
     }
 
-    internal static int PublicConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
+    // Public constructors taking one parameter of the named type. The generated call site passes an lvalue,
+    // which binds to any of these ref kinds.
+    internal static List<IMethodSymbol> PublicConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
     {
         INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(parameterTypeName);
-        if (parameterType is null)
-        {
-            return 0;
-        }
 
-        int count = 0;
-
-        foreach (IMethodSymbol constructor in type.InstanceConstructors)
-        {
-            if (constructor.DeclaredAccessibility != Accessibility.Public || constructor.Parameters.Length != 1)
-            {
-                continue;
-            }
-
-            IParameterSymbol parameter = constructor.Parameters[0];
-
-            // The generated call site passes an lvalue, which binds to any of these ref kinds.
-            bool passable = parameter.RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter;
-            if (passable && SymbolEqualityComparer.Default.Equals(parameter.Type, parameterType))
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    // The single public constructor taking an EntitySpawn, or null when there are none or several.
-    internal static IMethodSymbol? SpawnConstructor(INamedTypeSymbol type, Compilation compilation)
-    {
-        INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(EntitySpawn);
-        IMethodSymbol? found = null;
-
-        foreach (IMethodSymbol constructor in type.InstanceConstructors)
-        {
-            if (constructor.DeclaredAccessibility == Accessibility.Public
+        return type.InstanceConstructors
+            .Where(constructor => constructor.DeclaredAccessibility == Accessibility.Public
                 && constructor.Parameters.Length == 1
+                && constructor.Parameters[0].RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter
                 && SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, parameterType))
-            {
-                if (found is not null)
-                {
-                    return null;
-                }
-
-                found = constructor;
-            }
-        }
-
-        return found;
+            .ToList();
     }
 
     // Whether the constructor's initializer passes an EntitySpawn on: a base(...) or this(...)

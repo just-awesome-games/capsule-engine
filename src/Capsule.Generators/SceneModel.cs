@@ -48,9 +48,18 @@ internal readonly record struct SceneModel(
 
 /// <summary>
 /// One scene document the build ships, keyed as the build keys it, with the two top-level fields
-/// <see cref="SceneRegistrySource"/> resolves before the document is otherwise read.
+/// <see cref="SceneRegistrySource"/> resolves before the document is otherwise read and the game entries
+/// <see cref="PlacementCheck"/> checks against each claiming class.
 /// </summary>
-internal readonly record struct SceneDocumentInfo(string Key, string? BaseScene, string? Camera);
+/// <param name="Source">The file an authoring module derived the document from, or null.</param>
+/// <param name="Path">The file the build read, where an entry's error is reported, or null.</param>
+internal readonly record struct SceneDocumentInfo(
+    string Key,
+    string? BaseScene,
+    string? Camera,
+    string? Source,
+    string? Path,
+    EquatableArray<PlacementModel> Placements);
 
 /// <summary>One class a scene document's <c>camera</c> key can name, and the key it claims by convention.</summary>
 internal readonly record struct CameraModel(

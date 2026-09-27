@@ -18,7 +18,7 @@ internal static class SceneDocumentFixtures
 
     /// <summary>An authored document of <see cref="TileMapEntry"/> alone.</summary>
     internal const string AuthoredTileMap = """
-        { "formatVersion": 6,
+        { "formatVersion": 7,
           "entities": [
         """ + TileMapEntry + """
          ],
@@ -27,7 +27,7 @@ internal static class SceneDocumentFixtures
 
     /// <summary>An authored document of <see cref="TileMapEntry"/> and one placed entity.</summary>
     internal const string AuthoredTileMapAndPlayer = """
-        { "formatVersion": 6,
+        { "formatVersion": 7,
           "entities": [
         """ + TileMapEntry + """
         ,
@@ -52,11 +52,11 @@ internal static class SceneDocumentFixtures
     // A tile-map entry with no properties, and the least grid that parses, which the defect theory
     // edits one field of per case.
     internal const string TileMapWithoutProperties =
-        """{"formatVersion": 6, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""";
+        """{"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""";
 
     internal const string Grid1x1 =
         """
-        {"formatVersion": 6, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
+        {"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
           "properties": {"tileSize": 16, "width": 1, "height": 1,
                          "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
         """;
@@ -80,17 +80,17 @@ internal static class SceneDocumentFixtures
         int nextEntityId = 2,
         string extra = "",
         string texture = "\"terrain.png\"",
-        string scale = "") =>
+        string tileMapField = "") =>
         $$"""
         {
-          "formatVersion": 6,
+          "formatVersion": 7,
           "entities": [
             {
               "id": 1,
               "type": "tile-map",
               "x": 0,
               "y": 0,
-              {{scale}}
+              {{tileMapField}}
               "properties": {
                 "tileSize": 16,
                 "width": 2,

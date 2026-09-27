@@ -13,10 +13,10 @@ public sealed class SceneDocumentParseTests
     [Theory]
     [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
     [InlineData("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""", "formatVersion 2 is unsupported")]
-    [InlineData("""{"formatVersion": 6, "nextEntityId": 1}""", "the scene document has no entities")]
-    [InlineData("""{"formatVersion": 6, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 7, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 7, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
     [InlineData(TileMapWithoutProperties, "declares no properties")]
-    [InlineData("""{"formatVersion": 6, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
+    [InlineData("""{"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
     [InlineData(Grid1x1, "anchored at the world origin", "\"x\": 0", "\"x\": 8")]
     [InlineData(Grid1x1, "tileSize must be positive", "\"tileSize\": 16", "\"tileSize\": 0")]
     [InlineData(Grid1x1, "the 'tile-map' entry has no id", "\"id\": 1,", "")]
@@ -42,7 +42,7 @@ public sealed class SceneDocumentParseTests
     public void Parse_RefusesAMalformedSettingWithTheKeyAndTheAcceptedForm(string field, string defect, string fix)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse($$"""{"formatVersion": 6, {{field}}, "entities": [], "nextEntityId": 1}"""));
+            () => SceneDocumentFile.Parse($$"""{"formatVersion": 7, {{field}}, "entities": [], "nextEntityId": 1}"""));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
         Assert.Contains(fix, error.Message, StringComparison.Ordinal);
@@ -67,7 +67,7 @@ public sealed class SceneDocumentParseTests
 
         SceneDocument document = SceneDocumentFile.Parse($$"""
             {
-              "formatVersion": 6,
+              "formatVersion": 7,
               "entities": [
                 {{first}},
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
@@ -129,8 +129,8 @@ public sealed class SceneDocumentParseTests
     // Ids share one space with the tile-map entry's, and nextEntityId is the next one to hand out.
     // An entry with no position would otherwise be placed at the origin, which is a position the
     // file never stated. An untyped entry would reach the entity registry as "", failing at boot
-    // naming nothing an author could act on. Properties are a contract per entry type, never a bag
-    // the reader sets by name.
+    // naming nothing an author could act on. A property number beyond double range has no C# literal
+    // for the build's check.
     [Theory]
     [InlineData(Coin + Coin, 3, "appears more than once")]
     [InlineData(""",{"id": 1, "type": "coin", "x": 8, "y": 0}""", 2, "entity id 1 appears more than once")]
@@ -140,13 +140,25 @@ public sealed class SceneDocumentParseTests
     [InlineData(""",{"id": 2, "type": "coin", "y": 0}""", 3, "entities[1] has no x")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8}""", 3, "entities[1] has no y")]
     [InlineData(""",{"id": 2, "x": 8, "y": 0}""", 3, "entity id 2 has no type")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"value": 5}}""", 3, "the type 'coin' has no properties contract")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": [5]}""", 3, "has properties that are not an object")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"reach": [1, 1e999]}}""", 3, "beyond the range of a double")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"reach": 1e999}}""", 3, "beyond the range of a double")]
+    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "rotation": 1e39}""", 3, "which is not a turn")]
     public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, int nextEntityId, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(DocumentText(entities: entities, nextEntityId: nextEntityId)));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    // A nested object never becomes a constant, so its numbers are left to the property's converter.
+    [Fact]
+    public void Parse_LeavesANonFiniteNumberInsideAnObjectPropertyToItsConverter()
+    {
+        SceneDocumentFile.Parse(DocumentText(
+            entities: """,{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"route": {"len": 1e999}}}""",
+            nextEntityId: 3));
     }
 
     [Fact]
@@ -193,17 +205,19 @@ public sealed class SceneDocumentParseTests
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 
-    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale here would
-    // be a factor the engine writes back and then ignores. Asked of the field's presence rather than
-    // its value: on value alone a null scale would parse and be written back without the field.
+    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale or a turn here
+    // would be a value the engine writes back and then ignores. Asked of the field's presence rather
+    // than its value: on value alone a null field would parse and be written back without it.
     [Theory]
-    [InlineData("\"scale\": [2, 2],")]
-    [InlineData("\"scale\": null,")]
-    public void Parse_RejectsAScaleOnTheTileMapEntry(string scale)
+    [InlineData("\"scale\": [2, 2],", "anchored and unscaled")]
+    [InlineData("\"scale\": null,", "anchored and unscaled")]
+    [InlineData("\"rotation\": 90,", "anchored and unturned")]
+    [InlineData("\"rotation\": null,", "anchored and unturned")]
+    public void Parse_RejectsAScaleOrRotationOnTheTileMapEntry(string field, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(scale: scale)));
+            () => SceneDocumentFile.Parse(DocumentText(tileMapField: field)));
 
-        Assert.Contains("anchored and unscaled", error.Message, StringComparison.Ordinal);
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 }

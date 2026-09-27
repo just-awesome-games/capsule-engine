@@ -85,6 +85,9 @@ public class Scene
     /// <exception cref="SpawnException">
     /// A placement's spawn type is claimed by no entity, or its class returned no entity.
     /// </exception>
+    /// <exception cref="SceneDocumentFormatException">
+    /// A placement's properties do not match its class's authorable members.
+    /// </exception>
     public Scene(SceneContent content)
     {
         ArgumentNullException.ThrowIfNull(content.Document);
@@ -110,14 +113,16 @@ public class Scene
             }
             else if (entry.Entity is { } placed)
             {
-                // The spawn applies band and factor ahead of the entity body.
-                Add(content.Entities.Create(new EntitySpawn(
-                    placed.Id,
-                    placed.Type,
-                    new Vector2(placed.X, placed.Y),
-                    new Vector2(placed.ScaleX, placed.ScaleY),
-                    placed.ZIndex,
-                    placed.ScrollFactor)));
+                EntitySpawn spawn = new(new Vector2(placed.X, placed.Y))
+                {
+                    Id = placed.Id,
+                    Type = placed.Type,
+                    Rotation = float.DegreesToRadians(placed.RotationDegrees),
+                    Scale = new Vector2(placed.ScaleX, placed.ScaleY),
+                    ZIndex = placed.ZIndex,
+                    ScrollFactor = placed.ScrollFactor,
+                };
+                Add(content.Entities.Create(spawn, new EntityProperties(placed)));
             }
         }
 

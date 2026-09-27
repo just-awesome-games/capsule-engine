@@ -265,7 +265,7 @@ public sealed class SceneStartTests
     private sealed class Seeker(EntitySpawn spawn, List<string> found) : Entity(spawn)
     {
         protected internal override void OnStart() =>
-            found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type);
+            found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type!);
     }
 
     private sealed class Thrower() : Entity(Vector2.Zero)

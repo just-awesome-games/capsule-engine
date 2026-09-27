@@ -24,6 +24,8 @@ internal static class SceneRegistrySource
     /// <summary>What the build marks each shipped scene document's key constant with.</summary>
     internal const string DocumentAttribute = "Capsule.Generated.CapsuleGeneratedSceneDocumentAttribute";
 
+    private const string PlacementAttribute = "CapsuleGeneratedPlacementAttribute";
+
     // A document's baseScene and camera are resolved against every Scene and Camera subclass the
     // assembly declares, so every one is modeled here whether or not a document ever names it.
     internal static SceneModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
@@ -38,7 +40,7 @@ internal static class SceneRegistrySource
         string displayName = type.ToDisplayString();
         bool concreteScene = Symbols.IsConcreteClass(type);
         int contentConstructors = concreteScene
-            ? Symbols.PublicConstructorsTaking(type, compilation, Symbols.SceneContent)
+            ? Symbols.PublicConstructorsTaking(type, compilation, Symbols.SceneContent).Count
             : 0;
         bool parameterless = concreteScene && Symbols.HasPublicParameterlessConstructor(type);
         AttributeData? annotation = Symbols.Attribute(type, compilation, Symbols.SceneDocumentAttribute);
@@ -349,19 +351,37 @@ internal static class SceneRegistrySource
 
         string? baseScene = null;
         string? camera = null;
+        string? source = null;
+        string? path = null;
         foreach (KeyValuePair<string, TypedConstant> named in marked.Attributes[0].NamedArguments)
         {
-            if (named.Key == "BaseScene")
+            switch (named.Key)
             {
-                baseScene = named.Value.Value as string;
-            }
-            else if (named.Key == "Camera")
-            {
-                camera = named.Value.Value as string;
+                case "BaseScene":
+                    baseScene = named.Value.Value as string;
+                    break;
+                case "Camera":
+                    camera = named.Value.Value as string;
+                    break;
+                case "Source":
+                    source = named.Value.Value as string;
+                    break;
+                case "Path":
+                    path = named.Value.Value as string;
+                    break;
             }
         }
 
-        return new SceneDocumentInfo(key, baseScene, camera);
+        ImmutableArray<PlacementModel>.Builder placements = ImmutableArray.CreateBuilder<PlacementModel>();
+        foreach (AttributeData attribute in marked.TargetSymbol.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name == PlacementAttribute && PlacementModel.From(attribute) is { } placement)
+            {
+                placements.Add(placement);
+            }
+        }
+
+        return new SceneDocumentInfo(key, baseScene, camera, source, path, new(placements.ToImmutable()));
     }
 
     private static string? ResolveCamera(SourceProductionContext context, SceneDocumentInfo document, Dictionary<string, CameraModel> cameras)

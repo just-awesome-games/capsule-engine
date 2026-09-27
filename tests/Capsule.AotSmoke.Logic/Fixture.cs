@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Capsule;
 using Capsule.Input;
@@ -82,5 +83,59 @@ public sealed class FixtureEntity : Entity
         : base(spawn)
     {
         Add(new SpriteRenderer(Visual));
+    }
+}
+
+// The authorable members NativeAOT can break: a private field and a generic base's member, which the generated
+// [UnsafeAccessor] setters reach, and a type read through the converter its declaration names. The constructor
+// reads every one of them.
+public sealed class Beacon : Signal<string>
+{
+    public const string Expected = "cave>vault 3 12";
+
+    public Beacon(EntitySpawn spawn)
+        : base(spawn)
+    {
+        Read = FormattableString.Invariant($"{Route.From}>{Route.To} {Band} {_charge * 4}");
+    }
+
+    // What the last constructed beacon read, for the shell to check after the run: a fixture's static.
+    public static string? Read { get; private set; }
+
+    [Authorable(Required = true)]
+    public Route Route { get; set; }
+
+    [Authorable]
+    private int _charge = 1;
+}
+
+public abstract class Signal<T> : Entity
+    where T : class
+{
+    protected Signal(EntitySpawn spawn)
+        : base(spawn)
+    {
+    }
+
+    [Authorable]
+    public int Band { get; protected set; } = 1;
+}
+
+[JsonConverter(typeof(RouteConverter))]
+public readonly record struct Route(string From, string To);
+
+public sealed class RouteConverter : JsonConverter<Route>
+{
+    public override Route Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string[] ends = (reader.GetString() ?? string.Empty).Split('>');
+
+        return ends.Length == 2 ? new Route(ends[0], ends[1]) : throw new JsonException("Write a route as from>to.");
+    }
+
+    public override void Write(Utf8JsonWriter writer, Route value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        writer.WriteStringValue(value.From + ">" + value.To);
     }
 }

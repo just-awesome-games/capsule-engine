@@ -17,7 +17,7 @@ namespace Capsule.Scenes.Documents;
 /// </remarks>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 6;
+    private const int FormatVersion = 7;
 
     private const string LinearSampling = "linear";
 
@@ -96,19 +96,28 @@ public static class SceneDocumentFile
                         $"the '{SceneDocument.TileMapType}' entry declares a scale. Terrain is anchored and unscaled. Remove the scale and set the grid's tileSize.");
                 }
 
+                if (entry.HasRotation)
+                {
+                    throw new SceneDocumentFormatException(
+                        $"the '{SceneDocument.TileMapType}' entry declares a rotation. Terrain is anchored and unturned. Remove the rotation, and turn single tiles with the grid's transforms.");
+                }
+
                 documentEntries[i] = ReadTileMap(entry, x, y, i);
                 continue;
             }
 
-            if (entry.Properties is not null)
-            {
-                throw new SceneDocumentFormatException(
-                    $"entities[{i}] declares properties, but the type '{type}' has no properties contract. Only '{SceneDocument.TileMapType}' declares one.");
-            }
-
             Scale(entry, i, out float scaleX, out float scaleY);
             documentEntries[i] = new EntityPlacement(
-                entry.Id ?? 0, type, x, y, scaleX, scaleY, entry.ZIndex, Pair(entry.ScrollFactor, $"entities[{i}]", "scrollFactor"));
+                entry.Id ?? 0,
+                type,
+                x,
+                y,
+                scaleX,
+                scaleY,
+                entry.ZIndex,
+                Pair(entry.ScrollFactor, $"entities[{i}]", "scrollFactor"),
+                entry.Rotation ?? 0f,
+                entry.Properties);
         }
 
         return new SceneDocument(
@@ -167,12 +176,14 @@ public static class SceneDocumentFile
                     X = placed.X,
                     Y = placed.Y,
 
-                    // An absent scale means identity, so skip the field when the scale is identity.
+                    // An absent rotation is unturned and an absent scale is identity, so skip either at its default.
+                    Rotation = placed.RotationDegrees == 0f ? null : placed.RotationDegrees,
                     Scale = placed.ScaleX == 1f && placed.ScaleY == 1f
                         ? null
                         : [placed.ScaleX, placed.ScaleY],
                     ZIndex = placed.ZIndex,
                     ScrollFactor = Pair(placed.ScrollFactor),
+                    Properties = placed.Properties,
                 };
             }
         }
@@ -220,6 +231,9 @@ public static class SceneDocumentFile
             new(new JsonSerializerOptions(SceneDocumentJsonContext.Default.Options) { WriteIndented = false });
     }
 
+    // A tile-map entry's type field as the indented writer emits it, at an entry's own depth.
+    private const string TileMapField = "\n      \"type\": \"" + SceneDocument.TileMapType + "\",";
+
     // Rewrites each tiles and transforms array to one line per grid row. The serializer writes one
     // index per line, which stretches a small map over hundreds of lines and hides its shape from an
     // editor.
@@ -235,11 +249,14 @@ public static class SceneDocumentFile
                 continue;
             }
 
+            // A game entry's properties may carry a "tiles" key of their own, so the search starts at this
+            // map's type field, written at an entry's own indent.
+            int from = json.IndexOf(TileMapField, cursor, StringComparison.Ordinal);
             TileGrid grid = tileMap.Grid;
-            cursor = GridRows(json, cursor, rewritten, "tiles", grid.Tiles.ToArray(), grid.Width);
+            cursor = GridRows(json, cursor, from, rewritten, "tiles", grid.Tiles.ToArray(), grid.Width);
             if (Transformed(grid) is { } transforms)
             {
-                cursor = GridRows(json, cursor, rewritten, "transforms", transforms, grid.Width);
+                cursor = GridRows(json, cursor, cursor, rewritten, "transforms", transforms, grid.Width);
             }
         }
 
@@ -248,10 +265,10 @@ public static class SceneDocumentFile
 
     // Copies the JSON up to the named array and writes the array one grid row per line. Returns where
     // the copy resumes.
-    private static int GridRows(string json, int cursor, StringBuilder rewritten, string name, int[] values, int width)
+    private static int GridRows(string json, int cursor, int from, StringBuilder rewritten, string name, int[] values, int width)
     {
         string key = $"\"{name}\": [";
-        int open = json.IndexOf(key, cursor, StringComparison.Ordinal);
+        int open = json.IndexOf(key, from, StringComparison.Ordinal);
         if (open < 0)
         {
             return cursor;
@@ -623,37 +640,46 @@ public static class SceneDocumentFile
         return points;
     }
 
-    // Rewrites each shape array onto one line. The serializer writes one number per line, which hides a
-    // polygon's points from a reader.
+    // Rewrites each palette shape of each tile map onto one line. The serializer writes one number per line,
+    // which hides a polygon's points from a reader. A game entry's properties may carry a "shape" of any form,
+    // so only a tile-map entry is searched, from its type field to its closing brace at an entry's indent.
     private static string ShapeLines(string json)
     {
         const string Key = "\"shape\": [";
+        const string EntryEnd = "\n    }";
         StringBuilder rewritten = new(json.Length);
         int cursor = 0;
 
-        while (json.IndexOf(Key, cursor, StringComparison.Ordinal) is var open and >= 0)
+        int end = 0;
+        while (json.IndexOf(TileMapField, end, StringComparison.Ordinal) is var map and >= 0)
         {
-            int close = open + Key.Length;
-            for (int depth = 1; depth > 0; close++)
+            end = json.IndexOf(EntryEnd, map, StringComparison.Ordinal);
+            int from = map;
+            while (json.IndexOf(Key, from, end - from, StringComparison.Ordinal) is var open and >= 0)
             {
-                depth += json[close] switch
+                int close = open + Key.Length;
+                for (int depth = 1; depth > 0; close++)
                 {
-                    '[' => 1,
-                    ']' => -1,
-                    _ => 0,
-                };
-            }
-
-            rewritten.Append(json, cursor, open - cursor).Append("\"shape\": ");
-            foreach (char character in json.AsSpan(open + Key.Length - 1, close - (open + Key.Length - 1)))
-            {
-                if (!char.IsWhiteSpace(character))
-                {
-                    rewritten.Append(character).Append(character == ',' ? " " : string.Empty);
+                    depth += json[close] switch
+                    {
+                        '[' => 1,
+                        ']' => -1,
+                        _ => 0,
+                    };
                 }
-            }
 
-            cursor = close;
+                rewritten.Append(json, cursor, open - cursor).Append("\"shape\": ");
+                foreach (char character in json.AsSpan(open + Key.Length - 1, close - (open + Key.Length - 1)))
+                {
+                    if (!char.IsWhiteSpace(character))
+                    {
+                        rewritten.Append(character).Append(character == ',' ? " " : string.Empty);
+                    }
+                }
+
+                cursor = close;
+                from = close;
+            }
         }
 
         return rewritten.Append(json, cursor, json.Length - cursor).ToString();

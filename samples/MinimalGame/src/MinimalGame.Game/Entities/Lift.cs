@@ -15,11 +15,14 @@ namespace MinimalGame.Game.Entities;
 public sealed class Lift : Entity
 {
     private static readonly Vector2 Size = new(32f, 6f);
-    private const float Rise = 64f;
     private const int SwingTicks = 150;
 
     private readonly Vector2 _bottom;
     private Tween _swing;
+
+    /// <summary>How far the lift climbs above where it rests, in world units. room.scene.json sets it per lift.</summary>
+    [Authorable]
+    public float Rise { get; set; } = 64f;
 
     public Lift(EntitySpawn spawn)
         : base(spawn)

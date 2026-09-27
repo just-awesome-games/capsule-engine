@@ -7,6 +7,10 @@ namespace Capsule.Scenes.Spawning;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate Entity EntitySpawner(EntitySpawn spawn);
 
+/// <summary>Sets the authorable members a placement authors, called by the base constructor.</summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public delegate void EntityApplier(Entity entity, EntityProperties properties);
+
 /// <summary>
 /// Maps each spawn type to the delegate that constructs its entity, fixed once built.
 /// </summary>
@@ -54,15 +58,22 @@ public sealed class EntityRegistry
     }
 
     // Throws SpawnException when no class claims the type, or the claiming class returned null.
-    internal Entity Create(EntitySpawn spawn)
+    internal Entity Create(EntitySpawn spawn, EntityProperties properties)
     {
-        if (!_entities.TryGetValue(spawn.Type, out EntityRegistration registered))
+        if (!_entities.TryGetValue(spawn.Type!, out EntityRegistration registered))
         {
             throw new SpawnException(
                 $"spawn type '{spawn.Type}' (entity id {spawn.Id}) is claimed by no entity. A class claims "
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
                 + "Capsule.Scenes.Spawning.EntitySpawn. The type is the key its namespace names unless "
-                + $"[SpawnType] gives one. Claimed: {KnownTypes()}.");
+                + "[SpawnType] gives one. A class with a C# required member is placed in code only. "
+                + $"Claimed: {KnownTypes()}.");
+        }
+
+        // The spawn carries the entry to the base constructor, which applies it before the derived body.
+        if (registered.Apply is { } apply)
+        {
+            spawn = spawn with { Properties = properties, Apply = apply };
         }
 
         return registered.Spawner(spawn)

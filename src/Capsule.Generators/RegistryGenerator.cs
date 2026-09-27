@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -102,8 +103,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Select(static (candidate, _) => candidate.Camera!.Value);
 
         // Every scene document the build shipped, whether or not a class claims it, with the
-        // baseScene and camera keys it authors, resolved once by the build's own parser. The build
-        // marks each document's key constant in CapsuleAssets with them.
+        // baseScene, camera and game entries it authors, resolved once by the build's own parser. The
+        // build marks each document's key constant in CapsuleAssets with them.
         IncrementalValuesProvider<SceneDocumentInfo> documents = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 SceneRegistrySource.DocumentAttribute,
@@ -122,10 +123,45 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Combine(context.CompilationProvider.Select(static (compilation, _) => compilation.AssemblyName ?? string.Empty))
             .Select(static (input, _) => input.Left ?? input.Right);
 
+        // Each [Authorable] member is checked where it is declared, whether or not a class spawns it.
+        IncrementalValuesProvider<AuthorableFault> authorable = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                Symbols.AuthorableAttribute,
+                static (node, _) => node is PropertyDeclarationSyntax or VariableDeclaratorSyntax,
+                static (marked, _) => PropertySchema.FaultOf(marked.TargetSymbol, marked.SemanticModel.Compilation))
+            .Where(static fault => fault is not null)
+            .Select(static (fault, _) => fault!.Value);
+
+        context.RegisterSourceOutput(authorable, static (production, fault) => production.ReportDiagnostic(fault.Refusal is { } refusal
+            ? Diagnostic.Create(RegistryDiagnostics.InvalidAuthorableMember, fault.At.Location(), fault.Member, refusal)
+            : Diagnostic.Create(RegistryDiagnostics.DuplicateAuthorableKey, fault.At.Location(), fault.Member, fault.Key, fault.Clash)));
+
+        // Each writable [Authorable] field, whose readonly advice AuthorableSuppressor explains and suppresses.
+        IncrementalValueProvider<ImmutableArray<string>> writtenFields = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                Symbols.AuthorableAttribute,
+                static (node, _) => node is VariableDeclaratorSyntax,
+                static (marked, _) => marked.TargetSymbol is IFieldSymbol { IsReadOnly: false, IsStatic: false } field
+                    ? field.GetDocumentationCommentId()
+                    : null)
+            .Where(static id => id is not null)
+            .Select(static (id, _) => id!)
+            .Collect();
+
+        context.RegisterSourceOutput(writtenFields, static (production, fields) =>
+        {
+            if (fields.Length > 0)
+            {
+                production.AddSource("CapsuleAuthorable.g.cs", SourceText.From(AuthorableSuppressor.ReadonlySuppressions(fields), Encoding.UTF8));
+            }
+        });
+
+        // Every entry of every document is checked against the class claiming its type here.
         context.RegisterSourceOutput(
-            entities.Collect().Combine(registries).Combine(rootNamespace),
+            entities.Collect().Combine(registries).Combine(rootNamespace).Combine(documents.Collect()),
             static (production, input) =>
-                EntityRegistrySource.Emit(production, input.Left.Left, input.Left.Right, input.Right));
+                EntityRegistrySource.Emit(
+                    production, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(
             scenes.Collect()

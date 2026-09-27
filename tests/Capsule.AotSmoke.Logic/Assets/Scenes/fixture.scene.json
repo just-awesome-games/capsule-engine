@@ -1,5 +1,5 @@
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "entities": [
     {
       "id": 1,
@@ -31,7 +31,18 @@
           1
         ]
       }
+    },
+    {
+      "id": 3,
+      "type": "beacon",
+      "x": 0,
+      "y": 0,
+      "properties": {
+        "route": "cave>vault",
+        "band": 3,
+        "charge": 3
+      }
     }
   ],
-  "nextEntityId": 3
+  "nextEntityId": 4
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 
 namespace Capsule.Scenes.Documents;
 
@@ -22,6 +23,14 @@ namespace Capsule.Scenes.Documents;
 /// <see cref="Spawning.EntitySpawn.ScrollFactor"/>, and the base constructor applies it before the subclass
 /// body runs.
 /// </param>
+/// <param name="RotationDegrees">
+/// The authored turn in degrees, clockwise on screen, where 0 is unturned. It reaches the entity's
+/// constructor in radians as <see cref="Spawning.EntitySpawn.Rotation"/>.
+/// </param>
+/// <param name="Properties">
+/// The authored <c>properties</c> object, or null when the placement authors none. Each key sets the
+/// claiming class's authorable member of that name, camel-cased.
+/// </param>
 public readonly record struct EntityPlacement(
     int Id,
     string Type,
@@ -30,4 +39,6 @@ public readonly record struct EntityPlacement(
     float ScaleX = 1f,
     float ScaleY = 1f,
     int? ZIndex = null,
-    Vector2? ScrollFactor = null);
+    Vector2? ScrollFactor = null,
+    float RotationDegrees = 0f,
+    JsonElement? Properties = null);

@@ -162,21 +162,9 @@ internal static class SceneFixtures
 
     internal sealed class SpawnScene : Scene
     {
-        internal SpawnScene(EntityRegistry entities, params EntitySpawn[] spawns)
-            : base(Content(Placements(spawns), entities))
+        internal SpawnScene(EntityRegistry entities, params EntityPlacement[] placements)
+            : base(Content(RoomWithoutTerrain(placements), entities))
         {
-        }
-
-        private static SceneDocument Placements(EntitySpawn[] spawns)
-        {
-            EntityPlacement[] placements = new EntityPlacement[spawns.Length];
-            for (int index = 0; index < spawns.Length; index++)
-            {
-                EntitySpawn spawn = spawns[index];
-                placements[index] = new EntityPlacement(spawn.Id, spawn.Type, spawn.Position.X, spawn.Position.Y);
-            }
-
-            return RoomWithoutTerrain(placements);
         }
     }
 
