@@ -36,7 +36,10 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
+      # Format takes no MSBuild properties, and its workspace must match the Release build above.
       - name: Format
+        env:
+          Configuration: Release
         run: dotnet format --verify-no-changes --no-restore
 
       - name: Test
@@ -50,7 +53,6 @@ jobs:
           --configuration Release
           --no-build
           --no-restore
-          -- --saves ${{ runner.temp }}/capsule-smoke-ordinary
 
       - name: Pack
         run: >
@@ -141,4 +143,4 @@ jobs:
           --output artifacts/aot-smoke
 
       - name: Run the published smoke binary
-        run: ${{ matrix.smoke-binary }} --saves ${{ runner.temp }}/capsule-smoke-saves
+        run: ${{ matrix.smoke-binary }}
