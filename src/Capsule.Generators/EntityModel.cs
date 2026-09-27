@@ -15,6 +15,8 @@ internal enum EntityFault
 /// <param name="Declared">The key <c>[SpawnType]</c> names, or null when the type claims one by convention.</param>
 /// <param name="At">Where a fault about this model is reported.</param>
 /// <param name="Properties">What a document entry's keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
+/// <param name="AssignableTo">What a reference member naming this entity may declare, as <see cref="PropertySchema.AssignableTo"/> finds it.</param>
+/// <param name="SpawnModifier">How the spawn constructor takes its spawn: empty, <c>in </c> or <c>ref readonly </c>.</param>
 internal readonly record struct EntityModel(
     string QualifiedName,
     string DisplayName,
@@ -23,8 +25,13 @@ internal readonly record struct EntityModel(
     string? Declared,
     EntityFault Fault,
     DeclaredAt At,
-    EquatableArray<PropertyModel> Properties)
+    EquatableArray<PropertyModel> Properties,
+    EquatableArray<string> AssignableTo,
+    string SpawnModifier)
 {
-    // The generated new T(spawn) cannot satisfy C#'s required, so only code places such a class.
-    internal bool CodeOnly => Properties.Items.Any(static property => property.RequiredKeyword);
+    // Only code satisfies C#'s required on a member no placement sets, so only code places such a class.
+    internal bool CodeOnly => Properties.Items.Any(static property => property.CodeOnly);
+
+    // A class whose placement sets C#'s required members is constructed past the compiler's check.
+    internal bool Required => Properties.Items.Any(static property => property.RequiredKeyword);
 }

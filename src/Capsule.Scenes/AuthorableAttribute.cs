@@ -9,8 +9,9 @@ namespace Capsule.Scenes;
 /// with a leading underscore dropped: <c>Speed</c> and <c>_speed</c> are both <c>"speed"</c>.
 /// </para>
 /// <para>
-/// An authored value is set before the derived constructor body runs, like the position. A key the entry
-/// omits leaves the member's initializer, as does every member of a spawn built in code.
+/// An authored value is set before the derived constructor body runs, like the position. An entity reference
+/// is the exception and is set once every entry is constructed. A key the entry omits leaves the member's
+/// initializer, as does every member of a spawn built in code.
 /// </para>
 /// <list type="table">
 /// <listheader><term>Member type</term><description>JSON form</description></listheader>
@@ -35,6 +36,10 @@ namespace Capsule.Scenes;
 /// <item>
 /// <term>a type declaring <see cref="System.Text.Json.Serialization.JsonConverterAttribute"/></term>
 /// <description>the form its converter reads</description>
+/// </item>
+/// <item>
+/// <term>an <see cref="Entity"/> subclass or an interface</term>
+/// <description>the target entry's id, read from <see cref="Entity.OnStart"/> on</description>
 /// </item>
 /// </list>
 /// <para>
@@ -73,8 +78,8 @@ public sealed class AuthorableAttribute : Attribute
     /// <summary>Whether every document placement must author the member.</summary>
     /// <remarks>
     /// A spawn built in code still leaves the initializer. Give a required member of a reference type a
-    /// usable one, such as <c>string.Empty</c>. Use this rather than C#'s <see langword="required"/>
-    /// modifier, which the generated constructor call cannot satisfy.
+    /// usable one, such as <c>string.Empty</c>. A mandatory entity reference uses C#'s <see langword="required"/>
+    /// instead, since code and the scene both set it after construction. This property is for every other member.
     /// </remarks>
     public bool Required { get; set; }
 }

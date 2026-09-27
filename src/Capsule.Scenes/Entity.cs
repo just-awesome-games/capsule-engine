@@ -86,8 +86,8 @@ public partial class Entity
     /// <summary>
     /// Places the entity from a document placement or a spawn built in code. The position,
     /// <see cref="Rotation"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/> and every
-    /// <see cref="AuthorableAttribute"/> value a placement authors land before the subclass constructor
-    /// body runs, and writes in that body override them.
+    /// <see cref="AuthorableAttribute"/> value except an entity reference land before the subclass
+    /// constructor body runs, and writes in that body override them.
     /// </summary>
     /// <remarks>
     /// <see cref="EntitySpawn.Scale"/> is left to the subclass. An entity with a different anchor adjusts

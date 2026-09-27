@@ -147,7 +147,8 @@
       "x": 496,
       "y": 170,
       "properties": {
-        "rise": 40
+        "rise": 40,
+        "running": false
       }
     },
     {
@@ -162,7 +163,16 @@
         ],
         "text": "Space: jump"
       }
+    },
+    {
+      "id": 13,
+      "type": "floor-switch",
+      "x": 472,
+      "y": 172,
+      "properties": {
+        "lift": 11
+      }
     }
   ],
-  "nextEntityId": 13
+  "nextEntityId": 14
 }

@@ -77,6 +77,31 @@ public sealed class TileMapTests
     }
 
     [Fact]
+    public void ATilemapsMaterial_DrawsEveryTile_AndLoadsWithTheScene()
+    {
+        Material stone = new(new Shader("effects/stone"));
+        TileGrid grid = new(
+            8,
+            2,
+            1,
+            [TileGrid.EmptyTile, new TileDefinition("solid", 3)],
+            [1, 1],
+            SceneFixtures.Atlas,
+            2);
+
+        TileMap tiles = new(grid) { Material = stone };
+        Scene scene = new();
+        scene.Add(tiles);
+        SceneFixtures.Open(scene, tiles.Size / 2f, tiles.Size);
+        SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(2, simulation.View.Sprites.Length);
+        Assert.Equal([new MaterialRun(0, stone)], simulation.View.MaterialRuns.ToArray());
+        Assert.Equal([stone.Shader], scene.CollectAssetPreloads().Shaders);
+    }
+
+    [Fact]
     public void TerrainEmitsOnlyTilesCrossingTheCamera()
     {
         Scene scene = new();

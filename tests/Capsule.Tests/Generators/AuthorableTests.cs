@@ -155,7 +155,7 @@ public sealed class AuthorableTests
             public override float Rise { get => base.Rise; set => base.Rise = value * 2f; }
         }
 
-        // Placed from code only, since the generated new T(spawn) cannot satisfy C#'s required.
+        // Placed from code only, since only code satisfies C#'s required on a member no placement sets.
         public sealed class Crane(EntitySpawn spawn) : Entity(spawn)
         {
             public required Entity Owner { get; init; }
@@ -229,14 +229,14 @@ public sealed class AuthorableTests
     {
         SpawnException failure = Assert.Throws<SpawnException>(() => Composed("""{"id": 3, "type": "crane", "x": 0, "y": 0}"""));
 
-        Assert.Contains("A class with a C# required member is placed in code only", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("A class with a C# required member other than an entity reference is placed in code only", failure.Message, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("[Authorable] public readonly float Stops = 64f;", "is readonly. Drop readonly, or drop [Authorable]", "")]
     [InlineData("[Authorable] public int Stops => 1;", "has no setter. Add a set or init accessor of any access", "")]
     [InlineData("[Authorable] public static int Stops { get; set; }", "is static. A placement sets one entity's member", "")]
-    [InlineData("[Authorable] public required int Stops { get; init; }", "is required, which the generated new T(spawn) cannot satisfy. Drop required and write [Authorable(Required = true)]", "")]
+    [InlineData("[Authorable] public required int Stops { get; init; }", "is required, which only an entity reference carries. Drop required and write [Authorable(Required = true)]", "")]
     [InlineData("[Authorable] public System.Collections.Generic.List<int> Stops { get; set; } = [];", "has type 'System.Collections.Generic.List<int>', which a scene document cannot carry", "")]
     [InlineData("[Authorable] public Sides Stops { get; set; }", "has type 'Game.Sides', which a scene document cannot carry", "[System.Flags] public enum Sides { None = 0, Left = 1 }")]
     [InlineData("[Authorable] public Sides Stops { get; set; } = Sides.Up;", "has type 'Game.Sides', which a scene document cannot carry", "public sealed class Sides { public static readonly Sides Up = new(); }")]

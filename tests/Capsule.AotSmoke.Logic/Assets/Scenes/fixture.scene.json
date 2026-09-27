@@ -40,7 +40,8 @@
       "properties": {
         "route": "cave>vault",
         "band": 3,
-        "charge": 3
+        "charge": 3,
+        "anchor": 1
       }
     }
   ],

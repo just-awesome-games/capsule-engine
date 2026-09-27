@@ -7,7 +7,7 @@ namespace Capsule.Scenes.Spawning;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate Entity EntitySpawner(EntitySpawn spawn);
 
-/// <summary>Sets the authorable members a placement authors, called by the base constructor.</summary>
+/// <summary>Sets the authorable members a placement authors.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate void EntityApplier(Entity entity, EntityProperties properties);
 
@@ -66,7 +66,7 @@ public sealed class EntityRegistry
                 $"spawn type '{spawn.Type}' (entity id {spawn.Id}) is claimed by no entity. A class claims "
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
                 + "Capsule.Scenes.Spawning.EntitySpawn. The type is the key its namespace names unless "
-                + "[SpawnType] gives one. A class with a C# required member is placed in code only. "
+                + "[SpawnType] gives one. A class with a C# required member other than an entity reference is placed in code only. "
                 + $"Claimed: {KnownTypes()}.");
         }
 
@@ -79,6 +79,10 @@ public sealed class EntityRegistry
         return registered.Spawner(spawn)
             ?? throw new SpawnException($"the class claiming spawn type '{spawn.Type}' returned no entity.");
     }
+
+    // The delegate setting the entity references of a class claiming the type, or null when it holds none.
+    internal EntityApplier? Link(string type) =>
+        _entities.TryGetValue(type, out EntityRegistration registered) ? registered.Link : null;
 
     private string KnownTypes() => Registered.Names(_entities.Keys);
 }

@@ -1,6 +1,5 @@
 {
   "formatVersion": 7,
-  "baseScene": "playable-scene",
   "camera": "game-camera",
   "entities": [
     {

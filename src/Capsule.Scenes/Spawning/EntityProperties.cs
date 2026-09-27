@@ -28,7 +28,14 @@ public readonly struct EntityProperties
 
     private readonly EntityPlacement _entry;
 
-    internal EntityProperties(EntityPlacement entry) => _entry = entry;
+    // Every game entry of the document by id, which a reference resolves against, or null before all are constructed.
+    private readonly Dictionary<int, Entity>? _placed;
+
+    internal EntityProperties(EntityPlacement entry, Dictionary<int, Entity>? placed = null)
+    {
+        _entry = entry;
+        _placed = placed;
+    }
 
     /// <summary>Whether the entry authors <paramref name="key"/>, as a JSON null included.</summary>
     public bool Has(string key) => Find(key, out _);
@@ -129,6 +136,29 @@ public readonly struct EntityProperties
                 $"{Entry} sets '{key}' to {Found(value)}, which {typeof(TConverter).Name} could not read as {typeof(T).Name}: {cause.Message} Write the value in the form that converter reads.",
                 cause);
         }
+    }
+
+    /// <summary>
+    /// Reads the entity an entry id names, which must be a <typeparamref name="T"/> placed by the same
+    /// document. The applier of references reads it once every entry is constructed.
+    /// </summary>
+    public T Entity<T>(string key)
+        where T : class
+    {
+        JsonElement value = Authored(key);
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int id))
+        {
+            throw Mismatch(key, typeof(T).Name, "an entity id, a whole number");
+        }
+
+        if (_placed is null || !_placed.TryGetValue(id, out Entity? target))
+        {
+            throw new SceneDocumentFormatException(
+                $"{Entry} sets '{key}' to {id}, which names no entity in the document. Write the id of an entity entry.");
+        }
+
+        return target as T ?? throw new SceneDocumentFormatException(
+            $"{Entry} sets '{key}' to entity {id}, a {target.GetType().Name}, but the member takes {typeof(T).Name}. Write the id of an entity that is a {typeof(T).Name}.");
     }
 
     private string Entry => $"entity id {_entry.Id} ('{_entry.Type}')";

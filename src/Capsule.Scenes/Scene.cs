@@ -93,6 +93,8 @@ public class Scene
         ArgumentNullException.ThrowIfNull(content.Document);
         ArgumentNullException.ThrowIfNull(content.Entities);
 
+        // References are set once every entry is constructed. A reference may name a later entry.
+        Dictionary<int, Entity> placed = [];
         foreach (SceneDocumentEntry entry in content.Document.Entries)
         {
             if (entry.TileMap is { } tileMap)
@@ -111,18 +113,28 @@ public class Scene
                 Add(tiles);
                 Size = Vector2.Max(Size, tiles.Size);
             }
-            else if (entry.Entity is { } placed)
+            else if (entry.Entity is { } placement)
             {
-                EntitySpawn spawn = new(new Vector2(placed.X, placed.Y))
+                EntitySpawn spawn = new(new Vector2(placement.X, placement.Y))
                 {
-                    Id = placed.Id,
-                    Type = placed.Type,
-                    Rotation = float.DegreesToRadians(placed.RotationDegrees),
-                    Scale = new Vector2(placed.ScaleX, placed.ScaleY),
-                    ZIndex = placed.ZIndex,
-                    ScrollFactor = placed.ScrollFactor,
+                    Id = placement.Id,
+                    Type = placement.Type,
+                    Rotation = float.DegreesToRadians(placement.RotationDegrees),
+                    Scale = new Vector2(placement.ScaleX, placement.ScaleY),
+                    ZIndex = placement.ZIndex,
+                    ScrollFactor = placement.ScrollFactor,
                 };
-                Add(content.Entities.Create(spawn, new EntityProperties(placed)));
+                Entity entity = content.Entities.Create(spawn, new EntityProperties(placement));
+                Add(entity);
+                placed.Add(placement.Id, entity);
+            }
+        }
+
+        foreach (SceneDocumentEntry entry in content.Document.Entries)
+        {
+            if (entry.Entity is { } placement && content.Entities.Link(placement.Type) is { } link)
+            {
+                link(placed[placement.Id], new EntityProperties(placement, placed));
             }
         }
 

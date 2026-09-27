@@ -24,6 +24,10 @@ public sealed class Lift : Entity
     [Authorable]
     public float Rise { get; set; } = 64f;
 
+    /// <summary>Whether the lift swings, defaulting to true.</summary>
+    [Authorable]
+    public bool Running { get; set; } = true;
+
     public Lift(EntitySpawn spawn)
         : base(spawn)
     {
@@ -35,6 +39,11 @@ public sealed class Lift : Entity
 
     protected override void OnStep(in StepContext context)
     {
+        if (!Running)
+        {
+            return;
+        }
+
         _swing.Step();
         Position = _bottom - new Vector2(0f, Rise * _swing.Value);
     }

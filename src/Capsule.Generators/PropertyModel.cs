@@ -13,6 +13,9 @@ internal enum PropertyKind
 
     // A type declaring [JsonConverter], read through that converter at load.
     Converted,
+
+    // An entity class or an interface, written as the id of another entry and set once every entry is constructed.
+    Reference,
 }
 
 /// <summary>
@@ -20,8 +23,10 @@ internal enum PropertyKind
 /// placement sets, or a member it cannot set with the reason why.
 /// </summary>
 /// <param name="Key">The member's name camel-cased, a field's leading underscore dropped, which is its JSON key.</param>
-/// <param name="Required">Whether <c>[Authorable(Required = true)]</c> makes every placement set it.</param>
-/// <param name="RequiredKeyword">Whether the member carries C#'s <c>required</c>, which only code satisfies.</param>
+/// <param name="Required">
+/// Whether every placement must set it: <c>[Authorable(Required = true)]</c>, or C#'s <c>required</c> on an entity reference.
+/// </param>
+/// <param name="RequiredKeyword">Whether the member carries C#'s <c>required</c>.</param>
 /// <param name="Direct">Whether generated code assigns it in plain C#, where otherwise an accessor sets it.</param>
 /// <param name="Declaring">
 /// The fully qualified type declaring the member, which its accessor takes. A generic type is written with
@@ -60,6 +65,9 @@ internal readonly record struct PropertyModel(
     DeclaredAt At)
 {
     internal bool Settable => Refusal is null && Clash is null;
+
+    // C#'s required on anything but an [Authorable] entity reference, which only code can satisfy.
+    internal bool CodeOnly => RequiredKeyword && !(Authorable && Kind == PropertyKind.Reference);
 }
 
 /// <summary>An [Authorable] member no placement can set, or the later of two taking one key.</summary>
@@ -89,16 +97,40 @@ internal static class PropertySchema
             value is string text && text.Length is 7 or 9 && text[0] == '#' && text.Skip(1).All(Uri.IsHexDigit)),
     ];
 
+    /// <summary>What an entity reference is written as, as a build failure names it.</summary>
+    internal const string ReferenceForm = "an entity id, a whole number";
+
     private const string ConverterAttribute = "System.Text.Json.Serialization.JsonConverterAttribute";
     private const string Converter = "System.Text.Json.Serialization.JsonConverter`1";
     private const string Flags = "System.FlagsAttribute";
 
     private static readonly string Supported =
-        $"Use {string.Join(", ", BuiltIns.Select(static form => form.Type.Replace("global::", string.Empty)))}, a non-[Flags] enum or a nullable of one of those, "
+        $"Use {string.Join(", ", BuiltIns.Select(static form => form.Type.Replace("global::", string.Empty)))}, a non-[Flags] enum or a nullable of one of those, an Entity class or an interface, "
         + "declare [JsonConverter(typeof(...))] on the type, or give a readonly struct, or a record class without settable members, "
         + "public static readonly fields of its own type for a document to name";
 
     internal static BuiltInForm? BuiltIn(string type) => Array.Find(BuiltIns, form => form.Type == type);
+
+    /// <summary>Whether a member of <paramref name="type"/> names another entry: an entity class or any interface.</summary>
+    internal static bool IsReference(ITypeSymbol type, Compilation compilation) =>
+        type.TypeKind == TypeKind.Interface
+        || (type is INamedTypeSymbol { TypeKind: TypeKind.Class } named
+            && (named.ToDisplayString() == Symbols.Entity || Symbols.DerivesFrom(named, compilation, Symbols.Entity)));
+
+    /// <summary>
+    /// Every type a member taking an entity of <paramref name="type"/> may declare: the class, its base classes and
+    /// its interfaces, fully qualified.
+    /// </summary>
+    internal static EquatableArray<string> AssignableTo(INamedTypeSymbol type)
+    {
+        IEnumerable<INamedTypeSymbol> types = type.AllInterfaces;
+        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
+            types = types.Append(current);
+        }
+
+        return new(types.Select(static assignable => assignable.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).ToImmutableArray());
+    }
 
     /// <summary>
     /// Every field and property of <paramref name="type"/> and its game base classes that a key could name,
@@ -194,9 +226,13 @@ internal static class PropertySchema
 
         (PropertyKind kind, string? converter, EquatableArray<(string, string)> names, string? unsupported) =
             Classify(type, nullable && type.IsValueType, compilation);
+        bool reference = kind == PropertyKind.Reference;
+        bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
         string? refusal = mark is null
             ? "is not [Authorable]. Mark it [Authorable] for a placement to set it"
-            : Misuse(member, keyword) ?? unsupported;
+            : Misuse(member, keyword && !reference)
+                ?? (reference && marked ? "is an entity reference, which Required = true does not mark. Drop Required = true and write C#'s required instead" : null)
+                ?? unsupported;
 
         List<INamedTypeSymbol> owners = [];
         for (INamedTypeSymbol? owner = member.ContainingType; owner is not null; owner = owner.ContainingType)
@@ -208,7 +244,7 @@ internal static class PropertySchema
             member.Name,
             CamelCase(member is IFieldSymbol && member.Name.StartsWith("_", StringComparison.Ordinal) ? member.Name.Substring(1) : member.Name),
             mark is not null,
-            mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false,
+            marked || (keyword && reference),
             keyword,
             member is IFieldSymbol,
             direct,
@@ -242,7 +278,7 @@ internal static class PropertySchema
         { IsStatic: true } => "is static. A placement sets one entity's member. Make it an instance member, or drop [Authorable]",
         IFieldSymbol { IsReadOnly: true } => "is readonly. Drop readonly, or drop [Authorable]",
         IPropertySymbol { SetMethod: null } => "has no setter. Add a set or init accessor of any access, or drop [Authorable]",
-        _ when keyword => "is required, which the generated new T(spawn) cannot satisfy. Drop required and write [Authorable(Required = true)]",
+        _ when keyword => "is required, which only an entity reference carries. Drop required and write [Authorable(Required = true)]",
         _ => null,
     };
 
@@ -256,7 +292,7 @@ internal static class PropertySchema
         return where < 0 ? string.Empty : display.Substring(where);
     }
 
-    // A built-in form first, then a converter the type declares, then the type's own definitions.
+    // A built-in form first, then an entity reference, then a converter the type declares, then the type's own definitions.
     private static (PropertyKind Kind, string? Converter, EquatableArray<(string, string)> Names, string? Refusal) Classify(
         ITypeSymbol type,
         bool nullableValue,
@@ -266,6 +302,11 @@ internal static class PropertySchema
         if (BuiltIn(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)) is not null)
         {
             return (PropertyKind.BuiltIn, null, default, null);
+        }
+
+        if (IsReference(type, compilation))
+        {
+            return (PropertyKind.Reference, null, default, null);
         }
 
         if (type is not INamedTypeSymbol named)

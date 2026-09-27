@@ -31,6 +31,8 @@ public sealed class TileMap : Entity
     private readonly int[] _cells;
     private readonly TileTransform[] _transforms;
 
+    private readonly VisibleTiles _tiles;
+
     private CollisionWorld2D? _world;
 
     // The collider's profile index for each palette entry and transform, at (palette * Count) +
@@ -49,7 +51,8 @@ public sealed class TileMap : Entity
         _transforms = grid.Transforms.ToArray();
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 
-        Add(new VisibleTiles(grid, _cells, _transforms));
+        _tiles = new VisibleTiles(grid, _cells, _transforms);
+        Add(_tiles);
     }
 
     /// <summary>The edge length of one tile, taken from <see cref="TileGrid.TileSize"/>.</summary>
@@ -63,6 +66,18 @@ public sealed class TileMap : Entity
 
     /// <summary>How many world units the grid spans, measured from the world origin.</summary>
     public Vector2 Size { get; }
+
+    /// <summary>The material every tile draws with, and null for the engine's own sprite shader, the default.</summary>
+    /// <remarks>
+    /// The map switches to it once, not per tile. <see cref="Entity.Tint"/> and <see cref="Entity.Flash"/>
+    /// still apply. A material set in the scene's constructor loads with the scene, and one set later
+    /// loads on its first draw.
+    /// </remarks>
+    public Material? Material
+    {
+        get => _tiles.Material;
+        set => _tiles.Material = value;
+    }
 
     internal override bool Collides => _grid.Collides;
 

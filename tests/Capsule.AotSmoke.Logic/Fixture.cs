@@ -87,8 +87,8 @@ public sealed class FixtureEntity : Entity
 }
 
 // The authorable members NativeAOT can break: a private field and a generic base's member, which the generated
-// [UnsafeAccessor] setters reach, and a type read through the converter its declaration names. The constructor
-// reads every one of them.
+// [UnsafeAccessor] setters reach, a type read through the converter its declaration names, and an entity
+// reference. The constructor reads every one of them but the reference, which OnStart reads.
 public sealed class Beacon : Signal<string>
 {
     public const string Expected = "cave>vault 3 12";
@@ -102,11 +102,19 @@ public sealed class Beacon : Signal<string>
     // What the last constructed beacon read, for the shell to check after the run: a fixture's static.
     public static string? Read { get; private set; }
 
+    // Whether the last started beacon held the entity its entry names, for the shell to check after the run.
+    public static bool Anchored { get; private set; }
+
     [Authorable(Required = true)]
     public Route Route { get; set; }
 
     [Authorable]
+    public required FixtureEntity Anchor { get; set; }
+
+    [Authorable]
     private int _charge = 1;
+
+    protected override void OnStart() => Anchored = Anchor is not null;
 }
 
 public abstract class Signal<T> : Entity

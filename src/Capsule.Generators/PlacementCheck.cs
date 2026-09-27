@@ -96,19 +96,19 @@ internal static class PlacementCheck
                 else if (entity.CodeOnly)
                 {
                     string members = string.Join(", ", entity.Properties.Items
-                        .Where(static property => property.RequiredKeyword)
+                        .Where(static property => property.CodeOnly)
                         .Select(static property => property.Name));
                     Report(context, at, RegistryDiagnostics.CodeOnlyEntryType, named, entry, placement.Type, entity.DisplayName, members);
                 }
                 else
                 {
-                    Check(context, at, named, entry, entity, placement);
+                    Check(context, at, named, entry, entity, placement, new Placed(document, entities));
                 }
             }
         }
     }
 
-    private static void Check(SourceProductionContext context, Location at, string document, string entry, EntityModel entity, PlacementModel placement)
+    private static void Check(SourceProductionContext context, Location at, string document, string entry, EntityModel entity, PlacementModel placement, Placed placed)
     {
         PropertyModel[] settable = entity.Properties.Items.Where(static property => property.Settable).ToArray();
         foreach ((string name, object? value) in placement.Properties.Items)
@@ -143,6 +143,10 @@ internal static class PlacementCheck
                 string names = string.Join(", ", property.Names.Items.Select(static known => known.Json));
                 Report(context, at, RegistryDiagnostics.UnknownEntryName, document, entry, name, Found(value), property.DisplayType.TrimEnd('?'), names);
             }
+            else if (property.Kind == PropertyKind.Reference && value is int id)
+            {
+                CheckTarget(context, at, document, entry, name, id, entity, property, placed);
+            }
         }
 
         foreach (PropertyModel property in settable)
@@ -154,6 +158,24 @@ internal static class PlacementCheck
         }
     }
 
+    // A reference must name a game entry of the same document whose class the member can hold. An entry whose
+    // type no sound class claims is already its own error.
+    private static void CheckTarget(
+        SourceProductionContext context, Location at, string document, string entry, string name, int id, EntityModel entity, PropertyModel property, Placed placed)
+    {
+        PlacementModel target = placed.Document.Placements.Items.FirstOrDefault(other => other.Id == id);
+        if (target.Type is null)
+        {
+            Report(context, at, RegistryDiagnostics.UnknownEntityReference, document, entry, name, id);
+        }
+        else if (placed.Entities.TryGetValue(target.Type, out EntityModel targeted) && !targeted.AssignableTo.Items.Contains(property.Type))
+        {
+            Report(
+                context, at, RegistryDiagnostics.MismatchedEntityReference, document, entry, name, id, targeted.DisplayName,
+                $"{entity.DisplayName}.{property.Name}", property.DisplayType.TrimEnd('?'));
+        }
+    }
+
     // A converter is the only judge of its type's JSON, and it reads at load. Every member refuses null
     // unless it is nullable.
     private static bool Accepts(PropertyModel property, object? value) => value is null
@@ -162,6 +184,7 @@ internal static class PlacementCheck
         {
             PropertyKind.BuiltIn => PropertySchema.BuiltIn(property.Type)!.Accepts(value),
             PropertyKind.Named => value is string,
+            PropertyKind.Reference => value is int,
             _ => true,
         };
 
@@ -169,6 +192,7 @@ internal static class PlacementCheck
     {
         PropertyKind.BuiltIn => PropertySchema.BuiltIn(property.Type)!.Form,
         PropertyKind.Named => "a name in quotes",
+        PropertyKind.Reference => PropertySchema.ReferenceForm,
         _ => "the form its converter reads",
     };
 
@@ -198,4 +222,7 @@ internal static class PlacementCheck
 
     private static void Report(SourceProductionContext context, Location at, DiagnosticDescriptor descriptor, params object[] arguments) =>
         context.ReportDiagnostic(Diagnostic.Create(descriptor, at, arguments));
+
+    // The document being checked and every registered entity by key, which a reference's target is checked against.
+    private readonly record struct Placed(SceneDocumentInfo Document, Dictionary<string, EntityModel> Entities);
 }

@@ -174,6 +174,16 @@ internal static class RegistryDiagnostics
         "An [Authorable] member must be one a placement can set",
         "'{0}' {1}");
 
+    internal static readonly DiagnosticDescriptor UnknownEntityReference = Scene(
+        "CAP042",
+        "A scene document entry's reference must name an entity of the document",
+        "Scene document {0}: {1} sets '{2}' to {3}, which names no entity in the document. Write the id of an entity entry");
+
+    internal static readonly DiagnosticDescriptor MismatchedEntityReference = Scene(
+        "CAP043",
+        "A scene document entry's reference must name an entity its member takes",
+        "Scene document {0}: {1} sets '{2}' to entity {3}, a '{4}', but '{5}' takes '{6}'. Write the id of an entity that is a '{6}'");
+
     private const string SegmentGrammar =
         "ASCII letters, digits, hyphens and underscores, starting with a letter";
 

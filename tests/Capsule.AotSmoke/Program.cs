@@ -144,11 +144,12 @@ internal static class Program
         int? secondRead = FixtureScene.RunsRead;
 
         // The fixture's beacon constructor read a private field and a generic base's member, both set through
-        // generated [UnsafeAccessor] setters, and a value read through its [JsonConverter], off its entry.
-        if (Beacon.Read != Beacon.Expected)
+        // generated [UnsafeAccessor] setters, and a value read through its [JsonConverter], off its entry. Its
+        // OnStart read the entity reference the scene set once every entry was constructed.
+        if (Beacon.Read != Beacon.Expected || !Beacon.Anchored)
         {
             Console.Error.WriteLine(
-                $"AOT smoke failed (7): the fixture's beacon read its route, generic-base band and private charge as '{Beacon.Read}', not '{Beacon.Expected}'.");
+                $"AOT smoke failed (7): the fixture's beacon read its route, generic-base band and private charge as '{Beacon.Read}', not '{Beacon.Expected}', and its anchor reference was set: {Beacon.Anchored}.");
 
             return 7;
         }

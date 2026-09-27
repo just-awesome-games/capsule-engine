@@ -136,7 +136,8 @@ float4 Fragment(SpritePixel pixel)
 }
 ```
 
-A `Material` binds it with its parameter values, and `Renderer.Material` draws a renderer with it:
+A `Material` binds it with its parameter values. `Renderer.Material` draws a renderer with it, and
+`TileMap.Material` draws a whole tile map with it:
 
 ```csharp
 Material stone = new(CapsuleAssets.Shaders.DesaturateShader);
