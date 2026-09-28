@@ -6,11 +6,12 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 | Package | Purpose |
 | --- | --- |
-| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. It also carries the build every game runs: `Capsule.Build` for the game's build project, source generators and analyzers, asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. |
+| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. It also carries the build targets every game runs, and the source generators and analyzers. |
+| `JAG.Capsule.Build` | The build a game's build project runs through `CapsuleBuild`: asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. An importer package implements its `IAssetImporter`. Only build projects and importer libraries reference it. |
 | `JAG.Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, renderer, sound playback, scene hosting, and the `HostPlatform` contract. |
 | `JAG.Capsule.Runtime.Desktop` | The desktop platform module a shell references: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound following the default output. |
 
-`JAG.Capsule` and `JAG.Capsule.Runtime` carry the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the atlas packer's image codecs.
+`JAG.Capsule.Runtime` carries the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the vendored Vorbis decoder.
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 

@@ -13,13 +13,19 @@ internal static class Keys
     internal const string DevelopmentOnlyMarker = ".capsuleignore";
 
     /// <summary>
-    /// How paths compare, matching the targets' rule for development-only sources: ordinal on Linux,
-    /// and case-folded on Windows and macOS.
+    /// How the build compares paths on disk, matching the targets' rule: ordinal on Linux, and
+    /// case-folded on Windows and macOS.
     /// </summary>
-    private static readonly StringComparison PathComparison =
+    internal static readonly StringComparison PathComparison =
         OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-    /// <summary>Classifies and keys every request, and sets <see cref="BuildPass.Keyed"/> in request order.</summary>
+    /// <summary><see cref="PathComparison"/> as a comparer, for a collection keyed by path.</summary>
+    internal static readonly StringComparer PathComparer = StringComparer.FromComparison(PathComparison);
+
+    /// <summary>
+    /// Classifies and keys every request, and sets <see cref="BuildPass.Keyed"/> in request order and
+    /// <see cref="BuildPass.Textures"/>.
+    /// </summary>
     /// <remarks>
     /// A request that cannot be keyed fails the pass, and nothing downstream sees it. A shipping pass
     /// first leaves out every development-only request.
@@ -61,6 +67,8 @@ internal static class Keys
         }
 
         pass.Keyed = keyed;
+        pass.Textures = keyed.Where(static source => source.Type == AssetType.Textures)
+            .ToDictionary(static texture => texture.Key, StringComparer.Ordinal);
     }
 
     /// <summary>The key of <paramref name="path"/>, a key or an authored path with no extension.</summary>
@@ -101,7 +109,7 @@ internal static class Keys
     /// Every directory holding a <see cref="DevelopmentOnlyMarker"/>, below the asset root and ending
     /// in '/', or empty for the root itself.
     /// </summary>
-    private static string[] DevelopmentOnlyDirectories(BuildRequests requests) =>
+    internal static string[] DevelopmentOnlyDirectories(BuildRequests requests) =>
     [
         .. requests.Sources
             .Where(static request => request.Root is null
@@ -114,7 +122,7 @@ internal static class Keys
     /// An imported file is placed at the path its importer wrote it to below the asset root. A file
     /// written under a marked directory goes too.
     /// </remarks>
-    private static bool IsUnder(string[] directories, string below)
+    internal static bool IsUnder(string[] directories, string below)
     {
         foreach (string directory in directories)
         {

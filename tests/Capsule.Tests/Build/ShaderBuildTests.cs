@@ -88,6 +88,27 @@ public sealed class ShaderBuildTests
             parameters.Select(static parameter => (string)parameter.GetType().GetProperty("Name")!.GetValue(parameter)!));
     }
 
+    // The runtime embeds the committed sprite shader. A game drawing only with it needs no shader tools.
+    [Fact]
+    public void TheEnginesSpriteShader_IsCommittedAsTheTemplateCompilesIt()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        workspace.Write("capsule-sprite.fx", ShaderTemplate.ComposeDefault());
+
+        byte[] effect = Assert.IsType<byte[]>(ShaderCompiler.Compile(Tools, "capsule-sprite.fx").Effect);
+
+        string committed = Metadata("CapsuleSpriteShader");
+        if (Environment.GetEnvironmentVariable("CAPSULE_UPDATE_ENGINE_SHADER") == "1")
+        {
+            File.WriteAllBytes(committed, effect);
+        }
+
+        Assert.True(
+            File.ReadAllBytes(committed).AsSpan().SequenceEqual(effect),
+            $"'{committed}' is not what the default template compiles to. The template, the shader compiler code or a shader tool version changed. "
+                + "Rerunning this test with CAPSULE_UPDATE_ENGINE_SHADER=1 rewrites the file. Review it and commit it.");
+    }
+
     private static string ToolsLine => $"shader-tools|{Tools.Dxc}|{Tools.SpirvCross}";
 
     private static string Metadata(string key) =>

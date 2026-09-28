@@ -48,7 +48,8 @@
   </ItemGroup>
 
   <!-- The shader tools ShaderBuildTests compiles through, named as the build targets name them. They
-       arrive through JAG.Capsule, which the runtime references. -->
+       arrive through JAG.Capsule, which the runtime references. The committed sprite shader is the
+       file its golden test compares and rewrites. -->
   <Import Project="../../build/Capsule.ShaderTools.targets" />
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
@@ -58,6 +59,10 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>CapsuleSpirvCross</_Parameter1>
       <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>CapsuleSpriteShader</_Parameter1>
+      <_Parameter2>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../../src/Capsule.Runtime/Rendering/Shaders/sprite.mgfx'))</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 

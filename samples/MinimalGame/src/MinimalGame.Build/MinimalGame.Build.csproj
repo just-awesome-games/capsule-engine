@@ -2,11 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <CapsuleGameBuild>true</CapsuleGameBuild>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Build" Version="[$(CapsuleVersion)]" />
   </ItemGroup>
 
 </Project>

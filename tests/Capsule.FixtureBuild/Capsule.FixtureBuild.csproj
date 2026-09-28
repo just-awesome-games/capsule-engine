@@ -7,10 +7,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <CapsuleGameBuild>true</CapsuleGameBuild>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 
   <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
+
+  <ItemGroup>
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Build/Capsule.Build.csproj" />
+  </ItemGroup>
 
 </Project>

@@ -18,6 +18,8 @@ A NativeAOT publish on Windows also needs the Visual Studio Installer directory 
 
 [`.githooks/pre-commit`](.githooks/pre-commit) gates every commit: a locked restore, the build, the format check, and the tests. CI adds pack, the package-mode sample, and NativeAOT publishes of the sample shell and `tests/Capsule.AotSmoke`, whose binary it then runs. The smoke asserts both directions of the `CapsuleShipping` axis. CI runs it once from an ordinary build and once published. Releases follow [`RELEASING.md`](RELEASING.md).
 
+The runtime embeds its sprite shader precompiled from `src/Capsule.Runtime/Rendering/Shaders/sprite.mgfx`. A test fails when the shader template, compiler or tools change it. Running the tests with `CAPSULE_UPDATE_ENGINE_SHADER=1` regenerates the file. Review it and commit it.
+
 Wall-clock performance is measured by hand with [`tests/Capsule.Bench`](tests/Capsule.Bench/README.md), whose records are committed.
 
 By contributing, you agree that your contribution is licensed under the [Mozilla Public License 2.0](LICENSE).

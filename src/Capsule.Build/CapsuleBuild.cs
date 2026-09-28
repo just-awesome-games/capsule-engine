@@ -2,8 +2,8 @@ namespace Capsule.Build;
 
 /// <summary>A game's build configuration, which its build project's entry point configures and runs.</summary>
 /// <remarks>
-/// The build project is a console app declaring <c>&lt;CapsuleGameBuild&gt;true&lt;/CapsuleGameBuild&gt;</c>, and the
-/// logic project names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it once per build, and
+/// The build project is a console app referencing the <c>JAG.Capsule.Build</c> package, and the logic project
+/// names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it once per build, and
 /// its arguments go to <see cref="Configure"/> unchanged.
 /// </remarks>
 /// <example>

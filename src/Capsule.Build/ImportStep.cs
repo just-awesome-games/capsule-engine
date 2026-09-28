@@ -2,7 +2,8 @@ namespace Capsule.Build;
 
 /// <summary>
 /// Every source an importer claims, imported under <c>imported/</c> and requested in its place. The
-/// key pass then reads each output as though it were authored at its path below the asset root.
+/// key pass then reads each output as though it were authored at its path below the asset root. A
+/// shipping pass imports no source under a development-only directory and drops it from the requests.
 /// </summary>
 internal static class ImportStep
 {
@@ -21,11 +22,17 @@ internal static class ImportStep
         List<Request> native = [];
         List<Request> imported = [];
         Dictionary<string, string> importedBy = new(StringComparer.OrdinalIgnoreCase);
+        string[] developmentOnly = pass.Requests.Shipping ? Keys.DevelopmentOnlyDirectories(pass.Requests) : [];
         foreach (Request request in pass.Requests.Sources)
         {
             if (pass.Configuration.ImporterOf(request.Path) is not { } importer)
             {
                 native.Add(request);
+                continue;
+            }
+
+            if (Keys.IsUnder(developmentOnly, Keys.Below(request.Root ?? pass.Requests.AssetRoot, request.Path)))
+            {
                 continue;
             }
 

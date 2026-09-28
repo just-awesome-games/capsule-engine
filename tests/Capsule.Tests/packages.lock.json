@@ -112,6 +112,11 @@
         "resolved": "1.4.350",
         "contentHash": "dHJzbU44PWN/2LGQVt0MtisD27ot5jJf2c1xizZkTXpKek5S2n4nyQUuvzAb1BZhUuw6A5Ns4g+b5uTLP8nP6A=="
       },
+      "StbImageWriteSharp": {
+        "type": "Transitive",
+        "resolved": "1.16.7",
+        "contentHash": "NF9kOxi0iS9VunklnRKgOpAWC2knCGKRjdy7RT6XAqYNyb7LQfyPHPdl4l1fJw7TFYKrGQzQOmK1XpBONC2MoA=="
+      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -152,9 +157,6 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "capsule.build": {
-        "type": "Project"
-      },
       "capsule.core": {
         "type": "Project"
       },
@@ -179,6 +181,14 @@
         "dependencies": {
           "MonoGame.Tool.Dxc": "[1.9.2607.1, 1.9.2607.1]",
           "MonoGame.Tool.Spirvcross": "[1.4.350, 1.4.350]"
+        }
+      },
+      "JAG.Capsule.Build": {
+        "type": "Project",
+        "dependencies": {
+          "JAG.Capsule": "[0.0.0, )",
+          "StbImageSharp": "[2.30.16, )",
+          "StbImageWriteSharp": "[1.16.7, )"
         }
       },
       "JAG.Capsule.Runtime": {

@@ -33,9 +33,9 @@ does. The `capsule-engine` tag lets a package search find every Capsule package 
 ## Taking part in the build
 
 Most packages never touch the build. A package that turns an editor's files into Capsule assets ships an
-importer: a public class implementing `IAssetImporter`, in a library that declares
-`<CapsuleGameBuild>true</CapsuleGameBuild>` to compile against `Capsule.Build`. A game adds it in its build
-project's `Program.cs`. [Writing an importer](build-and-publish.md#writing-an-importer) is the contract.
+importer: a public class implementing `IAssetImporter`, in a library that references `JAG.Capsule.Build`
+in place of `JAG.Capsule`. A game references the package from its build project and adds the importer in
+that project's `Program.cs`. [Writing an importer](build-and-publish.md#writing-an-importer) is the contract.
 
 ## Developing a package against a game
 

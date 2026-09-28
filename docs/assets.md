@@ -30,7 +30,7 @@ beside what it exports.
 What ships beside the executable is the same tree under `assets/`: a texture or sound as authored, and
 a scene document, shader or `r8` texture in its compiled form. A sheet and a font's description compile into the
 game and ship nothing. The build lays it out under the logic project's
-`obj/.../capsule/assets/` first.
+`obj/.../capsule/assets/` first, or `obj/.../capsule-shipping/assets/` for a publish.
 
 A key is a file's path below `Assets/`, forward slashes and no extension, with every folder and the file
 name normalized to the kebab form of the identifier it names. An extension ships in lower case. `Enemies/Bat.png` and `enemies/bat.png` are

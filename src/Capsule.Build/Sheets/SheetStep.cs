@@ -8,9 +8,6 @@ internal static class SheetStep
 {
     internal static void Run(BuildPass pass)
     {
-        Dictionary<string, string> textures = pass.Of(AssetType.Textures)
-            .ToDictionary(static texture => texture.Key, static texture => texture.Extension, StringComparer.Ordinal);
-
         foreach ((Source sheet, Sheet document) in pass.Each(
             pass.Of(AssetType.Sheets),
             source =>
@@ -19,7 +16,7 @@ internal static class SheetStep
 
                 // Resolved by key against what the build ships, and carrying the shipped extension,
                 // however the sheet spelled it.
-                if (!textures.TryGetValue(sheet.TextureKey, out string? extension))
+                if (!pass.Textures.TryGetValue(sheet.TextureKey, out Source texture))
                 {
                     throw new FormatException(
                         $"cuts from texture \"{sheet.TextureKey}{sheet.TextureExtension}\", which this game does not ship. Author it at Assets/{sheet.TextureKey}{sheet.TextureExtension}.");
@@ -27,7 +24,7 @@ internal static class SheetStep
 
                 pass.Progress("sheets", source);
 
-                return sheet with { TextureExtension = extension };
+                return sheet with { TextureExtension = texture.Extension };
             }))
         {
             pass.Declare(sheet, document, SheetMembers.Write);

@@ -6,7 +6,7 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Packaging;
 
-/// <summary>JAG.Capsule as pack writes it, from the build these tests run against.</summary>
+/// <summary>The engine's packages as pack writes them, from the build these tests run against.</summary>
 public sealed class PackageTests
 {
     private static readonly TimeSpan PackLimit = TimeSpan.FromMinutes(3);
@@ -16,34 +16,56 @@ public sealed class PackageTests
     [Fact]
     public void JagCapsule_DependsOnlyOnTheShaderTools_AndShipsEveryModuleInLib()
     {
-        using ZipArchive package = Pack();
+        using ZipArchive package = Pack("Capsule", "JAG.Capsule");
 
-        ZipArchiveEntry manifest = package.GetEntry("JAG.Capsule.nuspec")
-            ?? throw new InvalidDataException("The package holds no JAG.Capsule.nuspec.");
-        XDocument nuspec;
-        using (Stream stream = manifest.Open())
-        {
-            nuspec = XDocument.Load(stream);
-        }
+        Assert.Equal(["MonoGame.Tool.Dxc", "MonoGame.Tool.Spirvcross"], Dependencies(package, "JAG.Capsule").Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Capsule.Core.dll", "Capsule.Physics.dll", "Capsule.Scenes.dll", "Capsule.dll"], Libraries(package));
+        Assert.DoesNotContain(package.Entries, static entry => entry.Name.StartsWith("Capsule.Build.", StringComparison.Ordinal));
+    }
 
-        string[] dependencies = [.. nuspec.Descendants()
+    // Build-time code only: the machinery every project runs stays in JAG.Capsule, which this package
+    // pins at its own release.
+    [Fact]
+    public void JagCapsuleBuild_ShipsOnlyTheBuildInLib_AndPinsJagCapsuleAtItsRelease()
+    {
+        using ZipArchive package = Pack("Capsule.Build", "JAG.Capsule.Build");
+
+        Dictionary<string, string> dependencies = Dependencies(package, "JAG.Capsule.Build");
+        Assert.Equal(["JAG.Capsule", "StbImageSharp", "StbImageWriteSharp"], dependencies.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal($"[{Version(package, "JAG.Capsule.Build")}]", dependencies["JAG.Capsule"]);
+        Assert.Equal(["Capsule.Build.dll"], Libraries(package));
+        Assert.NotNull(package.GetEntry("lib/net10.0/Capsule.Build.xml"));
+        Assert.DoesNotContain(package.Entries, static entry => entry.FullName.Split('/')[0] is "build" or "buildTransitive" or "tools" or "analyzers");
+    }
+
+    // Each dependency's id and version range, over every target framework group.
+    private static Dictionary<string, string> Dependencies(ZipArchive package, string id) =>
+        Nuspec(package, id).Descendants()
             .Where(static element => element.Name.LocalName == "dependency")
-            .Select(static element => (string)element.Attribute("id")!)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)];
-        Assert.Equal(["MonoGame.Tool.Dxc", "MonoGame.Tool.Spirvcross"], dependencies);
+            .DistinctBy(static element => (string)element.Attribute("id")!)
+            .ToDictionary(static element => (string)element.Attribute("id")!, static element => (string)element.Attribute("version")!);
 
-        string[] libraries = [.. package.Entries
+    private static string Version(ZipArchive package, string id) =>
+        Nuspec(package, id).Descendants().Single(static element => element.Name.LocalName == "version").Value;
+
+    private static string[] Libraries(ZipArchive package) =>
+        [.. package.Entries
             .Where(static entry => entry.FullName.StartsWith("lib/net10.0/", StringComparison.Ordinal) && entry.Name.EndsWith(".dll", StringComparison.Ordinal))
             .Select(static entry => entry.Name)
             .Order(StringComparer.Ordinal)];
-        Assert.Equal(["Capsule.Core.dll", "Capsule.Physics.dll", "Capsule.Scenes.dll", "Capsule.dll"], libraries);
+
+    private static XDocument Nuspec(ZipArchive package, string id)
+    {
+        ZipArchiveEntry manifest = package.GetEntry($"{id}.nuspec")
+            ?? throw new InvalidDataException($"The package holds no {id}.nuspec.");
+        using Stream stream = manifest.Open();
+        return XDocument.Load(stream);
     }
 
-    // Packs the engine checkout's JAG.Capsule without building it, in the configuration these tests
+    // Packs the engine checkout's src/<project> without building it, in the configuration these tests
     // were built in. A reusable MSBuild node the pack starts would inherit its output pipes and outlive
     // it, and reading the output to its end would then never return.
-    private static ZipArchive Pack()
+    private static ZipArchive Pack(string project, string id)
     {
         string configuration = typeof(Scene).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
         string output = Directory.CreateTempSubdirectory("capsule-package-").FullName;
@@ -53,7 +75,7 @@ public sealed class PackageTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (string argument in (string[])["pack", Path.Combine(CheckoutRoot(), "src", "Capsule", "Capsule.csproj"),
+        foreach (string argument in (string[])["pack", Path.Combine(CheckoutRoot(), "src", project, $"{project}.csproj"),
             "--no-build", "--no-restore", "--configuration", configuration, "--output", output, "-nologo", "-nodeReuse:false"])
         {
             start.ArgumentList.Add(argument);
@@ -65,13 +87,13 @@ public sealed class PackageTests
         if (!pack.WaitForExit(PackLimit))
         {
             pack.Kill(entireProcessTree: true);
-            Assert.Fail($"dotnet pack of JAG.Capsule ran past {PackLimit.TotalMinutes} minutes.");
+            Assert.Fail($"dotnet pack of {id} ran past {PackLimit.TotalMinutes} minutes.");
         }
 
-        Assert.True(pack.ExitCode == 0, $"dotnet pack of JAG.Capsule failed. Build the solution in {configuration} first.{Environment.NewLine}{log.Result}{errors.Result}");
+        Assert.True(pack.ExitCode == 0, $"dotnet pack of {id} failed. Build the solution in {configuration} first.{Environment.NewLine}{log.Result}{errors.Result}");
 
         // Read whole, so the directory goes before the assertions run.
-        MemoryStream bytes = new(File.ReadAllBytes(Directory.EnumerateFiles(output, "JAG.Capsule.*.nupkg").Single()));
+        MemoryStream bytes = new(File.ReadAllBytes(Directory.EnumerateFiles(output, $"{id}.*.nupkg").Single()));
         Directory.Delete(output, recursive: true);
         return new ZipArchive(bytes, ZipArchiveMode.Read);
     }

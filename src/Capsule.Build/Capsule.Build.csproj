@@ -1,18 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
-  <!-- The build a game's build project runs through CapsuleBuild, and the process that compiles the
-       runtime's own shader. JAG.Capsule packs its output under tools/, and only a project declaring
-       CapsuleGameBuild compiles against it. -->
+  <!-- JAG.Capsule.Build, the package a game's build project and an importer library reference: the
+       build a build project runs through CapsuleBuild. It holds code only. The targets, generator
+       and shader tools every build runs stay in JAG.Capsule. -->
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Build</RootNamespace>
     <AssemblyName>Capsule.Build</AssemblyName>
-    <IsPackable>false</IsPackable>
+    <PackageId>JAG.Capsule.Build</PackageId>
+    <Description>The build a Capsule game's build project runs through CapsuleBuild, and the IAssetImporter contract an importer package implements: asset naming, scene document validation, sprite sheet, font, audio and shader compilation, and atlas packing.</Description>
     <!-- An internal member documents only the parameters that need it. -->
     <NoWarn>$(NoWarn);CS1573</NoWarn>
     <!-- Local, never global, with TreatAsLocalProperty on the Project element. A consumer's
-         NativeAOT publish passes these globally, and the tool stays a framework-dependent process. -->
+         NativeAOT publish passes these globally, and the build always runs in a framework-dependent
+         process. -->
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier></RuntimeIdentifier>
@@ -28,16 +29,17 @@
     <CapsuleDocumentedType Include="Capsule.Build.CapsuleBuild;Capsule.Build.IAssetImporter;Capsule.Build.AssetImportContext" />
   </ItemGroup>
 
-  <!-- Atlas packing decodes and encodes PNGs here and nowhere else: both are pure managed, so the
-       tool stays a plain framework-dependent process on every build host. They ship inside the
-       package under tools/, like Capsule.Scenes, so neither is a package dependency. -->
+  <!-- Atlas packing decodes and encodes PNGs here and nowhere else. Both are pure managed, so the
+       build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>
-    <PackageReference Include="StbImageSharp" Version="2.30.16" PrivateAssets="all" />
-    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" PrivateAssets="all" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" />
   </ItemGroup>
 
+  <!-- The pure modules arrive through their pack root, which makes JAG.Capsule this package's
+       dependency at the release's version. -->
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
 
 </Project>

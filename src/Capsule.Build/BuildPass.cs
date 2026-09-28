@@ -21,6 +21,8 @@ internal sealed class BuildPass(string outputDirectory, CapsuleBuild configurati
 
     private IReadOnlyList<Source>? _keyed;
 
+    private IReadOnlyDictionary<string, Source>? _textures;
+
     private IReadOnlySet<string>? _fontPages;
 
     private IReadOnlyDictionary<string, DeclaredAtlas>? _atlases;
@@ -56,6 +58,13 @@ internal sealed class BuildPass(string outputDirectory, CapsuleBuild configurati
     {
         get => Ran(_keyed, nameof(Keyed), nameof(Keys) + "." + nameof(Keys.Derive));
         set => _keyed = value;
+    }
+
+    /// <summary>Every texture source by its key. Set by <see cref="Keys.Derive"/>.</summary>
+    internal IReadOnlyDictionary<string, Source> Textures
+    {
+        get => Ran(_textures, nameof(Textures), nameof(Keys) + "." + nameof(Keys.Derive));
+        set => _textures = value;
     }
 
     /// <summary>The key of every texture a font names as its page. Set by <see cref="FontStep"/>.</summary>

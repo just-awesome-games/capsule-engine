@@ -1,3 +1,4 @@
+using Capsule.Build;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
@@ -86,6 +87,37 @@ public sealed class BuildRunTests
         workspace.Succeed();
 
         Assert.Equal(written, outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output))));
+    }
+
+    // Two runs over one output directory never interleave, as an IDE's build and a command-line build
+    // would. A run started while another holds the directory touches nothing until it is released.
+    [Fact]
+    public async Task ARunStartedWhileAnotherHoldsTheOutput_WaitsForItThenBuilds()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Textures/hero.png", string.Empty);
+        Directory.CreateDirectory(ToolWorkspace.Out);
+        TaskCompletionSource waiting = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        workspace.Watch = line =>
+        {
+            if (line.StartsWith("capsule: waiting for another build", StringComparison.Ordinal))
+            {
+                waiting.TrySetResult();
+            }
+        };
+        Task<int> run;
+
+        using (new FileStream(Path.Combine(ToolWorkspace.Out, BuildRun.LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        {
+            run = Task.Run(() => workspace.Run());
+            await Task.WhenAny(waiting.Task, run).WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.True(waiting.Task.IsCompleted, "The run finished without waiting for the held directory.");
+            Assert.Empty(workspace.Shipped);
+        }
+
+        Assert.Equal(0, await run);
+        Assert.Equal(["textures/hero.png"], workspace.Shipped);
     }
 
     // An importer's output is part of the asset tree, whatever kind of file it writes. The sheet names

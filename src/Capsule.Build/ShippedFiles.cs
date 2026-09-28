@@ -7,8 +7,8 @@ namespace Capsule.Build;
 /// </summary>
 internal sealed class ShippedFiles(string root)
 {
-    // Each claimed file and what claimed it, in the host's own case rule, as the targets compare paths.
-    private readonly Dictionary<string, string> _claimed = new(OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+    // Each claimed file and what claimed it.
+    private readonly Dictionary<string, string> _claimed = new(Keys.PathComparer);
 
     /// <summary>The directory everything ships under, the shipped <c>assets/</c>.</summary>
     internal string Root { get; } = root;

@@ -1,14 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- JAG.Capsule, the one package a game's logic references: the pure modules under lib/, the build
-       under buildTransitive/ and tools/, and the shader tools as its dependencies. The
-       ProjectReference list below is the package's admission list, gated by
-       Capsule.Architecture.targets. This project holds no code, and its empty assembly ships anyway. -->
+       targets under buildTransitive/, the generator under tools/, and the shader tools as its
+       dependencies. The build a build project runs is JAG.Capsule.Build. The ProjectReference list
+       below is the package's admission list, gated by Capsule.Architecture.targets. This project
+       holds no code, and its empty assembly ships anyway. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>JAG.Capsule</PackageId>
-    <Description>Everything a Capsule game's logic is written against, and the build that turns its authoring tree into assets: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules;IncludeCapsuleBuild</TargetsForTfmSpecificContentInPackage>
+    <Description>Everything a Capsule game's logic is written against, and the build targets that turn its authoring tree into assets: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules;IncludeCapsuleGenerators</TargetsForTfmSpecificContentInPackage>
     <TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);IncludeCapsulePureModuleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
   </PropertyGroup>
 
@@ -31,7 +32,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
     <!-- The asset config files' JSON Schemas, for a consumer to read offline beside the API reference. -->
     <None Include="../../schemas/*.schema.json" Pack="true" PackagePath="schemas/" Visible="false" />
     <!-- Everything directly under build/ is what a consumer imports, and build/engine/ is not. The
@@ -110,29 +110,20 @@
     </ItemGroup>
   </Target>
 
-  <!-- Capsule.Build's whole output directory with its API reference, since a build project loads
-       its private dependencies beside it, and the generator. Both sit outside lib/ and analyzers/, so
-       NuGet hands a consumer neither. Capsule.Assets.targets references Capsule.Build for the build
-       role, and Capsule.Compiler.targets adds the generator for a role. Nothing references either project, so a pack builds the solution first, as CI does.
-       TargetFramework is removed because the generator targets netstandard2.0. -->
-  <Target Name="IncludeCapsuleBuild">
-    <MSBuild Projects="../Capsule.Build/Capsule.Build.csproj;../Capsule.Generators/Capsule.Generators.csproj"
+  <!-- The generator, outside analyzers/ so NuGet hands it to no consumer. Capsule.Compiler.targets
+       adds it for a role. Nothing references its project, so a pack builds the solution first, as CI
+       does. TargetFramework is removed because the generator targets netstandard2.0. -->
+  <Target Name="IncludeCapsuleGenerators">
+    <MSBuild Projects="../Capsule.Generators/Capsule.Generators.csproj"
              Targets="GetTargetPath"
              Properties="Configuration=$(Configuration)"
              RemoveProperties="TargetFramework">
-      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildAssembly" />
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleGeneratorAssembly" />
     </MSBuild>
+    <Error Condition="!Exists('@(_CapsuleGeneratorAssembly)')"
+           Text="JAG.Capsule packs the generator, which is not built: @(_CapsuleGeneratorAssembly). Build the solution before packing." />
     <ItemGroup>
-      <_CapsuleMissingBuildAssembly Include="@(_CapsuleBuildAssembly)" Condition="!Exists('%(FullPath)')" />
-    </ItemGroup>
-    <Error Condition="'@(_CapsuleMissingBuildAssembly)' != ''"
-           Text="JAG.Capsule packs the build tool and the generator or neither; not built: @(_CapsuleMissingBuildAssembly). Build the solution before packing." />
-    <PropertyGroup>
-      <_CapsuleBuildToolDirectory>@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Build')->'%(RootDir)%(Directory)')</_CapsuleBuildToolDirectory>
-    </PropertyGroup>
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="$(_CapsuleBuildToolDirectory)*.dll;$(_CapsuleBuildToolDirectory)*.json;$(_CapsuleBuildToolDirectory)Capsule.Build.xml" PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Generators'))" PackagePath="tools/generators/" />
+      <TfmSpecificPackageFile Include="@(_CapsuleGeneratorAssembly)" PackagePath="tools/generators/" />
     </ItemGroup>
   </Target>
 

@@ -49,10 +49,17 @@ dotnet sln MyGame.slnx add src/MyGame.Game src/MyGame.Shell src/MyGame.Build tes
 
 ## Consuming Capsule
 
-Capsule is a set of ordinary NuGet packages. The logic and build projects reference `JAG.Capsule`, and the
-shell references `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and the graphics substrate
-([`PACKAGE.md`](../PACKAGE.md)). `JAG.Capsule` brings the build with it. Each project also states its role,
-which the build and the generators read:
+Capsule is a set of ordinary NuGet packages ([`PACKAGE.md`](../PACKAGE.md)). Each project references the
+one package named for its role:
+
+| Project | References |
+| --- | --- |
+| Logic | `JAG.Capsule`, the API the game is written against and the build targets that run its asset build. |
+| Shell | `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and the graphics substrate. |
+| Build | `JAG.Capsule.Build`, the build it runs, and any importer package, such as `JAG.Capsule.Tiled`. |
+
+Build-time code reaches only the build project, and none of it ships with the game. The logic and shell
+projects also state their role, which the build and the generators read:
 
 ```xml
 <!-- src/MyGame.Game/MyGame.Game.csproj -->
@@ -87,11 +94,10 @@ which the build and the generators read:
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <CapsuleGameBuild>true</CapsuleGameBuild>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule" Version="[{YOUR_PINNED_VERSION}]" />
+    <PackageReference Include="JAG.Capsule.Build" Version="[{YOUR_PINNED_VERSION}]" />
   </ItemGroup>
 </Project>
 ```
@@ -230,7 +236,6 @@ to the importing project unless a row says otherwise.
 | --- | --- | --- |
 | `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the substrate-free logic library. |
 | `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it on the executable shell. |
-| `CapsuleGameBuild` | `true` | Compiles the project against `Capsule.Build`, which no other project sees. Set it on the build project and on a package's importer library. |
 
 ### Authoring sources and output
 
@@ -311,12 +316,12 @@ path below it, and the configured tile size. An importer reads what it needs fro
 such as the tilesets a map names. It writes each output by its path below the asset root, and never
 chooses a disk location. Each output keys and ships as an authored file at that path would, of whatever
 kind. A key an authored file already claims fails the build naming both, as does an output two sources
-write. A publish leaves out an output written under a
-[development-only directory](#development-only-directories).
+write. A publish imports no source under a
+[development-only directory](#development-only-directories), and leaves out an output written under one.
 
 An importer throws `FormatException` or an `IOException` for a defect in its source. The build reports the
 message against the source and still builds every other source. Any other exception stops the build as a
-bug. Every run imports every claimed source again into `obj/capsule/imported/`, which it deletes first. A
+bug. Every run imports every claimed source again into `obj/capsule/imported/`, or `obj/capsule-shipping/imported/` for a publish, which it deletes first. A
 change to any file under `Assets/`, or to the build project, reruns the build.
 
 ## A private platform module

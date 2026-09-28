@@ -44,8 +44,6 @@ internal static class AtlasStep
             return;
         }
 
-        Dictionary<string, Source> textures = pass.Of(AssetType.Textures)
-            .ToDictionary(static texture => texture.Key, StringComparer.Ordinal);
         string stamps = pass.CacheDirectory("atlases");
         TextureMapJson previous = Read(Path.Combine(pass.Shipped.Root, TextureMapJson.ShippedPath));
 
@@ -60,7 +58,7 @@ internal static class AtlasStep
             // A build that changed nothing the stamp covers reuses the last map's placements.
             int maxSize = config.MaxSize ?? AtlasConfigJson.DefaultMaxSize;
             members.Sort(StringComparer.Ordinal);
-            string stamp = Stamp(maxSize, members, pass.TextureSettings, textures);
+            string stamp = Stamp(maxSize, members, pass.TextureSettings, pass.Textures);
             string stampPath = Path.Combine(stamps, atlas + ".stamp");
             TextureMapJson? packed = File.Exists(stampPath) && File.ReadAllText(stampPath) == stamp
                 ? Previous(previous, atlas, pass.Shipped)
@@ -68,7 +66,7 @@ internal static class AtlasStep
 
             if (packed is null)
             {
-                packed = Repack(pass, atlas, maxSize, declared.Path, members, textures);
+                packed = Repack(pass, atlas, maxSize, declared.Path, members);
                 if (packed is null)
                 {
                     continue;
@@ -147,11 +145,13 @@ internal static class AtlasStep
         return textures.Count > 0 ? new TextureMapJson { Textures = textures, Pages = pages } : null;
     }
 
-    // A repack is decided by the atlas's own settings and every member's key, length, write time, format
-    // and sampling. Reading and hashing every texture on every build costs more than the repack it saves.
-    private static string Stamp(int maxSize, List<string> members, IReadOnlyDictionary<string, ResolvedTexture> settings, Dictionary<string, Source> textures)
+    // A repack is decided by this packer's build, the atlas's own settings and every member's key, length,
+    // write time, format and sampling. Reading and hashing every texture on every build costs more than
+    // the repack it saves.
+    private static string Stamp(int maxSize, List<string> members, IReadOnlyDictionary<string, ResolvedTexture> settings, IReadOnlyDictionary<string, Source> textures)
     {
-        StringBuilder stamp = new StringBuilder("maxSize|").AppendLine(maxSize.ToString(CultureInfo.InvariantCulture));
+        StringBuilder stamp = new StringBuilder("build|").AppendLine(typeof(AtlasPacker).Assembly.ManifestModule.ModuleVersionId.ToString())
+            .Append("maxSize|").AppendLine(maxSize.ToString(CultureInfo.InvariantCulture));
         foreach (string key in members)
         {
             FileInfo file = new(textures[key].Path);
@@ -171,13 +171,12 @@ internal static class AtlasStep
         string atlas,
         int maxSize,
         string atlasPath,
-        List<string> members,
-        Dictionary<string, Source> textures)
+        List<string> members)
     {
         IReadOnlyDictionary<string, ResolvedTexture> settings = pass.TextureSettings;
         int failures = pass.Failures;
         Dictionary<string, Texels> images = pass.Each(
-            members.Select(key => textures[key]),
+            members.Select(key => pass.Textures[key]),
             member =>
             {
                 Texels image = TexturePixels.Decode(member.Path, settings[member.Key].Format);

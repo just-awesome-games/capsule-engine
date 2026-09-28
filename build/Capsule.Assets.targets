@@ -13,6 +13,9 @@
                                                                          (CapsuleRunBuildTool)
          obj/capsule/...            -> Content, Compile                  (CapsuleAddBuildOutputs)
 
+       A shipping build writes all of it to obj/capsule-shipping/ instead. It never shares a manifest
+       or a stamp with an ordinary build of the same configuration.
+
        The source generator reads only the game's C#, CapsuleAssets.g.cs included. -->
 
   <!-- Paths known at evaluation. -->
@@ -40,27 +43,13 @@
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           BeforeTargets="AssignTargetPaths">
     <PropertyGroup>
+      <CapsuleObjDir Condition="'$(CapsuleObjDir)' == '' and '$(CapsuleShipping)' == 'true'">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule-shipping'))</CapsuleObjDir>
       <CapsuleObjDir Condition="'$(CapsuleObjDir)' == ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
     </PropertyGroup>
 
     <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
            Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources, or leave it unset to look for them at &lt;importing project&gt;/Assets." />
   </Target>
-
-  <!-- ==== The build project ====
-       A project declaring CapsuleGameBuild compiles against Capsule.Build: the sibling project in an
-       engine clone, the packed assembly in a package. Only that role sees it. A NativeAOT publish of
-       the game makes the build project self-contained, and it loads the framework-dependent
-       Capsule.Build as a library. -->
-  <PropertyGroup Condition="'$(CapsuleGameBuild)' == 'true'">
-    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(CapsuleGameBuild)' == 'true'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj"
-                      Condition="Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')" />
-    <Reference Include="$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll"
-               Condition="Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')" />
-  </ItemGroup>
 
   <!-- The logic project builds the game's build project first and adds nothing of it to the game.
        No GlobalPropertiesToRemove: it would request the build project's shared engine subgraph under
@@ -77,7 +66,7 @@
   <!-- Asks the build project for its output in the configuration the ProjectReference above builds. -->
   <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleBuildAssets)' == 'true'">
     <Error Condition="'$(CapsuleBuildProject)' == ''"
-           Text="Capsule: $(MSBuildProjectName) builds assets but names no build project. Set CapsuleBuildProject to the game's build project, a console app declaring CapsuleGameBuild that runs CapsuleBuild, as docs/build-and-publish.md shows." />
+           Text="Capsule: $(MSBuildProjectName) builds assets but names no build project. Set CapsuleBuildProject to the game's build project, a console app referencing JAG.Capsule.Build that runs CapsuleBuild, as docs/build-and-publish.md shows." />
 
     <MSBuild Projects="$(CapsuleBuildProject)"
              Targets="GetTargetPath"

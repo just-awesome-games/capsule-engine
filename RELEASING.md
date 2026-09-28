@@ -73,26 +73,19 @@ NuGet.org indexes a pushed package minutes after the workflow reports success. C
 package is downloadable before pointing a consumer at it (HTTP 200; 404 means still indexing):
 
 ```bash
-for p in jag.capsule jag.capsule.runtime jag.capsule.runtime.desktop; do
+for p in jag.capsule jag.capsule.build jag.capsule.runtime jag.capsule.runtime.desktop; do
   curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/$VERSION/$p.$VERSION.nupkg"
 done
 ```
 
-## 6. Deprecate `JAG.Capsule.Build` (first release after the fold only)
-
-`JAG.Capsule.Build` was folded into `JAG.Capsule` and no longer publishes. After the first release
-without it, open `JAG.Capsule.Build` on nuget.org, choose Manage Package > Deprecation, select
-every version, mark them legacy and name `JAG.Capsule` as the alternate package. Later releases
-skip this step.
-
-## 7. Move the consumers
+## 6. Move the consumers
 
 Each consumer pins an exact version on each Capsule `PackageReference`, as
 [`docs/build-and-publish.md`](docs/build-and-publish.md#consuming-capsule) shows. The engine
 releases first, then the module, then the games:
 
-1. `capsule-engine-tiled`: follow its `RELEASING.md`. It pins the new `JAG.Capsule`, regenerates its
-   lock files and releases the module.
+1. `capsule-engine-tiled`: follow its `RELEASING.md`. It pins the new `JAG.Capsule` and
+   `JAG.Capsule.Build`, regenerates its lock files and releases the module.
 2. Each game consuming the packages: bump the version on its `JAG.Capsule*` references, including
    `JAG.Capsule.Tiled` once the module has released. Then regenerate its committed lock files in
    package mode with `dotnet restore -p:CapsuleSourcePath= --force-evaluate`.

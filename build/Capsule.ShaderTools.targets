@@ -3,7 +3,7 @@
   <!-- The two native tools a shader compiles through, one version each, in this file alone. JAG.Capsule
        depends on these versions, so restore downloads them for every project that references it, from
        the package or from an engine clone. Capsule.Assets.targets names their package folders to the
-       build tool, and the runtime's own sprite shader and the engine's tests read the same folders. -->
+       build tool, and the engine's tests read the same folders. -->
   <PropertyGroup>
     <CapsuleDxcVersion>1.9.2607.1</CapsuleDxcVersion>
     <CapsuleSpirvCrossVersion>1.4.350</CapsuleSpirvCrossVersion>

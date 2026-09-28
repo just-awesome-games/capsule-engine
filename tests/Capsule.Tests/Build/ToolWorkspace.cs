@@ -19,6 +19,9 @@ internal sealed class ToolWorkspace : IDisposable
     /// <summary>What the game's build project configures on every run.</summary>
     internal Func<CapsuleBuild, CapsuleBuild> Configure { get; set; } = static build => build;
 
+    /// <summary>Called with each line the run writes to its output stream, as the run writes it.</summary>
+    internal Action<string>? Watch { get; set; }
+
     /// <summary>What the last run wrote to its error stream.</summary>
     internal string Errors { get; private set; } = string.Empty;
 
@@ -87,7 +90,7 @@ internal sealed class ToolWorkspace : IDisposable
             : [];
         string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored]));
 
-        StringWriter output = new();
+        StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
         int exitCode = Configure(CapsuleBuild.Configure(["--requests", requests, "--out", Out])).Run(output, error);
         Output = output.ToString();
@@ -110,4 +113,13 @@ internal sealed class ToolWorkspace : IDisposable
     }
 
     public void Dispose() => _workspace.Dispose();
+
+    private sealed class WatchedWriter(Action<string>? watch) : StringWriter
+    {
+        public override void WriteLine(string? value)
+        {
+            base.WriteLine(value);
+            watch?.Invoke(value ?? string.Empty);
+        }
+    }
 }

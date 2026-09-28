@@ -42,6 +42,21 @@ public sealed class ImportTests
         Assert.True(File.Exists(ToolWorkspace.Out + "/assets/scenes/room.scene.json.gz"));
     }
 
+    // A shipping run never imports what it would not ship. A defect under a development-only directory
+    // fails only an ordinary run.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADefectUnderAMarkedDirectory_FailsOnlyAnOrdinaryRun(bool shipping)
+    {
+        using ToolWorkspace workspace = new();
+        workspace.Configure = static build => build.AddImporter(new NoteImporter());
+        workspace.Write("Assets/Dev/.capsuleignore", string.Empty);
+        workspace.Write("Assets/Dev/broken.note", NoteImporter.Broken);
+
+        Assert.Equal(shipping ? 0 : 1, workspace.Run($"shipping|{shipping}"));
+    }
+
     // An import that would overwrite another's output names both sources. One that claims an authored
     // file's key names the file and the output, as any two sources of one key do.
     [Theory]
