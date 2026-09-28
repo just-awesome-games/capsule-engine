@@ -64,8 +64,10 @@
       <_CapsulePublishSymbol Include="$(NativeOutputPath)$(_CapsuleNativeSymbols)" Condition="'$(NativeSymbolExt)' != '.dSYM' and Exists('$(NativeOutputPath)$(_CapsuleNativeSymbols)')">
         <RelativePath>$(_CapsuleNativeSymbols)</RelativePath>
       </_CapsulePublishSymbol>
-      <_CapsulePublishSymbol Include="$(NativeOutputPath)$(_CapsuleNativeSymbols)/**/*" Condition="'$(NativeSymbolExt)' == '.dSYM'">
-        <RelativePath>$(_CapsuleNativeSymbols)/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+      <!-- A .dSYM bundle is a directory. Its files keep their paths inside it. -->
+      <_CapsuleNativeSymbolBundle Include="$(NativeOutputPath)$(_CapsuleNativeSymbols)/**/*" Condition="'$(NativeSymbolExt)' == '.dSYM'" />
+      <_CapsulePublishSymbol Include="@(_CapsuleNativeSymbolBundle)">
+        <RelativePath>$(_CapsuleNativeSymbols)/%(_CapsuleNativeSymbolBundle.RecursiveDir)%(_CapsuleNativeSymbolBundle.Filename)%(_CapsuleNativeSymbolBundle.Extension)</RelativePath>
       </_CapsulePublishSymbol>
     </ItemGroup>
 
