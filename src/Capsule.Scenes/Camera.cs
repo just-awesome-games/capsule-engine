@@ -47,7 +47,7 @@ public partial class Camera
 
     /// <summary>
     /// The point the viewport is centred on, in world units. Each step settles it inside
-    /// <see cref="Bounds"/>.
+    /// <see cref="Bounds"/>, or inside the rect easing toward them.
     /// </summary>
     public Vector2 Center { get; set; }
 
@@ -137,9 +137,9 @@ public partial class Camera
 
     /// <summary>
     /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred
-    /// on <see cref="Center"/>, clamped to <see cref="Bounds"/> and moved by <see cref="Offset"/>
-    /// and the shake. The engine owns it and settles it once per step, after the follow and the
-    /// shake.
+    /// on <see cref="Center"/>, held inside <see cref="Bounds"/> or the rect easing toward them, and
+    /// moved by <see cref="Offset"/> and the shake. The engine owns it and settles it once per step,
+    /// after the follow and the shake.
     /// </summary>
     /// <remarks>
     /// An entity or component that reads it during its own step sees the region the previous step

@@ -17,8 +17,8 @@ public partial class Camera
     // the view free.
     private Rect? _confine;
 
-    // The rect that confined the view at the previous step. A frame between the two steps confines to the
-    // rect spanning both, which holds both settled centres, so an easing edge never clamps the interpolation.
+    // The rect that confined the view at the previous step. While it differs from _confine both settled
+    // centres are already confined, and a frame between them is drawn unclamped.
     private Rect? _previousConfine;
 
     /// <summary>
@@ -26,7 +26,7 @@ public partial class Camera
     /// <see cref="Center"/> where the view fits inside it, centred on an axis where the view is larger.
     /// </summary>
     /// <remarks>
-    /// Bounds win over the follow, so a subject that leaves them leaves the frame. An infinite edge leaves
+    /// Bounds win over the follow. A subject that leaves them leaves the frame. An infinite edge leaves
     /// that side open. A change eases in over <see cref="BoundsSmoothTime"/>. <see cref="Offset"/> and the
     /// shake move the view after it is confined.
     /// </remarks>
@@ -57,9 +57,9 @@ public partial class Camera
     /// default, snaps.
     /// </summary>
     /// <remarks>
-    /// An edge closing on the view starts at the view's own edge and pushes it, and an opening edge eases
-    /// out from where it was. An edge opening to infinity, null bounds and <see cref="Teleport"/> take
-    /// effect at once.
+    /// An edge closing on the view starts at the view's own edge and pushes it. An opening edge eases out
+    /// from where it was. An edge opening to infinity, null bounds, <see cref="Teleport"/> and this
+    /// camera's first step in a scene take effect at once.
     /// </remarks>
     public float BoundsSmoothTime
     {
@@ -72,54 +72,52 @@ public partial class Camera
         }
     }
 
-    // What a frame confines to. Before the first settle it is Bounds as they stand.
-    private Rect? DrawnBounds => !_settled
-        ? Bounds
-        : _confine is { } now && _previousConfine is { } before
-            ? new Rect(
-                MathF.Min(now.Left, before.Left),
-                MathF.Min(now.Top, before.Top),
-                MathF.Max(now.Right, before.Right),
-                MathF.Max(now.Bottom, before.Bottom))
-            : null;
+    // What a frame confines to. Before the first settle it is Bounds as they stand. A frame confines only
+    // against a rect that held for both steps it draws between.
+    private Rect? DrawnBounds => !_settled ? Bounds : _confine == _previousConfine ? _confine : null;
 
     // Eases the confining rect toward Bounds and settles Center inside it, at the span the frame draws on
-    // output. It runs after the follow, so the bounds win over it.
+    // output. It runs after the follow. The bounds win over it.
     private void StepBounds(float seconds, Vector2 output)
     {
         CameraView view = ToView();
-        Vector2 half = (HostLayout(view, output)?.Span ?? view.Size) / 2f;
+        Vector2 half = Half(view, output);
+
+        // The previous step's centre at the span it was drawn at.
+        Vector2 previousHalf = Half(view with { Size = view.PreviousSize }, output);
 
         if (Bounds is { } target && _settled && !_cut && BoundsSmoothTime > 0f)
         {
-            Rect standing = new(PreviousCenter - half, half * 2f);
+            Rect standing = new(PreviousCenter - previousHalf, previousHalf * 2f);
             _confine = Ease(_confine ?? Unbounded, target, standing, seconds / (BoundsSmoothTime + seconds));
         }
-        else
+        else if (!_settled || _confine != Bounds)
         {
-            // A snap confines the step's first frame too, so the frame does not sweep in from outside.
+            // A snap confines the step's first frame too. The frame does not sweep in from outside.
             _confine = _previousConfine = Bounds;
-            PreviousCenter = Confined(PreviousCenter, half);
+            PreviousCenter = Confined(PreviousCenter, previousHalf);
         }
 
         Center = Confined(Center, half);
     }
+
+    private Vector2 Half(in CameraView view, Vector2 output) => (HostLayout(view, output)?.Span ?? view.Size) / 2f;
 
     private Vector2 Confined(Vector2 center, Vector2 half) =>
         _confine is { } confine && ViewportSize.X > 0f && ViewportSize.Y > 0f
             ? CameraView.Confine(center, half, confine)
             : center;
 
-    // Each edge starts no further in than the view standing inside the old rect, so a closing edge pushes
-    // the view from where it is and an opening one eases out from where it was.
+    // Each edge starts no further in than the view standing inside the old rect. A closing edge pushes the
+    // view from where it is. An opening one eases out from where it was.
     private static Rect Ease(in Rect from, in Rect to, in Rect standing, float blend) => new(
         Toward(MathF.Max(from.Left, MathF.Min(to.Left, standing.Left)), to.Left, blend),
         Toward(MathF.Max(from.Top, MathF.Min(to.Top, standing.Top)), to.Top, blend),
         Toward(MathF.Min(from.Right, MathF.Max(to.Right, standing.Right)), to.Right, blend),
         Toward(MathF.Min(from.Bottom, MathF.Max(to.Bottom, standing.Bottom)), to.Bottom, blend));
 
-    // The implicit step of an exponential approach. An edge the step cannot move lands, so the ease ends
-    // far from the origin too.
+    // The implicit step of an exponential approach. An edge the step cannot move lands on its target. The
+    // ease then ends far from the origin too.
     private static float Toward(float edge, float target, float blend)
     {
         if (edge == target)
@@ -132,7 +130,7 @@ public partial class Camera
         return next == edge || MathF.Abs(target - next) < SettledEdge ? target : next;
     }
 
-    // An open edge is drawn a view's width past the view, so only the finite edges show.
+    // An open edge is drawn a view's width past the view. Only the finite edges show.
     private void DrawBounds()
     {
         if ((_settled ? _confine : Bounds) is not { } bounds)

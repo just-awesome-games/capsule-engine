@@ -7,11 +7,11 @@ namespace Capsule.Tests.Scenes;
 // Bounds settle the camera's own centre, win over the follow, and ease the view into a changed rect.
 public sealed class CameraBoundsTests
 {
-    private static readonly Rect OneScreen = new(0f, 0f, 320f, 180f);
-    private static readonly Rect NextScreen = new(320f, 0f, 640f, 180f);
-
     // One step's blend of a quarter-second ease at 60 steps a second.
     private const float Blend = (1f / 60f) / (0.25f + (1f / 60f));
+
+    private static readonly Rect OneScreen = new(0f, 0f, 320f, 180f);
+    private static readonly Rect NextScreen = new(320f, 0f, 640f, 180f);
 
     // A smoothed centre that ran past the edge would hold the view pinned while it trailed back. The
     // settled centre is the confined one, so the view moves on the step the aim comes back.
@@ -52,10 +52,9 @@ public sealed class CameraBoundsTests
         Assert.Equal(OneScreen, camera.VisibleRegion);
     }
 
-    // The next screen's left edge closes from the view's own left edge, so the view moves on the first
-    // step. A frame drawn between two steps interpolates their settled views without clamping.
+    // The next screen's left edge closes from the view's own left edge. The view moves on the first step.
     [Fact]
-    public void ChangedBounds_EaseTheViewInFromWhereItStands_AndAFrameBetweenStepsInterpolates()
+    public void ChangedBounds_EaseTheViewInFromWhereItStands()
     {
         (SceneSimulation simulation, Camera camera) = Pinned(0.25f);
         simulation.Step(SceneFixtures.Step(0));
@@ -64,7 +63,6 @@ public sealed class CameraBoundsTests
         simulation.Step(SceneFixtures.Step(1));
 
         Assert.Equal(320f * Blend, camera.VisibleRegion.Left, 1e-3f);
-        Assert.Equal(160f * Blend, simulation.View.Camera.Resolve(0.5f, Vector2.Zero).Left, 1e-3f);
 
         for (int step = 2; step < 300; step++)
         {
@@ -72,6 +70,46 @@ public sealed class CameraBoundsTests
         }
 
         Assert.Equal(NextScreen, camera.VisibleRegion);
+    }
+
+    // A room as wide as the view and one narrower than it, where the view is centred on each rect.
+    [Theory]
+    [InlineData(320f)]
+    [InlineData(200f)]
+    public void AFrameBetweenTwoStepsOfAnEase_InterpolatesTheirViews(float width)
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0.25f, new Rect(0f, 0f, width, 180f));
+        simulation.Step(SceneFixtures.Step(0));
+        float before = camera.VisibleRegion.Left;
+
+        camera.Bounds = new Rect(400f, 0f, 400f + width, 180f);
+        simulation.Step(SceneFixtures.Step(1));
+        float after = camera.VisibleRegion.Left;
+
+        Assert.NotEqual(before, after);
+        Assert.Equal(before + ((after - before) * 0.25f), simulation.View.Camera.Resolve(0.25f, Vector2.Zero).Left, 1e-3f);
+    }
+
+    // A view zooming out against an edge keeps that edge still at every point between two steps.
+    [Fact]
+    public void AViewWideningAgainstAnEdge_HoldsTheEdgeBetweenSteps()
+    {
+        static void ZoomOut(Scene scene, in StepContext context) => scene.Camera.Zoom = 1f - (0.05f * (context.Tick + 1));
+
+        SceneFixtures.HookScene scene = new(
+            start: s =>
+            {
+                SceneFixtures.Open(s, new Vector2(160f, 90f), new Vector2(320f, 180f));
+                s.Camera.Bounds = new Rect(0f, 0f, 1000f, 1000f);
+            },
+            step: ZoomOut);
+        SceneSimulation simulation = new(scene);
+
+        for (int step = 0; step < 4; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+            Assert.Equal(0f, simulation.View.Camera.Resolve(0.5f, Vector2.Zero).Left, 1e-3f);
+        }
     }
 
     [Fact]
@@ -99,13 +137,21 @@ public sealed class CameraBoundsTests
         Assert.Equal(new Vector2(160f, -5000f), camera.Center);
     }
 
-    // A camera centred on OneScreen and confined to it.
-    private static (SceneSimulation Simulation, Camera Camera) Pinned(float boundsSmoothTime)
+    [Fact]
+    public void ANaNEdge_IsRefused()
+    {
+        Camera camera = new();
+
+        Assert.Throws<ArgumentException>(() => camera.Bounds = new Rect(0f, float.NaN, 320f, 180f));
+    }
+
+    // A 320x180 camera confined to OneScreen unless given another rect.
+    private static (SceneSimulation Simulation, Camera Camera) Pinned(float boundsSmoothTime, Rect? bounds = null)
     {
         SceneFixtures.HookScene scene = new(start: s =>
         {
             SceneFixtures.Open(s, new Vector2(160f, 90f), new Vector2(320f, 180f));
-            s.Camera.Bounds = OneScreen;
+            s.Camera.Bounds = bounds ?? OneScreen;
             s.Camera.BoundsSmoothTime = boundsSmoothTime;
         });
 
