@@ -25,9 +25,9 @@ public sealed class SceneVisibilityTests
             scene.Camera.Bounds = new Rect(0f, -20f, 40f, 20f);
         });
 
-        // Confined on X to the right edge, free on Y, and the centre itself is left as framed.
+        // Confined on X to the right edge and free on Y. The centre settles where the region is.
         Assert.Equal(new Rect(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
-        Assert.Equal(new Vector2(100f, 0f), simulation.Scene.Camera.Center);
+        Assert.Equal(new Vector2(35f, 0f), simulation.Scene.Camera.Center);
     }
 
     [Fact]

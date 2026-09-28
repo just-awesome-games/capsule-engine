@@ -45,7 +45,10 @@ public partial class Camera
     // The canvas to world conversion the last settle resolved, or null before one has.
     private CanvasMap? _canvasMap;
 
-    /// <summary>The point the viewport is centred on, in world units.</summary>
+    /// <summary>
+    /// The point the viewport is centred on, in world units. Each step settles it inside
+    /// <see cref="Bounds"/>, or inside the rect easing toward them.
+    /// </summary>
     public Vector2 Center { get; set; }
 
     // Center at the previous fixed step, in world units. The engine saves it.
@@ -62,17 +65,6 @@ public partial class Camera
     /// <see cref="ViewportFit.Letterbox"/>.
     /// </summary>
     public ViewportFit Fit { get; set; }
-
-    /// <summary>
-    /// A world rect the visible region must stay inside, applied after the fit resolves. The region
-    /// is clamped inside these bounds on each axis, and centred on an axis where it is larger than
-    /// the bounds.
-    /// </summary>
-    /// <remarks>
-    /// Null, the default, leaves the view free. <see cref="Center"/> keeps the raw framing target.
-    /// The clamping affects only what is drawn.
-    /// </remarks>
-    public Rect? Bounds { get; set; }
 
     /// <summary>How many times the view magnifies the world, defaulting to 1.</summary>
     /// <remarks>At 2 it spans half of <see cref="ViewportSize"/>.</remarks>
@@ -145,9 +137,9 @@ public partial class Camera
 
     /// <summary>
     /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred
-    /// on <see cref="Center"/>, clamped to <see cref="Bounds"/> and moved by <see cref="Offset"/>
-    /// and the shake. The engine owns it and settles it once per step, after the follow and the
-    /// shake.
+    /// on <see cref="Center"/>, held inside <see cref="Bounds"/> or the rect easing toward them, and
+    /// moved by <see cref="Offset"/> and the shake. The engine owns it and settles it once per step,
+    /// after the follow and the shake.
     /// </summary>
     /// <remarks>
     /// An entity or component that reads it during its own step sees the region the previous step
@@ -270,21 +262,18 @@ public partial class Camera
     {
     }
 
-    // Draws Bounds and the deadzone on the Camera channel. The visible region is the frame's own edges
-    // and says nothing.
+    // Draws the bounds confining the view and the deadzone on the Camera channel. The visible region is
+    // the frame's own edges and says nothing.
     internal void OnDebugDraw()
     {
-        if (Bounds is { } bounds)
-        {
-            DebugDraw.Rect(DebugDraw.Camera, bounds);
-        }
-
+        DrawBounds();
         DrawDeadzone();
     }
 
     internal void SavePrevious()
     {
         PreviousCenter = Center;
+        _previousConfine = _confine;
         _previousZoom = Zoom;
         _previousOffset = Offset + ShakeOffset;
     }
@@ -293,19 +282,20 @@ public partial class Camera
     private Vector2 ResolvedScrollCenter => ScrollCenter ?? (ViewportSize / 2f);
 
     // What the renderer draws this camera as, and what the simulation measures visibility against.
-    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize / Zoom, Fit, Bounds, ResolvedScrollCenter)
+    internal CameraView ToView() => new(PreviousCenter, Center, ViewportSize / Zoom, Fit, DrawnBounds, ResolvedScrollCenter)
     {
         PreviousSize = ViewportSize / _previousZoom,
         PreviousOffset = _previousOffset,
         Offset = Offset + ShakeOffset,
     };
 
-    // The engine's half of the late step: the follow, the shake, then the region the frame will use,
-    // measured against the step's output. An empty output measures the declared span.
+    // The engine's half of the late step: the follow, the bounds, the shake, then the region the frame
+    // will use, measured against the step's output. An empty output measures the declared span.
     internal void Settle(in StepContext context)
     {
         CutToSubject();
         StepFollow(context.DeltaSeconds, context.Output);
+        StepBounds(context.DeltaSeconds, context.Output);
         StepShake(context.DeltaSeconds);
 
         if (_cut)

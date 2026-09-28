@@ -21,6 +21,9 @@ public sealed class GameCamera : Camera
 
         // Seconds the camera takes to catch its aim. Lower snaps, higher drifts.
         SmoothTime = 0.25f;
+
+        // Seconds the view takes to settle back out of a camera zone's bounds.
+        BoundsSmoothTime = 0.35f;
     }
 
     /// <inheritdoc/>

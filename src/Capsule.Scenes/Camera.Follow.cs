@@ -89,8 +89,9 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// A later call glides to the subject. The cut goes only to a subject in this camera's scene or in
-    /// none yet. The subject never leaves the frame, whatever its speed. A subject outside this camera's
-    /// scene, or paused or frozen, holds the camera until it steps in this scene again.
+    /// none yet. Inside <see cref="Bounds"/> the subject never leaves the frame, whatever its speed. A
+    /// subject outside this camera's scene, or paused or frozen, holds the camera until it steps in this
+    /// scene again.
     /// </remarks>
     public void Follow(Entity? subject)
     {

@@ -81,9 +81,9 @@ public sealed class SceneCameraTests
         Assert.Equal(new Vector2(51, 0), Assert.Single(simulation.View.Sprites.ToArray()).Position);
     }
 
-    // Bounds confine what is drawn without moving the centre, so culling has to confine the same
-    // way: this sprite is on screen only because the view was pushed right off the room's left
-    // edge, and the raw sweep around the centre excludes it.
+    // Before the first step settles the centre, bounds confine only what is drawn, so culling has to
+    // confine the same way: this sprite is on screen only because the view was pushed right off the
+    // room's left edge, and the raw sweep around the centre excludes it.
     [Fact]
     public void ASpriteConfinementBringsIntoView_SurvivesCulling()
     {
@@ -265,7 +265,7 @@ public sealed class SceneCameraTests
         Assert.Equal(room, view.Bounds);
         Assert.Equal(new Vector2(-400f, 250f), view.Center);
 
-        // The clamp lives in resolution alone: the camera still frames where it was pointed.
+        // Before the first step settles the centre, the clamp lives in resolution alone.
         Assert.Equal(new Rect(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
     }
 

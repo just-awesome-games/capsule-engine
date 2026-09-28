@@ -4,7 +4,7 @@ Capsule is developed for JAG Studios' games in public. A change is accepted when
 
 ## Setup
 
-Install the .NET SDK selected by [`global.json`](global.json). Then, once per clone:
+Install a .NET 10 SDK on Windows, macOS or Linux. [`global.json`](global.json) accepts any feature band from 10.0.100 up. A distribution package such as Ubuntu's `dotnet-sdk-10.0` works. Then, once per clone:
 
 ```text
 git config core.hooksPath .githooks

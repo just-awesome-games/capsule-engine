@@ -41,7 +41,8 @@ public sealed class PackageTests
     }
 
     // Packs the engine checkout's JAG.Capsule without building it, in the configuration these tests
-    // were built in.
+    // were built in. A reusable MSBuild node the pack starts would inherit its output pipes and outlive
+    // it, and reading the output to its end would then never return.
     private static ZipArchive Pack()
     {
         string configuration = typeof(Scene).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
@@ -53,7 +54,7 @@ public sealed class PackageTests
             RedirectStandardError = true,
         };
         foreach (string argument in (string[])["pack", Path.Combine(CheckoutRoot(), "src", "Capsule", "Capsule.csproj"),
-            "--no-build", "--no-restore", "--configuration", configuration, "--output", output, "-nologo"])
+            "--no-build", "--no-restore", "--configuration", configuration, "--output", output, "-nologo", "-nodeReuse:false"])
         {
             start.ArgumentList.Add(argument);
         }
