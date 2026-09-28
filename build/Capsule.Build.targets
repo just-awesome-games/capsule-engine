@@ -69,11 +69,13 @@
   <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
     <_CapsuleAuthored Include="$(CapsuleAssetSourcesDir)/**/*" Exclude="@(_CapsuleDevelopmentOnly)" />
 
-    <!-- The shader tools are native binaries, downloaded at restore and never referenced, and only
-         for a game with a shader. Restore reads evaluation, so this one type is globbed here too. -->
+    <!-- The shader tools are native binaries, downloaded at restore and never referenced. A package
+         consumer gets them as dependencies of JAG.Capsule.Build, because restore never reads the
+         items a package's targets declare. The tool project passes nothing, so an engine clone
+         downloads them here, and only for a game with a shader. -->
     <_CapsuleShaderSource Include="$(CapsuleAssetSourcesDir)/**/*.fx" Exclude="@(_CapsuleDevelopmentOnly)" />
-    <PackageDownload Condition="'@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
-    <PackageDownload Condition="'@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
+    <PackageDownload Condition="'$(CapsuleBuildToolProject)' != '' and '@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
+    <PackageDownload Condition="'$(CapsuleBuildToolProject)' != '' and '@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
   </ItemGroup>
 
   <!-- Only an explicitly declared asset root must exist. -->

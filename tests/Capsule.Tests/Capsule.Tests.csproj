@@ -24,6 +24,9 @@
     <!-- The reference decoder VorbisDecodeTests checks the vendored one against. MonoGame carries
          NVorbis as a runtime dependency only, so it does not flow as a compile reference here. -->
     <PackageReference Include="NVorbis" Version="0.10.4" />
+    <!-- The reference decoder SingleChannelPngTests checks the build's PNG reads against. The build
+         tool and the runtime both keep it private, so it does not flow as a compile reference. -->
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
   </ItemGroup>
 
   <!-- Referencing the runtime through its desktop module also makes this project a live probe

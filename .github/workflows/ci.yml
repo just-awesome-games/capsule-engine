@@ -68,12 +68,14 @@ jobs:
           path: artifacts/packages/*.*nupkg
           if-no-files-found: error
 
-      # Verify the sample against the packages produced above.
+      # Verify the sample against the packages produced above, in an empty cache. The source-mode
+      # restore above has already filled the cache the sample's NuGet.config names.
       - name: Restore sample (package mode)
         run: >
           dotnet restore samples/MinimalGame/MinimalGame.slnx
           --configfile samples/MinimalGame/NuGet.config
           -p:CapsuleUsePackages=true
+          -p:RestorePackagesPath=${{ runner.temp }}/package-consumer-cache
 
       - name: Build sample (package mode)
         run: >

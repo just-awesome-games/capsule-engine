@@ -9,7 +9,8 @@
     <PackageId>JAG.Capsule.Build</PackageId>
     <Description>The Capsule build: asset keying, scene, sprite, font, audio and shader compilation, atlas packing, source generators and analyzers for Capsule games.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- The shader tools below are a net10.0 dependency group with no lib/ beside it, by design. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
     <IncludeSymbols>false</IncludeSymbols>
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -27,15 +28,26 @@
   </ItemGroup>
 
   <!-- Atlas packing decodes and encodes PNGs here and nowhere else: both are pure managed, so the
-       tool stays a plain framework-dependent process on every build host. -->
+       tool stays a plain framework-dependent process on every build host. They ship inside the
+       package under tools/, like Capsule.Scenes, so neither is a package dependency. -->
   <ItemGroup>
-    <PackageReference Include="StbImageSharp" Version="2.30.16" />
-    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" PrivateAssets="all" />
+    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
+    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" PrivateAssets="all" />
     <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The native shader tools are the package's only dependencies. Restore downloads them beside
+       the game's other packages, and neither the tool nor the game takes an asset from them. Pack
+       drops a dependency that excludes all assets and never writes contentFiles to its exclude, so
+       contentFiles stays included here. Neither package has any. -->
+  <Import Project="../../build/Capsule.ShaderTools.targets" />
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
+    <PackageReference Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
   </ItemGroup>
 
   <ItemGroup>
