@@ -25,12 +25,13 @@ internal static class BuildRun
 
     /// <param name="requestsPath">The manifest to run.</param>
     /// <param name="outputDirectory">Where everything is written.</param>
+    /// <param name="configuration">What the game's build project configured.</param>
     /// <param name="output">Progress, one line per source.</param>
     /// <param name="error">Defects, each anchored to the file that has it.</param>
     /// <returns>0 when the run reported no defect, 1 when it reported any.</returns>
-    internal static int Run(string requestsPath, string outputDirectory, TextWriter output, TextWriter error)
+    internal static int Run(string requestsPath, string outputDirectory, CapsuleBuild configuration, TextWriter output, TextWriter error)
     {
-        BuildPass pass = new(outputDirectory, output, error);
+        BuildPass pass = new(outputDirectory, configuration, output, error);
         try
         {
             Directory.CreateDirectory(outputDirectory);
@@ -43,15 +44,18 @@ internal static class BuildRun
             return 1;
         }
 
-        // Unlike the steps below, a refused key ends the run. No step could name that source.
-        Keys.Derive(pass); // Requests -> Keyed
-        if (pass.Failures > 0)
-        {
-            return 1;
-        }
-
         try
         {
+            ImportStep.Run(pass); // claimed sources -> imported/, Requests
+
+            // Unlike the other steps, a refused key ends the run. No step could name that source.
+            int failures = pass.Failures;
+            Keys.Derive(pass); // Requests -> Keyed
+            if (pass.Failures > failures)
+            {
+                return 1;
+            }
+
             // A step reports each defective source and the rest still build, so every step runs.
             FontStep.Run(pass);             // .fnt sources -> FontPages, font members
             AtlasDeclarationStep.Run(pass); // .atlas.json files -> Atlases

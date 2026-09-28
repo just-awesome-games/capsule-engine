@@ -43,15 +43,14 @@
     <PackageReference Remove="$(_CapsuleOverriddenPackages)" />
   </ItemGroup>
 
-  <!-- One configuration for the engine's projects and every build tool a derivation builds from
-       source, applied before project assignment. A package consumer that sets
-       CapsuleSourceConfiguration builds no clone, so the target skips it. -->
+  <!-- One configuration for the engine's projects, applied before project assignment. A package
+       consumer that sets CapsuleSourceConfiguration builds no clone, so the target skips it. -->
   <Target Name="CapsuleConfigureEngineReferences"
-          Condition="'$(CapsuleSourceConfiguration)' != '' and ('$(CapsuleSourceRoot)' != '' or '$(CapsuleSourceOverrides)' != '')"
+          Condition="'$(CapsuleSourceConfiguration)' != '' and '$(CapsuleSourceRoot)' != ''"
           AfterTargets="ResolvePackageDependenciesForBuild">
     <ItemGroup>
       <ProjectReference AdditionalProperties="Configuration=$(CapsuleSourceConfiguration)"
-                        Condition="'%(ProjectReference.CapsuleTool)' == 'true' or ('$(CapsuleSourceModulesDirectory)' != '' and $([System.String]::new('%(FullPath)').StartsWith('$(CapsuleSourceModulesDirectory)', System.StringComparison.OrdinalIgnoreCase)))" />
+                        Condition="$([System.String]::new('%(FullPath)').StartsWith('$(CapsuleSourceModulesDirectory)', System.StringComparison.OrdinalIgnoreCase))" />
     </ItemGroup>
   </Target>
 

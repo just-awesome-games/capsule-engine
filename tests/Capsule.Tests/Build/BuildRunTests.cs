@@ -51,7 +51,7 @@ public sealed class BuildRunTests
     }
 
     // A directory holding a .capsuleignore is development-only. A shipping run leaves out every file
-    // under it and every file a derivation wrote at a path under it, and any other run ships them.
+    // under it and every file an importer wrote at a path under it, and any other run ships them.
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -61,7 +61,8 @@ public sealed class BuildRunTests
         workspace.Write("Assets/hero.png", string.Empty);
         workspace.Write("Assets/Dev/.capsuleignore", string.Empty);
         workspace.Write("Assets/Dev/scratch.png", string.Empty);
-        workspace.Write(ToolWorkspace.Derived + "/editor/Dev/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Dev/room.note", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
+        workspace.Configure = static build => build.AddImporter(new NoteImporter());
 
         workspace.Succeed($"shipping|{shipping}");
 
@@ -87,27 +88,28 @@ public sealed class BuildRunTests
         Assert.Equal(written, outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output))));
     }
 
-    // A derivation's directory is part of the asset tree, whatever kind of file the derivation writes.
-    // The sheet names a texture authored under Assets/.
+    // An importer's output is part of the asset tree, whatever kind of file it writes. The sheet names
+    // a texture authored under Assets/.
     [Theory]
     [InlineData("Textures/hero.png", "")]
     [InlineData("Sprites/prop.sheet.json", """{ "formatVersion": 1, "texture": "sprites/p.png", "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }""")]
     [InlineData("Scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""")]
-    public void ADerivedFile_BuildsAsTheSameFileAuthored(string below, string text)
+    public void AnImportedFile_BuildsAsTheSameFileAuthored(string below, string text)
     {
-        const string DerivedRoot = ToolWorkspace.Derived + "/tool/";
-        (string[] Shipped, string Generated) authored = BuiltFrom("Assets/" + below, text);
-        (string[] Shipped, string Generated) derived = BuiltFrom(DerivedRoot + below, text);
+        (string[] Shipped, string Generated) authored = BuiltFrom("Assets/" + below, text, output: null);
+        string extension = below[below.IndexOf('.', StringComparison.Ordinal)..];
+        (string[] Shipped, string Generated) imported = BuiltFrom("Assets/" + below[..^extension.Length] + ".note", text, extension);
 
-        Assert.Equal(authored.Shipped, derived.Shipped);
-        Assert.Equal(authored.Generated, derived.Generated.Replace(DerivedRoot, "Assets/", StringComparison.Ordinal));
+        Assert.Equal(authored.Shipped, imported.Shipped);
+        Assert.Equal(authored.Generated, imported.Generated.Replace(ToolWorkspace.Imported, "Assets/", StringComparison.Ordinal));
     }
 
-    private static (string[] Shipped, string Generated) BuiltFrom(string path, string text)
+    private static (string[] Shipped, string Generated) BuiltFrom(string path, string text, string? output)
     {
         using ToolWorkspace workspace = new();
         workspace.WritePng("Assets/Sprites/p.png", 1, 1);
         workspace.Write(path, text);
+        workspace.Configure = build => build.AddImporter(new NoteImporter(output: output ?? ".scene.json"));
         workspace.Succeed();
 
         return (workspace.Shipped, workspace.Generated);

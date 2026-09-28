@@ -11,10 +11,8 @@ namespace Capsule.Build;
 /// What every step of one run reads and writes. The values one step hands the next are properties set
 /// once by the step named on each. Reading one before that step ran throws.
 /// </summary>
-internal sealed class BuildPass(string outputDirectory, TextWriter output, TextWriter error)
+internal sealed class BuildPass(string outputDirectory, CapsuleBuild configuration, TextWriter output, TextWriter error)
 {
-    private readonly string _outputDirectory = outputDirectory;
-
     private readonly TextWriter _output = output;
 
     private readonly TextWriter _error = error;
@@ -30,6 +28,12 @@ internal sealed class BuildPass(string outputDirectory, TextWriter output, TextW
     private IReadOnlyDictionary<string, ResolvedTexture>? _textureSettings;
 
     private TextureMapBuilder? _textureMap;
+
+    /// <summary>Where the run writes everything.</summary>
+    internal string OutputDirectory { get; } = outputDirectory;
+
+    /// <summary>What the game's build project configured.</summary>
+    internal CapsuleBuild Configuration { get; } = configuration;
 
     /// <summary>Everything the game ships, laid out under <c>assets/</c>.</summary>
     internal ShippedFiles Shipped { get; } = new(Path.Combine(outputDirectory, "assets"));
@@ -132,7 +136,7 @@ internal sealed class BuildPass(string outputDirectory, TextWriter output, TextW
     /// </summary>
     internal string CacheDirectory(string step)
     {
-        string directory = Path.Combine(_outputDirectory, step);
+        string directory = Path.Combine(OutputDirectory, step);
         Directory.CreateDirectory(directory);
 
         return directory;

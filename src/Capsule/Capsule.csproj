@@ -110,10 +110,10 @@
     </ItemGroup>
   </Target>
 
-  <!-- The build tool's whole output directory, since the process loads Capsule.Scenes and its spine
-       beside it, and the generator. Both sit outside lib/ and analyzers/, so NuGet hands a consumer
-       neither. The build targets run the tool, and Capsule.Compiler.targets adds the generator for a
-       role. Nothing references either project, so a pack builds the solution first, as CI does.
+  <!-- Capsule.Build's whole output directory with its API reference, since a build project loads
+       its private dependencies beside it, and the generator. Both sit outside lib/ and analyzers/, so
+       NuGet hands a consumer neither. Capsule.Assets.targets references Capsule.Build for the build
+       role, and Capsule.Compiler.targets adds the generator for a role. Nothing references either project, so a pack builds the solution first, as CI does.
        TargetFramework is removed because the generator targets netstandard2.0. -->
   <Target Name="IncludeCapsuleBuild">
     <MSBuild Projects="../Capsule.Build/Capsule.Build.csproj;../Capsule.Generators/Capsule.Generators.csproj"
@@ -131,7 +131,7 @@
       <_CapsuleBuildToolDirectory>@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Build')->'%(RootDir)%(Directory)')</_CapsuleBuildToolDirectory>
     </PropertyGroup>
     <ItemGroup>
-      <TfmSpecificPackageFile Include="$(_CapsuleBuildToolDirectory)*.dll;$(_CapsuleBuildToolDirectory)*.json" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="$(_CapsuleBuildToolDirectory)*.dll;$(_CapsuleBuildToolDirectory)*.json;$(_CapsuleBuildToolDirectory)Capsule.Build.xml" PackagePath="tools/net10.0/any/" />
       <TfmSpecificPackageFile Include="@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Generators'))" PackagePath="tools/generators/" />
     </ItemGroup>
   </Target>

@@ -72,12 +72,10 @@ public sealed class AssetKeyTests
         Assert.Contains("\"01-intro\" is no C# name", errors, StringComparison.Ordinal);
     }
 
-    // Two spellings of one path are one asset, as are two formats of one sound, and a derived file and
-    // an authored one at the same path.
+    // Two spellings of one path are one asset, as are two formats of one sound.
     [Theory]
     [InlineData("Assets/Textures/Foot_Step.png", "Assets/Textures/foot-step.png")]
     [InlineData("Assets/Audio/hit.ogg", "Assets/Audio/hit.wav")]
-    [InlineData("Assets/Textures/hero.png", ToolWorkspace.Derived + "/tool/Textures/hero.png")]
     public void TwoSpellingsOfOneKey_FailTheBuildNamingBoth(string first, string second)
     {
         using ToolWorkspace workspace = new();

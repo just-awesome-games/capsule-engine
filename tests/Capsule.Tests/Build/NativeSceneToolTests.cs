@@ -66,17 +66,18 @@ public sealed class NativeSceneToolTests
         Assert.Equal("Assets/Scenes/rooms/hall.scene.json", derived.Source?.Path);
     }
 
-    // A derived document arrives stamped with the file a person edited. That provenance is kept, and
-    // the document ships at its path below its derivation's directory.
+    // An imported document arrives stamped with the file a person edited. That provenance is kept, and
+    // the document ships at the path its importer wrote it to.
     [Fact]
-    public void ADerivedDocument_KeepsItsSourceBlockAndShipsAtItsPath()
+    public void AnImportedDocument_KeepsItsSourceBlockAndShipsAtItsPath()
     {
         using ToolWorkspace workspace = new();
         SceneDocument stamped = new(
             SceneDocumentFile.Parse(Authored).Entries.ToArray(),
             3,
-            new SceneDocumentSource("editor", "Assets/Upper_Halls/Hall.editor", new string('a', 64)));
-        workspace.Write(ToolWorkspace.Derived + "/editor/Upper_Halls/Hall.scene.json", SceneDocumentFile.ToJson(stamped));
+            new SceneDocumentSource("editor", "Assets/Upper_Halls/Hall.note", new string('a', 64)));
+        workspace.Write("Assets/Upper_Halls/Hall.note", SceneDocumentFile.ToJson(stamped));
+        workspace.Configure = static build => build.AddImporter(new NoteImporter());
 
         workspace.Succeed();
 
@@ -103,8 +104,9 @@ public sealed class NativeSceneToolTests
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
+        workspace.Configure = static build => build.WithTileSize(8);
 
-        Assert.Contains("Assets/Scenes/hall.scene.json", workspace.Fail("tile-size|8"), StringComparison.Ordinal);
+        Assert.Contains("Assets/Scenes/hall.scene.json", workspace.Fail(), StringComparison.Ordinal);
         Assert.False(File.Exists(Shipped + "hall.scene.json.gz"));
     }
 

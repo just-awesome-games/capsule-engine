@@ -9,7 +9,7 @@ using Capsule.Tiles;
 namespace Capsule.Build.Scenes;
 
 /// <summary>
-/// Every scene document, authored or derived by a module, validated and re-emitted compact and gzipped
+/// Every scene document, authored or imported, validated and re-emitted compact and gzipped
 /// where it ships, and each key declared as a constant. The indented canonical form is the authoring format.
 /// </summary>
 internal static class SceneStep
@@ -25,7 +25,7 @@ internal static class SceneStep
             pass.Of(AssetType.Scenes),
             source =>
             {
-                SceneDocument document = Import(source.Path, pass.Requests.TileSize);
+                SceneDocument document = Import(source.Path, pass.Configuration.TileSize);
                 string shipped = pass.Shipped.Claim(source.Key + ShippedSceneDocument.Extension, $"'{source.Path}'");
                 AtomicFile.Write(shipped, path => ShippedSceneDocument.Write(document, path));
                 pass.Progress("scenes", source);
@@ -53,12 +53,12 @@ internal static class SceneStep
                 if (entry.TileMap is { Grid.TileSize: var actual } && actual != declared)
                 {
                     throw new SceneDocumentFormatException(
-                        $"the scene document has {actual}px tiles but the game declares {declared}px. Set tileSize to {declared} on every tile-map entry, or change CapsuleTileSize.");
+                        $"the scene document has {actual}px tiles but the game declares {declared}px. Set tileSize to {declared} on every tile-map entry, or change the tile size the build project passes to WithTileSize.");
                 }
             }
         }
 
-        // A document that arrives stamped was derived by an authoring module, and its block names
+        // A document that arrives stamped was imported by an authoring module, and its block names
         // the file a person edited. Re-stamping it would name the intermediate instead.
         SceneDocumentSource source = authored.Source ?? new(
             ToolName,

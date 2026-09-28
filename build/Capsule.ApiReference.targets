@@ -48,7 +48,8 @@
       <_CapsulePackageAssembly Include="@(ReferencePath)"
                                Condition="$([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('JAG.Capsule')) and $([System.String]::Copy('%(ReferencePath.Filename)').StartsWith('Capsule.'))" />
       <_CapsuleApiReferenceFile Include="@(_CapsulePackageAssembly->'%(RootDir)%(Directory)%(Filename).xml')" />
-      <_CapsuleModule Include="$(_CapsulePackagesDirectory)jag.capsule*/$(_CapsuleEngineVersion)/lib/*/Capsule.*.xml" />
+      <_CapsuleModule Include="$(_CapsulePackagesDirectory)jag.capsule*/$(_CapsuleEngineVersion)/lib/*/Capsule.*.xml;$(_CapsuleEnginePackageDirectory)tools/net10.0/any/Capsule.Build.xml" />
+      <_CapsuleApiReferenceFile Include="$(_CapsuleEnginePackageDirectory)tools/net10.0/any/Capsule.Build.xml" Condition="'$(CapsuleGameBuild)' == 'true'" />
       <_CapsuleSchemaFile Include="$(_CapsuleEnginePackageDirectory)schemas/*.schema.json" />
     </ItemGroup>
 

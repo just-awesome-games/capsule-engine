@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Xml.Linq;
 using Capsule.Assets;
+using Capsule.Build;
 using Capsule.Physics;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
@@ -13,6 +14,7 @@ public sealed class ApiReferenceTests
 {
     public static TheoryData<string> ShippedAssemblies { get; } = new(
         typeof(AssetCollection).Assembly.GetName().Name!,
+        typeof(CapsuleBuild).Assembly.GetName().Name!,
         typeof(Aabb2D).Assembly.GetName().Name!,
         typeof(Scene).Assembly.GetName().Name!,
         typeof(CapsuleEngine).Assembly.GetName().Name!,

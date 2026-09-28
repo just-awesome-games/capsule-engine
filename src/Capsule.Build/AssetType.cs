@@ -33,6 +33,9 @@ internal sealed class AssetType(string suffix, params string[] extensions)
 
     internal string[] Extensions { get; } = extensions;
 
+    /// <summary>Every extension a type admits, which no importer may claim.</summary>
+    internal static IEnumerable<string> AdmittedExtensions => Admitting.SelectMany(static type => type.Extensions);
+
     /// <summary>The type admitting <paramref name="name"/> by its extension, or null for a file none reads.</summary>
     internal static AssetType? Of(string name) => Array.Find(Admitting, type => type.Extension(name) is not null);
 

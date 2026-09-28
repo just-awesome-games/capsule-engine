@@ -32,12 +32,17 @@ does. The `capsule-engine` tag lets a package search find every Capsule package 
 
 ## Taking part in the build
 
-Most packages never touch the build. A package that turns an editor's files into Capsule assets declares a
-build derivation in its `buildTransitive/<PackageId>.targets`.
-[Build derivations](build-and-publish.md#build-derivations) is the contract.
+Most packages never touch the build. A package that turns an editor's files into Capsule assets ships an
+importer: a public class implementing `IAssetImporter`, in a library that declares
+`<CapsuleGameBuild>true</CapsuleGameBuild>` to compile against `Capsule.Build`. A game adds it in its build
+project's `Program.cs`. [Writing an importer](build-and-publish.md#writing-an-importer) is the contract.
 
 ## Developing a package against a game
 
 A game builds against a package's clone in place of the published package. Its ignored
 `Directory.Build.local.props` names the clone in `CapsuleSourceOverrides`, and the clone supplies
-`build/<PackageId>.targets`. [Consuming Capsule](build-and-publish.md#consuming-capsule) shows the file.
+`build/<PackageId>.targets`, which references the package's project in its place. The game's build
+project then compiles the importer from source. An importer runs inside the game's build process
+and must compile against the game's engine. A clone that builds against an engine clone names
+that same engine clone in its own `Directory.Build.local.props`.
+[Consuming Capsule](build-and-publish.md#consuming-capsule) shows the file.

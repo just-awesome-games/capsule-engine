@@ -5,17 +5,19 @@ using Capsule.Tests.Documents;
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// A game's project directory as the build tool sees it: files authored under <c>Assets/</c> and files
-/// derivations wrote under <c>obj/capsule/derived/&lt;name&gt;/</c>, one run over the manifest the
-/// targets would write for them, and what that run left under <c>obj/capsule/</c>.
+/// A game's project directory as the build sees it: files authored under <c>Assets/</c>, one run over
+/// the manifest the targets would write for them, and what that run left under <c>obj/capsule/</c>.
 /// </summary>
 internal sealed class ToolWorkspace : IDisposable
 {
     internal const string Out = "obj/capsule";
 
-    internal const string Derived = Out + "/derived";
+    internal const string Imported = Out + "/imported/";
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
+
+    /// <summary>What the game's build project configures on every run.</summary>
+    internal Func<CapsuleBuild, CapsuleBuild> Configure { get; set; } = static build => build;
 
     /// <summary>What the last run wrote to its error stream.</summary>
     internal string Errors { get; private set; } = string.Empty;
@@ -74,8 +76,8 @@ internal sealed class ToolWorkspace : IDisposable
     }
 
     /// <summary>
-    /// Runs the tool over every file under <c>Assets/</c> and under each derivation's directory, as the
-    /// targets hand them, plus <paramref name="lines"/>: options.
+    /// Runs the build over every file under <c>Assets/</c>, as the targets hand them, plus
+    /// <paramref name="lines"/>: options.
     /// </summary>
     /// <returns>The run's exit code.</returns>
     internal int Run(params string[] lines)
@@ -83,16 +85,11 @@ internal sealed class ToolWorkspace : IDisposable
         string[] authored = Directory.Exists("Assets")
             ? [.. Directory.EnumerateFiles("Assets", "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal).Select(static path => "asset|" + Path.GetFullPath(path))]
             : [];
-        string[] derived = Directory.Exists(Derived)
-            ? [.. Directory.EnumerateDirectories(Derived).Order(StringComparer.Ordinal).SelectMany(static root =>
-                Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)
-                    .Select(path => $"derived|{Path.GetFullPath(root)}|{Path.GetFullPath(path)}"))]
-            : [];
-        string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored, .. derived]));
+        string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored]));
 
         StringWriter output = new();
         StringWriter error = new();
-        int exitCode = BuildRun.Run(requests, Out, output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--requests", requests, "--out", Out])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 

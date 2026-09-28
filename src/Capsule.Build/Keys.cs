@@ -48,7 +48,7 @@ internal static class Keys
                 if (claimedBy.TryGetValue((source.Type, source.Key), out string? claimant))
                 {
                     throw new FormatException(
-                        $"keys as \"{source.Key}\", which '{claimant}' already claims. Two sources whose paths differ only in spelling are one asset, as are a derived file and an authored one at the same path, so rename one.");
+                        $"keys as \"{source.Key}\", which '{claimant}' already claims. Two sources whose paths differ only in spelling are one asset, as are an imported file and an authored one at the same path, so rename one.");
                 }
 
                 claimedBy.Add((source.Type, source.Key), source.Path);
@@ -111,8 +111,8 @@ internal static class Keys
 
     /// <summary>Whether a source placed at <paramref name="below"/> lies under one of <paramref name="directories"/>.</summary>
     /// <remarks>
-    /// A derived file is placed by its path below its derivation's output directory, which mirrors its
-    /// source's path below the asset root, so a file derived from a marked source goes too.
+    /// An imported file is placed at the path its importer wrote it to below the asset root. A file
+    /// written under a marked directory goes too.
     /// </remarks>
     private static bool IsUnder(string[] directories, string below)
     {

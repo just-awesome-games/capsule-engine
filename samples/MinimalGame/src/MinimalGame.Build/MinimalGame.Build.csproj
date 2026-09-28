@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <CapsuleGameLogic>true</CapsuleGameLogic>
-    <CapsuleBuildProject>../MinimalGame.Build/MinimalGame.Build.csproj</CapsuleBuildProject>
+    <OutputType>Exe</OutputType>
+    <CapsuleGameBuild>true</CapsuleGameBuild>
   </PropertyGroup>
 
   <ItemGroup>

@@ -102,7 +102,7 @@ Format version 1, UTF-8 JSON:
 | `frames` (of a clip) | At least one entry, each naming a `frame` of this sheet and the `ticks` it is held for. |
 | `ticks` | Fixed steps the frame is held for, at least one. Not milliseconds. |
 
-A derived sheet may name what it came from in a `source` block of `tool`, `path` and `hash`. Nothing
+An imported sheet may name what it came from in a `source` block of `tool`, `path` and `hash`. Nothing
 reads it.
 
 A root `"$schema"` key may name the format's published JSON Schema, `https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json`, as [Editor completion](configuring-assets.md#editor-completion) describes. The local copies are for reading.
@@ -163,7 +163,7 @@ then waits only for what has not landed.
 ## Authoring tools
 
 A sheet from another editor's format enters through an authoring module's
-[build derivation](build-and-publish.md#build-derivations), the way a scene document does
-([`scenes.md`](scenes.md#authoring-tools)). The module converts its own pivot, point and time models at
-derivation. Pivots and socket points are texels from the frame's top-left corner, and
+[importer](build-and-publish.md#writing-an-importer), the way a scene document does
+([`scenes.md`](scenes.md#authoring-tools)). The module converts its own pivot, point and time models on
+import. Pivots and socket points are texels from the frame's top-left corner, and
 durations are ticks.

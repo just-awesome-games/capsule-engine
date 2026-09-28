@@ -34,7 +34,6 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
-  <Import Project="$(MSBuildThisFileDirectory)Capsule.Derivations.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ShaderTools.targets" />
 
 </Project>

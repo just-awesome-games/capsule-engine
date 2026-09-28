@@ -12,10 +12,17 @@ public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilitie
 
     public string[] GeneratedInternalTypes { get; set; }
 
+    // When any is listed, every entry outside them is dropped too.
+    public string[] DocumentedTypes { get; set; }
+
     public override bool Execute()
     {
         XDocument document = XDocument.Load(DocumentationPath, LoadOptions.PreserveWhitespace);
-        XElement[] generated = document.Descendants("member").Where(IsGenerated).ToArray();
+        string[] generatedTypes = GeneratedInternalTypes ?? new string[0];
+        string[] documentedTypes = DocumentedTypes ?? new string[0];
+        XElement[] generated = document.Descendants("member")
+            .Where(entry => Documents(entry, generatedTypes) || (documentedTypes.Length > 0 && !Documents(entry, documentedTypes)))
+            .ToArray();
 
         foreach (XElement entry in generated)
         {
@@ -41,7 +48,7 @@ public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilitie
     }
 
     // An identifier is a kind letter, a colon, then the type, one of its members, or a nested type.
-    private bool IsGenerated(XElement entry)
+    private static bool Documents(XElement entry, string[] types)
     {
         string name = (string)entry.Attribute("name");
         if (name == null || name.Length < 3)
@@ -50,6 +57,6 @@ public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilitie
         }
 
         string subject = name.Substring(2);
-        return GeneratedInternalTypes.Any(type => subject == type || subject.StartsWith(type + ".", StringComparison.Ordinal));
+        return types.Any(type => subject == type || subject.StartsWith(type + ".", StringComparison.Ordinal));
     }
 }

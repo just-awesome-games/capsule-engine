@@ -6,6 +6,7 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
+    <CapsuleBuildProject>../Capsule.FixtureBuild/Capsule.FixtureBuild.csproj</CapsuleBuildProject>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 

@@ -8,6 +8,9 @@ line, build it against an engine clone or against the packages, and publish it.
 ```text
 my-game/
   src/
+    MyGame.Build/
+      MyGame.Build.csproj
+      Program.cs
     MyGame.Game/
       MyGame.Game.csproj
       Assets/
@@ -31,21 +34,23 @@ file. Folders map to namespaces, and a namespace is the registry key a document 
 ([`scenes.md`](scenes.md#entries-and-composition)). The assembly root holds the game's declarations:
 collision layers, input actions, audio buses, save keys, world units.
 
-Create the solution and three projects from the repository root, then replace each generated project
-file's body with the wiring below:
+A game is three projects and its tests. The logic project is the game, the shell hosts it at run time, and
+the build project hosts its asset build. Create them from the repository root, then replace each generated
+project file's body with the wiring below:
 
 ```text
 dotnet new sln --name MyGame --format slnx
 dotnet new classlib -o src/MyGame.Game
 dotnet new console -o src/MyGame.Shell
+dotnet new console -o src/MyGame.Build
 dotnet new xunit -o tests/MyGame.Tests
-dotnet sln MyGame.slnx add src/MyGame.Game src/MyGame.Shell tests/MyGame.Tests
+dotnet sln MyGame.slnx add src/MyGame.Game src/MyGame.Shell src/MyGame.Build tests/MyGame.Tests
 ```
 
 ## Consuming Capsule
 
-Capsule is a set of ordinary NuGet packages. The logic project references `JAG.Capsule`, and the shell
-references `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and the graphics substrate
+Capsule is a set of ordinary NuGet packages. The logic and build projects reference `JAG.Capsule`, and the
+shell references `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and the graphics substrate
 ([`PACKAGE.md`](../PACKAGE.md)). `JAG.Capsule` brings the build with it. Each project also states its role,
 which the build and the generators read:
 
@@ -55,6 +60,7 @@ which the build and the generators read:
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <CapsuleGameLogic>true</CapsuleGameLogic>
+    <CapsuleBuildProject>../MyGame.Build/MyGame.Build.csproj</CapsuleBuildProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -75,6 +81,27 @@ which the build and the generators read:
     <ProjectReference Include="../MyGame.Game/MyGame.Game.csproj" />
   </ItemGroup>
 </Project>
+
+<!-- src/MyGame.Build/MyGame.Build.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <CapsuleGameBuild>true</CapsuleGameBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JAG.Capsule" Version="[{YOUR_PINNED_VERSION}]" />
+  </ItemGroup>
+</Project>
+```
+
+The build project's `Program.cs` configures and runs the build ([The build project](#the-build-project)):
+
+```csharp
+using Capsule.Build;
+
+return CapsuleBuild.Configure(args).Run();
 ```
 
 A shell is a console app, and a Windows-subsystem app in Release, where a double-click opens no console.
@@ -203,14 +230,15 @@ to the importing project unless a row says otherwise.
 | --- | --- | --- |
 | `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the substrate-free logic library. |
 | `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it on the executable shell. |
+| `CapsuleGameBuild` | `true` | Compiles the project against `Capsule.Build`, which no other project sees. Set it on the build project and on a package's importer library. |
 
 ### Authoring sources and output
 
 | Property | Default | Effect |
 | --- | --- | --- |
 | `CapsuleAssetSourcesDir` | `Assets` under the importing project | Locates the authoring tree. A named directory must exist. |
-| `CapsuleBuildAssets` | `true` for the logic library, else `false` | Reads the authoring tree: derives scene documents, measures and compiles assets, and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
-| `CapsuleTileSize` | unset | Requires every imported tile map to use this positive pixel size. Set it on the logic project when the game has one global tile size. |
+| `CapsuleBuildAssets` | `true` for the logic library, else `false` | Reads the authoring tree: imports editor formats, measures and compiles assets, and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
+| `CapsuleBuildProject` | unset | The game's build project, which a project building assets must name. The build fails naming the fix when it is unset. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |
 | `CapsuleSymbolsDirectory` | the publish directory's path with `-symbols` appended | Receives a publish's symbols: the native pdb under NativeAOT, the managed pdbs otherwise. |
 
@@ -222,7 +250,7 @@ to the importing project unless a row says otherwise.
 | `CapsuleSourceOverrides` | unset | Replaces Capsule-family packages with clones, as `<PackageId>=<path>` separated by `;`, each path relative to the repository root. |
 | `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` under the repository root | Where the build stages Capsule's XML documentation and the JSON Schema of every authored format, in both modes. A relative path resolves against the repository root, the directory holding `Directory.Build.targets`, else `Directory.Build.props`, else the project's own directory. |
 | `CapsuleSubstratePackage` | `MonoGame.Framework.DesktopGL` | The substrate package `Capsule.Runtime` compiles against, with `CapsuleSubstrateVersion` (default `3.8.5.1`). Source mode only, for a private platform module retargeting the host. |
-| `CapsuleSourceConfiguration` | `Release` | The configuration an engine clone's own projects and every derivation's tool project build in, whatever the game builds. Set `Debug` to step into engine source. |
+| `CapsuleSourceConfiguration` | `Release` | The configuration an engine clone's own projects build in, whatever the game builds. Set `Debug` to step into engine source. |
 
 ### Application icons
 
@@ -250,57 +278,46 @@ Defining one half is allowed, and the build warns that the other half keeps Caps
 whose alpha is all zero reads as fully opaque. Most image viewers draw a `BI_RGB` alpha bitmap on black,
 and a transparent icon looks black-backed there.
 
-## Build derivations
+## The build project
 
-A package joins a game's build only by declaring a derivation in its `buildTransitive` targets: a tool that
-turns sources of its own format into files Capsule builds as though they were authored. Capsule runs the
-tool as its own process and never loads a package's code into the build.
-[`build/Capsule.Derivations.targets`](../build/Capsule.Derivations.targets) defines the declaration:
+The build project is a console app whose `Program.cs` configures `CapsuleBuild` and runs it. Every build of
+the logic project builds it first and runs it once, from the logic project's directory, over the list of
+every file under `Assets/`. The run writes what the game ships and the `CapsuleAssets` it compiles. Game-wide
+build configuration lives on `CapsuleBuild`, and its XML documentation is the reference:
 
-```xml
-<ItemGroup>
-  <CapsuleDerivation Include="Tiled"
-                     Sources="**/*.tmj"
-                     DependsOn="**/*.tsj"
-                     OutputExtensions=".scene.json"
-                     Properties="CapsuleTileSize=$(CapsuleTileSize)"
-                     ToolProject="$(MSBuildThisFileDirectory)../src/JAG.Capsule.Tiled/JAG.Capsule.Tiled.csproj"
-                     ToolAssembly="$(MSBuildThisFileDirectory)../tools/net10.0/any/JAG.Capsule.Tiled.dll" />
-</ItemGroup>
+```csharp
+using Capsule.Build;
+using JAG.Capsule.Tiled;
+
+return CapsuleBuild.Configure(args)
+    .AddImporter(new TiledImporter())
+    .WithTileSize(16)
+    .Run();
 ```
 
-`Include` names the derivation, as one path segment. `Sources` lists globs below the asset root, separated
-by `;`, and each file they match is one source. `DependsOn` optionally lists globs below the asset root of
-files the sources read. `Properties` optionally lists `Name=Value` pairs for the tool, separated by `;`. A
-property named there reads its final value, whatever order the targets are imported in. `ToolProject` is the
-tool's project in a clone, and it builds in the configuration of Capsule's own build tool. `ToolAssembly` is
-the tool's assembly in the package. Capsule runs the project when it exists and the assembly otherwise.
+`WithTileSize` requires every tile map in every scene document to use tiles of that many pixels. A game with
+no one tile size leaves it unset.
 
-A build that finds a source stale runs the tool once, from the project directory:
+### Writing an importer
 
-```text
-<tool> <asset root> <out directory> <sources file> [<Name>=<Value>]...
-```
+An importer turns an editor's own format into files Capsule reads as though they were authored. It
+implements `IAssetImporter`: the extensions it claims, and an `Import` method the build calls once per
+claimed source. A claimed source is never read as an asset. Claiming an extension a Capsule asset type
+reads, or one another importer claims, fails `AddImporter` naming the fix. The XML documentation on
+`IAssetImporter` shows one.
 
-`OutputExtensions` names one or more extensions separated by `;`, and a source derives one file for each.
-A derivation declaring `.sheet.json;.png` derives `hero.sheet.json` and `hero.png` from `hero.aseprite`. A
-source is stale when any of its outputs is missing or older than it. A changed dependency, property or
-declaration makes every source stale. Two sources that derive one output, as `hero.aseprite` and `hero.psd`
-do under `.png`, fail the build naming both. The check ignores case, the way asset keys do.
+`AssetImportContext` names the source relative to the logic project's directory, the asset root and the source's
+path below it, and the configured tile size. An importer reads what it needs from the logic project's directory,
+such as the tilesets a map names. It writes each output by its path below the asset root, and never
+chooses a disk location. Each output keys and ships as an authored file at that path would, of whatever
+kind. A key an authored file already claims fails the build naming both, as does an output two sources
+write. A publish leaves out an output written under a
+[development-only directory](#development-only-directories).
 
-The sources file names one stale source per line, relative to the project directory, and each
-`Name=Value` is one of `Properties`. The tool writes every output of each source under the out directory,
-`obj/capsule/derived/<name>/`, at the source's path below the asset root with its last extension replaced by
-each of `OutputExtensions`. Each line the tool writes to stderr becomes one build error, and a line about one
-source names that source. The tool exits 0 when every source derived, 1 when any failed, and 2 on a usage
-error.
-
-The out directory is part of the asset tree. A derived file keys as the authored file at its path would, of
-whatever kind, and a key an authored file already claims fails the build naming both. A publish leaves out
-what a development-only directory of the asset tree covers. A declared source is never read as an asset.
-Every file in the out directory that is not a declared output of a current source is deleted, and so is
-every out directory no current declaration names, including after the last declaration is removed. Paths
-compare with case, so an output whose source was renamed only in case is deleted too.
+An importer throws `FormatException` or an `IOException` for a defect in its source. The build reports the
+message against the source and still builds every other source. Any other exception stops the build as a
+bug. Every run imports every claimed source again into `obj/capsule/imported/`, which it deletes first. A
+change to any file under `Assets/`, or to the build project, reruns the build.
 
 ## A private platform module
 

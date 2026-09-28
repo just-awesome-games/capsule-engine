@@ -10,6 +10,7 @@
     <Project Path="src/Capsule.Scenes/Capsule.Scenes.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/MinimalGame/src/MinimalGame.Build/MinimalGame.Build.csproj" />
     <Project Path="samples/MinimalGame/src/MinimalGame.Game/MinimalGame.Game.csproj" />
     <Project Path="samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
     <Project Path="samples/MinimalGame/tests/MinimalGame.Tests/MinimalGame.Tests.csproj" />
@@ -19,6 +20,7 @@
     <Project Path="tests/Capsule.AotSmoke.Logic/Capsule.AotSmoke.Logic.csproj" />
     <Project Path="tests/Capsule.Bench/Capsule.Bench.csproj" />
     <Project Path="tests/Capsule.Bench.Logic/Capsule.Bench.Logic.csproj" />
+    <Project Path="tests/Capsule.FixtureBuild/Capsule.FixtureBuild.csproj" />
     <Project Path="tests/Capsule.Tests/Capsule.Tests.csproj" />
   </Folder>
 </Solution>

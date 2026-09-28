@@ -6,7 +6,7 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 | Package | Purpose |
 | --- | --- |
-| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. It also carries the build every game runs: the build tool, source generators and analyzers, asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. |
+| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. It also carries the build every game runs: `Capsule.Build` for the game's build project, source generators and analyzers, asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. |
 | `JAG.Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, renderer, sound playback, scene hosting, and the `HostPlatform` contract. |
 | `JAG.Capsule.Runtime.Desktop` | The desktop platform module a shell references: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound following the default output. |
 

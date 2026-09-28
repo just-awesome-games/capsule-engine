@@ -106,7 +106,7 @@ code assigning that property still wins. The top-level keys run in the order `fo
 - IDs are unique, positive and lower than `nextEntityId`, and deleted IDs are not reused. `entities` may be
   empty.
 - A `source` block records tool, relative source path and SHA-256 of the source closure. Its presence marks
-  a derived file, and an authoring source omits it.
+  an imported file, and an authoring source omits it.
 - `properties` is an object, and its contract belongs to the entry's type. The engine's `tile-map` declares
   its own below, and a game entity's class declares the rest ([Properties](#properties)).
 
@@ -185,17 +185,17 @@ canonically, stamps its provenance, and ships it gzipped at `assets/<key>.scene.
 executable. `gzip -d` restores the compact JSON. A document's key is its source path without either
 extension, keyed as [named assets](assets.md#named-assets) defines. A document registers itself: the class claiming its key composes it, and one no class claims
 composes a plain `Scene`. Two sources
-sharing a key fail the build, and derived documents are not committed. The logic role imports scenes on its
-own, and any other project opts in with `CapsuleBuildAssets`. `CapsuleTileSize` declares the tile size every
-scene must match ([`build-and-publish.md`](build-and-publish.md#build-properties)).
+sharing a key fail the build, and imported documents are not committed. The logic role imports scenes on its
+own, and any other project opts in with `CapsuleBuildAssets`. `CapsuleBuild.WithTileSize` in the build project
+declares the tile size every scene must match ([`build-and-publish.md`](build-and-publish.md#the-build-project)).
 
 ## Authoring tools
 
-An editor's own format enters through an authoring module: a package that declares a
-[build derivation](build-and-publish.md#build-derivations). Its tool writes a document per source at the
-source's path, and the engine validates, canonicalizes and ships each like a hand-authored document at that
-path, preserving the module's `source` block. The engine keys it as [named assets](assets.md#named-assets)
-defines, and no module implements the key rule. A publish leaves out a document derived from under a
+An editor's own format enters through an authoring module: a package that ships an
+[importer](build-and-publish.md#writing-an-importer). It writes a document per source at the source's path,
+and the engine validates, canonicalizes and ships each like a hand-authored document at that path,
+preserving the module's `source` block. The engine keys it as [named assets](assets.md#named-assets)
+defines, and no module implements the key rule. A publish leaves out a document imported under a
 [development-only directory](build-and-publish.md#development-only-directories). Sprite sheets and textures
 enter the same way ([`assets.md`](assets.md#authoring-tools)).
 

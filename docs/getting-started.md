@@ -16,6 +16,7 @@ fastest start for a game of your own is a copy of it.
 | --- | --- | --- |
 | `src/MyGame.Game` | `<CapsuleGameLogic>true</CapsuleGameLogic>` | Scenes, entities, components, the `Assets/` authoring tree. It cannot reach a device, a file or a clock. |
 | `src/MyGame.Shell` | `<CapsuleGameShell>true</CapsuleGameShell>` | The executable. One file, the entry point below. |
+| `src/MyGame.Build` | `<CapsuleGameBuild>true</CapsuleGameBuild>` | The asset build's host. One file that runs `CapsuleBuild` ([`build-and-publish.md`](build-and-publish.md#the-build-project)). |
 | `tests/MyGame.Tests` | no role | Headless tests of the logic project ([`testing.md`](testing.md)). |
 
 The project files and their package references are in
