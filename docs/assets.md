@@ -132,6 +132,11 @@ A bitmap font is a `.fnt` and the `.png` pages it names beside it.
 A font naming a page the game does not author fails the build, as does a defect in the description, at
 its line. Drawing text, and the font that needs no asset, is [`rendering.md`](rendering.md#text).
 
+A page exported as greyscale coverage may take `"format": "r8"` ([`configuring-assets.md`](configuring-assets.md#texture-settings)).
+Each value is the glyph's opacity. The page draws white at that opacity under the text's colour, as an
+RGBA page of white glyphs does, in a quarter of the memory. A page with colour of its own, such as a
+baked outline, stays `rgba`.
+
 ## Shaders
 
 A shader is an `.fx`, a fragment function the build wraps in the engine's sprite shader and
