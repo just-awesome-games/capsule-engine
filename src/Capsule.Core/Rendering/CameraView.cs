@@ -204,7 +204,7 @@ public readonly record struct CameraView(
         };
     }
 
-    private static Vector2 Confine(Vector2 center, Vector2 half, in Rect bounds) => new(
+    internal static Vector2 Confine(Vector2 center, Vector2 half, in Rect bounds) => new(
         Confine(center.X, half.X, bounds.Left, bounds.Right),
         Confine(center.Y, half.Y, bounds.Top, bounds.Bottom));
 

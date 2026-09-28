@@ -198,7 +198,19 @@
       "properties": {
         "key": "east"
       }
+    },
+    {
+      "id": 16,
+      "type": "camera-zone",
+      "x": 320,
+      "y": 0,
+      "properties": {
+        "size": [
+          320,
+          192
+        ]
+      }
     }
   ],
-  "nextEntityId": 16
+  "nextEntityId": 17
 }
