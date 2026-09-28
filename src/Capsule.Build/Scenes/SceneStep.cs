@@ -82,7 +82,7 @@ internal static class SceneStep
             source =>
             {
                 SceneDocument document = Import(source.Path, pass.Requests.TileSize);
-                string shipped = pass.Shipped.Claim(source.Key + ShippedSceneDocument.Extension);
+                string shipped = pass.Shipped.Claim(source.Key + ShippedSceneDocument.Extension, $"'{source.Path}'");
                 AtomicFile.Write(shipped, path => ShippedSceneDocument.Write(document, path));
                 pass.Output.WriteLine($"scenes: {source.Path} -> {source.Key}");
 

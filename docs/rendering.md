@@ -98,7 +98,8 @@ or any one-off eased value. A `Countdown` is the same timer with no value to rea
 delay or a lifetime.
 
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
-is handed. The sheet format, atlases and where sprites come from are [`assets.md`](assets.md).
+is handed. The sheet format and where sprites come from are [`assets.md`](assets.md), and atlases are
+[`configuring-assets.md`](configuring-assets.md#atlases).
 
 ## Hiding, fading and flashing
 
@@ -121,8 +122,10 @@ A shader is a fragment function authored as `<name>.fx` under `Assets/` in HLSL
 sprite's premultiplied texel, `pixel.Tint` its premultiplied tint and `pixel.UV` its texture
 coordinate, which on an atlas page is the page's. A parameter is a global `float`, `float2`,
 `float3`, `float4` or `Texture2D`, and reads zero until a material sets it. `Sample(texture, uv)`
-reads a texture parameter with the frame's sampling, clamped at its edges, and `SampleSprite(uv)`
-reads the sprite's texture at another point. A stone-statue look:
+reads a texture parameter with its own sampling or else the frame's, clamped at its edges, and
+`SampleSprite(uv)` reads the sprite's texture at another point. An `r8` texture's value is in `.r`.
+As the sprite's texture it reads `(v, v, v, v)`, so a plain draw is a coverage mask the tint colours.
+A stone-statue look:
 
 ```hlsl
 float Amount;
@@ -203,8 +206,9 @@ assert on one. Local space, noise, sub-emission, collision and trails are not bu
 ## Lighting
 
 ```csharp
-Add(new ColorRect(HeadSize) { Color = HeadColor, Blend = BlendMode.Additive, Offset = HeadOffset });
 Add(new PointLight { Radius = 56f, Color = HeadColor, Offset = new Vector2(0f, -PostSize.Y) });
+Entity head = new(this, new Vector2(0f, -PostSize.Y - 2f)) { Scale = new Vector2(GlowScale) };
+head.Add(new SpriteRenderer(Glow) { Color = HeadColor, Blend = BlendMode.Additive });
 ```
 
 A scene lowers the light with `Scene.Ambient`, set in code or by the document's `ambient`. A

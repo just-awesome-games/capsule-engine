@@ -84,7 +84,7 @@ public sealed class ShaderBuildTests
 
         IEnumerable<object> parameters = (IEnumerable<object>)type.GetProperty("Parameters")!.GetValue(reading)!;
         Assert.Equal(
-            ["MatrixTransform", "SpriteTexture", "Amount", "Scroll", "Stain", "Glow", "Grain"],
+            ["MatrixTransform", "SpriteTexture", "CapsuleCoverage", "Amount", "Scroll", "Stain", "Glow", "Grain"],
             parameters.Select(static parameter => (string)parameter.GetType().GetProperty("Name")!.GetValue(parameter)!));
     }
 

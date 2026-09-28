@@ -44,7 +44,7 @@ internal static class MgfxWriter
 
     /// <summary>
     /// The effect for <paramref name="pixelGlsl"/> under the engine's vertex stage. The parameter table
-    /// is the transform, the sprite texture, then <paramref name="constants"/> and
+    /// is the transform, the sprite texture, the coverage switch, then <paramref name="constants"/> and
     /// <paramref name="textures"/> in their order. Texture <c>i</c> of <paramref name="textures"/> is
     /// bound at slot <c>i + 1</c>.
     /// </summary>
@@ -65,7 +65,8 @@ internal static class MgfxWriter
         {
             const int Transform = 0;
             const int Sprite = 1;
-            int firstConstant = 2;
+            const int Coverage = 2;
+            int firstConstant = 3;
             int firstTexture = firstConstant + constants.Count;
             bool pixelBuffer = constants.Count > 0;
 
@@ -84,10 +85,12 @@ internal static class MgfxWriter
             }
 
             writer.Write(VertexBuffer);
-            writer.Write((short)64);
-            writer.Write(1);
+            writer.Write((short)80);
+            writer.Write(2);
             writer.Write(Transform);
             writer.Write((ushort)0);
+            writer.Write(Coverage);
+            writer.Write((ushort)64);
 
             // Shader 0 is the pixel stage and shader 1 the vertex stage.
             writer.Write(2);
@@ -118,9 +121,10 @@ internal static class MgfxWriter
             WriteAttribute(writer, "vs_v2", ColorUsage, 1);
             WriteAttribute(writer, "vs_v3", TextureCoordinateUsage, 0);
 
-            writer.Write(2 + constants.Count + textures.Count);
+            writer.Write(firstConstant + constants.Count + textures.Count);
             WriteParameter(writer, ShaderTemplate.MatrixTransform, MatrixClass, SingleType, 4, 4);
             WriteParameter(writer, ShaderTemplate.SpriteTexture, ObjectClass, Texture2DType, 0, 0);
+            WriteParameter(writer, ShaderTemplate.Coverage, ScalarClass, SingleType, 1, 1);
             foreach (PixelConstant constant in constants)
             {
                 byte columns = constant.Kind switch
@@ -174,12 +178,12 @@ internal static class MgfxWriter
     }
 
     // The engine's vertex stage, the one every sprite shader shares. The transform arrives as four
-    // rows the position is dotted with, and posFixup is the device's correction for GL's clip space and
-    // for a render target's flipped Y.
+    // rows the position is dotted with, the coverage switch as the fifth row's x, and posFixup is the
+    // device's correction for GL's clip space and for a render target's flipped Y.
     internal const string VertexGlsl = """
         #version 120
 
-        uniform vec4 vs_uniforms_vec4[4];
+        uniform vec4 vs_uniforms_vec4[5];
         uniform vec4 posFixup;
         attribute vec4 vs_v0;
         attribute vec4 vs_v1;
@@ -188,6 +192,7 @@ internal static class MgfxWriter
         varying vec4 vTint;
         varying vec4 vFlash;
         varying vec2 vUV;
+        varying float vCoverage;
 
         void main()
         {
@@ -195,6 +200,7 @@ internal static class MgfxWriter
             vTint = vs_v1;
             vFlash = vs_v2;
             vUV = vs_v3.xy;
+            vCoverage = vs_uniforms_vec4[4].x;
             gl_Position.y = gl_Position.y * posFixup.y;
             gl_Position.xy += posFixup.zw * gl_Position.ww;
             gl_Position.z = gl_Position.z * 2.0 - gl_Position.w;
@@ -203,7 +209,7 @@ internal static class MgfxWriter
         """;
 
     /// <summary>The varyings the pixel stage reads, by input location.</summary>
-    internal static readonly string[] Varyings = ["vTint", "vFlash", "vUV"];
+    internal static readonly string[] Varyings = ["vTint", "vFlash", "vUV", "vCoverage"];
 
     private static void WriteShader(BinaryWriter writer, bool vertex, string source, string entryPoint, string glsl)
     {

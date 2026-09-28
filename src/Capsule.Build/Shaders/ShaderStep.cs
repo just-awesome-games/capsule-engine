@@ -98,7 +98,7 @@ internal static class ShaderStep
     // next run. Null when it failed, reported.
     private static List<ShaderParameter>? CompileIfChanged(BuildPass pass, ShaderTools tools, string composed, Source source)
     {
-        string compiledPath = pass.Shipped.Claim(source.Key + CompiledExtension);
+        string compiledPath = pass.Shipped.Claim(source.Key + CompiledExtension, $"'{source.Path}'");
         string keptSource = Path.Combine(pass.OutputDirectory, "shaders", source.Key + ".fx");
         string keptParameters = Path.ChangeExtension(keptSource, ParametersExtension);
         composed = $"// {typeof(ShaderCompiler).Assembly.ManifestModule.ModuleVersionId} {Path.GetFileName(tools.Dxc)} {Path.GetFileName(tools.SpirvCross)}\n{composed}";

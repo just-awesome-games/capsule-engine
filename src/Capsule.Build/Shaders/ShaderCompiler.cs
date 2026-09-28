@@ -167,7 +167,7 @@ internal static partial class ShaderCompiler
                 foreach (JsonElement member in type.GetProperty("members").EnumerateArray())
                 {
                     string name = member.GetProperty("name").GetString()!;
-                    if (name == ShaderTemplate.MatrixTransform)
+                    if (name is ShaderTemplate.MatrixTransform or ShaderTemplate.Coverage)
                     {
                         return $"declares parameter '{name}', which the engine's vertex stage owns. Rename it.";
                     }
@@ -198,7 +198,7 @@ internal static partial class ShaderCompiler
             foreach (JsonElement image in images.EnumerateArray())
             {
                 string name = image.GetProperty("name").GetString()!;
-                if (name == ShaderTemplate.MatrixTransform)
+                if (name is ShaderTemplate.MatrixTransform or ShaderTemplate.Coverage)
                 {
                     return $"declares texture '{name}', a name the engine's vertex stage owns. Rename it.";
                 }

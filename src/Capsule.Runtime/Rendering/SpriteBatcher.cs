@@ -65,6 +65,11 @@ internal sealed class SpriteBatcher : IDisposable
     // The sampler the batch was opened with, which a material's textures sample through too.
     private SamplerState _sampler = SamplerState.LinearClamp;
 
+    // Whether the applied effect draws its sprite texture as coverage, and the state slot 0 holds.
+    // Both change only where a run's texture differs in format or sampling from the run before.
+    private bool _appliedCoverage;
+    private SamplerState _appliedSampler = SamplerState.LinearClamp;
+
     // The last colour and blend converted and their packed form. Premultiplying costs three divisions,
     // and a run sharing one tint and blend converts once.
     private ColorRgba _lastColor;
@@ -121,9 +126,11 @@ internal sealed class SpriteBatcher : IDisposable
         _device.SamplerStates[0] = sampler;
 
         _transform = transform * Projection(_device);
-        _effects.Apply(null, in _transform, sampler);
+        _effects.Apply(null, in _transform, sampler, coverage: false);
         _sampler = sampler;
         _applied = null;
+        _appliedCoverage = false;
+        _appliedSampler = sampler;
 
         _texture = null;
         _material = null;
@@ -336,16 +343,26 @@ internal sealed class SpriteBatcher : IDisposable
 
         // The index pattern starts at vertex zero for every quad, and a run starting part-way into
         // the chunk draws from its first vertex as the base. An effect is applied only where the
-        // material changes, and applying one rebinds slot 0, so the run's texture is bound after.
+        // material or the texture's format changes, and applying one rebinds slot 0, so the run's
+        // texture is bound after. A texture's Tag holds the sampler its own sampling asks for.
         for (int i = 0; i < _runCount; i++)
         {
             SpriteRun run = _runs[i];
             int last = i + 1 < _runCount ? _runs[i + 1].First : _count;
 
-            if (!ReferenceEquals(run.Material, _applied))
+            bool coverage = run.Texture.Format == SurfaceFormat.Alpha8;
+            if (!ReferenceEquals(run.Material, _applied) || coverage != _appliedCoverage)
             {
-                _effects.Apply(run.Material, in _transform, _sampler);
+                _effects.Apply(run.Material, in _transform, _sampler, coverage);
                 _applied = run.Material;
+                _appliedCoverage = coverage;
+            }
+
+            SamplerState sampler = run.Texture.Tag as SamplerState ?? _sampler;
+            if (!ReferenceEquals(sampler, _appliedSampler))
+            {
+                _device.SamplerStates[0] = sampler;
+                _appliedSampler = sampler;
             }
 
             _device.Textures[0] = run.Texture;

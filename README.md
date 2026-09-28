@@ -32,7 +32,8 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 - [`docs/rendering.md`](docs/rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
 - [`docs/collision.md`](docs/collision.md): colliders, layers, contacts, kinematic movement, queries.
-- [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, atlases, audio, fonts, preloading.
+- [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, audio, fonts, preloading.
+- [`docs/configuring-assets.md`](docs/configuring-assets.md): config files, texture settings, atlases.
 - [`docs/scenes.md`](docs/scenes.md): the scene authoring model and the `*.scene.json` format.
 - [`docs/entities.md`](docs/entities.md): building, lifecycle, parenting, interpolation, pooling.
 - [`docs/persistence.md`](docs/persistence.md): save documents, the file format, and where they go.

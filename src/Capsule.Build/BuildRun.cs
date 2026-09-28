@@ -1,6 +1,7 @@
 using System.Text;
 using Capsule.Build.Atlases;
 using Capsule.Build.Audio;
+using Capsule.Build.Configuration;
 using Capsule.Build.Fonts;
 using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
@@ -57,7 +58,9 @@ internal static class BuildRun
         {
             // Fonts first: a texture a font names is its page, and no atlas packs one.
             HashSet<string> pages = FontStep.Build(pass);
-            TextureStep.Build(pass, AtlasStep.Pack(pass, pages));
+            Dictionary<string, (string Path, AtlasConfigJson? Config)> atlases = AssetConfig.ReadAtlases(pass);
+            Dictionary<string, TextureConfigJson> textures = AssetConfig.ResolveTextures(pass, pages, atlases, out Dictionary<(string Texture, string Setting), string> setBy);
+            TextureStep.Build(pass, textures, setBy, AtlasStep.Pack(pass, textures, atlases));
             AudioStep.Build(pass);
             SpriteStep.Build(pass);
             ShaderStep.Build(pass);
@@ -98,6 +101,9 @@ internal sealed class BuildPass(
 {
     internal BuildRequests Requests { get; } = requests;
 
+    /// <summary>Every source the key pass admitted, in request order.</summary>
+    internal IReadOnlyList<Source> Keyed { get; } = keyed;
+
     /// <summary>Where a step keeps what it reuses between runs and does not ship.</summary>
     internal string OutputDirectory { get; } = outputDirectory;
 
@@ -112,7 +118,7 @@ internal sealed class BuildPass(
     internal int Failures { get; set; }
 
     /// <summary>Every source of <paramref name="type"/>, in request order.</summary>
-    internal IEnumerable<Source> Of(AssetType type) => keyed.Where(source => source.Type == type);
+    internal IEnumerable<Source> Of(AssetType type) => Keyed.Where(source => source.Type == type);
 
     /// <summary>
     /// Reads every source through <paramref name="read"/>. A failure is reported against its source

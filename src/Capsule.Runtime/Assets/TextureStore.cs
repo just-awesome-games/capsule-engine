@@ -21,37 +21,39 @@ internal sealed class TextureStore : IDisposable
 
     private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
 
-    private readonly AtlasMap _atlases;
+    private readonly TextureMap _map;
 
     private readonly HostPlatform _platform;
 
     internal TextureStore(GraphicsDevice device, HostPlatform platform)
     {
         _platform = platform;
-        _atlases = AtlasMap.Load(platform);
+        _map = TextureMap.Load(platform);
         TexelPool pool = new();
         _textures = new(Decode, UploadBytesPerFrame);
 
         // The batch blends premultiplied, and a straight-alpha texture would fringe dark along
-        // every soft edge. A packed page ships straight like any other file.
+        // every soft edge. A packed page ships straight like any other file. An r8 file's value is
+        // coverage, which the sprite shader premultiplies itself.
         TextureUpload Decode(TextureHandle handle)
         {
+            TextureFacts facts = _map.Facts(handle);
             using Stream file = TextureFiles.Open(platform, handle);
-            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name));
+            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name, facts.SingleChannel), Sampler(facts.Sampling));
         }
     }
 
     // Missing preloads are decoded before the prior scene's textures are released.
     internal void ChangeScene(AssetCollection preloads, Action prepareRemainingAssets) =>
-        _textures.ChangeScene(_atlases.Residency(preloads.Textures), prepareRemainingAssets);
+        _textures.ChangeScene(_map.Residency(preloads.Textures), prepareRemainingAssets);
 
-    internal void Prefetch(AssetCollection preloads) => _textures.Prefetch(_atlases.Residency(preloads.Textures));
+    internal void Prefetch(AssetCollection preloads) => _textures.Prefetch(_map.Residency(preloads.Textures));
 
     internal void Pump() => _textures.Pump();
 
     // Loads on first use when the scene did not preload the handle.
     internal TextureSlice Get(in TextureHandle handle) =>
-        _atlases.TryGet(handle, out AtlasSlot slot)
+        _map.TryGet(handle, out AtlasSlot slot)
             ? new TextureSlice(Get(slot.Page, handle), slot.X, slot.Y)
             : new TextureSlice(Get(handle, handle), 0, 0);
 
@@ -59,10 +61,10 @@ internal sealed class TextureStore : IDisposable
     // own, and its page would bind every other member with it.
     internal Texture2D GetWhole(in TextureHandle handle)
     {
-        if (_atlases.TryGet(handle, out _))
+        if (_map.TryGet(handle, out _))
         {
             throw new InvalidOperationException(
-                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Remove it from every atlas manifest.");
+                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Set \"atlas\": false in the {handle.Name[(handle.Name.LastIndexOf('/') + 1)..]}.png.config.json beside it.");
         }
 
         return Get(handle, handle);
@@ -72,11 +74,11 @@ internal sealed class TextureStore : IDisposable
     // page. Residency is untouched, so a caller outside the frame path can read any handle. Throws
     // when the file is missing or the region falls outside the handle's texels.
     internal byte[] ReadRegion(in TextureHandle handle, TextureRegion region) =>
-        ReadRegion(_platform, _atlases, handle, region);
+        ReadRegion(_platform, _map, handle, region);
 
-    internal static byte[] ReadRegion(HostPlatform platform, AtlasMap atlases, in TextureHandle handle, TextureRegion region)
+    internal static byte[] ReadRegion(HostPlatform platform, TextureMap map, in TextureHandle handle, TextureRegion region)
     {
-        (TextureHandle file, int offsetX, int offsetY) = atlases.TryGet(handle, out AtlasSlot slot)
+        (TextureHandle file, int offsetX, int offsetY) = map.TryGet(handle, out AtlasSlot slot)
             ? (slot.Page, slot.X, slot.Y)
             : (handle, 0, 0);
 
@@ -84,7 +86,7 @@ internal sealed class TextureStore : IDisposable
         DecodedTexture decoded;
         using (Stream stream = TextureFiles.Open(platform, file))
         {
-            decoded = TextureDecoder.Decode(stream, pool, handle.Name);
+            decoded = TextureDecoder.Decode(stream, pool, handle.Name, map.Facts(file).SingleChannel);
         }
 
         int left = offsetX + region.X;
@@ -99,6 +101,24 @@ internal sealed class TextureStore : IDisposable
         }
 
         byte[] texels = new byte[region.Width * region.Height * 4];
+        if (decoded.BytesPerTexel == 1)
+        {
+            // An r8 texture as a plain draw shows it: white, with the value as its opacity.
+            for (int row = 0; row < region.Height; row++)
+            {
+                for (int column = 0; column < region.Width; column++)
+                {
+                    int to = ((row * region.Width) + column) * 4;
+                    texels[to] = texels[to + 1] = texels[to + 2] = 255;
+                    texels[to + 3] = decoded.Texels[((top + row) * decoded.Width) + left + column];
+                }
+            }
+
+            pool.Return(decoded.Texels);
+
+            return texels;
+        }
+
         int rowBytes = region.Width * 4;
         for (int row = 0; row < region.Height; row++)
         {
@@ -127,15 +147,24 @@ internal sealed class TextureStore : IDisposable
         return texture;
     }
 
-    // One decoded page on its way to the device, top rows first.
-    internal sealed class TextureUpload(GraphicsDevice device, TexelPool pool, DecodedTexture decoded) : IPendingAsset<Texture2D>
+    // The sampler a file's own sampling asks for, or null to sample as the frame does.
+    private static SamplerState? Sampler(TextureSampling? sampling) => sampling switch
+    {
+        TextureSampling.Point => SamplerState.PointClamp,
+        TextureSampling.Linear => SamplerState.LinearClamp,
+        _ => null,
+    };
+
+    // One decoded page on its way to the device, top rows first. Its Tag carries the sampler its
+    // sampling asks for, which the batcher reads once per run.
+    internal sealed class TextureUpload(GraphicsDevice device, TexelPool pool, DecodedTexture decoded, SamplerState? sampler = null) : IPendingAsset<Texture2D>
     {
         private Texture2D? _texture;
         private int _rows;
 
         public bool Advance(ref long budget)
         {
-            int rowBytes = decoded.Width * 4;
+            int rowBytes = decoded.Width * decoded.BytesPerTexel;
             int rows = (int)Math.Clamp(budget / rowBytes, 0, decoded.Height - _rows);
             if (rows == 0)
             {
@@ -180,8 +209,11 @@ internal sealed class TextureStore : IDisposable
         // A whole-texture SetData of a 4096-texel page measured twice its rows written as slices.
         private void Upload(int rows)
         {
-            _texture ??= new Texture2D(device, decoded.Width, decoded.Height);
-            int rowBytes = decoded.Width * 4;
+            _texture ??= new Texture2D(device, decoded.Width, decoded.Height, false, decoded.BytesPerTexel == 1 ? SurfaceFormat.Alpha8 : SurfaceFormat.Color)
+            {
+                Tag = sampler,
+            };
+            int rowBytes = decoded.Width * decoded.BytesPerTexel;
             _texture.SetData(0, new Rectangle(0, _rows, decoded.Width, rows), decoded.Texels, _rows * rowBytes, rows * rowBytes);
             _rows += rows;
         }

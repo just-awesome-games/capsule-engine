@@ -14,6 +14,12 @@ internal static class ShaderTemplate
     /// <summary>The transform parameter of the vertex stage, which the batcher sets on every effect it applies.</summary>
     internal const string MatrixTransform = "MatrixTransform";
 
+    /// <summary>
+    /// The vertex-stage coverage switch, 1 while the sprite texture is single-channel and 0 otherwise.
+    /// The batcher sets it when a run's texture format changes, and no material sees or sets it.
+    /// </summary>
+    internal const string Coverage = "CapsuleCoverage";
+
     /// <summary>The one sampler every texture is read through. The host sets its state per slot.</summary>
     internal const string Sampler = "CapsuleSampler";
 
@@ -35,9 +41,12 @@ internal static class ShaderTemplate
     /// <summary>What the default fragment is reported against. It names no file on disk.</summary>
     internal const string DefaultFragmentFile = "capsule-default-fragment.fx";
 
+    // A single-channel texture samples as (v, v, v, 1). The sprite's texel takes the premultiplied
+    // coverage form (v, v, v, v), which draws white at opacity v under the tint. Only alpha differs.
     private const string Prelude = """
         Texture2D SpriteTexture;
         SamplerState CapsuleSampler;
+        static float CapsuleSpriteCoverage;
 
         float4 Sample(Texture2D source, float2 uv)
         {
@@ -46,7 +55,9 @@ internal static class ShaderTemplate
 
         float4 SampleSprite(float2 uv)
         {
-            return Sample(SpriteTexture, uv);
+            float4 texel = Sample(SpriteTexture, uv);
+            texel.a += (texel.r - texel.a) * CapsuleSpriteCoverage;
+            return texel;
         }
 
         struct SpritePixel
@@ -62,11 +73,13 @@ internal static class ShaderTemplate
     // The vertex carries that colour already premultiplied by the tint's alpha, so a full flash draws a
     // premultiplied silhouette under alpha blending and adds it under additive blending, where the
     // fragment's alpha stays zero. A zero amount leaves the colour exactly as the fragment returned it.
-    // The inputs are in location order: tint, flash, texture coordinate.
+    // The inputs are in location order: tint, flash, texture coordinate, coverage. Coverage comes from
+    // the vertex stage, so a pixel stage reads no uniform of the engine's.
     private const string Epilogue = """
 
-        float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEXCOORD0) : SV_Target0
+        float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEXCOORD0, float coverage : TEXCOORD1) : SV_Target0
         {
+            CapsuleSpriteCoverage = coverage;
             SpritePixel pixel;
             pixel.Texel = SampleSprite(uv);
             pixel.Tint = tint;

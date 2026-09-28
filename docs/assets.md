@@ -3,28 +3,32 @@
 After this page you can add a texture, a sprite sheet, a sound and a font to a game, name each from C#
 with no string in sight, and control what is loaded when.
 
+| Extension | Asset type | `Assets/Player/player.*` is | Configurable |
+| --- | --- | --- | --- |
+| `.png` | A texture | `CapsuleAssets.Player.PlayerTexture`, a `TextureHandle` | [Yes](configuring-assets.md#texture-settings) |
+| `.sheet.json` | A sprite sheet | `CapsuleAssets.Player.PlayerSheet`, a class of frames, clips and sockets | No |
+| `.wav`, `.ogg` | A sound | `CapsuleAssets.Player.PlayerSound`, an `AudioClip` | No |
+| `.fnt` | A bitmap font | `CapsuleAssets.Player.PlayerFont`, a `BitmapFont` | No |
+| `.fx` | A shader | `CapsuleAssets.Player.PlayerShader`, a `Shader` | No |
+| `.scene.json` | A scene document | `CapsuleAssets.Player.PlayerScene`, a `SceneKey` | No |
+| `.config.json` | [Configuration](configuring-assets.md) of other assets | Not named | No |
+| `.atlas.json` | An [atlas](configuring-assets.md#atlases) declaration | Not named | No |
+
+One extension is one kind of asset, variation within a kind is configuration, and a kind stored in a
+container format such as JSON takes a compound extension.
+
 ## Named assets
 
 Assets are authored anywhere under `Assets/` in the logic project, organized by type, by object or any
 other way. `CapsuleAssets` mirrors that tree, one nested class per folder, and names each file for its
-name and its type:
-
-| Extension | Type | `Assets/Player/player.*` is |
-| --- | --- | --- |
-| `.png` | A texture | `CapsuleAssets.Player.PlayerTexture`, a `TextureHandle` |
-| `.sheet.json` | A sprite sheet | `CapsuleAssets.Player.PlayerSheet`, a class of frames, clips and sockets |
-| `.wav`, `.ogg` | A sound | `CapsuleAssets.Player.PlayerSound`, an `AudioClip` |
-| `.fnt` | A bitmap font | `CapsuleAssets.Player.PlayerFont`, a `BitmapFont` |
-| `.fx` | A shader | `CapsuleAssets.Player.PlayerShader`, a `Shader` |
-| `.scene.json` | A scene document | `CapsuleAssets.Player.PlayerScene`, a `SceneKey` |
-| `.atlas.json` | An atlas manifest | Not named |
+name and its type as the table above shows.
 
 A file of one type shares its name with files of others and with its folder, so a player's texture, sheet
 and sounds sit together in `Player/`. The build reads no other file, so an editor's own sources can sit
 beside what it exports.
 
 What ships beside the executable is the same tree under `assets/`: a texture or sound as authored, and
-a scene document or shader in its compiled form. A sheet and a font's description compile into the
+a scene document, shader or `r8` texture in its compiled form. A sheet and a font's description compile into the
 game and ship nothing. The build lays it out under the logic project's
 `obj/.../capsule/assets/` first.
 
@@ -52,6 +56,7 @@ private static readonly Sprite Field = new(CapsuleAssets.Textures.HazardTexture,
 ```
 
 `TextureHandle.White` and `Sprite.White` are a built-in white texel, for flat colour with no asset.
+A texture's atlas, format and sampling are set in config files ([`configuring-assets.md`](configuring-assets.md)).
 
 ## Sprite sheets
 
@@ -105,40 +110,6 @@ with the drawing frame by frame. `SpriteRenderer.Socket` returns a child entity 
 mirrored by the renderer's flips and turned and scaled with the entity as the frame is. A game parents
 whatever hangs from the point under that child. A frame that sets no point for a socket leaves the child
 where the last frame that did put it.
-
-## Atlases
-
-An atlas is a build-time packing of textures onto shared pages, declared by a manifest and invisible to
-game code. The runtime serves a packed handle from its page and moves the region by where that texture's
-texels landed. Adding, splitting or removing an atlas changes no C# and no document.
-
-`<name>.atlas.json`, anywhere under `Assets/`:
-
-```json
-{
-  "textures": ["biomes/forest/**", "actors/*", "props/crate"],
-  "maxSize": 4096
-}
-```
-
-`textures` is a non-empty array of globs over texture keys: `*` is any run within one segment, and `**`
-alone is everything below the directory it ends and any depth elsewhere. A pattern matching nothing fails
-the build, as does a texture two manifests both match. `maxSize` is optional, the largest extent a page may
-reach on either axis, a power of two up to 8192, 4096 by default. Any other member fails the build. Fonts
-do not pack.
-
-Members are placed by MaxRects, best short side fit and no rotation, in an order fixed by size and key.
-One input packs byte-identically on every machine. Two texels stay clear between placements, and every
-member's outer texel is duplicated one texel outward on every side. Clamped linear sampling, sub-texel
-scaling and tiling at a region's edge then read no neighbour. When a page is full the next opens: `<name>.0`,
-`<name>.1` and so on, each trimmed to its packed extent rounded up to a multiple of four. A member that
-cannot fit a page with its border fails the build naming the texture.
-
-Pages ship straight-alpha beside their manifest, `Atlases/game.atlas.json` packing onto
-`assets/atlases/game.0.png`, with one map at `assets/atlases.json` naming each packed key's page and the
-texel its `(0, 0)` landed on. A packed member does not ship on its own. Each atlas keeps a stamp over its
-manifest and members, and editing one texture repacks only the atlas holding it. A texture's member is
-derived from its source, and packing leaves it unchanged.
 
 ## Audio
 

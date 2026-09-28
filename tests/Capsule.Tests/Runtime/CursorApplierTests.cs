@@ -47,16 +47,34 @@ public sealed class CursorApplierTests
 
         byte[] wanted = [200, 100, 50, 51, 10, 20, 30, 255];
         wanted.CopyTo(page, ((1 * 4) + 2) * 4);
-        using (FileStream png = File.Create(workspace.PathTo("assets/game.0.png")))
+        using (FileStream png = File.Create(workspace.PathTo("assets/atlases/game.0.png")))
         {
             AtlasStep.Encode(page, 4, 3, png);
         }
 
-        File.WriteAllText(workspace.PathTo("assets/atlases.json"), """{ "textures": { "crosshair": { "page": "game.0", "x": 1, "y": 1 } } }""");
+        File.WriteAllText(workspace.PathTo("assets/textures.json"), """{ "textures": { "crosshair": { "page": "atlases/game.0", "x": 1, "y": 1 } } }""");
         ContentPlatform platform = new(workspace.Root);
 
-        byte[] texels = TextureStore.ReadRegion(platform, AtlasMap.Load(platform), Crosshair.Texture, new TextureRegion(1, 0, 2, 1));
+        byte[] texels = TextureStore.ReadRegion(platform, TextureMap.Load(platform), Crosshair.Texture, new TextureRegion(1, 0, 2, 1));
 
         Assert.Equal(wanted, texels);
+    }
+
+    // A cursor is what a plain draw shows, so an r8 image reads as white with its value as opacity.
+    [Fact]
+    public void AnR8Image_IsReadAsWhiteAtItsValuesOpacity()
+    {
+        using TempWorkspace workspace = new("cursor-r8");
+        using (FileStream png = File.Create(workspace.PathTo("assets/crosshair.png")))
+        {
+            AtlasStep.Encode([0, 90, 255, 7], 2, 2, png, channels: 1);
+        }
+
+        File.WriteAllText(workspace.PathTo("assets/textures.json"), """{ "textures": { "crosshair": { "format": "r8" } } }""");
+        ContentPlatform platform = new(workspace.Root);
+
+        byte[] texels = TextureStore.ReadRegion(platform, TextureMap.Load(platform), Crosshair.Texture, new TextureRegion(1, 0, 1, 2));
+
+        Assert.Equal([255, 255, 255, 90, 255, 255, 255, 7], texels);
     }
 }

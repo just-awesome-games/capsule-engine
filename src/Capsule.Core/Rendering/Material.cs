@@ -78,11 +78,12 @@ public sealed class Material
 
     /// <summary>
     /// Sets the <c>Texture2D</c> parameter <paramref name="name"/>, which the shader reads with the
-    /// frame's sampling, clamped at its edges.
+    /// texture's own sampling or else the frame's, clamped at its edges.
     /// </summary>
     /// <remarks>
-    /// The texture is bound whole, and drawing throws when the build packed it into an atlas. Keep it
-    /// out of every atlas manifest.
+    /// The texture is bound whole, and drawing throws when the build packed it into an atlas. Set
+    /// <c>"atlas": false</c> in its config.
+    /// An r8 texture's value is in <c>.r</c>.
     /// </remarks>
     public void Set(string name, TextureHandle value)
     {

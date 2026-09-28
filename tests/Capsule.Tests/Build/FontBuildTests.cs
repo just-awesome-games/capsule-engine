@@ -105,17 +105,24 @@ public sealed class FontBuildTests
         Assert.Contains("TextureHandle BodyTexture", workspace.Generated, StringComparison.Ordinal);
     }
 
-    // A glyph's region is in its page's own texels, so no atlas packs a page, however wide its glob.
+    // A glyph's region is in its page's own texels, so no atlas packs a page. An atlas the page
+    // inherits is ignored, and one its own config sets is refused.
     [Fact]
-    public void NoAtlas_PacksAFontsPage()
+    public void AnInheritedAtlas_SkipsAFontsPageAndItsOwnConfigSettingOneFails()
     {
         using ToolWorkspace workspace = Authored(("Fonts/menu.fnt", Source(Info, Common, Page, CharA)));
         workspace.WritePng("Assets/Fonts/menu.png", 32, 32);
         workspace.WritePng("Assets/hero.png", 4, 4);
-        workspace.Write("Assets/game.atlas.json", """{ "textures": ["**"] }""");
+        workspace.Write("Assets/.config.json", """{ "texture": { "atlas": "game" } }""");
+        workspace.Write("Assets/game.atlas.json", "{}");
         workspace.Succeed();
 
-        Assert.Equal(["atlases.json", "fonts/menu.png", "game.0.png"], workspace.Shipped);
+        Assert.Equal(["atlases/game.0.png", "fonts/menu.png", "textures.json"], workspace.Shipped);
+
+        workspace.Write("Assets/Fonts/menu.png.config.json", """{ "atlas": "game" }""");
+
+        Assert.Equal(1, workspace.Run());
+        Assert.Contains("Assets/Fonts/menu.png.config.json: sets \"atlas\" for a font's page", workspace.Errors, StringComparison.Ordinal);
     }
 
     // A page the build does not ship would carry a handle that finds no file at run time, so the

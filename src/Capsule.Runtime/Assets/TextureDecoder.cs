@@ -3,13 +3,15 @@ using StbImageSharp;
 
 namespace Capsule.Runtime.Assets;
 
-// A decoded texture: premultiplied RGBA texels in a pooled buffer of exactly Width * Height * 4 bytes.
-internal readonly record struct DecodedTexture(byte[] Texels, int Width, int Height);
+// A decoded texture in a pooled buffer of exactly Width * Height * BytesPerTexel bytes: premultiplied
+// RGBA at four bytes a texel, or an r8 texture's raw values at one.
+internal readonly record struct DecodedTexture(byte[] Texels, int Width, int Height, int BytesPerTexel = 4);
 
 // Decodes an image into the texels Texture2D.FromStream uploads with PremultiplyAlpha, on any thread.
+// A single-channel texture decodes to its one channel and is never premultiplied.
 internal static class TextureDecoder
 {
-    internal static unsafe DecodedTexture Decode(Stream file, TexelPool pool, string name)
+    internal static unsafe DecodedTexture Decode(Stream file, TexelPool pool, string name, bool singleChannel = false)
     {
         int width;
         int height;
@@ -19,7 +21,7 @@ internal static class TextureDecoder
             &width,
             &height,
             &components,
-            (int)ColorComponents.RedGreenBlueAlpha);
+            (int)(singleChannel ? ColorComponents.Grey : ColorComponents.RedGreenBlueAlpha));
 
         if (straight == null)
         {
@@ -28,6 +30,14 @@ internal static class TextureDecoder
 
         try
         {
+            if (singleChannel)
+            {
+                byte[] values = pool.Rent(checked(width * height));
+                new ReadOnlySpan<byte>(straight, values.Length).CopyTo(values);
+
+                return new DecodedTexture(values, width, height, 1);
+            }
+
             byte[] texels = pool.Rent(checked(width * height * 4));
             Premultiply(new ReadOnlySpan<byte>(straight, texels.Length), texels);
 

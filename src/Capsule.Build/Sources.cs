@@ -19,9 +19,17 @@ internal sealed class AssetType(string suffix, params string[] extensions)
 
     internal static readonly AssetType Sprites = new("Sheet", ".sheet.json");
 
+    /// <summary>A <c>&lt;name&gt;.atlas.json</c>, which declares an atlas and is never an asset itself.</summary>
     internal static readonly AssetType Atlases = new("Atlas", ".atlas.json");
 
-    private static readonly AssetType[] Admitting = [Textures, Audio, Fonts, Shaders, Scenes, Sprites, Atlases];
+    /// <summary>
+    /// A <c>*.config.json</c>, which configures other assets and is never an asset itself. A
+    /// <c>.config.json</c> keys as its folder's key and a trailing '/'. A sidecar keys as the key and
+    /// lower-case extension of the file it names, as <c>textures/glow.png</c>.
+    /// </summary>
+    internal static readonly AssetType Configs = new("Config", ".config.json");
+
+    private static readonly AssetType[] Admitting = [Textures, Audio, Fonts, Shaders, Scenes, Sprites, Atlases, Configs];
 
     internal string Suffix { get; } = suffix;
 
@@ -35,7 +43,7 @@ internal sealed class AssetType(string suffix, params string[] extensions)
     {
         foreach (string extension in Extensions)
         {
-            if (name.Length > extension.Length && name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            if ((name.Length > extension.Length || this == Configs) && name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
             {
                 return name[^extension.Length..];
             }
@@ -134,7 +142,23 @@ internal static class Keys
         }
 
         string admitted = type.Extension(below)!;
+        string stem = below[..^admitted.Length];
 
-        return new Source(type, Of(below[..^admitted.Length]), admitted.ToLowerInvariant(), request.Path);
+        if (type == AssetType.Configs)
+        {
+            // A folder's .config.json has no name of its own.
+            if (stem.Length == 0 || stem[^1] == '/')
+            {
+                return new Source(type, stem.Length == 0 ? string.Empty : Of(stem[..^1]) + "/", admitted.ToLowerInvariant(), request.Path);
+            }
+
+            // An asset's name holds no '.', so the first one in a sidecar's name starts the extension it names.
+            int dot = stem.IndexOf('.', stem.LastIndexOf('/') + 1);
+            return dot < 0
+                ? new Source(type, Of(stem), admitted.ToLowerInvariant(), request.Path)
+                : new Source(type, Of(stem[..dot]) + stem[dot..].ToLowerInvariant(), admitted.ToLowerInvariant(), request.Path);
+        }
+
+        return new Source(type, Of(stem), admitted.ToLowerInvariant(), request.Path);
     }
 }

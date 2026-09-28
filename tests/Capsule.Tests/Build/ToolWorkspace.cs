@@ -61,6 +61,16 @@ internal sealed class ToolWorkspace : IDisposable
         return Write(name, png.ToArray());
     }
 
+    /// <summary>An 8-bit greyscale PNG, as an r8 texture is authored.</summary>
+    internal string WriteGreyPng(string name, int width, int height)
+    {
+        byte[] values = [.. Enumerable.Range(0, width * height).Select(static i => (byte)(i * 17))];
+        using MemoryStream png = new();
+        AtlasStep.Encode(values, width, height, png, channels: 1);
+
+        return Write(name, png.ToArray());
+    }
+
     /// <summary>
     /// Runs the tool over every file under <c>Assets/</c>, as the targets hand them, plus
     /// <paramref name="lines"/>: options, or documents a module derived.
