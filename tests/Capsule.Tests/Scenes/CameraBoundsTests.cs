@@ -153,7 +153,7 @@ public sealed class CameraBoundsTests
     }
 
     [Fact]
-    public void SettingBounds_TakesOverAnEaseBoundsWithTheDefaultMove()
+    public void SettingBounds_TakesOverAnEaseBounds()
     {
         (SceneSimulation simulation, Camera camera) = Pinned(0f);
         simulation.Step(SceneFixtures.Step(0));
@@ -168,6 +168,39 @@ public sealed class CameraBoundsTests
         simulation.Step(SceneFixtures.Step(11));
 
         Assert.Equal(third, camera.VisibleRegion);
+    }
+
+    // Zero seconds lands on the first step even with the chase on, as does a call before the first step.
+    [Theory]
+    [InlineData(false, 0f)]
+    [InlineData(true, 0.5f)]
+    public void EaseBounds_LandsOnTheFirstStep_WhenItHasNoLengthOrTheCameraHasNotSettled(bool beforeFirstStep, float seconds)
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0.25f);
+        if (!beforeFirstStep)
+        {
+            simulation.Step(SceneFixtures.Step(0));
+        }
+
+        camera.EaseBounds(NextScreen, seconds, Ease.Linear);
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(NextScreen, camera.VisibleRegion);
+        Assert.Equal(NextScreen, simulation.View.Camera.Resolve(0f, Vector2.Zero));
+    }
+
+    // InBack starts by swinging back. An edge opening to infinity must land rather than swing to the
+    // opposite infinity.
+    [Fact]
+    public void EaseBounds_OpensAnEdgeToInfinityAtOnce_OnACurveThatSwingsBack()
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        simulation.Step(SceneFixtures.Step(0));
+
+        camera.EaseBounds(OneScreen with { Top = float.NegativeInfinity }, 0.5f, Ease.InBack);
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(OneScreen, camera.VisibleRegion);
     }
 
     [Fact]

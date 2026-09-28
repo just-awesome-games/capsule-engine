@@ -9,7 +9,7 @@ namespace Capsule.Scenes;
 // into a changed one.
 public partial class Camera
 {
-    // An eased edge this close to its target lands on it, in world units.
+    // A chased edge this close to its target lands on it, in world units.
     private const float SettledEdge = 1e-3f;
 
     private static readonly Rect Unbounded = new(
@@ -23,9 +23,10 @@ public partial class Camera
     // centres are already confined, and a frame between them is drawn unclamped.
     private Rect? _previousConfine;
 
-    // The transition EaseBounds started: its curve, its length, the seconds it has run and the rect it
-    // runs from. The rect is taken at its first settle, where the view it starts from is known. A length
-    // of zero is no transition.
+    // The transition EaseBounds started: whether one is running, its curve, its length, the seconds it
+    // has run and the rect it runs from. The rect is taken at its first settle, where the view it starts
+    // from is known. A length of zero snaps.
+    private bool _transitioning;
     private Ease _transitionEase;
     private float _transitionSeconds;
     private float _transitionElapsed;
@@ -59,7 +60,7 @@ public partial class Camera
             }
 
             field = value;
-            _transitionSeconds = 0f;
+            _transitioning = false;
         }
     }
 
@@ -89,11 +90,13 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// <see cref="Bounds"/> reads <paramref name="bounds"/> at once. The move starts from the view where it
-    /// stands, as the chase does. Setting <see cref="Bounds"/>, another call and <see cref="Teleport"/> take
-    /// over from wherever it has reached. An edge opening to infinity takes effect at once.
+    /// stands, as the chase does. Setting <see cref="Bounds"/> and another call take over from wherever it
+    /// has reached. Zero seconds, <see cref="Teleport"/>, this camera's first step in a scene and an edge
+    /// opening to infinity land at once.
     /// </remarks>
     /// <example>
-    /// A boss arena framed on the same curve as the zoom that widens to show it:
+    /// A boss arena framed on the same curve as a zoom tween that widens to show it, 30 ticks being half
+    /// a second at 60 steps a second:
     /// <code>
     /// Scene.Camera.EaseBounds(arena, 0.5f, Ease.InOutSine);
     /// _zoom.Start(30, Ease.InOutSine);
@@ -104,6 +107,7 @@ public partial class Camera
         Guard.RequireSeconds(seconds, nameof(seconds));
         Guard.RequireEase(ease, nameof(ease));
         Bounds = bounds;
+        _transitioning = true;
         _transitionEase = ease;
         _transitionSeconds = seconds;
         _transitionElapsed = 0f;
@@ -128,10 +132,10 @@ public partial class Camera
 
         if (_cut || !_settled)
         {
-            _transitionSeconds = 0f;
+            _transitioning = false;
         }
 
-        if (Bounds is { } target && _transitionSeconds > 0f)
+        if (Bounds is { } target && _transitioning && _transitionSeconds > 0f)
         {
             Rect from = _transitionFrom ??= Start(_confine ?? Unbounded, target, standing);
             _transitionElapsed += seconds;
@@ -139,7 +143,7 @@ public partial class Camera
             // The step ending within half a step of the length lands. Float drift in the sum adds no step.
             if (_transitionSeconds - _transitionElapsed < seconds / 2f)
             {
-                _transitionSeconds = 0f;
+                _transitioning = false;
                 _confine = target;
             }
             else
@@ -147,15 +151,20 @@ public partial class Camera
                 _confine = Along(from, target, Easing.Apply(_transitionEase, _transitionElapsed / _transitionSeconds));
             }
         }
-        else if (Bounds is { } chased && _settled && !_cut && BoundsSmoothTime > 0f)
+        else if (Bounds is { } chased && !_transitioning && _settled && !_cut && BoundsSmoothTime > 0f)
         {
             _confine = Chase(Start(_confine ?? Unbounded, chased, standing), chased, seconds / (BoundsSmoothTime + seconds));
         }
-        else if (!_settled || _confine != Bounds)
+        else
         {
+            _transitioning = false;
+
             // A snap confines the step's first frame too. The frame does not sweep in from outside.
-            _confine = _previousConfine = Bounds;
-            PreviousCenter = Confined(PreviousCenter, previousHalf);
+            if (!_settled || _confine != Bounds)
+            {
+                _confine = _previousConfine = Bounds;
+                PreviousCenter = Confined(PreviousCenter, previousHalf);
+            }
         }
 
         Center = Confined(Center, half);
@@ -193,7 +202,7 @@ public partial class Camera
         from == to || float.IsInfinity(to) ? to : from + ((to - from) * k);
 
     // The implicit step of an exponential approach. An edge the step cannot move lands on its target. The
-    // ease then ends far from the origin too.
+    // chase then ends far from the origin too.
     private static float Toward(float edge, float target, float blend)
     {
         if (edge == target)
