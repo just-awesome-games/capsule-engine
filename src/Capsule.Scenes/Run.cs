@@ -135,8 +135,8 @@ public sealed class Run
     /// stops it. A settings screen writes <see cref="Capsule.Input.Rumble.Volume"/>, and a pause menu
     /// calls <see cref="Capsule.Input.Rumble.Stop()"/> when it opens. The host reads the level after each
     /// step and writes it to the pad. The host rests the motors on focus loss, disconnect, exit and crash,
-    /// and while the keyboard or mouse is the active device. A headless run reaches the same level with no
-    /// pad.
+    /// while the keyboard or mouse is the active device, and while the development overlay holds the run.
+    /// A headless run reaches the same level with no pad.
     /// </remarks>
     public Rumble Rumble { get; }
 

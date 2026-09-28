@@ -14,9 +14,9 @@ public sealed class GamepadRumbleTests
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
 
         Assert.Equal([(0, Buzz)], writes);
     }
@@ -26,10 +26,10 @@ public sealed class GamepadRumbleTests
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: false, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: false, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: false, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: false, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
 
         Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero), (0, Buzz)], writes);
     }
@@ -39,8 +39,8 @@ public sealed class GamepadRumbleTests
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 2, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 2, Frame);
 
         Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero), (2, Buzz)], writes);
     }
@@ -50,15 +50,15 @@ public sealed class GamepadRumbleTests
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, 0.5);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, 0.5);
         Assert.Single(writes);
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, 0.5);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, 0.5);
         Assert.Equal([(0, Buzz), (0, Buzz)], writes);
 
-        applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, player: 0, 2.0);
+        applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, runHeld: false, player: 0, 2.0);
         Assert.Equal([(0, Buzz), (0, Buzz), (0, RumbleLevel.Zero)], writes);
     }
 
@@ -67,12 +67,27 @@ public sealed class GamepadRumbleTests
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: false, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: false, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
 
         Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero), (0, Buzz)], writes);
+    }
+
+    [Fact]
+    public void AHeldRun_RestsTheMotorsAndReleasingItRewritesTheLevel()
+    {
+        (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
+
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, 2.0);
+        Assert.Empty(writes);
+
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, Frame);
+
+        Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero)], writes);
     }
 
     [Fact]
@@ -81,7 +96,7 @@ public sealed class GamepadRumbleTests
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
         applier.Silence();
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, player: 1, Frame);
+        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 1, Frame);
         applier.Silence();
         applier.Silence();
 
