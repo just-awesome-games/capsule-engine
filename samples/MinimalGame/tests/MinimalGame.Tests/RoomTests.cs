@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Physics;
@@ -101,6 +102,18 @@ public sealed class RoomTests
 
         Assert.True(room.RunUntil(() => body.IsOnFloor, StepBudget), "the player never landed");
         Assert.Equal(RoomFixture.FloorTop, PlayerFeet(player), RestTolerance);
+    }
+
+    // A room torn down with the player inside the camera zone ends the zone's contact after the zone has
+    // left the scene, as walking out through the east door does.
+    [Fact]
+    public void TearingDownTheRoomWithThePlayerInTheCameraZone_Succeeds()
+    {
+        SimulationHost room = RoomFixture.Simulate();
+        RoomFixture.PlayerOf(room).Position = new Vector2(400f, RoomFixture.FloorTop - 8f);
+        room.Step(DeviceSnapshot.Empty);
+
+        room.Dispose();
     }
 
     // Position is the body's top-left corner; the feet are its bottom edge.

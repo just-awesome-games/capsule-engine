@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Animation;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -8,7 +9,8 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// An invisible area that holds the camera inside it while the player stands in it, and hands back the
-/// bounds it found when the player leaves.
+/// bounds it found when the player leaves. The view slides in on a set curve and eases back out on the
+/// camera's own chase.
 /// </summary>
 public sealed class CameraZone : Entity
 {
@@ -32,8 +34,15 @@ public sealed class CameraZone : Entity
     private void OnPlayerEntered(ColliderContact2D contact)
     {
         _outside = Scene.Camera.Bounds;
-        Scene.Camera.Bounds = new Rect(Position, Size);
+        Scene.Camera.EaseBounds(new Rect(Position, Size), 0.5f, Ease.InOutSine);
     }
 
-    private void OnPlayerExited(ColliderContact2D contact) => Scene.Camera.Bounds = _outside;
+    // A scene tearing down with the player inside ends the contact after this zone has left it.
+    private void OnPlayerExited(ColliderContact2D contact)
+    {
+        if (SceneOrNull is { } scene)
+        {
+            scene.Camera.Bounds = _outside;
+        }
+    }
 }

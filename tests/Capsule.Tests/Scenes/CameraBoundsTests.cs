@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Animation;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -123,6 +124,50 @@ public sealed class CameraBoundsTests
 
         Assert.Equal(NextScreen, camera.VisibleRegion);
         Assert.Equal(NextScreen, simulation.View.Camera.Resolve(0f, Vector2.Zero));
+    }
+
+    // Half a second is thirty steps. Halfway along InQuad the view has come a quarter of the way, and the
+    // thirtieth step lands on the rect.
+    [Fact]
+    public void EaseBounds_MovesTheViewAlongItsCurve_AndLandsOnItsLastStep()
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        simulation.Step(SceneFixtures.Step(0));
+
+        camera.EaseBounds(NextScreen, 0.5f, Ease.InQuad);
+        for (int step = 1; step <= 15; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+
+        Assert.Equal(320f * 0.25f, camera.VisibleRegion.Left, 1e-2f);
+
+        for (int step = 16; step < 30; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+
+        Assert.NotEqual(NextScreen, camera.VisibleRegion);
+        simulation.Step(SceneFixtures.Step(30));
+        Assert.Equal(NextScreen, camera.VisibleRegion);
+    }
+
+    [Fact]
+    public void SettingBounds_TakesOverAnEaseBoundsWithTheDefaultMove()
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        simulation.Step(SceneFixtures.Step(0));
+        camera.EaseBounds(NextScreen, 0.5f, Ease.Linear);
+        for (int step = 1; step <= 10; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+
+        Rect third = new(640f, 0f, 960f, 180f);
+        camera.Bounds = third;
+        simulation.Step(SceneFixtures.Step(11));
+
+        Assert.Equal(third, camera.VisibleRegion);
     }
 
     [Fact]
