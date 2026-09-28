@@ -5,8 +5,8 @@ using Microsoft.Xna.Framework.Input;
 namespace Capsule.Runtime.Input;
 
 // Writes the run's settled rumble level to the pad. The only place pad motors are driven, and the
-// owner of every hazard around them: a lost focus, a swapped player index, an exit and a crash all
-// leave the motors at rest. One instance per windowed host. A headless run constructs none.
+// owner of every hazard around them: a lost focus, a swapped player index, a held run, an exit and a
+// crash all leave the motors at rest. One instance per windowed host. A headless run constructs none.
 internal sealed class GamepadRumble(GamepadRumble.Writer write)
 {
     // How long a non-zero level stands before it is written again. Some pads time a long effect out.
@@ -40,12 +40,14 @@ internal sealed class GamepadRumble(GamepadRumble.Writer write)
     }
 
     // Called once per frame after the steps have run. The target is the level while the window has
-    // focus, a pad is connected and the pad is the active device, and Zero otherwise. A write goes
-    // out when the target changes, or when a non-zero level has stood for RefreshSeconds. Nothing
-    // here reaches the simulation.
-    internal void Apply(RumbleLevel level, bool focused, bool connected, bool padActive, int player, double elapsedSeconds)
+    // focus, a pad is connected, the pad is the active device and the run is not held, and Zero
+    // otherwise. A write goes out when the target changes, or when a non-zero level has stood for
+    // RefreshSeconds. Nothing here reaches the simulation.
+    internal void Apply(RumbleLevel level, bool focused, bool connected, bool padActive, bool runHeld, int player, double elapsedSeconds)
     {
-        RumbleLevel target = focused && connected && padActive ? level : RumbleLevel.Zero;
+        // A held run's tick stands still, and so does the level it mixes. Written through, a pulse
+        // played on the last step would buzz until the hold ends. Its clock resumes with the run.
+        RumbleLevel target = focused && connected && padActive && !runHeld ? level : RumbleLevel.Zero;
 
         // The old slot is silenced before the new one is driven, or a pad unplugged and replaced on
         // another index keeps buzzing on the first.

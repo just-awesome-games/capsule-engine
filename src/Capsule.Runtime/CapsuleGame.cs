@@ -267,9 +267,9 @@ internal sealed class CapsuleGame : Game
         _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
 
         // Every frame, after the steps: the level is the run's settled output, and the live window
-        // focus and the pad's slot are the host's. The applier rests the motors while the window is
-        // inactive and rewrites the level when window focus returns. A driven run's scripted window
-        // focus does not reach them.
+        // focus, the hold and the pad's slot are the host's. The applier rests the motors while the
+        // window is inactive or the run is held, and rewrites the level when either ends. A driven
+        // run's scripted window focus does not reach them.
         if (_rumble is { } rumble && _scenes is { } rumbled)
         {
             rumble.Apply(
@@ -277,6 +277,7 @@ internal sealed class CapsuleGame : Game
                 active,
                 _pad.IsConnected,
                 _scheduler.ActiveDevice == InputDevice.Gamepad,
+                _scheduler.Held,
                 _pad.ConnectedPlayer,
                 gameTime.ElapsedGameTime.TotalSeconds);
         }

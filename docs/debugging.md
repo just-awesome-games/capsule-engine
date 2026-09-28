@@ -5,10 +5,10 @@ a shipping publish drops.
 
 ## The overlay
 
-Press `` ` `` in any windowed run. Open or hidden, the overlay holds the simulation on the settled step and
-pauses every playing voice. Closing it resumes both. It draws over the presented frame, not into the game's
-frame or a frame capture, and its keys and wheel do not reach the simulation. Its Time Scale submenu sets
-`Run.TimeScale`.
+Press `` ` `` in any windowed run. Open or hidden, the overlay holds the simulation on the settled step,
+pauses every playing voice and rests the pad's motors. Closing it resumes all three. It draws over the
+presented frame, not into the game's frame or a frame capture, and its keys and wheel do not reach the
+simulation. Its Time Scale submenu sets `Run.TimeScale`.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
 toggle, Step, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run
