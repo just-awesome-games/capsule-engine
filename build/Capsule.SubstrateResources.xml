@@ -1,6 +1,6 @@
-<!-- Substrate resources a Capsule host never reaches, removed from a NativeAOT publish. Capsule
+<!-- MonoGame resources a Capsule host never reaches, removed from a NativeAOT publish. Capsule
      always embeds its own Icon.bmp and never constructs the 3D effects, which survive only through
-     the substrate's content-reader table. SpriteEffect stays. -->
+     MonoGame's content-reader table. SpriteEffect stays. -->
 <linker>
   <assembly fullname="MonoGame.Framework">
     <resource name="MonoGame.bmp" action="remove" />

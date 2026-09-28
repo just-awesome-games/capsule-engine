@@ -152,6 +152,9 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "capsule.build": {
+        "type": "Project"
+      },
       "capsule.core": {
         "type": "Project"
       },
@@ -172,14 +175,6 @@
         }
       },
       "JAG.Capsule": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Core": "[0.0.0, )",
-          "Capsule.Physics": "[0.0.0, )",
-          "Capsule.Scenes": "[0.0.0, )"
-        }
-      },
-      "JAG.Capsule.Build": {
         "type": "Project",
         "dependencies": {
           "MonoGame.Tool.Dxc": "[1.9.2607.1, 1.9.2607.1]",

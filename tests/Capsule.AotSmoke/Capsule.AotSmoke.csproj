@@ -13,6 +13,9 @@
     <!-- An AOT publish restores a runtime-specific ILC compiler pack per CI matrix leg, so no one
          lock file describes this project's restore. -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <!-- The shell role, so the publish takes a game shell's shape. The smoke runs through the
+         generated CapsuleBoot, and the default icons come with the role. -->
+    <CapsuleGameShell>true</CapsuleGameShell>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 

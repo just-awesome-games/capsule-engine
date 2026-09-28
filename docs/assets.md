@@ -105,6 +105,8 @@ Format version 1, UTF-8 JSON:
 A derived sheet may name what it came from in a `source` block of `tool`, `path` and `hash`. Nothing
 reads it.
 
+A root `"$schema"` key may name the format's published JSON Schema, `https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json`, as [Editor completion](configuring-assets.md#editor-completion) describes. The local copies are for reading.
+
 A socket is a named point on a frame, such as a muzzle or a hand, in the pivot's texel space. It moves
 with the drawing frame by frame. `SpriteRenderer.Socket` returns a child entity placed at that point,
 mirrored by the renderer's flips and turned and scaled with the entity as the frame is. A game parents
@@ -160,8 +162,8 @@ then waits only for what has not landed.
 
 ## Authoring tools
 
-A sheet from another editor's format enters through an authoring module, the way a scene document does
-([`scenes.md`](scenes.md#authoring-tools)). The module adds each derived sheet to `CapsuleSheetDocument`
-from a target running `BeforeTargets="CapsuleCollectSheetDocuments"`. It converts its own pivot, point and
-time models at derivation. Pivots and socket points are texels from the frame's top-left corner, and
+A sheet from another editor's format enters through an authoring module's
+[build derivation](build-and-publish.md#build-derivations), the way a scene document does
+([`scenes.md`](scenes.md#authoring-tools)). The module converts its own pivot, point and time models at
+derivation. Pivots and socket points are texels from the frame's top-left corner, and
 durations are ticks.

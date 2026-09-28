@@ -112,6 +112,8 @@ code assigning that property still wins. The top-level keys run in the order `fo
 
 Invalid documents throw `SceneDocumentFormatException`.
 
+A root `"$schema"` key may name the format's published JSON Schema, `https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json`, as [Editor completion](configuring-assets.md#editor-completion) describes. The reader ignores the key, and the writer never emits it. The local copies are for reading.
+
 ### The tile map entry
 
 `tile-map` is reserved by the engine. A document may carry any number, interleaved with game entities, all
@@ -184,32 +186,18 @@ executable. `gzip -d` restores the compact JSON. A document's key is its source 
 extension, keyed as [named assets](assets.md#named-assets) defines. A document registers itself: the class claiming its key composes it, and one no class claims
 composes a plain `Scene`. Two sources
 sharing a key fail the build, and derived documents are not committed. The logic role imports scenes on its
-own, and any other project opts in with `CapsuleImportScenes`. `CapsuleTileSize` declares the tile size every
+own, and any other project opts in with `CapsuleBuildAssets`. `CapsuleTileSize` declares the tile size every
 scene must match ([`build-and-publish.md`](build-and-publish.md#build-properties)).
 
 ## Authoring tools
 
-An editor's own format enters through an authoring module: a package whose `buildTransitive` targets derive a
-document per source into their own `obj/` space and add each to the `CapsuleSceneDocument` item from a target
-running `BeforeTargets="CapsuleCollectSceneDocuments"`. The engine validates, canonicalizes and ships them
-like hand-authored documents, preserving the module's `source` block. A module states each document's key as
-`%(CapsuleDocumentKey)`: its source's path under `Assets/` with no extension, `/`-joined segments of ASCII
-letters, digits, hyphens and underscores, none a reserved Windows device name. A document naming none is
-keyed by its stem. The engine keys it as [named assets](assets.md#named-assets) defines, and no module
-implements the key rule. Sprite sheets enter
-the same way, on `CapsuleSheetDocument` ([`assets.md`](assets.md#authoring-tools)).
-
-Three rules hold a module's targets:
-
-- Read `CapsuleImportScenes`, `CapsuleAssetSourcesDir`, `CapsuleTileSize` and `CapsuleDotNetHost` only inside
-  targets. NuGet imports package targets in no promised order. A property a role derives is final at
-  execution time and not at evaluation.
-- Collect a glob first and set its key in a second item group, naming the metadata qualified as
-  `%(MyModuleSource.RecursiveDir)`. `%(RecursiveDir)` on a glob's own `Include` inside a target batches over
-  the target and comes back empty.
-- Carry `Exclude="@(_CapsuleDevelopmentOnly)"` on every authoring glob, or a directory a game marked
-  development-only still ships through the module's format
-  ([`build-and-publish.md`](build-and-publish.md#development-only-directories)).
+An editor's own format enters through an authoring module: a package that declares a
+[build derivation](build-and-publish.md#build-derivations). Its tool writes a document per source at the
+source's path, and the engine validates, canonicalizes and ships each like a hand-authored document at that
+path, preserving the module's `source` block. The engine keys it as [named assets](assets.md#named-assets)
+defines, and no module implements the key rule. A publish leaves out a document derived from under a
+[development-only directory](build-and-publish.md#development-only-directories). Sprite sheets and textures
+enter the same way ([`assets.md`](assets.md#authoring-tools)).
 
 JAG Studios publishes the Tiled module as `JAG.Capsule.Tiled` from
 [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

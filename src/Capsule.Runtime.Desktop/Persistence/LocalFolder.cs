@@ -11,8 +11,8 @@ internal static class LocalFolder
         ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
 
         // The XDG spec ignores a relative XDG_DATA_HOME. An unset or empty HOME falls back to the
-        // runtime's answer, not the working directory. CI publishes no macOS leg, so that path is
-        // unproven.
+        // runtime's answer, not the working directory. That fallback is unproven on macOS. The CI
+        // smoke there passes an explicit saves directory.
         string? xdg = OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("XDG_DATA_HOME") : null;
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

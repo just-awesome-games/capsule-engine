@@ -1,5 +1,6 @@
 <Project>
 
+  <!-- The shell's executable and window icons. Everything here answers to the shell role. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
     <_CapsuleGameIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.ico'))</_CapsuleGameIcon>
     <_CapsuleGameWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.bmp'))</_CapsuleGameWindowIcon>

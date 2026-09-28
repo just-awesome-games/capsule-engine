@@ -4,9 +4,6 @@ using Capsule.Rendering;
 
 namespace Capsule.Build.Shaders;
 
-/// <summary>One parameter the pixel stage reads from its constant buffer, at its byte offset.</summary>
-internal readonly record struct PixelConstant(string Name, ShaderParameterKind Kind, int Offset);
-
 /// <summary>
 /// Packs a vertex and a pixel GLSL stage into MonoGame's OpenGL effect container, version 11, as its
 /// <c>Effect</c> reader and GL <c>Shader</c> constructor read it: constant buffers, the two shaders

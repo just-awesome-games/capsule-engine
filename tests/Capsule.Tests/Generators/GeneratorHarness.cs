@@ -176,21 +176,21 @@ internal static class GeneratorHarness
 
                     return extension switch
                     {
-                        ".png" => $"[{CapsuleAssetsFile.AssetAttributeName}(\"{document.Path}\")] public static global::Capsule.Assets.TextureHandle Asset{index} => new(\"{name}\", \"{extension}\");",
-                        ".wav" or ".ogg" => $"[{CapsuleAssetsFile.AssetAttributeName}(\"{document.Path}\")] public static global::Capsule.Audio.AudioClip Asset{index} => new(\"{name}\", \"{extension}\", 0.5D);",
+                        ".png" => $"[{GeneratedAttributes.AssetName}(\"{document.Path}\")] public static global::Capsule.Assets.TextureHandle Asset{index} => new(\"{name}\", \"{extension}\");",
+                        ".wav" or ".ogg" => $"[{GeneratedAttributes.AssetName}(\"{document.Path}\")] public static global::Capsule.Audio.AudioClip Asset{index} => new(\"{name}\", \"{extension}\", 0.5D);",
                         _ => string.Empty,
                     };
                 }
 
                 string key = document.Path[..^Extension.Length];
                 IEnumerable<string> attributes = document.Content is null
-                    ? [$"{SceneStep.DocumentAttributeName}(Key = \"{key}\")"]
-                    : SceneStep.Attributes(SceneDocumentFile.Parse(document.Content), key, document.Path, document.Content);
+                    ? [$"{GeneratedAttributes.SceneDocumentName}(Key = \"{key}\")"]
+                    : SceneMembers.Attributes(SceneDocumentFile.Parse(document.Content), key, document.Path, document.Content);
 
                 return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{index} => new(\"{key}\");";
             });
 
-        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{SceneStep.DocumentAttribute}{CapsuleAssetsFile.AssetAttribute}}}\n";
+        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{GeneratedAttributes.SceneDocument}{GeneratedAttributes.Asset}}}\n";
     }
 
     /// <summary>

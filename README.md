@@ -25,7 +25,7 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 
 ## Documentation
 
-Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
+Three packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
 
 - [`docs/getting-started.md`](docs/getting-started.md): clone, wire three projects, put one entity on screen, run it.
 - [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, the cursor, input drivers, the standard command line.
@@ -38,6 +38,7 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 - [`docs/entities.md`](docs/entities.md): building, lifecycle, parenting, interpolation, pooling.
 - [`docs/persistence.md`](docs/persistence.md): save documents, the file format, and where they go.
 - [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, build properties, publishing, platform modules.
+- [`docs/packages.md`](docs/packages.md): writing a package, its naming, and taking part in the build.
 - [`docs/testing.md`](docs/testing.md): which boundary to test a game at.
 - [`docs/debugging.md`](docs/debugging.md): the development overlay, debug draw, panels, logging.
 - [`docs/architecture.md`](docs/architecture.md): module boundaries, the logic boundary, the determinism contract, the NativeAOT floor.

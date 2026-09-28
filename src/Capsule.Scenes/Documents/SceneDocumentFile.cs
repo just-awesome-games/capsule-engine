@@ -17,11 +17,11 @@ namespace Capsule.Scenes.Documents;
 /// </remarks>
 public static class SceneDocumentFile
 {
-    private const int FormatVersion = 7;
+    internal const int FormatVersion = 7;
 
-    private const string LinearSampling = "linear";
+    internal const string LinearSampling = "linear";
 
-    private const string PointSampling = "point";
+    internal const string PointSampling = "point";
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 

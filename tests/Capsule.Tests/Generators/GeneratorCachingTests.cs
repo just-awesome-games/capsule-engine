@@ -6,18 +6,24 @@ namespace Capsule.Tests.Generators;
 // pipeline is held to caching an unchanged compilation and not only to the source it emits.
 public sealed class GeneratorCachingTests
 {
-    [Fact]
-    public void ASecondRunOverAnUnchangedCompilation_WalksNoReferencedAssemblyAgain()
+    // The names the generator hands WithTrackingName: its walk over every referenced assembly's
+    // registry metadata, and each plan a generated file is rendered from. A plan holding a
+    // diagnostic is rebuilt on every run, so this input faults nothing.
+    [Theory]
+    [InlineData("BootModel")]
+    [InlineData("EntityPlan")]
+    [InlineData("ScenePlan")]
+    [InlineData("InputDriverPlan")]
+    [InlineData("BootPlan")]
+    public void ASecondRunOverAnUnchangedCompilation_RunsTheStepAgainForNothing(string step)
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
             ("scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}"""));
 
-        // The name the generator hands WithTrackingName for its walk over every referenced
-        // assembly's registry metadata.
         List<IncrementalGeneratorRunStep> runs = [];
         foreach (GeneratorRunResult generator in result.Results)
         {
-            if (generator.TrackedSteps.TryGetValue("BootModel", out var tracked))
+            if (generator.TrackedSteps.TryGetValue(step, out var tracked))
             {
                 runs.AddRange(tracked);
             }
@@ -30,6 +36,6 @@ public sealed class GeneratorCachingTests
                 run.Outputs,
                 output => Assert.True(
                     output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"'BootModel' ran again for {output.Reason}.")));
+                    $"'{step}' ran again for {output.Reason}.")));
     }
 }

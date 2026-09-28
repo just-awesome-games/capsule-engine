@@ -1,0 +1,58 @@
+<Project>
+
+  <!-- A consumer building against clones: the engine's, when CapsuleSourceRoot is set, and any
+       CapsuleSourceOverrides names. The engine's projects join its graph as project references and
+       build in one configuration. Universal: every project that references an engine package, a
+       test or a tool as much as a role, must take the clone's project in its place. -->
+
+  <!-- A source consumer's projects keep their configuration across every ProjectReference, including
+       the edges into the engine. The engine's Directory.Build.props sets the same for its src/
+       projects, which a consumer's graph builds without this file. A package consumer keeps the
+       SDK's default, since it builds no clone. -->
+  <PropertyGroup Condition="'$(CapsuleSourceRoot)' != '' or '$(CapsuleSourceOverrides)' != ''">
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+  </PropertyGroup>
+
+  <!-- Source consumers use Release unless overridden. The engine's own repository sets
+       CapsuleEngineRepository, and its projects inherit the solution configuration. -->
+  <PropertyGroup>
+    <CapsuleSourceConfiguration Condition="'$(CapsuleSourceConfiguration)' == '' and '$(CapsuleSourceRoot)' != '' and '$(CapsuleEngineRepository)' != 'true'">Release</CapsuleSourceConfiguration>
+    <CapsuleSourceModulesDirectory Condition="'$(CapsuleSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))</CapsuleSourceModulesDirectory>
+
+    <!-- The committed lock file describes the package graph, and a clone changes that graph. -->
+    <NuGetLockFilePath Condition="'$(NuGetLockFilePath)' == '' and ('$(CapsuleSourceRoot)' != '' or '$(CapsuleSourceOverrides)' != '')">$(MSBuildProjectDirectory)/obj/packages.source.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+
+  <!-- Every reference to an engine package becomes its project in the clone. The clone's targets
+       replace the ones the package carries. -->
+  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+    <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule/Capsule.csproj"
+                      Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule'))' != ''" />
+    <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule.Runtime/Capsule.Runtime.csproj"
+                      Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule.Runtime'))' != ''" />
+    <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj"
+                      Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule.Runtime.Desktop'))' != ''" />
+    <PackageReference Remove="JAG.Capsule;JAG.Capsule.Runtime;JAG.Capsule.Runtime.Desktop" />
+  </ItemGroup>
+
+  <!-- A package an override replaces is not restored. Its clone's targets are already imported. -->
+  <PropertyGroup Condition="'$(CapsuleSourceOverrides)' != ''">
+    <_CapsuleOverriddenPackages>$([System.Text.RegularExpressions.Regex]::Replace('$(CapsuleSourceOverrides)', '\s*([^=;\s]+)\s*=[^;]*', '$1'))</_CapsuleOverriddenPackages>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_CapsuleOverriddenPackages)' != ''">
+    <PackageReference Remove="$(_CapsuleOverriddenPackages)" />
+  </ItemGroup>
+
+  <!-- One configuration for the engine's projects and every build tool a derivation builds from
+       source, applied before project assignment. A package consumer that sets
+       CapsuleSourceConfiguration builds no clone, so the target skips it. -->
+  <Target Name="CapsuleConfigureEngineReferences"
+          Condition="'$(CapsuleSourceConfiguration)' != '' and ('$(CapsuleSourceRoot)' != '' or '$(CapsuleSourceOverrides)' != '')"
+          AfterTargets="ResolvePackageDependenciesForBuild">
+    <ItemGroup>
+      <ProjectReference AdditionalProperties="Configuration=$(CapsuleSourceConfiguration)"
+                        Condition="'%(ProjectReference.CapsuleTool)' == 'true' or ('$(CapsuleSourceModulesDirectory)' != '' and $([System.String]::new('%(FullPath)').StartsWith('$(CapsuleSourceModulesDirectory)', System.StringComparison.OrdinalIgnoreCase)))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

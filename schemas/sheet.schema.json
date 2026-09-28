@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
+  "$comment": "Generated from Capsule.Build.Sheets.SheetJson.",
+  "title": "Capsule sprite sheet",
+  "description": "A sprite sheet: the texture it cuts from, the sockets its frames set, its frames and the clips played over them.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "formatVersion": {
+      "description": "The document format's version, which must be one this build supports.",
+      "type": "integer",
+      "const": 1
+    },
+    "texture": {
+      "description": "The key of the texture every frame is cut from, extension included, with forward slashes and no empty, \".\" or \"..\" segment. Any spelling of the key reads.",
+      "type": "string",
+      "minLength": 1
+    },
+    "sockets": {
+      "description": "The sockets the frames set. Absent or empty generates no Sockets class.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The socket's name, unique among the sockets. Letters, digits, '-' and '_', not starting with a digit.",
+            "type": "string",
+            "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "frames": {
+      "description": "The regions of the texture the sheet names, at least one.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The frame's name, unique among the frames. Letters, digits, '-' and '_', not starting with a digit.",
+            "type": "string",
+            "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "x": {
+            "description": "The frame's left edge in texels of the texture.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "y": {
+            "description": "The frame's top edge in texels of the texture.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "width": {
+            "description": "The frame's width in texels.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "description": "The frame's height in texels.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "pivot": {
+            "description": "The pivot as [x, y] in texels of the frame from its own top-left corner, both finite. Absent is that corner.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "sockets": {
+            "description": "A declared socket's name mapped to its point on this frame, [x, y] in the pivot's texel space. A frame sets the sockets it has a point for and leaves the rest out.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      },
+      "minItems": 1
+    },
+    "clips": {
+      "description": "The animations played over the sheet's frames. Absent or empty is a sheet of frames only, with no Clips class generated.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The clip's name, unique among the clips. Letters, digits, '-' and '_', not starting with a digit.",
+            "type": "string",
+            "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+          },
+          "loop": {
+            "description": "Whether the last entry wraps back to the first.",
+            "default": false,
+            "type": "boolean"
+          },
+          "frames": {
+            "description": "The frames the clip plays in order, at least one.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "frame": {
+                  "description": "The name of a frame of this sheet.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ticks": {
+                  "description": "The fixed steps the frame is held for, at least one. Not milliseconds.",
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "frame",
+                "ticks"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "frames"
+        ]
+      }
+    },
+    "source": {
+      "description": "What a derived sheet came from. Nothing reads it.",
+      "type": "object",
+      "properties": {
+        "tool": {
+          "description": "The tool that derived the sheet.",
+          "type": "string"
+        },
+        "path": {
+          "description": "The source's path.",
+          "type": "string"
+        },
+        "hash": {
+          "description": "The source's hash.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "formatVersion",
+    "texture",
+    "frames"
+  ],
+  "additionalProperties": false
+}

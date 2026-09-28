@@ -1,6 +1,8 @@
 <Project>
 
-  <!-- No GlobalPropertiesToRemove. The generator project pins the publish properties with
+  <!-- The generators and analyzers: the project in an engine clone, the packed assembly in the
+       package, which keeps it out of analyzers/ so only a role receives it.
+       No GlobalPropertiesToRemove. The generator project pins the publish properties with
        TreatAsLocalProperty, and removing them here would request it under a second global-property
        set. Two builds would then race into one output. -->
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
@@ -9,6 +11,8 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
+    <Analyzer Include="$(MSBuildThisFileDirectory)../tools/generators/Capsule.Generators.dll"
+              Condition="Exists('$(MSBuildThisFileDirectory)../tools/generators/Capsule.Generators.dll')" />
 
     <CompilerVisibleProperty Include="CapsuleGameLogic" />
     <CompilerVisibleProperty Include="CapsuleGameShell" />

@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- What Capsule sets ahead of the project body. JAG.Capsule carries this file as
+       buildTransitive/JAG.Capsule.props, and Capsule.Build.props imports it for a source consumer.
+       A role is unknown here, so every role default lives in Capsule.Build.targets. -->
+  <PropertyGroup>
+    <!-- Universal import, inert without the shell role, which Capsule.OutputType.targets reads after
+         the project body and ahead of the SDK's targets, which read OutputType. -->
+    <BeforeMicrosoftNETSdkTargets>$(BeforeMicrosoftNETSdkTargets);$(MSBuildThisFileDirectory)Capsule.OutputType.targets</BeforeMicrosoftNETSdkTargets>
+  </PropertyGroup>
+
+</Project>

@@ -1,7 +1,8 @@
 <Project>
 
   <PropertyGroup>
-    <!-- Keep repository source consumers on the solution configuration. -->
+    <!-- Read by build/Capsule.SourceConsumer.targets, which the entry file imports: the engine's own
+         source consumers, its tests and sample, stay on the solution configuration. -->
     <CapsuleEngineRepository>true</CapsuleEngineRepository>
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
@@ -15,12 +16,13 @@
          committed lock files do not describe, so it gets its own lock file and leaves them alone. -->
     <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != '' or '$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)/obj/packages.runtime.lock.json</NuGetLockFilePath>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <!-- Preserve parent configuration across external ProjectReference edges. -->
+    <!-- Engine projects keep the configuration a consumer's graph builds them in, across their own
+         references. build/Capsule.SourceConsumer.targets sets the same for the consumer's projects. -->
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
     <!-- Release packing overrides this constant; it must equal the sample's CapsuleVersion. -->
     <VersionPrefix>0.0.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
-    <PackageTags>game-engine;2d;monogame;deterministic</PackageTags>
+    <PackageTags>capsule-engine;game-engine;2d;monogame;deterministic</PackageTags>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>

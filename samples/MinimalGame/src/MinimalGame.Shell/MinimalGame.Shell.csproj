@@ -1,23 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <!-- Release ships as a Windows-subsystem app, and a double-click opens no console. Debug
-         keeps the console for the log sink. -->
-    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
     <AssemblyName>MinimalGame</AssemblyName>
     <CapsuleGameShell>true</CapsuleGameShell>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
-    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
-  </ItemGroup>
-
   <ItemGroup>
+    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
     <ProjectReference Include="../MinimalGame.Game/MinimalGame.Game.csproj" />
   </ItemGroup>
 

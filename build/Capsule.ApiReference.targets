@@ -1,28 +1,67 @@
 <Project>
 
-  <PropertyGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <!-- Resolve overrides against the consumer repository root. -->
-    <CapsuleApiReferenceDirectory Condition="'$(CapsuleApiReferenceDirectory)' == ''">artifacts/capsule-api</CapsuleApiReferenceDirectory>
-    <CapsuleApiReferenceDirectory>$([MSBuild]::NormalizePath('$([System.IO.Path]::GetDirectoryName("$(DirectoryBuildTargetsPath)"))', '$(CapsuleApiReferenceDirectory)'))</CapsuleApiReferenceDirectory>
-  </PropertyGroup>
+  <!-- Capsule's API reference, staged at CapsuleApiReferenceDirectory before each project compiles:
+       the XML documentation of every Capsule assembly the project references, and the JSON Schema
+       of every authored format. A source build stages them from the engine clone, and a package
+       build from the restored packages, so both modes read them at one path. Universal: any project
+       written against Capsule's API reads the same reference. -->
 
-  <!-- Stage source-consumer API documentation before compilation. -->
   <Target Name="CapsuleStageApiReference"
-          Condition="'$(CapsuleSourceRoot)' != ''"
           DependsOnTargets="ResolveReferences"
           BeforeTargets="CoreCompile">
 
-    <ItemGroup>
-      <_CapsuleApiReferenceFile Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Extension', '.xml'))"
-                               Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
+    <!-- A relative directory resolves against the consumer's repository root. That is the directory
+         of its Directory.Build.targets, else of its Directory.Build.props. -->
+    <PropertyGroup>
+      <_CapsuleRepositoryFile>$(DirectoryBuildTargetsPath)</_CapsuleRepositoryFile>
+      <_CapsuleRepositoryFile Condition="'$(_CapsuleRepositoryFile)' == ''">$(DirectoryBuildPropsPath)</_CapsuleRepositoryFile>
+      <_CapsuleRepositoryFile Condition="'$(_CapsuleRepositoryFile)' == ''">$(MSBuildProjectFullPath)</_CapsuleRepositoryFile>
+      <CapsuleApiReferenceDirectory Condition="'$(CapsuleApiReferenceDirectory)' == ''">artifacts/capsule-api</CapsuleApiReferenceDirectory>
+      <CapsuleApiReferenceDirectory>$([MSBuild]::NormalizePath('$([System.IO.Path]::GetDirectoryName("$(_CapsuleRepositoryFile)"))', '$(CapsuleApiReferenceDirectory)'))</CapsuleApiReferenceDirectory>
+    </PropertyGroup>
 
-      <!-- A renamed or dropped module would otherwise leave its documentation here forever. The
-           stale set is named against the engine's modules, not this project's references. Parallel
-           role projects share this destination and each stages only its own subset, so comparing
-           against that subset would have them delete each other's current files. -->
-      <_CapsuleModuleProject Include="$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))*/*.csproj" />
+    <!-- Parallel role projects share the destination and each stages only its own subset. The stale
+         set is therefore named against every engine module, never against this project's
+         references, or they would delete each other's current files. _CapsuleModule is one item per
+         module, named by its file name. -->
+    <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
+      <_CapsuleApiReferenceFile Include="@(ReferenceCopyLocalPaths->WithMetadataValue('Extension', '.xml'))"
+                                Condition="$([System.String]::Copy('%(Filename)').StartsWith('Capsule.'))" />
+      <_CapsuleModule Include="$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))*/*.csproj" />
+      <_CapsuleSchemaFile Include="$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'schemas'))*.schema.json" />
+    </ItemGroup>
+
+    <!-- A package build stages only when this project resolved JAG.Capsule, and reads everything
+         in the package cache: a package build does not copy a package's documentation to the
+         output. The release is the JAG.Capsule it compiles against. A package unpacks to
+         <packages>/<id>/<version>/, and the release's other packages share its version. -->
+    <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+      <_CapsuleEngineReference Include="@(ReferencePath->WithMetadataValue('NuGetPackageId', 'JAG.Capsule'))" />
+    </ItemGroup>
+    <PropertyGroup Condition="'$(CapsuleSourceRoot)' == '' and '@(_CapsuleEngineReference)' != ''">
+      <_CapsuleEngineVersion>@(_CapsuleEngineReference->'%(NuGetPackageVersion)'->Distinct())</_CapsuleEngineVersion>
+      <_CapsuleEngineLibDirectory>@(_CapsuleEngineReference->'%(RootDir)%(Directory)'->Distinct())</_CapsuleEngineLibDirectory>
+      <_CapsuleEnginePackageDirectory>$([MSBuild]::NormalizeDirectory('$(_CapsuleEngineLibDirectory)', '..', '..'))</_CapsuleEnginePackageDirectory>
+      <_CapsulePackagesDirectory>$([MSBuild]::NormalizeDirectory('$(_CapsuleEnginePackageDirectory)', '..', '..'))</_CapsulePackagesDirectory>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_CapsuleEnginePackageDirectory)' != ''">
+      <_CapsulePackageAssembly Include="@(ReferencePath)"
+                               Condition="$([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('JAG.Capsule')) and $([System.String]::Copy('%(ReferencePath.Filename)').StartsWith('Capsule.'))" />
+      <_CapsuleApiReferenceFile Include="@(_CapsulePackageAssembly->'%(RootDir)%(Directory)%(Filename).xml')" />
+      <_CapsuleModule Include="$(_CapsulePackagesDirectory)jag.capsule*/$(_CapsuleEngineVersion)/lib/*/Capsule.*.xml" />
+      <_CapsuleSchemaFile Include="$(_CapsuleEnginePackageDirectory)schemas/*.schema.json" />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_CapsuleStagesApiReference Condition="'$(CapsuleSourceRoot)' != '' or '$(_CapsuleEnginePackageDirectory)' != ''">true</_CapsuleStagesApiReference>
+    </PropertyGroup>
+
+    <!-- A renamed or dropped module or schema would otherwise stay here forever. -->
+    <ItemGroup Condition="'$(_CapsuleStagesApiReference)' == 'true'">
       <_CapsuleStaleApiReferenceFile Include="$(CapsuleApiReferenceDirectory)/Capsule.*.xml"
-                                     Exclude="@(_CapsuleModuleProject->'$(CapsuleApiReferenceDirectory)/%(Filename).xml')" />
+                                     Exclude="@(_CapsuleModule->'$(CapsuleApiReferenceDirectory)/%(Filename).xml')" />
+      <_CapsuleStaleApiReferenceFile Include="$(CapsuleApiReferenceDirectory)/schemas/*.json"
+                                     Exclude="@(_CapsuleSchemaFile->'$(CapsuleApiReferenceDirectory)/schemas/%(Filename)%(Extension)')" />
     </ItemGroup>
 
     <Delete Files="@(_CapsuleStaleApiReferenceFile)" ContinueOnError="true" />
@@ -30,6 +69,11 @@
     <!-- Parallel role projects share this destination. -->
     <Copy SourceFiles="@(_CapsuleApiReferenceFile)"
           DestinationFolder="$(CapsuleApiReferenceDirectory)"
+          SkipUnchangedFiles="true"
+          Retries="3"
+          RetryDelayMilliseconds="100" />
+    <Copy SourceFiles="@(_CapsuleSchemaFile)"
+          DestinationFolder="$(CapsuleApiReferenceDirectory)/schemas"
           SkipUnchangedFiles="true"
           Retries="3"
           RetryDelayMilliseconds="100" />

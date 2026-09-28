@@ -3,9 +3,6 @@ using System.IO.Compression;
 
 namespace Capsule.Build.Textures;
 
-/// <summary>Texels in rows, <paramref name="Channels"/> bytes each and no padding.</summary>
-internal readonly record struct Texels(byte[] Data, int Width, int Height, int Channels);
-
 /// <summary>Reads the one channel an <c>r8</c> texture carries: an 8-bit greyscale PNG's values, or an indexed PNG's raw palette indices.</summary>
 internal static class SingleChannelPng
 {

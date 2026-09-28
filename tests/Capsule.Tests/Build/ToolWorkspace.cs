@@ -1,17 +1,19 @@
 using Capsule.Build;
-using Capsule.Build.Atlases;
+using Capsule.Build.Textures;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// A game's project directory as the build tool sees it: files authored under <c>Assets/</c>, one run
-/// over the manifest the targets would write for them, and what that run left under
-/// <c>obj/capsule/</c>.
+/// A game's project directory as the build tool sees it: files authored under <c>Assets/</c> and files
+/// derivations wrote under <c>obj/capsule/derived/&lt;name&gt;/</c>, one run over the manifest the
+/// targets would write for them, and what that run left under <c>obj/capsule/</c>.
 /// </summary>
 internal sealed class ToolWorkspace : IDisposable
 {
     internal const string Out = "obj/capsule";
+
+    internal const string Derived = Out + "/derived";
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
 
@@ -56,7 +58,7 @@ internal sealed class ToolWorkspace : IDisposable
         }
 
         using MemoryStream png = new();
-        AtlasStep.Encode(texels, width, height, png);
+        TexturePixels.Encode(texels, width, height, png);
 
         return Write(name, png.ToArray());
     }
@@ -66,14 +68,14 @@ internal sealed class ToolWorkspace : IDisposable
     {
         byte[] values = [.. Enumerable.Range(0, width * height).Select(static i => (byte)(i * 17))];
         using MemoryStream png = new();
-        AtlasStep.Encode(values, width, height, png, channels: 1);
+        TexturePixels.Encode(values, width, height, png, channels: 1);
 
         return Write(name, png.ToArray());
     }
 
     /// <summary>
-    /// Runs the tool over every file under <c>Assets/</c>, as the targets hand them, plus
-    /// <paramref name="lines"/>: options, or documents a module derived.
+    /// Runs the tool over every file under <c>Assets/</c> and under each derivation's directory, as the
+    /// targets hand them, plus <paramref name="lines"/>: options.
     /// </summary>
     /// <returns>The run's exit code.</returns>
     internal int Run(params string[] lines)
@@ -81,7 +83,12 @@ internal sealed class ToolWorkspace : IDisposable
         string[] authored = Directory.Exists("Assets")
             ? [.. Directory.EnumerateFiles("Assets", "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal).Select(static path => "asset|" + Path.GetFullPath(path))]
             : [];
-        string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored]));
+        string[] derived = Directory.Exists(Derived)
+            ? [.. Directory.EnumerateDirectories(Derived).Order(StringComparer.Ordinal).SelectMany(static root =>
+                Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)
+                    .Select(path => $"derived|{Path.GetFullPath(root)}|{Path.GetFullPath(path)}"))]
+            : [];
+        string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored, .. derived]));
 
         StringWriter output = new();
         StringWriter error = new();

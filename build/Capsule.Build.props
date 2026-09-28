@@ -1,0 +1,30 @@
+<Project>
+
+  <!-- Building against clones instead of packages. A game's git-ignored Directory.Build.local.props
+       names the clones and imports this file from the engine clone:
+
+         <CapsuleSourcePath>../capsule-engine</CapsuleSourcePath>
+         <CapsuleSourceOverrides>JAG.Capsule.Tiled=../capsule-engine-tiled</CapsuleSourceOverrides>
+         <Import Project="$(CapsuleSourcePath)/build/Capsule.Build.props" Condition="'$(CapsuleSourcePath)' != ''" />
+
+       CapsuleSourceOverrides names other Capsule-family packages as <PackageId>=<path>, several
+       separated by ';', each path relative to Directory.Build.props. Capsule.SourceConsumer.targets
+       turns every engine PackageReference into its project in this clone, and drops each overridden
+       package, whose clone supplies build/<PackageId>.targets in its place. Both run before restore.
+       -p:CapsuleSourcePath= builds from the packages whatever the local file says. -->
+
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Defaults.props" />
+
+  <PropertyGroup>
+    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..'))</CapsuleSourceRoot>
+
+    <_CapsuleConsumerDirectory>$([System.IO.Path]::GetDirectoryName('$(DirectoryBuildPropsPath)'))</_CapsuleConsumerDirectory>
+    <_CapsuleSourceOverrideTargets Condition="'$(CapsuleSourceOverrides)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(CapsuleSourceOverrides)', '\s*([^=;\s]+)\s*=\s*([^;]*[^;\s])\s*', '$(_CapsuleConsumerDirectory)/$2/build/$1.targets'))</_CapsuleSourceOverrideTargets>
+
+    <!-- A package's targets are imported ahead of Directory.Build.targets, and a clone's right after
+         it, overrides first. The project body is final there, so the swap sees every reference. A
+         clone that is not there fails the evaluation naming the file. -->
+    <CustomAfterDirectoryBuildTargets>$(CustomAfterDirectoryBuildTargets);$(_CapsuleSourceOverrideTargets);$(MSBuildThisFileDirectory)Capsule.Build.targets</CustomAfterDirectoryBuildTargets>
+  </PropertyGroup>
+
+</Project>

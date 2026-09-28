@@ -4,6 +4,13 @@ A release is an annotated `v<major>.<minor>.<patch>` tag on `main`. Pushing the 
 `.github/workflows/packages.yml`, which builds, tests, packs every `JAG.Capsule.*` package at that
 version and pushes them to NuGet.org. Nothing else publishes.
 
+## Publishing ownership
+
+The nuget.org organization `JAG-Studios` owns every `JAG.Capsule*` package. It also owns the
+trusted-publishing policy for this repository's `packages.yml`. The Actions variable `NUGET_USER`
+names a member's nuget.org username, which is a user profile name and never the organization. A
+member who takes over releases adds their own organization-owned policy.
+
 ## 1. Start from a green, pushed `main`
 
 ```bash
@@ -66,20 +73,29 @@ NuGet.org indexes a pushed package minutes after the workflow reports success. C
 package is downloadable before pointing a consumer at it (HTTP 200; 404 means still indexing):
 
 ```bash
-for p in jag.capsule jag.capsule.build jag.capsule.runtime jag.capsule.runtime.desktop; do
+for p in jag.capsule jag.capsule.runtime jag.capsule.runtime.desktop; do
   curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/$VERSION/$p.$VERSION.nupkg"
 done
 ```
 
-## 6. Move the consumers
+## 6. Deprecate `JAG.Capsule.Build` (first release after the fold only)
 
-Each consumer pins an exact `CapsuleVersion`. After a release:
+`JAG.Capsule.Build` was folded into `JAG.Capsule` and no longer publishes. After the first release
+without it, open `JAG.Capsule.Build` on nuget.org, choose Manage Package > Deprecation, select
+every version, mark them legacy and name `JAG.Capsule` as the alternate package. Later releases
+skip this step.
 
-- `capsule-engine-tiled`: follow its `RELEASING.md` (bump the pin, regenerate its lock files,
-  release the module).
-- Each game consuming the packages: bump `CapsuleVersion` (and `CapsuleTiledVersion` once the
-  module has released) in its `Directory.Build.props`, then `dotnet restore --force-evaluate` to
-  rewrite its lock files.
+## 7. Move the consumers
+
+Each consumer pins an exact version on each Capsule `PackageReference`, as
+[`docs/build-and-publish.md`](docs/build-and-publish.md#consuming-capsule) shows. The engine
+releases first, then the module, then the games:
+
+1. `capsule-engine-tiled`: follow its `RELEASING.md`. It pins the new `JAG.Capsule`, regenerates its
+   lock files and releases the module.
+2. Each game consuming the packages: bump the version on its `JAG.Capsule*` references, including
+   `JAG.Capsule.Tiled` once the module has released. Then regenerate its committed lock files in
+   package mode with `dotnet restore -p:CapsuleSourcePath= --force-evaluate`.
 
 ## Undoing a mistake
 

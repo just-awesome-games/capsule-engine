@@ -1,184 +1,40 @@
 <Project>
 
-  <!-- How a Capsule game builds. The logic project owns the authoring plane, everything under
-       Assets/. One target writes the list of its files to a manifest, one run of the build tool turns
-       that into what ships and what compiles, and one target hands those outputs to MSBuild:
+  <!-- How a Capsule game builds. This file holds the mode switches and imports every concern from
+       its own file. A package consumer gets it as buildTransitive/JAG.Capsule.targets, so every
+       project referencing JAG.Capsule imports it, whatever it is. Capsule.Build.props imports it for
+       a source consumer. The pipeline, the generator, the shell's shape and its publish answer to a
+       role. What a role-free library, test or tool receives is marked universal where it is set. -->
 
-         Assets/**                  -> obj/capsule/build-requests.txt   (CapsuleBuildRequests)
-         build-requests.txt         -> obj/capsule/assets/**             everything the game ships
-                                       obj/capsule/CapsuleAssets.g.cs    every asset, named in C#
-                                                                         (CapsuleRunBuildTool)
-         obj/capsule/...            -> Content, Compile                  (CapsuleAddBuildOutputs)
-
-       The source generator reads only the game's C#, CapsuleAssets.g.cs included. -->
-
-  <!-- Preserve parent configuration across external ProjectReference edges. -->
+  <!-- The mode switches. The files below read them at evaluation. -->
   <PropertyGroup>
-    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+    <!-- The build's shape: true for a publish, false for every other build. _IsPublishing flows
+         through project references, and CapsuleShipping stays directly testable. -->
+    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">$(_IsPublishing)</CapsuleShipping>
+    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">false</CapsuleShipping>
+
+    <!-- The asset pipeline. A project that sets it reads the authoring tree and ships what it
+         derives. The logic role sets it, and a role-free test or tool may. -->
+    <CapsuleBuildAssets Condition="'$(CapsuleBuildAssets)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleBuildAssets>
   </PropertyGroup>
 
-  <!-- Source consumers use Release unless overridden. Repository builds inherit. -->
-  <PropertyGroup>
-    <CapsuleSourceConfiguration Condition="'$(CapsuleSourceConfiguration)' == '' and '$(CapsuleSourceRoot)' != '' and '$(CapsuleEngineRepository)' != 'true'">Release</CapsuleSourceConfiguration>
-    <CapsuleSourceModulesDirectory Condition="'$(CapsuleSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(CapsuleSourceRoot)', 'src'))</CapsuleSourceModulesDirectory>
+  <!-- A role's JSON goes through the generated contexts only, which is what a NativeAOT publish
+       runs. A role-free library keeps the SDK's default. -->
+  <PropertyGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
+    <JsonSerializerIsReflectionEnabledByDefault Condition="'$(JsonSerializerIsReflectionEnabledByDefault)' == ''">false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
-  <!-- Imported after the SDK default. Command-line overrides still win. -->
-  <PropertyGroup>
-    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
-  </PropertyGroup>
-
-  <!-- CapsuleImportScenes is the one switch: a project that sets it reads the authoring plane and
-       ships what it derives. The logic role sets it, and a role-free test or tool may. -->
-  <PropertyGroup>
-    <CapsuleImportScenes Condition="'$(CapsuleImportScenes)' == '' and '$(CapsuleGameLogic)' == 'true'">true</CapsuleImportScenes>
-    <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
-    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/Assets</CapsuleAssetSourcesDir>
-    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
-    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
-    <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
-  </PropertyGroup>
-
-  <!-- The build tool: the sibling project in an engine clone, the packed assembly in a package. -->
-  <PropertyGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <CapsuleBuildToolProject Condition="'$(CapsuleBuildToolProject)' == '' and Exists('$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj')">$(MSBuildThisFileDirectory)../src/Capsule.Build/Capsule.Build.csproj</CapsuleBuildToolProject>
-    <CapsuleBuildToolAssembly Condition="'$(CapsuleBuildToolAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll')">$(MSBuildThisFileDirectory)../tools/net10.0/any/Capsule.Build.dll</CapsuleBuildToolAssembly>
-  </PropertyGroup>
-
-  <!-- Builds the tool first and adds nothing to the game. No GlobalPropertiesToRemove: it would
-       request the tool's shared engine subgraph under a second global-property set, and two builds
-       would race into one output. -->
-  <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true' and '$(CapsuleBuildToolProject)' != ''">
-    <ProjectReference Include="$(CapsuleBuildToolProject)"
-                      ReferenceOutputAssembly="false"
-                      SkipGetTargetFrameworkProperties="true"
-                      ExcludeAssets="all"
-                      PrivateAssets="all"
-                      Private="false" />
-  </ItemGroup>
-
-  <!-- Development-only exclusions must exist before the authoring glob is evaluated. -->
+  <!-- Capsule.Publish.targets reads CapsuleShipping at evaluation, so the switches come first.
+       Targets hooked to the same point run in import order, and this list keeps the order they have
+       always run in. -->
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.SourceConsumer.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Publish.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Derivations.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ShaderTools.targets" />
-
-  <!-- Every authored file, whatever its type or folder. The tool decides what each one is. -->
-  <ItemGroup Condition="'$(CapsuleImportScenes)' == 'true'">
-    <_CapsuleAuthored Include="$(CapsuleAssetSourcesDir)/**/*" Exclude="@(_CapsuleDevelopmentOnly)" />
-
-    <!-- The shader tools are native binaries, downloaded at restore and never referenced. A package
-         consumer gets them as dependencies of JAG.Capsule.Build, because restore never reads the
-         items a package's targets declare. The tool project passes nothing, so an engine clone
-         downloads them here, and only for a game with a shader. -->
-    <_CapsuleShaderSource Include="$(CapsuleAssetSourcesDir)/**/*.fx" Exclude="@(_CapsuleDevelopmentOnly)" />
-    <PackageDownload Condition="'$(CapsuleBuildToolProject)' != '' and '@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
-    <PackageDownload Condition="'$(CapsuleBuildToolProject)' != '' and '@(_CapsuleShaderSource)' != ''" Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
-  </ItemGroup>
-
-  <!-- Only an explicitly declared asset root must exist. -->
-  <Target Name="CapsuleAssetSourcesInit"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          BeforeTargets="AssignTargetPaths">
-    <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
-           Text="Capsule: CapsuleAssetSourcesDir points at '$(CapsuleAssetSourcesDir)', which does not exist. Point it at the directory holding the game's authoring sources, or leave it unset to look for them at &lt;importing project&gt;/Assets." />
-  </Target>
-
-  <!-- The seams an authoring module hooks. Its targets derive documents from its own format and add
-       them to CapsuleSceneDocument or CapsuleSheetDocument, each claiming a key in
-       %(CapsuleDocumentKey), from a target running before one of these. -->
-  <Target Name="CapsuleCollectSceneDocuments"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSceneDocumentsDependsOn)" />
-
-  <Target Name="CapsuleCollectSheetDocuments"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleAssetSourcesInit;$(CapsuleCollectSheetDocumentsDependsOn)" />
-
-  <!-- The authoring plane as one manifest, rewritten only when the set of files or an option changes.
-       That makes it the run's incremental input beside the files themselves. -->
-  <Target Name="CapsuleBuildRequests"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleCollectSceneDocuments;CapsuleCollectSheetDocuments">
-
-    <PropertyGroup>
-      <CapsuleObjDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
-      <_CapsuleShaderTools Condition="'@(_CapsuleShaderSource)' != ''">shader-tools|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_CapsuleShaderTools>
-      <_CapsuleTileSize Condition="'$(CapsuleTileSize)' != ''">tile-size|$(CapsuleTileSize)</_CapsuleTileSize>
-    </PropertyGroup>
-
-    <MakeDir Directories="$(CapsuleObjDir)" />
-    <WriteLinesToFile File="$(CapsuleObjDir)/build-requests.txt"
-                      Lines="root|$(CapsuleAssetSourcesDir);$(_CapsuleTileSize);$(_CapsuleShaderTools);@(_CapsuleAuthored->'asset|%(FullPath)');@(CapsuleSceneDocument->'scene|%(FullPath)|%(CapsuleDocumentKey)');@(CapsuleSheetDocument->'sheet|%(FullPath)|%(CapsuleDocumentKey)')"
-                      Overwrite="true"
-                      WriteOnlyWhenDifferent="true" />
-  </Target>
-
-  <!-- Resolved inside a target, where Configuration is settled, to match the ProjectReference above. -->
-  <Target Name="CapsuleResolveBuildTool" Condition="'$(CapsuleImportScenes)' == 'true'">
-    <Error Condition="'$(CapsuleBuildToolProject)' == '' and '$(CapsuleBuildToolAssembly)' == ''"
-           Text="Capsule: the build tool is unavailable. Reference the JAG.Capsule.Build package, or import build/Capsule.Build.targets from a Capsule source clone." />
-
-    <MSBuild Projects="$(CapsuleBuildToolProject)"
-             Condition="'$(CapsuleBuildToolProject)' != ''"
-             Targets="GetTargetPath"
-             Properties="Configuration=$([MSBuild]::ValueOrDefault('$(CapsuleSourceConfiguration)', '$(Configuration)'))">
-      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
-    </MSBuild>
-
-    <ItemGroup>
-      <_CapsuleBuildTool Condition="'$(CapsuleBuildToolAssembly)' != ''" Include="$(CapsuleBuildToolAssembly)" />
-      <!-- Every assembly beside the tool is an input, so an engine change reruns it. -->
-      <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
-    </ItemGroup>
-  </Target>
-
-  <!-- One process per build, all or nothing: the stamp is written last, so a failed run leaves it
-       stale and the next build runs the tool again. -->
-  <Target Name="CapsuleRunBuildTool"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleBuildRequests;CapsuleResolveBuildTool;ResolveProjectReferences"
-          Inputs="$(CapsuleObjDir)/build-requests.txt;@(_CapsuleAuthored);@(CapsuleSceneDocument);@(CapsuleSheetDocument);@(_CapsuleBuildToolAssembly)"
-          Outputs="$(CapsuleObjDir)/build.stamp">
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --requests &quot;$(CapsuleObjDir)/build-requests.txt&quot; --out &quot;$(CapsuleObjDir)&quot;"
-          WorkingDirectory="$(MSBuildProjectDirectory)"
-          LogStandardErrorAsError="true"
-          StandardOutputImportance="normal" />
-  </Target>
-
-  <!-- Runs on up-to-date builds too, from what the last run left on disk. A design-time build enters
-       at Compile and never reaches AssignTargetPaths, so this also runs before BeforeCompile. -->
-  <Target Name="CapsuleAddBuildOutputs"
-          Condition="'$(CapsuleImportScenes)' == 'true'"
-          DependsOnTargets="CapsuleRunBuildTool"
-          BeforeTargets="AssignTargetPaths;BeforeCompile;CoreCompile">
-
-    <ItemGroup>
-      <_CapsuleShipped Include="$(CapsuleObjDir)/assets/**" />
-      <Content Include="@(_CapsuleShipped)">
-        <Link>assets/%(_CapsuleShipped.RecursiveDir)%(_CapsuleShipped.Filename)%(_CapsuleShipped.Extension)</Link>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <Visible>false</Visible>
-      </Content>
-
-      <Compile Condition="'$(CapsuleGameLogic)' == 'true'" Include="$(CapsuleObjDir)/CapsuleAssets.g.cs" />
-
-      <!-- Everything the tool writes is cleaned together, so no clean leaves a stamp behind the
-           outputs it vouches for. -->
-      <FileWrites Include="$(CapsuleObjDir)/**" />
-    </ItemGroup>
-  </Target>
-
-  <!-- Apply one configuration to the resolved engine graph before project assignment. -->
-  <Target Name="CapsuleConfigureEngineReferences"
-          Condition="'$(CapsuleSourceRoot)' != '' and '$(CapsuleSourceConfiguration)' != ''"
-          AfterTargets="ResolvePackageDependenciesForBuild">
-    <ItemGroup>
-      <ProjectReference AdditionalProperties="Configuration=$(CapsuleSourceConfiguration)"
-                        Condition="$([System.String]::new('%(FullPath)').StartsWith('$(CapsuleSourceModulesDirectory)', System.StringComparison.OrdinalIgnoreCase))" />
-    </ItemGroup>
-  </Target>
 
 </Project>

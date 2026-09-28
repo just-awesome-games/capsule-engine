@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Capsule.Diagnostics;
-using Capsule.Generators;
 using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -37,10 +36,10 @@ public sealed class GameBoundaryLogicTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.True(diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId) >= 2);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId);
-        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientTimeId));
-        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
+        Assert.True(diagnostics.Count(diagnostic => diagnostic.Id == "CAP102") >= 2);
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP103");
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == "CAP104"));
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == "CAP105"));
     }
 
     [Fact]
@@ -88,8 +87,8 @@ public sealed class GameBoundaryLogicTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
-        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId));
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == "CAP102"));
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == "CAP103"));
     }
 
     [Fact]
@@ -155,9 +154,9 @@ public sealed class GameBoundaryLogicTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.Equal(10, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId);
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId);
+        Assert.Equal(10, diagnostics.Count(diagnostic => diagnostic.Id == "CAP102"));
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP103");
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP105");
     }
 
     // Sub-namespaces and members no denylist anticipated stay closed by default.
@@ -185,8 +184,8 @@ public sealed class GameBoundaryLogicTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId));
-        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId));
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == "CAP102"));
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == "CAP103"));
     }
 
     // The console is closed to game logic, so the engine's own log must stay open.
@@ -252,7 +251,7 @@ public sealed class GameBoundaryLogicTests
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
-        Assert.Equal(GameBoundaryAnalyzer.PlatformMathId, diagnostic.Id);
+        Assert.Equal("CAP107", diagnostic.Id);
         Assert.EndsWith("Call " + replacement, diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 

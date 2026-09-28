@@ -1,0 +1,222 @@
+using System.Collections.Immutable;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Capsule.Generators;
+
+// Reads the three things a scene document resolves against: every Scene class, every Camera class, and
+// every document the build shipped.
+internal static class SceneDescriber
+{
+    // A document's baseScene and camera are resolved against every Scene and Camera subclass the
+    // assembly declares, so every one is modeled here whether or not a document ever names it.
+    internal static SceneModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
+    {
+        if (!SymbolShape.DerivesFrom(type, compilation, MetadataNames.Scene))
+        {
+            return null;
+        }
+
+        bool concreteScene = SymbolShape.IsConcreteClass(type);
+        int contentConstructors = concreteScene
+            ? SymbolShape.PublicConstructorsTaking(type, compilation, MetadataNames.SceneContent).Count
+            : 0;
+        bool parameterless = concreteScene && SymbolShape.HasPublicParameterlessConstructor(type);
+        AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SceneDocumentAttribute);
+        bool accessible = SymbolShape.IsAccessibleFromGeneratedCode(type);
+        int derivableContentConstructors = DerivableConstructorsTaking(type, compilation, MetadataNames.SceneContent);
+
+        if (annotation is not null)
+        {
+            if (!concreteScene || contentConstructors == 0)
+            {
+                return Model(SceneFault.SceneDocumentRequiresContentConstructor);
+            }
+
+            if (contentConstructors > 1 || parameterless)
+            {
+                return Model(SceneFault.AmbiguousConstructors);
+            }
+
+            if (annotation.ConstructorArguments.Length != 1)
+            {
+                return Model(SceneFault.None, registrable: false);
+            }
+
+            string documentName = annotation.ConstructorArguments[0].Value as string ?? string.Empty;
+
+            return Model(Accessibility(), documented: true, documentName);
+        }
+
+        if (!concreteScene || (contentConstructors == 0 && !parameterless))
+        {
+            return Model(SceneFault.None, registrable: false);
+        }
+
+        if (contentConstructors > 1 || (contentConstructors == 1 && parameterless))
+        {
+            return Model(SceneFault.AmbiguousConstructors);
+        }
+
+        return Model(Accessibility(), documented: contentConstructors == 1);
+
+        SceneFault Accessibility() => accessible ? SceneFault.None : SceneFault.InaccessibleType;
+
+        SceneModel Model(SceneFault fault, bool documented = false, string? declared = null, bool registrable = true) =>
+            new(
+                SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
+                documented, declared, fault, registrable, type.IsAbstract, derivableContentConstructors, accessible,
+                DeclaredAt.From(declaration.Identifier.GetLocation()));
+    }
+
+    // A document's "camera" is resolved against every Camera subclass in the assembly, at generation
+    // time: the key it claims comes from the same rule a scene document's class does, so no runtime
+    // lookup by name is needed. Unlike a scene, no attribute makes the claim explicit, so every class
+    // in the hierarchy is modeled, valid or not, and the resolver reports the difference between a name
+    // that resolves to an unusable class and one no class claims at all.
+    internal static CameraModel? DescribeCamera(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
+    {
+        if (!SymbolShape.DerivesFrom(type, compilation, MetadataNames.Camera))
+        {
+            return null;
+        }
+
+        return new CameraModel(
+            SymbolShape.QualifiedName(type),
+            type.ToDisplayString(),
+            SymbolShape.NamespaceOf(type),
+            type.Name,
+            SymbolShape.IsConcreteClass(type),
+            SymbolShape.IsAccessibleFromGeneratedCode(type) && SymbolShape.HasAccessibleParameterlessConstructor(type),
+            DeclaredAt.From(declaration.Identifier.GetLocation()));
+    }
+
+    /// <summary>
+    /// The document a key member the build marked describes, with the baseScene and camera the
+    /// build's own parser read out of it. Null for a member whose mark names no key.
+    /// </summary>
+    internal static SceneDocumentModel? DescribeDocument(GeneratorAttributeSyntaxContext marked)
+    {
+        if (marked.TargetSymbol is not IPropertySymbol member)
+        {
+            return null;
+        }
+
+        string? key = null;
+        string? baseScene = null;
+        string? camera = null;
+        string? source = null;
+        string? path = null;
+        foreach (KeyValuePair<string, TypedConstant> named in marked.Attributes[0].NamedArguments)
+        {
+            switch (named.Key)
+            {
+                case "Key":
+                    key = named.Value.Value as string;
+                    break;
+                case "BaseScene":
+                    baseScene = named.Value.Value as string;
+                    break;
+                case "Camera":
+                    camera = named.Value.Value as string;
+                    break;
+                case "Source":
+                    source = named.Value.Value as string;
+                    break;
+                case "Path":
+                    path = named.Value.Value as string;
+                    break;
+            }
+        }
+
+        if (key is null)
+        {
+            return null;
+        }
+
+        ImmutableArray<PlacementModel>.Builder placements = ImmutableArray.CreateBuilder<PlacementModel>();
+        foreach (AttributeData attribute in marked.TargetSymbol.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name == MetadataNames.PlacementAttributeName && DescribePlacement(attribute) is { } placement)
+            {
+                placements.Add(placement);
+            }
+        }
+
+        string qualified = SymbolShape.QualifiedName(member.ContainingType) + "." + member.Name;
+
+        return new SceneDocumentModel(key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()));
+    }
+
+    // One game entry, as the build's placement attribute carries it: id, type, then key and value pairs.
+    private static PlacementModel? DescribePlacement(AttributeData attribute)
+    {
+        ImmutableArray<TypedConstant> arguments = attribute.ConstructorArguments;
+        if (arguments.Length != 3 || arguments[0].Value is not int id || arguments[1].Value is not string type || arguments[2].Kind != TypedConstantKind.Array)
+        {
+            return null;
+        }
+
+        ImmutableArray<TypedConstant> pairs = arguments[2].Values;
+        ImmutableArray<(string, object?)>.Builder properties = ImmutableArray.CreateBuilder<(string, object?)>();
+        for (int i = 0; i + 1 < pairs.Length; i += 2)
+        {
+            properties.Add(((string)pairs[i].Value!, PlacementValue(pairs[i + 1])));
+        }
+
+        int line = 0;
+        int column = 0;
+        foreach (KeyValuePair<string, TypedConstant> named in attribute.NamedArguments)
+        {
+            switch (named.Key)
+            {
+                case "Line":
+                    line = named.Value.Value as int? ?? 0;
+                    break;
+                case "Column":
+                    column = named.Value.Value as int? ?? 0;
+                    break;
+            }
+        }
+
+        return new PlacementModel(id, type, new(properties.ToImmutable()), line, column);
+    }
+
+    private static object? PlacementValue(TypedConstant constant) => constant.Kind switch
+    {
+        TypedConstantKind.Array => new EquatableArray<object?>(constant.Values.Select(PlacementValue).ToImmutableArray()),
+        TypedConstantKind.Type => PlacementModel.JsonObject,
+        _ => constant.Value,
+    };
+
+    // Constructors taking one parameterTypeName that a derived type declared in this assembly can
+    // call: every accessibility but private. Counts rather than finds one, so a baseScene candidate
+    // faults both zero and more than one the way a registered scene's constructors already do.
+    private static int DerivableConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
+    {
+        INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(parameterTypeName);
+        if (parameterType is null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+
+        foreach (IMethodSymbol constructor in type.InstanceConstructors)
+        {
+            if (constructor.DeclaredAccessibility == Accessibility.Private || constructor.Parameters.Length != 1)
+            {
+                continue;
+            }
+
+            IParameterSymbol parameter = constructor.Parameters[0];
+            bool passable = parameter.RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter;
+            if (passable && SymbolEqualityComparer.Default.Equals(parameter.Type, parameterType))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+}

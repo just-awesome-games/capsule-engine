@@ -55,7 +55,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## StbImageSharp
 
-StbImageSharp version 2.30.16, a C# port of `stb_image.h`, is used by `JAG.Capsule.Build` to decode textures for atlas packing and by `JAG.Capsule.Runtime` to decode textures at run time. It is distributed by its authors under "Unlicense OR MIT" and is used here under the MIT License.
+StbImageSharp version 2.30.16, a C# port of `stb_image.h`, is used by the build tool in `JAG.Capsule` to decode textures for atlas packing and by `JAG.Capsule.Runtime` to decode textures at run time. It is distributed by its authors under "Unlicense OR MIT" and is used here under the MIT License.
 
 Copyright (c) StbImageSharpTeam
 
@@ -79,4 +79,4 @@ SOFTWARE.
 
 ## StbImageWriteSharp
 
-StbImageWriteSharp version 1.16.7, a C# port of `stb_image_write.h`, is used by `JAG.Capsule.Build` to encode atlas pages. Its authors distribute it as public domain.
+StbImageWriteSharp version 1.16.7, a C# port of `stb_image_write.h`, is used by the build tool in `JAG.Capsule` to encode atlas pages. Its authors distribute it as public domain.

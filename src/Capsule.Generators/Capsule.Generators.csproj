@@ -30,4 +30,11 @@
     <Compile Include="../Capsule.Core/Assets/AssetPaths.cs" Link="AssetPaths.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Each emitted file's golden sample sits beside its renderer as text, and GeneratorSampleTests
+         holds it equal to what the generator writes. -->
+    <Compile Remove="**/*.sample.g.cs" />
+    <None Include="**/*.sample.g.cs" />
+  </ItemGroup>
+
 </Project>

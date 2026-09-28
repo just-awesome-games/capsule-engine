@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json",
   "formatVersion": 7,
   "baseScene": "playable-scene",
   "camera": "game-camera",

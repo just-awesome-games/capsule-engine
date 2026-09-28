@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/atlas.schema.json",
+  "$comment": "Generated from Capsule.Build.Atlases.AtlasConfigJson.",
+  "title": "Capsule atlas",
+  "description": "A <name>.atlas.json, which declares the atlas <name> and holds its own settings. {} takes every default.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "maxSize": {
+      "description": "The largest extent a page reaches on either axis, in texels. A power of two up to 8192.",
+      "default": 4096,
+      "type": "integer",
+      "enum": [
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+        256,
+        512,
+        1024,
+        2048,
+        4096,
+        8192
+      ]
+    }
+  },
+  "additionalProperties": false
+}

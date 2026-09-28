@@ -2,25 +2,6 @@ using System.Globalization;
 
 namespace Capsule.Build.Fonts;
 
-// One glyph as the font declares it. Page holds the font's page id until the parser resolves it to
-// an index into PageFiles.
-internal readonly record struct BmGlyph(
-    int Codepoint,
-    int Page,
-    int X,
-    int Y,
-    int Width,
-    int Height,
-    int XOffset,
-    int YOffset,
-    int XAdvance);
-
-internal readonly record struct BmKerning(int First, int Second, int Amount);
-
-// What the build reads out of one '.fnt'. Pages are in page-id order, glyphs ascend by codepoint,
-// and kernings ascend by pair.
-internal sealed record BmFontDescription(int LineHeight, int Base, string[] PageFiles, BmGlyph[] Glyphs, BmKerning[] Kernings);
-
 // Reads the text flavour of the BMFont format. The font is known at build time, so the generated
 // registry carries it as literal data and nothing is parsed at run time.
 internal static class BmFontParser

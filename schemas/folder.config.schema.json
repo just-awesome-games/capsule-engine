@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/folder.config.schema.json",
+  "$comment": "Generated from Capsule.Build.Configuration.FolderConfigJson.",
+  "title": "Capsule folder config",
+  "description": "A folder's .config.json, keyed by asset kind. It configures every asset in its folder and in every folder below it.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "texture": {
+      "description": "The texture settings for every texture in this folder and in every folder below it. A nearer file's value replaces this one.",
+      "type": "object",
+      "properties": {
+        "atlas": {
+          "description": "The atlas this texture packs onto, or false to ship the texture on its own. A <name>.atlas.json under Assets/ declares the atlas <name>. A font's page never packs.",
+          "default": false,
+          "oneOf": [
+            {
+              "const": false
+            },
+            {
+              "description": "An atlas name: letters, digits, '-' and '_', starting with a letter after any '-' or '_'. It folds case the way a key does.",
+              "type": "string",
+              "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+            }
+          ]
+        },
+        "format": {
+          "description": "How the texture's texels are stored. \"rgba\" is four 8-bit channels. \"r8\" is one 8-bit channel, read from a non-interlaced greyscale PNG's values or an indexed PNG's palette indices.",
+          "default": "rgba",
+          "enum": [
+            "rgba",
+            "r8"
+          ]
+        },
+        "sampling": {
+          "description": "How the texture is sampled. \"scene\" follows the scene's sampling. \"point\" and \"linear\" override it wherever the texture is drawn or sampled.",
+          "default": "scene",
+          "enum": [
+            "scene",
+            "point",
+            "linear"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

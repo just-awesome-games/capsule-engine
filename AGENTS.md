@@ -25,6 +25,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 ## Code
 
 - A type declares its state first: constants, static fields, fields and auto-properties or other state-holding properties. Constructors follow, then every other member.
+- An asset type's folder holds its format classes, its step and its generated-member writer.
 
 ## Docs
 

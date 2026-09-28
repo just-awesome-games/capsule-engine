@@ -1,98 +1,102 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Capsule.Assets;
+using Capsule.Physics;
+using Capsule.Tiles;
 
 namespace Capsule.Scenes.Documents;
 
-// The file shape, mapped one to one onto the JSON. JsonPropertyOrder fixes field order, which the
+// The file shape, mapped one to one onto the JSON. Declaration order is the written order, which the
 // canonical writer depends on, so reordering a member here changes every scene document's bytes.
-// Unmapped members are rejected. A typo in a hand-authored document fails at load instead of in play.
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+// Every member is nullable where the reader must tell an omitted field from a present one, so it can
+// name the defect instead of reading a default.
+[Description("A scene document: the settings a scene starts with and every entity and tile map it places.")]
 internal sealed class SceneDocumentJson
 {
-    // Nullable, to tell an omitted version from an unsupported numeric one.
-    [JsonPropertyName("formatVersion")]
-    [JsonPropertyOrder(0)]
+    // A colour as the format spells it: "#rrggbb", or "#rrggbbaa" with an ff alpha, in either case.
+    internal const string ColorPattern = "^#[0-9A-Fa-f]{6}([Ff]{2})?$";
+
+    // Read and ignored. The writer never sets it, so no written or shipped document carries it.
+    [JsonPropertyName(SchemaKeyConverter.Key)]
+    [JsonConverter(typeof(SchemaKeyConverter))]
+    public string? Schema { get; set; }
+
+    [Description("The document format's version, which must be one this build supports.")]
+    [Required]
+    [AllowedValues(SceneDocumentFile.FormatVersion)]
     public int? FormatVersion { get; set; }
 
-    // Absent when the document composes a plain Scene, and WhenWritingNull keeps it out.
-    [JsonPropertyName("baseScene")]
-    [JsonPropertyOrder(1)]
+    [Description("The key of an abstract Scene subclass. The composed scene derives from it. Absent composes a plain Scene.")]
     public string? BaseScene { get; set; }
 
-    // Absent when the document installs no camera, and WhenWritingNull keeps it out.
-    [JsonPropertyName("camera")]
-    [JsonPropertyOrder(2)]
+    [Description("The key of a concrete Camera subclass with a parameterless constructor, which the scene installs. Absent leaves the scene's default camera in place.")]
     public string? Camera { get; set; }
 
-    // Absent when the document keeps the tile-map extent, and WhenWritingNull keeps it out. Nullable so the
-    // reader reports a wrong component count.
-    [JsonPropertyName("size")]
-    [JsonPropertyOrder(3)]
+    [Description("The scene's extent as [w, h], both finite and greater than zero. Absent keeps the extent of the document's tile maps.")]
+    [SchemaLength(2, 2)]
+    [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public float[]? Size { get; set; }
 
-    // Absent when the document authors no scroll centre, and WhenWritingNull keeps it out. Nullable so the
-    // reader reports a wrong component count.
-    [JsonPropertyName("scrollCenter")]
-    [JsonPropertyOrder(4)]
+    [Description("The camera centre at which every layer sits as authored, as [x, y]. Absent leaves each camera its own.")]
+    [SchemaLength(2, 2)]
     public float[]? ScrollCenter { get; set; }
 
-    // A colour is "#rrggbb" or "#rrggbbaa" and sampling is "linear" or "point". The reader parses all
-    // three, and WhenWritingNull keeps an absent one out.
-    [JsonPropertyName("clearColor")]
-    [JsonPropertyOrder(5)]
+    [Description("The colour the scene clears to, as \"#rrggbb\" or as \"#rrggbbaa\" with an ff alpha.")]
+    [RegularExpression(ColorPattern)]
     public string? ClearColor { get; set; }
 
-    [JsonPropertyName("ambient")]
-    [JsonPropertyOrder(6)]
+    [Description("The scene's ambient light colour, as \"#rrggbb\" or as \"#rrggbbaa\" with an ff alpha.")]
+    [RegularExpression(ColorPattern)]
     public string? Ambient { get; set; }
 
-    [JsonPropertyName("sampling")]
-    [JsonPropertyOrder(7)]
+    [Description("How the scene's textures are sampled. Absent keeps the game's setting.")]
+    [AllowedValues(SceneDocumentFile.LinearSampling, SceneDocumentFile.PointSampling)]
     public string? Sampling { get; set; }
 
-    // Nullable, to tell an absent list from an empty scene and to let a null entry reach the reader. An
-    // initializer here would invent data the format never accepted.
-    [JsonPropertyName("entities")]
-    [JsonPropertyOrder(8)]
+    // A null entry reaches the reader, which names it. An initializer here would invent data the format
+    // never accepted.
+    [Description("Every entry the scene places, in document order. Write an empty list for a scene with nothing in it.")]
+    [Required]
     public SceneEntryJson?[]? Entities { get; set; }
 
-    [JsonPropertyName("nextEntityId")]
-    [JsonPropertyOrder(9)]
+    [Description("The next id to hand out, greater than every entry's id. Deleted ids are not reused.")]
+    [Required]
+    [Range(1, int.MaxValue)]
     public int NextEntityId { get; set; }
 
-    [JsonPropertyName("source")]
-    [JsonPropertyOrder(10)]
+    [Description("What a derived document came from. Its presence marks a derived file, and an authoring source omits it.")]
     public SceneDocumentSourceJson? Source { get; set; }
 }
 
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[Description("One entry: a game entity, or the engine's tile map when its type is \"tile-map\".")]
 internal sealed class SceneEntryJson
 {
-    // Nullable, to make an omitted id raise the format's missing-id error instead of reading as 0.
-    [JsonPropertyName("id")]
-    [JsonPropertyOrder(0)]
-    public int? Id { get; set; }
-
-    [JsonPropertyName("type")]
-    [JsonPropertyOrder(1)]
-    public string? Type { get; set; }
-
-    // Nullable, to make an omitted coordinate raise the format's missing-position error instead of
-    // reading as the origin, which is where the terrain entry must sit.
-    [JsonPropertyName("x")]
-    [JsonPropertyOrder(2)]
-    public float? X { get; set; }
-
-    [JsonPropertyName("y")]
-    [JsonPropertyOrder(3)]
-    public float? Y { get; set; }
-
     private float? _rotation;
 
-    // Degrees, because people write it by hand. Absent on an unturned entry, and the writer emits it only
-    // when non-zero.
-    [JsonPropertyName("rotation")]
-    [JsonPropertyOrder(4)]
+    private float[]? _scale;
+
+    [Description("The entry's id: positive, unique in the document and lower than nextEntityId.")]
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int? Id { get; set; }
+
+    [Description("The spawn type: the key of the entity class the entry composes, or \"tile-map\" for terrain.")]
+    [Required]
+    [SchemaLength(1)]
+    public string? Type { get; set; }
+
+    [Description("The entry's x position. A tile-map entry is anchored at 0.")]
+    [Required]
+    public float? X { get; set; }
+
+    [Description("The entry's y position. A tile-map entry is anchored at 0.")]
+    [Required]
+    public float? Y { get; set; }
+
+    [Description("The turn in degrees, clockwise on screen. Absent is 0. A tile-map entry refuses it.")]
+    [DefaultValue(0f)]
     public float? Rotation
     {
         get => _rotation;
@@ -108,12 +112,9 @@ internal sealed class SceneEntryJson
     [JsonIgnore]
     public bool HasRotation { get; private set; }
 
-    private float[]? _scale;
-
-    // Absent on an entry at the authored size, and WhenWritingNull keeps it out. Nullable so the reader
-    // reports a wrong component count.
-    [JsonPropertyName("scale")]
-    [JsonPropertyOrder(5)]
+    [Description("The raw authored factor as [x, y], both finite and greater than zero. Absent is identity. A tile-map entry refuses it.")]
+    [SchemaLength(2, 2)]
+    [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public float[]? Scale
     {
         get => _scale;
@@ -129,115 +130,103 @@ internal sealed class SceneEntryJson
     [JsonIgnore]
     public bool HasScale { get; private set; }
 
-    // Absent when the entry authors no band, and WhenWritingNull keeps it out. An authored 0 is an ordinary
-    // band and is written back, so it stays distinct from an absent field.
-    [JsonPropertyName("zIndex")]
-    [JsonPropertyOrder(6)]
+    // An authored 0 is an ordinary band and is written back, so it stays distinct from an absent field.
+    [Description("The entry's draw band. On a tile-map entry it applies to the composed map.")]
     public int? ZIndex { get; set; }
 
-    // Absent when the entry authors no factor, and WhenWritingNull keeps it out. Nullable so the reader
-    // reports a wrong component count.
-    [JsonPropertyName("scrollFactor")]
-    [JsonPropertyOrder(7)]
+    [Description("How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map.")]
+    [SchemaLength(2, 2)]
     public float[]? ScrollFactor { get; set; }
 
-    // Held as raw JSON, not a typed member, because each entry type defines its own properties
-    // contract. The reader deserializes the tile-map's against TileGridJson. A game entry's are read
-    // key by key into its class's authorable members when it spawns.
-    [JsonPropertyName("properties")]
-    [JsonPropertyOrder(8)]
+    // Raw JSON, because each entry type defines its own properties contract. The reader deserializes the
+    // tile map's against TileGridJson. A game entry's are read key by key into its class's authorable
+    // members when it spawns.
+    [Description("The entry's properties. A tile-map entry holds its grid here. A game entity's keys set the members its class marks [Authorable].")]
     public JsonElement? Properties { get; set; }
 }
 
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[Description("A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette and its tiles.")]
 internal sealed class TileGridJson
 {
-    [JsonPropertyName("tileSize")]
-    [JsonPropertyOrder(0)]
+    [Description("The side of one square tile in pixels.")]
+    [Required]
+    [Range(1, int.MaxValue)]
     public int TileSize { get; set; }
 
-    [JsonPropertyName("width")]
-    [JsonPropertyOrder(1)]
+    [Description("The grid's width in tiles.")]
+    [Required]
+    [Range(1, int.MaxValue)]
     public int Width { get; set; }
 
-    [JsonPropertyName("height")]
-    [JsonPropertyOrder(2)]
+    [Description("The grid's height in tiles.")]
+    [Required]
+    [Range(1, int.MaxValue)]
     public int Height { get; set; }
 
-    // The texture's path under Assets/, extension included and forward slashes only. Absent on a grid
-    // that draws nothing. Columns is nullable, to make a texture with no columns raise the grid's error
-    // instead of reading as 0.
-    [JsonPropertyName("texture")]
-    [JsonPropertyOrder(3)]
+    [Description("The key of the texture every drawn tile is cut from, extension included, with forward slashes and no empty, \".\" or \"..\" segment. Absent on a grid that draws nothing.")]
+    [SchemaLength(1)]
     public string? Texture { get; set; }
 
-    [JsonPropertyName("columns")]
-    [JsonPropertyOrder(4)]
+    [Description("How many cells wide the texture is. Required with texture, and absent without one.")]
+    [Range(1, int.MaxValue)]
     public int? Columns { get; set; }
 
-    // Nullable for the same reason the entry list is, so the reader names an absent palette or map.
-    [JsonPropertyName("tileTypes")]
-    [JsonPropertyOrder(5)]
+    [Description("The palette every tile indexes. Index 0 is \"empty\", carrying neither cell nor layer.")]
+    [Required]
     public TileTypeJson?[]? TileTypes { get; set; }
 
-    [JsonPropertyName("tiles")]
-    [JsonPropertyOrder(6)]
+    [Description("The width x height palette indices, row by row from the top-left tile.")]
+    [Required]
+    [Range(0, int.MaxValue)]
     public int[]? Tiles { get; set; }
 
-    // Absent for a grid whose every tile is drawn as authored. The writer emits it only when a tile is
-    // mirrored or turned.
-    [JsonPropertyName("transforms")]
-    [JsonPropertyOrder(7)]
+    [Description("How each tile's drawing and collision shape is mirrored or turned, in the shape of tiles. 1 mirrors it left to right, 2 top to bottom and 4 swaps its axes before either, and the sum combines them. Absent is all 0.")]
+    [Range(0, TileTransforms.Count - 1)]
     public int[]? Transforms { get; set; }
 }
 
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[Description("One palette entry: a named tile type and how its tiles draw and collide.")]
 internal sealed class TileTypeJson
 {
-    [JsonPropertyName("type")]
-    [JsonPropertyOrder(0)]
+    [Description("The tile type's name, unique within the palette.")]
+    [Required]
+    [SchemaLength(1)]
     public string? Type { get; set; }
 
-    // Absent for the reserved empty entry and for any tile type that draws nothing. WhenWritingNull keeps it
-    // out of those entries' written form.
-    [JsonPropertyName("cell")]
-    [JsonPropertyOrder(1)]
+    [Description("Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent is a semantic tile: queryable, may collide, draws nothing.")]
+    [Range(0, int.MaxValue)]
     public int? Cell { get; set; }
 
-    // Absent for every tile type that does not collide, which is the default.
-    [JsonPropertyName("layer")]
-    [JsonPropertyOrder(2)]
+    [Description("The collision layer every tile of this type is on, one name the game owns. Absent is decoration.")]
+    [SchemaLength(1)]
     public string? Layer { get; set; }
 
-    // Absent for a tile type that collides as its whole tile, which is the default.
-    [JsonPropertyName("shape")]
-    [JsonPropertyOrder(3)]
+    [Description("The convex polygon the tile collides as: three or four [x, y] points in pixels from the tile's top-left corner with Y down, each within [0, tileSize]. Absent is the whole tile.")]
+    [SchemaLength(3, Shape2D.MaxPoints)]
     public float[]?[]? Shape { get; set; }
 
-    // Absent for a tile type that blocks from every side, which is the default. The writer never emits false.
-    [JsonPropertyName("oneWay")]
-    [JsonPropertyOrder(4)]
+    [Description("True for a tile that blocks only a body coming down onto it from above.")]
+    [DefaultValue(false)]
     public bool? OneWay { get; set; }
 
-    // Absent for a tile type that passes a mover from the sides, which is the default. The writer never
-    // emits false.
-    [JsonPropertyName("solidSides")]
-    [JsonPropertyOrder(5)]
+    [Description("True for a oneWay tile that also blocks from the sides and passes a body only from below.")]
+    [DefaultValue(false)]
     public bool? SolidSides { get; set; }
 }
 
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[Description("What a derived document came from: the tool, the source's path and the hash of its source closure.")]
 internal sealed class SceneDocumentSourceJson
 {
-    [JsonPropertyName("tool")]
-    [JsonPropertyOrder(0)]
+    [Description("The tool that derived the document.")]
+    [Required]
     public string? Tool { get; set; }
 
-    [JsonPropertyName("path")]
-    [JsonPropertyOrder(1)]
+    [Description("The source's relative path, with forward slashes.")]
+    [Required]
     public string? Path { get; set; }
 
-    [JsonPropertyName("hash")]
-    [JsonPropertyOrder(2)]
+    [Description("The SHA-256 of the source closure, as 64 lowercase hex characters.")]
+    [Required]
+    [RegularExpression("^[0-9a-f]{64}$")]
     public string? Hash { get; set; }
 }

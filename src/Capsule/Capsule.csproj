@@ -1,24 +1,46 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The pack root for JAG.Capsule: the ProjectReference list below is the package's admission
-       list, gated by Capsule.Architecture.targets. This project holds no code, and its empty
-       assembly ships anyway, so a reference to the package and one to this project are one graph. -->
+  <!-- JAG.Capsule, the one package a game's logic references: the pure modules under lib/, the build
+       under buildTransitive/ and tools/, and the shader tools as its dependencies. The
+       ProjectReference list below is the package's admission list, gated by
+       Capsule.Architecture.targets. This project holds no code, and its empty assembly ships anyway. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>JAG.Capsule</PackageId>
-    <Description>Everything a Capsule game's logic is written against: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <!-- NU5128 wants a dependency group beside lib assets. This package deliberately declares no
-         dependencies at all. Scoped here; every other package still answers to it. -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules</TargetsForTfmSpecificContentInPackage>
+    <Description>Everything a Capsule game's logic is written against, and the build that turns its authoring tree into assets: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules;IncludeCapsuleBuild</TargetsForTfmSpecificContentInPackage>
     <TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);IncludeCapsulePureModuleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
   </PropertyGroup>
 
+  <!-- Private, so pack lists none of them as a dependency. Their assemblies ship inside this package,
+       and CapsuleReturnPureModules below hands them to a referencing project. -->
   <ItemGroup>
-    <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" />
-    <ProjectReference Include="../Capsule.Physics/Capsule.Physics.csproj" />
-    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" />
+    <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Capsule.Physics/Capsule.Physics.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The native shader tools are the package's only dependencies. Restore downloads them beside
+       the game's other packages, and neither the build nor the game takes an asset from them. Pack
+       drops a dependency that excludes all assets and never writes contentFiles to its exclude, so
+       contentFiles stays included here. Neither package has any. -->
+  <Import Project="../../build/Capsule.ShaderTools.targets" />
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
+    <PackageReference Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
+    <!-- The asset config files' JSON Schemas, for a consumer to read offline beside the API reference. -->
+    <None Include="../../schemas/*.schema.json" Pack="true" PackagePath="schemas/" Visible="false" />
+    <!-- Everything directly under build/ is what a consumer imports, and build/engine/ is not. The
+         files keep their layout, so $(MSBuildThisFileDirectory) finds the same neighbours from a
+         package or an engine clone. The entry files take the package's name, for NuGet to import
+         them. Capsule.Build.props is a clone's entry alone. -->
+    <None Include="../../build/*" Exclude="../../build/Capsule.Build.targets;../../build/Capsule.Defaults.props;../../build/Capsule.Build.props" Pack="true" PackagePath="buildTransitive/" Visible="false" />
+    <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.targets" Visible="false" />
+    <None Include="../../build/Capsule.Defaults.props" Pack="true" PackagePath="buildTransitive/JAG.Capsule.props" Visible="false" />
   </ItemGroup>
 
   <!-- Derived from the reference list rather than restated, so a module joins the package by
@@ -29,6 +51,43 @@
       <_CapsulePureModuleApiReference Include="@(ProjectReference->'$(OutputPath)%(Filename).xml')" />
       <_CapsulePureModuleSymbols Include="@(ProjectReference->'$(OutputPath)%(Filename).pdb')" />
     </ItemGroup>
+  </Target>
+
+  <!-- CapsuleReturnPureModules: a project referencing this one compiles against every pure module,
+       as a package consumer does.
+
+       What it does. It asks each module above for its GetTargetPath output and appends that to this
+       project's own. A referencing project's ResolveProjectReferences then receives Capsule.dll and
+       every module assembly from one reference.
+
+       Why it is needed. Pack reads each project reference's PrivateAssets from the restore's assets
+       file and lists no dependency for one marked "all". That is the only way to keep the modules
+       out of the dependency list. The same marking stops restore flowing them to a referencing
+       project as transitive references, and this target restores that flow.
+
+       What it hooks. AfterTargets GetTargetPathWithTargetPlatformMoniker, the SDK target that fills
+       @(TargetPathWithTargetPlatformMoniker). Build and GetTargetPath both return that item. A
+       reference resolved through either one sees the modules. The MSBuild call copies the one in the
+       SDK's GetReferenceTargetPlatformMonikers and names the build the references above made.
+
+       After an SDK upgrade. If a referencing project stops compiling against Capsule.Core,
+       Capsule.Physics or Capsule.Scenes types, check in Microsoft.Common.CurrentVersion.targets that
+       GetTargetPathWithTargetPlatformMoniker still fills that item and that Build and GetTargetPath
+       still return it. Then check that PrepareProjectReferences still produces
+       @(_MSBuildProjectReferenceExistent) with its SetConfiguration, SetPlatform, SetTargetFramework
+       and GlobalPropertiesToRemove metadata. If pack starts listing the modules as dependencies,
+       check that the assets file still records privateAssets "all" on each module reference.
+       PackageTests checks both the dependency list and lib/. -->
+  <Target Name="CapsuleReturnPureModules"
+          AfterTargets="GetTargetPathWithTargetPlatformMoniker"
+          DependsOnTargets="PrepareProjectReferences">
+    <MSBuild Projects="@(_MSBuildProjectReferenceExistent)"
+             Targets="GetTargetPath"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="%(_MSBuildProjectReferenceExistent.SetConfiguration); %(_MSBuildProjectReferenceExistent.SetPlatform); %(_MSBuildProjectReferenceExistent.SetTargetFramework)"
+             RemoveProperties="%(_MSBuildProjectReferenceExistent.GlobalPropertiesToRemove)$(_GlobalPropertiesToRemoveFromProjectReferences)">
+      <Output TaskParameter="TargetOutputs" ItemName="TargetPathWithTargetPlatformMoniker" />
+    </MSBuild>
   </Target>
 
   <Target Name="IncludeCapsulePureModules" DependsOnTargets="_CapsuleCollectPureModuleAssets">
@@ -48,6 +107,32 @@
       <TfmSpecificDebugSymbolsFile Include="@(_CapsulePureModuleSymbols)"
                                    TargetPath="%(_CapsulePureModuleSymbols.Filename)%(_CapsulePureModuleSymbols.Extension)"
                                    TargetFramework="$(TargetFramework)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The build tool's whole output directory, since the process loads Capsule.Scenes and its spine
+       beside it, and the generator. Both sit outside lib/ and analyzers/, so NuGet hands a consumer
+       neither. The build targets run the tool, and Capsule.Compiler.targets adds the generator for a
+       role. Nothing references either project, so a pack builds the solution first, as CI does.
+       TargetFramework is removed because the generator targets netstandard2.0. -->
+  <Target Name="IncludeCapsuleBuild">
+    <MSBuild Projects="../Capsule.Build/Capsule.Build.csproj;../Capsule.Generators/Capsule.Generators.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <_CapsuleMissingBuildAssembly Include="@(_CapsuleBuildAssembly)" Condition="!Exists('%(FullPath)')" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleMissingBuildAssembly)' != ''"
+           Text="JAG.Capsule packs the build tool and the generator or neither; not built: @(_CapsuleMissingBuildAssembly). Build the solution before packing." />
+    <PropertyGroup>
+      <_CapsuleBuildToolDirectory>@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Build')->'%(RootDir)%(Directory)')</_CapsuleBuildToolDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(_CapsuleBuildToolDirectory)*.dll;$(_CapsuleBuildToolDirectory)*.json" PackagePath="tools/net10.0/any/" />
+      <TfmSpecificPackageFile Include="@(_CapsuleBuildAssembly->WithMetadataValue('Filename', 'Capsule.Generators'))" PackagePath="tools/generators/" />
     </ItemGroup>
   </Target>
 

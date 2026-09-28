@@ -82,6 +82,6 @@ public sealed class EntryPropertiesFormatTests
                 "CapsuleGeneratedPlacement(2, \"lift\", \"on\", true, \"ticks\", 40, \"rise\", 96.5D, \"far\", 3000000000D, "
                     + "\"label\", \"a\\\"b\", \"none\", null, \"size\", new object[] { 2, 2.5D }, \"route\", typeof(object), Line = 3, Column = 3)",
             ],
-            SceneStep.Attributes(SceneDocumentFile.Parse(json), "scenes/room", "Assets/Scenes/room.scene.json", json));
+            SceneMembers.Attributes(SceneDocumentFile.Parse(json), "scenes/room", "Assets/Scenes/room.scene.json", json));
     }
 }

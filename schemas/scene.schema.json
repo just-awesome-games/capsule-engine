@@ -1,0 +1,297 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json",
+  "$comment": "Generated from Capsule.Scenes.Documents.SceneDocumentJson.",
+  "title": "Capsule scene document",
+  "description": "A scene document: the settings a scene starts with and every entity and tile map it places.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "formatVersion": {
+      "description": "The document format's version, which must be one this build supports.",
+      "type": "integer",
+      "const": 7
+    },
+    "baseScene": {
+      "description": "The key of an abstract Scene subclass. The composed scene derives from it. Absent composes a plain Scene.",
+      "type": "string"
+    },
+    "camera": {
+      "description": "The key of a concrete Camera subclass with a parameterless constructor, which the scene installs. Absent leaves the scene's default camera in place.",
+      "type": "string"
+    },
+    "size": {
+      "description": "The scene's extent as [w, h], both finite and greater than zero. Absent keeps the extent of the document's tile maps.",
+      "type": "array",
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "scrollCenter": {
+      "description": "The camera centre at which every layer sits as authored, as [x, y]. Absent leaves each camera its own.",
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "clearColor": {
+      "description": "The colour the scene clears to, as \"#rrggbb\" or as \"#rrggbbaa\" with an ff alpha.",
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}([Ff]{2})?$"
+    },
+    "ambient": {
+      "description": "The scene's ambient light colour, as \"#rrggbb\" or as \"#rrggbbaa\" with an ff alpha.",
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}([Ff]{2})?$"
+    },
+    "sampling": {
+      "description": "How the scene's textures are sampled. Absent keeps the game's setting.",
+      "type": "string",
+      "enum": [
+        "linear",
+        "point"
+      ]
+    },
+    "entities": {
+      "description": "Every entry the scene places, in document order. Write an empty list for a scene with nothing in it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The entry's id: positive, unique in the document and lower than nextEntityId.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "type": {
+            "description": "The spawn type: the key of the entity class the entry composes, or \"tile-map\" for terrain.",
+            "type": "string",
+            "minLength": 1
+          },
+          "x": {
+            "description": "The entry's x position. A tile-map entry is anchored at 0.",
+            "type": "number"
+          },
+          "y": {
+            "description": "The entry's y position. A tile-map entry is anchored at 0.",
+            "type": "number"
+          },
+          "rotation": {
+            "description": "The turn in degrees, clockwise on screen. Absent is 0. A tile-map entry refuses it.",
+            "default": 0,
+            "type": "number"
+          },
+          "scale": {
+            "description": "The raw authored factor as [x, y], both finite and greater than zero. Absent is identity. A tile-map entry refuses it.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "zIndex": {
+            "description": "The entry's draw band. On a tile-map entry it applies to the composed map.",
+            "type": "integer"
+          },
+          "scrollFactor": {
+            "description": "How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "properties": {
+            "description": "The entry's properties. A tile-map entry holds its grid here. A game entity's keys set the members its class marks [Authorable].",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "x",
+          "y"
+        ],
+        "if": {
+          "properties": {
+            "type": {
+              "const": "tile-map"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        "then": {
+          "properties": {
+            "x": {
+              "const": 0
+            },
+            "y": {
+              "const": 0
+            },
+            "rotation": false,
+            "scale": false,
+            "properties": {
+              "description": "A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette and its tiles.",
+              "type": "object",
+              "properties": {
+                "tileSize": {
+                  "description": "The side of one square tile in pixels.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "width": {
+                  "description": "The grid's width in tiles.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "description": "The grid's height in tiles.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "texture": {
+                  "description": "The key of the texture every drawn tile is cut from, extension included, with forward slashes and no empty, \".\" or \"..\" segment. Absent on a grid that draws nothing.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "columns": {
+                  "description": "How many cells wide the texture is. Required with texture, and absent without one.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tileTypes": {
+                  "description": "The palette every tile indexes. Index 0 is \"empty\", carrying neither cell nor layer.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "The tile type's name, unique within the palette.",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "cell": {
+                        "description": "Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent is a semantic tile: queryable, may collide, draws nothing.",
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "layer": {
+                        "description": "The collision layer every tile of this type is on, one name the game owns. Absent is decoration.",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "shape": {
+                        "description": "The convex polygon the tile collides as: three or four [x, y] points in pixels from the tile's top-left corner with Y down, each within [0, tileSize]. Absent is the whole tile.",
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "minItems": 3,
+                        "maxItems": 4
+                      },
+                      "oneWay": {
+                        "description": "True for a tile that blocks only a body coming down onto it from above.",
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "solidSides": {
+                        "description": "True for a oneWay tile that also blocks from the sides and passes a body only from below.",
+                        "default": false,
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "type"
+                    ]
+                  }
+                },
+                "tiles": {
+                  "description": "The width x height palette indices, row by row from the top-left tile.",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "transforms": {
+                  "description": "How each tile's drawing and collision shape is mirrored or turned, in the shape of tiles. 1 mirrors it left to right, 2 top to bottom and 4 swaps its axes before either, and the sum combines them. Absent is all 0.",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "tileSize",
+                "width",
+                "height",
+                "tileTypes",
+                "tiles"
+              ]
+            }
+          },
+          "required": [
+            "properties"
+          ]
+        }
+      }
+    },
+    "nextEntityId": {
+      "description": "The next id to hand out, greater than every entry's id. Deleted ids are not reused.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "source": {
+      "description": "What a derived document came from. Its presence marks a derived file, and an authoring source omits it.",
+      "type": "object",
+      "properties": {
+        "tool": {
+          "description": "The tool that derived the document.",
+          "type": "string"
+        },
+        "path": {
+          "description": "The source's relative path, with forward slashes.",
+          "type": "string"
+        },
+        "hash": {
+          "description": "The SHA-256 of the source closure, as 64 lowercase hex characters.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "path",
+        "hash"
+      ]
+    }
+  },
+  "required": [
+    "formatVersion",
+    "entities",
+    "nextEntityId"
+  ],
+  "additionalProperties": false
+}

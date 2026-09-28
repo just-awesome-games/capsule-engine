@@ -1,14 +1,9 @@
 <Project>
 
-  <PropertyGroup>
-    <!-- _IsPublishing flows through project references. CapsuleShipping stays directly testable. -->
-    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">$(_IsPublishing)</CapsuleShipping>
-    <CapsuleShipping Condition="'$(CapsuleShipping)' == ''">false</CapsuleShipping>
-
-    <!-- Match MSBuild's case-sensitive path behavior on Linux. -->
-    <_CapsulePathFoldsCase>true</_CapsulePathFoldsCase>
-    <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
-  </PropertyGroup>
+  <!-- What CapsuleShipping switches in the compile: the development symbol, the runtime switch, and
+       every source under a directory holding a .capsuleignore. The build tool drops development-only
+       assets itself, from the manifest's shipping record. Universal: development code in a library
+       built on Capsule compiles out of a game's publish as the game's own does. -->
 
   <!-- The compile symbol Capsule's [Conditional] development calls answer to. Defined for every
        ordinary build and absent from a publish, so those calls and their arguments compile out. -->
@@ -22,15 +17,18 @@
     <!-- Resolve source markers to absolute directories for compile-item comparison. -->
     <_CapsuleSourceMarker Include="**/.capsuleignore" Exclude="$(DefaultItemExcludes)" />
     <_CapsuleDevelopmentOnlySourceDir Include="@(_CapsuleSourceMarker->'%(RootDir)%(Directory)')" />
-
-    <!-- Avoid an authoring-plane wildcard when its root is absent. -->
-    <_CapsuleAssetMarker Include="$(CapsuleAssetSourcesDir)/**/.capsuleignore"
-                         Condition="'$(CapsuleImportScenes)' == 'true' and Exists('$(CapsuleAssetSourcesDir)')" />
-    <_CapsuleDevelopmentOnly Include="@(_CapsuleAssetMarker->'%(RootDir)%(Directory)**/*')" />
   </ItemGroup>
 
-  <!-- Filter after compile items exist but before the dependency cache. A design-time build
-       reaches CoreCompile. Paths are compared normalized, under the host's case rules. -->
+  <!-- Paths compare under MSBuild's own rule for the host: ordinal on Linux, where its paths are
+       case-sensitive, and case-folded on Windows and macOS. -->
+  <PropertyGroup>
+    <_CapsulePathFoldsCase>true</_CapsulePathFoldsCase>
+    <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
+  </PropertyGroup>
+
+  <!-- Removes the Compile items under each marked directory, one directory per batch. It runs after
+       compile items exist but before the dependency cache. A design-time build reaches CoreCompile.
+       The items stay in MSBuild because only MSBuild can remove a compile item. -->
   <Target Name="CapsuleRemoveDevelopmentOnlySources"
           Condition="'$(CapsuleShipping)' == 'true' and '@(_CapsuleDevelopmentOnlySourceDir)' != ''"
           Outputs="%(_CapsuleDevelopmentOnlySourceDir.Identity)"
@@ -42,7 +40,8 @@
       <_CapsuleDevelopmentOnlyDirectoryLength>$(_CapsuleDevelopmentOnlyDirectory.Length)</_CapsuleDevelopmentOnlyDirectoryLength>
     </PropertyGroup>
 
-    <!-- Exclusive passes select case-folded or ordinal prefix comparison. -->
+    <!-- Two exclusive passes compare each compile path's prefix with the directory. The first is
+         ordinal, for Linux. The second is case-folded, for Windows and macOS. -->
     <ItemGroup Condition="'$(_CapsuleDevelopmentOnlyDirectory)' != ''">
       <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
                                       Condition="'$(_CapsulePathFoldsCase)' != 'true' and $([System.String]::CompareOrdinal($([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/')), 0, '$(_CapsuleDevelopmentOnlyDirectory)', 0, $(_CapsuleDevelopmentOnlyDirectoryLength))) == 0" />

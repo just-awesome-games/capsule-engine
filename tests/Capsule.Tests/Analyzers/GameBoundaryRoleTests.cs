@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Capsule.Generators;
 using Microsoft.CodeAnalysis;
 using static Capsule.Tests.Analyzers.GameBoundaryFixtures;
 
@@ -29,8 +28,8 @@ public sealed class GameBoundaryRoleTests
             logic: true,
             extraReferences: [EmptyAssembly("Capsule.Runtime"), EmptyAssembly("MonoGame.Framework")]);
 
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.RuntimeBoundaryId);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.PlatformBoundaryId);
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP100");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP101");
     }
 
     [Fact]
@@ -41,7 +40,7 @@ public sealed class GameBoundaryRoleTests
             shell: true,
             extraReferences: [EmptyAssembly("Capsule.Runtime"), EmptyAssembly("MonoGame.Framework.DesktopGL")]);
 
-        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.RuntimeBoundaryId);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.PlatformBoundaryId);
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == "CAP100");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP101");
     }
 }

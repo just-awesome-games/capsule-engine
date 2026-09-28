@@ -6,12 +6,11 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 
 | Package | Purpose |
 | --- | --- |
-| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. |
+| `JAG.Capsule` | Substrate-free gameplay APIs: simulation, input, rendering and audio contracts, save documents, tile grids, collision, and the world of scenes and entities. It also carries the build every game runs: the build tool, source generators and analyzers, asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. |
 | `JAG.Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, renderer, sound playback, scene hosting, and the `HostPlatform` contract. |
 | `JAG.Capsule.Runtime.Desktop` | The desktop platform module a shell references: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound following the default output. |
-| `JAG.Capsule.Build` | The build tool, source generators and analyzers: asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. |
 
-`JAG.Capsule.Runtime` and `JAG.Capsule.Build` carry the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the atlas packer's image codecs.
+`JAG.Capsule` and `JAG.Capsule.Runtime` carry the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the atlas packer's image codecs.
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 

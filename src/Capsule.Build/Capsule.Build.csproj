@@ -1,26 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained;RuntimeIdentifier">
 
-  <!-- No game references this, so it packs unlisted under tools/ with no reference assembly. -->
+  <!-- The build tool. JAG.Capsule packs its output under tools/, and no project references it for
+       its assembly. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Build</RootNamespace>
     <AssemblyName>Capsule.Build</AssemblyName>
-    <PackageId>JAG.Capsule.Build</PackageId>
-    <Description>The Capsule build: asset keying, scene, sprite, font, audio and shader compilation, atlas packing, source generators and analyzers for Capsule games.</Description>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <!-- The shader tools below are a net10.0 dependency group with no lib/ beside it, by design. -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <IncludeSymbols>false</IncludeSymbols>
+    <IsPackable>false</IsPackable>
     <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- Local, never global, with TreatAsLocalProperty on the Project element: NuGet's restore
-         walk strips nothing, so without the guard it evaluates this project for a consumer's
-         NativeAOT publish runtime and fails (NETSDK1207 on the netstandard2.0 generator). -->
+    <!-- Local, never global, with TreatAsLocalProperty on the Project element. A consumer's
+         NativeAOT publish passes these globally, and the tool stays a framework-dependent process. -->
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier></RuntimeIdentifier>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsuleBuildAssets</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,52 +31,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../Capsule.Generators/Capsule.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
-
-  <!-- The native shader tools are the package's only dependencies. Restore downloads them beside
-       the game's other packages, and neither the tool nor the game takes an asset from them. Pack
-       drops a dependency that excludes all assets and never writes contentFiles to its exclude, so
-       contentFiles stays included here. Neither package has any. -->
-  <Import Project="../../build/Capsule.ShaderTools.targets" />
-  <ItemGroup>
-    <PackageReference Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
-    <PackageReference Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
-    <None Include="../../build/Capsule.Build.targets" Pack="true" PackagePath="buildTransitive/JAG.Capsule.Build.targets" />
-    <None Include="../../build/Capsule.DevelopmentOnly.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Publish.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Compiler.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.Icon.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.ShaderTools.targets" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.ApiReference.targets" Pack="true" PackagePath="buildTransitive/" />
-    <!-- Beside the targets that name them, so $(MSBuildThisFileDirectory) resolves to the same
-         pair from a package or an engine clone. -->
-    <None Include="../../build/Icon.ico" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Icon.bmp" Pack="true" PackagePath="buildTransitive/" />
-    <None Include="../../build/Capsule.SubstrateResources.xml" Pack="true" PackagePath="buildTransitive/" />
-  </ItemGroup>
-
-  <!-- The whole output directory, not the entry assembly: the process loads Capsule.Scenes and its
-       spine, which must ship beside it. -->
-  <Target Name="IncludeCapsuleBuildAssets">
-    <!-- The generator is referenced with ReferenceOutputAssembly false, so its assembly is asked for
-         by name rather than picked up off a spelt-out bin path. TargetFramework is removed because
-         pack sets this project's own, and the generator targets netstandard2.0. -->
-    <MSBuild Projects="../Capsule.Generators/Capsule.Generators.csproj"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration)"
-             RemoveProperties="TargetFramework">
-      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleGeneratorAssembly" />
-    </MSBuild>
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="$(OutDir)*.dll" PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="$(OutDir)*.json" PackagePath="tools/net10.0/any/" />
-      <TfmSpecificPackageFile Include="@(_CapsuleGeneratorAssembly)" PackagePath="analyzers/dotnet/cs/" />
-    </ItemGroup>
-  </Target>
 
 </Project>

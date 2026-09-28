@@ -71,7 +71,7 @@ jobs:
           --configfile samples/MinimalGame/NuGet.config
           --runtime linux-x64
           -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
           -p:PublishAot=true
 
       - name: Validate release packages with NativeAOT
@@ -82,7 +82,7 @@ jobs:
           --self-contained true
           --no-restore
           -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
           -p:PublishAot=true
 
       - name: Report package storage

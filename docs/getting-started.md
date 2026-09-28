@@ -18,7 +18,7 @@ fastest start for a game of your own is a copy of it.
 | `src/MyGame.Shell` | `<CapsuleGameShell>true</CapsuleGameShell>` | The executable. One file, the entry point below. |
 | `tests/MyGame.Tests` | no role | Headless tests of the logic project ([`testing.md`](testing.md)). |
 
-The project files, the version pin and the two solution-wide MSBuild files are in
+The project files and their package references are in
 [`build-and-publish.md`](build-and-publish.md). The rest of this page is the C# those projects hold.
 
 ## The shell

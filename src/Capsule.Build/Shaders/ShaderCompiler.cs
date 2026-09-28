@@ -7,36 +7,6 @@ using Capsule.Rendering;
 
 namespace Capsule.Build.Shaders;
 
-/// <summary>One compiler diagnostic, anchored where the compiler placed it.</summary>
-/// <param name="File">The file the compiler named, as the composed source's line directive spelled it.</param>
-/// <param name="Line">The one-based line in that file.</param>
-/// <param name="Column">The one-based column in that line.</param>
-/// <param name="Warning">Whether it is a warning, which fails nothing.</param>
-/// <param name="Message">What the compiler said.</param>
-internal readonly record struct ShaderDiagnostic(string File, int Line, int Column, bool Warning, string Message)
-{
-    /// <summary>MSBuild's canonical form, which the build reports against the file and line.</summary>
-    public override string ToString() =>
-        $"{File.Replace('\\', '/')}({Line},{Column}): {(Warning ? "warning" : "error")} : {Message}";
-}
-
-/// <summary>What one compile produced.</summary>
-/// <param name="Effect">The compiled effect, or null when the compile failed.</param>
-/// <param name="Parameters">The parameters a material sets, in declaration order.</param>
-/// <param name="Diagnostics">Every error and warning the compiler anchored to a line.</param>
-/// <param name="Failure">Why the compile failed where no diagnostic anchors it, or null.</param>
-internal readonly record struct ShaderCompilation(
-    byte[]? Effect,
-    IReadOnlyList<ShaderParameter> Parameters,
-    IReadOnlyList<ShaderDiagnostic> Diagnostics,
-    string? Failure);
-
-/// <summary>
-/// The package folders of the two tools a shader compiles through, each holding a binary per host
-/// under <c>binaries/</c>. The build targets download both and name them.
-/// </summary>
-internal readonly record struct ShaderTools(string Dxc, string SpirvCross);
-
 /// <summary>
 /// The one seam a pixel-stage source becomes a compiled effect through. DXC compiles the HLSL to
 /// SPIR-V, SPIRV-Cross reflects its parameters and writes it as GLSL, and <see cref="MgfxWriter"/>

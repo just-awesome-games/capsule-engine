@@ -1,0 +1,44 @@
+<Project>
+
+  <!-- The XML documentation each engine project writes is its API reference. It lists the public
+       surface only, and a source consumer finds it beside the reference assembly. -->
+
+  <UsingTask TaskName="CapsuleTrimGeneratedDocumentation"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <DocumentationPath ParameterType="System.String" Required="true" />
+      <GeneratedInternalTypes ParameterType="System.String[]" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)CapsuleTrimGeneratedDocumentation.cs" />
+    </Task>
+  </UsingTask>
+
+  <!-- The compiler writes every documentation comment it sees, whatever the member's accessibility,
+       so generator output for an internal type is dropped before the reference leaves obj/. A
+       project lists those types as CapsuleGeneratedInternalType items. -->
+  <Target Name="CapsuleTrimDocumentationToPublicSurface"
+          AfterTargets="CoreCompile"
+          Condition="'$(GenerateDocumentationFile)' == 'true' and '@(CapsuleGeneratedInternalType)' != '' and Exists('$(DocumentationFile)')">
+    <CapsuleTrimGeneratedDocumentation DocumentationPath="$(DocumentationFile)"
+                                       GeneratedInternalTypes="@(CapsuleGeneratedInternalType)" />
+  </Target>
+
+  <!-- Keep source-consumer IntelliSense documentation beside the reference assembly. -->
+  <Target Name="CapsulePlaceDocumentationBesideReferenceAssembly"
+          AfterTargets="CoreCompile"
+          DependsOnTargets="CapsuleTrimDocumentationToPublicSurface"
+          Condition="'$(GenerateDocumentationFile)' == 'true' and '$(TargetRefPath)' != '' and Exists('$(DocumentationFile)') and Exists('$(TargetRefPath)')">
+    <PropertyGroup>
+      <_CapsuleReferenceDocumentation>$([System.IO.Path]::ChangeExtension('$(TargetRefPath)', '.xml'))</_CapsuleReferenceDocumentation>
+    </PropertyGroup>
+    <Copy SourceFiles="$(DocumentationFile)"
+          DestinationFiles="$(_CapsuleReferenceDocumentation)"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <FileWrites Include="$(_CapsuleReferenceDocumentation)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

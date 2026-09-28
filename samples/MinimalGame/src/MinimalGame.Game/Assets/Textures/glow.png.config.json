@@ -1,1 +1,5 @@
-{ "format": "r8", "sampling": "linear" }
+{
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/texture.config.schema.json",
+  "format": "r8",
+  "sampling": "linear"
+}

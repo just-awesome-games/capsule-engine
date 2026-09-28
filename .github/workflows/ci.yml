@@ -74,7 +74,7 @@ jobs:
         run: >
           dotnet restore samples/MinimalGame/MinimalGame.slnx
           --configfile samples/MinimalGame/NuGet.config
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
           -p:RestorePackagesPath=${{ runner.temp }}/package-consumer-cache
 
       - name: Build sample (package mode)
@@ -82,7 +82,7 @@ jobs:
           dotnet build samples/MinimalGame/MinimalGame.slnx
           --configuration Release
           --no-restore
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
 
   aot:
     needs: build-and-test
@@ -96,6 +96,9 @@ jobs:
           - os: windows-latest
             runtime: win-x64
             smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke.exe
+          - os: macos-latest
+            runtime: osx-arm64
+            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -121,7 +124,7 @@ jobs:
           dotnet restore samples/MinimalGame/MinimalGame.slnx
           --configfile samples/MinimalGame/NuGet.config
           --runtime ${{ matrix.runtime }}
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
           -p:PublishAot=true
 
       # The shell publish verifies the complete game graph is ILC-analyzable.
@@ -132,7 +135,7 @@ jobs:
           --runtime ${{ matrix.runtime }}
           --self-contained true
           --no-restore
-          -p:CapsuleUsePackages=true
+          -p:CapsuleSourcePath=
           -p:PublishAot=true
 
       - name: Publish the AOT smoke

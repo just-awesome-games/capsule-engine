@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Capsule.Generators;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
 using static Capsule.Tests.Analyzers.GameBoundaryFixtures;
@@ -54,7 +53,7 @@ public sealed class GameBoundaryRandomnessTests
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
         // Three method groups, and the Random.Shared read one of them is taken from.
-        Assert.Equal(4, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
+        Assert.Equal(4, diagnostics.Count(diagnostic => diagnostic.Id == "CAP105"));
     }
 
     [Fact]
@@ -77,10 +76,10 @@ public sealed class GameBoundaryRandomnessTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ExternalIoId);
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.ConcurrencyId);
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientTimeId);
-        Assert.Single(diagnostics, diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId);
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP102");
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP103");
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP104");
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP105");
     }
 
     // System.Random's seeded sequence is not stable across runtime versions.
@@ -99,6 +98,6 @@ public sealed class GameBoundaryRandomnessTests
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
 
-        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == GameBoundaryAnalyzer.AmbientRandomId));
+        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == "CAP105"));
     }
 }

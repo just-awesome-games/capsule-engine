@@ -21,6 +21,9 @@ public sealed class SceneDocumentParseTests
     [InlineData(Grid1x1, "tileSize must be positive", "\"tileSize\": 16", "\"tileSize\": 0")]
     [InlineData(Grid1x1, "the 'tile-map' entry has no id", "\"id\": 1,", "")]
     [InlineData(Grid1x1, "columns is 4 on a grid that names no texture", "\"tileSize\": 16", "\"columns\": 4, \"tileSize\": 16")]
+    [InlineData("""{"$schema": null, "formatVersion": 7, "entities": [], "nextEntityId": 1}""", "\"$schema\" is null")]
+    [InlineData("""{"$schema": 7, "formatVersion": 7, "entities": [], "nextEntityId": 1}""", "\"$schema\" is a number")]
+    [InlineData("""{"$schema": "scene.schema.json", "formatVersion": 7, "entities": [{"$schema": "scene.schema.json", "id": 1, "type": "coin", "x": 0, "y": 0}], "nextEntityId": 2}""", "'$schema' could not be mapped")]
     public void Parse_RefusesAMalformedDocumentWithTheDefectNamed(string json, string defect, string? find = null, string? replace = null)
     {
         string text = find is null ? json : json.Replace(find, replace, StringComparison.Ordinal);

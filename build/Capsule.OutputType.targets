@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- A shell is a console app while it is developed and a Windows-subsystem app in Release, where a
+       double-click opens no console. A shell that sets OutputType keeps its own. Capsule.Defaults.props
+       imports this ahead of the SDK's targets, which read OutputType. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(OutputType)' == 'Library'">
+    <OutputType>Exe</OutputType>
+    <OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
+  </PropertyGroup>
+
+</Project>

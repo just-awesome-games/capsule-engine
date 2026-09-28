@@ -4,12 +4,8 @@
     <CapsuleGameLogic>true</CapsuleGameLogic>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(CapsuleSourceRoot)' == ''">
+  <ItemGroup>
     <PackageReference Include="JAG.Capsule" Version="[$(CapsuleVersion)]" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(CapsuleSourceRoot)' != ''">
-    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
   </ItemGroup>
 
 </Project>

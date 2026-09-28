@@ -17,11 +17,11 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime |
 | `Capsule.Generators` | Source generation from the game's C#: the entity, scene and input-driver registries and `CapsuleBoot`. Compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | The build tool, which reads every authored file: the key pass, scene document validation and canonicalization, sprite sheet and font compilation, atlas packing, audio measurement, shader compilation, and `CapsuleAssets`. | unconstrained |
-| `Capsule` | No code. The pack root whose project-reference list is the `JAG.Capsule` package's admission list. | the pure modules |
+| `Capsule` | No code. The pack root of `JAG.Capsule`: its project-reference list is the package's admission list, and it packs the build tool and the generators beside them. | the pure modules |
 
 The pure modules perform no external I/O. `SceneDocumentFile.Load` and `Save` are filesystem adapters for
 tools and hosts, beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference
-direction and the absence of package dependencies. MonoGame belongs to `Capsule.Runtime`, for
+direction and that no package dependency reaches the compile or the runtime. MonoGame belongs to `Capsule.Runtime`, for
 project-reference and package consumers alike.
 
 ## Placement

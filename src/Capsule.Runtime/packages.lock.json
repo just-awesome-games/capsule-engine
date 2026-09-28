@@ -35,33 +35,26 @@
         "resolved": "2.32.10.2",
         "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
       },
+      "MonoGame.Tool.Dxc": {
+        "type": "Transitive",
+        "resolved": "1.9.2607.1",
+        "contentHash": "s0c2q7Zj/YuuGvDHgCKIV/343j/XJfHS1Gpz6HF4izQFcj+yU30SbYpaI2nrhWOrGkXGpP69usog7QNspINEZg=="
+      },
+      "MonoGame.Tool.Spirvcross": {
+        "type": "Transitive",
+        "resolved": "1.4.350",
+        "contentHash": "dHJzbU44PWN/2LGQVt0MtisD27ot5jJf2c1xizZkTXpKek5S2n4nyQUuvzAb1BZhUuw6A5Ns4g+b5uTLP8nP6A=="
+      },
       "NVorbis": {
         "type": "Transitive",
         "resolved": "0.10.4",
         "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
       },
-      "capsule.core": {
-        "type": "Project"
-      },
-      "capsule.physics": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Core": "[0.0.0, )"
-        }
-      },
-      "capsule.scenes": {
-        "type": "Project",
-        "dependencies": {
-          "Capsule.Core": "[0.0.0, )",
-          "Capsule.Physics": "[0.0.0, )"
-        }
-      },
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
-          "Capsule.Core": "[0.0.0, )",
-          "Capsule.Physics": "[0.0.0, )",
-          "Capsule.Scenes": "[0.0.0, )"
+          "MonoGame.Tool.Dxc": "[1.9.2607.1, 1.9.2607.1]",
+          "MonoGame.Tool.Spirvcross": "[1.4.350, 1.4.350]"
         }
       }
     }

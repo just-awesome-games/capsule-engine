@@ -1,3 +1,4 @@
 {
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/folder.config.schema.json",
   "texture": { "atlas": "game" }
 }

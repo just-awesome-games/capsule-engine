@@ -1,13 +1,12 @@
 using System.Text;
-using Capsule.Build.Registry;
 using Capsule.Rendering;
 
 namespace Capsule.Build.Shaders;
 
 /// <summary>
-/// Every shader: its fragment wrapped in the engine's template, compiled with the parameter table it
-/// declares, shipped at its path as <c>.mgfx</c>, and declared as a <c>Shader</c>. A misspelt shader is a compile error, and a misspelt parameter throws
-/// where the material is written.
+/// Compiles every shader, its fragment wrapped in the engine's template, with the parameter table it
+/// declares. Ships each at its path as <c>.mgfx</c> and declares it as a <c>Shader</c>. A misspelt
+/// shader is a compile error, and a misspelt parameter throws where the material is written.
 /// </summary>
 internal static class ShaderStep
 {
@@ -17,15 +16,9 @@ internal static class ShaderStep
     // 'name|kind' per line, which an unchanged source reads back instead of compiling again.
     private const string ParametersExtension = ".parameters";
 
-    private const string ShaderType = "global::Capsule.Rendering.Shader";
-
-    private const string ParameterType = "global::Capsule.Rendering.ShaderParameter";
-
-    private const string KindType = "global::Capsule.Rendering.ShaderParameterKind";
-
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    internal static void Build(BuildPass pass)
+    internal static void Run(BuildPass pass)
     {
         List<Source> sources = [.. pass.Of(AssetType.Shaders)];
         if (sources.Count == 0)
@@ -45,51 +38,19 @@ internal static class ShaderStep
             source =>
             {
                 string composed = ShaderTemplate.Compose(File.ReadAllText(source.Path), source.Path);
-                List<ShaderParameter> parameters = CompileIfChanged(pass, tools, composed, source)
-                    ?? throw new FormatException("did not compile. Its errors are reported above.");
-                pass.Output.WriteLine($"shaders: {source.Path} -> {source.Key}");
+                // A compile that failed reported its errors, and the pass leaves it out.
+                if (CompileIfChanged(pass, tools, composed, source) is not { } parameters)
+                {
+                    return [];
+                }
+
+                pass.Progress("shaders", source);
 
                 return parameters;
             }))
         {
-            pass.Declare(shader, (source, indent, identifier) => AppendShader(source, indent, identifier, shader, parameters));
+            pass.Declare(shader, parameters, ShaderMembers.Write);
         }
-    }
-
-    /// <summary>
-    /// Compiles the engine's own sprite shader, the template around its default fragment, to
-    /// <paramref name="outputPath"/>. The runtime's build embeds it.
-    /// </summary>
-    /// <returns>0 on success, 1 on failure.</returns>
-    internal static int EmitEngineShader(string outputPath, ShaderTools tools, TextWriter output, TextWriter error)
-    {
-        string source = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outputPath))!, "capsule-sprite.fx");
-
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(source)!);
-            File.WriteAllText(source, ShaderTemplate.ComposeDefault(), Utf8NoBom);
-
-            ShaderCompilation result = ShaderCompiler.Compile(tools, source);
-            if (result.Effect is not { } effect)
-            {
-                error.WriteLine(result.Failure ?? string.Join('\n', result.Diagnostics));
-
-                return 1;
-            }
-
-            AtomicFile.Write(outputPath, path => File.WriteAllBytes(path, effect));
-        }
-        catch (Exception ex) when (BuildPass.IsReportable(ex))
-        {
-            error.WriteLine($"shaders: cannot write '{outputPath}': {ex.Message}");
-
-            return 1;
-        }
-
-        output.WriteLine($"shaders: the engine's sprite shader -> {outputPath}");
-
-        return 0;
     }
 
     // The parameter table of the shipped effect, compiled again only when the composed source, this
@@ -99,7 +60,7 @@ internal static class ShaderStep
     private static List<ShaderParameter>? CompileIfChanged(BuildPass pass, ShaderTools tools, string composed, Source source)
     {
         string compiledPath = pass.Shipped.Claim(source.Key + CompiledExtension, $"'{source.Path}'");
-        string keptSource = Path.Combine(pass.OutputDirectory, "shaders", source.Key + ".fx");
+        string keptSource = Path.Combine(pass.CacheDirectory("shaders"), source.Key + ".fx");
         string keptParameters = Path.ChangeExtension(keptSource, ParametersExtension);
         composed = $"// {typeof(ShaderCompiler).Assembly.ManifestModule.ModuleVersionId} {Path.GetFileName(tools.Dxc)} {Path.GetFileName(tools.SpirvCross)}\n{composed}";
         if (File.Exists(compiledPath) && File.Exists(keptParameters) && File.Exists(keptSource) && File.ReadAllText(keptSource) == composed)
@@ -114,17 +75,24 @@ internal static class ShaderStep
 
         ShaderCompilation result = ShaderCompiler.Compile(tools, keptSource);
 
-        // A warning goes to the output, where the build reports it against its line and fails nothing.
+        // Each is reported against the line the compiler anchored it to.
         foreach (ShaderDiagnostic diagnostic in result.Diagnostics)
         {
-            (diagnostic.Warning ? pass.Output : pass.Error).WriteLine(diagnostic);
+            if (diagnostic.Warning)
+            {
+                pass.Warn(diagnostic.Anchor, diagnostic.Report);
+            }
+            else
+            {
+                pass.Fail(diagnostic.Anchor, diagnostic.Report);
+            }
         }
 
         if (result.Effect is not { } effect)
         {
             if (result.Failure is { } failure)
             {
-                pass.Error.WriteLine($"{source.Path}: {failure}");
+                pass.Fail(source.Path, failure);
             }
 
             return null;
@@ -141,35 +109,5 @@ internal static class ShaderStep
         string[] fields = line.Split('|');
 
         return new ShaderParameter(fields[0], Enum.Parse<ShaderParameterKind>(fields[1]));
-    }
-
-    // A property with an initializer, so every read hands back the one instance materials batch by.
-    private static void AppendShader(StringBuilder source, string indent, string identifier, Source shader, List<ShaderParameter> parameters)
-    {
-        source.Append(indent).Append("/// <summary><c>").Append(shader.Key).Append(shader.Extension).Append("</c>");
-        if (parameters.Count == 0)
-        {
-            source.Append(", with no parameters");
-        }
-        else
-        {
-            source.Append(", setting ");
-            for (int i = 0; i < parameters.Count; i++)
-            {
-                source.Append(i == 0 ? string.Empty : ", ").Append("<c>").Append(parameters[i].Name).Append("</c>");
-            }
-        }
-
-        source.AppendLine(".</summary>");
-        source.Append(indent).Append("public static ").Append(ShaderType).Append(' ').Append(identifier)
-            .Append(" { get; } = new ").Append(ShaderType).Append('(').Append(Literal.Of(shader.Key));
-
-        foreach (ShaderParameter parameter in parameters)
-        {
-            source.Append(", new ").Append(ParameterType).Append('(').Append(Literal.Of(parameter.Name))
-                .Append(", ").Append(KindType).Append('.').Append(parameter.Kind).Append(')');
-        }
-
-        source.AppendLine(");");
     }
 }

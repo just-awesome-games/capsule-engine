@@ -12,12 +12,13 @@ public sealed class NativeSceneToolTests
 
     private const string Shipped = ToolWorkspace.Out + "/assets/scenes/";
 
-    // A gzip header with a timestamp would make every build of an unchanged document new bytes.
+    // A gzip header with a timestamp would make every build of an unchanged document new bytes. An
+    // editor's "$schema" stays in the authored file.
     [Fact]
     public void ADocument_ShipsCompactAndGzippedAtItsKey_AndEveryBuildWritesTheSameBytes()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/hall.scene.json", Authored);
+        workspace.Write("Assets/Scenes/hall.scene.json", Authored.Replace("{ \"formatVersion\"", "{ \"$schema\": \"scene.schema.json\", \"formatVersion\"", StringComparison.Ordinal));
         string path = Shipped + "hall.scene.json.gz";
 
         workspace.Succeed();
@@ -32,6 +33,7 @@ public sealed class NativeSceneToolTests
         SceneDocument derived = SceneDocumentFile.Parse(emitted);
         Assert.Equal(SceneDocumentFile.ToJson(derived, compact: true), emitted);
         Assert.NotEqual(Authored, emitted);
+        Assert.DoesNotContain("$schema", emitted, StringComparison.Ordinal);
         Assert.Equal(2, derived.Entries[0].TileMap!.Value.Grid.Width);
         Assert.Equal("player", derived.Entries[1].Entity!.Value.Type);
     }
@@ -64,19 +66,19 @@ public sealed class NativeSceneToolTests
         Assert.Equal("Assets/Scenes/rooms/hall.scene.json", derived.Source?.Path);
     }
 
-    // A module's document arrives stamped with the file a person edited; that provenance is kept,
-    // and the key the module claims is where it ships.
+    // A derived document arrives stamped with the file a person edited. That provenance is kept, and
+    // the document ships at its path below its derivation's directory.
     [Fact]
-    public void AModulesDocument_KeepsItsSourceBlockAndShipsAtTheKeyItClaims()
+    public void ADerivedDocument_KeepsItsSourceBlockAndShipsAtItsPath()
     {
         using ToolWorkspace workspace = new();
         SceneDocument stamped = new(
             SceneDocumentFile.Parse(Authored).Entries.ToArray(),
             3,
-            new SceneDocumentSource("editor", "Assets/Scenes/hall.editor", new string('a', 64)));
-        string derived = workspace.Write("obj/editor/hall.scene.json", SceneDocumentFile.ToJson(stamped));
+            new SceneDocumentSource("editor", "Assets/Upper_Halls/Hall.editor", new string('a', 64)));
+        workspace.Write(ToolWorkspace.Derived + "/editor/Upper_Halls/Hall.scene.json", SceneDocumentFile.ToJson(stamped));
 
-        workspace.Succeed($"scene|{Path.GetFullPath(derived)}|Upper_Halls/Hall");
+        workspace.Succeed();
 
         Assert.Equal(stamped.Source, Load(ToolWorkspace.Out + "/assets/upper-halls/hall.scene.json.gz").Source);
     }

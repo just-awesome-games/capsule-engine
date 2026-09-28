@@ -56,12 +56,10 @@
   </ItemGroup>
 
   <!-- The sprite shader is built from the template in Capsule.Build, through the same tools and
-       code a game's shaders compile through. The tool is referenced for build order only, and no
-       package this project packs depends on it. -->
+       code a game's shaders compile through. The tools arrive through JAG.Capsule. The build tool is
+       referenced for build order only, and no package this project packs depends on it. -->
   <Import Project="../../build/Capsule.ShaderTools.targets" />
   <ItemGroup>
-    <PackageDownload Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" />
-    <PackageDownload Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" />
     <ProjectReference Include="../Capsule.Build/Capsule.Build.csproj"
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"

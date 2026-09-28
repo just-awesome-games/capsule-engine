@@ -1,25 +1,28 @@
 <Project>
 
-  <!-- What a publish holds. It carries no symbols and no method names. The build's symbols go to
-       CapsuleSymbolsDirectory beside it, where a crash log's addresses decode against them. -->
+  <!-- What a shell's publish holds. It carries no symbols and no method names. The build's symbols go
+       to CapsuleSymbolsDirectory beside it, where a crash log's addresses decode against them. Every
+       part answers to the shell role, and a role-free project publishes as the SDK does. -->
 
   <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
-       against the native symbols, and a managed publish keeps its method names. Imported after the
-       development-only targets set CapsuleShipping. -->
-  <PropertyGroup Condition="'$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
+       against the native symbols, and a managed publish keeps its method names. CapsuleShipping is
+       set in Capsule.Build.targets, ahead of this file. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
     <StackTraceSupport Condition="'$(StackTraceSupport)' == ''">false</StackTraceSupport>
     <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
   </PropertyGroup>
 
-  <!-- Symbols are generated as usual and never copied into the publish directory. -->
-  <PropertyGroup>
+  <!-- Symbols are generated as usual and never copied into the publish directory, and neither is
+       reference documentation. Imported after the SDK defaults, and command-line overrides still win. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- Only when the substrate is compiled in. The compiler fails a substitution naming an assembly
-       it was not given, and ignores a resource the assembly does not hold. -->
+  <!-- Only when MonoGame is compiled in. The compiler fails a substitution naming an assembly it was
+       not given, and ignores a resource the assembly does not hold. -->
   <Target Name="CapsuleRemoveSubstrateResources"
-          Condition="'$(PublishAot)' == 'true'"
+          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'"
           BeforeTargets="WriteIlcRspFileForCompilation">
     <ItemGroup Condition="'@(IlcReference->WithMetadataValue('Filename', 'MonoGame.Framework'))' != ''">
       <IlcArg Include="--substitution:$(MSBuildThisFileDirectory)Capsule.SubstrateResources.xml" />
@@ -28,7 +31,9 @@
 
   <!-- Reference symbols leave the publish list. They are the build's symbols in a managed publish,
        and describe no code in a native one, where the native pdb replaces them. -->
-  <Target Name="CapsuleCollectPublishSymbols" AfterTargets="ComputeResolvedFilesToPublishList">
+  <Target Name="CapsuleCollectPublishSymbols"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          AfterTargets="ComputeResolvedFilesToPublishList">
     <ItemGroup>
       <_CapsuleReferenceSymbol Include="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
       <ResolvedFileToPublish Remove="@(_CapsuleReferenceSymbol)" />
@@ -41,7 +46,9 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="CapsuleCopyPublishSymbols" AfterTargets="Publish">
+  <Target Name="CapsuleCopyPublishSymbols"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          AfterTargets="Publish">
     <PropertyGroup>
       <_CapsulePublishDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_CapsulePublishDirectory>
       <CapsuleSymbolsDirectory Condition="'$(CapsuleSymbolsDirectory)' == ''">$([System.IO.Path]::TrimEndingDirectorySeparator('$(_CapsulePublishDirectory)'))-symbols</CapsuleSymbolsDirectory>

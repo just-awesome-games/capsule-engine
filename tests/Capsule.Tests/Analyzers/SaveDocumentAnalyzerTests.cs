@@ -29,7 +29,7 @@ public sealed class SaveDocumentAnalyzerTests
             """);
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
-        Assert.Equal(SaveDocumentAnalyzer.InitOnlyPropertyId, diagnostic.Id);
+        Assert.Equal("CAP106", diagnostic.Id);
         Assert.Contains("Item.Count", diagnostic.GetMessage());
     }
 

@@ -1,4 +1,3 @@
-using Capsule.Build.Atlases;
 using Capsule.Build.Textures;
 using Capsule.Tests.Documents;
 
@@ -161,7 +160,7 @@ public sealed class AtlasToolTests
         Texels member = new([.. red, .. green, .. blue, .. clear], 2, 2, 4);
         byte[] page = new byte[6 * 6 * 4];
 
-        AtlasStep.Blit(page, 6, member, 1, 1);
+        TexturePixels.Blit(page, 6, member, 1, 1, border: 1);
 
         (int X, int Y, byte[] Expected)[] texels =
         [

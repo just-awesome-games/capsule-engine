@@ -1,0 +1,36 @@
+namespace Capsule.Build.Sheets;
+
+/// <summary>
+/// Reads every sheet and declares it as a class of typed frames, clips and sockets. A misspelt frame,
+/// clip or socket is a compile error, and no sheet ships beside the executable.
+/// </summary>
+internal static class SheetStep
+{
+    internal static void Run(BuildPass pass)
+    {
+        Dictionary<string, string> textures = pass.Of(AssetType.Textures)
+            .ToDictionary(static texture => texture.Key, static texture => texture.Extension, StringComparer.Ordinal);
+
+        foreach ((Source sheet, Sheet document) in pass.Each(
+            pass.Of(AssetType.Sheets),
+            source =>
+            {
+                Sheet sheet = SheetFile.Read(source.Path);
+
+                // Resolved by key against what the build ships, and carrying the shipped extension,
+                // however the sheet spelled it.
+                if (!textures.TryGetValue(sheet.TextureKey, out string? extension))
+                {
+                    throw new FormatException(
+                        $"cuts from texture \"{sheet.TextureKey}{sheet.TextureExtension}\", which this game does not ship. Author it at Assets/{sheet.TextureKey}{sheet.TextureExtension}.");
+                }
+
+                pass.Progress("sheets", source);
+
+                return sheet with { TextureExtension = extension };
+            }))
+        {
+            pass.Declare(sheet, document, SheetMembers.Write);
+        }
+    }
+}

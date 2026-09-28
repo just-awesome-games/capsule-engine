@@ -111,8 +111,8 @@ internal static class Program
             return 4;
         }
 
-        // The generated sprite for the module-derived sheet, referenced so a key that stopped
-        // reaching the build tool is a compile error rather than a silent gap.
+        // The generated sprite for a sheet naming a texture in another folder, referenced so a key
+        // that stopped reaching the build tool is a compile error rather than a silent gap.
         Sprite module = CapsuleAssets.Smoke.ModuleSheet.Frames.Only;
         bool keptTexture = Shipped(CapsuleAssets.Textures.KeptTexture) && module.Texture.Name == CapsuleAssets.Textures.KeptTexture.Name;
         bool developmentTexture = File.Exists(Path.Combine(AppContext.BaseDirectory, DevelopmentTexturePath));
@@ -190,7 +190,7 @@ internal static class Program
     private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;
 
     private static HeadlessRunResult Play(string[] args) =>
-        CapsuleEngine.Configure("Capsule AOT Smoke", new DesktopPlatform(), CapsuleScenes.Registry)
+        CapsuleBoot.Configure("Capsule AOT Smoke", new DesktopPlatform())
             .WithCommandLine(args)
             .WithRunStart(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)

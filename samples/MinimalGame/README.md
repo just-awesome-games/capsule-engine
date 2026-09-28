@@ -19,9 +19,9 @@ Against the NuGet packages:
 
 ```sh
 dotnet pack --configuration Release --output artifacts/packages
-dotnet restore samples/MinimalGame/MinimalGame.slnx --configfile samples/MinimalGame/NuGet.config -p:CapsuleUsePackages=true
-dotnet build samples/MinimalGame/MinimalGame.slnx --configuration Release --no-restore -p:CapsuleUsePackages=true
-dotnet run --project samples/MinimalGame/src/MinimalGame.Shell --configuration Release --no-restore -p:CapsuleUsePackages=true
+dotnet restore samples/MinimalGame/MinimalGame.slnx --configfile samples/MinimalGame/NuGet.config -p:CapsuleSourcePath=
+dotnet build samples/MinimalGame/MinimalGame.slnx --configuration Release --no-restore -p:CapsuleSourcePath=
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell --configuration Release --no-restore -p:CapsuleSourcePath=
 ```
 
 The gate is `sh hooks/pre-commit` from the sample root.

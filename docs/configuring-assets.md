@@ -91,6 +91,20 @@ settings. Editing a texture, its config or an atlas file repacks only the atlase
 texture's member is derived from its source. Packing leaves the member unchanged. An atlas file ships
 nothing and names no member.
 
+## Editor completion
+
+The engine's repository publishes a JSON Schema for each file shape. A file names its schema with a `"$schema"` key at
+its root, and an editor then completes and documents every setting:
+
+```json
+{ "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/folder.config.schema.json" }
+```
+
+A sidecar names `texture.config.schema.json`, an atlas file `atlas.schema.json`, a sprite sheet
+`sheet.schema.json` and a scene document `scene.schema.json` at the same address. The build ignores the value. It refuses a `$schema` that is not a string, and one anywhere
+below the root, as it refuses any unknown setting. Copies to read are on disk beside Capsule's API
+reference, as [Consuming Capsule](build-and-publish.md#consuming-capsule) describes, and a file still names the published URL.
+
 ## What fails the build
 
 Each of these defects fails the build. The message names the file and the fix.
