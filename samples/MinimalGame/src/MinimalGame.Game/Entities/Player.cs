@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule;
 using Capsule.Animation;
+using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -206,7 +207,7 @@ public sealed class Player : Entity
     {
         foreach (ColliderContact2D contact in _body.MoveContacts)
         {
-            if (contact.Normal.Y > 0f && contact.Tile is { Type: TileTypes.Brick } tile)
+            if (_body.ClassifyNormal(contact.Normal) == SurfaceKind.Ceiling && contact.Tile is { Type: TileTypes.Brick } tile)
             {
                 tile.Map.RemoveTile(tile.X, tile.Y);
                 Scene.Add(_sparks.Take().Burst(contact.Point));
@@ -243,6 +244,14 @@ public sealed class Player : Entity
         }
 
         return new Vector2(_visual.Facing, 0f);
+    }
+
+    // Pooled entities sit outside the scene until taken. The player forwards its pools to preload them.
+    /// <inheritdoc/>
+    protected override void CollectAssets(AssetCollection assets)
+    {
+        _bolts.CollectAssets(assets);
+        _sparks.CollectAssets(assets);
     }
 
     protected override void OnDebugPanel(DebugPanel panel)

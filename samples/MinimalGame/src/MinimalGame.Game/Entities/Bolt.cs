@@ -8,7 +8,7 @@ using Capsule.Scenes;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// What the <see cref="Player"/> fires: a flat tinted rect flying in one direction at a constant
+/// What the <see cref="Player"/> fires: a tinted glow flying in one direction at a constant
 /// speed, turned to face that way, until its lifetime is spent, then gone.
 /// <see cref="Entity.Position"/> is its centre. It collides with nothing. Its levers live in
 /// <see cref="BoltTuning"/>. Pooled by the player, so its per-life state is set in
@@ -16,9 +16,11 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 public sealed class Bolt : Entity
 {
-    // The engine's white texel pivoted at its own centre, so the entity's scale sizes it about the
-    // position rather than from a corner.
-    private static readonly Sprite Centred = new(TextureHandle.White, new TextureRegion(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+    private const int GlowTexels = 8;
+
+    // The lamp's greyscale falloff pivoted at its centre, so the entity's scale sizes it about the
+    // position rather than from a corner. It preloads through the pool the player forwards.
+    private static readonly Sprite Glow = new(CapsuleAssets.Textures.GlowTexture, new TextureRegion(0, 0, GlowTexels, GlowTexels), new Vector2(GlowTexels / 2f));
 
     private readonly SpriteRenderer _sprite;
     private readonly EntityPool<SparkBurst> _sparks;
@@ -32,7 +34,7 @@ public sealed class Bolt : Entity
     {
         _sparks = sparks;
 
-        _sprite = new SpriteRenderer(Centred) { Blend = BlendMode.Additive };
+        _sprite = new SpriteRenderer(Glow) { Blend = BlendMode.Additive };
         Add(_sprite);
         Add(new PointLight { Radius = 5f, Color = ColorRgba.Yellow, Intensity = 0.75f });
     }
@@ -48,7 +50,7 @@ public sealed class Bolt : Entity
         _velocity = direction * tuning.Speed;
         Rotation = DeterministicMath.Atan2(direction.Y, direction.X);
         _life.Start(tuning.LifetimeTicks);
-        Scale = tuning.Size;
+        Scale = tuning.Size / GlowTexels;
         _sprite.Color = tuning.Tint;
 
         return this;

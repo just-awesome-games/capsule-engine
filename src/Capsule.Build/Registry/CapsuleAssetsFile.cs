@@ -28,7 +28,7 @@ internal sealed class CapsuleAssetsFile
     /// when a name is one C# would refuse.
     /// </summary>
     /// <param name="pass">The run, which each refusal fails against the file that caused it.</param>
-    internal string? Render(BuildPass pass)
+    internal string? Render(PipelinePass pass)
     {
         RegistryFolder root = new("CapsuleAssets", string.Empty);
         bool refused = false;

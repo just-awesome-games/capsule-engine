@@ -1,7 +1,9 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
+using Capsule.Build.Caching;
 using Capsule.Build.Registry;
 using Capsule.Scenes.Documents;
 using Capsule.Tiles;
@@ -14,27 +16,33 @@ namespace Capsule.Build.Scenes;
 /// </summary>
 internal static class SceneStep
 {
+    private const string Step = "scenes";
+
     /// <summary>The tool a hand-authored document's provenance names.</summary>
     internal const string ToolName = "native";
 
     private const char ByteOrderMark = '\uFEFF';
 
-    internal static void Run(BuildPass pass)
+    internal static void Run(PipelinePass pass)
     {
-        foreach ((Source document, (SceneDocument Scene, string Json) model) in pass.Each(
+        // A publish spends the time to ship the smallest documents. Any other build compresses fastest.
+        CompressionLevel level = pass.Requests.Shipping ? CompressionLevel.SmallestSize : CompressionLevel.Fastest;
+        string settings = pass.Configuration.TileSize is { } size ? $"gzip={level}; tileSize={size}" : $"gzip={level}";
+        foreach ((Source document, string[] attributes) in pass.Each(
+            Step,
             pass.Of(AssetType.Scenes),
-            source =>
+            source => Derivation.Of(source, settings),
+            (source, files) =>
             {
                 SceneDocument document = Import(source.Path, pass.Configuration.TileSize);
-                string shipped = pass.Shipped.Claim(source.Key + ShippedSceneDocument.Extension, $"'{source.Path}'");
-                AtomicFile.Write(shipped, path => ShippedSceneDocument.Write(document, path));
-                pass.Progress("scenes", source);
+                files.Write(source.Key + ShippedSceneDocument.Extension, path => ShippedSceneDocument.Write(document, path, level));
 
-                return (document, File.ReadAllText(source.Path));
-            }))
+                return SceneMembers.Attributes(document, source.Key, source.Path, File.ReadAllText(source.Path)).ToArray();
+            },
+            DerivationCacheJsonContext.Default.StringArray))
         {
             pass.Beside(GeneratedAttributes.SceneDocument);
-            pass.Declare(document, model, SceneMembers.Write);
+            pass.Declare(document, attributes, SceneMembers.Write);
         }
     }
 

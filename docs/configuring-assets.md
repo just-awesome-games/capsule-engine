@@ -86,7 +86,7 @@ is at most `maxSize` texels a side, trimmed to its packed extent rounded up to a
 
 Pages ship under `assets/atlases/`, as straight-alpha RGBA or as greyscale for `r8`. One map at
 `assets/textures.json` names each packed key's page and the texel its `(0, 0)` landed on. A packed
-member does not ship on its own. Each atlas keeps a stamp over its own settings, its members and their
+member does not ship on its own. An atlas is derived from its own settings and its members' texels and
 settings. Editing a texture, its config or an atlas file repacks only the atlases it touches. A
 texture's member is derived from its source. Packing leaves the member unchanged. An atlas file ships
 nothing and names no member.

@@ -18,7 +18,7 @@ internal sealed class TextureMapBuilder
     internal void AddPage(string page, TextureEntryJson facts) => _pages.Add(page, facts);
 
     /// <summary>Ships the map at <see cref="TextureMapJson.ShippedPath"/>, only when some texture has a non-default run-time fact.</summary>
-    internal void Ship(ShippedFiles shipped)
+    internal void Ship(OutputFiles shipped)
     {
         if (_textures.Count == 0)
         {
@@ -26,7 +26,9 @@ internal sealed class TextureMapBuilder
         }
 
         TextureMapJson map = new() { Textures = _textures, Pages = _pages.Count > 0 ? _pages : null };
-        AtomicFile.Write(shipped.Claim(TextureMapJson.ShippedPath, "the texture map"), path =>
+        Directory.CreateDirectory(shipped.Root);
+        shipped.Claim(TextureMapJson.ShippedPath, "the texture map");
+        AtomicFile.Write(Path.Combine(shipped.Root, TextureMapJson.ShippedPath), path =>
         {
             using FileStream file = File.Create(path);
             JsonSerializer.Serialize(file, map, TextureMapJsonContext.Default.TextureMapJson);

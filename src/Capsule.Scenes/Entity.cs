@@ -450,6 +450,11 @@ public partial class Entity
     /// <remarks>
     /// Components start after. An entity removed during this call never steps, and its components
     /// do not start.
+    /// <para>
+    /// An entity in the scene when it starts runs this before the scene's first frame is built. One
+    /// added later runs it before the first frame that draws it: at once outside a step, or as the step
+    /// that added it ends.
+    /// </para>
     /// </remarks>
     protected internal virtual void OnStart()
     {

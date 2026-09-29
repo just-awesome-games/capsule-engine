@@ -8,7 +8,8 @@ using Capsule.Runtime.Desktop;
 namespace Capsule.Bench;
 
 // An ordinary Capsule game whose scenes are workloads: `suite` runs them all and records the
-// results; anything else is the engine's own command line, so `--scene <Name>` runs one by hand.
+// results, and `assets` times the asset build over a generated corpus; anything else is the
+// engine's own command line, so `--scene <Name>` runs one by hand.
 internal static class Program
 {
     public static int Main(string[] args)
@@ -16,6 +17,11 @@ internal static class Program
         if (args.Length > 0 && args[0] == "suite")
         {
             return Suite.Run(args[1..]);
+        }
+
+        if (args.Length > 0 && args[0] == "assets")
+        {
+            return AssetBench.Run(args[1..]);
         }
 
         EngineBuilder engine;

@@ -24,6 +24,8 @@
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj" />
     <ProjectReference Include="../Capsule.Bench.Logic/Capsule.Bench.Logic.csproj" />
+    <!-- The asset corpus encodes its PNGs as the build does. -->
+    <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule.Build/Capsule.Build.csproj" />
   </ItemGroup>
 
 </Project>

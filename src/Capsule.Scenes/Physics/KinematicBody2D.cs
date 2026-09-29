@@ -436,6 +436,38 @@ public sealed class KinematicBody2D : Component
         return false;
     }
 
+    /// <summary>
+    /// What this body calls a surface with <paramref name="normal"/>, by the same rule that sets
+    /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/> and <see cref="IsOnCeiling"/>.
+    /// </summary>
+    /// <remarks>
+    /// The rule reads <see cref="MaxFloorAngle"/> as it is now. A surface exactly at that angle is a
+    /// floor, or a ceiling seen from below.
+    /// </remarks>
+    /// <param name="normal">A unit surface normal, pointing out of the surface.</param>
+    /// <example>
+    /// A shape cast finds a surface the body has not touched yet, and the body judges it the way a move would:
+    /// <code>
+    /// if (_collider.Cast(new Vector2(reach, 0f), out ShapeCastHit2D hit)
+    ///     &amp;&amp; _body.ClassifyNormal(hit.Normal) == SurfaceKind.Wall)
+    /// {
+    ///     // A wall is within reach. A slope is not one.
+    /// }
+    /// </code>
+    /// </example>
+    public SurfaceKind ClassifyNormal(Vector2 normal)
+    {
+        if (!float.IsFinite(normal.X) || !float.IsFinite(normal.Y))
+        {
+            throw new ArgumentOutOfRangeException(nameof(normal), normal, "The normal must be finite. Pass a hit's or contact's Normal.");
+        }
+
+        return KindOf(normal);
+    }
+
+    private SurfaceKind KindOf(Vector2 normal) =>
+        IsFloor(normal) ? SurfaceKind.Floor : IsCeiling(normal) ? SurfaceKind.Ceiling : SurfaceKind.Wall;
+
     private bool IsFloor(Vector2 normal) => Vector2.Dot(normal, Up) >= _floorCos - AngleTolerance;
 
     private bool IsCeiling(Vector2 normal) => -Vector2.Dot(normal, Up) >= _floorCos - AngleTolerance;
@@ -691,8 +723,9 @@ public sealed class KinematicBody2D : Component
             }
 
             Vector2 normal = _moveContacts[index].Normal;
+            SurfaceKind kind = KindOf(normal);
 
-            if (IsFloor(normal))
+            if (kind == SurfaceKind.Floor)
             {
                 if (!IsOnFloor)
                 {
@@ -708,7 +741,7 @@ public sealed class KinematicBody2D : Component
                     ridden = other;
                 }
             }
-            else if (IsCeiling(normal))
+            else if (kind == SurfaceKind.Ceiling)
             {
                 IsOnCeiling = true;
             }

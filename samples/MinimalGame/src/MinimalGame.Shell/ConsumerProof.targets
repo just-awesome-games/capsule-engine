@@ -38,13 +38,23 @@
             Log.LogError(
                 "'" + AssemblyPath + "' embeds no manifest resource named exactly 'Icon.bmp'; it has: "
                 + string.Join(", ", names) + ".");
+            // A fragment succeeds unless it returns false.
+            return false;
         }
       ]]></Code>
     </Task>
   </UsingTask>
 
-  <Target Name="CapsuleAssertWindowIconEmbedded" AfterTargets="Build">
+  <!-- The stamp is touched only after a pass. A shell that failed is asserted again on the next build. -->
+  <Target Name="CapsuleAssertWindowIconEmbedded"
+          AfterTargets="Build"
+          Inputs="$(TargetPath)"
+          Outputs="$(IntermediateOutputPath)window-icon.stamp">
     <CapsuleAssertWindowIcon AssemblyPath="$(TargetPath)" />
+    <Touch Files="$(IntermediateOutputPath)window-icon.stamp" AlwaysCreate="true" />
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)window-icon.stamp" />
+    </ItemGroup>
   </Target>
 
 </Project>

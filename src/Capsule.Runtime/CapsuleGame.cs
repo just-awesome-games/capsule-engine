@@ -156,7 +156,7 @@ internal sealed class CapsuleGame : Game
         {
             scenes.PrepareAssets = PrepareAssets;
             scenes.PrefetchAssets = PrefetchAssets;
-            PrepareAssets(scenes.Scene.CollectAssetPreloads());
+            scenes.PrepareInitialAssets();
 
             if (_audio is { } audio)
             {

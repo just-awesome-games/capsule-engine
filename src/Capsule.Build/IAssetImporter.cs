@@ -2,8 +2,24 @@ namespace Capsule.Build;
 
 /// <summary>Turns authored sources of one format into files the build reads as though they were authored.</summary>
 /// <remarks>
-/// A game's build project adds an importer with <see cref="CapsuleBuild.AddImporter"/>. Every run
-/// imports each claimed source again, and a claimed source is never read as an asset itself.
+/// <para>
+/// A game's build project adds an importer with <see cref="CapsuleBuild.AddImporter"/>. A claimed
+/// source is never read as an asset itself.
+/// </para>
+/// <para>
+/// An importer reads and probes files only through its <see cref="AssetImportContext"/>, and writes only
+/// through <see cref="AssetImportContext.Write(string, ReadOnlySpan{byte})"/>.
+/// </para>
+/// <para>
+/// An import's inputs are its source and every file it reads through
+/// <see cref="AssetImportContext.ReadAllBytes"/> or <see cref="AssetImportContext.ReadAllText"/> or probes
+/// through <see cref="AssetImportContext.Exists"/>. A run imports a source again when one of those inputs
+/// changed, appeared or was deleted, when an output it wrote is gone, or when the importer's assembly or
+/// the configured tile size changed. The build cannot see a file the importer reads any other way.
+/// </para>
+/// <para>
+/// The build calls <see cref="Import"/> concurrently for different sources, and an importer keeps no mutable state between calls.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -12,7 +28,7 @@ namespace Capsule.Build;
 ///     public IReadOnlyList&lt;string&gt; Extensions { get; } = [".note"];
 ///
 ///     public void Import(AssetImportContext context) =&gt;
-///         context.Write(Path.ChangeExtension(context.AssetPath, ".scene.json"), NoteScenes.Translate(context.SourcePath));
+///         context.Write(Path.ChangeExtension(context.AssetPath, ".scene.json"), NoteScenes.Translate(context.ReadAllText(context.SourcePath)));
 /// }
 /// </code>
 /// </example>

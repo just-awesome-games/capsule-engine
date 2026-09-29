@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
+    <InternalsVisibleTo Include="Capsule.Bench" />
   </ItemGroup>
 
   <!-- The shipped reference lists the public surface. The internals' documentation comments stay
@@ -33,7 +34,6 @@
        build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
-    <PackageReference Include="StbImageWriteSharp" Version="1.16.7" />
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, which makes JAG.Capsule this package's

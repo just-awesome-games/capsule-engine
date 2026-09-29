@@ -7,6 +7,34 @@
     <!-- Universal import, inert without the shell role, which Capsule.OutputType.targets reads after
          the project body and ahead of the SDK's targets, which read OutputType. -->
     <BeforeMicrosoftNETSdkTargets>$(BeforeMicrosoftNETSdkTargets);$(MSBuildThisFileDirectory)Capsule.OutputType.targets</BeforeMicrosoftNETSdkTargets>
+    <!-- Editors and terminals pass the drive letter in either case. Every path Capsule or the SDK
+         writes into a generated file starts from this spelling, with the letter upper-cased. A
+         flipped letter then rewrites nothing. -->
+    <_CapsuleProjectDirectory>$(MSBuildProjectDirectory)</_CapsuleProjectDirectory>
+    <_CapsuleProjectDirectory Condition="'$(MSBuildProjectDirectory.Substring(1, 1))' == ':'">$(MSBuildProjectDirectory.Substring(0, 1).ToUpperInvariant())$(MSBuildProjectDirectory.Substring(1))</_CapsuleProjectDirectory>
+    <!-- The SDK writes ProjectDir into the analyzer config the compiler reads, and sets it only when empty. -->
+    <ProjectDir Condition="'$(ProjectDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(_CapsuleProjectDirectory)'))</ProjectDir>
   </PropertyGroup>
+
+  <!-- Source control reports the repository root in the spelling the project was reached by. The SDK
+       writes it into the Source Link file the compiler reads. The root's drive letter is upper-cased
+       as the project directory's is. -->
+  <Target Name="CapsuleNormalizeSourceRootDrive"
+          AfterTargets="InitializeSourceControlInformationFromSourceControlManager">
+    <ItemGroup>
+      <_CapsuleDriveSourceRoot Include="@(SourceRoot)"
+                               Condition="$([System.String]::Copy('%(Identity)').Length) &gt; 1 and $([System.String]::Copy('%(Identity)').Substring(1, 1)) == ':'" />
+      <_CapsuleDriveSourceRoot>
+        <_CapsuleSpelling>$([System.String]::Copy('%(_CapsuleDriveSourceRoot.Identity)').Substring(0, 1).ToUpperInvariant())$([System.String]::Copy('%(_CapsuleDriveSourceRoot.Identity)').Substring(1))</_CapsuleSpelling>
+      </_CapsuleDriveSourceRoot>
+      <SourceRoot Remove="@(_CapsuleDriveSourceRoot)" />
+      <SourceRoot Include="@(_CapsuleDriveSourceRoot->'%(_CapsuleSpelling)')" RemoveMetadata="_CapsuleSpelling" />
+      <_CapsuleDriveSourceRoot Remove="@(_CapsuleDriveSourceRoot)" />
+      <!-- A submodule's root names the root that contains it. -->
+      <SourceRoot Condition="'%(SourceRoot.ContainingRoot)' != ''">
+        <ContainingRoot>$([System.String]::Copy('%(SourceRoot.ContainingRoot)').Substring(0, 1).ToUpperInvariant())$([System.String]::Copy('%(SourceRoot.ContainingRoot)').Substring(1))</ContainingRoot>
+      </SourceRoot>
+    </ItemGroup>
+  </Target>
 
 </Project>

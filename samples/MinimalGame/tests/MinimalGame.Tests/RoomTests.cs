@@ -6,6 +6,7 @@ using Capsule.Scenes;
 using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
+using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Tests;
 
@@ -114,6 +115,26 @@ public sealed class RoomTests
         room.Step(DeviceSnapshot.Empty);
 
         room.Dispose();
+    }
+
+    // The lamps draw the bolt's glow too. Without them the glow reaches the room's preload only
+    // through the player's forwarded bolt pool.
+    [Fact]
+    public void TheRoom_PreloadsTheBoltsGlowThroughThePlayersPool()
+    {
+        PlayableScene room = RoomFixture.Compose();
+        List<Lamp> lamps = [];
+        foreach (Lamp lamp in room.FindAll<Lamp>())
+        {
+            lamps.Add(lamp);
+        }
+
+        foreach (Lamp lamp in lamps)
+        {
+            room.Remove(lamp);
+        }
+
+        Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
     }
 
     // Position is the body's top-left corner; the feet are its bottom edge.

@@ -5,10 +5,22 @@ namespace Capsule.Generators;
 
 internal static class TypeNaming
 {
-    // The key a type claims: its namespace under the root, minus a leading domain segment and a
-    // trailing segment repeating its own name, kebab-cased per segment and joined with '/'. A type
-    // outside the root namespace claims just its kebab-cased name.
-    internal static string KeyFor(string containingNamespace, string typeName, string rootNamespace, string domainSegment)
+    // One leading segment an entity, camera or baseScene key drops, whichever kind the type is. A
+    // shared list keeps every kind's key on the one rule scenes.md states.
+    private static readonly string[] DomainSegments = ["Entities", "Cameras", "Scenes"];
+
+    // The key an entity, camera or baseScene class claims: its namespace under the root, minus a
+    // leading domain segment and a trailing segment repeating its own name, kebab-cased per segment
+    // and joined with '/'. A type outside the root namespace claims just its kebab-cased name.
+    internal static string KeyFor(string containingNamespace, string typeName, string rootNamespace) =>
+        KeyFor(containingNamespace, typeName, rootNamespace, dropsDomain: true);
+
+    // The document a scene class claims keeps its leading segment, since its namespace under the root
+    // is the document's path under Assets/.
+    internal static string DocumentKeyFor(string containingNamespace, string typeName, string rootNamespace) =>
+        KeyFor(containingNamespace, typeName, rootNamespace, dropsDomain: false);
+
+    private static string KeyFor(string containingNamespace, string typeName, string rootNamespace, bool dropsDomain)
     {
         string name = AssetPaths.FromTypeName(typeName);
         if (Relative(containingNamespace, rootNamespace) is not { } relative)
@@ -16,7 +28,7 @@ internal static class TypeNaming
             return name;
         }
 
-        int start = relative.Length > 0 && string.Equals(relative[0], domainSegment, StringComparison.Ordinal) ? 1 : 0;
+        int start = dropsDomain && relative.Length > 0 && Array.IndexOf(DomainSegments, relative[0]) >= 0 ? 1 : 0;
         int end = relative.Length;
 
         // A type in a folder of its own name keys to that folder, not a level below it.

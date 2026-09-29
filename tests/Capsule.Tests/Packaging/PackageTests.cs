@@ -31,7 +31,7 @@ public sealed class PackageTests
         using ZipArchive package = Pack("Capsule.Build", "JAG.Capsule.Build");
 
         Dictionary<string, string> dependencies = Dependencies(package, "JAG.Capsule.Build");
-        Assert.Equal(["JAG.Capsule", "StbImageSharp", "StbImageWriteSharp"], dependencies.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["JAG.Capsule", "StbImageSharp"], dependencies.Keys.Order(StringComparer.Ordinal));
         Assert.Equal($"[{Version(package, "JAG.Capsule.Build")}]", dependencies["JAG.Capsule"]);
         Assert.Equal(["Capsule.Build.dll"], Libraries(package));
         Assert.NotNull(package.GetEntry("lib/net10.0/Capsule.Build.xml"));

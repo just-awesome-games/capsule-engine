@@ -215,9 +215,10 @@ internal static class GeneratorHarness
     /// <summary>Compiles <paramref name="source"/> in an assembly declaring that root namespace.</summary>
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileIn(
         string rootNamespace,
-        string source) =>
+        string source,
+        params (string Path, string? Content)[] assets) =>
         Run(
-            Created("KeySpecs", source, References),
+            Created("KeySpecs", source, References, assets.Length == 0 ? null : Documents(assets)),
             logic: true,
             shell: false,
             rootNamespace: rootNamespace);

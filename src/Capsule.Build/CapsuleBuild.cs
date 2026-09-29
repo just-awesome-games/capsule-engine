@@ -1,10 +1,14 @@
+using System.Reflection;
+using Capsule.Build.Shaders;
+
 namespace Capsule.Build;
 
 /// <summary>A game's build configuration, which its build project's entry point configures and runs.</summary>
 /// <remarks>
 /// The build project is a console app referencing the <c>JAG.Capsule.Build</c> package, and the logic project
-/// names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it once per build, and
-/// its arguments go to <see cref="Configure"/> unchanged.
+/// names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it on every build, and its
+/// arguments go to <see cref="Configure"/> unchanged. The run reuses whatever it derived before from
+/// sources that have not changed since.
 /// </remarks>
 /// <example>
 /// <code>
@@ -17,13 +21,20 @@ namespace Capsule.Build;
 public sealed class CapsuleBuild
 {
     private const string Usage =
-        "usage: <build project> --requests <requests.txt> --out <dir>. Capsule's build targets run the build project with these.";
+        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dxc> <spirv-cross>. Capsule's build targets run the build project with these.";
 
     private readonly string[] _args;
 
     private readonly List<(string Extension, IAssetImporter Importer)> _claims = [];
 
     internal int? TileSize { get; private set; }
+
+    // What identifies a derivation's implementing assembly in place of its build, which a test injects.
+    // Null reads the build.
+    internal Func<Assembly, string>? IdentifyTool { get; set; }
+
+    // How many derivations run at once. A test forces 1 to compare against the default.
+    internal int Parallelism { get; set; } = Environment.ProcessorCount;
 
     private CapsuleBuild(string[] args) => _args = args;
 
@@ -88,14 +99,15 @@ public sealed class CapsuleBuild
 
     internal int Run(TextWriter output, TextWriter error)
     {
-        if (_args is not ["--requests", string requests, "--out", string outputDirectory])
+        // The options come in the order Usage names them.
+        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. ([] or ["--shipping"]) and var flags, "--shader-tools", string dxc, string spirvCross])
         {
             error.WriteLine(Usage);
 
             return 2;
         }
 
-        return BuildRun.Run(requests, outputDirectory, this, output, error);
+        return AssetPipeline.Run(assets, new ShaderTools(dxc, spirvCross), shipping: flags is ["--shipping"], outputDirectory, this, output, error);
     }
 
     // The importer claiming the path by its extension, or null when none does.

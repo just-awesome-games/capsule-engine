@@ -28,4 +28,9 @@ public readonly record struct AudioClip(
     string Name,
     string Extension,
     double DurationSeconds,
-    AudioLoopRegion LoopRegion = default);
+    AudioLoopRegion LoopRegion = default)
+{
+    // Whether the host decodes the clip as it plays instead of holding it for the scene. The
+    // extension decides: .wav is resident, .ogg streams.
+    internal bool IsStreamed => string.Equals(Extension, ".ogg", StringComparison.OrdinalIgnoreCase);
+}

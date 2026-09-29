@@ -20,13 +20,20 @@
        so generator output for an internal type is dropped before the reference leaves obj/. A
        project lists those types as CapsuleGeneratedInternalType items. A project whose internal
        types carry documentation comments lists its public types as CapsuleDocumentedType items,
-       and every other entry is dropped. -->
+       and every other entry is dropped. The trim rewrites its own input. A marker touched after it
+       records the last trimmed file, and the target runs again only when the compiler writes a new one. -->
   <Target Name="CapsuleTrimDocumentationToPublicSurface"
           AfterTargets="CoreCompile"
-          Condition="'$(GenerateDocumentationFile)' == 'true' and ('@(CapsuleGeneratedInternalType)' != '' or '@(CapsuleDocumentedType)' != '') and Exists('$(DocumentationFile)')">
+          Condition="'$(GenerateDocumentationFile)' == 'true' and ('@(CapsuleGeneratedInternalType)' != '' or '@(CapsuleDocumentedType)' != '') and Exists('$(DocumentationFile)')"
+          Inputs="$(DocumentationFile);$(MSBuildAllProjects);$(MSBuildThisFileDirectory)CapsuleTrimGeneratedDocumentation.cs"
+          Outputs="$(IntermediateOutputPath)$(TargetName).doctrim.stamp">
     <CapsuleTrimGeneratedDocumentation DocumentationPath="$(DocumentationFile)"
                                        GeneratedInternalTypes="@(CapsuleGeneratedInternalType)"
                                        DocumentedTypes="@(CapsuleDocumentedType)" />
+    <Touch Files="$(IntermediateOutputPath)$(TargetName).doctrim.stamp" AlwaysCreate="true" />
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)$(TargetName).doctrim.stamp" />
+    </ItemGroup>
   </Target>
 
   <!-- Keep source-consumer IntelliSense documentation beside the reference assembly. -->

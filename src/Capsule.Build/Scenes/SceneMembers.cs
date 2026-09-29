@@ -13,10 +13,10 @@ internal static class SceneMembers
 {
     // The generator checks every entry against the class claiming its type, so each member carries
     // what the generator cannot read out of the document itself.
-    internal static void Write(StringBuilder code, string indent, string identifier, Source document, (SceneDocument Scene, string Json) model)
+    internal static void Write(StringBuilder code, string indent, string identifier, Source document, string[] attributes)
     {
         code.Append(indent).Append("/// <summary>The scene document <c>").Append(document.Key).AppendLine("</c>.</summary>");
-        foreach (string attribute in Attributes(model.Scene, document.Key, document.Path, model.Json))
+        foreach (string attribute in attributes)
         {
             code.Append(indent).Append('[').Append(attribute).AppendLine("]");
         }

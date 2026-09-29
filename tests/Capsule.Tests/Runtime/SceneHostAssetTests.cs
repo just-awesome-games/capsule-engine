@@ -69,6 +69,32 @@ public sealed class SceneHostAssetTests
     }
 
     [Fact]
+    public void TheInitialScene_PreparesOnceWhatItHeldBeforeItStarted()
+    {
+        using SceneHost host = new(ToScene<AddsOnStart>(), (in SceneTransition _) => new AddsOnStart(), new Run());
+        List<string> prepared = [];
+        host.PrepareAssets = assets => prepared.Add(Names(assets.Textures));
+
+        host.PrepareInitialAssets();
+        host.PrepareInitialAssets();
+
+        Assert.Equal(["hud"], prepared);
+    }
+
+    [Fact]
+    public void AnInitialSceneWhoseAssetsCannotBeCollected_IsReleasedAndTheFailurePropagates()
+    {
+        List<string> lifecycle = [];
+        RejectedInitialScene scene = new(lifecycle);
+
+        Assert.Throws<InvalidDataException>(() => new SceneHost(ToScene<RejectedInitialScene>(), (in SceneTransition _) => scene, new Run()));
+
+        Assert.Empty(scene.Entities.ToArray());
+        Assert.Null(scene.Entity.SceneOrNull);
+        Assert.Equal(["entity+", "entity-"], lifecycle);
+    }
+
+    [Fact]
     public void DisposingTheHost_ReleasesItsSceneAssets()
     {
         SceneHost host = new(ToScene<HookScene>(), (in SceneTransition _) => new HookScene(), new Run());
@@ -91,6 +117,40 @@ public sealed class SceneHostAssetTests
         protected override void OnStep(in StepContext context) => Run.RequestScene<ArenaTextures>();
 
         protected override void OnStop() => order.Add("menu.stop");
+    }
+
+    private sealed class AddsOnStart : Scene
+    {
+        internal AddsOnStart() => Add(new Holds(Hud));
+
+        protected override void OnStart() => Add(new Holds(Bat));
+    }
+
+    private sealed class RejectedInitialScene : Scene
+    {
+        internal RejectedInitialScene(List<string> lifecycle)
+        {
+            Entity = new FailsToCollect(lifecycle);
+            Add(Entity);
+        }
+
+        internal FailsToCollect Entity { get; }
+
+        protected override void OnStart() => throw new InvalidOperationException("A rejected scene must not start.");
+    }
+
+    private sealed class FailsToCollect(List<string> lifecycle) : Entity(Vector2.Zero)
+    {
+        protected internal override void OnAddedToScene() => lifecycle.Add("entity+");
+
+        protected internal override void OnRemovedFromScene() => lifecycle.Add("entity-");
+
+        protected internal override void CollectAssets(AssetCollection assets) => throw new InvalidDataException("declaration failed");
+    }
+
+    private sealed class Holds(TextureHandle texture) : Entity(Vector2.Zero)
+    {
+        protected internal override void CollectAssets(AssetCollection assets) => assets.Add(texture);
     }
 
     private sealed class ArenaTextures : Scene

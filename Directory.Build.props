@@ -1,5 +1,8 @@
 <Project>
 
+  <!-- What a consumer's projects get ahead of their body, the engine's own projects get too. -->
+  <Import Project="build/Capsule.Defaults.props" />
+
   <PropertyGroup>
     <!-- Read by build/Capsule.SourceConsumer.targets, which the entry file imports: the engine's own
          source consumers, its tests and sample, stay on the solution configuration. -->

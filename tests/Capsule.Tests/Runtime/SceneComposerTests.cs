@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -69,7 +70,7 @@ public sealed class SceneComposerTests : IDisposable
     private static void Write(SceneDocument document)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
-        ShippedSceneDocument.Write(document, DocumentPath);
+        ShippedSceneDocument.Write(document, DocumentPath, CompressionLevel.Fastest);
     }
 
     private static SceneRegistry Registry() =>

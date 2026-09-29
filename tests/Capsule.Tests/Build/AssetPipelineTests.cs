@@ -1,18 +1,21 @@
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Capsule.Build;
+using Capsule.Build.Caching;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
 /// <summary>
 /// One process per build, so what one run reports is the whole authoring plane's state: a defect in
-/// one kind of source never hides a defect in another, the stamp the build's incrementality rests on
-/// appears only when every step succeeded, and what ships is exactly what this run derived.
+/// one kind of source never hides a defect in another, and what ships is exactly what this run
+/// derived or reused.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
-public sealed class BuildRunTests
+public sealed class AssetPipelineTests
 {
     [Fact]
-    public void ARunWithADefectInTwoKinds_ReportsBothAndLeavesNoStamp()
+    public void ARunWithADefectInTwoKinds_ReportsBoth()
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 7, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
@@ -25,14 +28,15 @@ public sealed class BuildRunTests
         Assert.Contains("Assets/Audio/hum.wav", errors, StringComparison.Ordinal);
     }
 
-    // A manifest line the build does not read is a mismatch between the targets and the tool, never
-    // a line to skip.
+    // An argument the build does not read is a mismatch between the targets and the tool, never one
+    // to skip.
     [Fact]
-    public void AManifestLineOfNoKnownKind_FailsTheRun()
+    public void AnArgumentOfNoKnownKind_IsAUsageError()
     {
         using ToolWorkspace workspace = new();
 
-        Assert.Contains("no kind of line", workspace.Fail("textures|hero|.png|Assets/Textures/hero.png"), StringComparison.Ordinal);
+        Assert.Equal(2, workspace.Run("--requests", "build-requests.txt"));
+        Assert.StartsWith("usage:", workspace.Errors, StringComparison.Ordinal);
     }
 
     // A source deleted since the last run stops shipping, with no clean in between.
@@ -65,7 +69,7 @@ public sealed class BuildRunTests
         workspace.Write("Assets/Dev/room.note", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
         workspace.Configure = static build => build.AddImporter(new NoteImporter());
 
-        workspace.Succeed($"shipping|{shipping}");
+        workspace.Succeed(shipping ? ["--shipping"] : []);
 
         string[] expected = shipping ? ["hero.png"] : ["dev/room.scene.json.gz", "dev/scratch.png", "hero.png"];
         Assert.Equal(expected, workspace.Shipped);
@@ -107,7 +111,7 @@ public sealed class BuildRunTests
         };
         Task<int> run;
 
-        using (new FileStream(Path.Combine(ToolWorkspace.Out, BuildRun.LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        using (new FileStream(Path.Combine(ToolWorkspace.Out, AssetPipeline.LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
         {
             run = Task.Run(() => workspace.Run());
             await Task.WhenAny(waiting.Task, run).WaitAsync(TimeSpan.FromSeconds(30));
@@ -134,6 +138,90 @@ public sealed class BuildRunTests
 
         Assert.Equal(authored.Shipped, imported.Shipped);
         Assert.Equal(authored.Generated, imported.Generated.Replace(ToolWorkspace.Imported, "Assets/", StringComparison.Ordinal));
+    }
+
+    // Derivations run concurrently, and nothing a run leaves or reports depends on which finished
+    // first. The defects include a member no atlas can decode and two imports writing one output.
+    [Fact]
+    public void ARunAcrossCores_LeavesAndReportsExactlyWhatARunOnOneCoreDoes()
+    {
+        using ToolWorkspace workspace = new();
+        const string Scene = """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""";
+        for (int i = 0; i < 8; i++)
+        {
+            workspace.WritePng($"Assets/Textures/t{i}.png", 4, 4, seed: i + 1);
+            workspace.WritePng($"Assets/Packed/p{i}.png", 3, 3, seed: i + 1);
+            workspace.Write($"Assets/Scenes/n{i}.note", Scene);
+        }
+
+        workspace.Write("Assets/Packed/.config.json", """{ "texture": { "atlas": "game" } }""");
+        workspace.Write("Assets/game.atlas.json", "{}");
+        string[] defects =
+        [
+            workspace.Write("Assets/Packed/bad.png", "not a png"),
+            workspace.Write("Assets/Scenes/b.note", NoteImporter.Broken),
+            workspace.Write("Assets/Scenes/n3.memo", Scene),
+        ];
+
+        string errors = SameAtEitherDegree(workspace);
+        Assert.Contains("Assets/Packed/bad.png: ", errors, StringComparison.Ordinal);
+        Assert.Contains("Assets/Scenes/b.note: ", errors, StringComparison.Ordinal);
+        Assert.Contains("\"imported/Scenes/n3.scene.json\" is written by 'Assets/Scenes/n3.memo' and 'Assets/Scenes/n3.note'.", errors, StringComparison.Ordinal);
+
+        foreach (string defect in defects)
+        {
+            File.Delete(defect);
+        }
+
+        Assert.Empty(SameAtEitherDegree(workspace));
+    }
+
+    // Asserts a cold run at degree 1 reports and leaves exactly what one at degree 8 does, and returns its errors.
+    private static string SameAtEitherDegree(ToolWorkspace workspace)
+    {
+        (string Errors, string Output, string[] Files) one = Cold(workspace, parallelism: 1);
+        (string Errors, string Output, string[] Files) many = Cold(workspace, parallelism: 8);
+
+        Assert.Equal(one.Errors, many.Errors);
+        Assert.Equal(one.Output, many.Output);
+        Assert.Equal(one.Files, many.Files);
+
+        return one.Errors;
+    }
+
+    // A run at the given degree from no output: what it reported, and every file it left with its
+    // content. The times in the cache file are left out.
+    private static (string Errors, string Output, string[] Files) Cold(ToolWorkspace workspace, int parallelism)
+    {
+        if (Directory.Exists(ToolWorkspace.Out))
+        {
+            Directory.Delete(ToolWorkspace.Out, recursive: true);
+        }
+
+        workspace.Configure = build =>
+        {
+            build.Parallelism = parallelism;
+
+            return build.AddImporter(new NoteImporter()).AddImporter(new NoteImporter(".memo"));
+        };
+        workspace.Run();
+
+        string[] files =
+        [
+            .. Directory.EnumerateFiles(ToolWorkspace.Out, "*", SearchOption.AllDirectories)
+                .Where(static path => Path.GetFileName(path) != AssetPipeline.LockFile)
+                .Select(static path =>
+                {
+                    string content = Path.GetFileName(path) == DerivationCache.FileName
+                        ? Regex.Replace(File.ReadAllText(path), "\"(started|walked|written)\":\"[^\"]*\"", string.Empty)
+                        : Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
+
+                    return Path.GetRelativePath(ToolWorkspace.Out, path).Replace('\\', '/') + " " + content;
+                })
+                .Order(StringComparer.Ordinal),
+        ];
+
+        return (workspace.Errors, workspace.Output, files);
     }
 
     private static (string[] Shipped, string Generated) BuiltFrom(string path, string text, string? output)

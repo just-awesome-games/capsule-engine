@@ -23,14 +23,14 @@ internal static class Keys
     internal static readonly StringComparer PathComparer = StringComparer.FromComparison(PathComparison);
 
     /// <summary>
-    /// Classifies and keys every request, and sets <see cref="BuildPass.Keyed"/> in request order and
-    /// <see cref="BuildPass.Textures"/>.
+    /// Classifies and keys every request, and sets <see cref="PipelinePass.Keyed"/> in request order and
+    /// <see cref="PipelinePass.Textures"/>.
     /// </summary>
     /// <remarks>
     /// A request that cannot be keyed fails the pass, and nothing downstream sees it. A shipping pass
     /// first leaves out every development-only request.
     /// </remarks>
-    internal static void Derive(BuildPass pass)
+    internal static void Derive(PipelinePass pass)
     {
         Dictionary<(AssetType, string), string> claimedBy = [];
         List<Source> keyed = [];
@@ -97,8 +97,11 @@ internal static class Keys
     }
 
     /// <summary><paramref name="path"/> below <paramref name="root"/>, forward slashes.</summary>
+    /// <remarks>A path the walk spelled from the root is cut below it without asking the file system.</remarks>
     internal static string Below(string root, string path) =>
-        System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
+        path.Length > root.Length + 1 && path[root.Length] == '/' && path.StartsWith(root, StringComparison.Ordinal)
+            ? path[(root.Length + 1)..]
+            : System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
 
     /// <summary>Where the extension a sidecar names starts in <paramref name="stem"/>, or -1 when its name holds none.</summary>
     /// <param name="stem">A sidecar's path or key without its <c>.config.json</c>.</param>

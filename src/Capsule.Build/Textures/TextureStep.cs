@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Build.Caching;
 using Capsule.Build.Registry;
 
 namespace Capsule.Build.Textures;
@@ -9,43 +10,53 @@ namespace Capsule.Build.Textures;
 /// </summary>
 internal static class TextureStep
 {
-    internal static void Run(BuildPass pass)
+    private const string Step = "textures";
+
+    internal static void Run(PipelinePass pass)
     {
-        foreach ((Source texture, ResolvedTexture settings) in pass.Each(
-            pass.Of(AssetType.Textures),
-            source =>
+        List<Source> packed = [];
+        List<Source> unpacked = [];
+        foreach (Source texture in pass.Of(AssetType.Textures))
+        {
+            (pass.TextureSettings[texture.Key].Atlas is null ? unpacked : packed).Add(texture);
+        }
+
+        // An unpacked texture ships as authored, or an r8 texture as an 8-bit greyscale PNG of its values.
+        List<Source> shipped = pass.Each(
+            Step,
+            unpacked,
+            source => Derivation.Of(source, TexturePixels.Channels(pass.TextureSettings[source.Key].Format) == 1 ? "format=r8" : string.Empty),
+            (source, files) =>
             {
-                ResolvedTexture settings = pass.TextureSettings[source.Key];
-                if (settings.Atlas is null)
+                string path = source.Key + source.Extension;
+                if (TexturePixels.Channels(pass.TextureSettings[source.Key].Format) == 1)
                 {
-                    // An r8 texture ships as an 8-bit greyscale PNG of its values.
-                    if (TexturePixels.Channels(settings.Format) == 1)
+                    Texels values = SingleChannelPng.Read(File.ReadAllBytes(source.Path));
+                    files.Write(path, temporary =>
                     {
-                        Texels values = SingleChannelPng.Read(File.ReadAllBytes(source.Path));
-                        AtomicFile.Write(pass.Shipped.Claim(source.Key + source.Extension, $"'{source.Path}'"), path =>
-                        {
-                            using FileStream file = File.Create(path);
-                            TexturePixels.Encode(values.Data, values.Width, values.Height, file, values.Channels);
-                        });
-                    }
-                    else
-                    {
-                        pass.Shipped.Copy(source.Path, source.Key + source.Extension);
-                    }
-
-                    if (TextureEntryJson.Facts(settings.Format, settings.Sampling) is { } facts)
-                    {
-                        pass.TextureMap.AddTexture(source.Key, facts);
-                    }
+                        using FileStream file = File.Create(temporary);
+                        TexturePixels.Encode(values.Data, values.Width, values.Height, file, values.Channels);
+                    });
                 }
+                else
+                {
+                    files.Copy(source.Path, path);
+                }
+            });
 
-                pass.Progress("textures", source);
+        foreach (Source texture in shipped)
+        {
+            ResolvedTexture settings = pass.TextureSettings[texture.Key];
+            if (TextureEntryJson.Facts(settings.Format, settings.Sampling) is { } facts)
+            {
+                pass.TextureMap.AddTexture(texture.Key, facts);
+            }
+        }
 
-                return settings;
-            }))
+        foreach (Source texture in packed.Concat(shipped))
         {
             pass.Beside(GeneratedAttributes.Asset);
-            pass.Declare(texture, settings, TextureMembers.Write);
+            pass.Declare(texture, pass.TextureSettings[texture.Key], TextureMembers.Write);
         }
     }
 }

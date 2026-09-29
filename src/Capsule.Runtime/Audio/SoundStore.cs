@@ -33,7 +33,7 @@ internal sealed class SoundStore : IDisposable
     // samples instead of being queued whole when it must repeat a loop region or begin mid-clip,
     // because the device repeats all of what it was queued and only from the front.
     internal IAudioVoice Play(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds) =>
-        AudioFiles.IsStreamed(clip)
+        clip.IsStreamed
             ? _backend.Stream(clip, gain, pitch, pan, loop, startSeconds)
             : Get(clip).Play(
                 gain,
@@ -60,7 +60,7 @@ internal sealed class SoundStore : IDisposable
         List<AudioClip> resident = [];
         foreach (AudioClip clip in preloads.Clips)
         {
-            if (!AudioFiles.IsStreamed(clip))
+            if (!clip.IsStreamed)
             {
                 resident.Add(clip);
             }

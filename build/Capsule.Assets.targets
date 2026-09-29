@@ -1,38 +1,40 @@
 <Project>
 
   <!-- The asset pipeline, on when CapsuleBuildAssets is true. The logic project owns the authoring
-       plane, everything under Assets/. One target writes the list of every file to a manifest, one run
-       of the game's build project turns that into what ships and what compiles, and one target hands
-       those outputs to MSBuild:
+       plane, everything under Assets/. MSBuild never walks it. Every build runs the game's build
+       project once, which walks the tree itself and turns it into what ships and what compiles, and
+       one target hands those outputs to MSBuild:
 
-         Assets/**                  -> obj/capsule/build-requests.txt   (CapsuleBuildRequests)
-         build-requests.txt         -> obj/capsule/imported/**           what the importers wrote
+         Assets/                    -> obj/capsule/imported/**           what the importers wrote
                                        obj/capsule/assets/**             everything the game ships
                                        obj/capsule/CapsuleAssets.g.cs    every asset, named in C#
-                                       obj/capsule/build.stamp           written last by the run
+                                       obj/capsule/derivation-cache.json what the next run reuses
                                                                          (CapsuleRunBuildTool)
          obj/capsule/...            -> Content, Compile                  (CapsuleAddBuildOutputs)
 
-       A shipping build writes all of it to obj/capsule-shipping/ instead. It never shares a manifest
-       or a stamp with an ordinary build of the same configuration.
+       The run decides what to derive again, under its own lock. A source whose content, settings and
+       deriving code are unchanged is reused. A shipping build writes all of it to
+       obj/capsule-shipping/ instead, and never shares a cache with an ordinary build.
 
        The source generator reads only the game's C#, CapsuleAssets.g.cs included. -->
 
   <!-- Paths known at evaluation. -->
   <PropertyGroup>
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
-    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">$(MSBuildProjectDirectory)/Assets</CapsuleAssetSourcesDir>
-    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
+    <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">Assets</CapsuleAssetSourcesDir>
+    <!-- Every path the run is handed starts from here. Capsule.Defaults.props gives the project
+         directory one drive-letter case. -->
+    <_CapsuleProjectDirectory Condition="'$(_CapsuleProjectDirectory)' == ''">$(MSBuildProjectDirectory)</_CapsuleProjectDirectory>
+    <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(_CapsuleProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
 
-  <!-- Every authored file, whatever its type or folder, dotfiles included. The tool decides what each
-       one is, and a shipping run drops what a directory holding a .capsuleignore marks. -->
-  <ItemGroup Condition="'$(CapsuleBuildAssets)' == 'true'">
-    <_CapsuleAuthored Include="$(CapsuleAssetSourcesDir)/**/*" />
-    <_CapsuleShaderSource Include="$(CapsuleAssetSourcesDir)/**/*.fx" />
-  </ItemGroup>
+  <!-- No asset file is an MSBuild item, so an IDE's own up-to-date check cannot see an edit. It
+       always calls MSBuild, and the run decides. -->
+  <PropertyGroup Condition="'$(CapsuleBuildAssets)' == 'true'">
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+  </PropertyGroup>
 
   <!-- Every other target of the pipeline runs after this one. CapsuleObjDir is set here because
        IntermediateOutputPath is final only after the SDK's targets, and a project may import this
@@ -43,8 +45,8 @@
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           BeforeTargets="AssignTargetPaths">
     <PropertyGroup>
-      <CapsuleObjDir Condition="'$(CapsuleObjDir)' == '' and '$(CapsuleShipping)' == 'true'">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule-shipping'))</CapsuleObjDir>
-      <CapsuleObjDir Condition="'$(CapsuleObjDir)' == ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
+      <CapsuleObjDir Condition="'$(CapsuleObjDir)' == '' and '$(CapsuleShipping)' == 'true'">$([MSBuild]::NormalizePath('$(_CapsuleProjectDirectory)', '$(IntermediateOutputPath)', 'capsule-shipping'))</CapsuleObjDir>
+      <CapsuleObjDir Condition="'$(CapsuleObjDir)' == ''">$([MSBuild]::NormalizePath('$(_CapsuleProjectDirectory)', '$(IntermediateOutputPath)', 'capsule'))</CapsuleObjDir>
     </PropertyGroup>
 
     <Error Condition="'$(CapsuleAssetSourcesDeclared)' == 'true' and !Exists('$(CapsuleAssetSourcesDir)')"
@@ -73,51 +75,27 @@
              Properties="Configuration=$(Configuration)">
       <Output TaskParameter="TargetOutputs" ItemName="_CapsuleBuildTool" />
     </MSBuild>
-
-    <ItemGroup>
-      <!-- Every assembly beside the build project's is an input, so an engine or importer change reruns it. -->
-      <_CapsuleBuildToolAssembly Include="%(_CapsuleBuildTool.RootDir)%(_CapsuleBuildTool.Directory)*.dll" />
-    </ItemGroup>
   </Target>
 
   <!-- ==== The run ==== -->
 
-  <!-- The authoring plane as one manifest, rewritten only when the set of files or an option changes.
-       That makes it the run's incremental input beside the files themselves. The tool's
-       BuildRequests reads it, one line per record:
-
-         root|<asset root>
-         shader-tools|<dxc>|<spirv-cross>       when the authoring plane holds a shader
-         shipping|true or false                 CapsuleShipping
-         asset|<path>                           every authored file -->
-  <Target Name="CapsuleBuildRequests"
-          Condition="'$(CapsuleBuildAssets)' == 'true'"
-          DependsOnTargets="CapsuleAssetSourcesInit">
-
-    <ItemGroup>
-      <_CapsuleRequestLine Include="root|$(CapsuleAssetSourcesDir)" />
-      <_CapsuleRequestLine Include="shader-tools|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))|$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))"
-                           Condition="'@(_CapsuleShaderSource)' != ''" />
-      <_CapsuleRequestLine Include="shipping|$(CapsuleShipping)" />
-      <_CapsuleRequestLine Include="@(_CapsuleAuthored->'asset|%(FullPath)')" />
-    </ItemGroup>
-
-    <MakeDir Directories="$(CapsuleObjDir)" />
-    <WriteLinesToFile File="$(CapsuleObjDir)/build-requests.txt"
-                      Lines="@(_CapsuleRequestLine)"
-                      Overwrite="true"
-                      WriteOnlyWhenDifferent="true" />
-  </Target>
-
-  <!-- One process per build, all or nothing. The run writes build.stamp last, from BuildRun, so a
-       failed run leaves it stale and the next build runs it again. -->
+  <!-- One process per build, on every build. It is handed only what MSBuild alone knows: the asset
+       root, the output directory, whether this is a publish, and the shader tools restore
+       downloaded. The process is short, and tiered PGO's instrumentation costs it more than the
+       code it would optimize saves. -->
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleBuildAssets)' == 'true'"
-          DependsOnTargets="CapsuleBuildRequests;CapsuleResolveBuildTool;ResolveProjectReferences"
-          Inputs="$(CapsuleObjDir)/build-requests.txt;@(_CapsuleAuthored);@(_CapsuleBuildToolAssembly)"
-          Outputs="$(CapsuleObjDir)/build.stamp">
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --requests &quot;$(CapsuleObjDir)/build-requests.txt&quot; --out &quot;$(CapsuleObjDir)&quot;"
-          WorkingDirectory="$(MSBuildProjectDirectory)"
+          DependsOnTargets="CapsuleAssetSourcesInit;CapsuleResolveBuildTool;ResolveProjectReferences">
+    <PropertyGroup>
+      <_CapsuleShippingArgument Condition="'$(CapsuleShipping)' == 'true'"> --shipping</_CapsuleShippingArgument>
+      <_CapsuleDxc>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))</_CapsuleDxc>
+      <_CapsuleSpirvCross>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_CapsuleSpirvCross>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(CapsuleObjDir)" />
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(CapsuleAssetSourcesDir)&quot; --out &quot;$(CapsuleObjDir)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleDxc)&quot; &quot;$(_CapsuleSpirvCross)&quot;"
+          WorkingDirectory="$(_CapsuleProjectDirectory)"
+          EnvironmentVariables="DOTNET_TieredPGO=0"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />
   </Target>
@@ -140,7 +118,7 @@
 
       <Compile Condition="'$(CapsuleGameLogic)' == 'true'" Include="$(CapsuleObjDir)/CapsuleAssets.g.cs" />
 
-      <!-- Everything the tool writes is cleaned together, so no clean leaves a stamp behind the
+      <!-- Everything the tool writes is cleaned together, so no clean leaves the cache behind the
            outputs it vouches for. -->
       <FileWrites Include="$(CapsuleObjDir)/**" />
     </ItemGroup>

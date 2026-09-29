@@ -129,7 +129,8 @@ internal static class SingleChannelPng
         }
     }
 
-    private static int Paeth(int left, int up, int corner)
+    /// <summary>The PNG Paeth predictor: whichever of the three neighbours is nearest their gradient estimate.</summary>
+    internal static int Paeth(int left, int up, int corner)
     {
         int estimate = left + up - corner;
         int toLeft = Math.Abs(estimate - left);

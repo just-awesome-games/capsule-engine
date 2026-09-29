@@ -218,7 +218,7 @@ On Windows the native link needs the MSVC Build Tools with the C++ workload. A B
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`, or the link fails with
 `'vswhere.exe' is not recognized`.
 
-Scene documents ship compact and gzipped, and the texture map ships compact. A publish holds no `.pdb`. A NativeAOT publish defaults
+Scene documents ship compact and gzipped, and the texture map ships compact. A publish gzips each document at the smallest size, and any other build at the fastest level. A publish holds no `.pdb`. A NativeAOT publish defaults
 `StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`, which a project can set back. Its
 symbols go to `CapsuleSymbolsDirectory`, beside the publish directory. A crash log's frames then read
 `MyGame!<BaseAddress>+0x296cd`. To decode one, copy the shipped executable into the symbols directory and
@@ -286,9 +286,9 @@ and a transparent icon looks black-backed there.
 ## The build project
 
 The build project is a console app whose `Program.cs` configures `CapsuleBuild` and runs it. Every build of
-the logic project builds it first and runs it once, from the logic project's directory, over the list of
-every file under `Assets/`. The run writes what the game ships and the `CapsuleAssets` it compiles. Game-wide
-build configuration lives on `CapsuleBuild`, and its XML documentation is the reference:
+the logic project builds it first and runs it once, from the logic project's directory. The run reads every
+file under `Assets/` and writes what the game ships and the `CapsuleAssets` it compiles. Game-wide build
+configuration lives on `CapsuleBuild`, and its XML documentation is the reference:
 
 ```csharp
 using Capsule.Build;
@@ -303,26 +303,36 @@ return CapsuleBuild.Configure(args)
 `WithTileSize` requires every tile map in every scene document to use tiles of that many pixels. A game with
 no one tile size leaves it unset.
 
+The run reuses what it derived before. Each import, texture, atlas, sound, sheet, font, shader and scene runs
+again only when the content of a file it reads, its resolved settings, the code that derives it or the .NET runtime changed,
+or a file it shipped is gone or rewritten. A checkout that moves write times and changes no byte derives
+nothing. The cache is `obj/capsule/derivation-cache.json`, or `obj/capsule-shipping/` for a publish, plain
+JSON naming each derivation's inputs and settings. `dotnet clean` clears it. Derivations within a step run in parallel, and the output and every
+reported line are the same whatever order they finish in.
+
 ### Writing an importer
 
 An importer turns an editor's own format into files Capsule reads as though they were authored. It
 implements `IAssetImporter`: the extensions it claims, and an `Import` method the build calls once per
-claimed source. A claimed source is never read as an asset. Claiming an extension a Capsule asset type
-reads, or one another importer claims, fails `AddImporter` naming the fix. The XML documentation on
-`IAssetImporter` shows one.
+claimed source, concurrently across sources. An importer keeps no mutable state between calls. A claimed
+source is never read as an asset. Claiming an extension a Capsule asset type reads, or one another importer
+claims, fails `AddImporter` naming the fix. The XML documentation on `IAssetImporter` shows one.
 
 `AssetImportContext` names the source relative to the logic project's directory, the asset root and the source's
-path below it, and the configured tile size. An importer reads what it needs from the logic project's directory,
-such as the tilesets a map names. It writes each output by its path below the asset root, and never
-chooses a disk location. Each output keys and ships as an authored file at that path would, of whatever
-kind. A key an authored file already claims fails the build naming both, as does an output two sources
-write. A publish imports no source under a
+path below it, and the configured tile size. An importer reads every file it needs through the context's
+`ReadAllBytes` or `ReadAllText`, such as the tilesets a map names, and asks whether a file exists through
+its `Exists`. It writes each output through the context's `Write` by its path below the asset root, and
+never chooses a disk location. Each output keys and ships as an authored file at that
+path would, of whatever kind. A key an authored file already claims fails the build naming both, as does an
+output two sources write. A publish imports no source under a
 [development-only directory](#development-only-directories), and leaves out an output written under one.
 
 An importer throws `FormatException` or an `IOException` for a defect in its source. The build reports the
 message against the source and still builds every other source. Any other exception stops the build as a
-bug. Every run imports every claimed source again into `obj/capsule/imported/`, or `obj/capsule-shipping/imported/` for a publish, which it deletes first. A
-change to any file under `Assets/`, or to the build project, reruns the build.
+bug. A source imports again when a file it read or probed through the context changed, appeared or was deleted, when an output
+it wrote is gone, or when the importer's build or the tile size changed. The build cannot see a file the
+importer reads any other way. Outputs land in `obj/capsule/imported/`, or `obj/capsule-shipping/imported/`
+for a publish, and the run deletes any file there that no source imports now.
 
 ## A private platform module
 

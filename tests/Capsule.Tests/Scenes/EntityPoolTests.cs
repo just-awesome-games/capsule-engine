@@ -126,6 +126,21 @@ public sealed class EntityPoolTests
         Assert.Equal(frame.Position, frame.PreviousPosition);
     }
 
+    // The join's no-interpolation start is where the entity's own start hook left it, not where it
+    // joined.
+    [Fact]
+    public void AnEntityAddedDuringAStep_DrawsItsFirstFrameWhereItsStartLeftIt()
+    {
+        SceneFixtures.HookScene scene = new(step: static (Scene host, in StepContext _) => host.Add(new PlacedOnStart()));
+        using SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+
+        SpriteIntent frame = Assert.Single(simulation.View.Sprites.ToArray());
+        Assert.Equal(PlacedOnStart.Placed, frame.Position);
+        Assert.Equal(frame.Position, frame.PreviousPosition);
+    }
+
     [Fact]
     public void AReusedEntitysSpriteAnimatorAndParticleEmitter_ReadAsFresh()
     {
@@ -164,6 +179,17 @@ public sealed class EntityPoolTests
         internal Sprited()
             : base(Vector2.Zero) =>
             Add(new SpriteRenderer(SceneFixtures.Frame(4, 4)));
+    }
+
+    private sealed class PlacedOnStart : Entity
+    {
+        internal static readonly Vector2 Placed = new(60f, -20f);
+
+        internal PlacedOnStart()
+            : base(Vector2.Zero) =>
+            Add(new SpriteRenderer(SceneFixtures.Frame(4, 4)));
+
+        protected internal override void OnStart() => Position = Placed;
     }
 
     private sealed class Animated : Entity

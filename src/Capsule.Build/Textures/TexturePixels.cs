@@ -1,6 +1,5 @@
 using Capsule.Assets;
 using StbImageSharp;
-using StbImageWriteSharp;
 
 namespace Capsule.Build.Textures;
 
@@ -12,12 +11,7 @@ internal static class TexturePixels
 
     /// <summary>Encodes texels as a PNG into <paramref name="destination"/>, straight-alpha RGBA8 at four channels and 8-bit greyscale at one.</summary>
     internal static void Encode(byte[] texels, int width, int height, Stream destination, int channels = 4) =>
-        new ImageWriter().WritePng(
-            texels,
-            width,
-            height,
-            channels == 1 ? StbImageWriteSharp.ColorComponents.Grey : StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha,
-            destination);
+        PngWriter.Write(texels, width, height, channels, destination);
 
     /// <summary>A texture's texels in its format: RGBA8 as authored, or an r8 texture's one channel.</summary>
     /// <exception cref="FormatException">The file cannot be read or decoded, or an r8 source is of a kind with no single channel.</exception>
@@ -31,7 +25,7 @@ internal static class TexturePixels
                 return SingleChannelPng.Read(file);
             }
 
-            ImageResult image = ImageResult.FromMemory(file, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+            ImageResult image = ImageResult.FromMemory(file, ColorComponents.RedGreenBlueAlpha);
 
             return new Texels(image.Data, image.Width, image.Height, 4);
         }

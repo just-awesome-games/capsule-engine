@@ -7,9 +7,6 @@ namespace Capsule.Generators;
 // Keys every entity class, refuses faulted and colliding claims, and reports each refusal.
 internal static class EntityResolver
 {
-    // Entity keys drop this namespace segment, since it repeats the domain.
-    private const string DomainSegment = "Entities";
-
     internal static EntityPlan Resolve(EntityInputs inputs)
     {
         if (!inputs.IsLogicAssembly)
@@ -85,7 +82,7 @@ internal static class EntityResolver
     // The key comes from where the type is declared, so it is not settled until the assembly's root
     // namespace is known. An explicit [SpawnType] names the full key under the same grammar.
     private static string KeyOf(EntityModel model, string rootNamespace) =>
-        model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+        model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
 
     // One lookup per asset type an authored member takes, in PropertyForms.Assets order, keyed as the build declared each asset.
     private static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, AssetTable assets) =>

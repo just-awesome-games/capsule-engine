@@ -9,13 +9,6 @@ namespace Capsule.Generators;
 // baseScene and its camera, and reports each refusal.
 internal static class SceneResolver
 {
-    // A baseScene key drops this namespace segment, since it repeats the domain. A class claiming a
-    // document keeps it: its namespace under the root is the document's path under Assets/.
-    private const string DomainSegment = "Scenes";
-
-    // Camera keys drop this namespace segment instead, since it repeats theirs.
-    private const string CameraDomainSegment = "Cameras";
-
     internal static ScenePlan Resolve(SceneInputs inputs)
     {
         if (!inputs.IsLogicAssembly)
@@ -109,7 +102,7 @@ internal static class SceneResolver
         // meets the document at the key it ships under.
         string? documentName = model.Declared is { } declared
             ? Normalized(diagnostics, model, declared)
-            : TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, domainSegment: string.Empty);
+            : TypeNaming.DocumentKeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
 
         if (documentName is null)
         {
@@ -162,7 +155,7 @@ internal static class SceneResolver
                 continue;
             }
 
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
             if (keyed.TryGetValue(key, out SceneModel claimed))
             {
                 diagnostics.Add(Diagnostic.Create(
@@ -180,7 +173,7 @@ internal static class SceneResolver
                 continue;
             }
 
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, DomainSegment);
+            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
             if (!keyed.ContainsKey(key))
             {
                 keyed.Add(key, model);
@@ -203,7 +196,7 @@ internal static class SceneResolver
         Dictionary<string, CameraModel> keyed = new(StringComparer.Ordinal);
         foreach (CameraModel model in ordered)
         {
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace, CameraDomainSegment);
+            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
             if (keyed.TryGetValue(key, out CameraModel claimed))
             {
                 diagnostics.Add(Diagnostic.Create(

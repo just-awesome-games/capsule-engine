@@ -76,7 +76,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-## StbImageWriteSharp
-
-StbImageWriteSharp version 1.16.7, a C# port of `stb_image_write.h`, is used by `JAG.Capsule.Build` to encode atlas pages. Its authors distribute it as public domain.

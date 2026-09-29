@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Drivers;
@@ -80,12 +79,11 @@ internal static class Suite
             Console.WriteLine(Summary(workload));
         }
 
-        string sourceDirectory = SourceDirectory();
         SuiteRecord record = new(
-            started.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            Records.Timestamp(started),
             label,
             uncapped,
-            Machine.Commit(sourceDirectory),
+            Machine.Commit(Records.SourceDirectory()),
             Machine.Configuration,
             Machine.Os,
             Machine.Cpu(),
@@ -93,8 +91,7 @@ internal static class Suite
             Machine.EngineVersion(),
             workloads);
 
-        string path = Path.Combine(sourceDirectory, "results", started.ToString("yyyy-MM-dd'T'HH-mm-ss'Z'", CultureInfo.InvariantCulture) + ".json");
-        record.Save(path);
+        string path = Records.Save(record, started);
         Console.WriteLine($"bench: wrote {path}");
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"bench: {Stopwatch.GetElapsedTime(startedAt).TotalSeconds:F1} s for {workloads.Count} workloads"));
 
@@ -223,9 +220,6 @@ internal static class Suite
             ? string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} intervalMs max={interval.Max:F3} gen0={workload.Gen0Collections}")
             : string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} gen0={workload.Gen0Collections}");
 
-    // Beside this source file wherever the suite is run from, so the record lands where it is committed.
-    private static string SourceDirectory([CallerFilePath] string source = "") => Path.GetDirectoryName(source)!;
-
     // One row of the CSV FrameDiagnostics writes, after its commented boot trace and header.
     private readonly record struct FrameRow(double IntervalMs, double DrawMs, int Gen0)
     {
@@ -247,22 +241,6 @@ internal static class Suite
             }
 
             return rows;
-        }
-    }
-
-    // Nearest-rank percentiles over the sorted values, rounded to microseconds; an even count's
-    // median is the mean of its two middle values.
-    private readonly record struct Percentiles(double Median, double P95, double Max)
-    {
-        internal static Percentiles Of(double[] values)
-        {
-            Array.Sort(values);
-
-            int count = values.Length;
-            double median = count % 2 == 1 ? values[count / 2] : (values[(count / 2) - 1] + values[count / 2]) / 2d;
-            double p95 = values[Math.Max(0, (int)Math.Ceiling(0.95 * count) - 1)];
-
-            return new Percentiles(Math.Round(median, 3), Math.Round(p95, 3), Math.Round(values[^1], 3));
         }
     }
 }

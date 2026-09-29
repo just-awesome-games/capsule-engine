@@ -5,9 +5,10 @@ namespace Capsule.Tests.Generators;
 
 /// <summary>
 /// Where a type is declared is the key it claims: its namespace under the assembly's root, minus a
-/// folder repeating the type's own name. An entity's key drops an <c>Entities</c> segment, which only
-/// says which registry it is in. A scene claims the document at its namespace's path under
-/// <c>Assets/</c>, so <c>Game.Scenes.Room</c> composes <c>Assets/Scenes/room.scene.json</c>.
+/// folder repeating the type's own name. An entity, camera or baseScene key drops a leading
+/// <c>Entities</c>, <c>Cameras</c> or <c>Scenes</c> segment, whichever kind the type is. A scene claims
+/// the document at its namespace's path under <c>Assets/</c>, so <c>Game.Scenes.Room</c> composes
+/// <c>Assets/Scenes/room.scene.json</c>.
 /// </summary>
 public sealed class RegistryKeyTests
 {
@@ -17,6 +18,8 @@ public sealed class RegistryKeyTests
     [InlineData("Game.Entities.Enemies", "Bat", "enemies/bat")]
     [InlineData("Game.Entities.Enemies.Cave", "Bat", "enemies/cave/bat")]
     [InlineData("Game", "Player", "player")]
+    [InlineData("Game.Cameras", "CameraStart", "camera-start")]
+    [InlineData("Game.Scenes.Doors", "Door", "doors/door")]
     public void AnEntity_ClaimsTheKeyItsNamespaceNames(string space, string type, string key)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""
@@ -53,6 +56,62 @@ public sealed class RegistryKeyTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             $"\"{key}\"",
+            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile),
+            StringComparison.Ordinal);
+    }
+
+    // Every kind drops any of the three domain segments, so a class filed under another kind's
+    // folder claims the same key as one filed under its own, and the pair is refused naming both.
+    [Theory]
+    [InlineData("public sealed class Bat(EntitySpawn spawn) : Entity(spawn);", "CAP003")]
+    [InlineData("public sealed class Bat : Camera;", "CAP031")]
+    public void TwoClassesClaimingOneKeyAcrossDomainSegments_FailTheBuildNamingBoth(string declaration, string id)
+    {
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileIn("Game", $$"""
+            using Capsule.Scenes;
+            using Capsule.Scenes.Spawning;
+
+            namespace Game.Cameras
+            {
+                {{declaration}}
+            }
+
+            namespace Game.Entities
+            {
+                {{declaration}}
+            }
+            """).Diagnostics;
+
+        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal(id, collision.Id);
+
+        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Contains("Game.Cameras.Bat", message, StringComparison.Ordinal);
+        Assert.Contains("Game.Entities.Bat", message, StringComparison.Ordinal);
+        Assert.Contains("'bat'", message, StringComparison.Ordinal);
+    }
+
+    // A baseScene drops the other kinds' segments too, so a base filed beside the entities or cameras
+    // still serves the document naming it by its unprefixed key.
+    [Theory]
+    [InlineData("Game.Entities")]
+    [InlineData("Game.Cameras")]
+    public void ABaseSceneUnderAnotherKindsSegment_ServesTheDocumentNamingItsUnprefixedKey(string space)
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn(
+            "Game",
+            $$"""
+            using Capsule.Scenes;
+
+            namespace {{space}};
+
+            public abstract class PlayableRoom(SceneContent content) : Scene(content);
+            """,
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 7, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Contains(
+            $"global::{space}.PlayableRoom",
             GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile),
             StringComparison.Ordinal);
     }

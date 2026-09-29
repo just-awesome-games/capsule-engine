@@ -12,7 +12,7 @@ namespace MinimalGame.Game.Entities;
 /// <param name="LifetimeTicks">Fixed steps the bolt lives before it is removed, whatever it met;
 /// with <paramref name="Speed"/> this is its range. Raise it to cross the whole room, lower it for a
 /// short-range spit.</param>
-/// <param name="Size">The bolt's extent in world units, drawn as a flat tinted rect. Wider reads as
+/// <param name="Size">The bolt's extent in world units, drawn as a soft tinted glow. Wider reads as
 /// a beam, taller as a shell.</param>
 /// <param name="Tint">The colour the bolt is drawn in.</param>
 public readonly record struct BoltTuning(
@@ -25,6 +25,6 @@ public readonly record struct BoltTuning(
     public static readonly BoltTuning Default = new(
         Speed: 240f,
         LifetimeTicks: 30,
-        Size: new Vector2(4f, 2f),
+        Size: new Vector2(8f, 4f),
         Tint: ColorRgba.FromHex("#ffe040"));
 }

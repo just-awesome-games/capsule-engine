@@ -1,3 +1,5 @@
+using Capsule.Build.Caching;
+
 namespace Capsule.Build.Sheets;
 
 /// <summary>
@@ -6,28 +8,28 @@ namespace Capsule.Build.Sheets;
 /// </summary>
 internal static class SheetStep
 {
-    internal static void Run(BuildPass pass)
+    private const string Step = "sheets";
+
+    internal static void Run(PipelinePass pass)
     {
         foreach ((Source sheet, Sheet document) in pass.Each(
+            Step,
             pass.Of(AssetType.Sheets),
-            source =>
-            {
-                Sheet sheet = SheetFile.Read(source.Path);
-
-                // Resolved by key against what the build ships, and carrying the shipped extension,
-                // however the sheet spelled it.
-                if (!pass.Textures.TryGetValue(sheet.TextureKey, out Source texture))
-                {
-                    throw new FormatException(
-                        $"cuts from texture \"{sheet.TextureKey}{sheet.TextureExtension}\", which this game does not ship. Author it at Assets/{sheet.TextureKey}{sheet.TextureExtension}.");
-                }
-
-                pass.Progress("sheets", source);
-
-                return sheet with { TextureExtension = texture.Extension };
-            }))
+            source => Derivation.Of(source),
+            (source, _) => SheetFile.Read(source.Path),
+            DerivationCacheJsonContext.Default.Sheet))
         {
-            pass.Declare(sheet, document, SheetMembers.Write);
+            // Resolved by key against what the build ships, and carrying the shipped extension,
+            // however the sheet spelled it. Checked on every run, since the texture is not the sheet's.
+            if (!pass.Textures.TryGetValue(document.TextureKey, out Source texture))
+            {
+                pass.Fail(
+                    sheet.Path,
+                    $"cuts from texture \"{document.TextureKey}{document.TextureExtension}\", which this game does not ship. Author it at Assets/{document.TextureKey}{document.TextureExtension}.");
+                continue;
+            }
+
+            pass.Declare(sheet, document with { TextureExtension = texture.Extension }, SheetMembers.Write);
         }
     }
 }

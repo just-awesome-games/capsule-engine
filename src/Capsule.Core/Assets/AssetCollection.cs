@@ -16,6 +16,10 @@ public sealed class AssetCollection
     private readonly List<Shader> _shaders = [];
     private readonly HashSet<Shader> _shaderSet = [];
 
+    // Set on a collection gathered only to read, as Scene.CollectPreloads and a pool's first-take check
+    // gather one. Collecting a pool into it does not forward the pool.
+    internal bool IsProbe { get; init; }
+
     /// <summary>
     /// Adds one texture unless it was already declared. The engine's own textures, the white texel and
     /// the default font's page, belong to the host and are ignored here.
@@ -63,6 +67,15 @@ public sealed class AssetCollection
         }
     }
 
+    /// <summary>Whether this collection declares <paramref name="texture"/>.</summary>
+    public bool Contains(TextureHandle texture) => _textureSet.Contains(texture);
+
+    /// <summary>Whether this collection declares <paramref name="clip"/>.</summary>
+    public bool Contains(AudioClip clip) => _clipSet.Contains(clip);
+
+    /// <summary>Whether this collection declares <paramref name="shader"/>, which a renderer's material adds.</summary>
+    public bool Contains(Shader shader) => _shaderSet.Contains(shader);
+
     // Every texture and clip another collection holds, in its order.
     internal void Add(AssetCollection other)
     {
@@ -92,6 +105,28 @@ public sealed class AssetCollection
             {
                 Add(texture);
             }
+        }
+    }
+
+    // Whether preloading this collection would load anything. A streamed clip loads nothing ahead.
+    internal bool HoldsPreloads
+    {
+        get
+        {
+            if (_textures.Count > 0 || _shaders.Count > 0)
+            {
+                return true;
+            }
+
+            foreach (AudioClip clip in _clips)
+            {
+                if (!clip.IsStreamed)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 

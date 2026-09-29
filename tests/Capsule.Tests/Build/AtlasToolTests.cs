@@ -4,8 +4,8 @@ using Capsule.Tests.Documents;
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// The atlas pass inside one run: what it ships in place of its members, what its stamps let a
-/// second run skip, how a config or atlas file edit repacks, and the texels a page holds.
+/// The atlas pass inside one run: what it ships in place of its members, which edits repack which
+/// atlas, and the texels a page holds.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class AtlasToolTests
@@ -40,25 +40,16 @@ public sealed class AtlasToolTests
         workspace.Write("Assets/actors.atlas.json", "{}");
         workspace.Write("Assets/world.atlas.json", "{}");
         workspace.Succeed();
-        string map = File.ReadAllText(Map);
-
-        workspace.Succeed();
-
-        Assert.Contains("atlas actors: up to date", workspace.Output, StringComparison.Ordinal);
-        Assert.Contains("atlas world: up to date", workspace.Output, StringComparison.Ordinal);
-        Assert.Equal(map, File.ReadAllText(Map));
 
         workspace.WritePng("Assets/hero.png", 4, 3, seed: 7);
         workspace.Succeed();
 
-        Assert.Contains("atlas actors: 1 texture(s) packed", workspace.Output, StringComparison.Ordinal);
-        Assert.Contains("atlas world: up to date", workspace.Output, StringComparison.Ordinal);
+        Assert.Equal(["atlases: Assets/actors.atlas.json"], workspace.Built);
 
         workspace.Write("Assets/world.atlas.json", """{ "maxSize": 2048 }""");
         workspace.Succeed();
 
-        Assert.Contains("atlas actors: up to date", workspace.Output, StringComparison.Ordinal);
-        Assert.Contains("atlas world: 1 texture(s) packed", workspace.Output, StringComparison.Ordinal);
+        Assert.Equal(["atlases: Assets/world.atlas.json"], workspace.Built);
     }
 
     [Fact]
@@ -77,8 +68,7 @@ public sealed class AtlasToolTests
         workspace.Write("Assets/crate.png.config.json", """{ "atlas": "world" }""");
         workspace.Succeed();
 
-        Assert.Contains("atlas actors: 1 texture(s) packed", workspace.Output, StringComparison.Ordinal);
-        Assert.Contains("atlas world: 2 texture(s) packed", workspace.Output, StringComparison.Ordinal);
+        Assert.Equal(["atlases: Assets/actors.atlas.json", "atlases: Assets/world.atlas.json"], workspace.Built);
     }
 
     // A page holds one format and one sampling, so a draw never splits for sampling inside a page.

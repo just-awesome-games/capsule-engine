@@ -23,6 +23,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     // The prefetch no boundary has consumed yet, which a repeat of it leaves alone.
     private SceneTransition? _prefetched;
+
+    // The initial scene's collection, taken before it started and held until a device can load it.
+    private AssetCollection? _initialPreloads;
     private bool _disposed;
 
     internal SceneHost(
@@ -48,7 +51,30 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         onRunStart?.Invoke(run);
 
-        _current = new SceneSimulation(resolve(initialTarget), initialTarget.Payload, _run);
+        // Collected before the start, as a transition collects its incoming scene.
+        Scene initial = resolve(initialTarget);
+        try
+        {
+            _initialPreloads = initial.CollectAssetPreloads();
+        }
+        catch (Exception collectionFailure)
+        {
+            try
+            {
+                initial.Abandon();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    $"Collecting {initial.GetType().Name}'s assets and then releasing it both failed.",
+                    collectionFailure,
+                    cleanupFailure);
+            }
+
+            throw;
+        }
+
+        _current = new SceneSimulation(initial, initialTarget.Payload, _run);
     }
 
     public bool ExitRequested { get; private set; }
@@ -142,6 +168,18 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
             default:
                 throw new InvalidOperationException($"Unknown scene transition kind '{transition.Kind}'.");
+        }
+    }
+
+    // Loads the initial scene's pre-start collection through PrepareAssets, once. The initial scene
+    // started before the device existed.
+    internal void PrepareInitialAssets()
+    {
+        AssetCollection? preloads = _initialPreloads;
+        _initialPreloads = null;
+        if (preloads is not null)
+        {
+            PrepareAssets?.Invoke(preloads);
         }
     }
 
@@ -284,7 +322,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         try
         {
-            PrepareAssets?.Invoke(next.CollectAssetPreloads());
+            // Collected under every host. Only the loading needs a device.
+            AssetCollection preloads = next.CollectAssetPreloads();
+            PrepareAssets?.Invoke(preloads);
         }
         catch (Exception preparationFailure)
         {

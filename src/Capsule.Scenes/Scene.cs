@@ -72,6 +72,9 @@ public class Scene
     // Every texture and sound the document's placements author, which the preload collects. Null for a scene built in code.
     private readonly AssetCollection? _authoredAssets;
 
+    // Whether a preload collection has run. Start runs one first when no host did.
+    private bool _preloadsCollected;
+
     // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
     // own randomness stream. A new scene instance starts at 0.
     private ulong _nextParticleStream;
@@ -504,9 +507,36 @@ public class Scene
         ArgumentNullException.ThrowIfNull(assets);
     }
 
+    /// <summary>
+    /// Returns a new collection of every asset this scene and its entities declare now, as the scene
+    /// boundary would preload them.
+    /// </summary>
+    /// <remarks>
+    /// A scene read before it starts reports what its boundary loads. The read runs the
+    /// <c>CollectAssets</c> hooks, loads nothing and counts as no pool's forwarding.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Assert.True(new Room().CollectPreloads().Contains(CapsuleAssets.Textures.BoltTexture));
+    /// </code>
+    /// </example>
+    public AssetCollection CollectPreloads()
+    {
+        AssetCollection assets = new() { IsProbe = true };
+        Collect(assets);
+        return assets;
+    }
+
     internal AssetCollection CollectAssetPreloads()
     {
+        _preloadsCollected = true;
         AssetCollection assets = new();
+        Collect(assets);
+        return assets;
+    }
+
+    private void Collect(AssetCollection assets)
+    {
         CollectAssets(assets);
         if (_authoredAssets is { } authored)
         {
@@ -517,8 +547,6 @@ public class Scene
         {
             entity.CollectAssetPreloads(assets);
         }
-
-        return assets;
     }
 
     internal void Start(object? entryPayload)
@@ -534,6 +562,13 @@ public class Scene
 
         // The game default fills in behind the scene's own setting.
         _sampling ??= Run.Sampling;
+
+        // A host with nothing to load still collects. Forwarding a pool is recorded before any start
+        // hook can take from it.
+        if (!_preloadsCollected)
+        {
+            CollectAssetPreloads();
+        }
 
         // Attach everything composed at construction before any of it starts.
         StartPending();
@@ -991,6 +1026,16 @@ public class Scene
                     if (Contains(pending))
                     {
                         pending.RunStart();
+                    }
+                }
+
+                // A join never interpolates, and that holds for wherever the batch's start hooks left
+                // each entity. The whole batch has started, so a start that moved a peer is covered too.
+                for (int index = 0; index < processed; index++)
+                {
+                    if (Contains(_pendingStarts[index]))
+                    {
+                        _pendingStarts[index].SavePrevious();
                     }
                 }
             }

@@ -28,16 +28,22 @@ public static class RoomFixture
 
     public static SimulationHost Simulate()
     {
+        Run run = new();
+        GameBoot.Start(run);
+
+        return new SimulationHost(Compose(), run: run);
+    }
+
+    // The room as the scene boundary receives it, composed and not yet started.
+    public static PlayableScene Compose()
+    {
         SceneDocument document;
         using (StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, RoomDocument)), CompressionMode.Decompress)))
         {
             document = SceneDocumentFile.Parse(inflated.ReadToEnd());
         }
 
-        Run run = new();
-        GameBoot.Start(run);
-
-        return new SimulationHost(new TestRoom(new SceneContent(document, CapsuleEntities.Registry)), run: run);
+        return new TestRoom(new SceneContent(document, CapsuleEntities.Registry));
     }
 
     public static Player PlayerOf(SimulationHost room)

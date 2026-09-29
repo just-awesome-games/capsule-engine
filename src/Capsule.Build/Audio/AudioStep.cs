@@ -1,3 +1,4 @@
+using Capsule.Build.Caching;
 using Capsule.Build.Registry;
 
 namespace Capsule.Build.Audio;
@@ -9,18 +10,22 @@ namespace Capsule.Build.Audio;
 /// </summary>
 internal static class AudioStep
 {
-    internal static void Run(BuildPass pass)
+    private const string Step = "audio";
+
+    internal static void Run(PipelinePass pass)
     {
         foreach ((Source clip, AudioProbe.Measurement measured) in pass.Each(
+            Step,
             pass.Of(AssetType.Audio),
-            source =>
+            source => Derivation.Of(source),
+            (source, files) =>
             {
                 AudioProbe.Measurement measured = AudioProbe.Measure(source.Path);
-                pass.Shipped.Copy(source.Path, source.Key + source.Extension);
-                pass.Progress("audio", source);
+                files.Copy(source.Path, source.Key + source.Extension);
 
                 return measured;
-            }))
+            },
+            DerivationCacheJsonContext.Default.Measurement))
         {
             pass.Beside(GeneratedAttributes.Asset);
             pass.Declare(clip, measured, AudioMembers.Write);

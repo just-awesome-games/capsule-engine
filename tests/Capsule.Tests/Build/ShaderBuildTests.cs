@@ -31,15 +31,13 @@ public sealed class ShaderBuildTests
         }
         """;
 
-    private static readonly ShaderTools Tools = new(Metadata("CapsuleDxc"), Metadata("CapsuleSpirvCross"));
-
     [Fact]
     public void AShader_ShipsCompiled_WithItsParameterTableInTheGeneratedKey()
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Shaders/Effects/Stone.fx", Stone);
 
-        workspace.Succeed(ToolsLine);
+        workspace.Succeed();
 
         Assert.Contains(
             """new global::Capsule.Rendering.Shader("shaders/effects/stone", new global::Capsule.Rendering.ShaderParameter("Amount", global::Capsule.Rendering.ShaderParameterKind.Float), new global::Capsule.Rendering.ShaderParameter("Scroll", global::Capsule.Rendering.ShaderParameterKind.Vector2), new global::Capsule.Rendering.ShaderParameter("Stain", global::Capsule.Rendering.ShaderParameterKind.Vector3), new global::Capsule.Rendering.ShaderParameter("Glow", global::Capsule.Rendering.ShaderParameterKind.Vector4), new global::Capsule.Rendering.ShaderParameter("Grain", global::Capsule.Rendering.ShaderParameterKind.Texture));""",
@@ -56,7 +54,7 @@ public sealed class ShaderBuildTests
 
         Assert.Contains(
             "Assets/Shaders/broken.fx(3,26): error : use of undeclared identifier 'Glow'",
-            workspace.Fail(ToolsLine),
+            workspace.Fail(),
             StringComparison.Ordinal);
     }
 
@@ -68,7 +66,7 @@ public sealed class ShaderBuildTests
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("stone.fx", ShaderTemplate.Compose(Stone, "stone.fx"));
 
-        ShaderCompilation compiled = ShaderCompiler.Compile(Tools, "stone.fx");
+        ShaderCompilation compiled = ShaderCompiler.Compile(ToolWorkspace.ShaderTools, "stone.fx");
         byte[] effect = Assert.IsType<byte[]>(compiled.Effect);
 
         Type type = Type.GetType("Microsoft.Xna.Framework.Graphics.Effect, MonoGame.Framework", throwOnError: true)!;
@@ -95,9 +93,9 @@ public sealed class ShaderBuildTests
         using SceneDocumentFixtures.Workspace workspace = new();
         workspace.Write("capsule-sprite.fx", ShaderTemplate.ComposeDefault());
 
-        byte[] effect = Assert.IsType<byte[]>(ShaderCompiler.Compile(Tools, "capsule-sprite.fx").Effect);
+        byte[] effect = Assert.IsType<byte[]>(ShaderCompiler.Compile(ToolWorkspace.ShaderTools, "capsule-sprite.fx").Effect);
 
-        string committed = Metadata("CapsuleSpriteShader");
+        string committed = ToolWorkspace.Metadata("CapsuleSpriteShader");
         if (Environment.GetEnvironmentVariable("CAPSULE_UPDATE_ENGINE_SHADER") == "1")
         {
             File.WriteAllBytes(committed, effect);
@@ -108,9 +106,4 @@ public sealed class ShaderBuildTests
             $"'{committed}' is not what the default template compiles to. The template, the shader compiler code or a shader tool version changed. "
                 + "Rerunning this test with CAPSULE_UPDATE_ENGINE_SHADER=1 rewrites the file. Review it and commit it.");
     }
-
-    private static string ToolsLine => $"shader-tools|{Tools.Dxc}|{Tools.SpirvCross}";
-
-    private static string Metadata(string key) =>
-        typeof(ShaderBuildTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(attribute => attribute.Key == key).Value!;
 }

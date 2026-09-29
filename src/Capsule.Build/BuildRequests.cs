@@ -1,58 +1,50 @@
+using System.IO.Enumeration;
 using Capsule.Build.Shaders;
 
 namespace Capsule.Build;
 
 /// <summary>
-/// The manifest the targets write and a run reads, one <c>kind|value...</c> line each:
-/// <c>root|&lt;dir&gt;</c>, <c>shader-tools|&lt;dxc&gt;|&lt;spirv-cross&gt;</c>, <c>shipping|true</c> or
-/// <c>shipping|false</c>, then one <c>asset|&lt;path&gt;</c> per file under the asset root. The targets rewrite
-/// it whenever the set of files or an option changes, which makes it the run's incremental input.
+/// What one run builds: every file under the asset root, walked by the run itself, and the options the
+/// targets passed on its command line.
 /// </summary>
 /// <param name="AssetRoot">The authoring tree, <c>Assets/</c>, relative to the working directory.</param>
-/// <param name="ShaderTools">The shader tools the build downloaded, or null when the game has no shader.</param>
-/// <param name="Shipping">Whether the build is a publish, which leaves out every development-only source. False when the manifest does not say.</param>
-/// <param name="Sources">Every source, in the order the targets wrote them, then every file an importer wrote.</param>
-internal sealed record BuildRequests(string AssetRoot, ShaderTools? ShaderTools, bool Shipping, IReadOnlyList<Request> Sources)
+/// <param name="ShaderTools">The shader tools the build restored.</param>
+/// <param name="Shipping">Whether the build is a publish, which leaves out every development-only source.</param>
+/// <param name="Sources">Every file under the asset root in ordinal path order, then every file an importer wrote.</param>
+internal sealed record BuildRequests(string AssetRoot, ShaderTools ShaderTools, bool Shipping, IReadOnlyList<Request> Sources)
 {
-    /// <summary>Reads the manifest at <paramref name="path"/>.</summary>
-    /// <exception cref="FormatException">A line is of no kind the manifest declares, or states no value.</exception>
-    internal static BuildRequests Read(string path)
+    // Every file, hidden and system files included.
+    private static readonly EnumerationOptions Everything = new()
     {
-        string root = string.Empty;
-        ShaderTools? tools = null;
-        bool shipping = false;
+        RecurseSubdirectories = true,
+        AttributesToSkip = 0,
+        IgnoreInaccessible = false,
+    };
+
+    /// <summary>Walks every file under <paramref name="assetRoot"/>, which may not exist.</summary>
+    internal static BuildRequests Walk(string assetRoot, ShaderTools shaderTools, bool shipping)
+    {
+        string root = Relative(assetRoot);
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(assetRoot));
         List<Request> sources = [];
-
-        foreach (string line in File.ReadAllLines(path))
+        if (Directory.Exists(full))
         {
-            if (line.Trim().Length == 0)
+            // Each path is the root as the working directory reaches it, then the path below it as the disk spells it.
+            FileSystemEnumerable<Request> files = new(
+                full,
+                (ref FileSystemEntry entry) => new Request(
+                    string.Concat(root, entry.Directory[full.Length..].ToString().Replace('\\', '/'), "/", entry.FileName),
+                    entry.Length,
+                    entry.LastWriteTimeUtc.UtcDateTime),
+                Everything)
             {
-                continue;
-            }
-
-            switch (line.Split('|'))
-            {
-                case ["root", string directory]:
-                    root = Relative(directory);
-                    break;
-                case ["shader-tools", string dxc, string spirvCross]:
-                    tools = new ShaderTools(dxc, spirvCross);
-                    break;
-                case ["shipping", string declared]:
-                    shipping = bool.TryParse(declared, out bool value)
-                        ? value
-                        : throw new FormatException(
-                            $"declares shipping as \"{declared}\". The shipping record is true or false.");
-                    break;
-                case ["asset", string asset]:
-                    sources.Add(new Request(Relative(asset)));
-                    break;
-                default:
-                    throw new FormatException($"holds the line \"{line}\", which is no kind of line this build reads.");
-            }
+                ShouldIncludePredicate = static (ref FileSystemEntry entry) => !entry.IsDirectory,
+            };
+            sources.AddRange(files);
+            sources.Sort(static (first, second) => string.CompareOrdinal(first.Path, second.Path));
         }
 
-        return new BuildRequests(root, tools, shipping, sources);
+        return new BuildRequests(root, shaderTools, shipping, sources);
     }
 
     // Every path a message names is relative to the project, the working directory, so a build log

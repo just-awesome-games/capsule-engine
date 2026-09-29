@@ -264,4 +264,29 @@ public sealed class KinematicBodyTests
         Assert.False(body.Mover.TestMove(new Vector2(0f, -12f), new Vector2(4f, 0f)));
         Assert.Equal(new Vector2(28f, 24f), body.Position);
     }
+
+    // A surface exactly at MaxFloorAngle is a floor despite the rounding in its normal, and a degree
+    // past it is a wall. Seen from below, the same two angles are a ceiling and a wall.
+    [Theory]
+    [InlineData(40f, -1f, SurfaceKind.Floor)]
+    [InlineData(41f, -1f, SurfaceKind.Wall)]
+    [InlineData(40f, 1f, SurfaceKind.Ceiling)]
+    [InlineData(41f, 1f, SurfaceKind.Wall)]
+    public void ClassifyNormal_CountsASurfaceAtMaxFloorAngleAsAFloorOrCeiling(float degrees, float verticalSign, SurfaceKind expected)
+    {
+        KinematicBody2D body = new(new BoxCollider2D(new Vector2(8f, 8f))) { MaxFloorAngle = 40f };
+        float radians = degrees * (MathF.PI / 180f);
+
+        Assert.Equal(expected, body.ClassifyNormal(new Vector2(MathF.Sin(radians), verticalSign * MathF.Cos(radians))));
+    }
+
+    [Theory]
+    [InlineData(float.NaN, -1f)]
+    [InlineData(0f, float.PositiveInfinity)]
+    public void ClassifyNormal_OfANonFiniteNormal_Throws(float x, float y)
+    {
+        KinematicBody2D body = new(new BoxCollider2D(new Vector2(8f, 8f)));
+
+        Assert.Throws<ArgumentOutOfRangeException>("normal", () => body.ClassifyNormal(new Vector2(x, y)));
+    }
 }

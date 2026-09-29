@@ -1,5 +1,4 @@
-using System.Text;
-using Capsule.Rendering;
+using Capsule.Build.Caching;
 
 namespace Capsule.Build.Shaders;
 
@@ -10,104 +9,78 @@ namespace Capsule.Build.Shaders;
 /// </summary>
 internal static class ShaderStep
 {
+    private const string Step = "shaders";
+
     private const string CompiledExtension = ".mgfx";
 
-    // Beside each composed source it was compiled from, not shipped: the parameter table, one
-    // 'name|kind' per line, which an unchanged source reads back instead of compiling again.
-    private const string ParametersExtension = ".parameters";
+    // Where each composed source is written for the compiler, and deleted once it has compiled.
+    private const string ComposedDirectory = "shaders";
 
-    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
-
-    internal static void Run(BuildPass pass)
+    internal static void Run(PipelinePass pass)
     {
-        List<Source> sources = [.. pass.Of(AssetType.Shaders)];
-        if (sources.Count == 0)
+        ShaderTools tools = pass.Requests.ShaderTools;
+
+        // Each tool's package folder is named for its version.
+        string versions = $"dxc={Path.GetFileName(tools.Dxc)}; spirv-cross={Path.GetFileName(tools.SpirvCross)}";
+        foreach ((Source shader, ShaderFacts compiled) in pass.Each(
+            Step,
+            pass.Of(AssetType.Shaders),
+            source => Derivation.Of(source, versions),
+            (source, files) => Compile(pass, tools, source, files),
+            DerivationCacheJsonContext.Default.ShaderFacts))
         {
-            return;
-        }
-
-        if (pass.Requests.ShaderTools is not { } tools)
-        {
-            pass.Fail(sources[0].Path, "the build named no shader tools. Restore the project, which downloads them for a game with shaders.");
-
-            return;
-        }
-
-        foreach ((Source shader, List<ShaderParameter> parameters) in pass.Each(
-            sources,
-            source =>
+            foreach (ShaderDiagnostic warning in compiled.Warnings)
             {
-                string composed = ShaderTemplate.Compose(File.ReadAllText(source.Path), source.Path);
-                // A compile that failed reported its errors, and the pass leaves it out.
-                if (CompileIfChanged(pass, tools, composed, source) is not { } parameters)
-                {
-                    return [];
-                }
+                pass.Warn(warning.Anchor, warning.Report);
+            }
 
-                pass.Progress("shaders", source);
-
-                return parameters;
-            }))
-        {
-            pass.Declare(shader, parameters, ShaderMembers.Write);
+            pass.Declare(shader, compiled.Parameters, ShaderMembers.Write);
         }
     }
 
-    // The parameter table of the shipped effect, compiled again only when the composed source, this
-    // compiler's build or either tool's version differs from what it was built from. The effect and
-    // its table are written only once a compile succeeds, so a failed one is attempted again by the
-    // next run. Null when it failed, reported.
-    private static List<ShaderParameter>? CompileIfChanged(BuildPass pass, ShaderTools tools, string composed, Source source)
+    // Composes and compiles one shader and ships its effect. A compile that failed reports its errors
+    // and warnings here, and the pass leaves it out.
+    private static ShaderFacts Compile(PipelinePass pass, ShaderTools tools, Source source, DerivedFiles files)
     {
-        string compiledPath = pass.Shipped.Claim(source.Key + CompiledExtension, $"'{source.Path}'");
-        string keptSource = Path.Combine(pass.CacheDirectory("shaders"), source.Key + ".fx");
-        string keptParameters = Path.ChangeExtension(keptSource, ParametersExtension);
-        composed = $"// {typeof(ShaderCompiler).Assembly.ManifestModule.ModuleVersionId} {Path.GetFileName(tools.Dxc)} {Path.GetFileName(tools.SpirvCross)}\n{composed}";
-        if (File.Exists(compiledPath) && File.Exists(keptParameters) && File.Exists(keptSource) && File.ReadAllText(keptSource) == composed)
+        string composed = Path.Combine(pass.OutputDirectory, ComposedDirectory, source.Key + ".fx");
+        Directory.CreateDirectory(Path.GetDirectoryName(composed)!);
+        File.WriteAllText(composed, ShaderTemplate.Compose(File.ReadAllText(source.Path), source.Path));
+
+        ShaderCompilation result;
+        try
         {
-            return [.. File.ReadAllLines(keptParameters).Select(ReadParameter)];
+            result = ShaderCompiler.Compile(tools, composed);
         }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(keptSource)!);
-        File.Delete(compiledPath);
-        File.Delete(keptParameters);
-        File.WriteAllText(keptSource, composed, Utf8NoBom);
-
-        ShaderCompilation result = ShaderCompiler.Compile(tools, keptSource);
-
-        // Each is reported against the line the compiler anchored it to.
-        foreach (ShaderDiagnostic diagnostic in result.Diagnostics)
+        finally
         {
-            if (diagnostic.Warning)
-            {
-                pass.Warn(diagnostic.Anchor, diagnostic.Report);
-            }
-            else
-            {
-                pass.Fail(diagnostic.Anchor, diagnostic.Report);
-            }
+            File.Delete(composed);
         }
 
         if (result.Effect is not { } effect)
         {
+            // Each is reported against the line the compiler anchored it to.
+            foreach (ShaderDiagnostic diagnostic in result.Diagnostics)
+            {
+                if (diagnostic.Warning)
+                {
+                    pass.Warn(diagnostic.Anchor, diagnostic.Report);
+                }
+                else
+                {
+                    pass.Fail(diagnostic.Anchor, diagnostic.Report);
+                }
+            }
+
             if (result.Failure is { } failure)
             {
                 pass.Fail(source.Path, failure);
             }
 
-            return null;
+            return new ShaderFacts([], []);
         }
 
-        File.WriteAllBytes(compiledPath, effect);
-        File.WriteAllLines(keptParameters, result.Parameters.Select(static parameter => $"{parameter.Name}|{parameter.Kind}"));
+        files.Write(source.Key + CompiledExtension, path => File.WriteAllBytes(path, effect));
 
-        return [.. result.Parameters];
-    }
-
-    private static ShaderParameter ReadParameter(string line)
-    {
-        string[] fields = line.Split('|');
-
-        return new ShaderParameter(fields[0], Enum.Parse<ShaderParameterKind>(fields[1]));
+        return new ShaderFacts([.. result.Parameters], [.. result.Diagnostics.Where(static diagnostic => diagnostic.Warning)]);
     }
 }

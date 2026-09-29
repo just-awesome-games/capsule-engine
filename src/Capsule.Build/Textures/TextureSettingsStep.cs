@@ -4,12 +4,12 @@ using Capsule.Build.Configuration;
 namespace Capsule.Build.Textures;
 
 /// <summary>
-/// Reads every <c>.config.json</c> and sets <see cref="BuildPass.TextureSettings"/>, each texture's
+/// Reads every <c>.config.json</c> and sets <see cref="PipelinePass.TextureSettings"/>, each texture's
 /// settings resolved from the engine defaults, the folder files above it and its sidecar.
 /// </summary>
 internal static class TextureSettingsStep
 {
-    internal static void Run(BuildPass pass)
+    internal static void Run(PipelinePass pass)
     {
         // Every asset by its key and extension, which is how a sidecar keys the file it names.
         Dictionary<string, Source> files = pass.Keyed
@@ -104,7 +104,7 @@ internal static class TextureSettingsStep
     }
 
     // Parses a file, and checks a sidecar against the asset file it names and any atlas against the declared ones.
-    private static FolderConfigJson Read(BuildPass pass, Source config, Dictionary<string, Source> files)
+    private static FolderConfigJson Read(PipelinePass pass, Source config, Dictionary<string, Source> files)
     {
         FolderConfigJson file;
         if (IsFolderFile(config))

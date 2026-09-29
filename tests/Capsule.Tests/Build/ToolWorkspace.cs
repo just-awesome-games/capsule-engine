@@ -1,18 +1,23 @@
+using System.Reflection;
 using Capsule.Build;
+using Capsule.Build.Shaders;
 using Capsule.Build.Textures;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// A game's project directory as the build sees it: files authored under <c>Assets/</c>, one run over
-/// the manifest the targets would write for them, and what that run left under <c>obj/capsule/</c>.
+/// A game's project directory as the build sees it: files authored under <c>Assets/</c>, one run on the
+/// command line the targets would pass, and what that run left under <c>obj/capsule/</c>.
 /// </summary>
 internal sealed class ToolWorkspace : IDisposable
 {
     internal const string Out = "obj/capsule";
 
     internal const string Imported = Out + "/imported/";
+
+    /// <summary>The shader tools this test project restored, which every run names as the targets do.</summary>
+    internal static readonly ShaderTools ShaderTools = new(Metadata("CapsuleDxc"), Metadata("CapsuleSpirvCross"));
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
 
@@ -31,8 +36,12 @@ internal sealed class ToolWorkspace : IDisposable
     /// <summary>The <c>CapsuleAssets</c> source the last successful run generated.</summary>
     internal string Generated => File.ReadAllText(Path.Combine(Out, "CapsuleAssets.g.cs"));
 
-    /// <summary>Whether the last run stamped itself, which it does only when every step succeeded.</summary>
-    internal bool Stamped => File.Exists(Path.Combine(Out, "build.stamp"));
+    /// <summary>The name of every derivation the last run ran, as <c>textures: Assets/hero.png</c>, in the order it ran them.</summary>
+    internal string[] Built =>
+        [.. Output.Split(Environment.NewLine)
+            .Select(static line => line.Split(": built ", 2))
+            .Where(static parts => parts.Length == 2)
+            .Select(static parts => $"{parts[0]}: {parts[1]}")];
 
     /// <summary>Every shipped path, as the game finds it below <c>assets/</c>.</summary>
     internal string[] Shipped =>
@@ -78,21 +87,13 @@ internal sealed class ToolWorkspace : IDisposable
         return Write(name, png.ToArray());
     }
 
-    /// <summary>
-    /// Runs the build over every file under <c>Assets/</c>, as the targets hand them, plus
-    /// <paramref name="lines"/>: options.
-    /// </summary>
+    /// <summary>Runs the build over <c>Assets/</c>, with <paramref name="options"/> between the paths and the shader tools the targets always pass.</summary>
     /// <returns>The run's exit code.</returns>
-    internal int Run(params string[] lines)
+    internal int Run(params string[] options)
     {
-        string[] authored = Directory.Exists("Assets")
-            ? [.. Directory.EnumerateFiles("Assets", "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal).Select(static path => "asset|" + Path.GetFullPath(path))]
-            : [];
-        string requests = Write("requests.txt", string.Join('\n', ["root|" + Path.GetFullPath("Assets"), .. lines, .. authored]));
-
         StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
-        int exitCode = Configure(CapsuleBuild.Configure(["--requests", requests, "--out", Out])).Run(output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath("Assets"), "--out", Out, .. options, "--shader-tools", ShaderTools.Dxc, ShaderTools.SpirvCross])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 
@@ -100,17 +101,20 @@ internal sealed class ToolWorkspace : IDisposable
     }
 
     /// <summary>Runs, and asserts the run succeeded.</summary>
-    internal void Succeed(params string[] lines) =>
-        Assert.True(Run(lines) == 0, Errors);
+    internal void Succeed(params string[] options) =>
+        Assert.True(Run(options) == 0, Errors);
 
-    /// <summary>Runs, asserts the run failed and left no stamp, and hands back what it reported.</summary>
-    internal string Fail(params string[] lines)
+    /// <summary>Runs, asserts the run failed, and hands back what it reported.</summary>
+    internal string Fail(params string[] options)
     {
-        Assert.Equal(1, Run(lines));
-        Assert.False(Stamped);
+        Assert.Equal(1, Run(options));
 
         return Errors;
     }
+
+    /// <summary>The value of the test assembly's metadata <paramref name="key"/>, which the test project sets.</summary>
+    internal static string Metadata(string key) =>
+        typeof(ToolWorkspace).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(attribute => attribute.Key == key).Value!;
 
     public void Dispose() => _workspace.Dispose();
 

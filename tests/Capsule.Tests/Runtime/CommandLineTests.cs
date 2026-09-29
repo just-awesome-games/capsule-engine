@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
@@ -83,7 +84,8 @@ public sealed class CommandLineTests : IDisposable
         Directory.CreateDirectory(documents);
         ShippedSceneDocument.Write(
             SceneDocumentFile.Parse("""{"formatVersion": 7, "entities": [], "nextEntityId": 1}"""),
-            Path.Combine(documents, "hall" + ShippedSceneDocument.Extension));
+            Path.Combine(documents, "hall" + ShippedSceneDocument.Extension),
+            CompressionLevel.Fastest);
 
         int before = Hall.Openings;
         EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root))

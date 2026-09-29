@@ -90,6 +90,33 @@ public sealed class SceneAssetTests
         Assert.Empty(scene.CollectAssetPreloads().Textures);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AScenesPreloads_HoldAPooledEntitysTextureOnlyWhenItsOwnerForwardsThePool(bool forwarded)
+    {
+        Scene scene = new();
+        scene.Add(new PoolOwner(forwarded));
+
+        Assert.Equal(forwarded, scene.CollectPreloads().Contains(EntityExtra));
+    }
+
+    [Fact]
+    public void APool_CollectsEveryEntityItBuilt_IdleTakenOrPastItsCapacity()
+    {
+        int built = 0;
+        EntityPool<TestEntity> pool = new(
+            () => new TestEntity(new SpriteRenderer(Frame(new TextureHandle($"pooled/{built++}", ".png")))),
+            capacity: 1);
+        pool.Take();
+        pool.Take();
+
+        AssetCollection assets = new();
+        pool.CollectAssets(assets);
+
+        Assert.Equal([new TextureHandle("pooled/0", ".png"), new TextureHandle("pooled/1", ".png")], assets.Textures);
+    }
+
     [Fact]
     public void APlacementNoEntityClaims_StillFailsAsASpawn()
     {
@@ -125,6 +152,19 @@ public sealed class SceneAssetTests
         }
 
         protected internal override void CollectAssets(AssetCollection assets) => assets.Add(EntityExtra);
+    }
+
+    private sealed class PoolOwner(bool forwarded) : Entity(Vector2.Zero)
+    {
+        private readonly EntityPool<TestEntity> _pool = new(() => new TestEntity(new SpriteRenderer(Frame(EntityExtra))), capacity: 2);
+
+        protected internal override void CollectAssets(AssetCollection assets)
+        {
+            if (forwarded)
+            {
+                _pool.CollectAssets(assets);
+            }
+        }
     }
 
     private sealed class DeclaringComponent : Component
