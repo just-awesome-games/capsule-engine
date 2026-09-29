@@ -1,7 +1,7 @@
 namespace Capsule.Generators;
 
-// The [UnsafeAccessor] members CapsuleEntities declares, for what generated code cannot reach in plain C#:
-// a member the game cannot assign, and the constructor of a class with C#'s required members.
+// The [UnsafeAccessor] members CapsuleEntities and CapsuleScenes declare, for what generated code cannot reach in
+// plain C#: a member the game cannot assign, and the constructor of a class with C#'s required members.
 internal static class EntityAccessorRenderer
 {
     private const string UnsafeAccessor = "global::System.Runtime.CompilerServices.UnsafeAccessor";
@@ -11,7 +11,7 @@ internal static class EntityAccessorRenderer
     internal static string Constructors(IEnumerable<EntityModel> required) => string.Concat(required.Select(static model => $$"""
 
                 [{{UnsafeAccessor}}({{UnsafeAccessor}}Kind.Constructor)]
-                private static extern {{model.QualifiedName}} {{ConstructorName(model)}}({{model.SpawnModifier}}global::Capsule.Scenes.Spawning.EntitySpawn spawn);
+                private static extern {{model.QualifiedName}} {{ConstructorName(model.QualifiedName)}}({{model.SpawnModifier}}global::Capsule.Scenes.Spawning.EntitySpawn spawn);
 
         """));
 
@@ -41,15 +41,15 @@ internal static class EntityAccessorRenderer
     }
 
     // New and the class's qualified name with every other character an underscore: Game.Door is New_Game_Door.
-    internal static string ConstructorName(EntityModel model) =>
-        "New_" + CodeText.Underscored(model.QualifiedName.Substring("global::".Length));
+    internal static string ConstructorName(string qualifiedName) =>
+        "New_" + CodeText.Underscored(qualifiedName.Substring("global::".Length));
 
     // The accessor that sets one member: a field's returns a reference to it, a property's calls its setter.
     private static string Setter(PropertyModel property, string indent, string access) => property.Field
         ? $"{indent}[{UnsafeAccessor}({UnsafeAccessor}Kind.Field, Name = \"{property.Name}\")]\n"
-            + $"{indent}{access} static extern ref {property.Declared} {SetterName(property)}({property.Declaring} entity);"
+            + $"{indent}{access} static extern ref {property.Declared} {SetterName(property)}({property.Declaring} owner);"
         : $"{indent}[{UnsafeAccessor}({UnsafeAccessor}Kind.Method, Name = \"set_{property.Name}\")]\n"
-            + $"{indent}{access} static extern void {SetterName(property)}({property.Declaring} entity, {property.Declared} value);";
+            + $"{indent}{access} static extern void {SetterName(property)}({property.Declaring} owner, {property.Declared} value);";
 
     // Set and the member's key capitalized: _tuning is set by SetTuning. A class's keys are unique and never
     // start with a capital, so its accessor names are unique too.

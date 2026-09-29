@@ -13,23 +13,26 @@ using Capsule.Scenes.Documents;
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>
-/// The <c>properties</c> object of one scene-document entry, which its class's generated applier reads
-/// into the <see cref="AuthorableAttribute"/> members by key.
+/// The <c>properties</c> object of one scene-document entry or of the document itself, which the generated
+/// applier of the entry's class or the scene's class reads into the <see cref="AuthorableAttribute"/> members by key.
 /// </summary>
 /// <remarks>
 /// A read that meets an absent key, a JSON null or the wrong JSON throws
-/// <see cref="SceneDocumentFormatException"/> naming the entry, the key and the form to write. The
+/// <see cref="SceneDocumentFormatException"/> naming the entry or the document, the key and the form to write. The
 /// applier checks <see cref="Has"/> before reading an optional member and <see cref="IsNull"/> before
 /// reading a nullable one. <see cref="Array{T}"/> hands each element to the applier's read as a
 /// value of its own, whose reads take the array's key.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public readonly struct EntityProperties
+public readonly struct AuthoredProperties
 {
     // Plain options with no reflection-based resolver, which a trimmed or ahead-of-time build keeps.
     private static readonly JsonSerializerOptions ConverterOptions = new();
 
-    private readonly EntityPlacement _entry;
+    // The entry whose properties these are, or null for the scene document's own.
+    private readonly EntityPlacement? _entry;
+
+    private readonly JsonElement? _properties;
 
     // Every game entry of the document by id, which a reference resolves against, or null before all are constructed.
     private readonly Dictionary<int, Entity>? _placed;
@@ -37,28 +40,36 @@ public readonly struct EntityProperties
     // The scene's preload, which every authored texture and sound joins, or null where nothing collects.
     private readonly AssetCollection? _assets;
 
-    // One element of an authored array and its index, or an index of -1 for the entry's properties themselves.
+    // One element of an authored array and its index, or an index of -1 for the properties themselves.
     private readonly JsonElement _element;
     private readonly int _index;
 
-    internal EntityProperties(EntityPlacement entry, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
-        : this(entry, placed, assets, default, -1)
+    internal AuthoredProperties(EntityPlacement entry, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
+        : this(entry, entry.Properties, placed, assets, default, -1)
     {
     }
 
-    private EntityProperties(EntityPlacement entry, Dictionary<int, Entity>? placed, AssetCollection? assets, JsonElement element, int index)
+    // The scene document's own properties, read once every entry is constructed.
+    internal AuthoredProperties(JsonElement? scene, Dictionary<int, Entity> placed, AssetCollection assets)
+        : this(null, scene, placed, assets, default, -1)
+    {
+    }
+
+    private AuthoredProperties(
+        EntityPlacement? entry, JsonElement? properties, Dictionary<int, Entity>? placed, AssetCollection? assets, JsonElement element, int index)
     {
         _entry = entry;
+        _properties = properties;
         _placed = placed;
         _assets = assets;
         _element = element;
         _index = index;
     }
 
-    /// <summary>Whether the entry authors <paramref name="key"/>, as a JSON null included.</summary>
+    /// <summary>Whether the properties author <paramref name="key"/>, as a JSON null included.</summary>
     public bool Has(string key) => Find(key, out _);
 
-    /// <summary>Whether the entry authors <paramref name="key"/> as a JSON null.</summary>
+    /// <summary>Whether the properties author <paramref name="key"/> as a JSON null.</summary>
     public bool IsNull(string key) => Find(key, out JsonElement value) && value.ValueKind == JsonValueKind.Null;
 
     /// <summary>Reads a <see langword="bool"/>, written <c>true</c> or <c>false</c>.</summary>
@@ -113,7 +124,7 @@ public readonly struct EntityProperties
         }
     }
 
-    /// <summary>Reads the enum member or definition an entry names, which the applier then matches.</summary>
+    /// <summary>Reads the enum member or definition the properties name, which the applier then matches.</summary>
     public string Name(string key) =>
         Authored(key) is { ValueKind: JsonValueKind.String } value
             ? value.GetString()!
@@ -207,7 +218,7 @@ public readonly struct EntityProperties
     /// </summary>
     /// <param name="key">The member's key.</param>
     /// <param name="element">Reads one element from the value it is handed, by the same key.</param>
-    public T[] Array<T>(string key, Func<EntityProperties, T> element)
+    public T[] Array<T>(string key, Func<AuthoredProperties, T> element)
     {
         ArgumentNullException.ThrowIfNull(element);
         JsonElement value = Authored(key);
@@ -219,7 +230,7 @@ public readonly struct EntityProperties
         T[] read = new T[value.GetArrayLength()];
         for (int i = 0; i < read.Length; i++)
         {
-            read[i] = element(new EntityProperties(_entry, _placed, _assets, value[i], i));
+            read[i] = element(new AuthoredProperties(_entry, _properties, _placed, _assets, value[i], i));
         }
 
         return read;
@@ -258,7 +269,7 @@ public readonly struct EntityProperties
 
     /// <summary>
     /// Reads the entity an entry id names, which must be a <typeparamref name="T"/> placed by the same
-    /// document. The applier of references reads it once every entry is constructed.
+    /// document. It is read once every entry is constructed.
     /// </summary>
     public T Entity<T>(string key)
         where T : class
@@ -279,17 +290,17 @@ public readonly struct EntityProperties
             $"{Sets(key)} to entity {id}, a {target.GetType().Name}, but the member takes {typeof(T).Name}. Write the id of an entity that is a {typeof(T).Name}.");
     }
 
-    private string Entry => $"entity id {_entry.Id} ('{_entry.Type}')";
+    private string Owner => _entry is { } entry ? $"entity id {entry.Id} ('{entry.Type}')" : "the scene document";
 
-    // The entry and what it sets: a key, or one element of the array a key holds.
+    // The owner and what it sets: a key, or one element of the array a key holds.
     private string Sets(string key) =>
-        _index < 0 ? $"{Entry} sets '{key}'" : string.Create(CultureInfo.InvariantCulture, $"{Entry} sets '{key}' element {_index}");
+        _index < 0 ? $"{Owner} sets '{key}'" : string.Create(CultureInfo.InvariantCulture, $"{Owner} sets '{key}' element {_index}");
 
     private bool Find(string key, out JsonElement value)
     {
         value = default;
 
-        return _entry.Properties is { } properties && properties.TryGetProperty(key, out value);
+        return _properties is { } properties && properties.TryGetProperty(key, out value);
     }
 
     // The applier reads an optional member only after Has, so an absent key here is a required member.
@@ -298,7 +309,7 @@ public readonly struct EntityProperties
         : Find(key, out JsonElement value)
             ? value
             : throw new SceneDocumentFormatException(
-                $"{Entry} omits '{key}', which its class requires. Add \"{key}\" to the entry's properties.");
+                $"{Owner} omits '{key}', which its class requires. Add \"{key}\" to the {(_entry is null ? "document" : "entry")}'s properties.");
 
     private SceneDocumentFormatException Mismatch(string key, string expected, string form)
     {
@@ -309,7 +320,7 @@ public readonly struct EntityProperties
             : $"{Sets(key)} to {Found(value)}, but the member takes {expected}. Write {form}.");
     }
 
-    // An asset the entry names by key: the string it wrote, normalized, resolved through find, and joined to the
+    // An asset the properties name by key: the string it wrote, normalized, resolved through find, and joined to the
     // scene's preload where join adds it.
     private T Asset<T>(string key, Func<string, T?> find, Func<string, string?> normalize, string form, string fix, Action<AssetCollection, T>? join)
         where T : struct
@@ -336,7 +347,7 @@ public readonly struct EntityProperties
         return float.IsFinite(read);
     }
 
-    // What the entry wrote, short enough for one line of a message.
+    // What the document wrote, short enough for one line of a message.
     private static string Found(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.String => $"the string \"{value.GetString()}\"",

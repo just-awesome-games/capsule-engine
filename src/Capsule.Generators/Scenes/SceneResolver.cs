@@ -65,11 +65,18 @@ internal static class SceneResolver
 
         unclaimed.Sort(static (left, right) => string.CompareOrdinal(left.DocumentName, right.DocumentName));
 
-        return new ScenePlan(
+        ScenePlan plan = new(
             Generates: true,
             new([.. registered.Select(entry => new RegisteredScene(entry.DocumentName, entry.Model, CameraOf(entry.DocumentName)))]),
             new([.. unclaimed.Select(entry => new DocumentOnlyScene(entry.DocumentName, entry.Base, CameraOf(entry.DocumentName)))]),
+            default,
             new([.. diagnostics]));
+
+        return plan with
+        {
+            Lookups = EntityResolver.Lookups(
+                plan.Composing.SelectMany(static model => model.Authored), new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
+        };
 
         string? CameraOf(string? documentName) =>
             documentName is not null && cameraOf.TryGetValue(documentName, out string? camera) ? camera : null;
@@ -261,7 +268,7 @@ internal static class SceneResolver
             return null;
         }
 
-        return new GeneratedBase(GeneratedSceneClassName(document.Key), model.QualifiedName);
+        return new GeneratedBase(GeneratedSceneClassName(document.Key), model);
     }
 
     // The internal sealed scene a document's baseScene generates, named from the document's own key.

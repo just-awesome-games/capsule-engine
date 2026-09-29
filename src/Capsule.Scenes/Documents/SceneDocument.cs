@@ -223,6 +223,16 @@ public sealed class SceneDocument
         {
             throw Malformed($"sampling is {(int)sampling}, which is not a {nameof(TextureSampling)}. Use one of its named values.", nameof(Settings));
         }
+
+        if (settings.Properties is { ValueKind: not JsonValueKind.Object })
+        {
+            throw Malformed("properties is not an object. Write it as { \"name\": value }, or omit it.", nameof(Settings));
+        }
+
+        if (settings.Properties is { } properties && !properties.EnumerateObject().All(static member => Finite(member.Value)))
+        {
+            throw Malformed("properties has a number beyond the range of a double. Write a finite number.", nameof(Settings));
+        }
     }
 
     // A half-filled source block writes an object the reader would reject, so the document would not

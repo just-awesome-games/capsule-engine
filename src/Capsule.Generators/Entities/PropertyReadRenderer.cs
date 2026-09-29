@@ -2,12 +2,36 @@ using System.Text;
 
 namespace Capsule.Generators;
 
-// The expression an applier reads one authored member's value with, off the entry's properties.
+// The statements an applier sets authored members with, and the expression each reads its value with off the
+// properties of an entry or of the document.
 internal static class PropertyReadRenderer
 {
+    // Sets each member on target: a required one always, and an optional one only where the properties author its
+    // key. Each statement starts at indent and ends with a newline.
+    internal static string Assignments(IEnumerable<PropertyModel> properties, string target, string indent)
+    {
+        StringBuilder statements = new();
+        string nested = indent + "    ";
+        foreach (PropertyModel property in properties)
+        {
+            if (property.Required)
+            {
+                statements.Append(indent).Append(Assignment(property, target, indent)).Append('\n');
+                continue;
+            }
+
+            statements.Append(indent).Append("if (properties.Has(").Append(CodeText.Literal(property.Key)).Append("))\n")
+                .Append(indent).Append("{\n")
+                .Append(nested).Append(Assignment(property, target, nested)).Append('\n')
+                .Append(indent).Append("}\n");
+        }
+
+        return statements.ToString();
+    }
+
     // The read expression for a member whose statement starts at indent. A nullable member tests for a
     // JSON null first. An array reads each element with the same read, off the element's own value.
-    internal static string Read(PropertyModel property, string indent)
+    private static string Read(PropertyModel property, string indent)
     {
         string key = CodeText.Literal(property.Key);
         string read = property.Array
@@ -15,6 +39,20 @@ internal static class PropertyReadRenderer
             : Element(property, "properties", key, indent);
 
         return property.Nullable ? $"properties.IsNull({key}) ? null : {read}" : read;
+    }
+
+    // Plain C# where the game can assign the member, and an accessor where it cannot.
+    private static string Assignment(PropertyModel property, string target, string indent)
+    {
+        string value = Read(property, indent);
+        if (property.Direct)
+        {
+            return $"{target}.{CodeText.Identifier(property.Name)} = {value};";
+        }
+
+        string accessor = EntityAccessorRenderer.SetterReference(property);
+
+        return property.Field ? $"{accessor}({target}) = {value};" : $"{accessor}({target}, {value});";
     }
 
     // One value's read off the properties or array element named by from.

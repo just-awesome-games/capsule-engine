@@ -54,10 +54,10 @@ namespace Capsule.Generated
         private static extern global::Game.FloorSwitch New_Game_FloorSwitch(global::Capsule.Scenes.Spawning.EntitySpawn spawn);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Glow")]
-        private static extern void SetGlow(global::Game.Lamp entity, global::Game.Glow value);
+        private static extern void SetGlow(global::Game.Lamp owner, global::Game.Glow value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "_charge")]
-        private static extern ref int SetCharge(global::Game.Lamp entity);
+        private static extern ref int SetCharge(global::Game.Lamp owner);
 
         private static global::Capsule.Assets.TextureHandle? FindTexture(string key) => key switch
         {

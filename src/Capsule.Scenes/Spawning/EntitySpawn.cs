@@ -48,7 +48,7 @@ public readonly record struct EntitySpawn(Vector2 Position)
 
     // A placement's authored member values and its class's generated applier. A spawn built in code
     // carries neither, and the members stay out of the record's printed form.
-    internal EntityProperties Properties { get; init; }
+    internal AuthoredProperties Properties { get; init; }
 
     internal EntityApplier? Apply { get; init; }
 }

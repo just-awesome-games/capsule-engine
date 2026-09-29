@@ -161,28 +161,28 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor UnknownEntryProperty = Rule(
         "CAP036", ScenesCategory, ScenesPage,
-        "A scene document entry sets a key its entity does not declare",
+        "A scene document sets a key its class does not declare",
         "Scene document {0}: {1} sets '{2}', which '{3}' does not declare. Its authorable members are: {4}. Remove the key or correct its name");
 
     internal static readonly DiagnosticDescriptor UnsettableEntryProperty = Rule(
         "CAP037", ScenesCategory, ScenesPage,
-        "A scene document entry sets a member a placement cannot set",
+        "A scene document sets a member it cannot set",
         "Scene document {0}: {1} sets '{2}', but '{3}' {4}");
 
     internal static readonly DiagnosticDescriptor MismatchedEntryProperty = Rule(
         "CAP038", ScenesCategory, ScenesPage,
-        "A scene document entry's value has the wrong JSON type",
+        "A scene document value has the wrong JSON type",
         "Scene document {0}: {1} sets {2} to {3}, but '{4}' takes {5}. Write {6}");
 
     internal static readonly DiagnosticDescriptor UnknownEntryName = Rule(
         "CAP039", ScenesCategory, ScenesPage,
-        "A scene document entry names nothing its member's type declares",
+        "A scene document value names nothing its member's type declares",
         "Scene document {0}: {1} sets {2} to {3}, which names nothing '{4}' declares. Write one of: {5}");
 
     internal static readonly DiagnosticDescriptor MissingEntryProperty = Rule(
         "CAP040", ScenesCategory, ScenesPage,
-        "A scene document entry omits a required member",
-        "Scene document {0}: {1} omits '{2}', which '{3}' requires. Add \"{2}\" to the entry's properties, or drop Required = true from the member");
+        "A scene document omits a required member",
+        "Scene document {0}: {1} omits '{2}', which '{3}' requires. Add \"{2}\" to its properties, or drop Required = true from the member");
 
     internal static readonly DiagnosticDescriptor InvalidAuthorableMember = Rule(
         "CAP041", ScenesCategory, ScenesPage,
@@ -191,17 +191,17 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor UnknownEntityReference = Rule(
         "CAP042", ScenesCategory, ScenesPage,
-        "A scene document entry's reference must name an entity of the document",
+        "A scene document reference must name an entity of the document",
         "Scene document {0}: {1} sets {2} to {3}, which names no entity in the document. Write the id of an entity entry");
 
     internal static readonly DiagnosticDescriptor MismatchedEntityReference = Rule(
         "CAP043", ScenesCategory, ScenesPage,
-        "A scene document entry's reference must name an entity its member takes",
+        "A scene document reference must name an entity its member takes",
         "Scene document {0}: {1} sets {2} to entity {3}, a '{4}', but '{5}' takes '{6}'. Write the id of an entity that is a '{6}'");
 
     internal static readonly DiagnosticDescriptor UnknownAssetKey = Rule(
         "CAP044", ScenesCategory, ScenesPage,
-        "A scene document entry's asset key must name an asset the game ships",
+        "A scene document asset key must name an asset the game ships",
         "Scene document {0}: {1} sets {2} to {3}, but no {4} keys as \"{5}\". {6}");
 
     internal static readonly DiagnosticDescriptor RuntimeBoundary = Rule(

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes.Documents;
@@ -29,4 +30,10 @@ public sealed record SceneSettings
 
     /// <summary>The scene's <see cref="Scene.Sampling"/>, in place of the game's setting.</summary>
     public TextureSampling? Sampling { get; init; }
+
+    /// <summary>
+    /// The authored <c>properties</c> object, whose keys set the authorable members of the class composing
+    /// the scene, camel-cased.
+    /// </summary>
+    public JsonElement? Properties { get; init; }
 }

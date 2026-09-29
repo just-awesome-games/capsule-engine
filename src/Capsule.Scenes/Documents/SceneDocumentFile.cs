@@ -133,6 +133,7 @@ public static class SceneDocumentFile
                 ClearColor = ParseColor(file.ClearColor, "clearColor"),
                 Ambient = ParseColor(file.Ambient, "ambient"),
                 Sampling = ParseSampling(file.Sampling),
+                Properties = file.Properties,
             });
     }
 
@@ -199,6 +200,7 @@ public static class SceneDocumentFile
             ClearColor = FormatColor(settings.ClearColor),
             Ambient = FormatColor(settings.Ambient),
             Sampling = FormatSampling(settings.Sampling),
+            Properties = settings.Properties,
             Entities = entries,
             NextEntityId = document.NextEntityId,
             Source = document.Source is { } source

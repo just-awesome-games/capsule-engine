@@ -92,7 +92,7 @@ public class Scene
     /// A placement's spawn type is claimed by no entity, or its class returned no entity.
     /// </exception>
     /// <exception cref="SceneDocumentFormatException">
-    /// A placement's properties do not match its class's authorable members.
+    /// A placement's or the document's properties do not match its class's authorable members.
     /// </exception>
     public Scene(SceneContent content)
     {
@@ -131,7 +131,7 @@ public class Scene
                     ZIndex = placement.ZIndex,
                     ScrollFactor = placement.ScrollFactor,
                 };
-                Entity entity = content.Entities.Create(spawn, new EntityProperties(placement, assets: _authoredAssets));
+                Entity entity = content.Entities.Create(spawn, new AuthoredProperties(placement, assets: _authoredAssets));
                 Add(entity);
                 placed.Add(placement.Id, entity);
             }
@@ -141,11 +141,14 @@ public class Scene
         {
             if (entry.Entity is { } placement && content.Entities.Link(placement.Type) is { } link)
             {
-                link(placed[placement.Id], new EntityProperties(placement, placed));
+                link(placed[placement.Id], new AuthoredProperties(placement, placed));
             }
         }
 
         Apply(content);
+
+        // Every entry exists by now, so a reference member is set in the same pass as the rest.
+        content.Apply?.Invoke(this, new AuthoredProperties(content.Document.Settings.Properties, placed, _authoredAssets));
     }
 
     /// <summary>

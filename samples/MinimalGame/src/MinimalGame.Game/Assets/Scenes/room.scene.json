@@ -4,6 +4,9 @@
   "baseScene": "playable-scene",
   "camera": "game-camera",
   "ambient": "#b4b7cf",
+  "properties": {
+    "music": "audio/music/room.ogg"
+  },
   "entities": [
     {
       "id": 4,

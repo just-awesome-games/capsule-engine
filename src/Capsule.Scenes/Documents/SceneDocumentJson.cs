@@ -55,6 +55,10 @@ internal sealed class SceneDocumentJson
     [AllowedValues(SceneDocumentFile.LinearSampling, SceneDocumentFile.PointSampling)]
     public string? Sampling { get; set; }
 
+    // Raw JSON, read key by key into the composing class's authorable members when the scene is composed.
+    [Description("The scene's properties. Each key sets the member the composing scene class marks [Authorable].")]
+    public JsonElement? Properties { get; set; }
+
     // A null entry reaches the reader, which names it. An initializer here would invent data the format
     // never accepted.
     [Description("Every entry the scene places, in document order. Write an empty list for a scene with nothing in it.")]

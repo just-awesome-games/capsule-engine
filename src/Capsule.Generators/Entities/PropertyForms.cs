@@ -2,14 +2,14 @@ namespace Capsule.Generators;
 
 /// <summary>A type a scene document writes in a JSON form of the engine's own.</summary>
 /// <param name="Type">The type as the generator displays it fully qualified.</param>
-/// <param name="Read">The <c>EntityProperties</c> method the spawner reads it with.</param>
+/// <param name="Read">The <c>AuthoredProperties</c> method the spawner reads it with.</param>
 /// <param name="Form">What to write, as a build failure names it.</param>
 /// <param name="Accepts">Whether a value, as the build's placement attribute carries it, is in this form.</param>
 internal sealed record BuiltInForm(string Type, string Read, string Form, Func<object?, bool> Accepts);
 
 /// <summary>An asset type a scene document names by key, resolved at load through a generated lookup.</summary>
 /// <param name="Type">The type as the generator displays it fully qualified.</param>
-/// <param name="Read">The <c>EntityProperties</c> method the spawner reads it with, which also names its lookup.</param>
+/// <param name="Read">The <c>AuthoredProperties</c> method the spawner reads it with, which also names its lookup.</param>
 /// <param name="Form">What to write, as a build failure names it.</param>
 /// <param name="Fix">What to write in place of a key the build did not declare.</param>
 /// <param name="Scene">Whether it is keyed as a scene document, without an extension, where otherwise by key and extension.</param>
@@ -25,7 +25,7 @@ internal static class PropertyForms
     /// <summary>What an entity reference is written as, as a build failure names it.</summary>
     internal const string ReferenceForm = "an entity id, a whole number";
 
-    // A new built-in type is one entry here and one read method of the same name on EntityProperties.
+    // A new built-in type is one entry here and one read method of the same name on AuthoredProperties.
     internal static readonly BuiltInForm[] BuiltIns =
     [
         new("bool", "Bool", "true or false", static value => value is bool),
@@ -38,7 +38,7 @@ internal static class PropertyForms
             value is string text && text.Length is 7 or 9 && text[0] == '#' && text.Skip(1).All(Uri.IsHexDigit)),
     ];
 
-    // A new asset type is one entry here, one read method of the same name on EntityProperties, and the build's
+    // A new asset type is one entry here, one read method of the same name on AuthoredProperties, and the build's
     // CapsuleGeneratedAsset attribute on its CapsuleAssets members. Lookups are generated in this order.
     internal static readonly AssetForm[] Assets =
     [

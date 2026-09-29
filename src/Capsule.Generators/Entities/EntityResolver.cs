@@ -85,7 +85,7 @@ internal static class EntityResolver
         model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
 
     // One lookup per asset type an authored member takes, in PropertyForms.Assets order, keyed as the build declared each asset.
-    private static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, AssetTable assets) =>
+    internal static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, AssetTable assets) =>
         new([.. PropertyForms.Assets
             .Where(form => authored.Any(property => property.Kind == PropertyKind.Asset && property.Type == form.Type))
             .Select(form => new AssetLookup(

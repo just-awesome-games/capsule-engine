@@ -54,6 +54,15 @@ internal static class GeneratedAttributes
 
                 /// <summary>The file the build read, relative to the project, where the compiler reports an entry's error.</summary>
                 public string? Path { get; set; }
+
+                /// <summary>Each of the document's own properties' name and value in turn, as a placement carries its own, or null.</summary>
+                public object?[]? Properties { get; set; }
+
+                /// <summary>The line the document's properties start on, counted from 1.</summary>
+                public int Line { get; set; }
+
+                /// <summary>The column the document's properties start at on that line, counted from 1.</summary>
+                public int Column { get; set; }
             }
 
             /// <summary>One game entry of a shipped scene document, which the compiler checks against the class claiming its type. Generated code.</summary>

@@ -91,12 +91,12 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             })
             .WithTrackingName("EntityPlan");
         IncrementalValueProvider<ScenePlan> scenePlan = scenes
-            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(cameras)
+            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(cameras).Combine(assets)
             .Select(static (input, _) =>
             {
-                var ((((models, logic), root), shipped), declared) = input;
+                var (((((models, logic), root), shipped), declared), assetModels) = input;
 
-                return SceneResolver.Resolve(new SceneInputs(models, logic, root, shipped, declared));
+                return SceneResolver.Resolve(new SceneInputs(models, logic, root, shipped, declared, assetModels));
             })
             .WithTrackingName("ScenePlan");
         IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
@@ -112,8 +112,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(writableAuthorableFields, AuthorableSuppressionRenderer.Emit);
         context.RegisterSourceOutput(entityPlan, EntityRenderer.Emit);
         context.RegisterSourceOutput(
-            entityPlan.Combine(documents).Combine(assets)
-                .Select(static (input, _) => new PlacementInputs(input.Left.Left, input.Left.Right, input.Right)),
+            entityPlan.Combine(scenePlan).Combine(documents).Combine(assets)
+                .Select(static (input, _) => new PlacementInputs(input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right)),
             PlacementCheck.Run);
         context.RegisterSourceOutput(scenePlan, SceneRenderer.Emit);
         context.RegisterSourceOutput(

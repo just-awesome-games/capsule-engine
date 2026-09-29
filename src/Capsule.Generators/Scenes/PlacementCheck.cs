@@ -5,8 +5,9 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-// Checks every game entry of every shipped scene document against the entity class claiming its type. The
-// applier reads the same values again at load, and only there does a converter read.
+// Checks every game entry of every shipped scene document against the entity class claiming its type, and the
+// document's own properties against the scene class composing it. The applier reads the same values again at load,
+// and only there does a converter read.
 internal static class PlacementCheck
 {
     internal static void Run(SourceProductionContext context, PlacementInputs inputs)
@@ -21,6 +22,7 @@ internal static class PlacementCheck
             static entry => entry.SpawnType, static entry => entry.Model, StringComparer.Ordinal);
         HashSet<string> claimed = new(plan.ClaimedKeys.Items, StringComparer.Ordinal);
         AssetTable assets = new(inputs.Assets.Items, inputs.Documents.Items);
+        Dictionary<string, SceneModel?> composing = Composing(inputs.Scenes);
 
         foreach (SceneDocumentModel document in inputs.Documents.Items.OrderBy(static document => document.Key, StringComparer.Ordinal))
         {
@@ -49,43 +51,73 @@ internal static class PlacementCheck
                 }
                 else
                 {
-                    Check(context, at, named, entry, entity, placement, new Placed(document, entities, assets));
+                    Check(context, at, named, entry, new Owner(entity.DisplayName, entity.Properties), placement.Properties, new Placed(document, entities, assets));
                 }
+            }
+
+            // A document whose baseScene did not resolve is already its own error.
+            if (composing.TryGetValue(document.Key, out SceneModel? scene) && (scene is not null || document.BaseScene is null))
+            {
+                Owner owner = scene is { } model ? new Owner(model.DisplayName, model.Properties) : new Owner(MetadataNames.Scene, default);
+                Location documentAt = Where(document, document.Line == 0 ? 1 : document.Line, document.Column == 0 ? 1 : document.Column);
+                Check(context, documentAt, named, "the document", owner, document.Properties, new Placed(document, entities, assets));
             }
         }
     }
 
-    private static void Check(SourceProductionContext context, Location at, string document, string entry, EntityModel entity, PlacementModel placement, Placed placed)
+    // The class composing each document: the class claiming it, the base a document-only scene's baseScene names,
+    // or null for the engine's Scene or a baseScene that did not resolve.
+    private static Dictionary<string, SceneModel?> Composing(ScenePlan scenes)
     {
-        PropertyModel[] settable = entity.Properties.Items.Where(static property => property.Settable).ToArray();
-        foreach ((string name, object? value) in placement.Properties.Items)
+        Dictionary<string, SceneModel?> composing = new(StringComparer.Ordinal);
+        foreach (RegisteredScene entry in scenes.Registered.Items)
         {
-            // An authorable member wins a key it shares with one a placement cannot set. A key two
+            if (entry.DocumentName is { } key)
+            {
+                composing[key] = entry.Model;
+            }
+        }
+
+        foreach (DocumentOnlyScene document in scenes.DocumentOnly.Items)
+        {
+            composing[document.DocumentName] = document.Base?.Base;
+        }
+
+        return composing;
+    }
+
+    private static void Check(
+        SourceProductionContext context, Location at, string document, string entry, Owner owner, EquatableArray<(string Name, object? Value)> authored, Placed placed)
+    {
+        PropertyModel[] settable = owner.Properties.Items.Where(static property => property.Settable).ToArray();
+        foreach ((string name, object? value) in authored.Items)
+        {
+            // An authorable member wins a key it shares with one a document cannot set. A key two
             // authorable members take is already the class's compile error.
-            PropertyModel property = entity.Properties.Items
+            PropertyModel property = owner.Properties.Items
                 .Where(declared => declared.Key == name)
                 .OrderBy(static declared => declared.Settable ? 0 : 1)
                 .FirstOrDefault();
             if (property.Key is null)
             {
                 string names = settable.Length == 0 ? "none" : string.Join(", ", settable.Select(static declared => declared.Key));
-                Report(context, at, Diagnostics.UnknownEntryProperty, document, entry, name, entity.DisplayName, names);
+                Report(context, at, Diagnostics.UnknownEntryProperty, document, entry, name, owner.DisplayName, names);
             }
             else if (property.Refusal is { } refusal)
             {
-                Report(context, at, Diagnostics.UnsettableEntryProperty, document, entry, name, $"{entity.DisplayName}.{property.Name}", refusal);
+                Report(context, at, Diagnostics.UnsettableEntryProperty, document, entry, name, $"{owner.DisplayName}.{property.Name}", refusal);
             }
             else if (property.Clash is null)
             {
-                CheckValue(new Checked(context, at, document, entry, entity, property, placed), name, value);
+                CheckValue(new Checked(context, at, document, entry, owner.DisplayName, property, placed), name, value);
             }
         }
 
         foreach (PropertyModel property in settable)
         {
-            if (property.Required && !placement.Properties.Items.Any(authored => authored.Name == property.Key))
+            if (property.Required && !authored.Items.Any(pair => pair.Name == property.Key))
             {
-                Report(context, at, Diagnostics.MissingEntryProperty, document, entry, property.Key, entity.DisplayName);
+                Report(context, at, Diagnostics.MissingEntryProperty, document, entry, property.Key, owner.DisplayName);
             }
         }
     }
@@ -100,7 +132,7 @@ internal static class PlacementCheck
         {
             if (!property.Nullable)
             {
-                check.Report(Diagnostics.MismatchedEntryProperty, subject, "null", check.Entity.DisplayName, property.DisplayType, Form(property) + ", or make the member nullable");
+                check.Report(Diagnostics.MismatchedEntryProperty, subject, "null", check.Owner, property.DisplayType, Form(property) + ", or make the member nullable");
             }
         }
         else if (!property.Array)
@@ -109,7 +141,7 @@ internal static class PlacementCheck
         }
         else if (value is not EquatableArray<object?> elements)
         {
-            check.Report(Diagnostics.MismatchedEntryProperty, subject, Found(value), check.Entity.DisplayName, property.DisplayType, Form(property));
+            check.Report(Diagnostics.MismatchedEntryProperty, subject, Found(value), check.Owner, property.DisplayType, Form(property));
         }
         else
         {
@@ -134,7 +166,7 @@ internal static class PlacementCheck
 
         if (!accepted)
         {
-            check.Report(Diagnostics.MismatchedEntryProperty, subject, Found(value), check.Entity.DisplayName, property.ElementDisplay, ElementForm(property));
+            check.Report(Diagnostics.MismatchedEntryProperty, subject, Found(value), check.Owner, property.ElementDisplay, ElementForm(property));
 
             return;
         }
@@ -192,7 +224,7 @@ internal static class PlacementCheck
         {
             check.Report(
                 Diagnostics.MismatchedEntityReference, subject, id, targeted.DisplayName,
-                $"{check.Entity.DisplayName}.{check.Property.Name}", check.Property.ElementDisplay);
+                $"{check.Owner}.{check.Property.Name}", check.Property.ElementDisplay);
         }
     }
 
@@ -221,14 +253,16 @@ internal static class PlacementCheck
     };
 
     // The entry's opening brace in the document's file, which an editor opens at.
-    private static Location Where(SceneDocumentModel document, PlacementModel placement)
+    private static Location Where(SceneDocumentModel document, PlacementModel placement) => Where(document, placement.Line, placement.Column);
+
+    private static Location Where(SceneDocumentModel document, int line, int column)
     {
-        if (document.Path is not { } path || placement.Line == 0)
+        if (document.Path is not { } path || line == 0)
         {
             return Location.None;
         }
 
-        LinePosition start = new(placement.Line - 1, placement.Column - 1);
+        LinePosition start = new(line - 1, column - 1);
 
         return Location.Create(path, default, new LinePositionSpan(start, start));
     }
@@ -240,9 +274,12 @@ internal static class PlacementCheck
     // and every asset the build declared, which an asset key is checked against.
     private readonly record struct Placed(SceneDocumentModel Document, Dictionary<string, EntityModel> Entities, AssetTable Assets);
 
-    // One authored member of one entry being checked, and where its failures report.
+    // The class whose members an entry's or a document's properties set, as a report names it.
+    private readonly record struct Owner(string DisplayName, EquatableArray<PropertyModel> Properties);
+
+    // One authored member of one entry or document being checked, and where its failures report.
     private readonly record struct Checked(
-        SourceProductionContext Context, Location At, string Document, string Entry, EntityModel Entity, PropertyModel Property, Placed Placed)
+        SourceProductionContext Context, Location At, string Document, string Entry, string Owner, PropertyModel Property, Placed Placed)
     {
         // Each report names the document and the entry first.
         internal void Report(DiagnosticDescriptor descriptor, params object[] arguments) =>

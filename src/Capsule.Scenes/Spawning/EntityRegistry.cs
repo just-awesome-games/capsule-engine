@@ -9,7 +9,7 @@ public delegate Entity EntitySpawner(EntitySpawn spawn);
 
 /// <summary>Sets the authorable members a placement authors.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public delegate void EntityApplier(Entity entity, EntityProperties properties);
+public delegate void EntityApplier(Entity entity, AuthoredProperties properties);
 
 /// <summary>
 /// Maps each spawn type to the delegate that constructs its entity, fixed once built.
@@ -58,7 +58,7 @@ public sealed class EntityRegistry
     }
 
     // Throws SpawnException when no class claims the type, or the claiming class returned null.
-    internal Entity Create(EntitySpawn spawn, EntityProperties properties)
+    internal Entity Create(EntitySpawn spawn, AuthoredProperties properties)
     {
         if (!_entities.TryGetValue(spawn.Type!, out EntityRegistration registered))
         {

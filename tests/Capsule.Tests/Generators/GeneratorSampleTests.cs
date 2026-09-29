@@ -46,7 +46,11 @@ public sealed class GeneratorSampleTests
         [SceneDocument("scenes/hall")]
         public sealed class Hall(SceneContent content) : Scene(content);
 
-        public abstract class PlayableScene(SceneContent content) : Scene(content);
+        public abstract class PlayableScene(SceneContent content) : Scene(content)
+        {
+            [Authorable]
+            public int Floor { get; private set; }
+        }
 
         public sealed class GameCamera : Camera;
 
@@ -85,7 +89,7 @@ public sealed class GeneratorSampleTests
                 {"id": 2, "type": "floor-switch", "x": 0, "y": 0, "properties": {"lamp": 1}}
             ], "nextEntityId": 3}
             """),
-        ("scenes/room.scene.json", """{"formatVersion": 7, "baseScene": "playable-scene", "camera": "game-camera", "entities": [], "nextEntityId": 1}"""),
+        ("scenes/room.scene.json", """{"formatVersion": 7, "baseScene": "playable-scene", "camera": "game-camera", "properties": {"floor": 2}, "entities": [], "nextEntityId": 1}"""),
     ];
 
     private static readonly Lazy<Compilation> LogicAssembly = new(() => Clean(GeneratorHarness.CompileAgainstSources(Logic, logic: true, Assets)));

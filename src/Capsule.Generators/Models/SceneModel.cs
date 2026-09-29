@@ -24,6 +24,8 @@ internal enum SceneFault
 /// <param name="DerivableContentConstructors">Constructors taking <c>SceneContent</c> a derived type in this assembly can call.</param>
 /// <param name="AccessibleType">Whether the class itself is reachable from generated code.</param>
 /// <param name="At">Where a fault about this model is reported.</param>
+/// <param name="Properties">What a document's own <c>properties</c> keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
+/// <param name="ContentModifier">How the content constructor takes its content: empty, <c>in </c> or <c>ref readonly </c>.</param>
 internal readonly record struct SceneModel(
     string QualifiedName,
     string DisplayName,
@@ -36,8 +38,21 @@ internal readonly record struct SceneModel(
     bool Abstract,
     int DerivableContentConstructors,
     bool AccessibleType,
-    DeclaredAt At)
+    DeclaredAt At,
+    EquatableArray<PropertyModel> Properties,
+    string ContentModifier)
 {
+    /// <summary>Every member a document's properties set.</summary>
+    internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
+
+    /// <summary>
+    /// Whether generated code constructs the class past C#'s required check: its required members are all
+    /// entity references the document sets. A class with any other required member stays the compiler's error.
+    /// </summary>
+    internal bool Required =>
+        Properties.Items.Any(static property => property.RequiredKeyword)
+        && !Properties.Items.Any(static property => property.CodeOnly);
+
     /// <summary>Why a document's baseScene cannot name this class, or <see cref="SceneFault.None"/> when it can.</summary>
     internal SceneFault BaseFault =>
         !Abstract ? SceneFault.NotAbstract

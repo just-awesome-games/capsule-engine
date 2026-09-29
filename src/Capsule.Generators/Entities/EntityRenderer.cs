@@ -56,7 +56,7 @@ internal static class EntityRenderer
     {
         EntityModel model = entry.Model;
         string spawner = model.Required
-            ? $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => {EntityAccessorRenderer.ConstructorName(model)}(spawn)"
+            ? $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => {EntityAccessorRenderer.ConstructorName(model.QualifiedName)}(spawn)"
             : $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new {model.QualifiedName}(spawn)";
         bool applies = model.Authored.Any(static property => property.Kind != PropertyKind.Reference);
         bool links = model.Authored.Any(static property => property.Kind == PropertyKind.Reference);
@@ -81,48 +81,17 @@ internal static class EntityRenderer
             + ")";
     }
 
-    // Sets each required member, and each optional one the entry authors. The base constructor calls the
-    // applier of every other member before the derived body runs. The scene calls the applier of references
-    // once every entry of the document is constructed.
-    private static string Applier(EntityModel model, bool references)
-    {
-        StringBuilder applier = new StringBuilder("static (placed, properties) =>\n")
-            .Append(ArgumentIndent).Append("{\n")
-            .Append(StatementIndent).Append($"{model.QualifiedName} entity = ({model.QualifiedName})placed;\n");
-        foreach (PropertyModel property in model.Authored.Where(property => (property.Kind == PropertyKind.Reference) == references))
-        {
-            if (property.Required)
-            {
-                applier.Append(StatementIndent).Append(Assignment(property, StatementIndent)).Append('\n');
-                continue;
-            }
-
-            const string Nested = StatementIndent + "    ";
-            applier.Append(StatementIndent).Append($"if (properties.Has({CodeText.Literal(property.Key)}))\n")
-                .Append(StatementIndent).Append("{\n")
-                .Append(Nested).Append(Assignment(property, Nested)).Append('\n')
-                .Append(StatementIndent).Append("}\n");
-        }
-
-        return applier.Append(ArgumentIndent).Append('}').ToString();
-    }
-
-    // Plain C# where the game can assign the member, and an accessor where it cannot.
-    private static string Assignment(PropertyModel property, string indent)
-    {
-        string value = PropertyReadRenderer.Read(property, indent);
-        if (property.Direct)
-        {
-            return $"entity.{CodeText.Identifier(property.Name)} = {value};";
-        }
-
-        string accessor = EntityAccessorRenderer.SetterReference(property);
-
-        return property.Field ? $"{accessor}(entity) = {value};" : $"{accessor}(entity, {value});";
-    }
+    // The base constructor calls the applier of every member but references before the derived body runs. The
+    // scene calls the applier of references once every entry of the document is constructed.
+    private static string Applier(EntityModel model, bool references) =>
+        "static (placed, properties) =>\n"
+        + ArgumentIndent + "{\n"
+        + StatementIndent + $"{model.QualifiedName} entity = ({model.QualifiedName})placed;\n"
+        + PropertyReadRenderer.Assignments(model.Authored.Where(property => (property.Kind == PropertyKind.Reference) == references), "entity", StatementIndent)
+        + ArgumentIndent + "}";
 
     // The switch one asset type's reads resolve a key through, to the member the build declared it on.
-    private static string Lookup(AssetLookup lookup) => $$"""
+    internal static string Lookup(AssetLookup lookup) => $$"""
 
                 private static {{lookup.Form.Type}}? {{lookup.Form.Lookup}}(string key) => key switch
                 {

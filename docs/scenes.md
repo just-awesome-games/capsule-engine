@@ -70,7 +70,7 @@ list of entries:
 
 A top-level key sets the `Scene` property of the same name before any subclass constructor body runs, and
 code assigning that property still wins. The top-level keys run in the order `formatVersion`, `baseScene`,
-`camera`, `size`, `scrollCenter`, `clearColor`, `ambient`, `sampling`, `entities`, `nextEntityId`, `source`.
+`camera`, `size`, `scrollCenter`, `clearColor`, `ambient`, `sampling`, `properties`, `entities`, `nextEntityId`, `source`.
 
 - `formatVersion` is required and must be supported.
 - `baseScene` names an abstract `Scene` subclass. The generator emits the sealed scene deriving from it
@@ -88,6 +88,7 @@ code assigning that property still wins. The top-level keys run in the order `fo
   `"#rrggbb"`. There is no shorthand or named form.
 - `ambient` is a colour in the same form and sets `Scene.Ambient`.
 - `sampling` is `"linear"` or `"point"` and sets `Scene.Sampling`. Absent keeps the game's setting.
+- `properties` is an object whose keys set the composing class's `[Authorable]` members ([Properties](#properties)).
 - Every entry carries `id`, `type`, `x` and `y` in that order, all required. `rotation`, `scale`,
   `zIndex`, `scrollFactor` and then `properties` follow where the entry carries them.
 - `rotation` is the turn in degrees, clockwise on screen, and absent is 0. The writer emits it only where
@@ -177,6 +178,12 @@ public float Rise { get; set; } = 64f;
 
 The XML documentation on `AuthorableAttribute` states how a key is named and each type's JSON form. The
 build names what a member cannot take.
+
+The document's top-level `properties` sets the members of the class composing the scene the same way: the class
+claiming the document, or the `baseScene` it names. A plain `Scene` declares none. The values land after every entry
+is built and before the derived constructor body runs. That body can read a reference. An assignment in that body
+wins. `type`, `baseScene` and `camera` pick what to construct, the engine's own fields are typed top-level keys, and a
+class's own members go under `properties`, as `"properties": { "music": "audio/music/room.ogg" }`.
 
 ## From source to game
 

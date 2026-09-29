@@ -69,7 +69,7 @@ internal static class EntityDescriber
         }
 
         return PassesSpawnOn(constructors[0], model, out Location? at)
-            ? Model(type, declaration, declared, fault, properties: PropertySchema.Of(type, model.Compilation), spawn: constructors[0].Parameters[0].RefKind)
+            ? Model(type, declaration, declared, fault, properties: PropertySchema.Of(type, model.Compilation, MetadataNames.Entity), spawn: constructors[0].Parameters[0].RefKind)
             : Model(type, declaration, declared, EntityFault.SpawnNotPassedToBase, at);
     }
 

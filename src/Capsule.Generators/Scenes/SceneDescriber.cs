@@ -18,13 +18,23 @@ internal static class SceneDescriber
         }
 
         bool concreteScene = SymbolShape.IsConcreteClass(type);
-        int contentConstructors = concreteScene
-            ? SymbolShape.PublicConstructorsTaking(type, compilation, MetadataNames.SceneContent).Count
-            : 0;
+        List<IMethodSymbol> constructors = concreteScene
+            ? SymbolShape.PublicConstructorsTaking(type, compilation, MetadataNames.SceneContent)
+            : [];
+        int contentConstructors = constructors.Count;
+        string contentModifier = contentConstructors == 1
+            ? constructors[0].Parameters[0].RefKind switch
+            {
+                RefKind.In => "in ",
+                RefKind.RefReadOnlyParameter => "ref readonly ",
+                _ => string.Empty,
+            }
+            : string.Empty;
         bool parameterless = concreteScene && SymbolShape.HasPublicParameterlessConstructor(type);
         AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SceneDocumentAttribute);
         bool accessible = SymbolShape.IsAccessibleFromGeneratedCode(type);
         int derivableContentConstructors = DerivableConstructorsTaking(type, compilation, MetadataNames.SceneContent);
+        EquatableArray<PropertyModel> properties = PropertySchema.Of(type, compilation, MetadataNames.Scene);
 
         if (annotation is not null)
         {
@@ -66,7 +76,7 @@ internal static class SceneDescriber
             new(
                 SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
                 documented, declared, fault, registrable, type.IsAbstract, derivableContentConstructors, accessible,
-                DeclaredAt.From(declaration.Identifier.GetLocation()));
+                DeclaredAt.From(declaration.Identifier.GetLocation()), properties, contentModifier);
     }
 
     // A document's "camera" is resolved against every Camera subclass in the assembly, at generation
@@ -92,7 +102,7 @@ internal static class SceneDescriber
     }
 
     /// <summary>
-    /// The document a key member the build marked describes, with the baseScene and camera the
+    /// The document a key member the build marked describes, with the baseScene, camera and own properties the
     /// build's own parser read out of it. Null for a member whose mark names no key.
     /// </summary>
     internal static SceneDocumentModel? DescribeDocument(GeneratorAttributeSyntaxContext marked)
@@ -107,6 +117,9 @@ internal static class SceneDescriber
         string? camera = null;
         string? source = null;
         string? path = null;
+        EquatableArray<(string, object?)> properties = default;
+        int line = 0;
+        int column = 0;
         foreach (KeyValuePair<string, TypedConstant> named in marked.Attributes[0].NamedArguments)
         {
             switch (named.Key)
@@ -125,6 +138,15 @@ internal static class SceneDescriber
                     break;
                 case "Path":
                     path = named.Value.Value as string;
+                    break;
+                case "Properties" when named.Value.Kind == TypedConstantKind.Array && !named.Value.IsNull:
+                    properties = Pairs(named.Value.Values);
+                    break;
+                case "Line":
+                    line = named.Value.Value as int? ?? 0;
+                    break;
+                case "Column":
+                    column = named.Value.Value as int? ?? 0;
                     break;
             }
         }
@@ -145,7 +167,7 @@ internal static class SceneDescriber
 
         string qualified = SymbolShape.QualifiedName(member.ContainingType) + "." + member.Name;
 
-        return new SceneDocumentModel(key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()));
+        return new SceneDocumentModel(key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()), properties, line, column);
     }
 
     // One game entry, as the build's placement attribute carries it: id, type, then key and value pairs.
@@ -155,13 +177,6 @@ internal static class SceneDescriber
         if (arguments.Length != 3 || arguments[0].Value is not int id || arguments[1].Value is not string type || arguments[2].Kind != TypedConstantKind.Array)
         {
             return null;
-        }
-
-        ImmutableArray<TypedConstant> pairs = arguments[2].Values;
-        ImmutableArray<(string, object?)>.Builder properties = ImmutableArray.CreateBuilder<(string, object?)>();
-        for (int i = 0; i + 1 < pairs.Length; i += 2)
-        {
-            properties.Add(((string)pairs[i].Value!, PlacementValue(pairs[i + 1])));
         }
 
         int line = 0;
@@ -179,7 +194,19 @@ internal static class SceneDescriber
             }
         }
 
-        return new PlacementModel(id, type, new(properties.ToImmutable()), line, column);
+        return new PlacementModel(id, type, Pairs(arguments[2].Values), line, column);
+    }
+
+    // Each property's name and value in turn, as the build writes a placement's or a document's properties.
+    private static EquatableArray<(string, object?)> Pairs(ImmutableArray<TypedConstant> pairs)
+    {
+        ImmutableArray<(string, object?)>.Builder properties = ImmutableArray.CreateBuilder<(string, object?)>();
+        for (int i = 0; i + 1 < pairs.Length; i += 2)
+        {
+            properties.Add(((string)pairs[i].Value!, PlacementValue(pairs[i + 1])));
+        }
+
+        return new(properties.ToImmutable());
     }
 
     private static object? PlacementValue(TypedConstant constant) => constant.Kind switch

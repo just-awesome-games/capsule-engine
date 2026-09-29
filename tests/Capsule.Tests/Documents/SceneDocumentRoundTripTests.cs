@@ -37,8 +37,8 @@ public sealed class SceneDocumentRoundTripTests
     }
 
     // Every top-level key sits at its canonical place, so a document authoring all of them is a fixed
-    // point of the importer. A colour reads in either case or with an ff alpha, and writes as lowercase
-    // "#rrggbb".
+    // point of the importer, and the shipped form carries them too. A colour reads in either case or with
+    // an ff alpha, and writes as lowercase "#rrggbb".
     [Fact]
     public void EverySettingsKey_RoundTripsAtItsCanonicalFieldOrder()
     {
@@ -52,6 +52,10 @@ public sealed class SceneDocumentRoundTripTests
               "clearColor": "#101820",
               "ambient": "#484c68",
               "sampling": "point",
+              "properties": {
+                "music": "audio/room.ogg",
+                "floor": [1, 2]
+              },
               "entities": [
                 {
                   "id": 1,
@@ -78,8 +82,10 @@ public sealed class SceneDocumentRoundTripTests
                 Ambient = new ColorRgba(72, 76, 104),
                 Sampling = TextureSampling.Point,
             },
-            document.Settings);
+            document.Settings with { Properties = null });
+        Assert.Equal("audio/room.ogg", document.Settings.Properties?.GetProperty("music").GetString());
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(SceneDocumentFile.ToJson(document, compact: true))));
         Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json.Replace("#484c68", "#484C68", StringComparison.Ordinal))));
         Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json.Replace("#484c68", "#484c68ff", StringComparison.Ordinal))));
     }

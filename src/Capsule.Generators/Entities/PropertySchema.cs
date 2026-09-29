@@ -3,8 +3,8 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// A placement sets the members its class marks [Authorable]. Every other field and property a key could name
-// is kept with the reason a placement cannot set it.
+// A placement sets the members its entity class marks [Authorable], and a document's own properties those of the
+// scene class composing it. Every other field and property a key could name is kept with the reason it cannot be set.
 internal static class PropertySchema
 {
 
@@ -34,14 +34,15 @@ internal static class PropertySchema
     /// base classes first. A member that a derived member the game can see hides is left out, as in C# member
     /// lookup. An override stands in for the member it overrides.
     /// </summary>
-    internal static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation)
+    /// <param name="engineType">The metadata name of the engine class the walk stops at: the entity's or the scene's.</param>
+    internal static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation, string engineType)
     {
-        INamedTypeSymbol? engineEntity = compilation.GetTypeByMetadataName(MetadataNames.Entity);
+        INamedTypeSymbol? engine = compilation.GetTypeByMetadataName(engineType);
         INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
         HashSet<string> hidden = new(StringComparer.Ordinal);
         List<PropertyModel> properties = [];
         for (INamedTypeSymbol? current = type;
-            current is not null && !SymbolEqualityComparer.Default.Equals(current, engineEntity);
+            current is not null && !SymbolEqualityComparer.Default.Equals(current, engine);
             current = current.BaseType)
         {
             ImmutableArray<ISymbol> members = current.GetMembers();
@@ -76,7 +77,8 @@ internal static class PropertySchema
     internal static AuthorableFault? FaultOf(ISymbol member, Compilation compilation)
     {
         DeclaredAt at = DeclaredAt.From(member.Locations.FirstOrDefault() ?? Location.None);
-        PropertyModel model = Of(member.ContainingType, compilation).Items.FirstOrDefault(property => property.At == at);
+        string engineType = SymbolShape.DerivesFrom(member.ContainingType, compilation, MetadataNames.Scene) ? MetadataNames.Scene : MetadataNames.Entity;
+        PropertyModel model = Of(member.ContainingType, compilation, engineType).Items.FirstOrDefault(property => property.At == at);
         string name = $"{member.ContainingType.ToDisplayString()}.{member.Name}";
 
         return model.Refusal is not null || model.Clash is not null

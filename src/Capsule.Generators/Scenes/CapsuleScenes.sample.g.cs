@@ -22,7 +22,7 @@ namespace Capsule.Generated
             {
                 global::Capsule.Scenes.SceneRegistration.Plain(typeof(global::Game.MainMenu), static _ => new global::Game.MainMenu()),
                 global::Capsule.Scenes.SceneRegistration.FromDocument(typeof(global::Game.Hall), "scenes/hall", static content => new global::Game.Hall(content!.Value with { Camera = static () => new global::Game.GameCamera() })),
-                global::Capsule.Scenes.SceneRegistration.DocumentOnly("scenes/room", static content => new global::Capsule.Generated.CapsuleGeneratedScene_Scenes_Room(content!.Value with { Camera = static () => new global::Game.GameCamera() })),
+                global::Capsule.Scenes.SceneRegistration.DocumentOnly("scenes/room", static content => new global::Capsule.Generated.CapsuleGeneratedScene_Scenes_Room(content!.Value with { Camera = static () => new global::Game.GameCamera(), Apply = Apply_Game_PlayableScene })),
             };
 
         /// <summary>The registry the engine composes every scene through.</summary>
@@ -30,5 +30,17 @@ namespace Capsule.Generated
             new global::Capsule.Scenes.SceneRegistry(
                 global::Capsule.Generated.CapsuleEntities.Registry,
                 Registrations);
+
+        private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            global::Game.PlayableScene scene = (global::Game.PlayableScene)composed;
+            if (properties.Has("floor"))
+            {
+                SetFloor(scene, properties.Int("floor"));
+            }
+        }
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Floor")]
+        private static extern void SetFloor(global::Game.PlayableScene owner, int value);
     }
 }

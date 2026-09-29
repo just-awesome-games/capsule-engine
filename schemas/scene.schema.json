@@ -60,6 +60,10 @@
         "point"
       ]
     },
+    "properties": {
+      "description": "The scene's properties. Each key sets the member the composing scene class marks [Authorable].",
+      "type": "object"
+    },
     "entities": {
       "description": "Every entry the scene places, in document order. Write an empty list for a scene with nothing in it.",
       "type": "array",

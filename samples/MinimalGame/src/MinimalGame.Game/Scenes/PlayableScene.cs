@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule;
+using Capsule.Audio;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using MinimalGame.Game.Entities;
@@ -11,7 +12,7 @@ namespace MinimalGame.Game.Scenes;
 /// What every playable scene is made of, with the level left to the document: the head-up display,
 /// the pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> payload names, and
 /// returning to the <see cref="MainMenu"/> at no health. A level is a document
-/// that names it as its <c>baseScene</c>. The camera comes from the document, and the display and the
+/// that names it as its <c>baseScene</c>. The camera and the music come from the document, and the display and the
 /// menu are installed in the constructor so their contents are collected for its preload.
 /// </summary>
 public abstract class PlayableScene : Scene
@@ -23,6 +24,10 @@ public abstract class PlayableScene : Scene
 
     /// <summary>The body the document placed, for the level that wants to reach it.</summary>
     protected Player Player { get; private set; } = null!;
+
+    /// <summary>The track the room plays, which its document names.</summary>
+    [Authorable(Required = true)]
+    public AudioClip Music { get; private set; }
 
     protected PlayableScene(SceneContent content)
         : base(content)
@@ -45,7 +50,7 @@ public abstract class PlayableScene : Scene
         }
 
         // Crossfades from whatever was playing, or fades in alone under --scene scenes/room.
-        Run.Game.Music.Play(CapsuleAssets.Audio.Music.RoomSound);
+        Run.Game.Music.Play(Music);
     }
 
     // The scene steps through its own pause and owns the key that opens and closes it. Losing window
