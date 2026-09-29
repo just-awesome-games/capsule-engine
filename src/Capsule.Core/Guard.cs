@@ -31,6 +31,14 @@ internal static class Guard
         }
     }
 
+    internal static void NonNegative(float value, string parameterName)
+    {
+        if (!(value >= 0f) || float.IsInfinity(value))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, value, "Expected a finite, non-negative number.");
+        }
+    }
+
     internal static void Positive(float value, string parameterName)
     {
         if (!(value > 0f) || float.IsInfinity(value))

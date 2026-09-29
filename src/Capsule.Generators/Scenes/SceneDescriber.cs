@@ -75,7 +75,7 @@ internal static class SceneDescriber
         SceneModel Model(SceneFault fault, bool documented = false, string? declared = null, bool registrable = true) =>
             new(
                 SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
-                documented, declared, fault, registrable, type.IsAbstract, derivableContentConstructors, accessible,
+                documented, declared, fault, registrable, type.IsAbstract, type.IsGenericType, derivableContentConstructors, accessible,
                 DeclaredAt.From(declaration.Identifier.GetLocation()), properties, contentModifier);
     }
 

@@ -13,5 +13,7 @@ Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that re
 ([`audio.md`](audio.md)). Saved state is `Run.Saves`, in memory at either boundary
 ([`persistence.md`](persistence.md)). A seeded `RandomSource` makes a run repeatable under the
 [determinism contract](architecture.md#determinism-contract).
+A test composes a scene document through the generated `CapsuleScenes.Registry` in `Capsule.Generated`
+([`scenes.md`](scenes.md#format)).
 [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the
 worked example at both boundaries.

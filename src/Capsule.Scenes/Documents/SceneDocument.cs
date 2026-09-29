@@ -29,8 +29,18 @@ public sealed class SceneDocument
     /// <param name="entries">Every tile map and entity placement, in composition order.</param>
     /// <param name="nextEntityId">The next id to hand out. At least 1, and greater than every entry's id.</param>
     /// <param name="source">Where a derived document came from, or null when it is hand-authored.</param>
-    /// <param name="settings">The scene-level state the document authors, or null when it authors none.</param>
+    /// <param name="settings">
+    /// The scene-level state the document authors, or null when it authors none. Its <see cref="SceneSettings.Properties"/>
+    /// set the composing scene class's authorable members.
+    /// </param>
     /// <exception cref="ArgumentException">The document is malformed. The message names the defect.</exception>
+    /// <example>
+    /// A test builds a document whose scene properties name the entry with id 3:
+    /// <code>
+    /// SceneSettings settings = new() { Properties = JsonSerializer.SerializeToElement(new { startBounds = 3 }) };
+    /// SceneDocument document = new(entries, nextEntityId: 4, source: null, settings);
+    /// </code>
+    /// </example>
     public SceneDocument(
         IReadOnlyList<SceneDocumentEntry> entries,
         int nextEntityId,

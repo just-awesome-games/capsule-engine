@@ -22,6 +22,10 @@ internal readonly record struct GeneratedBase(string ClassName, SceneModel Base)
 /// <param name="Generates">Whether the assembly gets the file at all: only a logic assembly does.</param>
 /// <param name="Registered">Every sound scene class, one per document, those with no document first.</param>
 /// <param name="DocumentOnly">Every document no class claims, sorted by key.</param>
+/// <param name="Applied">
+/// Every scene class an applier is emitted for, sorted by name: each class that authors members and generated code
+/// can name, plus each class a document composes.
+/// </param>
 /// <param name="TileTypes">Every tile type class by the key it keeps, valid or not, sorted by key.</param>
 /// <param name="Lookups">The asset lookups the composing classes' authored members read through.</param>
 /// <param name="Diagnostics">Every fault found resolving the plan.</param>
@@ -29,19 +33,11 @@ internal readonly record struct ScenePlan(
     bool Generates,
     EquatableArray<RegisteredScene> Registered,
     EquatableArray<DocumentOnlyScene> DocumentOnly,
+    EquatableArray<SceneModel> Applied,
     EquatableArray<KeyedTileType> TileTypes,
     EquatableArray<AssetLookup> Lookups,
     EquatableArray<Diagnostic> Diagnostics)
 {
-    /// <summary>Every class whose members a document's properties set: a registered class or a generated scene's base.</summary>
-    internal IEnumerable<SceneModel> Composing => Registered.Items
-        .Where(static entry => entry.DocumentName is not null)
-        .Select(static entry => entry.Model)
-        .Concat(DocumentOnly.Items.Where(static document => document.Base is not null).Select(static document => document.Base!.Value.Base))
-        .Where(static model => model.Authored.Any())
-        .GroupBy(static model => model.QualifiedName)
-        .Select(static models => models.First());
-
     /// <summary>Every tile type a palette entry's type can compose.</summary>
     internal IEnumerable<KeyedTileType> Composed => TileTypes.Items.Where(static entry => entry.Model.Valid);
 }

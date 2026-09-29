@@ -57,6 +57,39 @@ public sealed class SceneAuthorableTests
         }
         """;
 
+    // Mirrors a game's test assembly: an abstract room no document names, and a subclass with no registration of its own.
+    private const string Rooms = """
+        #nullable enable
+        using Capsule.Scenes;
+        using Capsule.Scenes.Spawning;
+
+        namespace Game;
+
+        public sealed class Lift(EntitySpawn spawn) : Entity(spawn);
+
+        public abstract class Room(SceneContent content) : Scene(content)
+        {
+            [Authorable]
+            public Lift? Start { get; private set; }
+        }
+
+        public abstract class Stage(SceneContent content) : Room(content)
+        {
+            [Authorable]
+            public int Floor { get; private set; }
+        }
+
+        public abstract class Quiet(SceneContent content) : Scene(content);
+
+        public sealed class TestStage : Stage
+        {
+            internal TestStage(SceneContent content)
+                : base(content)
+            {
+            }
+        }
+        """;
+
     private const string Authored = """{"floor": 3, "lift": 1, "title": "document", "bounds": [0, -16, 320, 240]}""";
 
     [Fact]
@@ -101,6 +134,43 @@ public sealed class SceneAuthorableTests
         Assert.Equal((path, 0, 0), (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
     }
 
+    [Fact]
+    public void ATestSubclassOfAnAbstractScene_GetsTheDocumentsProperties_ThroughContent()
+    {
+        Assembly game = Loaded(Rooms);
+        SceneContent content = Content(game, "Game.Stage", """{"start": 1, "floor": 3}""");
+
+        Scene stage = (Scene)Activator.CreateInstance(game.GetType("Game.TestStage")!, BindingFlags.Instance | BindingFlags.NonPublic, null, [content], null)!;
+
+        Assert.Same(Assert.Single(stage.Entities.ToArray()), Member(stage, "Start"));
+        Assert.Equal(3, Member(stage, "Floor"));
+    }
+
+    [Fact]
+    public void ContentForAClassDeclaringNoAuthorableMember_RefusesADocumentAuthoringProperties()
+    {
+        SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(
+            () => Content(Loaded(Rooms), "Game.Quiet", """{"start": 1}"""));
+
+        Assert.Contains("'Game.Quiet' declares no authorable member and inherits none", refused.Message, StringComparison.Ordinal);
+    }
+
+    private static Assembly Loaded(string source)
+    {
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(source, logic: true);
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+
+        return GeneratorHarness.Loaded(compiled);
+    }
+
+    private static SceneRegistry Registry(Assembly game) =>
+        (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
+
+    private static SceneContent Content(Assembly game, string sceneType, string properties) =>
+        (SceneContent)typeof(SceneRegistry).GetMethod(nameof(SceneRegistry.Content))!
+            .MakeGenericMethod(game.GetType(sceneType)!)
+            .Invoke(Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocumentFile.Parse(Document(properties))], null)!;
+
     private static string Document(string properties) =>
         "{\"formatVersion\": 8, \"properties\": " + properties + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}], \"nextEntityId\": 2}";
 
@@ -110,10 +180,7 @@ public sealed class SceneAuthorableTests
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Hall, Document(properties)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        Assembly game = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
-
-        return registry.Create(new SceneKey("scenes/hall"), SceneDocumentFile.Parse(Document(properties)));
+        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey("scenes/hall"), SceneDocumentFile.Parse(Document(properties)));
     }
 
     private static object? Member(Scene scene, string name) => scene.GetType().GetProperty(name)!.GetValue(scene);

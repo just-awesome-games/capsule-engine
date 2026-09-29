@@ -81,7 +81,11 @@ code assigning that property still wins. The top-level keys run in the order `fo
   subclass assigning `Camera` in its own constructor body still wins. The generated registration
   supplies the camera. A `SceneContent` built by hand from a document carries no camera, `properties` or
   tile types, and composes the scene with its default camera and every palette entry as a plain `TileType`.
-  A test composes a document as a run does through `SceneRegistry.Create(SceneKey, SceneDocument)`.
+  A test composes a document as a run does through `CapsuleScenes.Registry`, which the build generates into
+  `Capsule.Generated` beside `CapsuleEntities.Registry`. `Create(SceneKey, SceneDocument)` composes a shipped
+  document's key into its class. `Content<TScene>(SceneDocument)` returns the content for any scene class,
+  abstract included, with its `properties` applier and the tile types but no camera. A test subclass
+  constructs from it, as in `new TestRoom(CapsuleScenes.Registry.Content<PlayableRoom>(document))`.
 - `size` is `[w, h]`, both finite and greater than zero, and sets `Scene.Size`. Absent keeps the extent of the
   document's tile maps.
 - `scrollCenter` is `[x, y]`, both finite. It is the camera centre at which every layer sits as authored, written as `ScrollCenter` to every camera the

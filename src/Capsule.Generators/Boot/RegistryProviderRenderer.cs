@@ -65,6 +65,7 @@ internal static class RegistryProviderRenderer
                     global::System.ArgumentNullException.ThrowIfNull(scenes);
                     scenes.AddEntities(global::Capsule.Generated.CapsuleEntities.Registrations);
                     scenes.AddScenes(global::Capsule.Generated.CapsuleScenes.Registrations);
+                    scenes.AddAppliers(global::Capsule.Generated.CapsuleScenes.Appliers);
                     scenes.AddTileTypes(global::Capsule.Generated.CapsuleScenes.TileTypes);
                 }
 

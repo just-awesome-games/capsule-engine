@@ -107,6 +107,84 @@ public sealed class CameraBoundsTests
         Assert.Equal(NextScreen, camera.VisibleRegion);
     }
 
+    // At 120 units a second and 60 steps a second the closing left edge pushes the view 2 units a step
+    // from its own edge. It lands on the 160th step.
+    [Fact]
+    public void AMaxSpeedWithNoSmoothTime_PushesTheViewAtConstantSpeed_AndLandsOnTheRect()
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        camera.BoundsMaxSpeed = 120f;
+        simulation.Step(SceneFixtures.Step(0));
+
+        camera.Bounds = NextScreen;
+        for (int step = 1; step < 160; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+            Assert.Equal(2f * step, camera.VisibleRegion.Left, 1e-3f);
+        }
+
+        simulation.Step(SceneFixtures.Step(160));
+        Assert.Equal(NextScreen, camera.VisibleRegion);
+    }
+
+    // A smoothed chase starts 20 units a step toward the next screen and ends slower than the cap. Flipping
+    // back and forth mid-way never moves the view faster than the cap, with or without the smoothing.
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.25f)]
+    public void ACappedChase_NeverMovesTheViewFasterThanItsMaxSpeed_AcrossARecrossing(float smoothTime)
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(smoothTime);
+        camera.BoundsMaxSpeed = 120f;
+        simulation.Step(SceneFixtures.Step(0));
+
+        int tick = 1;
+        foreach ((Rect bounds, int steps) in new[] { (NextScreen, 20), (OneScreen, 10), (NextScreen, 400) })
+        {
+            camera.Bounds = bounds;
+            for (int step = 0; step < steps; step++)
+            {
+                float before = camera.VisibleRegion.Left;
+                simulation.Step(SceneFixtures.Step(tick++));
+                Assert.InRange(MathF.Abs(camera.VisibleRegion.Left - before), 0f, 2f + 1e-4f);
+            }
+        }
+
+        Assert.Equal(NextScreen, camera.VisibleRegion);
+    }
+
+    // The view is pinned at 90 while the subject falls 5 units a step, 16 past the deadzone's reach. Once
+    // the bottom opens the view falls with the subject and gains 2 units a step on it. It moves 7 a step
+    // for 17 steps until the subject is back at the deadzone's edge, then tracks it at 5.
+    [Fact]
+    public void AnOpeningEdge_KeepsPaceWithAFallingSubject_AndGainsOnItAtTheMaxSpeed()
+    {
+        Faller subject = new(new Vector2(160f, 90f));
+        (SceneSimulation simulation, Camera camera) = Following(subject, c =>
+        {
+            c.Deadzone = new Vector2(0f, 32f);
+            c.Bounds = OneScreen;
+            c.BoundsMaxSpeed = 120f;
+        });
+
+        for (int step = 0; step < 10; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+
+        Assert.Equal(90f, camera.Center.Y);
+
+        camera.Bounds = OneScreen with { Bottom = 10000f };
+        for (int step = 10; step < 30; step++)
+        {
+            float before = camera.Center.Y;
+            simulation.Step(SceneFixtures.Step(step));
+            Assert.Equal(step <= 26 ? 7f : 5f, camera.Center.Y - before, 1e-3f);
+        }
+
+        Assert.Equal(subject.Position.Y - 16f, camera.Center.Y, 1e-3f);
+    }
+
     // A room as wide as the view and one narrower than it, where the view is centred on each rect.
     [Theory]
     [InlineData(320f)]
@@ -284,4 +362,9 @@ public sealed class CameraBoundsTests
     }
 
     private sealed class Still(Vector2 position) : Entity(position);
+
+    private sealed class Faller(Vector2 position) : Entity(position)
+    {
+        protected internal override void OnStep(in StepContext context) => Position += new Vector2(0f, 5f);
+    }
 }

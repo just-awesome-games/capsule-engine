@@ -91,6 +91,29 @@ public sealed class CameraKitTests
         Assert.Equal(target, leader.Center.X - trailer.Center.X, 1e-2f);
     }
 
+    // The cut lands on the aim 17 units above the subject. The deadzone spans 20 either side of that aim,
+    // so a rise to -40 moves the view to -37. An aim far above the subject still leaves it on the frame's
+    // bottom edge.
+    [Fact]
+    public void AFollowOffset_MovesTheAimTheDeadzoneMeasuresFrom_AndTheSubjectStaysInTheFrame()
+    {
+        Still subject = new(Vector2.Zero);
+        (SceneSimulation simulation, Camera camera) = Following(subject, c =>
+        {
+            c.FollowOffset = new Vector2(0f, -17f);
+            c.Deadzone = new Vector2(0f, 40f);
+        });
+        Assert.Equal(new Vector2(0f, -17f), camera.Center);
+
+        subject.Position = new Vector2(0f, -40f);
+        simulation.Step(SceneFixtures.Step(0));
+        Assert.Equal(new Vector2(0f, -37f), camera.Center);
+
+        camera.FollowOffset = new Vector2(0f, -500f);
+        simulation.Step(SceneFixtures.Step(1));
+        Assert.Equal(subject.Position.Y, camera.VisibleRegion.Bottom);
+    }
+
     // A subject the scene's start moves after the follow, as an arrival moves the player, is framed
     // where it stands once the scene has started. The host draws that frame before the first step.
     [Fact]

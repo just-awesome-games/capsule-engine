@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 
@@ -16,6 +17,7 @@ public sealed class SceneRegistry
     private readonly Dictionary<Type, SceneRegistration> _byType = [];
     private readonly Dictionary<string, SceneRegistration> _byDocumentName = new(StringComparer.Ordinal);
     private readonly List<SceneRegistration> _registrations = [];
+    private readonly Dictionary<Type, SceneApplier> _appliers = [];
     private readonly EntityRegistry _entities;
     private readonly TileTypeComposer? _tileTypes;
 
@@ -23,11 +25,16 @@ public sealed class SceneRegistry
     /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <param name="tileTypes">The composer of every tile type the assembly declares, or null when it declares none.</param>
+    /// <param name="appliers">The applier of each scene class declaring authorable members, or null when none does.</param>
     /// <exception cref="ArgumentException">
-    /// A registration names no class and no document, or a class or a document is registered twice.
+    /// A registration names no class and no document, or a class, a document or an applier's class is registered twice.
     /// </exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes, TileTypeComposer? tileTypes = null)
+    public SceneRegistry(
+        EntityRegistry entities,
+        IEnumerable<SceneRegistration> scenes,
+        TileTypeComposer? tileTypes = null,
+        IEnumerable<KeyValuePair<Type, SceneApplier>>? appliers = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
         ArgumentNullException.ThrowIfNull(scenes);
@@ -57,6 +64,16 @@ public sealed class SceneRegistry
             }
 
             _registrations.Add(registration);
+        }
+
+        foreach ((Type sceneType, SceneApplier apply) in appliers ?? [])
+        {
+            ArgumentNullException.ThrowIfNull(sceneType, nameof(appliers));
+            ArgumentNullException.ThrowIfNull(apply, nameof(appliers));
+            if (!_appliers.TryAdd(sceneType, apply))
+            {
+                throw new ArgumentException($"The scene '{sceneType}' has more than one applier.", nameof(appliers));
+            }
         }
     }
 
@@ -158,6 +175,50 @@ public sealed class SceneRegistry
 
             throw new SceneDocumentFormatException($"scene document '{name}'{derived}: {exception.Message}", exception);
         }
+    }
+
+    /// <summary>
+    /// The content a run would compose <paramref name="document"/> with for the scene class <typeparamref name="TScene"/>.
+    /// </summary>
+    /// <remarks>
+    /// The content carries the entity registry, the tile types and the applier of <typeparamref name="TScene"/>'s
+    /// authorable members, inherited ones included. Its camera is null. Only a shipped document fixes a scene's
+    /// camera. The caller constructs the scene from it, typically a test subclass of an abstract scene.
+    /// </remarks>
+    /// <typeparam name="TScene">The scene class whose authorable members the document's <c>properties</c> set.</typeparam>
+    /// <param name="document">The document to compose, parsed or built by hand.</param>
+    /// <returns>The content to pass to <typeparamref name="TScene"/>'s constructor.</returns>
+    /// <exception cref="SceneDocumentFormatException">
+    /// The document authors properties, but <typeparamref name="TScene"/> declares no authorable member and inherits none.
+    /// </exception>
+    /// <example>
+    /// A test subclass of an abstract scene gets the scene properties its document authors:
+    /// <code>
+    /// SceneContent content = CapsuleScenes.Registry.Content&lt;PlayableRoom&gt;(document);
+    /// using SimulationHost host = new(new TestRoom(content));
+    /// </code>
+    /// </example>
+    public SceneContent Content<TScene>(SceneDocument document)
+        where TScene : Scene
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        SceneApplier? apply = null;
+        for (Type? current = typeof(TScene); apply is null && current is not null && current != typeof(Scene); current = current.BaseType)
+        {
+            _appliers.TryGetValue(current, out apply);
+        }
+
+        if (apply is null && document.Settings.Properties is { ValueKind: JsonValueKind.Object } properties
+            && properties.EnumerateObject().Any())
+        {
+            throw new SceneDocumentFormatException(
+                $"The document authors properties, but '{typeof(TScene)}' declares no authorable member and inherits none. "
+                + "Mark the members the properties set [Authorable] in a scene class of the game's logic assembly, "
+                + "or remove the document's properties.");
+        }
+
+        return new SceneContent(document, _entities, Apply: apply, TileTypes: _tileTypes);
     }
 
     private SceneRegistration Find(Type sceneType)

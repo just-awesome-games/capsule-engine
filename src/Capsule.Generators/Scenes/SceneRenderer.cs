@@ -14,6 +14,8 @@ internal static class SceneRenderer
     // An applier's statements sit one level inside its method.
     private const string StatementIndent = "            ";
 
+    private const string AppliersType = "global::System.Collections.Generic.KeyValuePair<global::System.Type, global::Capsule.Scenes.SceneApplier>";
+
     // The one method the engine composes every palette entry naming a class through.
     private const string ComposerName = "ComposeTileType";
 
@@ -43,7 +45,7 @@ internal static class SceneRenderer
             .Select(static document => GeneratedScene(document.Base!.Value)));
         IEnumerable<string> registrations = plan.Registered.Items.Select(Registration)
             .Concat(plan.DocumentOnly.Items.Select(Registration));
-        List<SceneModel> composing = [.. plan.Composing];
+        List<SceneModel> composing = [.. plan.Applied.Items];
         List<KeyedTileType> tileTypes = [.. plan.Composed];
         string members = string.Concat(plan.Registered.Items
                 .Where(static entry => entry.DocumentName is not null && entry.Model.Required)
@@ -54,6 +56,7 @@ internal static class SceneRenderer
                 .Concat(tileTypes.SelectMany(static entry => entry.Model.Authored))
                 .Where(static property => !property.Direct))
             + string.Concat(plan.Lookups.Items.Select(EntityRenderer.Lookup));
+        string appliers = string.Concat(composing.Select(static model => $"                new(typeof({model.QualifiedName}), {ApplierName(model)}),\n"));
         string composer = tileTypes.Count == 0 ? "null" : ComposerName;
         string createRegistry = RegistryProviderRenderer.SceneRegistryBody(["global::Capsule.Generated." + providerName], StatementIndent);
 
@@ -63,6 +66,12 @@ internal static class SceneRenderer
                 public static class CapsuleScenes
                 {
             {{GeneratedFile.Registrations("global::Capsule.Scenes.SceneRegistration", registrations)}}
+
+                    // The applier of each scene class authoring members, by class, which SceneRegistry.Content finds along a class's bases.
+                    internal static {{AppliersType}}[] Appliers { get; } =
+                        new {{AppliersType}}[]
+                        {
+            {{appliers}}            };
 
                     /// <summary>The registry the engine composes every scene through.</summary>
                     public static global::Capsule.Scenes.SceneRegistry Registry { get; } = CreateRegistry();

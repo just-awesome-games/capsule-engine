@@ -26,6 +26,13 @@ namespace Capsule.Generated
                 global::Capsule.Scenes.SceneRegistration.DocumentOnly("scenes/room", static content => new global::Capsule.Generated.CapsuleGeneratedScene_Scenes_Room(content!.Value with { Camera = static () => new global::Game.GameCamera(), Apply = Apply_Game_PlayableScene })),
             };
 
+        // The applier of each scene class authoring members, by class, which SceneRegistry.Content finds along a class's bases.
+        internal static global::System.Collections.Generic.KeyValuePair<global::System.Type, global::Capsule.Scenes.SceneApplier>[] Appliers { get; } =
+            new global::System.Collections.Generic.KeyValuePair<global::System.Type, global::Capsule.Scenes.SceneApplier>[]
+            {
+                new(typeof(global::Game.PlayableScene), Apply_Game_PlayableScene),
+            };
+
         /// <summary>The registry the engine composes every scene through.</summary>
         public static global::Capsule.Scenes.SceneRegistry Registry { get; } = CreateRegistry();
 

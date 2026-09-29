@@ -4,8 +4,9 @@ using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
-// The follow: the subject, the deadzone its aim moves in, the lead ahead of it and the smoothing that
-// carries the centre after them.
+// The follow: the subject, the point on it the camera aims at, the deadzone that aim moves in, the lead
+// ahead of it and the smoothing that carries the centre after them. The follow's own move each step lets
+// an opening bounds edge keep pace with it.
 public partial class Camera
 {
     // The point the smoothing chases. The deadzone is centred on it, and each settle confines it as it
@@ -15,12 +16,47 @@ public partial class Camera
     // How far ahead of the subject the camera aims, eased toward the lookahead's target.
     private Vector2 _lead;
 
+    // The unconfined centre the follow settled on at the previous step, or null when that step did not
+    // follow or the follow has since reset.
+    private Vector2? _followCenter;
+
+    // How far the follow moved the unconfined centre this step. It is zero on a step that does not follow,
+    // on a cut and on the first settle.
+    private Vector2 _followMove;
+
     // A Follow before the first settle cuts to its subject when its scene finishes starting, or at that
     // settle when this camera was installed later.
     private bool _cutToSubject;
 
     /// <summary>The entity this camera follows, or null when it follows none.</summary>
     public Entity? Subject { get; private set; }
+
+    /// <summary>
+    /// The point the camera aims at relative to its subject's position, in world units, where zero, the
+    /// default, aims at the position itself.
+    /// </summary>
+    /// <remarks>
+    /// The <see cref="Deadzone"/>, the lookahead and the smoothing work from this point, and the cut to a
+    /// new subject lands on it. The subject's own position still never leaves the frame inside
+    /// <see cref="Bounds"/>. Unlike <see cref="Offset"/>, which moves the view after the bounds confine it,
+    /// this moves what the follow aims at.
+    /// </remarks>
+    /// <example>
+    /// A subject positioned at its feet, framed by a point 17 units above them:
+    /// <code>
+    /// FollowOffset = new Vector2(0f, -17f);
+    /// </code>
+    /// </example>
+    public Vector2 FollowOffset
+    {
+        get;
+
+        set
+        {
+            Guard.Finite(value, nameof(value));
+            field = value;
+        }
+    }
 
     /// <summary>
     /// The size of the box the camera's aim moves in without moving the camera, in world units, where
@@ -109,6 +145,7 @@ public partial class Camera
     {
         _focus = center;
         _lead = Vector2.Zero;
+        _followCenter = null;
     }
 
     // The cut a Follow before the first settle asked for, taken where the subject stands by then.
@@ -123,7 +160,7 @@ public partial class Camera
 
         if (Subject is { } subject && (subject.SceneOrNull is null || ReferenceEquals(subject.SceneOrNull, _scene)))
         {
-            Teleport(subject.WorldPosition);
+            Teleport(subject.WorldPosition + FollowOffset);
         }
     }
 
@@ -138,18 +175,11 @@ public partial class Camera
     // The hard edge measures the span the frame draws on output, before the offset and the shake move it.
     private void StepFollow(float seconds, Vector2 output)
     {
-        if (Subject is not { } subject)
-        {
-            return;
-        }
+        _followMove = Vector2.Zero;
 
-        if (!ReferenceEquals(subject.SceneOrNull, _scene))
+        if (Subject is not { } subject || !ReferenceEquals(subject.SceneOrNull, _scene) || subject.Held || !(seconds > 0f))
         {
-            return;
-        }
-
-        if (subject.Held || !(seconds > 0f))
-        {
+            _followCenter = null;
             return;
         }
 
@@ -165,7 +195,7 @@ public partial class Camera
         Vector2 past = Vector2.Max(Vector2.Zero, Vector2.Abs(velocity) - LookaheadThreshold) * Lookahead;
         Vector2 target = new(MathF.CopySign(past.X, velocity.X), MathF.CopySign(past.Y, velocity.Y));
         _lead = SmoothTime > 0f ? _lead + ((target - _lead) * (seconds / (SmoothTime + seconds))) : target;
-        Vector2 aim = position + _lead;
+        Vector2 aim = position + FollowOffset + _lead;
         Vector2 reach = Deadzone / 2f;
         _focus = Vector2.Clamp(_focus, aim - reach, aim + reach);
 
@@ -176,5 +206,12 @@ public partial class Camera
         // The hard edge keeps the subject inside the span at any speed.
         Vector2 half = span / 2f;
         Center = Vector2.Clamp(Center, position - half, position + half);
+
+        if (_followCenter is { } previous && _settled && !_cut)
+        {
+            _followMove = Center - previous;
+        }
+
+        _followCenter = Center;
     }
 }

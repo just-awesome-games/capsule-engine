@@ -66,10 +66,20 @@ internal static class SceneResolver
 
         unclaimed.Sort(static (left, right) => string.CompareOrdinal(left.DocumentName, right.DocumentName));
 
+        // A class no document names gets an applier too, so a test composing it by class sets its members.
+        IEnumerable<SceneModel> applied = inputs.Models.Items.Where(static model => model.Applied)
+            .Concat(registered.Where(static entry => entry.DocumentName is not null).Select(static entry => entry.Model))
+            .Concat(unclaimed.Where(static entry => entry.Base is not null).Select(static entry => entry.Base!.Value.Base))
+            .Where(static model => model.Authored.Any())
+            .GroupBy(static model => model.QualifiedName, StringComparer.Ordinal)
+            .Select(static models => models.First())
+            .OrderBy(static model => model.QualifiedName, StringComparer.Ordinal);
+
         ScenePlan plan = new(
             Generates: true,
             new([.. registered.Select(entry => new RegisteredScene(entry.DocumentName, entry.Model, CameraOf(entry.DocumentName)))]),
             new([.. unclaimed.Select(entry => new DocumentOnlyScene(entry.DocumentName, entry.Base, CameraOf(entry.DocumentName)))]),
+            new([.. applied]),
             new([.. tileTypes.OrderBy(static entry => entry.Key, StringComparer.Ordinal).Select(static entry => new KeyedTileType(entry.Key, entry.Value))]),
             default,
             new([.. diagnostics]));
@@ -77,7 +87,7 @@ internal static class SceneResolver
         return plan with
         {
             Lookups = EntityResolver.Lookups(
-                plan.Composing.SelectMany(static model => model.Authored).Concat(plan.Composed.SelectMany(static entry => entry.Model.Authored)),
+                plan.Applied.Items.SelectMany(static model => model.Authored).Concat(plan.Composed.SelectMany(static entry => entry.Model.Authored)),
                 new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
         };
 

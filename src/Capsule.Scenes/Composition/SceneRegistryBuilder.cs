@@ -14,6 +14,7 @@ public sealed class SceneRegistryBuilder
     private readonly List<EntityRegistration> _entities = [];
     private readonly List<SceneRegistration> _scenes = [];
     private readonly List<TileTypeComposer> _tileTypes = [];
+    private readonly List<KeyValuePair<Type, SceneApplier>> _appliers = [];
 
     /// <summary>Adds one assembly's entity registrations.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -31,6 +32,14 @@ public sealed class SceneRegistryBuilder
         _scenes.AddRange(scenes);
     }
 
+    /// <summary>Adds the applier of each scene class one assembly declares with authorable members.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void AddAppliers(IEnumerable<KeyValuePair<Type, SceneApplier>> appliers)
+    {
+        ArgumentNullException.ThrowIfNull(appliers);
+        _appliers.AddRange(appliers);
+    }
+
     /// <summary>Adds one assembly's tile type composer. A null composer, from an assembly declaring no tile type, adds nothing.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public void AddTileTypes(TileTypeComposer? tileTypes)
@@ -42,9 +51,9 @@ public sealed class SceneRegistryBuilder
     }
 
     /// <summary>The registry over everything added.</summary>
-    /// <exception cref="ArgumentException">Two assemblies register the same spawn type, scene class or scene document.</exception>
+    /// <exception cref="ArgumentException">Two assemblies register the same spawn type, scene class, scene document or applier.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public SceneRegistry Build() => new(new EntityRegistry(_entities), _scenes, ComposeTileType());
+    public SceneRegistry Build() => new(new EntityRegistry(_entities), _scenes, ComposeTileType(), _appliers);
 
     // A palette entry's type is claimed by at most one assembly, so the first composer returning a tile builds it.
     private TileTypeComposer? ComposeTileType()

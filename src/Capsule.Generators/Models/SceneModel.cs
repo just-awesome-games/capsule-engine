@@ -21,6 +21,7 @@ internal enum SceneFault
 /// <param name="Fault">Why a registration candidate cannot register.</param>
 /// <param name="Registrable">Whether this class is a registration candidate at all.</param>
 /// <param name="Abstract">Whether the class is abstract, the shape a baseScene's generated subclass needs.</param>
+/// <param name="Generic">Whether the class declares type parameters, which generated code cannot name it without.</param>
 /// <param name="DerivableContentConstructors">Constructors taking <c>SceneContent</c> a derived type in this assembly can call.</param>
 /// <param name="AccessibleType">Whether the class itself is reachable from generated code.</param>
 /// <param name="At">Where a fault about this model is reported.</param>
@@ -36,6 +37,7 @@ internal readonly record struct SceneModel(
     SceneFault Fault,
     bool Registrable,
     bool Abstract,
+    bool Generic,
     int DerivableContentConstructors,
     bool AccessibleType,
     DeclaredAt At,
@@ -44,6 +46,9 @@ internal readonly record struct SceneModel(
 {
     /// <summary>Every member a document's properties set.</summary>
     internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
+
+    /// <summary>Whether generated code emits and registers an applier for the class: it authors members and code can name it.</summary>
+    internal bool Applied => AccessibleType && !Generic && Authored.Any();
 
     /// <summary>
     /// Whether generated code constructs the class past C#'s required check: its required members are all
