@@ -16,13 +16,15 @@ internal static class MetadataNames
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
     internal const string SceneDocumentAttribute = "Capsule.Scenes.SceneDocumentAttribute";
     internal const string Camera = "Capsule.Scenes.Camera";
+    internal const string TileType = "Capsule.Tiles.TileType";
     internal const string InputDriver = "Capsule.Input.IInputDriver";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
 
-    // What the build marks CapsuleAssets with. A placement attribute is matched by its simple name.
+    // What the build marks CapsuleAssets with. A placement or tile type attribute is matched by its simple name.
     internal const string AssetAttribute = "Capsule.Generated.CapsuleGeneratedAssetAttribute";
     internal const string SceneDocumentKeyAttribute = "Capsule.Generated.CapsuleGeneratedSceneDocumentAttribute";
     internal const string PlacementAttributeName = "CapsuleGeneratedPlacementAttribute";
+    internal const string TileTypeAttributeName = "CapsuleGeneratedTileTypeAttribute";
 
     // What a logic assembly's generated registry provider declares, and the shell reads.
     internal const string RegistryProviderAttribute = "Capsule.Generated.CapsuleGeneratedRegistryProviderAttribute";

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
@@ -15,6 +16,7 @@ public sealed class SceneAuthorableTests
 
     private const string Game = """
         #nullable enable
+        using Capsule.Rendering;
         using Capsule.Scenes;
         using Capsule.Scenes.Spawning;
 
@@ -46,13 +48,16 @@ public sealed class SceneAuthorableTests
             [Authorable]
             public string Title { get; set; } = "none";
 
+            [Authorable]
+            public Rect Bounds { get; private set; }
+
             public int SeenFloor { get; }
 
             public Lift? SeenLift { get; }
         }
         """;
 
-    private const string Authored = """{"floor": 3, "lift": 1, "title": "document"}""";
+    private const string Authored = """{"floor": 3, "lift": 1, "title": "document", "bounds": [0, -16, 320, 240]}""";
 
     [Fact]
     public void TheConstructorBody_SeesTheDocumentsValues_AndItsOwnAssignmentWins()
@@ -71,12 +76,19 @@ public sealed class SceneAuthorableTests
         Assert.Same(Assert.Single(hall.Entities.ToArray()), Member(hall, "SeenLift"));
     }
 
+    [Fact]
+    public void ARectMember_IsSetFromItsFourEdges()
+    {
+        Assert.Equal(new Rect(0f, -16f, 320f, 240f), Member(Composed(Authored), "Bounds"));
+    }
+
     // The engine's Scene declares no members, so a document no class claims authors none.
     [Theory]
     [InlineData(Hall, """{"lift": 1}""", "CAP040", "the document omits 'floor', which 'Game.Hall' requires. Add \"floor\" to its properties")]
     [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "CAP036", "the document sets 'music', which 'Game.Hall' does not declare")]
+    [InlineData(Hall, """{"floor": 3, "lift": 1, "bounds": [0, 0, 320]}""", "CAP038", "the document sets 'bounds' to an array, but 'Game.Hall' takes Rect. Write [left, top, right, bottom]")]
     [InlineData("scenes/plain.scene.json", """{"music": 2}""", "CAP036", "the document sets 'music', which 'Capsule.Scenes.Scene' does not declare. Its authorable members are: none")]
-    public void ADocumentItsClassRefuses_FailsTheBuildAtItsProperties(string path, string properties, string id, string fix)
+    public void ADocumentItsClassRefuses_FailsTheBuildAtTheStartOfItsFile(string path, string properties, string id, string fix)
     {
         string document = Document(properties);
         (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (path, document));
@@ -86,11 +98,11 @@ public sealed class SceneAuthorableTests
         Assert.Contains(fix, refused.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
         FileLinePositionSpan at = refused.Location.GetLineSpan();
-        Assert.Equal((path, 0, document.IndexOf(properties, StringComparison.Ordinal)), (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
+        Assert.Equal((path, 0, 0), (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
     }
 
     private static string Document(string properties) =>
-        "{\"formatVersion\": 7, \"properties\": " + properties + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}], \"nextEntityId\": 2}";
+        "{\"formatVersion\": 8, \"properties\": " + properties + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}], \"nextEntityId\": 2}";
 
     // Compiled against the document, so the build's check passes it before the scene is composed.
     private static Scene Composed(string properties)
@@ -101,7 +113,7 @@ public sealed class SceneAuthorableTests
         Assembly game = GeneratorHarness.Loaded(compiled);
         SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
 
-        return registry.CreateFromDocument("scenes/hall", SceneDocumentFile.Parse(Document(properties)));
+        return registry.Create(new SceneKey("scenes/hall"), SceneDocumentFile.Parse(Document(properties)));
     }
 
     private static object? Member(Scene scene, string name) => scene.GetType().GetProperty(name)!.GetValue(scene);

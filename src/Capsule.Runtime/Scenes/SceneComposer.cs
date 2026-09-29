@@ -55,7 +55,7 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 
         try
         {
-            return scenes.CreateFromDocument(name, document);
+            return scenes.Create(new SceneKey(name), document);
         }
         catch (SpawnException exception)
         {

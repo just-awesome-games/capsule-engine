@@ -27,8 +27,7 @@ internal static class BootRenderer
 
     internal static string Render(BootPlan plan)
     {
-        string addEntities = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddEntities(entities);\n"));
-        string addScenes = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddScenes(scenes);\n"));
+        string createScenes = RegistryProviderRenderer.SceneRegistryBody(plan.Providers.Items.Select(static provider => provider.QualifiedName), Statement);
         string addDrivers = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddDrivers(drivers);\n"))
             + string.Concat(plan.Drivers.Items.Select(static driver => $"{Statement}drivers.Add({InputDriverRenderer.Registration(driver)});\n"));
 
@@ -49,12 +48,7 @@ internal static class BootRenderer
 
                     private static global::Capsule.Scenes.SceneRegistry CreateScenes()
                     {
-                        var entities = new global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration>();
-            {{addEntities}}            var scenes = new global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration>();
-            {{addScenes}}            return new global::Capsule.Scenes.SceneRegistry(
-                            new global::Capsule.Scenes.Spawning.EntityRegistry(entities),
-                            scenes);
-                    }
+            {{createScenes}}        }
 
                     private static global::Capsule.Input.InputDriverRegistry CreateDrivers()
                     {

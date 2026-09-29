@@ -194,7 +194,7 @@ public sealed class AuthorableArrayTests
     }
 
     private static string Document(string entries) =>
-        "{\"formatVersion\": 7, \"entities\": [" + entries + "], \"nextEntityId\": 100}";
+        "{\"formatVersion\": 8, \"entities\": [" + entries + "], \"nextEntityId\": 100}";
 
     // Composes the room through the generated registry, compiled against the declared assets and with no room
     // document, so the build's check does not stand in front of the load-time one.
@@ -207,7 +207,7 @@ public sealed class AuthorableArrayTests
         SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
             .GetProperty("Registry")!.GetValue(null)!;
 
-        return registry.CreateFromDocument("scenes/room", SceneDocumentFile.Parse(Document(entries)));
+        return registry.Create(new SceneKey("scenes/room"), SceneDocumentFile.Parse(Document(entries)));
     }
 
     private static object? Member(Entity entity, string name) => entity.GetType().GetProperty(name)!.GetValue(entity);

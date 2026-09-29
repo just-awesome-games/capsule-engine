@@ -248,7 +248,7 @@ internal sealed class AssetCorpus
         Random map = new(Seed(5, index, edit));
 
         StringBuilder scene = new();
-        scene.Append("{\n  \"formatVersion\": 7,\n  \"entities\": [\n");
+        scene.Append("{\n  \"formatVersion\": 8,\n  \"entities\": [\n");
         AppendTileMap(scene, 1, -10, $"tilesets/tileset-{area:D2}.png", "solid", map);
         scene.Append(",\n");
         AppendTileMap(scene, 2, 10, $"tilesets/tileset-{area:D2}.png", null, map);
@@ -261,11 +261,11 @@ internal sealed class AssetCorpus
     {
         scene.Append(CultureInfo.InvariantCulture, $"    {{\n      \"id\": {id},\n      \"type\": \"tile-map\",\n      \"x\": 0,\n      \"y\": 0,\n      \"zIndex\": {zIndex},\n");
         scene.Append(CultureInfo.InvariantCulture, $"      \"properties\": {{\n        \"tileSize\": 16,\n        \"width\": {MapWidth},\n        \"height\": {MapHeight},\n        \"texture\": \"{texture}\",\n        \"columns\": {TilesetColumns},\n");
-        scene.Append("        \"tileTypes\": [\n          { \"type\": \"empty\" }");
+        scene.Append("        \"tileTypes\": [\n          { \"name\": \"empty\" }");
         for (int type = 1; type <= TileTypes; type++)
         {
             string collides = layer is not null && type <= 8 ? $", \"layer\": \"{layer}\"" : string.Empty;
-            scene.Append(CultureInfo.InvariantCulture, $",\n          {{ \"type\": \"t{type}\", \"cell\": {(type * 7) % (TilesetColumns * TilesetColumns)}{collides} }}");
+            scene.Append(CultureInfo.InvariantCulture, $",\n          {{ \"name\": \"t{type}\", \"cell\": {(type * 7) % (TilesetColumns * TilesetColumns)}{collides} }}");
         }
 
         scene.Append("\n        ],\n        \"tiles\": [\n");

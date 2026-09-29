@@ -92,7 +92,8 @@ public class Scene
     /// A placement's spawn type is claimed by no entity, or its class returned no entity.
     /// </exception>
     /// <exception cref="SceneDocumentFormatException">
-    /// A placement's or the document's properties do not match its class's authorable members.
+    /// A placement's, a palette entry's or the document's properties do not match its class's authorable
+    /// members, or a palette entry's type is claimed by no tile type.
     /// </exception>
     public Scene(SceneContent content)
     {
@@ -106,7 +107,7 @@ public class Scene
         {
             if (entry.TileMap is { } tileMap)
             {
-                TileMap tiles = new(tileMap.Grid);
+                TileMap tiles = new(Composed(tileMap, content.TileTypes, _authoredAssets));
                 if (tileMap.ZIndex is { } band)
                 {
                     tiles.ZIndex = band;
@@ -443,6 +444,30 @@ public class Scene
         return found ?? throw new InvalidOperationException(
             $"A {GetType().Name} holds no entity assignable to {typeof(T).Name}.");
     }
+
+    /// <summary>
+    /// The <see cref="Collider2D"/> a query hit names, or null when it names a tile map's grid, nothing,
+    /// or a collider since removed.
+    /// </summary>
+    /// <remarks>
+    /// Every hit a query returns names what it met as a <see cref="CollisionTarget.Collider"/> handle in
+    /// <see cref="Collision"/>. The collider's <see cref="Component.Entity"/> is the entity behind it.
+    /// </remarks>
+    /// <example>
+    /// Finding the trigger entities a collider overlaps:
+    /// <code>
+    /// Span&lt;Contact2D&gt; found = stackalloc Contact2D[8];
+    /// int count = Math.Min(probe.OverlapAll(TriggerLayer, found), found.Length);
+    /// for (int index = 0; index &lt; count; index++)
+    /// {
+    ///     if (Scene.ColliderOf(found[index].Target.Collider) is { Entity: CameraTrigger trigger })
+    ///     {
+    ///         Enter(trigger);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public Collider2D? ColliderOf(ColliderHandle handle) => Collision.UserDataOrNull(handle) as Collider2D;
 
     /// <summary>
     /// Runs before the scene's first frame is built, which is when the camera opens. A scene belongs
@@ -1086,6 +1111,31 @@ public class Scene
         {
             _sampling = sampling;
         }
+    }
+
+    // The grid a tile-map entry composes: each palette entry naming a class built as that class, with the
+    // authored members set. A grid authoring nothing, or content with no composer, is used as it stands.
+    private static TileGrid Composed(TileMapPlacement placement, TileTypeComposer? compose, AssetCollection assets)
+    {
+        TileGrid grid = placement.Grid;
+        if (grid.Authored is not { } authored || compose is null)
+        {
+            return grid;
+        }
+
+        ReadOnlySpan<TileType> palette = grid.TileTypes;
+        TileType[] composed = new TileType[palette.Length];
+        for (int i = 0; i < composed.Length; i++)
+        {
+            TileType tile = palette[i];
+            composed[i] = authored[i].Type is { } type
+                ? compose(type, tile, new AuthoredProperties(placement.Id, tile.Name, authored[i].Properties, assets))
+                    ?? throw new SceneDocumentFormatException(
+                        $"tile-map entry {placement.Id}'s tile '{tile.Name}' has type '{type}', which no tile type claims. Declare the TileType subclass whose namespace names that key, or correct the type.")
+                : tile;
+        }
+
+        return grid.Composed(composed);
     }
 
     private void Install(Camera camera)

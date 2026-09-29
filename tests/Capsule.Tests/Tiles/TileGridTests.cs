@@ -31,9 +31,9 @@ public sealed class TileGridTests
     [Fact]
     public void Constructor_AcceptsASemanticTileTypeWithNoCell()
     {
-        TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1]);
+        TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1]);
 
-        Assert.Equal("hazard", grid.TileTypes[grid.Tiles[1]].Type);
+        Assert.Equal("hazard", grid.TileTypes[grid.Tiles[1]].Name);
         Assert.Null(grid.TileTypes[1].Cell);
         Assert.Null(grid.Texture);
         Assert.Null(grid.Sprites[1]);
@@ -75,7 +75,7 @@ public sealed class TileGridTests
     public void Constructor_RejectsATextureNoTileTypeDrawsFrom()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1], Atlas, 4));
+            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1], Atlas, 4));
 
         Assert.Contains("terrain", error.Message, StringComparison.Ordinal);
     }
@@ -93,7 +93,7 @@ public sealed class TileGridTests
     public void Constructor_RejectsColumnsWithoutATexture()
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [0, 1], null, 4));
+            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1], null, 4));
 
         Assert.Contains("columns is 4", error.Message, StringComparison.Ordinal);
     }
@@ -119,6 +119,6 @@ public sealed class TileGridTests
         Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
 
-    private static TileGrid Grid(TileDefinition[] tileTypes, int[] tiles) =>
+    private static TileGrid Grid(TileType[] tileTypes, int[] tiles) =>
         new(16, 2, 1, tileTypes, tiles, Atlas, 4);
 }

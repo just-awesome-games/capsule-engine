@@ -33,13 +33,13 @@ internal static class CollisionWorkload
 
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
-    private static readonly TileDefinition[] Palette =
+    private static readonly TileType[] Palette =
     [
         TileGrid.EmptyTile,
-        new(Solid, 0, Solid),
-        new(Platform, 1, Platform, OneWay: true),
-        new("slope-up", 0, Solid, CollisionFixtures.SlopeUp),
-        new("slope-down", 0, Solid, CollisionFixtures.SlopeDown),
+        new() { Name = Solid, Cell = 0, Layer = Solid },
+        new() { Name = Platform, Cell = 1, Layer = Platform, OneWay = true },
+        new() { Name = "slope-up", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeUp },
+        new() { Name = "slope-down", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeDown },
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>

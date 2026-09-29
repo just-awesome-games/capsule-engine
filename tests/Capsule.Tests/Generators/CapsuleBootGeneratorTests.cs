@@ -1,4 +1,8 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using Capsule.Scenes;
+using Capsule.Scenes.Documents;
+using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -106,6 +110,52 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Contains("CapsuleRegistryProvider_Game_Rooms_", generated, StringComparison.Ordinal);
     }
 
+    // A test composes through CapsuleScenes.Registry and a run through CapsuleBoot's, so both must build the same scene.
+    [Fact]
+    public void CapsuleScenesRegistry_ComposesADocumentAsTheShellsRegistryDoes()
+    {
+        const string logic = """
+            using Capsule.Scenes;
+            using Capsule.Tiles;
+
+            namespace Game;
+
+            public sealed class GameCamera : Camera;
+
+            public sealed class Brick : TileType;
+
+            [SceneDocument("scenes/wall")]
+            public sealed class Wall(SceneContent content) : Scene(content)
+            {
+                [Authorable]
+                public int Floor { get; private set; }
+            }
+            """;
+        const string document = """
+            {"formatVersion": 8, "camera": "game-camera", "properties": {"floor": 2}, "entities": [
+              {"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": {"tileSize": 16, "width": 1, "height": 1,
+                "tileTypes": [{"name": "empty"}, {"name": "wall", "layer": "solid", "type": "brick"}], "tiles": [1]}}
+            ], "nextEntityId": 2}
+            """;
+
+        using GeneratorHarness.ShellContext loaded = GeneratorHarness.LoadedShell(ShellSource, logic, ("scenes/wall.scene.json", document));
+        SceneRegistry boot = (SceneRegistry)loaded.Shell.GetType("Capsule.Generated.CapsuleBoot")!
+            .GetProperty("Scenes", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+        SceneRegistry scenes = (SceneRegistry)loaded.LoadFromAssemblyName(new AssemblyName("GameSpecs")).GetType("Capsule.Generated.CapsuleScenes")!
+            .GetProperty("Registry")!.GetValue(null)!;
+
+        (string?, string?, object?, string?) Composed(SceneRegistry registry)
+        {
+            Scene scene = registry.Create(new SceneKey("scenes/wall"), SceneDocumentFile.Parse(document));
+            TileMap map = Assert.IsType<TileMap>(Assert.Single(scene.Entities.ToArray()));
+
+            return (scene.GetType().FullName, scene.Camera.GetType().FullName, scene.GetType().GetProperty("Floor")!.GetValue(scene), map.TileAt(0, 0).GetType().FullName);
+        }
+
+        Assert.Equal(("Game.Wall", "Game.GameCamera", (object?)2, "Game.Brick"), Composed(boot));
+        Assert.Equal(Composed(boot), Composed(scenes));
+    }
+
     [Fact]
     public void TheShell_TakesDriversFromItsLogicAssembliesAndFromItsOwnCode()
     {
@@ -206,5 +256,22 @@ public sealed class CapsuleBootGeneratorTests
             ("Game.Second", second)).Diagnostics;
 
         Assert.Equal("CAP005", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+    }
+
+    [Fact]
+    public void DuplicateTileTypeClaimsAcrossLogicAssemblies_FailTheShellBuild()
+    {
+        const string brick = """
+            using Capsule.Tiles;
+            namespace Game;
+            public sealed class Brick : TileType;
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
+            ShellSource,
+            ("Game.First", brick),
+            ("Game.Second", brick)).Diagnostics;
+
+        Assert.Equal("CAP031", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 }

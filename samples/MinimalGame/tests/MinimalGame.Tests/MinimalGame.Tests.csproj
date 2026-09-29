@@ -9,11 +9,12 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- Scene behavior is tested through the logic project alone; the runtime is referenced for
-       CapsuleEngine.RunHeadless, which drives transitions and exit the way the shell does. -->
+  <!-- The shell is referenced for its CapsuleBoot. A headless run boots through the registries a
+       windowed run does. The runtime is referenced for CapsuleEngine.RunHeadless. -->
   <ItemGroup>
     <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
     <ProjectReference Include="../../src/MinimalGame.Game/MinimalGame.Game.csproj" />
+    <ProjectReference Include="../../src/MinimalGame.Shell/MinimalGame.Shell.csproj" />
   </ItemGroup>
 
   <ItemGroup>

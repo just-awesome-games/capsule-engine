@@ -17,7 +17,7 @@ namespace Capsule.Scenes.Documents;
 /// </remarks>
 public static class SceneDocumentFile
 {
-    internal const int FormatVersion = 7;
+    internal const int FormatVersion = 8;
 
     internal const string LinearSampling = "linear";
 
@@ -306,15 +306,19 @@ public static class SceneDocumentFile
     }
 
     // Copies the JSON up to the named array and writes the array one grid row per line. Returns where
-    // the copy resumes.
+    // the copy resumes. The key is matched at a grid field's own indent, because a palette entry's
+    // properties may carry a key of the same name.
     private static int GridRows(string json, int cursor, int from, StringBuilder rewritten, string name, int[] values, int width)
     {
+        const string GridIndent = "\n        ";
         string key = $"\"{name}\": [";
-        int open = json.IndexOf(key, from, StringComparison.Ordinal);
+        int open = json.IndexOf(GridIndent + key, from, StringComparison.Ordinal);
         if (open < 0)
         {
             return cursor;
         }
+
+        open += GridIndent.Length;
 
         int close = json.IndexOf(']', open);
         int indent = open - (json.LastIndexOf('\n', open) + 1);
@@ -505,18 +509,21 @@ public static class SceneDocumentFile
 
     private static TileGridJson ToJson(TileGrid grid)
     {
-        ReadOnlySpan<TileDefinition> palette = grid.TileTypes;
+        ReadOnlySpan<TileType> palette = grid.TileTypes;
         TileTypeJson[] tileTypes = new TileTypeJson[palette.Length];
         for (int i = 0; i < tileTypes.Length; i++)
         {
+            AuthoredTileType authored = grid.Authored?[i] ?? default;
             tileTypes[i] = new TileTypeJson
             {
-                Type = palette[i].Type,
+                Name = palette[i].Name,
+                Type = authored.Type,
                 Cell = palette[i].Cell,
                 Layer = palette[i].Layer,
                 Shape = FormatShape(palette[i].Shape),
                 OneWay = palette[i].OneWay ? true : null,
                 SolidSides = palette[i].SolidSides ? true : null,
+                Properties = authored.Properties,
             };
         }
 
@@ -554,7 +561,7 @@ public static class SceneDocumentFile
         if (grid.TileTypes is not { } palette)
         {
             throw new SceneDocumentFormatException(
-                $"the '{SceneDocument.TileMapType}' entry's grid has no tileTypes. Write the palette every tile indexes there, starting with \"{TileGrid.EmptyTileType}\".");
+                $"the '{SceneDocument.TileMapType}' entry's grid has no tileTypes. Write the palette every tile indexes there, starting with \"{TileGrid.EmptyTileName}\".");
         }
 
         if (grid.Tiles is not { } tiles)
@@ -563,7 +570,8 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry's grid has no tiles. Write its width x height palette indices there.");
         }
 
-        TileDefinition[] tileTypes = new TileDefinition[palette.Length];
+        TileType[] tileTypes = new TileType[palette.Length];
+        AuthoredTileType[]? authored = null;
         for (int i = 0; i < tileTypes.Length; i++)
         {
             if (palette[i] is not { } tileType)
@@ -572,13 +580,22 @@ public static class SceneDocumentFile
                     $"tileTypes[{i}] is null. Write an object naming a tile type.");
             }
 
-            tileTypes[i] = new TileDefinition(
-                tileType.Type ?? string.Empty,
-                tileType.Cell,
-                tileType.Layer,
-                ParseShape(tileType.Shape, i),
-                tileType.OneWay ?? false,
-                tileType.SolidSides ?? false);
+            // Always a plain TileType here. The class an entry's type names is built when the scene is composed.
+            tileTypes[i] = new TileType
+            {
+                Name = tileType.Name ?? string.Empty,
+                Cell = tileType.Cell,
+                Layer = tileType.Layer,
+                Shape = ParseShape(tileType.Shape, i),
+                OneWay = tileType.OneWay ?? false,
+                SolidSides = tileType.SolidSides ?? false,
+            };
+
+            if (tileType.Type is not null || tileType.Properties is not null)
+            {
+                authored ??= new AuthoredTileType[palette.Length];
+                authored[i] = new AuthoredTileType(tileType.Type, TileProperties(tileType.Properties, i));
+            }
         }
 
         return new TileGrid(
@@ -589,7 +606,26 @@ public static class SceneDocumentFile
             tiles,
             ParseTexture(grid.Texture),
             grid.Columns ?? 0,
-            ParseTransforms(grid.Transforms));
+            ParseTransforms(grid.Transforms),
+            authored);
+    }
+
+    // Checks a palette entry's properties as SceneDocument checks an entity's. The composing class reads the keys.
+    private static JsonElement? TileProperties(JsonElement? properties, int index)
+    {
+        if (properties is { ValueKind: not JsonValueKind.Object })
+        {
+            throw new SceneDocumentFormatException(
+                $"tileTypes[{index}] has properties that are not an object. Write them as {{ \"name\": value }}, or omit them.");
+        }
+
+        if (properties is { } members && !members.EnumerateObject().All(static member => SceneDocument.Finite(member.Value)))
+        {
+            throw new SceneDocumentFormatException(
+                $"tileTypes[{index}] has a property number beyond the range of a double. Write a finite number.");
+        }
+
+        return properties;
     }
 
     // Absent means every tile is drawn as authored. TileGrid checks the count against the grid.
@@ -685,8 +721,10 @@ public static class SceneDocumentFile
     // Rewrites each palette shape of each tile map onto one line. The serializer writes one number per line,
     // which hides a polygon's points from a reader. A game entry's properties may carry a "shape" of any form,
     // so only a tile-map entry is searched, from its type field to its closing brace at an entry's indent.
+    // A palette entry's own properties may carry one too, so the key is matched at a palette field's indent.
     private static string ShapeLines(string json)
     {
+        const string PaletteIndent = "\n            ";
         const string Key = "\"shape\": [";
         const string EntryEnd = "\n    }";
         StringBuilder rewritten = new(json.Length);
@@ -697,8 +735,9 @@ public static class SceneDocumentFile
         {
             end = json.IndexOf(EntryEnd, map, StringComparison.Ordinal);
             int from = map;
-            while (json.IndexOf(Key, from, end - from, StringComparison.Ordinal) is var open and >= 0)
+            while (json.IndexOf(PaletteIndent + Key, from, end - from, StringComparison.Ordinal) is var found and >= 0)
             {
+                int open = found + PaletteIndent.Length;
                 int close = open + Key.Length;
                 for (int depth = 1; depth > 0; close++)
                 {

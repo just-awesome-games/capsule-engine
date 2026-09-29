@@ -261,7 +261,7 @@ public sealed class SceneDocument
         }
     }
 
-    private static bool Finite(JsonElement value) => value.ValueKind switch
+    internal static bool Finite(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Number => value.TryGetDouble(out double number) && double.IsFinite(number),
         JsonValueKind.Array => value.EnumerateArray().All(Finite),

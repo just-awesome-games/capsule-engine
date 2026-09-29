@@ -28,23 +28,18 @@ namespace Capsule.Generated
         public global::System.Type DeclaringType { get; }
     }
 
-    /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c>. Generated code. Do not edit.</summary>
+    /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>. Generated code. Do not edit.</summary>
     [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class CapsuleRegistryProvider_AssetSpecs_F172E44D
     {
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public static void AddEntities(global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration> registrations)
+        public static void AddScenes(global::Capsule.Scenes.SceneRegistryBuilder scenes)
         {
-            global::System.ArgumentNullException.ThrowIfNull(registrations);
-            registrations.AddRange(global::Capsule.Generated.CapsuleEntities.Registrations);
-        }
-
-        [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public static void AddScenes(global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration> registrations)
-        {
-            global::System.ArgumentNullException.ThrowIfNull(registrations);
-            registrations.AddRange(global::Capsule.Generated.CapsuleScenes.Registrations);
+            global::System.ArgumentNullException.ThrowIfNull(scenes);
+            scenes.AddEntities(global::Capsule.Generated.CapsuleEntities.Registrations);
+            scenes.AddScenes(global::Capsule.Generated.CapsuleScenes.Registrations);
+            scenes.AddTileTypes(global::Capsule.Generated.CapsuleScenes.TileTypes);
         }
 
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]

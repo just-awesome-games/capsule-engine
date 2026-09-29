@@ -10,8 +10,8 @@ namespace Capsule.Physics;
 /// <param name="Y">The cell's row.</param>
 public readonly record struct TileContact2D(TileMap Map, int X, int Y)
 {
-    /// <summary>The tile type name the cell holds now.</summary>
-    public string Type => Map.TileAt(X, Y);
+    /// <summary>The palette entry the cell holds now, the same instance <see cref="TileMap.TileAt"/> returns.</summary>
+    public TileType Type => Map.TileAt(X, Y);
 
     /// <summary>How the tile the cell holds now is mirrored or turned.</summary>
     public TileTransform Transform => Map.TransformAt(X, Y);

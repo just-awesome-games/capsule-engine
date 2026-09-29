@@ -43,7 +43,7 @@ public static class RoomFixture
             document = SceneDocumentFile.Parse(inflated.ReadToEnd());
         }
 
-        return new TestRoom(new SceneContent(document, CapsuleEntities.Registry));
+        return (PlayableScene)CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document);
     }
 
     public static Player PlayerOf(SimulationHost room)
@@ -52,8 +52,4 @@ public static class RoomFixture
 
         return room.Scene.FindSingle<Player>();
     }
-
-    // The document names PlayableScene as its base, and the generated subclass is internal to the game.
-    // This one stands in for it, and the base constructor applies the document's settings.
-    private sealed class TestRoom(SceneContent content) : PlayableScene(content);
 }

@@ -78,6 +78,29 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         }));
     }
 
+    // Two live worlds take turns with one mask, and with an empty one. After each world's first
+    // resolve, a masked query costs what a filtered one does.
+    [Fact]
+    public void QueriesByOneMaskInTwoWorlds_AllocateNothingAfterEachWorldsFirstResolve()
+    {
+        CollisionWorld2D[] worlds = [CollisionWorkload.World(), CollisionWorkload.World()];
+        CollisionMask mask = new(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        CollisionMask empty = new();
+        Contact2D[] contacts = new Contact2D[32];
+
+        Report("masked rays and overlaps in two worlds", Measure(step =>
+        {
+            CollisionWorld2D world = worlds[step & 1];
+            float x = (step * 61) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
+            Aabb2D box = Aabb2D.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f));
+            int found = world.OverlapBoxAll(box, mask, contacts) + world.OverlapBoxAll(box, empty, contacts);
+
+            return world.Raycast(new Vector2(x, 34f * CollisionWorkload.TileSize), Vector2.UnitY, 256f, mask, out RayHit2D hit)
+                ? found + hit.Target.CellY
+                : found;
+        }));
+    }
+
     // Four sweeps across the map corner to corner, the longest casts a room-scale game issues. What
     // this asserts is zero allocation; whether a sweep walks the band its shape covers rather than
     // the rectangle its bounds describe is a cell count, not a duration, and is not claimed here.

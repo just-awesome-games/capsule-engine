@@ -49,6 +49,10 @@ public partial class Camera
     /// The point the viewport is centred on, in world units. Each step settles it inside
     /// <see cref="Bounds"/>, or inside the rect easing toward them.
     /// </summary>
+    /// <remarks>
+    /// A frame drawn before this camera's first step reads the centre unconfined, and the renderer confines that
+    /// frame to <see cref="Bounds"/>.
+    /// </remarks>
     public Vector2 Center { get; set; }
 
     // Center at the previous fixed step, in world units. The engine saves it.

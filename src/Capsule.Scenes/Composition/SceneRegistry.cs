@@ -17,20 +17,23 @@ public sealed class SceneRegistry
     private readonly Dictionary<string, SceneRegistration> _byDocumentName = new(StringComparer.Ordinal);
     private readonly List<SceneRegistration> _registrations = [];
     private readonly EntityRegistry _entities;
+    private readonly TileTypeComposer? _tileTypes;
 
     /// <summary>A registry over <paramref name="scenes"/>.</summary>
     /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
+    /// <param name="tileTypes">The composer of every tile type the assembly declares, or null when it declares none.</param>
     /// <exception cref="ArgumentException">
     /// A registration names no class and no document, or a class or a document is registered twice.
     /// </exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes)
+    public SceneRegistry(EntityRegistry entities, IEnumerable<SceneRegistration> scenes, TileTypeComposer? tileTypes = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
         ArgumentNullException.ThrowIfNull(scenes);
 
         _entities = entities;
+        _tileTypes = tileTypes;
         foreach (SceneRegistration registration in scenes)
         {
             if (registration.SceneType is null && registration.DocumentName is null)
@@ -111,21 +114,36 @@ public sealed class SceneRegistry
         {
             throw new InvalidOperationException(
                 $"The scene '{sceneType}' is composed from scene document '{name}', so it is built through that "
-                + $"name, not its class: CreateFromDocument(\"{name}\", document).");
+                + $"key, not its class: Create(new SceneKey(\"{name}\"), document).");
         }
 
         return registration.Create();
     }
 
-    // Builds the scene the document composes into: the registration claiming that key, or a plain
-    // Scene when none does. A generated registry always registers every shipped document, so the
-    // fallback is reached only by a hand-built registry that names no registration for it.
-    internal Scene CreateFromDocument(string name, SceneDocument document)
+    /// <summary>Composes <paramref name="document"/> into the scene registered for <paramref name="scene"/>, exactly as a run does.</summary>
+    /// <remarks>
+    /// The scene gets its registration's class, camera, scene properties and tile types. A key no registration
+    /// claims composes a plain <see cref="Scene"/>. The scene is returned unstarted.
+    /// </remarks>
+    /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
+    /// <param name="document">The parsed document, as <see cref="SceneDocumentFile.Parse(string)"/> returns it.</param>
+    /// <returns>The composed scene.</returns>
+    /// <exception cref="SceneDocumentFormatException">An entry's or the scene's properties do not fit what their class declares.</exception>
+    /// <exception cref="SpawnException">The document places a type the registry cannot construct.</exception>
+    /// <example>
+    /// A test composes the room its game ships and steps it:
+    /// <code>
+    /// SceneDocument document = SceneDocumentFile.Load("room.scene.json");
+    /// Scene room = CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document);
+    /// using SimulationHost host = new(room);
+    /// </code>
+    /// </example>
+    public Scene Create(SceneKey scene, SceneDocument document)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        string name = scene.Required(nameof(scene));
         ArgumentNullException.ThrowIfNull(document);
 
-        SceneContent content = new(document, _entities);
+        SceneContent content = new(document, _entities, TileTypes: _tileTypes);
 
         try
         {

@@ -16,6 +16,7 @@ public sealed class GeneratorSampleTests
         using Capsule.Input;
         using Capsule.Scenes;
         using Capsule.Scenes.Spawning;
+        using Capsule.Tiles;
 
         namespace Game;
 
@@ -54,6 +55,12 @@ public sealed class GeneratorSampleTests
 
         public sealed class GameCamera : Camera;
 
+        public sealed class Ice : TileType
+        {
+            [Authorable]
+            public float Grip { get; init; } = 0.1f;
+        }
+
         public sealed class Walkthrough : IInputDriver
         {
             public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
@@ -84,12 +91,12 @@ public sealed class GeneratorSampleTests
     [
         ("textures/lamp.png", null),
         ("scenes/hall.scene.json", """
-            {"formatVersion": 7, "camera": "game-camera", "entities": [
+            {"formatVersion": 8, "camera": "game-camera", "entities": [
                 {"id": 1, "type": "lamp", "x": 0, "y": 0, "properties": {"glow": "bright", "icon": "textures/lamp.png"}},
                 {"id": 2, "type": "floor-switch", "x": 0, "y": 0, "properties": {"lamp": 1}}
             ], "nextEntityId": 3}
             """),
-        ("scenes/room.scene.json", """{"formatVersion": 7, "baseScene": "playable-scene", "camera": "game-camera", "properties": {"floor": 2}, "entities": [], "nextEntityId": 1}"""),
+        ("scenes/room.scene.json", """{"formatVersion": 8, "baseScene": "playable-scene", "camera": "game-camera", "properties": {"floor": 2}, "entities": [], "nextEntityId": 1}"""),
     ];
 
     private static readonly Lazy<Compilation> LogicAssembly = new(() => Clean(GeneratorHarness.CompileAgainstSources(Logic, logic: true, Assets)));

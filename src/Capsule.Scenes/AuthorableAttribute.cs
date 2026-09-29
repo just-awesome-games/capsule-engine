@@ -1,6 +1,6 @@
 namespace Capsule.Scenes;
 
-/// <summary>Marks an entity's or a scene class's field or property as one a scene document sets.</summary>
+/// <summary>Marks an entity's, a scene class's or a tile type's field or property as one a scene document sets.</summary>
 /// <remarks>
 /// <para>
 /// The entry's <c>properties</c> key is the member's name camel-cased, a leading underscore dropped. A
@@ -10,7 +10,8 @@ namespace Capsule.Scenes;
 /// </para>
 /// <para>
 /// A scene class's members are set the same way by the document's top-level <c>properties</c>, once every
-/// entry is built and before the derived constructor body runs.
+/// entry is built and before the derived constructor body runs. A tile-map palette entry's <c>properties</c> set
+/// the members of the <see cref="Capsule.Tiles.TileType"/> subclass its <c>type</c> names.
 /// </para>
 /// <list type="table">
 /// <listheader><term>Member type</term><description>JSON form</description></listheader>
@@ -21,6 +22,10 @@ namespace Capsule.Scenes;
 /// <item>
 /// <term><see cref="System.Numerics.Vector2"/>, <see cref="Capsule.Rendering.ColorRgba"/></term>
 /// <description><c>[x, y]</c>; <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c></description>
+/// </item>
+/// <item>
+/// <term><see cref="Capsule.Rendering.Rect"/></term>
+/// <description>its edges, <c>[left, top, right, bottom]</c>, with right no less than left and bottom no less than top</description>
 /// </item>
 /// <item>
 /// <term>an enum</term>

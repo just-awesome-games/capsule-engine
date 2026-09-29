@@ -90,10 +90,16 @@ public sealed class TileMap : Entity
     public GridCollider2D? Collision { get; private set; }
 
     /// <summary>
-    /// Returns the tile type name at a tile coordinate, and <see cref="TileGrid.EmptyTileType"/> where
-    /// the map is empty.
+    /// Returns the palette entry at a tile coordinate, and the entry named <see cref="TileGrid.EmptyTileName"/>
+    /// where the map is empty. Every cell painted with one entry returns the same instance.
     /// </summary>
-    public string TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]].Type;
+    /// <example>
+    /// <code>
+    /// if (map.TileAt(x, y) is Ice ice) { ... }
+    /// bool open = map.TileAt(x, y).Name == TileGrid.EmptyTileName;
+    /// </code>
+    /// </example>
+    public TileType TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]];
 
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
     public TileTransform TransformAt(int x, int y) => _transforms[IndexOf(x, y)];
@@ -105,7 +111,7 @@ public sealed class TileMap : Entity
     /// <example>
     /// <code>
     /// var (x, y) = map.CellAt(Position);
-    /// string tile = map.TileAt(x, y);
+    /// string tile = map.TileAt(x, y).Name;
     /// </code>
     /// </example>
     public (int X, int Y) CellAt(Vector2 position)
@@ -116,33 +122,33 @@ public sealed class TileMap : Entity
     }
 
     /// <summary>
-    /// Clears the tile at a tile coordinate to <see cref="TileGrid.EmptyTileType"/> with
+    /// Clears the tile at a tile coordinate to <see cref="TileGrid.EmptyTileName"/> with
     /// <see cref="TileTransform.None"/>.
     /// </summary>
-    public void RemoveTile(int x, int y) => SetTile(x, y, TileGrid.EmptyTileType);
+    public void RemoveTile(int x, int y) => SetTile(x, y, TileGrid.EmptyTileName);
 
     /// <summary>
-    /// Changes the tile at a tile coordinate to the palette entry named <paramref name="type"/>, facing
+    /// Changes the tile at a tile coordinate to the palette entry named <paramref name="name"/>, facing
     /// the way <paramref name="transform"/> says. This sets what the cell draws and collides as.
     /// </summary>
     /// <param name="x">The tile column.</param>
     /// <param name="y">The tile row.</param>
-    /// <param name="type">
-    /// A tile type name from the grid's palette. <see cref="TileGrid.EmptyTileType"/> clears the cell.
+    /// <param name="name">
+    /// A tile type name from the grid's palette. <see cref="TileGrid.EmptyTileName"/> clears the cell.
     /// </param>
     /// <param name="transform">
     /// How the tile is mirrored or turned. The default paints it as authored, whichever way the cell
     /// faced before.
     /// </param>
-    /// <exception cref="ArgumentException">The palette has no tile type named <paramref name="type"/>.</exception>
+    /// <exception cref="ArgumentException">The palette has no tile type named <paramref name="name"/>.</exception>
     /// <example>
     /// <code>
     /// map.SetTile(x, y, "slope", TileTransform.FlipX);
     /// </code>
     /// </example>
-    public void SetTile(int x, int y, string type, TileTransform transform = TileTransform.None)
+    public void SetTile(int x, int y, string name, TileTransform transform = TileTransform.None)
     {
-        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(name);
         if (!TileTransforms.IsDefined(transform))
         {
             throw new ArgumentOutOfRangeException(
@@ -152,7 +158,7 @@ public sealed class TileMap : Entity
         }
 
         int index = IndexOf(x, y);
-        int palette = PaletteIndexOf(type);
+        int palette = PaletteIndexOf(name);
         if (_cells[index] == palette && _transforms[index] == transform)
         {
             return;
@@ -187,11 +193,11 @@ public sealed class TileMap : Entity
 
         _world = Scene.Collision;
 
-        ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
+        ReadOnlySpan<TileType> palette = _grid.TileTypes;
         int shaped = 0;
-        foreach (TileDefinition definition in palette)
+        foreach (TileType tileType in palette)
         {
-            shaped += definition.Shape is null ? 0 : 1;
+            shaped += tileType.Shape is null ? 0 : 1;
         }
 
         // The palette's own profiles come first, so an untransformed cell's profile index is its palette
@@ -202,18 +208,18 @@ public sealed class TileMap : Entity
         int next = palette.Length;
         for (int index = 0; index < palette.Length; index++)
         {
-            TileDefinition definition = palette[index];
+            TileType tileType = palette[index];
             CellProfile2D profile = new(
-                definition.Layer is { } layer ? _world.Layer(layer) : null,
-                definition.Shape,
-                definition.OneWay,
-                definition.SolidSides);
+                tileType.Layer is { } layer ? _world.Layer(layer) : null,
+                tileType.Shape,
+                tileType.OneWay,
+                tileType.SolidSides);
             profiles[index] = profile;
 
             for (int transform = 0; transform < TileTransforms.Count; transform++)
             {
                 int slot = (index * TileTransforms.Count) + transform;
-                if (transform == 0 || definition.Shape is not { } shape)
+                if (transform == 0 || tileType.Shape is not { } shape)
                 {
                     lookup[slot] = index;
                     continue;
@@ -258,12 +264,12 @@ public sealed class TileMap : Entity
         return (y * Width) + x;
     }
 
-    private int PaletteIndexOf(string type)
+    private int PaletteIndexOf(string name)
     {
-        ReadOnlySpan<TileDefinition> palette = _grid.TileTypes;
+        ReadOnlySpan<TileType> palette = _grid.TileTypes;
         for (int index = 0; index < palette.Length; index++)
         {
-            if (string.Equals(palette[index].Type, type, StringComparison.Ordinal))
+            if (string.Equals(palette[index].Name, name, StringComparison.Ordinal))
             {
                 return index;
             }
@@ -272,12 +278,12 @@ public sealed class TileMap : Entity
         string[] names = new string[palette.Length];
         for (int index = 0; index < names.Length; index++)
         {
-            names[index] = palette[index].Type;
+            names[index] = palette[index].Name;
         }
 
         throw new ArgumentException(
-            $"The palette has no tile type \"{type}\". Use one of: {string.Join(", ", names)}.",
-            nameof(type));
+            $"The palette has no tile type named \"{name}\". Use one of: {string.Join(", ", names)}.",
+            nameof(name));
     }
 
     private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms) : Renderer

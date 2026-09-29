@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json",
-  "formatVersion": 7,
+  "formatVersion": 8,
   "baseScene": "playable-scene",
   "camera": "game-camera",
   "ambient": "#b4b7cf",
@@ -34,39 +34,46 @@
         "width": 40,
         "height": 12,
         "texture": "textures/tiles.png",
-        "columns": 3,
+        "columns": 4,
         "tileTypes": [
           {
-            "type": "empty"
+            "name": "empty"
           },
           {
-            "type": "ground",
+            "name": "ground",
             "cell": 0,
             "layer": "solid"
           },
           {
-            "type": "ledge",
+            "name": "ledge",
             "cell": 1,
             "layer": "platform",
             "oneWay": true
           },
           {
+            "name": "brick",
             "type": "brick",
             "cell": 0,
             "layer": "solid"
           },
           {
-            "type": "slope",
+            "name": "slope",
             "cell": 2,
             "layer": "solid",
             "shape": [[0, 16], [16, 0], [16, 16]]
           },
           {
-            "type": "girder",
+            "name": "girder",
             "cell": 1,
             "layer": "platform",
             "oneWay": true,
             "solidSides": true
+          },
+          {
+            "name": "ice",
+            "type": "ice",
+            "cell": 3,
+            "layer": "solid"
           }
         ],
         "tiles": [
@@ -81,7 +88,7 @@
           1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
           1, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 2, 0, 2, 0, 0, 4, 1, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 0, 1,
           1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 1, 1, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
-          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+          1, 1, 1, 1, 1, 1, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
         ],
         "transforms": [
           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

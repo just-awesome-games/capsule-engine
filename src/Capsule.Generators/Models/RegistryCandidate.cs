@@ -2,7 +2,7 @@ namespace Capsule.Generators;
 
 /// <summary>
 /// What one type declaration was read as. A declaration can be a scene and an input driver at once,
-/// so all four are described from a single symbol binding.
+/// so all five are described from a single symbol binding.
 /// </summary>
 /// <param name="Scene">
 /// Every Scene-deriving class, abstract included. A document's own key can compose it, or its
@@ -12,7 +12,8 @@ internal readonly record struct RegistryCandidate(
     EntityModel? Entity,
     SceneModel? Scene,
     InputDriverModel? Driver,
-    CameraModel? Camera)
+    CameraModel? Camera,
+    TileTypeModel? TileType)
 {
-    internal bool IsEmpty => Entity is null && Scene is null && Driver is null && Camera is null;
+    internal bool IsEmpty => Entity is null && Scene is null && Driver is null && Camera is null && TileType is null;
 }

@@ -13,7 +13,7 @@ public sealed class EntryPropertiesFormatTests
     {
         string json = """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "entities": [
                 {
                   "id": 1,
@@ -44,7 +44,7 @@ public sealed class EntryPropertiesFormatTests
                     "height": 1,
                     "tileTypes": [
                       {
-                        "type": "empty"
+                        "name": "empty"
                       }
                     ],
                     "tiles": [
@@ -67,7 +67,7 @@ public sealed class EntryPropertiesFormatTests
     public void AGameEntry_ReachesTheGeneratorAsCSharpConstants()
     {
         string json = """
-            {"formatVersion": 7, "entities": [
+            {"formatVersion": 8, "entities": [
               {"id": 1, "type": "coin", "x": 0, "y": 0},
               {"id": 2, "type": "lift", "x": 0, "y": 0, "properties": {
                 "on": true, "ticks": 40, "rise": 96.5, "far": 3000000000, "label": "a\"b", "none": null,

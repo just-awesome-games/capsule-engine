@@ -100,7 +100,7 @@ public sealed class ColliderContactReportTests
             16,
             3,
             3,
-            [TileGrid.EmptyTile, new TileDefinition("ledge", null, "platform", OneWay: true)],
+            [TileGrid.EmptyTile, new TileType { Name = "ledge", Layer = "platform", OneWay = true }],
             [0, 0, 0, 1, 1, 1, 0, 0, 0])));
 
         return scene;
@@ -130,7 +130,7 @@ public sealed class ColliderContactReportTests
             16,
             2,
             1,
-            [TileGrid.EmptyTile, new TileDefinition("decor", null)],
+            [TileGrid.EmptyTile, new TileType { Name = "decor" }],
             [0, 1]));
         scene.Add(map);
 

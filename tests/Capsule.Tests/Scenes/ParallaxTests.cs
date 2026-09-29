@@ -66,7 +66,7 @@ public sealed class ParallaxTests
             SceneFixtures.TileSize,
             40,
             1,
-            [TileGrid.EmptyTile, new TileDefinition("back", 0)],
+            [TileGrid.EmptyTile, new TileType { Name = "back", Cell = 0 }],
             Enumerable.Repeat(1, 40).ToArray(),
             SceneFixtures.Atlas,
             1))

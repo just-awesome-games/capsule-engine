@@ -28,6 +28,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                     compilation.AssemblyName ?? "Game");
             });
         IncrementalValueProvider<bool> isLogicAssembly = project.Select(static (configured, _) => configured.IsLogicAssembly);
+        IncrementalValueProvider<string?> providerName = project
+            .Select(static (configured, _) => configured.IsLogicAssembly ? TypeNaming.RegistryProviderName(configured.AssemblyName) : null);
         IncrementalValueProvider<string> rootNamespace = RootNamespace(context);
 
         // What the game declares. Syntax-backed models come from one pass over every type declaration.
@@ -47,6 +49,9 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<CameraModel>> cameras = Collected(candidates
             .Where(static candidate => candidate.Camera is not null)
             .Select(static (candidate, _) => candidate.Camera!.Value));
+        IncrementalValueProvider<EquatableArray<TileTypeModel>> tileTypes = Collected(candidates
+            .Where(static candidate => candidate.TileType is not null)
+            .Select(static (candidate, _) => candidate.TileType!.Value));
 
         // What the build declares on CapsuleAssets: every scene document it shipped, whether or not a class
         // claims it, with the baseScene, camera and game entries it authors, resolved once by the build's own
@@ -91,12 +96,12 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             })
             .WithTrackingName("EntityPlan");
         IncrementalValueProvider<ScenePlan> scenePlan = scenes
-            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(cameras).Combine(assets)
+            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(cameras).Combine(tileTypes).Combine(assets)
             .Select(static (input, _) =>
             {
-                var (((((models, logic), root), shipped), declared), assetModels) = input;
+                var ((((((models, logic), root), shipped), declared), tiles), assetModels) = input;
 
-                return SceneResolver.Resolve(new SceneInputs(models, logic, root, shipped, declared, assetModels));
+                return SceneResolver.Resolve(new SceneInputs(models, logic, root, shipped, declared, tiles, assetModels));
             })
             .WithTrackingName("ScenePlan");
         IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
@@ -115,16 +120,14 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             entityPlan.Combine(scenePlan).Combine(documents).Combine(assets)
                 .Select(static (input, _) => new PlacementInputs(input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right)),
             PlacementCheck.Run);
-        context.RegisterSourceOutput(scenePlan, SceneRenderer.Emit);
+        context.RegisterSourceOutput(scenePlan.Combine(providerName), SceneRenderer.Emit);
         context.RegisterSourceOutput(
             scenePlan.Combine(documents).Select(static (input, _) => new DocumentClaimInputs(input.Left, input.Right)),
             DocumentClaimCheck.Run);
         context.RegisterSourceOutput(
             driverPlan.Combine(isLogicAssembly).Select(static (input, _) => new InputDriverInputs(input.Left, input.Right)),
             InputDriverRenderer.Emit);
-        context.RegisterSourceOutput(
-            project.Select(static (configured, _) => configured.IsLogicAssembly ? TypeNaming.RegistryProviderName(configured.AssemblyName) : null),
-            RegistryProviderRenderer.Emit);
+        context.RegisterSourceOutput(providerName, RegistryProviderRenderer.Emit);
         context.RegisterSourceOutput(bootPlan, BootRenderer.Emit);
         context.RegisterSourceOutput(project, GlobalUsingsRenderer.Emit);
         context.RegisterSourceOutput(project, RoleCheck.Report);
@@ -151,7 +154,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             EntityDescriber.Describe(type, declaration, context.SemanticModel),
             SceneDescriber.Describe(type, declaration, compilation),
             InputDriverDescriber.Describe(type, declaration, compilation),
-            SceneDescriber.DescribeCamera(type, declaration, compilation));
+            SceneDescriber.DescribeCamera(type, declaration, compilation),
+            SceneDescriber.DescribeTileType(type, declaration, compilation));
     }
 
     // Keys are measured against the declared root namespace, or the assembly name when the project

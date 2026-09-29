@@ -3,7 +3,7 @@ namespace Capsule.Physics;
 /// <summary>Which layers a query or a mover may hit.</summary>
 /// <remarks>
 /// <see cref="CollisionWorld2D.CreateFilter(System.ReadOnlySpan{string})"/> builds a filter from
-/// layer names.
+/// layer names. A <see cref="CollisionMask"/> holds layer names for queries in any world.
 /// <para>
 /// A filter belongs to the world that interned its layers. Mixing layers or filters from two worlds
 /// throws <see cref="ArgumentException"/>, as does a layer no world interned, such as the value a

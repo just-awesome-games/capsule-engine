@@ -2,6 +2,7 @@
 #nullable enable
 
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(1, "scenes/hall", typeof(global::Game.Hall))]
+[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(2, "ice", typeof(global::Game.Ice))]
 
 namespace Capsule.Generated
 {
@@ -26,10 +27,18 @@ namespace Capsule.Generated
             };
 
         /// <summary>The registry the engine composes every scene through.</summary>
-        public static global::Capsule.Scenes.SceneRegistry Registry { get; } =
-            new global::Capsule.Scenes.SceneRegistry(
-                global::Capsule.Generated.CapsuleEntities.Registry,
-                Registrations);
+        public static global::Capsule.Scenes.SceneRegistry Registry { get; } = CreateRegistry();
+
+        // The composer this assembly's provider hands its tile types over through, or null when it declares none.
+        internal static global::Capsule.Scenes.TileTypeComposer? TileTypes => ComposeTileType;
+
+        // Built through the provider the shell's CapsuleBoot reads. A test composing through Registry composes what a run does.
+        private static global::Capsule.Scenes.SceneRegistry CreateRegistry()
+        {
+            var scenes = new global::Capsule.Scenes.SceneRegistryBuilder();
+            global::Capsule.Generated.CapsuleRegistryProvider_AssetSpecs_F172E44D.AddScenes(scenes);
+            return scenes.Build();
+        }
 
         private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
         {
@@ -40,7 +49,34 @@ namespace Capsule.Generated
             }
         }
 
+        private static global::Capsule.Tiles.TileType? ComposeTileType(string type, global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties) => type switch
+        {
+            "ice" => ComposeTileType_Game_Ice(tile, properties),
+            _ => null,
+        };
+
+        private static global::Game.Ice ComposeTileType_Game_Ice(global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            global::Game.Ice composed = new global::Game.Ice
+            {
+                Name = tile.Name,
+                Cell = tile.Cell,
+                Layer = tile.Layer,
+                Shape = tile.Shape,
+                OneWay = tile.OneWay,
+                SolidSides = tile.SolidSides,
+            };
+            if (properties.Has("grip"))
+            {
+                SetGrip(composed, properties.Float("grip"));
+            }
+            return composed;
+        }
+
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Floor")]
         private static extern void SetFloor(global::Game.PlayableScene owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Grip")]
+        private static extern void SetGrip(global::Game.Ice owner, float value);
     }
 }

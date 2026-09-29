@@ -31,6 +31,7 @@ internal readonly record struct SceneInputs(
     string RootNamespace,
     EquatableArray<SceneDocumentModel> Documents,
     EquatableArray<CameraModel> Cameras,
+    EquatableArray<TileTypeModel> TileTypes,
     EquatableArray<AssetModel> Assets);
 
 /// <summary>What the placement check reads: each document's entries and own properties, and the classes and assets they name.</summary>

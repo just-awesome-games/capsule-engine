@@ -36,24 +36,26 @@ internal static class BootResolver
     // Each logic assembly refused its own duplicates. Two assemblies claiming one key are caught only here.
     private static void RejectDuplicateClaims(List<Diagnostic> diagnostics, EquatableArray<RegistryProviderModel> providers)
     {
-        Dictionary<string, RegistryClaimModel> entities = new(StringComparer.Ordinal);
-        Dictionary<string, RegistryClaimModel> documents = new(StringComparer.Ordinal);
+        Dictionary<(RegistryClaimKind Kind, string Key), RegistryClaimModel> claimed = [];
         foreach (RegistryProviderModel provider in providers.Items)
         {
             foreach (RegistryClaimModel claim in provider.Claims.Items)
             {
-                Dictionary<string, RegistryClaimModel> claimed = claim.Kind == RegistryClaimKind.Entity ? entities : documents;
-                if (claimed.TryGetValue(claim.Key, out RegistryClaimModel previous))
+                if (!claimed.TryGetValue((claim.Kind, claim.Key), out RegistryClaimModel previous))
                 {
-                    DiagnosticDescriptor descriptor = claim.Kind == RegistryClaimKind.Entity
-                        ? Diagnostics.DuplicateSpawnType
-                        : Diagnostics.DuplicateSceneDocumentName;
-                    diagnostics.Add(Diagnostic.Create(descriptor, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key));
+                    claimed.Add((claim.Kind, claim.Key), claim);
+                    continue;
                 }
-                else
+
+                diagnostics.Add(claim.Kind switch
                 {
-                    claimed.Add(claim.Key, claim);
-                }
+                    RegistryClaimKind.Entity => Diagnostic.Create(
+                        Diagnostics.DuplicateSpawnType, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key),
+                    RegistryClaimKind.SceneDocument => Diagnostic.Create(
+                        Diagnostics.DuplicateSceneDocumentName, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key),
+                    _ => Diagnostic.Create(
+                        Diagnostics.DuplicateClaimedKey, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key, "tile type"),
+                });
             }
         }
     }

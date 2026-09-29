@@ -8,7 +8,11 @@ namespace Capsule.Rendering;
 /// </summary>
 /// <remarks>The scale is the same on both axes. A non-positive size draws nothing.</remarks>
 /// <param name="PreviousCenter">The centre as of the previous fixed step.</param>
-/// <param name="Center">The centre as of the current fixed step.</param>
+/// <param name="Center">
+/// The centre as of the current fixed step, before <see cref="Bounds"/> confine it. A frame drawn before the
+/// camera's first step carries the camera's unconfined centre, such as its follow target, and the renderer
+/// applies <see cref="Bounds"/>. <see cref="SweptBounds"/> reports the region after they confine it.
+/// </param>
 /// <param name="Size">World units the viewport spans as of the current fixed step, read per <see cref="Fit"/>.</param>
 /// <param name="Fit">How <see cref="Size"/> answers an output of a different aspect ratio.</param>
 /// <param name="Bounds">The world rect the visible region is confined to, or null to leave it free.</param>

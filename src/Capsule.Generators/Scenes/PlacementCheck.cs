@@ -5,9 +5,9 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
-// Checks every game entry of every shipped scene document against the entity class claiming its type, and the
-// document's own properties against the scene class composing it. The applier reads the same values again at load,
-// and only there does a converter read.
+// Checks every game entry of every shipped scene document against the entity class claiming its type, every
+// palette entry against the tile type its type names, and the document's own properties against the scene class
+// composing it. The applier reads the same values again at load, and only there does a converter read.
 internal static class PlacementCheck
 {
     internal static void Run(SourceProductionContext context, PlacementInputs inputs)
@@ -23,6 +23,9 @@ internal static class PlacementCheck
         HashSet<string> claimed = new(plan.ClaimedKeys.Items, StringComparer.Ordinal);
         AssetTable assets = new(inputs.Assets.Items, inputs.Documents.Items);
         Dictionary<string, SceneModel?> composing = Composing(inputs.Scenes);
+        Dictionary<string, TileTypeModel> tileTypes = inputs.Scenes.TileTypes.Items.ToDictionary(
+            static entry => entry.Key, static entry => entry.Model, StringComparer.Ordinal);
+        HashSet<string> refusedTileTypes = new(StringComparer.Ordinal);
 
         foreach (SceneDocumentModel document in inputs.Documents.Items.OrderBy(static document => document.Key, StringComparer.Ordinal))
         {
@@ -33,13 +36,14 @@ internal static class PlacementCheck
             foreach (PlacementModel placement in document.Placements.Items)
             {
                 string entry = "entity " + placement.Id.ToString(CultureInfo.InvariantCulture);
-                Location at = Where(document, placement);
+                Location at = Where(document, placement.Line, placement.Column);
                 if (!entities.TryGetValue(placement.Type, out EntityModel entity))
                 {
                     if (!claimed.Contains(placement.Type))
                     {
                         string keys = claimed.Count == 0 ? "none" : string.Join(", ", plan.ClaimedKeys.Items);
-                        Report(context, at, Diagnostics.UnclaimedEntryType, named, entry, placement.Type, keys);
+                        string fix = $"Declare the entity whose namespace names that key, give one [SpawnType(\"{placement.Type}\")], or correct the type.";
+                        Report(context, at, Diagnostics.UnclaimedEntryType, named, entry, placement.Type, "entity", fix, keys);
                     }
                 }
                 else if (entity.CodeOnly)
@@ -55,13 +59,50 @@ internal static class PlacementCheck
                 }
             }
 
+            foreach (PaletteEntryModel tile in document.Palette.Items)
+            {
+                CheckTile(context, named, tile, tileTypes, refusedTileTypes, new Placed(document, entities, assets));
+            }
+
             // A document whose baseScene did not resolve is already its own error.
             if (composing.TryGetValue(document.Key, out SceneModel? scene) && (scene is not null || document.BaseScene is null))
             {
                 Owner owner = scene is { } model ? new Owner(model.DisplayName, model.Properties) : new Owner(MetadataNames.Scene, default);
-                Location documentAt = Where(document, document.Line == 0 ? 1 : document.Line, document.Column == 0 ? 1 : document.Column);
-                Check(context, documentAt, named, "the document", owner, document.Properties, new Placed(document, entities, assets));
+                Check(context, Where(document, 1, 1), named, "the document", owner, document.Properties, new Placed(document, entities, assets));
             }
+        }
+    }
+
+    // A palette entry's type must name a tile type a palette entry can compose, and its properties that class's
+    // members. An entry naming no type is a plain TileType, which declares none. A class that cannot be composed
+    // is reported once, where it is declared.
+    private static void CheckTile(
+        SourceProductionContext context, string document, PaletteEntryModel tile, Dictionary<string, TileTypeModel> tileTypes, HashSet<string> refused, Placed placed)
+    {
+        string entry = string.Format(CultureInfo.InvariantCulture, "tile-map entry {0}'s tile '{1}'", tile.Id, tile.Name);
+        Location at = Where(placed.Document, tile.Line, tile.Column);
+        if (tile.Type is not { } type)
+        {
+            Check(context, at, document, entry, new Owner(MetadataNames.TileType, default), tile.Properties, placed);
+        }
+        else if (!tileTypes.TryGetValue(type, out TileTypeModel model))
+        {
+            string keys = tileTypes.Count == 0 ? "none" : string.Join(", ", tileTypes.Keys);
+            Report(
+                context, at, Diagnostics.UnclaimedEntryType, document, entry, type, "tile type",
+                "Declare the TileType subclass whose namespace names that key, or correct the type.", keys);
+        }
+        else if (!model.Valid)
+        {
+            // A C# required member marked [Authorable] is already its own error where it is declared.
+            if (model.Fault is { } fault && refused.Add(model.QualifiedName))
+            {
+                Report(context, model.At.Location(), Diagnostics.InvalidClaimingClass, model.DisplayName, "tile type", type, fault);
+            }
+        }
+        else
+        {
+            Check(context, at, document, entry, new Owner(model.DisplayName, model.Properties), tile.Properties, placed);
         }
     }
 
@@ -252,9 +293,8 @@ internal static class PlacementCheck
         _ => "an object",
     };
 
-    // The entry's opening brace in the document's file, which an editor opens at.
-    private static Location Where(SceneDocumentModel document, PlacementModel placement) => Where(document, placement.Line, placement.Column);
-
+    // A point in the document's file, which an editor opens at: an entry's opening brace, or the file's start
+    // for the document's own properties. Line 0 is an entry the build could not place.
     private static Location Where(SceneDocumentModel document, int line, int column)
     {
         if (document.Path is not { } path || line == 0)

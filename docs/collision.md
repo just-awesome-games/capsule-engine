@@ -45,6 +45,10 @@ query finds. `Collider2D.Overlaps(other)` consults no filter.
 `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted by any
 world.
 
+A query that needs its own layers takes a `CollisionMask`, built once from layer names and held in a
+`static readonly` field. Each world resolves a mask the first time it reaches that world, interning
+its names as `SetFilter` does, and reuses the result.
+
 ## Contacts
 
 A collider with `ReportsContacts` set settles its contacts once a step and announces them:
@@ -63,8 +67,10 @@ private void OnHurtboxEntered(ColliderContact2D contact)
 ```
 
 A contact names the other side as `OtherCollider` for a collider or `Tile` for a tile map's cell, and
-`OtherEntity` reaches the entity behind either. In a Y-down world, standing on something gives a normal
-of `(0, -1)`. `Touching` is everything the collider was touching as of the last step.
+`OtherEntity` reaches the entity behind either. Touching includes anything within
+`CollisionTolerance.ContactSkin`, and two colliders sharing an edge with no gap touch. In a Y-down
+world, standing on something gives a normal of `(0, -1)`. `Touching` is everything the collider was
+touching as of the last step.
 
 A handler sees the settled state. `Collider2D` documents what a handler may and may not change.
 
@@ -189,6 +195,9 @@ An overlap or move query returns the total number of overlaps, not the number wr
 the first of them in the documented order. A count above the span's length means the rest were counted
 and not written. Grid cells come first, in the order their grids were added and row-major within each,
 and colliders follow by handle.
+
+`Scene.ColliderOf(hit.Target.Collider)` turns any hit back into its `Collider2D` and its `Entity`, and
+answers null for a tile map's cell.
 
 A world query takes an `ignore` handle, usually the caster's own collider. A query on a collider throws
 while that collider is disabled or in no scene. A filter built from another world's layers is refused.

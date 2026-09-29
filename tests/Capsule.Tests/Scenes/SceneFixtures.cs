@@ -42,11 +42,11 @@ internal static class SceneFixtures
     internal static SceneDocument RoomWithoutTerrain(params EntityPlacement[] entities) =>
         new([.. entities], TerrainId + 1);
 
-    /// <summary>One palette entry: <paramref name="type"/> drawing <paramref name="cell"/>.</summary>
-    internal static TileDefinition Tile(string type, int cell, string? layer = null) => new(type, cell, layer);
+    /// <summary>One palette entry: <paramref name="name"/> drawing <paramref name="cell"/>.</summary>
+    internal static TileType Tile(string name, int cell, string? layer = null) => new() { Name = name, Cell = cell, Layer = layer };
 
     internal static TileGrid RoomGrid() =>
-        new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileDefinition("solid", 0)], [0, 1, 0, 0, 0, 0], Atlas, 1);
+        new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 0 }], [0, 1, 0, 0, 0, 0], Atlas, 1);
 
     /// <summary>A scene of one tile map drawn as rows of '#' for solid terrain and '.' for empty.</summary>
     internal static Scene Terrain(params string[] rows) =>
@@ -86,12 +86,12 @@ internal static class SceneFixtures
             rows.Length,
             [
                 TileGrid.EmptyTile,
-                new TileDefinition("solid", 0, "solid"),
-                new TileDefinition("ledge", 0, "solid", OneWay: true),
-                new TileDefinition("slope-up", 0, "solid", CollisionFixtures.SlopeUp),
-                new TileDefinition("slope-down", 0, "solid", CollisionFixtures.SlopeDown),
-                new TileDefinition("girder", 0, "solid", OneWay: true, SolidSides: true),
-                new TileDefinition("half-girder", 0, "solid", HalfHeight, OneWay: true, SolidSides: true),
+                new TileType { Name = "solid", Cell = 0, Layer = "solid" },
+                new TileType { Name = "ledge", Cell = 0, Layer = "solid", OneWay = true },
+                new TileType { Name = "slope-up", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeUp },
+                new TileType { Name = "slope-down", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeDown },
+                new TileType { Name = "girder", Cell = 0, Layer = "solid", OneWay = true, SolidSides = true },
+                new TileType { Name = "half-girder", Cell = 0, Layer = "solid", Shape = HalfHeight, OneWay = true, SolidSides = true },
             ],
             cells,
             Atlas,

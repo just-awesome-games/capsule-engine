@@ -26,7 +26,7 @@
     <VersionPrefix>0.0.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
     <PackageTags>capsule-engine;game-engine;2d;monogame;deterministic</PackageTags>
-    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/just-awesome-games/capsule-engine</RepositoryUrl>

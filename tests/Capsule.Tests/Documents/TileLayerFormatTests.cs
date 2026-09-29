@@ -21,11 +21,44 @@ public sealed class TileLayerFormatTests
         Assert.Contains("\"shape\": [[0, 16], [16, 0], [16, 16]]", written, StringComparison.Ordinal);
         Assert.Contains("\"oneWay\": true", written, StringComparison.Ordinal);
 
-        TileDefinition read = Palette(SceneDocumentFile.Parse(written))[1];
+        TileType read = Palette(SceneDocumentFile.Parse(written))[1];
+        Assert.Equal("ground", read.Name);
         Assert.Equal("platform", read.Layer);
         Assert.Equal(CollisionFixtures.SlopeUp, read.Shape);
         Assert.True(read.OneWay);
         Assert.Equal(written, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(written)));
+    }
+
+    // A palette entry's class key and properties are carried for composition, in the written and the shipped
+    // form. Keys named like grid fields stay inside the entry.
+    [Fact]
+    public void APaletteEntrysTypeAndProperties_SurviveTheWrittenAndCompactRoundTrips()
+    {
+        const string Type = """
+            "name": "ground",
+                        "type": "ice",
+            """;
+        const string Properties = """
+            "layer": "solid",
+                        "properties": {
+                          "grip": 0.5,
+                          "tiles": [1, 2],
+                          "shape": [
+                            "a b"
+                          ]
+                        }
+            """;
+        string authored = SceneDocumentFile.ToJson(Document("solid"))
+            .Replace("\"name\": \"ground\",", Type.ReplaceLineEndings("\n"), StringComparison.Ordinal)
+            .Replace("\"layer\": \"solid\"", Properties.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+
+        SceneDocument document = SceneDocumentFile.Parse(authored);
+
+        AuthoredTileType read = Grid(document).Authored![1];
+        Assert.Equal("ice", read.Type);
+        Assert.Equal(0.5, read.Properties!.Value.GetProperty("grip").GetDouble());
+        Assert.Equal(authored, SceneDocumentFile.ToJson(document));
+        Assert.Equal(authored, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(SceneDocumentFile.ToJson(document, compact: true))));
     }
 
     // The whole tile, blocking from every side, is the default and says nothing beyond its layer.
@@ -70,7 +103,7 @@ public sealed class TileLayerFormatTests
     public void AVersionOneDocument_IsRefused()
     {
         string written = SceneDocumentFile.ToJson(Document("solid"))
-            .Replace("\"formatVersion\": 7", "\"formatVersion\": 1", StringComparison.Ordinal);
+            .Replace("\"formatVersion\": 8", "\"formatVersion\": 1", StringComparison.Ordinal);
 
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
             () => SceneDocumentFile.Parse(written));
@@ -104,15 +137,15 @@ public sealed class TileLayerFormatTests
             16,
             2,
             1,
-            [new TileDefinition("empty", null, "solid"), SceneFixtures.Tile("ground", 0, "solid")],
+            [new TileType { Name = TileGrid.EmptyTileName, Layer = "solid" }, SceneFixtures.Tile("ground", 0, "solid")],
             [0, 1],
             Atlas,
             4));
 
-        Assert.Contains("no cell and no layer", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no cell, no layer", error.Message, StringComparison.Ordinal);
     }
 
-    private static ReadOnlySpan<TileDefinition> Palette(SceneDocument document) => Grid(document).TileTypes;
+    private static ReadOnlySpan<TileType> Palette(SceneDocument document) => Grid(document).TileTypes;
 
     private static TileGrid Grid(SceneDocument document) => document.Entries[0].TileMap!.Value.Grid;
 
@@ -121,7 +154,7 @@ public sealed class TileLayerFormatTests
             [
                 new TileMapPlacement(
                     1,
-                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileDefinition("ground", 0, layer, shape, oneWay)], [0, 1], Atlas, 4)),
+                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "ground", Cell = 0, Layer = layer, Shape = shape, OneWay = oneWay }], [0, 1], Atlas, 4)),
             ],
             2);
 }

@@ -56,7 +56,7 @@ public sealed class TileMapTests
             8,
             2,
             1,
-            [TileGrid.EmptyTile, new TileDefinition("solid", 3)],
+            [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 3 }],
             [0, 1],
             SceneFixtures.Atlas,
             2);
@@ -70,7 +70,7 @@ public sealed class TileMapTests
 
         Assert.Equal(8, tiles.TileSize);
         Assert.Equal(new Vector2(16, 8), tiles.Size);
-        Assert.Equal("solid", tiles.TileAt(1, 0));
+        Assert.Equal("solid", tiles.TileAt(1, 0).Name);
         Assert.Equal(
             new TextureRegion(8, 8, 8, 8),
             Assert.Single(simulation.View.Sprites.ToArray()).Sprite.Region);
@@ -84,7 +84,7 @@ public sealed class TileMapTests
             8,
             2,
             1,
-            [TileGrid.EmptyTile, new TileDefinition("solid", 3)],
+            [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 3 }],
             [1, 1],
             SceneFixtures.Atlas,
             2);
@@ -168,7 +168,7 @@ public sealed class TileMapTests
             tileSize: 8,
             width: 1,
             height: 1,
-            [TileGrid.EmptyTile, new TileDefinition("hazard", null)],
+            [TileGrid.EmptyTile, new TileType { Name = "hazard" }],
             [1]);
         TileMap tiles = new(grid);
         Scene scene = new();
@@ -176,7 +176,7 @@ public sealed class TileMapTests
 
         SceneSimulation simulation = new(scene);
 
-        Assert.Equal("hazard", tiles.TileAt(0, 0));
+        Assert.Equal("hazard", tiles.TileAt(0, 0).Name);
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
@@ -205,7 +205,7 @@ public sealed class TileMapTests
 
         map.RemoveTile(1, 2);
 
-        Assert.Equal(TileGrid.EmptyTileType, map.TileAt(1, 2));
+        Assert.Equal(TileGrid.EmptyTileName, map.TileAt(1, 2).Name);
         simulation.Step(SceneFixtures.Step(1));
         Assert.Equal(1, exits);
 
@@ -220,7 +220,8 @@ public sealed class TileMapTests
         Assert.True(swept.Blocked);
         Assert.Equal(8f, swept.Translation.X, 0.01f);
 
-        Assert.Equal("solid", new TileMap(grid).TileAt(1, 2));
+        // Both cells were painted with the one solid entry, and each reads that same instance.
+        Assert.Same(map.TileAt(2, 2), new TileMap(grid).TileAt(1, 2));
 
         ArgumentException unknown = Assert.Throws<ArgumentException>(() => map.SetTile(0, 0, "lava"));
         Assert.Contains("lava", unknown.Message, StringComparison.Ordinal);
@@ -246,7 +247,7 @@ public sealed class TileMapTests
             tileSize: 8,
             width: 4,
             height: 1,
-            [TileGrid.EmptyTile, new TileDefinition("solid", 0)],
+            [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 0 }],
             [1, 1, 1, 1],
             SceneFixtures.Atlas,
             1);

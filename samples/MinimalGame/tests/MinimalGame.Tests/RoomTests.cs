@@ -7,6 +7,7 @@ using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
 using MinimalGame.Game.Scenes;
+using MinimalGame.Game.Tiles;
 
 namespace MinimalGame.Tests;
 
@@ -33,13 +34,13 @@ public sealed class RoomTests
         Player player = RoomFixture.PlayerOf(room);
         KinematicBody2D body = player.Get<KinematicBody2D>();
         TileMap map = room.Scene.FindSingle<TileMap>();
-        Assert.Equal(TileTypes.Brick, map.TileAt(2, 8));
+        Assert.IsType<Brick>(map.TileAt(2, 8));
 
         // IsOnFloor is state as of the body's last move, so a jump on the very first step finds no
         // floor to jump from: the script settles for one step first.
         room.Play(new InputScript().Wait(1).Tap(Key.Space).Build());
         Assert.True(room.RunUntil(() => body.IsOnFloor, StepBudget), "the player never landed");
-        Assert.Equal(TileGrid.EmptyTileType, map.TileAt(2, 8));
+        Assert.Equal(TileGrid.EmptyTileName, map.TileAt(2, 8).Name);
 
         room.Step(DeviceSnapshot.Of(Key.Space));
         float highestFeet = PlayerFeet(player);
@@ -103,6 +104,31 @@ public sealed class RoomTests
 
         Assert.True(room.RunUntil(() => body.IsOnFloor, StepBudget), "the player never landed");
         Assert.Equal(RoomFixture.FloorTop, PlayerFeet(player), RestTolerance);
+    }
+
+    // Ordinary ground stops a released walk on the next step. The ice under floor columns 6 to 10
+    // (x 96 to 175) carries it on and slows it to a stop over later steps. The ground row is released
+    // short of the hazard, and the ice row past it.
+    [Theory]
+    [InlineData(48f, false)]
+    [InlineData(104f, true)]
+    public void ReleasingAFullSpeedWalk_StopsAtOnceOnGroundAndSlidesToAStopOnIce(float releaseX, bool slides)
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+        TileMap map = room.Scene.FindSingle<TileMap>();
+        Assert.Equal(slides, map.TileAt((int)releaseX / 16, 11) is Ice);
+
+        Assert.True(
+            room.RunUntil(() => player.Position.X >= releaseX, StepBudget, DeviceSnapshot.Of(Key.D)),
+            "the walk never reached the release point");
+        Assert.True(player.IsOnFloor);
+        Assert.True(player.Velocity.X > 0f);
+
+        room.Step(DeviceSnapshot.Empty);
+
+        Assert.Equal(slides, player.Velocity.X != 0f);
+        Assert.True(room.RunUntil(() => player.Velocity.X == 0f, StepBudget), "the slide never came to a stop");
     }
 
     // A room torn down with the player inside the camera zone ends the zone's contact after the zone has

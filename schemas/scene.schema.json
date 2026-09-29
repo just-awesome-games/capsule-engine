@@ -13,7 +13,7 @@
     "formatVersion": {
       "description": "The document format's version, which must be one this build supports.",
       "type": "integer",
-      "const": 7
+      "const": 8
     },
     "baseScene": {
       "description": "The key of an abstract Scene subclass. The composed scene derives from it. Absent composes a plain Scene.",
@@ -178,13 +178,18 @@
                   "minimum": 1
                 },
                 "tileTypes": {
-                  "description": "The palette every tile indexes. Index 0 is \"empty\", carrying neither cell nor layer.",
+                  "description": "The palette every tile indexes. Index 0 is \"empty\", carrying nothing but its name.",
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "type": {
+                      "name": {
                         "description": "The tile type's name, unique within the palette.",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "description": "The key of the TileType subclass the entry composes. Absent composes a plain TileType.",
                         "type": "string",
                         "minLength": 1
                       },
@@ -219,11 +224,15 @@
                         "description": "True for a oneWay tile that also blocks from the sides and passes a body only from below.",
                         "default": false,
                         "type": "boolean"
+                      },
+                      "properties": {
+                        "description": "The entry's properties. Each key sets the member its TileType subclass marks [Authorable].",
+                        "type": "object"
                       }
                     },
                     "additionalProperties": false,
                     "required": [
-                      "type"
+                      "name"
                     ]
                   }
                 },

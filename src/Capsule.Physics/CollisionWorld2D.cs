@@ -43,6 +43,10 @@ public sealed partial class CollisionWorld2D
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
 
+    // What each CollisionMask resolved to here, indexed by the mask's id. A resolved entry stays
+    // right because interned layers never move.
+    private ResolvedMask[] _masks = [];
+
     // The slot a MovePast sweep passes through, or -1. Only one sweep runs at a time.
     private int _passThrough = -1;
 
@@ -282,9 +286,9 @@ public sealed partial class CollisionWorld2D
     /// <exception cref="ArgumentException">The handle names no live collider, or names a grid.</exception>
     public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
 
-    /// <summary>Whatever the caller attached to a collider or grid when it was added.</summary>
-    /// <exception cref="ArgumentException">The handle names no live collider.</exception>
-    public object? UserDataOf(ColliderHandle handle) => _slots[RequireSlot(handle)].UserData;
+    // Whatever the caller attached to a collider or grid when it was added. Throws for a handle that
+    // names nothing live.
+    internal object? UserDataOf(ColliderHandle handle) => _slots[RequireSlot(handle)].UserData;
 
     /// <summary>
     /// The grid collider a handle names, or null when it names a shape collider or nothing live. The
@@ -295,6 +299,14 @@ public sealed partial class CollisionWorld2D
         RequireOwn(handle, nameof(handle));
 
         return TryIndexOf(handle, out int index) ? _slots[index].Grid : null;
+    }
+
+    // Whatever was attached to a live collider or grid, or null when the handle names nothing live.
+    internal object? UserDataOrNull(ColliderHandle handle)
+    {
+        RequireOwn(handle, nameof(handle));
+
+        return TryIndexOf(handle, out int index) ? _slots[index].UserData : null;
     }
 
     // Adds a grid of collidable cells anchored at the world origin. The cell array is copied.
@@ -403,6 +415,13 @@ public sealed partial class CollisionWorld2D
         Vector2 unit = RequireRay(origin, direction, distance);
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
+
+        return RaycastWalk(origin, unit, distance, filter, ignore, out hit);
+    }
+
+    // The nearest-hit ray walk, for a caller that has validated every argument.
+    private bool RaycastWalk(Vector2 origin, Vector2 unit, float distance, CollisionFilter filter, ColliderHandle ignore, out RayHit2D hit)
+    {
         hit = default;
 
         RayAccumulator accumulator = new() { Distance = distance };
@@ -421,8 +440,10 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// The nearest things a ray meets, cast as <see cref="Raycast"/> casts it and written into
-    /// <paramref name="hits"/> nearest first. A span of <c>n</c> receives the <c>n</c> nearest hits.
+    /// The nearest things a ray meets, cast as
+    /// <see cref="Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/>
+    /// casts it and written into <paramref name="hits"/> nearest first. A span of <c>n</c> receives
+    /// the <c>n</c> nearest hits.
     /// </summary>
     /// <returns>How many hits were written, at most the length of <paramref name="hits"/>.</returns>
     /// <exception cref="ArgumentException"><paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
@@ -438,6 +459,12 @@ public sealed partial class CollisionWorld2D
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
+        return RaycastAllWalk(origin, unit, distance, filter, hits, ignore);
+    }
+
+    // The all-hits ray walk, for a caller that has validated every argument.
+    private int RaycastAllWalk(Vector2 origin, Vector2 unit, float distance, CollisionFilter filter, Span<RayHit2D> hits, ColliderHandle ignore)
+    {
         if (hits.IsEmpty)
         {
             return 0;
@@ -467,13 +494,19 @@ public sealed partial class CollisionWorld2D
         out ShapeCastHit2D hit,
         ColliderHandle ignore = default)
     {
-        hit = default;
         RequireShape(shape, nameof(shape));
         Guard.Finite(origin, nameof(origin));
         Guard.Finite(translation, nameof(translation));
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
+        return ShapeCastSweep(shape, origin, translation, filter, ignore, out hit);
+    }
+
+    // The sweep, for a caller that has validated every argument.
+    private bool ShapeCastSweep(in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter filter, ColliderHandle ignore, out ShapeCastHit2D hit)
+    {
+        hit = default;
         Shape2D moving = shape.Translated(origin);
         CastAccumulator accumulator = default;
         Cast(moving, translation, filter, ignore, default, false, ref accumulator);
@@ -779,6 +812,12 @@ public sealed partial class CollisionWorld2D
         internal bool InUse;
         internal bool OneWay;
         internal bool SolidSides;
+    }
+
+    private struct ResolvedMask
+    {
+        internal CollisionFilter Filter;
+        internal bool Resolved;
     }
 
     private struct RayAccumulator

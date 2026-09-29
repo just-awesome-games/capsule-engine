@@ -9,10 +9,15 @@ public static class CollisionTolerance
     /// </summary>
     public const float LinearSlop = 0.005f;
 
-    /// <summary>How close two colliders must be to count as touching.</summary>
+    /// <summary>How close two colliders must be to count as touching, in world units.</summary>
     /// <remarks>
     /// The skin is wider than <see cref="LinearSlop"/>. A body a blocked move left resting on a
     /// surface still reports contact.
+    /// <para>
+    /// Colliders that share an edge with no gap are within the skin and touch. A box that exactly
+    /// fills the cell beside a trigger reports a contact with it. Inset the box by more than the
+    /// skin to keep it clear.
+    /// </para>
     /// </remarks>
     public const float ContactSkin = 0.02f;
 }

@@ -229,16 +229,45 @@ internal static class GeneratorHarness
         Shell,
     }
 
-    private static MetadataReference LogicAssembly(string assemblyName, string source)
+    private static MetadataReference LogicAssembly(string assemblyName, string source) =>
+        MetadataReference.CreateFromImage(LogicImage(assemblyName, source));
+
+    private static byte[] LogicImage(string assemblyName, string source, params (string Path, string? Content)[] assets)
     {
-        Compilation logic = Run(Created(assemblyName, source, References), logic: true, shell: false).Updated;
+        Compilation logic = Run(Created(assemblyName, source, References, assets.Length == 0 ? null : Documents(assets)), logic: true, shell: false).Updated;
 
         using MemoryStream image = new();
         EmitResult emitted = logic.Emit(image);
 
         Assert.True(emitted.Success, string.Join(Environment.NewLine, Errors(emitted.Diagnostics)));
 
-        return MetadataReference.CreateFromImage(image.ToArray());
+        return image.ToArray();
+    }
+
+    /// <summary>The shell as it runs beside its one logic assembly, so its CapsuleBoot builds real registries. Disposing unloads both.</summary>
+    internal static ShellContext LoadedShell(string shellSource, string logicSource, params (string Path, string? Content)[] assets)
+    {
+        byte[] logic = LogicImage("GameSpecs", logicSource, assets);
+        Compilation shell = Run(Created("ShellSpecs", shellSource, References.Add(MetadataReference.CreateFromImage(logic))), Role.Shell).Updated;
+
+        using MemoryStream image = new();
+        EmitResult emitted = shell.Emit(image);
+        Assert.True(emitted.Success, string.Join(Environment.NewLine, Errors(emitted.Diagnostics)));
+
+        return new ShellContext(logic, image.ToArray());
+    }
+
+    // Resolves the shell's logic assembly from its image. The engine's assemblies fall through to the test host's.
+    internal sealed class ShellContext(byte[] logic, byte[] shell) : System.Runtime.Loader.AssemblyLoadContext(isCollectible: true), IDisposable
+    {
+        private Assembly? _logic;
+
+        internal Assembly Shell => field ??= LoadFromStream(new MemoryStream(shell));
+
+        public void Dispose() => Unload();
+
+        protected override Assembly? Load(AssemblyName assemblyName) =>
+            assemblyName.Name == "GameSpecs" ? _logic ??= LoadFromStream(new MemoryStream(logic)) : null;
     }
 
     private static CSharpCompilation Created(

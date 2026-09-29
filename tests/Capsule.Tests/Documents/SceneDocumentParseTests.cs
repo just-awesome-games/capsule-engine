@@ -13,17 +13,17 @@ public sealed class SceneDocumentParseTests
     [Theory]
     [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
     [InlineData("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""", "formatVersion 2 is unsupported")]
-    [InlineData("""{"formatVersion": 7, "nextEntityId": 1}""", "the scene document has no entities")]
-    [InlineData("""{"formatVersion": 7, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 8, "nextEntityId": 1}""", "the scene document has no entities")]
+    [InlineData("""{"formatVersion": 8, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
     [InlineData(TileMapWithoutProperties, "declares no properties")]
-    [InlineData("""{"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
+    [InlineData("""{"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
     [InlineData(Grid1x1, "anchored at the world origin", "\"x\": 0", "\"x\": 8")]
     [InlineData(Grid1x1, "tileSize must be positive", "\"tileSize\": 16", "\"tileSize\": 0")]
     [InlineData(Grid1x1, "the 'tile-map' entry has no id", "\"id\": 1,", "")]
     [InlineData(Grid1x1, "columns is 4 on a grid that names no texture", "\"tileSize\": 16", "\"columns\": 4, \"tileSize\": 16")]
-    [InlineData("""{"$schema": null, "formatVersion": 7, "entities": [], "nextEntityId": 1}""", "\"$schema\" is null")]
-    [InlineData("""{"$schema": 7, "formatVersion": 7, "entities": [], "nextEntityId": 1}""", "\"$schema\" is a number")]
-    [InlineData("""{"$schema": "scene.schema.json", "formatVersion": 7, "entities": [{"$schema": "scene.schema.json", "id": 1, "type": "coin", "x": 0, "y": 0}], "nextEntityId": 2}""", "'$schema' could not be mapped")]
+    [InlineData("""{"$schema": null, "formatVersion": 8, "entities": [], "nextEntityId": 1}""", "\"$schema\" is null")]
+    [InlineData("""{"$schema": 7, "formatVersion": 8, "entities": [], "nextEntityId": 1}""", "\"$schema\" is a number")]
+    [InlineData("""{"$schema": "scene.schema.json", "formatVersion": 8, "entities": [{"$schema": "scene.schema.json", "id": 1, "type": "coin", "x": 0, "y": 0}], "nextEntityId": 2}""", "'$schema' could not be mapped")]
     public void Parse_RefusesAMalformedDocumentWithTheDefectNamed(string json, string defect, string? find = null, string? replace = null)
     {
         string text = find is null ? json : json.Replace(find, replace, StringComparison.Ordinal);
@@ -45,7 +45,7 @@ public sealed class SceneDocumentParseTests
     public void Parse_RefusesAMalformedSettingWithTheKeyAndTheAcceptedForm(string field, string defect, string fix)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse($$"""{"formatVersion": 7, {{field}}, "entities": [], "nextEntityId": 1}"""));
+            () => SceneDocumentFile.Parse($$"""{"formatVersion": 8, {{field}}, "entities": [], "nextEntityId": 1}"""));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
         Assert.Contains(fix, error.Message, StringComparison.Ordinal);
@@ -65,17 +65,17 @@ public sealed class SceneDocumentParseTests
     public void Parse_AllowsATileMapAfterAnyEntry(string firstType)
     {
         string first = firstType == "tile-map"
-            ? """{ "id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": { "tileSize": 16, "width": 1, "height": 1, "tileTypes": [ { "type": "empty" } ], "tiles": [0] } }"""
+            ? """{ "id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": { "tileSize": 16, "width": 1, "height": 1, "tileTypes": [ { "name": "empty" } ], "tiles": [0] } }"""
             : """{ "id": 1, "type": "coin", "x": 0, "y": 0 }""";
 
         SceneDocument document = SceneDocumentFile.Parse($$"""
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "entities": [
                 {{first}},
                 { "id": 2, "type": "tile-map", "x": 0, "y": 0,
                   "properties": { "tileSize": 16, "width": 1, "height": 1,
-                                  "tileTypes": [ { "type": "empty" } ], "tiles": [0] } }
+                                  "tileTypes": [ { "name": "empty" } ], "tiles": [0] } }
               ],
               "nextEntityId": 3
             }
@@ -95,11 +95,13 @@ public sealed class SceneDocumentParseTests
     [Theory]
     [InlineData("null", "[0, 1]", "the 'tile-map' entry's grid has no tileTypes")]
     [InlineData(null, "null", "the 'tile-map' entry's grid has no tiles")]
-    [InlineData("""[{"type": "empty"}, null]""", "[0, 1]", "tileTypes[1] is null")]
+    [InlineData("""[{"name": "empty"}, null]""", "[0, 1]", "tileTypes[1] is null")]
+    [InlineData("""[{"name": "empty"}, {"cell": 0}]""", "[0, 1]", "tileTypes[1] has no name")]
+    [InlineData("""[{"name": "empty"}, {"name": "ice", "cell": 0, "properties": 3}]""", "[0, 1]", "tileTypes[1] has properties that are not an object")]
     [InlineData(null, "[0, 7]", "tiles[1] is 7")]
     [InlineData(null, "[0, 1], \"transforms\": [0, 8]", "transforms[1] is 8")]
     // A palette field the format does not define, as a typo spells one.
-    [InlineData("""[{"type": "empty"}, {"type": "ground", "sprite": "wall.png"}]""", "[0, 1]", "the 'tile-map' entry's properties are not")]
+    [InlineData("""[{"name": "empty"}, {"name": "ground", "sprite": "wall.png"}]""", "[0, 1]", "the 'tile-map' entry's properties are not")]
     public void Parse_RefusesAMalformedGridWithTheDefectNamed(string? tileTypes, string tiles, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(

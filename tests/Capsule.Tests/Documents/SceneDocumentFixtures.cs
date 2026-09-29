@@ -12,13 +12,13 @@ internal static class SceneDocumentFixtures
             { "id": 1, "type": "tile-map", "x": 0, "y": 0,
               "properties": { "tileSize": 16, "width": 2, "height": 1,
                               "texture": "terrain.png", "columns": 4,
-                              "tileTypes": [ { "type": "empty" }, { "type": "ground", "cell": 0 } ],
+                              "tileTypes": [ { "name": "empty" }, { "name": "ground", "cell": 0 } ],
                               "tiles": [0, 1] } }
         """;
 
     /// <summary>An authored document of <see cref="TileMapEntry"/> alone.</summary>
     internal const string AuthoredTileMap = """
-        { "formatVersion": 7,
+        { "formatVersion": 8,
           "entities": [
         """ + TileMapEntry + """
          ],
@@ -27,7 +27,7 @@ internal static class SceneDocumentFixtures
 
     /// <summary>An authored document of <see cref="TileMapEntry"/> and one placed entity.</summary>
     internal const string AuthoredTileMapAndPlayer = """
-        { "formatVersion": 7,
+        { "formatVersion": 8,
           "entities": [
         """ + TileMapEntry + """
         ,
@@ -52,13 +52,13 @@ internal static class SceneDocumentFixtures
     // A tile-map entry with no properties, and the least grid that parses, which the defect theory
     // edits one field of per case.
     internal const string TileMapWithoutProperties =
-        """{"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""";
+        """{"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""";
 
     internal const string Grid1x1 =
         """
-        {"formatVersion": 7, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
+        {"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
           "properties": {"tileSize": 16, "width": 1, "height": 1,
-                         "tileTypes": [{"type": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
+                         "tileTypes": [{"name": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
         """;
 
     internal static SceneDocument Drawing(TextureHandle texture) =>
@@ -71,7 +71,7 @@ internal static class SceneDocumentFixtures
         document.Entries[index].TileMap!.Value;
 
     internal static string Palette(int cell) =>
-        $$"""[{"type": "empty"}, {"type": "ground", "cell": {{cell}}}]""";
+        $$"""[{"name": "empty"}, {"name": "ground", "cell": {{cell}}}]""";
 
     internal static string DocumentText(
         string? tileTypes = null,
@@ -83,7 +83,7 @@ internal static class SceneDocumentFixtures
         string tileMapField = "") =>
         $$"""
         {
-          "formatVersion": 7,
+          "formatVersion": 8,
           "entities": [
             {
               "id": 1,

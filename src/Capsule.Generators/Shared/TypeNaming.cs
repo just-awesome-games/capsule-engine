@@ -5,11 +5,11 @@ namespace Capsule.Generators;
 
 internal static class TypeNaming
 {
-    // One leading segment an entity, camera or baseScene key drops, whichever kind the type is. A
-    // shared list keeps every kind's key on the one rule scenes.md states.
-    private static readonly string[] DomainSegments = ["Entities", "Cameras", "Scenes"];
+    // One leading segment an entity, camera, tile type or baseScene key drops, whichever kind the type
+    // is. A shared list keeps every kind's key on the one rule scenes.md states.
+    private static readonly string[] DomainSegments = ["Entities", "Cameras", "Tiles", "Scenes"];
 
-    // The key an entity, camera or baseScene class claims: its namespace under the root, minus a
+    // The key an entity, camera, tile type or baseScene class claims: its namespace under the root, minus a
     // leading domain segment and a trailing segment repeating its own name, kebab-cased per segment
     // and joined with '/'. A type outside the root namespace claims just its kebab-cased name.
     internal static string KeyFor(string containingNamespace, string typeName, string rootNamespace) =>

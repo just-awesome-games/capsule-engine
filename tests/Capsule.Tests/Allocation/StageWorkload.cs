@@ -34,8 +34,8 @@ internal static class StageWorkload
 
     // One atlas of two cells across, the shape a real terrain tileset takes.
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
-    private static readonly TileDefinition Solid = new("solid", 0);
-    private static readonly TileDefinition Platform = new("platform", 1);
+    private static readonly TileType Solid = new() { Name = "solid", Cell = 0 };
+    private static readonly TileType Platform = new() { Name = "platform", Cell = 1 };
 
     private static readonly Sprite HeroFrame = new(Atlas, new TextureRegion(0, 0, 16, 24));
     private static readonly Sprite ActorFrame = new(Atlas, new TextureRegion(0, 0, 16, 16));

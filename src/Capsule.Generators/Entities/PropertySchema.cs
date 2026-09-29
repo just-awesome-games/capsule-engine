@@ -3,8 +3,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// A placement sets the members its entity class marks [Authorable], and a document's own properties those of the
-// scene class composing it. Every other field and property a key could name is kept with the reason it cannot be set.
+// A placement sets the members its entity class marks [Authorable], a palette entry those of its tile type, and a
+// document's own properties those of the scene class composing it. Every other field and property a key could name
+// is kept with the reason it cannot be set.
 internal static class PropertySchema
 {
 
@@ -12,7 +13,7 @@ internal static class PropertySchema
     internal static bool IsReference(ITypeSymbol type, Compilation compilation) =>
         type.TypeKind == TypeKind.Interface
         || (type is INamedTypeSymbol { TypeKind: TypeKind.Class } named
-            && (named.ToDisplayString() == MetadataNames.Entity || SymbolShape.DerivesFrom(named, compilation, MetadataNames.Entity)));
+            && (SymbolEqualityComparer.Default.Equals(named, compilation.GetTypeByMetadataName(MetadataNames.Entity)) || SymbolShape.DerivesFrom(named, compilation, MetadataNames.Entity)));
 
     /// <summary>
     /// Every type a member taking an entity of <paramref name="type"/> may declare: the class, its base classes and
@@ -34,9 +35,10 @@ internal static class PropertySchema
     /// base classes first. A member that a derived member the game can see hides is left out, as in C# member
     /// lookup. An override stands in for the member it overrides.
     /// </summary>
-    /// <param name="engineType">The metadata name of the engine class the walk stops at: the entity's or the scene's.</param>
+    /// <param name="engineType">The metadata name of the engine class the walk stops at: the entity's, the scene's or the tile type's.</param>
     internal static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation, string engineType)
     {
+        bool tile = engineType == MetadataNames.TileType;
         INamedTypeSymbol? engine = compilation.GetTypeByMetadataName(engineType);
         INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
         HashSet<string> hidden = new(StringComparer.Ordinal);
@@ -49,7 +51,7 @@ internal static class PropertySchema
             List<PropertyModel> declared = members
                 .Where(static member => member is IPropertySymbol { IsIndexer: false } or IFieldSymbol && member.CanBeReferencedByName)
                 .Where(member => !hidden.Contains(member.Name))
-                .Select(member => Describe(member, authorable, compilation))
+                .Select(member => Describe(member, authorable, compilation, tile))
                 .OfType<PropertyModel>()
                 .ToList();
 
@@ -77,7 +79,8 @@ internal static class PropertySchema
     internal static AuthorableFault? FaultOf(ISymbol member, Compilation compilation)
     {
         DeclaredAt at = DeclaredAt.From(member.Locations.FirstOrDefault() ?? Location.None);
-        string engineType = SymbolShape.DerivesFrom(member.ContainingType, compilation, MetadataNames.Scene) ? MetadataNames.Scene : MetadataNames.Entity;
+        string engineType = new[] { MetadataNames.Scene, MetadataNames.TileType }
+            .FirstOrDefault(engine => SymbolShape.DerivesFrom(member.ContainingType, compilation, engine)) ?? MetadataNames.Entity;
         PropertyModel model = Of(member.ContainingType, compilation, engineType).Items.FirstOrDefault(property => property.At == at);
         string name = $"{member.ContainingType.ToDisplayString()}.{member.Name}";
 
@@ -89,7 +92,7 @@ internal static class PropertySchema
     // Null for a static member without [Authorable], which no key names. An override is the member it
     // overrides: it carries an [Authorable] mark from anywhere along its chain, and is set through the nearest
     // declaration with a setter. A chain with no setter stays at this declaration, where the refusal reports.
-    private static PropertyModel? Describe(ISymbol member, INamedTypeSymbol? authorable, Compilation compilation)
+    private static PropertyModel? Describe(ISymbol member, INamedTypeSymbol? authorable, Compilation compilation, bool tile)
     {
         AttributeData? mark = OverrideChain(member)
             .SelectMany(static overridden => overridden.GetAttributes())
@@ -147,7 +150,8 @@ internal static class PropertySchema
         bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
         string? refusal = mark is null
             ? "is not [Authorable]. Mark it [Authorable] for a placement to set it"
-            : Misuse(member, keyword && !reference)
+            : Misuse(member, keyword && !reference && !tile)
+                ?? (tile ? TileMisuse(keyword, marked, reference) : null)
                 ?? (reference && marked ? "is an entity reference, which Required = true does not mark. Drop Required = true and write C#'s required instead" : null)
                 ?? unsupported;
 
@@ -199,6 +203,14 @@ internal static class PropertySchema
         _ when keyword => "is required, which only an entity reference carries. Drop required and write [Authorable(Required = true)]",
         _ => null,
     };
+
+    // What a tile type refuses beyond any other class. A palette entry need not author a member, and one instance
+    // serves every cell painted with it.
+    private static string? TileMisuse(bool keyword, bool marked, bool reference) =>
+        keyword ? "is required, which a tile type refuses. Drop required and give the member a default"
+        : marked ? "is Required = true, which a tile type refuses. Drop Required = true and give the member a default"
+        : reference ? "is an entity reference, which a tile type shared by every cell cannot hold. Drop [Authorable] and find the entity in code"
+        : null;
 
     // A generic type's own where clauses, as its fully qualified display renders them.
     private static string Constraints(INamedTypeSymbol type)

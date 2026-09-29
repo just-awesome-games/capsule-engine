@@ -35,7 +35,7 @@ public sealed class SceneRegistryTests
     {
         SceneRegistry scenes = Registry(Room01);
 
-        Assert.IsType<SceneFixtures.Room01>(scenes.CreateFromDocument("room-01", SceneFixtures.Room()));
+        Assert.IsType<SceneFixtures.Room01>(scenes.Create(new SceneKey("room-01"), SceneFixtures.Room()));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class SceneRegistryTests
     {
         SceneRegistry scenes = Registry(Room01);
 
-        Scene composed = scenes.CreateFromDocument("attic", SceneFixtures.Room());
+        Scene composed = scenes.Create(new SceneKey("attic"), SceneFixtures.Room());
 
         Assert.Equal(typeof(Scene), composed.GetType());
         Assert.IsType<TileMap>(composed.Entities[0]);
@@ -94,7 +94,7 @@ public sealed class SceneRegistryTests
         SceneRegistry scenes = Registry(attic);
 
         Assert.Equal(attic, Assert.Single(scenes.Registrations));
-        Assert.IsType<TileMap>(scenes.CreateFromDocument("attic", SceneFixtures.Room()).Entities[0]);
+        Assert.IsType<TileMap>(scenes.Create(new SceneKey("attic"), SceneFixtures.Room()).Entities[0]);
     }
 
     [Fact]

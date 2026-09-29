@@ -33,8 +33,8 @@ public sealed class TileTransformTests
             1,
             [
                 TileGrid.EmptyTile,
-                new TileDefinition("slope", null, "solid", CollisionFixtures.SlopeUp),
-                new TileDefinition("authored", null, "solid", Shape2D.Polygon(points)),
+                new TileType { Name = "slope", Layer = "solid", Shape = CollisionFixtures.SlopeUp },
+                new TileType { Name = "authored", Layer = "solid", Shape = Shape2D.Polygon(points) },
             ],
             [0, 2]));
         Scene scene = new();
@@ -46,7 +46,7 @@ public sealed class TileTransformTests
         GridCollider2D grid = map.Collision!;
         Assert.Equal(Sorted(grid.EdgesAt(1, 0)), Sorted(grid.EdgesAt(0, 0)));
         Assert.Equal(transform, map.TransformAt(0, 0));
-        Assert.Equal("slope", map.TileAt(0, 0));
+        Assert.Equal("slope", map.TileAt(0, 0).Name);
     }
 
     // Where the renderer puts each texel of a drawn tile is where the transform puts that point. The
@@ -69,7 +69,7 @@ public sealed class TileTransformTests
             Size,
             3,
             1,
-            [TileGrid.EmptyTile, new TileDefinition("tile", 1)],
+            [TileGrid.EmptyTile, new TileType { Name = "tile", Cell = 1 }],
             [0, 1, 0],
             SceneFixtures.Atlas,
             2,

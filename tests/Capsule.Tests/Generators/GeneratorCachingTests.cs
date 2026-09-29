@@ -18,7 +18,7 @@ public sealed class GeneratorCachingTests
     public void ASecondRunOverAnUnchangedCompilation_RunsTheStepAgainForNothing(string step)
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
-            ("scenes/room.scene.json", """{"formatVersion": 7, "entities": [], "nextEntityId": 1}"""));
+            ("scenes/room.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}"""));
 
         List<IncrementalGeneratorRunStep> runs = [];
         foreach (GeneratorRunResult generator in result.Results)

@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Capsule.Build.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Tests.Documents;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Build;
 
@@ -39,18 +40,24 @@ public sealed class NativeSceneToolTests
     }
 
     // A texture is reached by its key, so the derived document names the path the build ships it at
-    // however the document spelled it.
+    // however the document spelled it. A regridded palette keeps what its entries author for composition.
     [Theory]
     [InlineData("Terrain/Cave_Wall.png")]
     [InlineData("terrain/cave-wall.png")]
     public void ATileMapTexture_IsReEmittedAsItsKey(string spelled)
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/hall.scene.json", Authored.Replace("\"terrain.png\"", $"\"{spelled}\"", StringComparison.Ordinal));
+        workspace.Write(
+            "Assets/Scenes/hall.scene.json",
+            Authored
+                .Replace("\"terrain.png\"", $"\"{spelled}\"", StringComparison.Ordinal)
+                .Replace("\"name\": \"ground\",", "\"name\": \"ground\", \"type\": \"ice\",", StringComparison.Ordinal));
 
         workspace.Succeed();
 
-        Assert.Equal("terrain/cave-wall", Load(Shipped + "hall.scene.json.gz").Entries[0].TileMap!.Value.Grid.Texture?.Name);
+        TileGrid grid = Load(Shipped + "hall.scene.json.gz").Entries[0].TileMap!.Value.Grid;
+        Assert.Equal("terrain/cave-wall", grid.Texture?.Name);
+        Assert.Equal("ice", grid.Authored![1].Type);
     }
 
     [Fact]
@@ -89,7 +96,7 @@ public sealed class NativeSceneToolTests
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Scenes/hall.scene.json", Authored);
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 7, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 8, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
 
         string errors = workspace.Fail();
 
@@ -116,7 +123,7 @@ public sealed class NativeSceneToolTests
     public void EveryDocument_IsHandedToTheGeneratorAndNamedInCode()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/Dev/Room_Wide.scene.json", """{"formatVersion": 7, "baseScene": "playable-room", "camera": "follow", "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/Dev/Room_Wide.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "camera": "follow", "entities": [], "nextEntityId": 1}""");
         workspace.Write("Assets/Scenes/room.scene.json", Authored);
 
         workspace.Succeed();
@@ -140,7 +147,7 @@ public sealed class NativeSceneToolTests
         using ToolWorkspace workspace = new();
         foreach (string document in documents)
         {
-            workspace.Write(document, """{"formatVersion": 7, "entities": [], "nextEntityId": 1}""");
+            workspace.Write(document, """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""");
         }
 
         string errors = workspace.Fail();

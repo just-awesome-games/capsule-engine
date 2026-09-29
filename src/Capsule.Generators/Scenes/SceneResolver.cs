@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// Keys every scene and camera class, matches each shipped document to the class composing it, its
+// Keys every scene, camera and tile type class, matches each shipped document to the class composing it, its
 // baseScene and its camera, and reports each refusal.
 internal static class SceneResolver
 {
@@ -49,7 +49,8 @@ internal static class SceneResolver
 
         HashSet<string> claimed = new(registered.Select(static entry => entry.DocumentName).OfType<string>(), StringComparer.Ordinal);
         Dictionary<string, SceneModel> baseScenes = KeyedBaseScenes(diagnostics, inputs.Models.Items, inputs.RootNamespace);
-        Dictionary<string, CameraModel> cameras = KeyedCameras(diagnostics, inputs.Cameras.Items, inputs.RootNamespace);
+        Dictionary<string, CameraModel> cameras = Keyed(diagnostics, inputs.Cameras.Items, inputs.RootNamespace, "camera");
+        Dictionary<string, TileTypeModel> tileTypes = Keyed(diagnostics, inputs.TileTypes.Items, inputs.RootNamespace, "tile type");
 
         Dictionary<string, string?> cameraOf = new(StringComparer.Ordinal);
         List<(string DocumentName, GeneratedBase? Base)> unclaimed = [];
@@ -69,13 +70,15 @@ internal static class SceneResolver
             Generates: true,
             new([.. registered.Select(entry => new RegisteredScene(entry.DocumentName, entry.Model, CameraOf(entry.DocumentName)))]),
             new([.. unclaimed.Select(entry => new DocumentOnlyScene(entry.DocumentName, entry.Base, CameraOf(entry.DocumentName)))]),
+            new([.. tileTypes.OrderBy(static entry => entry.Key, StringComparer.Ordinal).Select(static entry => new KeyedTileType(entry.Key, entry.Value))]),
             default,
             new([.. diagnostics]));
 
         return plan with
         {
             Lookups = EntityResolver.Lookups(
-                plan.Composing.SelectMany(static model => model.Authored), new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
+                plan.Composing.SelectMany(static model => model.Authored).Concat(plan.Composed.SelectMany(static entry => entry.Model.Authored)),
+                new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
         };
 
         string? CameraOf(string? documentName) =>
@@ -190,24 +193,30 @@ internal static class SceneResolver
         return keyed;
     }
 
-    // Every camera the assembly declares, by the key its namespace and name claim. The first class in
-    // declaration order keeps a key, and a second claiming it is CAP031, the failure a room quietly
-    // framed by the wrong camera would otherwise hide.
-    private static Dictionary<string, CameraModel> KeyedCameras(
-        List<Diagnostic> diagnostics, ImmutableArray<CameraModel> models, string rootNamespace)
+    // Every camera or tile type the assembly declares, by the key its namespace and name claim. The first
+    // class in declaration order keeps a key, and a second claiming it is CAP031, the failure a room quietly
+    // framed by the wrong camera or paved with the wrong tile would otherwise hide. A partial class's second
+    // declaration is the same class and claims nothing more.
+    private static Dictionary<string, TModel> Keyed<TModel>(
+        List<Diagnostic> diagnostics, ImmutableArray<TModel> models, string rootNamespace, string kind)
+        where TModel : IClaimingClass
     {
-        List<CameraModel> ordered = new(models);
+        List<TModel> ordered = new(models);
         ordered.Sort(static (left, right) =>
             DeclarationOrder.Compare(left.QualifiedName, left.At, right.QualifiedName, right.At));
 
-        Dictionary<string, CameraModel> keyed = new(StringComparer.Ordinal);
-        foreach (CameraModel model in ordered)
+        Dictionary<string, TModel> keyed = new(StringComparer.Ordinal);
+        foreach (TModel model in ordered)
         {
             string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
-            if (keyed.TryGetValue(key, out CameraModel claimed))
+            if (keyed.TryGetValue(key, out TModel claimed))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    Diagnostics.DuplicateCameraKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key));
+                if (claimed.QualifiedName != model.QualifiedName)
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        Diagnostics.DuplicateClaimedKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key, kind));
+                }
+
                 continue;
             }
 
@@ -236,7 +245,8 @@ internal static class SceneResolver
         if (!model.Valid)
         {
             diagnostics.Add(Diagnostic.Create(
-                Diagnostics.InvalidCamera, model.At.Location(), model.DisplayName, key));
+                Diagnostics.InvalidClaimingClass, model.At.Location(), model.DisplayName, "camera", key,
+                "is not a concrete Capsule.Scenes.Camera with an accessible parameterless constructor"));
 
             return null;
         }

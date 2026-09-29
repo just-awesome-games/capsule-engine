@@ -10,6 +10,7 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
+using MinimalGame.Game.Tiles;
 
 namespace MinimalGame.Game.Entities;
 
@@ -145,7 +146,8 @@ public sealed class Player : Entity
 
         // The body applies no forces: velocity is the game's, every step.
         float move = context.Input.Axis(GameInput.Move);
-        _velocity.X = move * WalkSpeed(move);
+        float target = move * WalkSpeed(move);
+        _velocity.X = IceUnderfoot() is { } ice ? MoveTowards(_velocity.X, target, ice.Friction * delta) : target;
         _velocity.Y += _tuning.Gravity * delta;
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
@@ -202,12 +204,30 @@ public sealed class Player : Entity
         return _tuning.WalkSpeed * (1f + (_tuning.SlopeSpeed * downhill));
     }
 
+    // The ice the last move stood on, or null on any other ground and in the air.
+    private Ice? IceUnderfoot()
+    {
+        foreach (ColliderContact2D contact in _body.MoveContacts)
+        {
+            if (_body.ClassifyNormal(contact.Normal) == SurfaceKind.Floor && contact.Tile is { Type: Ice ice })
+            {
+                return ice;
+            }
+        }
+
+        return null;
+    }
+
+    // Steps current toward target by at most maxStep and lands on target exactly once within reach.
+    private static float MoveTowards(float current, float target, float maxStep) =>
+        MathF.Abs(target - current) <= maxStep ? target : current + (MathF.Sign(target - current) * maxStep);
+
     // A brick struck from below breaks: terrain that changes at run time.
     private void BreakBricksOverhead()
     {
         foreach (ColliderContact2D contact in _body.MoveContacts)
         {
-            if (_body.ClassifyNormal(contact.Normal) == SurfaceKind.Ceiling && contact.Tile is { Type: TileTypes.Brick } tile)
+            if (_body.ClassifyNormal(contact.Normal) == SurfaceKind.Ceiling && contact.Tile is { Type: Brick } tile)
             {
                 tile.Map.RemoveTile(tile.X, tile.Y);
                 Scene.Add(_sparks.Take().Burst(contact.Point));

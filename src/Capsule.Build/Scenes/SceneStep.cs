@@ -108,5 +108,6 @@ internal static class SceneStep
                 grid.Tiles.ToArray(),
                 texture,
                 grid.Columns,
-                grid.Transforms.ToArray());
+                grid.Transforms.ToArray(),
+                grid.Authored);
 }

@@ -41,11 +41,11 @@ internal static class CrowdWorkload
 
     private static readonly SpriteClip Clip = new(Walk, [4, 4, 4, 4], loop: true);
 
-    private static readonly TileDefinition[] Palette =
+    private static readonly TileType[] Palette =
     [
         TileGrid.EmptyTile,
-        new(Solid, 0, Solid),
-        new(Platform, 1, Platform, OneWay: true),
+        new() { Name = Solid, Cell = 0, Layer = Solid },
+        new() { Name = Platform, Cell = 1, Layer = Platform, OneWay = true },
     ];
 
     internal static Scene Room()

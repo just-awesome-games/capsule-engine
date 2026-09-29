@@ -175,7 +175,7 @@ internal sealed class TileGridJson
     [Range(1, int.MaxValue)]
     public int? Columns { get; set; }
 
-    [Description("The palette every tile indexes. Index 0 is \"empty\", carrying neither cell nor layer.")]
+    [Description("The palette every tile indexes. Index 0 is \"empty\", carrying nothing but its name.")]
     [Required]
     public TileTypeJson?[]? TileTypes { get; set; }
 
@@ -189,11 +189,15 @@ internal sealed class TileGridJson
     public int[]? Transforms { get; set; }
 }
 
-[Description("One palette entry: a named tile type and how its tiles draw and collide.")]
+[Description("One palette entry: a named tile type, the class it composes, and how its tiles draw and collide.")]
 internal sealed class TileTypeJson
 {
     [Description("The tile type's name, unique within the palette.")]
     [Required]
+    [SchemaLength(1)]
+    public string? Name { get; set; }
+
+    [Description("The key of the TileType subclass the entry composes. Absent composes a plain TileType.")]
     [SchemaLength(1)]
     public string? Type { get; set; }
 
@@ -216,6 +220,10 @@ internal sealed class TileTypeJson
     [Description("True for a oneWay tile that also blocks from the sides and passes a body only from below.")]
     [DefaultValue(false)]
     public bool? SolidSides { get; set; }
+
+    // Raw JSON, read key by key into the composing class's authorable members when the scene is composed.
+    [Description("The entry's properties. Each key sets the member its TileType subclass marks [Authorable].")]
+    public JsonElement? Properties { get; set; }
 }
 
 [Description("What a derived document came from: the tool, the source's path and the hash of its source closure.")]

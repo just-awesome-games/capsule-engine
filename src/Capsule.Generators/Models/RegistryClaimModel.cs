@@ -8,6 +8,7 @@ internal enum RegistryClaimKind
 {
     Entity = 0,
     SceneDocument = 1,
+    TileType = 2,
 }
 
 /// <summary>One key a referenced logic assembly claims, as its registry claim attribute records it.</summary>

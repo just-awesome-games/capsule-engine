@@ -16,6 +16,9 @@ internal static class GeneratedAttributes
     /// <summary>What marks each game entry of a shipped scene document.</summary>
     internal const string PlacementName = "CapsuleGeneratedPlacement";
 
+    /// <summary>What marks each palette entry of a shipped scene document that names a class or authors properties.</summary>
+    internal const string TileTypeName = "CapsuleGeneratedTileType";
+
     /// <summary>The declaration of <see cref="AssetName"/>.</summary>
     internal const string Asset = """
             /// <summary>A texture or sound, with the key and extension a scene document names it by. Generated code.</summary>
@@ -32,7 +35,7 @@ internal static class GeneratedAttributes
 
         """;
 
-    /// <summary>The declarations of <see cref="SceneDocumentName"/> and <see cref="PlacementName"/>.</summary>
+    /// <summary>The declarations of <see cref="SceneDocumentName"/>, <see cref="PlacementName"/> and <see cref="TileTypeName"/>.</summary>
     internal const string SceneDocument = """
             /// <summary>A shipped scene document, with the settings the build read from it. Generated code.</summary>
             [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
@@ -57,12 +60,6 @@ internal static class GeneratedAttributes
 
                 /// <summary>Each of the document's own properties' name and value in turn, as a placement carries its own, or null.</summary>
                 public object?[]? Properties { get; set; }
-
-                /// <summary>The line the document's properties start on, counted from 1.</summary>
-                public int Line { get; set; }
-
-                /// <summary>The column the document's properties start at on that line, counted from 1.</summary>
-                public int Column { get; set; }
             }
 
             /// <summary>One game entry of a shipped scene document, which the compiler checks against the class claiming its type. Generated code.</summary>
@@ -84,6 +81,25 @@ internal static class GeneratedAttributes
                 public int Line { get; set; }
 
                 /// <summary>The column the entry starts at on that line, counted from 1.</summary>
+                public int Column { get; set; }
+            }
+
+            /// <summary>One palette entry of a shipped scene document, which the compiler checks against the tile type its type names. Generated code.</summary>
+            /// <remarks>Each property is written as a placement's is.</remarks>
+            [global::System.AttributeUsage(global::System.AttributeTargets.Property, AllowMultiple = true)]
+            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+            [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
+            internal sealed class CapsuleGeneratedTileTypeAttribute : global::System.Attribute
+            {
+                /// <summary>The tile-map entry's id, the palette entry's name and type, and each property's name and value in turn.</summary>
+                public CapsuleGeneratedTileTypeAttribute(int id, string name, string? type, params object?[] properties)
+                {
+                }
+
+                /// <summary>The line the tile-map entry starts on in the file the build read, counted from 1.</summary>
+                public int Line { get; set; }
+
+                /// <summary>The column the tile-map entry starts at on that line, counted from 1.</summary>
                 public int Column { get; set; }
             }
 

@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Capsule.Generators;
 
-// Reads the three things a scene document resolves against: every Scene class, every Camera class, and
-// every document the build shipped.
+// Reads the four things a scene document resolves against: every Scene class, every Camera class, every
+// TileType class, and every document the build shipped.
 internal static class SceneDescriber
 {
     // A document's baseScene and camera are resolved against every Scene and Camera subclass the
@@ -101,6 +101,37 @@ internal static class SceneDescriber
             DeclaredAt.From(declaration.Identifier.GetLocation()));
     }
 
+    // A palette entry's type is resolved against every TileType subclass in the assembly by the key its
+    // namespace and name claim, as a camera's is. Every class is modeled, valid or not, so a palette entry
+    // naming an unusable class reports what is wrong with it.
+    internal static TileTypeModel? DescribeTileType(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
+    {
+        if (!SymbolShape.DerivesFrom(type, compilation, MetadataNames.TileType))
+        {
+            return null;
+        }
+
+        EquatableArray<PropertyModel> properties = PropertySchema.Of(type, compilation, MetadataNames.TileType);
+        string required = string.Join(", ", properties.Items
+            .Where(static property => property.RequiredKeyword && !property.Authorable)
+            .Select(static property => property.Name));
+        string? fault =
+            !SymbolShape.IsConcreteClass(type) ? "is not a concrete class. Make it non-abstract, non-static and non-generic"
+            : !SymbolShape.IsAccessibleFromGeneratedCode(type) || !SymbolShape.HasAccessibleParameterlessConstructor(type)
+                ? "has no parameterless constructor generated code can call. Make the class and a parameterless constructor public or internal"
+            : required.Length > 0 ? $"has the C# required members {required}, which a palette entry cannot set. Drop required and give each a default"
+            : null;
+
+        return new TileTypeModel(
+            SymbolShape.QualifiedName(type),
+            type.ToDisplayString(),
+            SymbolShape.NamespaceOf(type),
+            type.Name,
+            fault,
+            DeclaredAt.From(declaration.Identifier.GetLocation()),
+            properties);
+    }
+
     /// <summary>
     /// The document a key member the build marked describes, with the baseScene, camera and own properties the
     /// build's own parser read out of it. Null for a member whose mark names no key.
@@ -118,8 +149,6 @@ internal static class SceneDescriber
         string? source = null;
         string? path = null;
         EquatableArray<(string, object?)> properties = default;
-        int line = 0;
-        int column = 0;
         foreach (KeyValuePair<string, TypedConstant> named in marked.Attributes[0].NamedArguments)
         {
             switch (named.Key)
@@ -142,12 +171,6 @@ internal static class SceneDescriber
                 case "Properties" when named.Value.Kind == TypedConstantKind.Array && !named.Value.IsNull:
                     properties = Pairs(named.Value.Values);
                     break;
-                case "Line":
-                    line = named.Value.Value as int? ?? 0;
-                    break;
-                case "Column":
-                    column = named.Value.Value as int? ?? 0;
-                    break;
             }
         }
 
@@ -157,17 +180,23 @@ internal static class SceneDescriber
         }
 
         ImmutableArray<PlacementModel>.Builder placements = ImmutableArray.CreateBuilder<PlacementModel>();
+        ImmutableArray<PaletteEntryModel>.Builder palette = ImmutableArray.CreateBuilder<PaletteEntryModel>();
         foreach (AttributeData attribute in marked.TargetSymbol.GetAttributes())
         {
             if (attribute.AttributeClass?.Name == MetadataNames.PlacementAttributeName && DescribePlacement(attribute) is { } placement)
             {
                 placements.Add(placement);
             }
+            else if (attribute.AttributeClass?.Name == MetadataNames.TileTypeAttributeName && DescribePaletteEntry(attribute) is { } entry)
+            {
+                palette.Add(entry);
+            }
         }
 
         string qualified = SymbolShape.QualifiedName(member.ContainingType) + "." + member.Name;
 
-        return new SceneDocumentModel(key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()), properties, line, column);
+        return new SceneDocumentModel(
+            key, qualified, baseScene, camera, source, path, new(placements.ToImmutable()), properties, new(palette.ToImmutable()));
     }
 
     // One game entry, as the build's placement attribute carries it: id, type, then key and value pairs.
@@ -179,6 +208,29 @@ internal static class SceneDescriber
             return null;
         }
 
+        (int line, int column) = Start(attribute);
+
+        return new PlacementModel(id, type, Pairs(arguments[2].Values), line, column);
+    }
+
+    // One palette entry, as the build's tile type attribute carries it: the tile map's id, the entry's name and
+    // type, then key and value pairs.
+    private static PaletteEntryModel? DescribePaletteEntry(AttributeData attribute)
+    {
+        ImmutableArray<TypedConstant> arguments = attribute.ConstructorArguments;
+        if (arguments.Length != 4 || arguments[0].Value is not int id || arguments[1].Value is not string name || arguments[3].Kind != TypedConstantKind.Array)
+        {
+            return null;
+        }
+
+        (int line, int column) = Start(attribute);
+
+        return new PaletteEntryModel(id, name, arguments[2].Value as string, Pairs(arguments[3].Values), line, column);
+    }
+
+    // Where an entry starts in the document's file, or (0, 0) when the build could not place it.
+    private static (int Line, int Column) Start(AttributeData attribute)
+    {
         int line = 0;
         int column = 0;
         foreach (KeyValuePair<string, TypedConstant> named in attribute.NamedArguments)
@@ -194,7 +246,7 @@ internal static class SceneDescriber
             }
         }
 
-        return new PlacementModel(id, type, Pairs(arguments[2].Values), line, column);
+        return (line, column);
     }
 
     // Each property's name and value in turn, as the build writes a placement's or a document's properties.

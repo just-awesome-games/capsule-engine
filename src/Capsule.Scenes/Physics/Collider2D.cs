@@ -363,7 +363,21 @@ public abstract class Collider2D : Component
     /// The total overlap count. A span shorter than that count is filled to capacity and the
     /// remaining overlaps are counted but not written.
     /// </returns>
+    /// <remarks><see cref="Scene.ColliderOf"/> finds the collider and entity behind each contact.</remarks>
     public int OverlapAll(Span<Contact2D> contacts) => RequireWorld().OverlapColliderAll(_handle, Filter, contacts);
+
+    /// <summary>
+    /// Writes into <paramref name="contacts"/> everything within
+    /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that <paramref name="mask"/>
+    /// matches, instead of <see cref="Filter"/>, for this call only.
+    /// </summary>
+    /// <remarks>
+    /// This does not change <see cref="SetFilter"/>. All other rules of
+    /// <see cref="OverlapAll(Span{Contact2D})"/> apply.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public int OverlapAll(CollisionMask mask, Span<Contact2D> contacts) =>
+        RequireWorld().OverlapColliderAll(_handle, mask, contacts);
 
     /// <summary>
     /// Reports whether this collider is within <see cref="CollisionTolerance.ContactSkin"/> of
@@ -412,7 +426,9 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, using
     /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit and breaks ties
-    /// the way <see cref="CollisionWorld2D.Raycast"/> does.
+    /// the way
+    /// <see cref="CollisionWorld2D.Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/>
+    /// does.
     /// </summary>
     /// <param name="direction">Which way to look. Any non-zero length works.</param>
     /// <param name="distance">How far to look, in world units.</param>
@@ -432,16 +448,26 @@ public abstract class Collider2D : Component
     /// </remarks>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
-        // The world allows a zero distance, but a zero-length ray from a collider that ignores itself
-        // always returns false. Reject it as a caller mistake.
-        if (!float.IsFinite(distance) || distance <= 0f)
-        {
-            throw new ArgumentOutOfRangeException(nameof(distance), distance, "A collider's ray must reach a finite, positive distance.");
-        }
-
+        RequireRayDistance(distance);
         CollisionWorld2D world = RequireWorld();
 
         return world.Raycast(Bounds.Center, direction, distance, filter, out hit, _handle);
+    }
+
+    /// <summary>
+    /// Casts a ray against <paramref name="mask"/> instead of <see cref="Filter"/>, for this call
+    /// only.
+    /// </summary>
+    /// <remarks>
+    /// This does not change <see cref="SetFilter"/>. All other rules of
+    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public bool Raycast(Vector2 direction, float distance, CollisionMask mask, out RayHit2D hit)
+    {
+        RequireRayDistance(distance);
+
+        return RequireWorld().Raycast(Bounds.Center, direction, distance, mask, out hit, _handle);
     }
 
     /// <summary>
@@ -468,6 +494,29 @@ public abstract class Collider2D : Component
     /// </remarks>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
+
+    /// <summary>
+    /// Sweeps this collider's shape against <paramref name="mask"/> instead of
+    /// <see cref="Filter"/>, for this call only.
+    /// </summary>
+    /// <remarks>
+    /// This does not change <see cref="SetFilter"/>. All other rules of
+    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
+    /// </remarks>
+    /// <example>
+    /// A wall probe that sweeps the player's collider against climbable layers only:
+    /// <code>
+    /// private static readonly CollisionMask Climbable = new(CollisionLayers.Climbable);
+    ///
+    /// if (_collider.Cast(new Vector2(reach, 0f), Climbable, out ShapeCastHit2D hit))
+    /// {
+    ///     // Kick off hit.Normal.
+    /// }
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public bool Cast(Vector2 translation, CollisionMask mask, out ShapeCastHit2D hit) =>
+        RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, mask, out hit, _handle);
 
     /// <summary>
     /// Replaces the collider's shape with <paramref name="shape"/>. Queries see the new shape as
@@ -968,8 +1017,8 @@ public abstract class Collider2D : Component
     }
 
     // Resolves layer names to a filter in this world, interning each name as it goes, because a
-    // collider may name a layer no other collider has registered yet. A name the world has no room
-    // for throws here. A null world resolves nothing, so the result is None.
+    // collider may name a layer no other collider has registered yet. Names are checked even with no
+    // world, and a null world resolves to None.
     internal static CollisionFilter ResolveFilter(CollisionWorld2D? world, ReadOnlySpan<string> names)
     {
         foreach (string name in names)
@@ -977,16 +1026,7 @@ public abstract class Collider2D : Component
             ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
         }
 
-        CollisionFilter filter = CollisionFilter.None;
-        if (world is { } present)
-        {
-            foreach (string name in names)
-            {
-                filter = filter.With(present.Layer(name));
-            }
-        }
-
-        return filter;
+        return world?.Intern(names) ?? CollisionFilter.None;
     }
 
     private void Resync()
@@ -995,6 +1035,16 @@ public abstract class Collider2D : Component
         {
             world.SetShape(_handle, _local);
             world.SetPosition(_handle, Entity!.WorldPosition);
+        }
+    }
+
+    // The world allows a zero distance, but a zero-length ray from a collider that ignores itself
+    // always returns false. Reject it as a caller mistake.
+    private static void RequireRayDistance(float distance)
+    {
+        if (!float.IsFinite(distance) || distance <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(distance), distance, "A collider's ray must reach a finite, positive distance.");
         }
     }
 

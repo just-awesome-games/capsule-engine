@@ -10,7 +10,7 @@ using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Tests;
 
-// The whole game through CapsuleEngine.RunHeadless: the same builder the shell boots with, minus
+// The whole game through CapsuleEngine.RunHeadless: the shell's own CapsuleBoot builder, minus
 // the window, so scene transitions and the exit request are the game's own. A driver that reads
 // the scene stands in for the player; InputScript cannot, because what it presses depends on which
 // scene is up.
@@ -21,7 +21,7 @@ public sealed class HeadlessRunTests
     {
         StartThenQuit driver = new();
 
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
             .RunHeadless<MainMenu>(driver);
@@ -36,7 +36,7 @@ public sealed class HeadlessRunTests
     [Fact]
     public void LosingWindowFocusInPlay_OpensThePauseMenu()
     {
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
             .RunHeadless<MainMenu>(new StartThenQuit(DeviceSnapshot.Empty.WithWindowFocus(false)));
@@ -51,7 +51,7 @@ public sealed class HeadlessRunTests
     [Fact]
     public void Walkthrough_PlaysTheRoomHeadlessAndEndsOnQuit()
     {
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
             .RunHeadless(CapsuleAssets.Scenes.RoomScene, new Walkthrough());
@@ -66,7 +66,7 @@ public sealed class HeadlessRunTests
     {
         CrossFadesTheMenuThemeIntoTheRoomTheme driver = new();
 
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
             .RunHeadless<MainMenu>(driver);
@@ -84,7 +84,7 @@ public sealed class HeadlessRunTests
     {
         JumpsFromPlayToMenuAndBack driver = new();
 
-        HeadlessRunResult result = CapsuleEngine.Configure("Minimal Game", new DesktopPlatform(), CapsuleScenes.Registry)
+        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
             .WithRunStart(GameBoot.Start)
             .WithoutLogging()
             .RunHeadless<MainMenu>(driver);

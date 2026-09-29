@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -6,9 +8,10 @@ namespace Capsule.Tests.Generators;
 public sealed class CameraGeneratorTests
 {
     // An internal camera class is still constructible from a document's camera key, because the
-    // generated factory that constructs it sits in the same assembly.
+    // generated factory that constructs it sits in the same assembly. A scene composed through the
+    // registry gets that camera, as a run's scene does.
     [Fact]
-    public void ADocumentsCamera_BakesAnInternalConcreteCamerasFactoryIntoTheRegistration()
+    public void ADocumentsCamera_IsInstalledOnTheSceneTheRegistryComposes()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
             $$"""
@@ -17,12 +20,15 @@ public sealed class CameraGeneratorTests
             internal sealed class GameCamera : Camera;
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 7, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        string generated = GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile);
-        Assert.Contains("Camera = static () => new global::Game.GameCamera()", generated, StringComparison.Ordinal);
+        SceneRegistry registry = (SceneRegistry)GeneratorHarness.Loaded(compiled)
+            .GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
+        Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), new SceneDocument([], 1));
+
+        Assert.Equal("Game.GameCamera", composed.Camera.GetType().FullName);
     }
 
     // A key that resolves to a class failing the shape a camera needs is a defect naming the class,
@@ -40,7 +46,7 @@ public sealed class CameraGeneratorTests
             {{declaration}}
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 7, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "camera": "game-camera", "entities": [], "nextEntityId": 1}"""));
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
         Assert.Equal("CAP029", error.Id);

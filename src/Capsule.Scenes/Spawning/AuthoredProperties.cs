@@ -13,8 +13,8 @@ using Capsule.Scenes.Documents;
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>
-/// The <c>properties</c> object of one scene-document entry or of the document itself, which the generated
-/// applier of the entry's class or the scene's class reads into the <see cref="AuthorableAttribute"/> members by key.
+/// The <c>properties</c> object of one scene-document entry, of one tile-map palette entry or of the document itself,
+/// which the generated applier of the owner's class reads into the <see cref="AuthorableAttribute"/> members by key.
 /// </summary>
 /// <remarks>
 /// A read that meets an absent key, a JSON null or the wrong JSON throws
@@ -29,8 +29,11 @@ public readonly struct AuthoredProperties
     // Plain options with no reflection-based resolver, which a trimmed or ahead-of-time build keeps.
     private static readonly JsonSerializerOptions ConverterOptions = new();
 
-    // The entry whose properties these are, or null for the scene document's own.
+    // The entry whose properties these are, or null for the scene document's own or a palette entry's.
     private readonly EntityPlacement? _entry;
+
+    // How a message names the palette entry whose properties these are, or null for any other owner.
+    private readonly string? _tile;
 
     private readonly JsonElement? _properties;
 
@@ -45,20 +48,27 @@ public readonly struct AuthoredProperties
     private readonly int _index;
 
     internal AuthoredProperties(EntityPlacement entry, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
-        : this(entry, entry.Properties, placed, assets, default, -1)
+        : this(entry, null, entry.Properties, placed, assets, default, -1)
     {
     }
 
     // The scene document's own properties, read once every entry is constructed.
     internal AuthoredProperties(JsonElement? scene, Dictionary<int, Entity> placed, AssetCollection assets)
-        : this(null, scene, placed, assets, default, -1)
+        : this(null, null, scene, placed, assets, default, -1)
+    {
+    }
+
+    // A palette entry's properties, read as its tile map is composed. A tile type holds no entity reference.
+    internal AuthoredProperties(int tileMap, string tile, JsonElement? properties, AssetCollection assets)
+        : this(null, string.Create(CultureInfo.InvariantCulture, $"tile-map entry {tileMap}'s tile '{tile}'"), properties, null, assets, default, -1)
     {
     }
 
     private AuthoredProperties(
-        EntityPlacement? entry, JsonElement? properties, Dictionary<int, Entity>? placed, AssetCollection? assets, JsonElement element, int index)
+        EntityPlacement? entry, string? tile, JsonElement? properties, Dictionary<int, Entity>? placed, AssetCollection? assets, JsonElement element, int index)
     {
         _entry = entry;
+        _tile = tile;
         _properties = properties;
         _placed = placed;
         _assets = assets;
@@ -104,6 +114,22 @@ public readonly struct AuthoredProperties
         && TryFloat(value[1], out float y)
             ? new Vector2(x, y)
             : throw Mismatch(key, "Vector2", "[x, y] with both numbers finite");
+
+    /// <summary>
+    /// Reads a <see cref="Capsule.Rendering.Rect"/>, written <c>[left, top, right, bottom]</c> with all four finite
+    /// and neither pair of edges crossed.
+    /// </summary>
+    public Rect Rect(string key) =>
+        Authored(key) is { ValueKind: JsonValueKind.Array } value
+        && value.GetArrayLength() == 4
+        && TryFloat(value[0], out float left)
+        && TryFloat(value[1], out float top)
+        && TryFloat(value[2], out float right)
+        && TryFloat(value[3], out float bottom)
+        && right >= left
+        && bottom >= top
+            ? new Rect(left, top, right, bottom)
+            : throw Mismatch(key, "Rect", "[left, top, right, bottom] with all four finite, right no less than left and bottom no less than top");
 
     /// <summary>Reads a <see cref="ColorRgba"/>, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>
     public ColorRgba Color(string key)
@@ -230,7 +256,7 @@ public readonly struct AuthoredProperties
         T[] read = new T[value.GetArrayLength()];
         for (int i = 0; i < read.Length; i++)
         {
-            read[i] = element(new AuthoredProperties(_entry, _properties, _placed, _assets, value[i], i));
+            read[i] = element(new AuthoredProperties(_entry, _tile, _properties, _placed, _assets, value[i], i));
         }
 
         return read;
@@ -290,7 +316,7 @@ public readonly struct AuthoredProperties
             $"{Sets(key)} to entity {id}, a {target.GetType().Name}, but the member takes {typeof(T).Name}. Write the id of an entity that is a {typeof(T).Name}.");
     }
 
-    private string Owner => _entry is { } entry ? $"entity id {entry.Id} ('{entry.Type}')" : "the scene document";
+    private string Owner => _tile ?? (_entry is { } entry ? $"entity id {entry.Id} ('{entry.Type}')" : "the scene document");
 
     // The owner and what it sets: a key, or one element of the array a key holds.
     private string Sets(string key) =>
@@ -309,7 +335,7 @@ public readonly struct AuthoredProperties
         : Find(key, out JsonElement value)
             ? value
             : throw new SceneDocumentFormatException(
-                $"{Owner} omits '{key}', which its class requires. Add \"{key}\" to the {(_entry is null ? "document" : "entry")}'s properties.");
+                $"{Owner} omits '{key}', which its class requires. Add \"{key}\" to the {(_entry is null && _tile is null ? "document" : "entry")}'s properties.");
 
     private SceneDocumentFormatException Mismatch(string key, string expected, string form)
     {

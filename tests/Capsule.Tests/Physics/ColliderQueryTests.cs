@@ -159,4 +159,28 @@ public sealed class ColliderQueryTests
         Assert.False(prober.Collider.Overlaps(unregistered.Collider));
     }
 
+    [Fact]
+    public void ColliderOf_ResolvesAHitToItsColliderAndEntity_AndATileOrARemovedColliderToNull()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Prober probe = new(new Vector2(20f, 28f), "solid", "default");
+        Prober other = new(new Vector2(24f, 28f));
+        scene.Add(probe);
+        scene.Add(other);
+
+        Span<Contact2D> found = stackalloc Contact2D[8];
+        int count = probe.Collider.OverlapAll(found);
+
+        Contact2D tile = found[0];
+        Contact2D collider = found[count - 1];
+        Assert.True(tile.Target.IsGridCell);
+        Assert.Null(scene.ColliderOf(tile.Target.Collider));
+        Assert.Same(other.Collider, scene.ColliderOf(collider.Target.Collider));
+        Assert.Same(other, scene.ColliderOf(collider.Target.Collider)!.Entity);
+
+        scene.Remove(other);
+
+        Assert.Null(scene.ColliderOf(collider.Target.Collider));
+        Assert.Null(scene.ColliderOf(ColliderHandle.None));
+    }
 }

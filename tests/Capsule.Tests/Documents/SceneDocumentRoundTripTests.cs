@@ -16,7 +16,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "entities": [
                 {
                   "id": 1,
@@ -44,7 +44,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "baseScene": "playable-room",
               "camera": "game-camera",
               "size": [320, 180],
@@ -96,7 +96,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "entities": [
                 {
                   "id": 1,
@@ -110,7 +110,7 @@ public sealed class SceneDocumentRoundTripTests
                     "height": 1,
                     "tileTypes": [
                       {
-                        "type": "empty"
+                        "name": "empty"
                       }
                     ],
                     "tiles": [
@@ -208,7 +208,7 @@ public sealed class SceneDocumentRoundTripTests
     public void AGridThatDrawsNothingWritesNeitherTextureNorCell()
     {
         SceneDocument document = new(
-            [new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileDefinition("hazard", null)], [1]))],
+            [new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [1]))],
             2);
 
         string json = SceneDocumentFile.ToJson(document);
@@ -217,7 +217,7 @@ public sealed class SceneDocumentRoundTripTests
         Assert.DoesNotContain("\"texture\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"columns\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"cell\"", json, StringComparison.Ordinal);
-        Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
+        Assert.Equivalent(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray(), strict: true);
         Assert.Equal(json, SceneDocumentFile.ToJson(round));
     }
 
@@ -247,7 +247,7 @@ public sealed class SceneDocumentRoundTripTests
         string expected = string.Join(
             '\n',
             "{",
-            "  \"formatVersion\": 7,",
+            "  \"formatVersion\": 8,",
             "  \"entities\": [",
             "    {",
             "      \"id\": 1,",
@@ -262,10 +262,10 @@ public sealed class SceneDocumentRoundTripTests
             "        \"columns\": 4,",
             "        \"tileTypes\": [",
             "          {",
-            "            \"type\": \"empty\"",
+            "            \"name\": \"empty\"",
             "          },",
             "          {",
-            "            \"type\": \"ground\",",
+            "            \"name\": \"ground\",",
             "            \"cell\": 0",
             "          }",
             "        ],",
@@ -323,7 +323,7 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(document.Source, round.Source);
         Assert.Equal(document.Entries[0].Id, round.Entries[0].Id);
         Assert.Equal(document.Entries[1], round.Entries[1]);
-        Assert.Equal(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray());
+        Assert.Equivalent(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray(), strict: true);
     }
 
     // An absent scale means identity, so the canonical form carries the field only where it says
@@ -353,7 +353,7 @@ public sealed class SceneDocumentRoundTripTests
     {
         string json = """
             {
-              "formatVersion": 7,
+              "formatVersion": 8,
               "entities": [
                 {
                   "id": 1,

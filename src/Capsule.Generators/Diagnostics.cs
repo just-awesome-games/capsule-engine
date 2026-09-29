@@ -124,20 +124,20 @@ internal static class Diagnostics
         "A baseScene must be an abstract Scene a derived type can construct",
         "'{0}' claims baseScene key '{1}', but is not an abstract Capsule.Scenes.Scene with one constructor taking Capsule.Scenes.SceneContent that a derived type can call");
 
-    internal static readonly DiagnosticDescriptor InvalidCamera = Rule(
+    internal static readonly DiagnosticDescriptor InvalidClaimingClass = Rule(
         "CAP029", ScenesCategory, ScenesPage,
-        "A camera must be a concrete Camera with an accessible parameterless constructor",
-        "'{0}' claims camera key '{1}', but is not a concrete Capsule.Scenes.Camera with an accessible parameterless constructor");
+        "A camera or tile type must be a class a document can construct",
+        "'{0}' claims {1} key '{2}', but {3}");
 
     internal static readonly DiagnosticDescriptor UnclaimedSceneKey = Rule(
         "CAP030", ScenesCategory, ScenesPage,
         "A baseScene or camera key must name a declared class",
         "Scene document '{0}' names {1} '{2}', which no class claims");
 
-    internal static readonly DiagnosticDescriptor DuplicateCameraKey = Rule(
+    internal static readonly DiagnosticDescriptor DuplicateClaimedKey = Rule(
         "CAP031", ScenesCategory, ScenesPage,
-        "Two classes claim one camera key",
-        "'{0}' and '{1}' both claim camera key '{2}'. A camera has no attribute to override its key, so rename one class");
+        "Two classes claim one camera or tile type key",
+        "'{0}' and '{1}' both claim {3} key '{2}'. A {3} has no attribute to override its key, so rename one class");
 
     internal static readonly DiagnosticDescriptor DuplicateBaseSceneKey = Rule(
         "CAP032", ScenesCategory, ScenesPage,
@@ -151,8 +151,8 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor UnclaimedEntryType = Rule(
         "CAP034", ScenesCategory, ScenesPage,
-        "A scene document entry's type must name an entity class",
-        "Scene document {0}: {1} has type '{2}', which no entity claims. Declare the entity whose namespace names that key, give one [SpawnType(\"{2}\")], or correct the type. Claimed: {3}");
+        "A scene document entry's type must name a class that claims it",
+        "Scene document {0}: {1} has type '{2}', which no {3} claims. {4} Claimed: {5}");
 
     internal static readonly DiagnosticDescriptor CodeOnlyEntryType = Rule(
         "CAP035", ScenesCategory, ScenesPage,
@@ -166,7 +166,7 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor UnsettableEntryProperty = Rule(
         "CAP037", ScenesCategory, ScenesPage,
-        "A scene document sets a member it cannot set",
+        "A scene document sets a member that cannot be authored",
         "Scene document {0}: {1} sets '{2}', but '{3}' {4}");
 
     internal static readonly DiagnosticDescriptor MismatchedEntryProperty = Rule(

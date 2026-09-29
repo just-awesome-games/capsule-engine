@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json",
-  "formatVersion": 7,
+  "formatVersion": 8,
   "camera": "game-camera",
   "properties": {
     "music": "audio/music/room.ogg"
@@ -25,10 +25,10 @@
         "columns": 2,
         "tileTypes": [
           {
-            "type": "empty"
+            "name": "empty"
           },
           {
-            "type": "ground",
+            "name": "ground",
             "cell": 0,
             "layer": "solid"
           }

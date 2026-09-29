@@ -8,7 +8,7 @@ internal readonly record struct CameraModel(
     string TypeName,
     bool Concrete,
     bool AccessibleParameterless,
-    DeclaredAt At)
+    DeclaredAt At) : IClaimingClass
 {
     internal bool Valid => Concrete && AccessibleParameterless;
 }

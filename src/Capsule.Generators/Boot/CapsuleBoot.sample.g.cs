@@ -19,13 +19,9 @@ namespace Capsule.Generated
 
         private static global::Capsule.Scenes.SceneRegistry CreateScenes()
         {
-            var entities = new global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration>();
-            global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddEntities(entities);
-            var scenes = new global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration>();
+            var scenes = new global::Capsule.Scenes.SceneRegistryBuilder();
             global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddScenes(scenes);
-            return new global::Capsule.Scenes.SceneRegistry(
-                new global::Capsule.Scenes.Spawning.EntityRegistry(entities),
-                scenes);
+            return scenes.Build();
         }
 
         private static global::Capsule.Input.InputDriverRegistry CreateDrivers()

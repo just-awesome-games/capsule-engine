@@ -34,6 +34,7 @@ internal static class PropertyForms
         new("string", "String", "a string in quotes", static value => value is string),
         new("global::System.Numerics.Vector2", "Vector2", "[x, y] with both numbers finite", static value =>
             value is EquatableArray<object?> { Items: { Length: 2 } pair } && IsFloat(pair[0]) && IsFloat(pair[1])),
+        new("global::Capsule.Rendering.Rect", "Rect", "[left, top, right, bottom] with all four finite, right no less than left and bottom no less than top", IsRect),
         new("global::Capsule.Rendering.ColorRgba", "Color", "\"#rrggbb\" or \"#rrggbbaa\"", static value =>
             value is string text && text.Length is 7 or 9 && text[0] == '#' && text.Skip(1).All(Uri.IsHexDigit)),
     ];
@@ -62,4 +63,13 @@ internal static class PropertyForms
     internal static AssetForm? Asset(string type) => Array.Find(Assets, form => form.Type == type);
 
     private static bool IsFloat(object? value) => value is int || (value is double number && !float.IsInfinity((float)number));
+
+    // The edges compare as the floats the load reads. The build then agrees with the load on a pair that rounds together.
+    private static bool IsRect(object? value) =>
+        value is EquatableArray<object?> { Items: { Length: 4 } edges }
+        && edges.All(IsFloat)
+        && Edge(edges[2]) >= Edge(edges[0])
+        && Edge(edges[3]) >= Edge(edges[1]);
+
+    private static float Edge(object? value) => value is int whole ? whole : (float)(double)value!;
 }

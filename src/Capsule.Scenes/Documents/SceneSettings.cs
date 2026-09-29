@@ -13,7 +13,10 @@ public sealed record SceneSettings
     /// <summary>The key of the abstract <see cref="Scene"/> subclass the composed scene derives from.</summary>
     public string? BaseScene { get; init; }
 
-    /// <summary>The key of the concrete <see cref="Scenes.Camera"/> subclass that becomes the scene's <see cref="Scene.Camera"/>.</summary>
+    /// <summary>
+    /// The key of the concrete <see cref="Scenes.Camera"/> subclass that becomes the scene's <see cref="Scene.Camera"/>
+    /// when the scene is composed through its generated registration.
+    /// </summary>
     public string? Camera { get; init; }
 
     /// <summary>The scene's <see cref="Scene.Size"/> in world units, in place of the extent of its tile maps.</summary>

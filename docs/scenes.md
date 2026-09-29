@@ -32,7 +32,7 @@ list of entries:
 
 ```json
 {
-  "formatVersion": 7,
+  "formatVersion": 8,
   "size": [320, 192],
   "scrollCenter": [160, 288],
   "ambient": "#484c68",
@@ -49,9 +49,9 @@ list of entries:
         "texture": "terrain.png",
         "columns": 4,
         "tileTypes": [
-          { "type": "empty" },
-          { "type": "ground", "cell": 0, "layer": "solid" },
-          { "type": "ledge", "cell": 2, "layer": "ledge", "oneWay": true }
+          { "name": "empty" },
+          { "name": "ground", "cell": 0, "layer": "solid" },
+          { "name": "ledge", "cell": 2, "layer": "ledge", "oneWay": true }
         ],
         "tiles": [
           0, 0, 2, 0,
@@ -78,7 +78,10 @@ code assigning that property still wins. The top-level keys run in the order `fo
   abstract.
 - `camera` names a concrete `Camera` subclass with an accessible parameterless constructor, installed by
   the `Scene(SceneContent)` constructor. Absent leaves the scene's default camera in place, and a
-  subclass assigning `Camera` in its own constructor body still wins.
+  subclass assigning `Camera` in its own constructor body still wins. The generated registration
+  supplies the camera. A `SceneContent` built by hand from a document carries no camera, `properties` or
+  tile types, and composes the scene with its default camera and every palette entry as a plain `TileType`.
+  A test composes a document as a run does through `SceneRegistry.Create(SceneKey, SceneDocument)`.
 - `size` is `[w, h]`, both finite and greater than zero, and sets `Scene.Size`. Absent keeps the extent of the
   document's tile maps.
 - `scrollCenter` is `[x, y]`, both finite. It is the camera centre at which every layer sits as authored, written as `ScrollCenter` to every camera the
@@ -119,28 +122,37 @@ A root `"$schema"` key may name the format's published JSON Schema, `https://raw
 
 `tile-map` is reserved by the engine. A document may carry any number, interleaved with game entities, all
 anchored at the world origin and drawn by their `zIndex` bands. Its properties are `tileSize`, `width`,
-`height`, `texture`, `columns`, `tileTypes`, `tiles` and `transforms`. Palette index 0 is `empty`, carrying
-neither cell nor layer. `tiles` holds `width x height` palette indices, one grid row per line so a map reads
+`height`, `texture`, `columns`, `tileTypes`, `tiles` and `transforms`. Palette index 0 is named `empty` and
+carries nothing else. `tiles` holds `width x height` palette indices, one grid row per line so a map reads
 as its shape. `transforms` is an optional grid of the same shape that mirrors or turns each tile's drawing
 and collision shape: 1 mirrors it left to right, 2 top to bottom, 4 swaps its axes before either, the sum
 combines them, and absent is all 0.
-Each other palette entry carries a `type` name and may carry:
+Each other palette entry carries a `name`, unique in its palette, and may carry:
 
 | Field | Meaning |
 | --- | --- |
 | `texture` | The texture's key, extension included, of the texture every drawn tile is cut from, spelt any way ([`assets.md`](assets.md#named-assets)). Forward slashes, no empty, `.` or `..` segment. Absent on a grid that draws nothing. |
 | `columns` | How many cells wide that texture is. Required with `texture`, at least 1, absent without one. |
+| `type` | The key of the `TileType` subclass the entry composes, named the way an entity entry's `type` names its class. Absent is a plain `TileType`. |
 | `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent is a semantic tile: queryable, may collide, draws nothing. |
-| `layer` | The collision layer every tile of this type is on, one name the game owns. A query or mover meets the tile when its own filter names that layer. Absent is decoration. Several types may share a layer. |
+| `layer` | The collision layer every tile of this type is on, one name the game owns. A query or mover meets the tile when its own filter names that layer. Absent is decoration. Several entries may share a layer. |
 | `shape` | The convex polygon the tile collides as, three or four `[x, y]` points in pixels from the tile's top-left corner with Y down, each within `[0, tileSize]`. `[[0, 16], [16, 0], [16, 16]]` is a 16-pixel slope rising to the right. Absent is the whole tile. |
 | `oneWay` | `true` for a tile that blocks only a body coming down onto it from above ([`collision.md`](collision.md#one-way-surfaces)). Absent is `false`. |
 | `solidSides` | `true` for a `oneWay` tile that also blocks from the sides and passes a body only from below. Without `oneWay` it fails the document. Absent is `false`. |
+| `properties` | An object setting the members the entry's class marks `[Authorable]`, as an entity's [`properties`](#properties) do. |
 
 A `cell` on a grid naming no `texture`, a `texture` no entry draws a cell of, a `shape` or `oneWay` on a
 tile with no `layer`, and a `shape` that is not convex or reaches outside its tile fail the document. A tile map
 whose palette collides with nothing registers no collider ([`collision.md`](collision.md#terrain)).
 `TileMap.SetTile` changes what a cell draws and collides as at run time, `TileMap.RemoveTile` clears it,
 `TileMap.TileAt` reads it, and `TileMap.CellAt` finds the cell a world position falls in.
+
+A palette entry is an instance of `TileType`, or of the subclass its `type` names. One instance serves every
+cell painted with it. State that belongs to one cell lives on an entity. `TileMap.TileAt` and
+`TileContact2D.Type` return that instance, read as `map.TileAt(x, y).Name` or matched as
+`map.TileAt(x, y) is Ice ice`. `SetTile` paints by name.
+The build checks a palette entry's `type` and `properties` like an entity entry's. A tile type needs an
+accessible parameterless constructor and refuses `Required = true`, entity references and `required` members.
 
 ### Entries and composition
 
@@ -152,13 +164,13 @@ The spawn is what every entity honours: position, rotation, scale, band and scro
 what one class declares. Code places the same entity through the same constructor with
 `new EntitySpawn(position) { Rotation = turn }`, and that spawn has id 0 and no type.
 
-One rule covers entities, cameras and a document's `baseScene`: the type's namespace under the assembly's
-root namespace, minus a leading `Entities`, `Cameras` or `Scenes` segment and minus a trailing segment
-repeating the type's own name, kebab-cased per segment and joined with `/`, then the kebab-cased type
-name. `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player` claims `player`,
-and `MyGame.Scenes.PlayableRoom` is the `baseScene` `playable-room`. A class claiming a document keeps the
-leading segment, since the document's key is its path: `MyGame.Scenes.Stage1.Room01` claims
-`scenes/stage-1/room-01`.
+One rule covers entities, cameras, tile types and a document's `baseScene`: the type's namespace under the
+assembly's root namespace, minus a leading `Entities`, `Cameras`, `Tiles` or `Scenes` segment and minus a
+trailing segment repeating the type's own name, kebab-cased per segment and joined with `/`, then the
+kebab-cased type name. `MyGame.Entities.Enemies.Bat` claims `enemies/bat`, `MyGame.Entities.Player.Player`
+claims `player`, `MyGame.Tiles.Ice` claims `ice`, and `MyGame.Scenes.PlayableRoom` is the `baseScene`
+`playable-room`. A class claiming a document keeps the leading segment, since the document's key is its path:
+`MyGame.Scenes.Stage1.Room01` claims `scenes/stage-1/room-01`.
 A type outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the
 build (`CAP034`), and fails the scene at load in a document the build never saw. A claiming constructor that
 does not pass its spawn to a base constructor taking one is `CAP026` at that constructor.

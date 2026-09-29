@@ -19,6 +19,13 @@ internal static class RegistryProviderRenderer
         }
     }
 
+    // The body of every method building a scene registry, from each provider's AddScenes. CapsuleBoot passes every
+    // referenced logic assembly's provider. CapsuleScenes passes its own and builds the same registry.
+    internal static string SceneRegistryBody(IEnumerable<string> providers, string indent) =>
+        $"{indent}var scenes = new global::Capsule.Scenes.SceneRegistryBuilder();\n"
+        + string.Concat(providers.Select(provider => $"{indent}{provider}.AddScenes(scenes);\n"))
+        + $"{indent}return scenes.Build();\n";
+
     // The provider an assembly is reached through, plus the two attributes a shell reads its
     // registry metadata from. Only generated code calls these members.
     internal static string Render(string providerName) => GeneratedFile.Write(
@@ -47,23 +54,18 @@ internal static class RegistryProviderRenderer
                 public global::System.Type DeclaringType { get; }
             }
 
-            /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c>. Generated code. Do not edit.</summary>
+            /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>. Generated code. Do not edit.</summary>
             [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
             {{GeneratedFile.ExcludeFromCodeCoverage}}
             public static class {{providerName}}
             {
                 [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-                public static void AddEntities(global::System.Collections.Generic.List<global::Capsule.Scenes.Spawning.EntityRegistration> registrations)
+                public static void AddScenes(global::Capsule.Scenes.SceneRegistryBuilder scenes)
                 {
-                    global::System.ArgumentNullException.ThrowIfNull(registrations);
-                    registrations.AddRange(global::Capsule.Generated.CapsuleEntities.Registrations);
-                }
-
-                [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-                public static void AddScenes(global::System.Collections.Generic.List<global::Capsule.Scenes.SceneRegistration> registrations)
-                {
-                    global::System.ArgumentNullException.ThrowIfNull(registrations);
-                    registrations.AddRange(global::Capsule.Generated.CapsuleScenes.Registrations);
+                    global::System.ArgumentNullException.ThrowIfNull(scenes);
+                    scenes.AddEntities(global::Capsule.Generated.CapsuleEntities.Registrations);
+                    scenes.AddScenes(global::Capsule.Generated.CapsuleScenes.Registrations);
+                    scenes.AddTileTypes(global::Capsule.Generated.CapsuleScenes.TileTypes);
                 }
 
                 [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]

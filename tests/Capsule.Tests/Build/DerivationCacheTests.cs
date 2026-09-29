@@ -55,7 +55,7 @@ public sealed class DerivationCacheTests
         using ToolWorkspace workspace = Small();
         workspace.Succeed();
 
-        workspace.Write(Room, """{"formatVersion": 7, "entities": [], "nextEntityId": 3}""");
+        workspace.Write(Room, """{"formatVersion": 8, "entities": [], "nextEntityId": 3}""");
         workspace.Succeed();
 
         Assert.Equal(["scenes: " + Room], workspace.Built);
@@ -153,7 +153,7 @@ public sealed class DerivationCacheTests
     {
         ToolWorkspace workspace = new();
         workspace.WritePng(Hero, 4, 3);
-        workspace.Write(Room, """{"formatVersion": 7, "entities": [ { "id": 1, "type": "crate", "x": 0, "y": 0, "properties": { "hp": 3 } } ], "nextEntityId": 2}""");
+        workspace.Write(Room, """{"formatVersion": 8, "entities": [ { "id": 1, "type": "crate", "x": 0, "y": 0, "properties": { "hp": 3 } } ], "nextEntityId": 2}""");
 
         return workspace;
     }

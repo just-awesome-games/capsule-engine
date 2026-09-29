@@ -8,16 +8,19 @@ namespace Capsule.Tiles;
 /// <summary>A validated rectangular grid of palette indices.</summary>
 public sealed class TileGrid
 {
-    /// <summary>The palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
-    public const string EmptyTileType = "empty";
+    /// <summary>The name of the palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
+    public const string EmptyTileName = "empty";
 
-    private readonly TileDefinition[] _tileTypes;
+    private readonly TileType[] _tileTypes;
     private readonly int[] _tiles;
     private readonly TileTransform[] _transforms;
 
     // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
     // per tile. An entry is null when its tile type draws nothing.
     private readonly Sprite?[] _sprites;
+
+    // Parallel to the palette, or null when no entry authors a class or properties.
+    private readonly AuthoredTileType[]? _authored;
 
     /// <param name="tileSize">The edge length of one tile. See <see cref="TileSize"/>.</param>
     /// <param name="width">Grid width in tiles.</param>
@@ -33,19 +36,31 @@ public sealed class TileGrid
     /// How each tile is mirrored or turned, row-major and parallel to <paramref name="tiles"/>, or null
     /// for a grid of tiles drawn as authored.
     /// </param>
+    /// <param name="authored">
+    /// What a scene document authors for each palette entry beyond the engine's fields, parallel to
+    /// <paramref name="tileTypes"/>, or null for a palette of plain entries. A scene composes each entry that
+    /// names a type into an instance of that type, carried in <see cref="TileTypes"/>.
+    /// </param>
     /// <exception cref="ArgumentException">The grid is malformed. The message names the defect.</exception>
     public TileGrid(
         int tileSize,
         int width,
         int height,
-        IReadOnlyList<TileDefinition> tileTypes,
+        IReadOnlyList<TileType> tileTypes,
         IReadOnlyList<int> tiles,
         TextureHandle? texture = null,
         int columns = 0,
-        IReadOnlyList<TileTransform>? transforms = null)
+        IReadOnlyList<TileTransform>? transforms = null,
+        IReadOnlyList<AuthoredTileType>? authored = null)
     {
         ArgumentNullException.ThrowIfNull(tileTypes);
         ArgumentNullException.ThrowIfNull(tiles);
+        if (authored is not null && authored.Count != tileTypes.Count)
+        {
+            throw new ArgumentException(
+                $"authored has {authored.Count} entries for a palette of {tileTypes.Count}. Give one per palette entry.",
+                nameof(authored));
+        }
 
         TileSize = tileSize;
         Width = width;
@@ -54,6 +69,7 @@ public sealed class TileGrid
         Columns = columns;
         _tileTypes = [.. tileTypes];
         _tiles = [.. tiles];
+        _authored = authored is null ? null : [.. authored];
 
         Validate();
 
@@ -64,8 +80,8 @@ public sealed class TileGrid
         _sprites = CutCells();
     }
 
-    /// <summary>The palette entry every unpainted cell points at.</summary>
-    public static TileDefinition EmptyTile => new(EmptyTileType, null);
+    /// <summary>The plain palette entry every unpainted cell points at, named <see cref="EmptyTileName"/>.</summary>
+    public static TileType EmptyTile { get; } = new() { Name = EmptyTileName };
 
     /// <summary>
     /// The edge length of one tile in world units, which also equals its edge in atlas pixels.
@@ -87,8 +103,8 @@ public sealed class TileGrid
     /// </summary>
     public int Columns { get; }
 
-    /// <summary>The tile palette. Index 0 is <see cref="EmptyTile"/> and type names are unique.</summary>
-    public ReadOnlySpan<TileDefinition> TileTypes => _tileTypes;
+    /// <summary>The tile palette. Index 0 is an empty tile like <see cref="EmptyTile"/>, and names are unique.</summary>
+    public ReadOnlySpan<TileType> TileTypes => _tileTypes;
 
     /// <summary>Palette indices, row-major from the top row, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
     public ReadOnlySpan<int> Tiles => _tiles;
@@ -104,9 +120,9 @@ public sealed class TileGrid
     {
         get
         {
-            foreach (TileDefinition definition in _tileTypes)
+            foreach (TileType tileType in _tileTypes)
             {
-                if (definition.Layer is not null)
+                if (tileType.Layer is not null)
                 {
                     return true;
                 }
@@ -117,6 +133,12 @@ public sealed class TileGrid
     }
 
     internal ReadOnlySpan<Sprite?> Sprites => _sprites;
+
+    // Build metadata for the scene document writer. A composed grid carries instances and no authored entries.
+    internal IReadOnlyList<AuthoredTileType>? Authored => _authored;
+
+    // This grid with the palette a scene composed from it, whose instances now carry what was authored.
+    internal TileGrid Composed(TileType[] tileTypes) => new(TileSize, Width, Height, tileTypes, _tiles, Texture, Columns, _transforms);
 
     private void Validate()
     {
@@ -142,58 +164,64 @@ public sealed class TileGrid
 
     private void ValidatePalette()
     {
-        if (_tileTypes.Length == 0 || _tileTypes[0] != EmptyTile)
+        int missing = Array.IndexOf(_tileTypes, null);
+        if (missing >= 0)
+        {
+            throw Malformed($"tileTypes[{missing}] is null. Give every palette entry a tile type.", "tileTypes");
+        }
+
+        if (_tileTypes.Length == 0 || !IsEmpty(_tileTypes[0]))
         {
             string actual = _tileTypes.Length == 0
                 ? "an empty palette"
-                : $"\"{_tileTypes[0].Type}\" with cell {_tileTypes[0].Cell?.ToString() ?? "none"} and layer {_tileTypes[0].Layer ?? "none"}";
+                : $"\"{_tileTypes[0].Name}\" with cell {_tileTypes[0].Cell?.ToString() ?? "none"} and layer {_tileTypes[0].Layer ?? "none"}";
             throw Malformed(
-                $"tileTypes[0] is {actual}. Make it \"{EmptyTileType}\" with no cell and no layer.",
+                $"tileTypes[0] is {actual}. Make it a plain TileType named \"{EmptyTileName}\" with no cell, no layer and no properties.",
                 "tileTypes");
         }
 
         HashSet<string> seen = new(StringComparer.Ordinal);
         for (int i = 0; i < _tileTypes.Length; i++)
         {
-            TileDefinition definition = _tileTypes[i];
+            TileType tileType = _tileTypes[i];
 
-            if (string.IsNullOrWhiteSpace(definition.Type))
+            if (string.IsNullOrWhiteSpace(tileType.Name))
             {
-                throw Malformed($"tileTypes[{i}] is blank. Name every tile type.", "tileTypes");
+                throw Malformed($"tileTypes[{i}] has no name. Name every tile type.", "tileTypes");
             }
 
-            if (!seen.Add(definition.Type))
+            if (!seen.Add(tileType.Name))
             {
-                throw Malformed($"tileTypes[{i}] repeats \"{definition.Type}\". Give every tile type a unique name.", "tileTypes");
+                throw Malformed($"tileTypes[{i}] repeats \"{tileType.Name}\". Give every tile type a unique name.", "tileTypes");
             }
 
-            if (definition.Cell is { } cell && cell < 0)
+            if (tileType.Cell is { } cell && cell < 0)
             {
                 throw Malformed($"tileTypes[{i}] draws cell {cell}. Count cells from 0.", "tileTypes");
             }
 
-            if (definition.Layer is { } layer)
+            if (tileType.Layer is { } layer)
             {
                 if (string.IsNullOrWhiteSpace(layer))
                 {
                     throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
                 }
             }
-            else if (definition.Shape is not null || definition.OneWay)
+            else if (tileType.Shape is not null || tileType.OneWay)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares {(definition.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
+                    $"tileTypes[{i}] declares {(tileType.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
                     "tileTypes");
             }
 
-            if (definition.SolidSides && !definition.OneWay)
+            if (tileType.SolidSides && !tileType.OneWay)
             {
                 throw Malformed(
                     $"tileTypes[{i}] declares solidSides but no oneWay. Add oneWay, or drop solidSides for a tile solid from every side.",
                     "tileTypes");
             }
 
-            if (definition.Shape is { } shape)
+            if (tileType.Shape is { } shape)
             {
                 ValidateShape(shape, i);
             }
@@ -287,7 +315,7 @@ public sealed class TileGrid
             if (x + TileSize > int.MaxValue || y + TileSize > int.MaxValue)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] (\"{_tileTypes[i].Type}\") draws cell {cell}, whose source region starts at ({x}, {y}) texels across {Columns} columns of {TileSize}px, beyond the reach of a texture coordinate. Lower the cell number or the tile size.",
+                    $"tileTypes[{i}] (\"{_tileTypes[i].Name}\") draws cell {cell}, whose source region starts at ({x}, {y}) texels across {Columns} columns of {TileSize}px, beyond the reach of a texture coordinate. Lower the cell number or the tile size.",
                     "tileTypes");
             }
         }
@@ -360,6 +388,12 @@ public sealed class TileGrid
 
         return sprites;
     }
+
+    // The empty entry draws, collides and authors nothing. A class or properties would fill every unpainted cell.
+    private bool IsEmpty(TileType tileType) =>
+        tileType is { Name: EmptyTileName, Cell: null, Layer: null, Shape: null, OneWay: false, SolidSides: false }
+        && tileType.GetType() == typeof(TileType)
+        && _authored?[0] is null or { Type: null, Properties: null };
 
     private static ArgumentException Malformed(string message, string parameterName) => new(message, parameterName);
 }
