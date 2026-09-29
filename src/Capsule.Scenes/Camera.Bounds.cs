@@ -168,6 +168,10 @@ public partial class Camera
         }
 
         Center = Confined(Center, half);
+
+        // The deadzone measures from a centre the view can settle on. A focus left past the rect would
+        // hold the camera on the far side of the deadzone once the rect opens.
+        _focus = Confined(_focus, half);
     }
 
     private Vector2 Half(in CameraView view, Vector2 output) => (HostLayout(view, output)?.Span ?? view.Size) / 2f;

@@ -40,6 +40,40 @@ public sealed class CameraBoundsTests
         Assert.Equal(840f - (40f * Blend), camera.Center.X, 1e-3f);
     }
 
+    // The top edge holds the view at 90 while the subject rises past it and comes back down to 80. The
+    // deadzone around the held view spans 74 to 106. Once the edge opens the view stays put, and it moves
+    // only when the subject crosses 106. A focus that followed the subject past the edge would sit at 64
+    // and pull the view there as the edge opens.
+    [Fact]
+    public void TheDeadzone_MeasuresFromTheViewTheBoundsHeld_WhenTheSubjectComesBackPastTheirEdge()
+    {
+        Still subject = new(new Vector2(160f, 90f));
+        Rect room = new(0f, 0f, 320f, 1000f);
+        (SceneSimulation simulation, Camera camera) = Following(subject, c =>
+        {
+            c.Deadzone = new Vector2(0f, 32f);
+            c.Bounds = room;
+        });
+        simulation.Step(SceneFixtures.Step(0));
+
+        subject.Position = new Vector2(160f, -200f);
+        simulation.Step(SceneFixtures.Step(1));
+        subject.Position = new Vector2(160f, 80f);
+        simulation.Step(SceneFixtures.Step(2));
+
+        camera.Bounds = room with { Top = float.NegativeInfinity };
+        simulation.Step(SceneFixtures.Step(3));
+        Assert.Equal(90f, camera.Center.Y);
+
+        subject.Position = new Vector2(160f, 106f);
+        simulation.Step(SceneFixtures.Step(4));
+        Assert.Equal(90f, camera.Center.Y);
+
+        subject.Position = new Vector2(160f, 110f);
+        simulation.Step(SceneFixtures.Step(5));
+        Assert.Equal(94f, camera.Center.Y);
+    }
+
     [Fact]
     public void ASubjectLeavingTheBounds_LeavesTheFrame()
     {

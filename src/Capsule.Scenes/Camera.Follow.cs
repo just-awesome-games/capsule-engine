@@ -8,7 +8,8 @@ namespace Capsule.Scenes;
 // carries the centre after them.
 public partial class Camera
 {
-    // The point the smoothing chases. The deadzone is centred on it.
+    // The point the smoothing chases. The deadzone is centred on it, and each settle confines it as it
+    // confines the view.
     private Vector2 _focus;
 
     // How far ahead of the subject the camera aims, eased toward the lookahead's target.
@@ -25,6 +26,10 @@ public partial class Camera
     /// The size of the box the camera's aim moves in without moving the camera, in world units, where
     /// zero, the default, follows tightly.
     /// </summary>
+    /// <remarks>
+    /// The box is centred on where the view settles, <see cref="Bounds"/> included. A view held at an
+    /// edge moves once the aim leaves the box around that view, as far as the bounds allow.
+    /// </remarks>
     public Vector2 Deadzone
     {
         get;

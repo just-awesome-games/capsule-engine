@@ -232,6 +232,7 @@ public partial class Camera
     /// <summary>
     /// Cuts to <paramref name="center"/>. The frame this step draws interpolates no centre, zoom or offset.
     /// </summary>
+    /// <remarks>The follow's deadzone recentres on <paramref name="center"/> and its lead restarts at zero.</remarks>
     public void Teleport(Vector2 center)
     {
         _cutToSubject = false;
