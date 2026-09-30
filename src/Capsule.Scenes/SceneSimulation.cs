@@ -14,7 +14,16 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     private bool _disposed;
     private bool _warnedOnUndrawnWorldLayer;
 
-    /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/> and builds its first frame.</summary>
+    // Whether the scene has changed since View was last built. A new simulation has built nothing.
+    private bool _viewStale = true;
+    private bool _stepping;
+    private bool _building;
+
+    // Whether View was ever built. A disposed simulation returns that frame even when a later step
+    // left it stale.
+    private bool _viewBuilt;
+
+    /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/>.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
     /// <param name="run">
@@ -39,7 +48,6 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         try
         {
             scene.Start(entryPayload);
-            RewriteView();
         }
         catch (Exception startFailure)
         {
@@ -68,11 +76,49 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <summary>Whether the run has asked the host to shut down. Once true, it stays true.</summary>
     public bool ExitRequested => Run.ExitRequested;
 
-    /// <summary>What to draw. One instance, filled at construction and rewritten after each completed step.</summary>
-    public FrameView View => _view;
+    /// <summary>
+    /// What to draw, built from the scene on the first read after each step. One instance, and a run
+    /// that never reads it never builds it.
+    /// </summary>
+    /// <remarks>
+    /// Building it calls each visible <see cref="Renderer.Draw"/> once. Later reads before the next
+    /// step return it unchanged. A disposed simulation keeps the last frame it built.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// It is read during a step, or from inside a <see cref="Renderer.Draw"/>.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">
+    /// This simulation was disposed before it built any frame.
+    /// </exception>
+    public FrameView View
+    {
+        get
+        {
+            ThrowIfMidStepOrDraw();
 
-    // Advances the scene by exactly one fixed step and rebuilds View. What a callback throws
-    // propagates, and a step that throws can leave the state half-changed.
+            if (_disposed)
+            {
+                if (!_viewBuilt)
+                {
+                    throw new ObjectDisposedException(
+                        nameof(SceneSimulation),
+                        "This simulation was disposed before it built any frame. Read View before Dispose to keep a frame.");
+                }
+
+                return _view;
+            }
+
+            if (_viewStale)
+            {
+                RewriteView();
+            }
+
+            return _view;
+        }
+    }
+
+    // Advances the scene by exactly one fixed step and marks View for rebuilding. What a callback
+    // throws propagates, and a step that throws can leave the state half-changed.
     internal void Step(in StepContext context) => Step(in context, null);
 
     void ISimulation.Step(in StepContext context) => Step(in context, null);
@@ -85,6 +131,23 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        _stepping = true;
+        try
+        {
+            RunStep(in context, before);
+        }
+        finally
+        {
+            _stepping = false;
+        }
+
+        // Marked only once the step completes. A step that throws leaves a view already built
+        // showing the step before it.
+        _viewStale = true;
+    }
+
+    private void RunStep(in StepContext context, Action? before)
+    {
         // Runs before everything else in the step. A sound or a rumble pulse played during it expires
         // against this step's tick, and the sound's commands belong to this step instead of the
         // previous one.
@@ -113,8 +176,6 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         // Everything the step produced is settled here, and nothing this pass reads changes before the
         // frame is drawn.
         EmitDebugDraws();
-
-        RewriteView();
     }
 
     // Runs the debug pass over the scene as it stands. Every step calls it once the step has settled, and
@@ -156,58 +217,40 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     }
 
     // Rebuilds View from the scene as it stands, without taking a step. A host calls it when its
-    // renderers read something that changed between steps.
+    // renderers read something that changed between steps, and a read of a stale View calls it.
     internal void RewriteView()
     {
-        _view.Clear();
-        _view.Camera = Scene.Camera.ToView();
-        _view.Canvas = Run.Canvas;
-        _view.ClearColor = Scene.ClearColor;
-        _view.Ambient = Scene.Ambient;
-        _view.Sampling = Scene.Sampling;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfMidStepOrDraw();
 
-        // Drawing runs after EndStep. A key written, a renderer detached or an entity removed from
-        // inside Draw reaches the scene directly instead of queueing. The list is frozen for the
-        // traversal and walked once by index, in the order the frame opened with. Each renderer is
-        // checked against the scene before it draws, so one detached or removed by an earlier Draw is
-        // skipped. Anything invalidated rebuilds at EndDraw, and a renderer attached here first draws
-        // next step.
-        Scene.BeginDraw();
+        _building = true;
         try
         {
-            ReadOnlySpan<Renderer> renderers = Scene.RenderersInDrawOrder();
-            for (int index = 0; index < renderers.Length; index++)
-            {
-                Renderer renderer = renderers[index];
-                if (!Scene.Draws(renderer) || !renderer.Visible)
-                {
-                    continue;
-                }
-
-                // The only place the render space, scroll factor, tint, flash and material are chosen. A
-                // renderer follows its entity. A hidden or fully faded entity's renderers are skipped
-                // before Draw.
-                Entity entity = renderer.Entity!;
-                if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash))
-                {
-                    _view.Space = entity.Space;
-                    _view.ScrollFactor = entity.ScrollFactor;
-                    _view.SetStyle(tint, flash);
-                    _view.Material = renderer.Material;
-                    renderer.Draw(_view);
-                }
-            }
+            Scene.DrawFrame(_view);
         }
         finally
         {
-            _view.Space = RenderSpace.World;
-            _view.ScrollFactor = Vector2.One;
-            _view.SetStyle(ColorRgba.White, default);
-            _view.Material = null;
-            Scene.EndDraw();
+            _building = false;
         }
 
+        _viewStale = false;
+        _viewBuilt = true;
         WarnOnUndrawnWorldLayer();
+    }
+
+    private void ThrowIfMidStepOrDraw()
+    {
+        if (_building)
+        {
+            throw new InvalidOperationException(
+                "SceneSimulation.View was read from inside a Renderer.Draw while that view was being built. Write to the FrameView the Draw is handed instead.");
+        }
+
+        if (_stepping)
+        {
+            throw new InvalidOperationException(
+                "SceneSimulation.View was read during a step. The view shows a completed step. Read it after Step returns, and read the scene's own state inside a step.");
+        }
     }
 
     // The world layer can have content and still draw nothing, because the camera has no positive

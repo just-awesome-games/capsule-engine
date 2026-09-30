@@ -98,7 +98,17 @@ or any one-off eased value. A `Countdown` is the same timer with no value to rea
 delay or a lifetime.
 
 A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
-is handed. The sheet format and where sprites come from are [`assets.md`](assets.md), and atlases are
+is handed. A frame is built on the first read of `SceneSimulation.View` after a step, and on the first
+read before any step. `Draw` runs at most once per step, never when nothing reads the view, and it
+changes no game state.
+
+A scene's first build happens on the first read of `View`, usually its first presented frame. A host
+that owns its `SceneSimulation` and wants that cost paid during a load reads `View` once at the end of
+it. A build reads state when the view is read, after the last step. A `Draw` that reads something
+outside the simulation, such as a clock or input polled at present, sees its value at present time.
+`Draw` reads simulation state only.
+
+The sheet format and where sprites come from are [`assets.md`](assets.md), and atlases are
 [`configuring-assets.md`](configuring-assets.md#atlases).
 
 ## Hiding, fading and flashing

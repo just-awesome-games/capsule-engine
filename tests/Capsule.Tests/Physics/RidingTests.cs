@@ -188,6 +188,31 @@ public sealed class RidingTests
         Assert.Equal(flush, body.Position.X, CollisionFixtures.Tolerance);
     }
 
+    // A pusher driving into two crates in a row shoves them in handle order. The nearer crate went in
+    // first, so it moves first and stops against the farther one, and the order the broadphase
+    // happens to hold them in changes nothing.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShove_PushesBodiesInHandleOrder_WhateverShapeTheBroadphaseIsIn(bool reshuffled)
+    {
+        Scene scene = new();
+        Slab pusher = new(new Vector2(60f, 20f), Platform, new Vector2(8f, 16f));
+        Rider near = new(new Vector2(reshuffled ? 1000f : 50f, 24f), Platform) { Collider = { Layer = Crate } };
+        Rider far = new(new Vector2(40f, 24f), Platform) { Collider = { Layer = Crate } };
+        scene.Add(pusher);
+        scene.Add(near);
+        scene.Add(far);
+
+        // Arriving from afar reinserts the near crate, which rearranges the broadphase around it.
+        near.Position = new Vector2(50f, 24f);
+
+        pusher.Position += new Vector2(-20f, 0f);
+
+        Assert.Equal(48f, near.Position.X, CollisionFixtures.Tolerance);
+        Assert.Equal(32f, far.Position.X, CollisionFixtures.Tolerance);
+    }
+
     private static readonly Vector2 Gravity = new(0f, 1f);
 
     private static void Land(Rider rider)

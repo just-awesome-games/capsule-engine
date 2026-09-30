@@ -22,8 +22,9 @@ public abstract class Renderer : Component
     /// </summary>
     /// <remarks>
     /// The two values add as a <see cref="long"/> and neither is clamped. Equal sums draw in attachment
-    /// order. A write inside <see cref="Draw"/> orders the next frame, not the frame being drawn.
+    /// order.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Draw"/>.</exception>
     public int ZIndex
     {
         get;
@@ -35,6 +36,7 @@ public abstract class Renderer : Component
                 return;
             }
 
+            Entity?.SceneOrNull?.ThrowIfDrawing("set a renderer's ZIndex");
             field = value;
             Entity?.SceneOrNull?.InvalidateRenderers();
         }
@@ -100,8 +102,11 @@ public abstract class Renderer : Component
     /// its camera is set.
     /// </summary>
     /// <remarks>
-    /// The engine calls this after scene startup for the first frame, then after each completed
-    /// step.
+    /// A frame is built on the first read of <see cref="SceneSimulation.View"/> after a step, and on
+    /// the first read before any step. Draw runs at most once per step and never when nothing reads the
+    /// view. It only writes <paramref name="view"/>. Game state changes in a step. A
+    /// Draw that adds, removes or reparents an entity, attaches or detaches a component, or changes a
+    /// ZIndex or <see cref="Scene.YSort"/> throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     protected internal abstract void Draw(FrameView view);
 

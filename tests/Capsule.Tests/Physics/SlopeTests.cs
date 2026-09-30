@@ -31,6 +31,27 @@ public sealed class SlopeTests
         Assert.Equal(-8f, result.Translation.Y, 0.05f);
     }
 
+    // A box rising past the top vertex of a 1:2 slope grazes it with its bottom-right corner, which
+    // starts half a unit below the vertex. The face chosen at the graze is the box's floor, not the
+    // slope's side it started level with, and the box keeps its travel across.
+    [Fact]
+    public void MoveBox_GrazingASlopesTopVertex_KeepsItsTravelAcross()
+    {
+        CollisionWorld2D world = new();
+        world.Add(
+            Shape2D.Polygon([new(0f, 0f), new(32f, 16f), new(0f, 16f)]),
+            Vector2.Zero,
+            world.Layer(CollisionFixtures.Solid));
+
+        MoveResult2D result = world.MoveBox(
+            CollisionFixtures.Box(-28f, -7.5055f, 8f, 8f),
+            new Vector2(40f, -1f),
+            CollisionFilter.Everything,
+            default);
+
+        Assert.Equal(40f, result.Translation.X, CollisionFixtures.Tolerance);
+    }
+
     // The slope's right side and the box's left side cover each other fully, so neither is a surface,
     // and the ground under the slope culls its bottom.
     // A filter that cannot see the box turns it back into empty space, and the slope's side is live
@@ -55,10 +76,10 @@ public sealed class SlopeTests
         Assert.Equal(8f, hit.Distance, 3);
     }
 
-    // Up a two-tile slope, across the top and down the far side. Every step ends on a floor, and a step
-    // that stays on one surface covers its whole length along it.
+    // Up a two-tile slope, across the top and down the far side. Every step ends on a floor and covers
+    // its whole speed across, including the steps that turn onto a new surface or follow a crest down.
     [Fact]
-    public void AGroundedBody_WalksOverAHill_OnTheFloorEveryStep_AtOneSpeedAlongTheSurface()
+    public void AGroundedBody_WalksOverAHill_OnTheFloorEveryStep_AtOneSpeedAcross()
     {
         Scene scene = SceneFixtures.Terrain(
             "..............",
@@ -68,20 +89,45 @@ public sealed class SlopeTests
             "##############");
         SceneFixtures.Body body = Grounded(scene, new Vector2(8f, 40f));
 
-        for (int step = 0; step < 90; step++)
+        for (int step = 0; step < 70; step++)
         {
-            Vector2 floor = body.Mover.FloorNormal;
             MoveResult2D result = body.Mover.Move(new Vector2(Speed, 0.5f));
 
             Assert.True(body.Mover.IsOnFloor, $"step {step} left the floor at {body.Position}");
-            if (body.Mover.FloorNormal == floor)
-            {
-                Assert.Equal(Speed, result.Translation.Length(), 0.02f);
-            }
+            Assert.Equal(Speed, result.Translation.X, 0.02f);
         }
 
         Assert.True(body.Position.X > 128f);
         Assert.Equal(56f, body.Position.Y, CollisionFixtures.Tolerance);
+    }
+
+    // A walk on a slope covers its speed horizontally by default. With KeepsHorizontalSpeedOnSlopes off
+    // it covers its speed along the surface. The wedge rises to the right one unit for every `run`.
+    [Theory]
+    [InlineData(2f, 1f, true)]
+    [InlineData(2f, -1f, true)]
+    [InlineData(4f, 1f, true)]
+    [InlineData(4f, -1f, true)]
+    [InlineData(2f, 1f, false)]
+    [InlineData(4f, -1f, false)]
+    public void AGroundedBodyWalkingASlope_CoversItsSpeedAcross_OrAlongTheSurfaceWhenOff(float run, float way, bool keepsHorizontalSpeed)
+    {
+        Scene scene = new(SceneFixtures.Content(SceneFixtures.RoomWithoutTerrain(), SceneFixtures.Registry()));
+        scene.Add(new Wedge(run));
+        SceneFixtures.Body body = Grounded(scene, new Vector2(124f, 20f));
+        body.Mover.KeepsHorizontalSpeedOnSlopes = keepsHorizontalSpeed;
+        Vector2 start = body.Position;
+
+        for (int step = 0; step < 20; step++)
+        {
+            MoveResult2D result = body.Mover.Move(new Vector2(way * Speed, 0.5f));
+
+            Assert.True(body.Mover.IsOnFloor, $"step {step} left the floor at {body.Position}");
+            float covered = keepsHorizontalSpeed ? MathF.Abs(result.Translation.X) : result.Translation.Length();
+            Assert.Equal(Speed, covered, 0.01f);
+        }
+
+        Assert.Equal(-1f / run, (body.Position.Y - start.Y) / (body.Position.X - start.X), 0.01f);
     }
 
     // A floor stops a fall outright, so gravity alone never walks a body down a slope.
@@ -144,6 +190,63 @@ public sealed class SlopeTests
         Assert.True(way * (body.Position.X - 64f) > 32f);
     }
 
+    // One long walk from flat ground meets the foot of a 1:2 slope with the box's bottom corner level
+    // with the foot's vertex, and carries on up the slope. It ends on the slope's face, never in it,
+    // and reports that face's normal. The mirrored run walks left up the same slope flipped.
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    public void AGroundedBox_WalkingOverASlopesFoot_ClimbsItsFace(float way)
+    {
+        Scene scene = new();
+        scene.Add(new Hull(Mirrored(way, new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f))));
+        scene.Add(new Hull(Mirrored(way, new(48f, 64f), new(80f, 48f), new(80f, 64f))));
+        SceneFixtures.Body body = Grounded(scene, new Vector2(way > 0f ? 16f : 136f, 55f));
+
+        body.Mover.Move(new Vector2(way * 40f, 0.5f));
+
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Equal(way > 0f ? 56f : 96f, body.Position.X, CollisionFixtures.Tolerance);
+        Assert.Equal(48f, body.Position.Y, CollisionFixtures.Tolerance);
+        Assert.Equal(-way * 0.4472136f, body.Mover.FloorNormal.X, 1e-4f);
+        Assert.Equal(-0.8944272f, body.Mover.FloorNormal.Y, 1e-4f);
+    }
+
+    // A box falls with its bottom corner onto the top vertex of a 1:2 slope and lands on it, on either
+    // side of the vertex. A vertical fall is a slop narrower than the box, so its corner meets the
+    // slope's face just past the vertex and reports that face. It stops a slop clear of the face, which
+    // rests the box up to the contact skin above the vertex and never below it.
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    public void AGroundedBox_FallingOntoASlopesTopVertex_LandsOnIt(float way)
+    {
+        Scene scene = new();
+        scene.Add(new Hull(Mirrored(way, new(64f, 48f), new(96f, 64f), new(64f, 64f))));
+        SceneFixtures.Body body = new(new Vector2(way > 0f ? 64f : 88f, 32f), blocksOn: "solid");
+        body.Mover.Mode = BodyMode.Grounded;
+        scene.Add(body);
+
+        body.Mover.Move(new Vector2(0f, 40f));
+
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.Equal(way > 0f ? 64f : 88f, body.Position.X, CollisionFixtures.Tolerance);
+        Assert.Equal(way * 0.4472136f, body.Mover.FloorNormal.X, 1e-4f);
+        Assert.Equal(-0.8944272f, body.Mover.FloorNormal.Y, 1e-4f);
+        Assert.InRange(body.Position.Y, 40f - CollisionTolerance.ContactSkin, 40f);
+    }
+
+    // Points as given for `way` 1, or reflected about x = 80 for -1.
+    private static Vector2[] Mirrored(float way, params Vector2[] points)
+    {
+        for (int index = 0; index < points.Length; index++)
+        {
+            points[index].X = way > 0f ? points[index].X : 160f - points[index].X;
+        }
+
+        return points;
+    }
+
     // Lands a grounded 8x8 body from where it starts.
     private static SceneFixtures.Body Grounded(Scene scene, Vector2 position)
     {
@@ -154,6 +257,22 @@ public sealed class SlopeTests
         Assert.True(body.Mover.IsOnFloor);
 
         return body;
+    }
+
+    // A 256-wide wedge on "solid" that rises to the right one unit for every `run`.
+    private sealed class Wedge : Entity
+    {
+        internal Wedge(float run)
+            : base(Vector2.Zero) =>
+            Add(new PolygonCollider2D([new(0f, 256f / run), new(256f, 0f), new(256f, 256f / run)]) { Layer = "solid" });
+    }
+
+    // A convex polygon collider on "solid".
+    private sealed class Hull : Entity
+    {
+        internal Hull(Vector2[] points)
+            : base(Vector2.Zero) =>
+            Add(new PolygonCollider2D(points) { Layer = "solid" });
     }
 
     // Flat ground, a 1:4 descent, a 1:2 descent whose foot is at 16, and a 1:4 descent that starts

@@ -175,12 +175,14 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
 
         long allocated = 0;
         long peakAllocated = 0;
+        long built = 0;
         long total = 0;
         long visible = 0;
         foreach (StepSample sample in samples)
         {
-            allocated += sample.AllocatedBytes;
-            peakAllocated = Math.Max(peakAllocated, sample.AllocatedBytes);
+            allocated += sample.StepBytes;
+            peakAllocated = Math.Max(peakAllocated, sample.StepBytes);
+            built += sample.ViewBytes;
             total += sample.Render.Submitted;
             visible += sample.Render.Visible;
         }
@@ -188,7 +190,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         output.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
             $"{label}: {entities} entities, {allocated / (double)samples.Length:0.0} bytes/step "
-            + $"(peak {peakAllocated}, run {allocated} of {maxPerRun}), "
+            + $"(peak {peakAllocated}, run {allocated} of {maxPerRun}), {built} bytes building frames, "
             + $"commands {total / (double)samples.Length:0.0} total / {visible / (double)samples.Length:0.0} visible / "
             + $"{(total - visible) / (double)samples.Length:0.0} culled"));
 
@@ -196,5 +198,8 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
             allocated <= maxPerRun,
             FormattableString.Invariant(
                 $"{label} allocated {allocated} bytes over {samples.Length} steps, budget {maxPerRun}."));
+        Assert.True(
+            built == 0,
+            FormattableString.Invariant($"{label} allocated {built} bytes building {samples.Length} frames."));
     }
 }

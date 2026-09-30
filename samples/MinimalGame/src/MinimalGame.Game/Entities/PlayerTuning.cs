@@ -13,6 +13,9 @@ namespace MinimalGame.Game.Entities;
 /// <param name="SlopeSpeed">How much a slope changes the walk. At 0 the player walks a slope at
 /// <paramref name="WalkSpeed"/>; higher slows the climb and speeds the descent. On a 45 degree slope
 /// 0.3 climbs about a fifth slower and descends a fifth faster, and near 1.4 the climb stops dead.</param>
+/// <param name="StepHeight">The tallest lip the player walks up onto, and the deepest drop it walks
+/// down without leaving the ground, px. The curb before the first lift is 5 px. At 0 the curb is a wall
+/// to jump. From 6 up the parked lift becomes a step too.</param>
 /// <param name="Gravity">Downward acceleration, px/s², in a Y-down world. Higher gives a snappier,
 /// shorter arc; lower floats.</param>
 /// <param name="JumpSpeed">Upward speed at take-off, px/s; an apex of about 40px against the default
@@ -56,6 +59,7 @@ namespace MinimalGame.Game.Entities;
 public sealed record class PlayerTuning(
     float WalkSpeed,
     float SlopeSpeed,
+    float StepHeight,
     float Gravity,
     float JumpSpeed,
     Vector2 JumpStretch,
@@ -78,6 +82,7 @@ public sealed record class PlayerTuning(
     public static readonly PlayerTuning Default = new(
         WalkSpeed: 80f,
         SlopeSpeed: 0.3f,
+        StepHeight: 5f,
         Gravity: 600f,
         JumpSpeed: 220f,
         JumpStretch: new Vector2(0.6f, 1.4f),

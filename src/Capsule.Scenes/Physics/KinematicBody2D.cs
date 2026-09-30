@@ -51,6 +51,20 @@ public sealed class KinematicBody2D : Component
 
     private const float DegreesToRadians = MathF.PI / 180f;
 
+    // The least share of a walk's direction that runs across up. Only a MaxFloorAngle within a hair of
+    // 90 admits a floor this steep, and the walk along it grows no longer.
+    private const float MinAcross = 1e-3f;
+
+    // The largest X a floor normal may have and still count as flat.
+    private const float FlatX = 1e-4f;
+
+    // How far below 1 the cosine between two floor normals may fall and the floors still count as one plane.
+    private const float PlaneTolerance = 1e-5f;
+
+    // How far to either side of where two floors' lines meet the join test looks for each floor. It stays
+    // clear of the corner itself, where a ray may report either floor.
+    private const float JoinProbe = 4f * CollisionTolerance.ContactSkin;
+
     private float _maxFloorAngle;
 
     // The cosine and tangent of MaxFloorAngle, taken once when it is set.
@@ -61,6 +75,47 @@ public sealed class KinematicBody2D : Component
     private bool _dropThrough;
 
     private BodyMode _mode;
+
+    private float _stepHeight;
+
+    /// <summary>
+    /// Whether a <see cref="BodyMode.Grounded"/> walk on a slope covers the move's whole X horizontally,
+    /// true by default.
+    /// </summary>
+    /// <remarks>
+    /// The slope sets the rise. When this is false, the walk covers the move's X along the slope's surface
+    /// instead. A steeper slope then gives less horizontal headway.
+    /// </remarks>
+    public bool KeepsHorizontalSpeedOnSlopes { get; set; } = true;
+
+    /// <summary>
+    /// Whether a <see cref="BodyMode.Grounded"/> body on an uneven floor stands with its bottom center on
+    /// the floor, where false, the default, stands it on the first part of its bottom to meet the floor.
+    /// </summary>
+    /// <remarks>
+    /// The body still sweeps the pose it would hold with this off, and the entity stands up to half the
+    /// collider's width times the tangent of <see cref="MaxFloorAngle"/> below that pose. Walls, ceilings,
+    /// <see cref="TestMove(Vector2)"/>, carries and shoves meet the swept pose exactly as they would with
+    /// this off. A flat floor leaves the entity where it would be anyway.
+    /// <para>
+    /// At a ledge the body keeps its height until its whole box has left the ledge. A rise spends the
+    /// sink before the box leaves its pose, and the translation a move returns includes any change in
+    /// the sink. <see cref="FloorNormal"/> reports the floor under the center.
+    /// Setting the entity's position directly clears the sink, and the next grounded move finds it again.
+    /// </para>
+    /// <para>
+    /// A grounded move casts one ray down from the bottom center. A move over a change of slope casts a
+    /// second ray, and a move downhill casts the hanging half of the box ahead for walls. A move that
+    /// lowers the entity further below the swept pose sweeps that half for walls first. A change of
+    /// slope on a one-way floor casts up to three more rays down.
+    /// </para>
+    /// <para>
+    /// A crest followed within half a width by a step, or a short rise between two flat floors, can
+    /// leave the body a little high or low. It never ends inside a wall or below the floor under its
+    /// center. A round collider walking downhill stops slightly short of a steep wall.
+    /// </para>
+    /// </remarks>
+    public bool RestsOnCenter { get; set; }
 
     private readonly Collider2D _collider;
     private readonly List<string> _blocksOn = [];
@@ -84,6 +139,20 @@ public sealed class KinematicBody2D : Component
     private bool[] _stopped = new bool[16];
     private ColliderContact2D[] _moveContacts = new ColliderContact2D[16];
     private int _moveContactCount;
+
+    // How far RestsOnCenter holds the entity below the pose the body sweeps, from 0 up to the allowance.
+    private float _sink;
+
+    // The side of the center, -1 left or 1 right, where the swept pose rests on its floor. The other half
+    // of the entity's box hangs lower. Zero when neither side is known.
+    private float _restSide;
+
+    // The entity's local position as this body last wrote it. Any other position was set by the game.
+    private Vector2 _written;
+
+    // The swept pose's floor normal from the last Move, which the next walk follows. FloorNormal reports
+    // the floor under the center instead while the body rests on it.
+    private Vector2 _walkNormal;
 
     /// <param name="collider">
     /// The collider whose shape this body sweeps. It must be attached to the same entity as the body by
@@ -134,6 +203,30 @@ public sealed class KinematicBody2D : Component
         }
     }
 
+    /// <summary>
+    /// How tall a lip a <see cref="BodyMode.Grounded"/> body on a floor steps up onto and how deep a drop it
+    /// walks down without leaving the floor, in world units, where 0, the default, turns stepping off.
+    /// </summary>
+    /// <remarks>
+    /// A body whose last move ended on a floor and whose walk meets a wall rises, walks on and settles
+    /// onto a floor no lower than where it started. Without headroom or such a floor, the wall stops it
+    /// as usual. A walk that leaves its floor stays on one up to this far below where the walk ended. A
+    /// move that rises or follows <see cref="DropThrough"/> never steps.
+    /// </remarks>
+    public float StepHeight
+    {
+        get => _stepHeight;
+        set
+        {
+            if (!(value >= 0f && float.IsFinite(value)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "StepHeight must be finite and at least 0. Use 0 to turn stepping off.");
+            }
+
+            _stepHeight = value;
+        }
+    }
+
     /// <summary>The collider whose shape this body sweeps.</summary>
     /// <remarks>
     /// Sweeping requires it to be enabled, registered in a scene, and still attached to this body's
@@ -161,6 +254,10 @@ public sealed class KinematicBody2D : Component
     public event Action<ColliderContact2D>? Crushed;
 
     /// <summary>The surfaces the most recent <see cref="Move(Vector2)"/> reached.</summary>
+    /// <remarks>
+    /// Each sweep of the move reaches the nearest surface and every other within a ten-thousandth of the
+    /// sweep's length of it.
+    /// </remarks>
     public ReadOnlySpan<ColliderContact2D> MoveContacts => _moveContacts.AsSpan(0, _moveContactCount);
 
     /// <summary>
@@ -220,7 +317,8 @@ public sealed class KinematicBody2D : Component
     /// <remarks>
     /// A layer that moves the body also blocks it. The body rides the floor its last
     /// <see cref="Move(Vector2)"/> stopped on, and is carried exactly whether that floor steps before
-    /// or after it. A wall or ceiling stops a carry or a shove.
+    /// or after it. A wall or ceiling stops a carry or a shove. A collider moving into several bodies
+    /// shoves them one at a time, in the order of their colliders' handles.
     /// </remarks>
     /// <param name="names">
     /// The layer names that move this body. An empty list, the default, moves it by nothing.
@@ -303,7 +401,7 @@ public sealed class KinematicBody2D : Component
         // report what the sweep touched.
         MoveResult2D result = world.Move(
             world.ShapeOf(_collider.Handle),
-            entity.WorldPosition + from,
+            Swept(entity) + from,
             translation,
             Filter,
             default,
@@ -317,28 +415,68 @@ public sealed class KinematicBody2D : Component
         CollisionWorld2D world = RequireSweepable(out Entity entity);
         Guard.Finite(translation, nameof(translation));
         Shape2D shape = world.ShapeOf(_collider.Handle);
-        Vector2 origin = entity.WorldPosition;
-        Guard.Finite(origin + translation, nameof(translation));
+        Vector2 origin = Swept(entity);
+        Guard.Finite(entity.WorldPosition + translation, nameof(translation));
 
         bool through = _dropThrough;
         _dropThrough = false;
 
-        MoveResult2D result = Resolve(world, shape, origin, translation, blocking, through);
-        if (result.ContactCount > _found.Length)
+        float sunk = _sink;
+        bool rests = RestsOnCenter && _mode == BodyMode.Grounded;
+        bool rising = Vector2.Dot(translation, Up) > 0f;
+        Vector2 swept = translation;
+        if (sunk != 0f && rests)
         {
-            Array.Resize(ref _found, result.ContactCount);
-            Array.Resize(ref _stopped, result.ContactCount);
-            result = Resolve(world, shape, origin, translation, blocking, through);
+            swept = Spend(translation);
+        }
+        else
+        {
+            _sink = 0f;
+        }
+
+        MoveResult2D result = Sweep(world, shape, origin, swept, blocking, through, rising);
+        Vector2 centerNormal = Vector2.Zero;
+        if (rests)
+        {
+            float cleared = 0f;
+            if (_sink > 2f * CollisionTolerance.LinearSlop && IsOnFloor && !rising && !through && swept.X != 0f && MathF.Sign(swept.X) == -_restSide)
+            {
+                result = KeepClear(world, shape, origin, swept, blocking, result);
+                cleared = _sink;
+            }
+
+            centerNormal = Settle(world, shape, origin + result.Translation, blocking, origin.Y + sunk + shape.Bounds.Max.Y, result, cleared);
+            _scene!.NoteSink(_sink);
         }
 
         // A world translation equals a local one here, because nothing above a body is turned or scaled.
-        Displace(entity, result.Translation);
+        Vector2 moved = result.Translation + new Vector2(0f, _sink - sunk);
+        Displace(entity, moved);
         _moveContactCount = Collider2D.Describe(
             world,
             _found.AsSpan(0, result.ContactCount),
             ref _moveContacts);
 
         Classify();
+        _walkNormal = FloorNormal;
+        if (IsOnFloor && centerNormal != Vector2.Zero)
+        {
+            FloorNormal = centerNormal;
+        }
+
+        return result with { Translation = moved };
+    }
+
+    // Resolves the move, and runs it again with room for every contact when the span overflowed.
+    private MoveResult2D Sweep(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, bool rising)
+    {
+        MoveResult2D result = Resolve(world, shape, origin, translation, blocking, through, rising);
+        if (result.ContactCount > _found.Length)
+        {
+            Collider2D.Grow(ref _found, result.ContactCount);
+            Collider2D.Grow(ref _stopped, result.ContactCount);
+            result = Resolve(world, shape, origin, translation, blocking, through, rising);
+        }
 
         return result;
     }
@@ -347,7 +485,7 @@ public sealed class KinematicBody2D : Component
     // contact span can be grown and the move run again. Kept out of line, because each inlined copy
     // would add a sweep that MoveWith's frame zeroes on every move.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private MoveResult2D Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through)
+    private MoveResult2D Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, bool rising)
     {
         MoveSweep sweep = new(world, shape, origin, blocking, _collider.Handle, through, _found, _stopped);
 
@@ -357,15 +495,16 @@ public sealed class KinematicBody2D : Component
         }
         else
         {
-            Walk(ref sweep, translation, through);
+            Walk(ref sweep, translation, through, rising);
         }
 
         return sweep.Result;
     }
 
-    // The grounded move. The part across up walks along the floor at its own length, the part along
-    // up falls onto floors and rises into ceilings, and a body that stood on a floor follows it down.
-    private void Walk(ref MoveSweep sweep, Vector2 translation, bool through)
+    // The grounded move. The part across up walks along the floor, the part along up falls onto floors
+    // and rises into ceilings, and a body that stood on a floor follows it down. A rising move neither
+    // steps nor follows the floor down, even when the sink took its whole rise.
+    private void Walk(ref MoveSweep sweep, Vector2 translation, bool through, bool rising)
     {
         float rise = Vector2.Dot(translation, Up);
 
@@ -376,26 +515,16 @@ public sealed class KinematicBody2D : Component
         {
             Vector2 direction = new(MathF.Sign(translation.X), 0f);
             // A lateral direction already runs along a flat floor.
-            if (IsOnFloor && FloorNormal != Up)
+            if (IsOnFloor && _walkNormal != Up)
             {
-                direction = Tangent(direction, FloorNormal);
+                direction = Tangent(direction, _walkNormal);
             }
 
-            float left = length;
-            for (int pass = 0; pass < MoveSweep.MaxPasses && left > 0f && direction != Vector2.Zero; pass++)
-            {
-                MovePass step = sweep.Pass(direction * left);
-                if (!step.Blocked)
-                {
-                    break;
-                }
-
-                // A walkable surface turns the rest of the walk along it at the same length. Anything
-                // steeper stops the walk.
-                left -= step.Moved.Length();
-                direction = IsFloor(step.Normal) ? Tangent(direction, step.Normal) : Vector2.Zero;
-            }
+            bool steps = _stepHeight > 0f && IsOnFloor && !rising && !through;
+            Across(ref sweep, direction, length, steps);
         }
+
+        float walked = sweep.At.Y;
 
         if (rise != 0f)
         {
@@ -414,13 +543,130 @@ public sealed class KinematicBody2D : Component
             }
         }
 
-        // The farthest a walk of this length can leave a floor it followed is its length times the
+        // The farthest a walk can leave a floor it followed is the distance it covers across up times the
         // steepest floor's slope, over a crest or off a step. Twice that covers a crest into a descent.
-        if (IsOnFloor && rise <= 0f && !through && !StoppedOnFloor(sweep))
+        // Neither setting covers more than `length` across.
+        if (IsOnFloor && !rising && !through && !StoppedOnFloor(sweep))
         {
             float reach = (2f * length * _floorTan) + CollisionTolerance.ContactSkin;
-            sweep.Snap(-Up * reach, _floorCos - AngleTolerance);
+            if (!sweep.Snap(-Up * reach, _floorCos - AngleTolerance) && _stepHeight > 0f)
+            {
+                // A step down reaches StepHeight below where the walk ended, less what the fall covered.
+                float down = walked + _stepHeight + CollisionTolerance.ContactSkin - sweep.At.Y;
+                if (down > reach)
+                {
+                    sweep.Snap(-Up * down, _floorCos - AngleTolerance);
+                }
+            }
         }
+    }
+
+    // Walks `left` on from `direction`, turning along each walkable surface it meets. The walk spends
+    // `left` across up, or along the floor when KeepsHorizontalSpeedOnSlopes is off. A wall ends it, or
+    // is stepped over when `steps` allows.
+    private void Across(ref MoveSweep sweep, Vector2 direction, float left, bool steps)
+    {
+        // A floor turns the walk along it from the heading, not from the direction that met it. A
+        // direction running straight into the far face of a valley would otherwise leave none.
+        Vector2 heading = new(MathF.Sign(direction.X), 0f);
+        int turnedFrom = 0;
+        int turnedTo = 0;
+        for (int pass = 0; pass < MoveSweep.MaxPasses && left > 0f && direction != Vector2.Zero; pass++)
+        {
+            // Across up, a unit direction along a floor covers the X share of its length.
+            float across = KeepsHorizontalSpeedOnSlopes ? MathF.Max(MathF.Abs(direction.X), MinAcross) : 1f;
+            MovePass step = sweep.Pass(direction * (left / across));
+
+            // A floor the walk turned along and then moved on from no longer holds the body. A crest's
+            // vertex is met flat and walked past, and the floor beyond it is left for the snap to find.
+            if (step.Moved != Vector2.Zero)
+            {
+                _stopped.AsSpan(turnedFrom, turnedTo - turnedFrom).Clear();
+            }
+
+            if (!step.Blocked)
+            {
+                break;
+            }
+
+            // A walkable surface turns the rest of the walk along it. Anything steeper stops the walk.
+            left -= KeepsHorizontalSpeedOnSlopes ? MathF.Abs(step.Moved.X) : step.Moved.Length();
+            if (IsFloor(step.Normal))
+            {
+                direction = Tangent(heading, step.Normal);
+                turnedFrom = sweep.Written - step.Written;
+                turnedTo = sweep.Written;
+                continue;
+            }
+
+            if (steps && left > CollisionTolerance.LinearSlop)
+            {
+                StepUp(ref sweep, step, left, heading.X);
+            }
+
+            break;
+        }
+    }
+
+    // Climbs the wall that stopped `wall`. The body rises by up to StepHeight, walks on with what is left
+    // and settles onto a floor no lower than where the rise began. A climb that fails any of these puts
+    // the move back where the wall stopped it. Every leg is a sweep. The body then never ends inside
+    // anything it blocks on. It is kept out of line to keep the saved sweep out of every walk's frame.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void StepUp(ref MoveSweep sweep, in MovePass wall, float left, float way)
+    {
+        // A face turned down is an overhang. A wall met only above the step's reach is taller than the
+        // step. Neither needs a sweep to rule out.
+        int from = sweep.Written - wall.Written;
+        if (IsCeiling(wall.Normal) || (wall.Written > 0 && LowestPoint(from, sweep.Written) < sweep.Bottom - _stepHeight - CollisionTolerance.LinearSlop))
+        {
+            return;
+        }
+
+        MoveSweep blocked = sweep;
+        float lifted = -sweep.Pass(Up * _stepHeight).Moved.Y;
+        int risen = sweep.Written;
+        float start = sweep.At.X;
+
+        // The walk after the rise only climbs. Settling by the rise then lands no lower than the start.
+        if (lifted > CollisionTolerance.LinearSlop)
+        {
+            Across(ref sweep, new Vector2(way, 0f), left, false);
+            int landed = sweep.Written;
+            if (MathF.Abs(sweep.At.X - start) > CollisionTolerance.LinearSlop
+                && sweep.Snap(-Up * (lifted + CollisionTolerance.ContactSkin), _floorCos - AngleTolerance))
+            {
+                Supersede(from, risen, landed);
+                return;
+            }
+        }
+
+        sweep = blocked;
+    }
+
+    // Leaves the landing as the only floor that stopped a step. The wall and anything the rise touched
+    // stopped nothing in the end, and neither did a floor walked before the landing.
+    private void Supersede(int from, int risen, int landed)
+    {
+        for (int index = 0; index < landed; index++)
+        {
+            if ((index >= from && index < risen) || IsFloor(_found[index].Normal))
+            {
+                _stopped[index] = false;
+            }
+        }
+    }
+
+    // The largest Y, the lowest point, among the contacts found from `from` up to `to`.
+    private float LowestPoint(int from, int to)
+    {
+        float lowest = float.NegativeInfinity;
+        for (int index = from; index < to; index++)
+        {
+            lowest = MathF.Max(lowest, _found[index].Point.Y);
+        }
+
+        return lowest;
     }
 
     private bool StoppedOnFloor(in MoveSweep sweep)
@@ -434,6 +680,254 @@ public sealed class KinematicBody2D : Component
         }
 
         return false;
+    }
+
+    // Where the body's sweeps start, the entity's place raised by the sink. A position the game set
+    // itself clears the sink.
+    private Vector2 Swept(Entity entity)
+    {
+        if (_sink == 0f)
+        {
+            return entity.WorldPosition;
+        }
+
+        if (entity.Position != _written)
+        {
+            _sink = 0f;
+            return entity.WorldPosition;
+        }
+
+        return entity.WorldPosition - new Vector2(0f, _sink);
+    }
+
+    // Takes the sink out of a move that leaves the floor. A rise lifts the entity through the sink
+    // before the swept pose moves. A fall that started in the air lowers the swept pose through it
+    // while the entity falls as asked.
+    private Vector2 Spend(Vector2 translation)
+    {
+        if (translation.Y < 0f)
+        {
+            float spent = MathF.Min(-translation.Y, _sink);
+            _sink -= spent;
+            translation.Y += spent;
+        }
+        else if (translation.Y > 0f && !IsOnFloor)
+        {
+            translation.Y += _sink;
+            _sink = 0f;
+        }
+
+        return translation;
+    }
+
+    // Casts the entity's hanging half, the strip below the swept pose on its downhill side, along the
+    // walk. A wall it meets cuts the walk short and stops the move as that wall would stop the box.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private MoveResult2D KeepClear(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 swept, CollisionFilter blocking, MoveResult2D result)
+    {
+        Aabb2D bounds = shape.Bounds;
+        float center = origin.X + ((bounds.Min.X + bounds.Max.X) * 0.5f);
+        float top = origin.Y + bounds.Max.Y;
+        float bottom = origin.Y + bounds.Max.Y + _sink;
+        Aabb2D strip = _restSide < 0f
+            ? new Aabb2D(new Vector2(center + CollisionTolerance.LinearSlop, top), new Vector2(origin.X + bounds.Max.X, bottom))
+            : new Aabb2D(new Vector2(origin.X + bounds.Min.X, top), new Vector2(center - CollisionTolerance.LinearSlop, bottom));
+
+        if (!world.ShapeCast(Shape2D.Box(strip), Vector2.Zero, result.Translation, blocking, out ShapeCastHit2D wall, _collider.Handle)
+            || IsFloor(wall.Normal))
+        {
+            return result;
+        }
+
+        float reach = MathF.Max(0f, (MathF.Abs(result.Translation.X) * wall.Fraction) - CollisionTolerance.LinearSlop);
+        result = Sweep(world, shape, origin, new Vector2(MathF.Sign(swept.X) * reach, swept.Y), blocking, false, false);
+
+        int count = result.ContactCount;
+        if (count == _found.Length)
+        {
+            Collider2D.Grow(ref _found, count + 1);
+            Collider2D.Grow(ref _stopped, count + 1);
+        }
+
+        _found[count] = new Contact2D(wall.Target, wall.Point, wall.Normal, 0f);
+        _stopped[count] = true;
+
+        return new MoveResult2D(result.Translation, true, count + 1);
+    }
+
+    // Sets the sink after a move that ended on a floor with the swept pose at `pose`. The entity's bottom
+    // center goes onto the floor under the center when that floor joins the one the pose rests on and
+    // the hanging half meets no wall. Otherwise the entity keeps its `previous` bottom, held within the
+    // allowance and the depth the move has already kept clear. KeepClear kept `cleared` clear along the
+    // move. Returns the center's floor normal, or zero when the body holds its height.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private Vector2 Settle(CollisionWorld2D world, in Shape2D shape, Vector2 pose, CollisionFilter blocking, float previous, in MoveResult2D move, float cleared)
+    {
+        int support = SupportIndex(move.ContactCount);
+        if (support < 0)
+        {
+            return Vector2.Zero;
+        }
+
+        Aabb2D bounds = shape.Bounds;
+        float half = (bounds.Max.X - bounds.Min.X) * 0.5f;
+        float center = pose.X + bounds.Min.X + half;
+        float bottom = pose.Y + bounds.Max.Y;
+        float allowance = half * _floorTan;
+        float reach = (2f * allowance) + CollisionTolerance.ContactSkin;
+        float held = Math.Clamp(previous - bottom, 0f, allowance);
+        float side = _restSide;
+        _sink = MathF.Min(held, Kept(move.Translation.X, side, side, held, cleared));
+
+        // The ray reaches twice the allowance. A pose a walk left hanging over a crest still finds the
+        // floor below and holds the entity as low as the allowance lets it.
+        if (!world.Raycast(new Vector2(center, bottom), -Up, reach, blocking, out RayHit2D floor, _collider.Handle)
+            || !IsFloor(floor.Normal))
+        {
+            return Vector2.Zero;
+        }
+
+        // The swept pose stands a slop clear of its floor. On a flat floor the center is that close too.
+        float depth = floor.Point.Y - bottom - CollisionTolerance.LinearSlop;
+        if (depth < CollisionTolerance.LinearSlop)
+        {
+            _sink = 0f;
+            _restSide = 0f;
+            return floor.Normal;
+        }
+
+        // The pose rests on the side where the floor climbs toward it. Two flat floors leave only the
+        // contact to say which side that is.
+        Vector2 rest = _found[support].Normal;
+        _restSide = MathF.Abs(floor.Normal.X) > FlatX ? -MathF.Sign(floor.Normal.X)
+            : MathF.Abs(rest.X) > FlatX ? -MathF.Sign(rest.X)
+            : MathF.Sign(_found[support].Point.X - center);
+
+        float kept = Kept(move.Translation.X, _restSide, side, held, cleared);
+        float hold = MathF.Min(held, kept);
+
+        // A floor that runs on as one plane from the center to the resting corner needs no ledge test.
+        bool plane = Vector2.Dot(floor.Normal, rest) >= 1f - PlaneTolerance
+            && MathF.Abs(depth - (half * MathF.Abs(floor.Normal.X / floor.Normal.Y))) <= CollisionTolerance.ContactSkin;
+        if (!plane && _restSide != 0f)
+        {
+            Vector2 from = new(center, floor.Point.Y - CollisionTolerance.LinearSlop);
+            Vector2 chord = new Vector2(_restSide < 0f ? pose.X + bounds.Min.X : pose.X + bounds.Max.X, bottom) - from;
+            if (world.Raycast(from, chord, chord.Length(), blocking, out RayHit2D wall, _collider.Handle) && !IsFloor(wall.Normal))
+            {
+                // A wall between the two floors is a ledge. An entity that stood below the wall has just
+                // stepped up onto the ledge and stands on it.
+                _sink = previous > wall.Point.Y ? 0f : hold;
+                return Vector2.Zero;
+            }
+
+            // No ray meets the side of a floor that blocks only from above. The floors themselves show
+            // whether one runs on into the other.
+            if (RestsOnTopOnly(world, move.ContactCount) && !Joins(world, blocking, center, bottom, half, reach, floor))
+            {
+                _sink = hold;
+                return Vector2.Zero;
+            }
+        }
+
+        float sink = MathF.Min(depth, allowance);
+        if (sink > kept + CollisionTolerance.LinearSlop && (_restSide == 0f || Hangs(world, blocking, center, bottom, half, sink)))
+        {
+            _sink = hold;
+            return Vector2.Zero;
+        }
+
+        _sink = sink;
+
+        return floor.Normal;
+    }
+
+    // How deep below the swept pose the move has already kept the hanging half clear, for a pose resting
+    // on side `side` after a walk of `across` from one resting on `before`. A pose that moved toward its
+    // resting side, or not across at all, hangs within the box the entity filled before, down to `held`.
+    // One that moved the other way is clear as far as KeepClear swept it.
+    private static float Kept(float across, float side, float before, float held, float cleared) =>
+        across == 0f || MathF.Sign(across) == side ? held
+        : side == before ? cleared
+        : 0f;
+
+    // Whether a wall stands in the hanging half of an entity `sink` below the swept pose. A sliver at the
+    // center sweeps out through that half, below the pose.
+    private bool Hangs(CollisionWorld2D world, CollisionFilter blocking, float center, float bottom, float half, float sink)
+    {
+        Aabb2D sliver = new(new Vector2(center - CollisionTolerance.LinearSlop, bottom), new Vector2(center + CollisionTolerance.LinearSlop, bottom + sink));
+        Vector2 across = new(-_restSide * (half - (2f * CollisionTolerance.LinearSlop)), 0f);
+
+        return world.ShapeCast(Shape2D.Box(sliver), Vector2.Zero, across, blocking, out ShapeCastHit2D wall, _collider.Handle)
+            && !IsFloor(wall.Normal);
+    }
+
+    // Whether a floor the move stopped on blocks only from above.
+    private bool RestsOnTopOnly(CollisionWorld2D world, int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            if (_stopped[index] && IsFloor(_found[index].Normal) && world.IsTopOnly(_found[index].Target))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Whether the floor under the resting corner runs on into `floor`, the floor under the center, with
+    // no drop between. The two floors' lines must meet under the box, and the floor just to either side
+    // of that point must lie on the matching line.
+    private bool Joins(CollisionWorld2D world, CollisionFilter blocking, float center, float bottom, float half, float reach, in RayHit2D floor)
+    {
+        float corner = center + (_restSide * (half - CollisionTolerance.LinearSlop));
+        if (!world.Raycast(new Vector2(corner, bottom), -Up, reach, blocking, out RayHit2D rest, _collider.Handle)
+            || !IsFloor(rest.Normal))
+        {
+            return false;
+        }
+
+        Vector2 restNormal = rest.Normal;
+        Vector2 centerNormal = floor.Normal;
+        float restLine = Vector2.Dot(restNormal, rest.Point);
+        float centerLine = Vector2.Dot(centerNormal, floor.Point);
+        float cross = (restNormal.X * centerNormal.Y) - (restNormal.Y * centerNormal.X);
+        if (MathF.Abs(cross) <= 1e-4f)
+        {
+            return MathF.Abs(Vector2.Dot(centerNormal, rest.Point) - centerLine) <= CollisionTolerance.ContactSkin;
+        }
+
+        float meet = ((restLine * centerNormal.Y) - (centerLine * restNormal.Y)) / cross;
+        float along = (meet - center) * _restSide;
+        if (along < -CollisionTolerance.ContactSkin || along > half + CollisionTolerance.ContactSkin)
+        {
+            return false;
+        }
+
+        return (along <= JoinProbe || Lies(world, blocking, meet - (_restSide * JoinProbe), bottom, reach, centerNormal, centerLine))
+            && (along >= half - JoinProbe || Lies(world, blocking, meet + (_restSide * JoinProbe), bottom, reach, restNormal, restLine));
+    }
+
+    // Whether the floor straight below `x` has `normal` and lies on the line where that normal's dot
+    // product with a point is `line`.
+    private bool Lies(CollisionWorld2D world, CollisionFilter blocking, float x, float bottom, float reach, Vector2 normal, float line) =>
+        world.Raycast(new Vector2(x, bottom), -Up, reach, blocking, out RayHit2D hit, _collider.Handle)
+        && Vector2.Dot(hit.Normal, normal) >= 1f - PlaneTolerance
+        && MathF.Abs(Vector2.Dot(normal, hit.Point) - line) <= CollisionTolerance.ContactSkin;
+
+    // The index of the first contact that stopped a move on a floor, or -1.
+    private int SupportIndex(int count)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            if (_stopped[index] && IsFloor(_found[index].Normal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -502,7 +996,7 @@ public sealed class KinematicBody2D : Component
 
         MoveResult2D result = world.Move(
             world.ShapeOf(_collider.Handle),
-            entity.WorldPosition,
+            Swept(entity),
             motion,
             Filter,
             default,
@@ -529,7 +1023,7 @@ public sealed class KinematicBody2D : Component
         {
             MoveResult2D result = sweeping.MovePast(
                 sweeping.ShapeOf(_collider.Handle),
-                entity.WorldPosition,
+                Swept(entity),
                 remainder,
                 Filter,
                 _collider.Handle,
@@ -550,6 +1044,10 @@ public sealed class KinematicBody2D : Component
             Crushed?.Invoke(Collider2D.Describe(world, contact));
         }
     }
+
+    // How far the pose this body sweeps stands from its registered collider. A pusher meets that pose.
+    internal Vector2 SweptOffset() =>
+        _sink != 0f && Entity is { } entity ? Swept(entity) - entity.WorldPosition : Vector2.Zero;
 
     // Called by a collider this body rides as it leaves the world. The collider has already let go.
     internal void ForgetFloor(Collider2D floor)
@@ -586,6 +1084,7 @@ public sealed class KinematicBody2D : Component
         try
         {
             entity.Position += translation;
+            _written = entity.Position;
         }
         finally
         {
@@ -696,6 +1195,9 @@ public sealed class KinematicBody2D : Component
         MovedByFilter = CollisionFilter.None;
         _blocksOnFilter = CollisionFilter.None;
         _dropThrough = false;
+        _sink = 0f;
+        _restSide = 0f;
+        _walkNormal = Vector2.Zero;
         _moveContactCount = 0;
         IsOnFloor = false;
         IsOnWall = false;

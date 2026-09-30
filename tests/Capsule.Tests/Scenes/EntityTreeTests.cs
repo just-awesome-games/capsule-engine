@@ -65,6 +65,59 @@ public sealed class EntityTreeTests
         Assert.Equal(["root", "child", "other", "root.late", "child.late", "other.late"], log);
     }
 
+    // Removals leave the survivors in step order, and a child parented after them lands at the end of
+    // its parent's remaining subtree.
+    [Fact]
+    public void Removals_KeepTheSurvivorsInStepOrder_AndAChildJoinsAfterItsParentsRemainingSubtree()
+    {
+        List<string> log = [];
+        SceneFixtures.HookScene scene = new();
+        SceneFixtures.Recorder first = new("first", log);
+        SceneFixtures.Recorder parent = new("parent", log);
+        SceneFixtures.Recorder early = new("early", log) { Parent = parent };
+        SceneFixtures.Recorder late = new("late", log) { Parent = parent };
+        SceneFixtures.Recorder last = new("last", log);
+        scene.Add(first);
+        scene.Add(parent);
+        scene.Add(last);
+
+        scene.Remove(first);
+        scene.Remove(early);
+        SceneFixtures.Recorder joined = new("joined", log) { Parent = parent };
+        Assert.Equal([parent, late, joined, last], scene.Entities.ToArray());
+
+        using SceneSimulation simulation = new(scene);
+        log.Clear();
+        simulation.Step(SceneFixtures.Step());
+        Assert.Equal(["parent", "late", "joined", "last", "parent.late", "late.late", "joined.late", "last.late"], log);
+    }
+
+    // Siblings removed in one drain and one at a time leave the rest in parenting order, and a child
+    // parented afterwards goes last.
+    [Fact]
+    public void RemovingSiblings_KeepsTheRestInParentingOrder()
+    {
+        SceneFixtures.HookScene scene = new();
+        SceneFixtures.Watcher parent = new(_ => { });
+        Entity[] children = [.. Enumerable.Range(0, 6).Select(_ => new Entity(parent))];
+        scene.Add(parent);
+        scene.Add(new SceneFixtures.Watcher(s =>
+        {
+            s.Remove(children[1]);
+            s.Remove(children[4]);
+        }));
+
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+        Assert.Equal([children[0], children[2], children[3], children[5]], parent.Children.ToArray());
+
+        scene.Remove(children[3]);
+        scene.Remove(children[0]);
+        Entity joined = new(parent);
+        Assert.Equal([children[2], children[5], joined], parent.Children.ToArray());
+        Assert.Equal([parent, children[2], children[5], joined], scene.Entities[..4].ToArray());
+    }
+
     // A parent's removal takes its subtree, children first, and keeps the links; a child removed
     // on its own lets go of its parent, so it can be parented again or added as a root.
     [Fact]

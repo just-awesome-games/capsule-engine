@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Scenes;
@@ -9,7 +10,8 @@ namespace Capsule.Bench;
 
 // An ordinary Capsule game whose scenes are workloads: `suite` runs them all and records the
 // results, and `assets` times the asset build over a generated corpus; anything else is the
-// engine's own command line, so `--scene <Name>` runs one by hand.
+// engine's own command line, so `--scene <Name>` runs one by hand. `--soak-seconds <n>` is the bench's
+// own and sets how long the Soak drivers run.
 internal static class Program
 {
     public static int Main(string[] args)
@@ -22,6 +24,19 @@ internal static class Program
         if (args.Length > 0 && args[0] == "assets")
         {
             return AssetBench.Run(args[1..]);
+        }
+
+        int soak = Array.IndexOf(args, "--soak-seconds");
+        if (soak >= 0)
+        {
+            if (soak + 1 >= args.Length || !double.TryParse(args[soak + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) || !(seconds > 0))
+            {
+                Console.Error.WriteLine("--soak-seconds needs a positive number of seconds.");
+                return 2;
+            }
+
+            Soak.Seconds = seconds;
+            args = [.. args[..soak], .. args[(soak + 2)..]];
         }
 
         EngineBuilder engine;

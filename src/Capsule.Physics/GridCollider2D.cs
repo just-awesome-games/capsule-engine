@@ -130,6 +130,9 @@ public sealed class GridCollider2D
         return CellBox(x, y);
     }
 
+    // Every cell's state, row by row. A cell's index is y * Width + x.
+    internal ReadOnlySpan<CellState2D> States => _state;
+
     internal CellState2D StateAt(int x, int y) =>
         (uint)x < (uint)Width && (uint)y < (uint)Height ? _state[(y * Width) + x] : CellState2D.None;
 

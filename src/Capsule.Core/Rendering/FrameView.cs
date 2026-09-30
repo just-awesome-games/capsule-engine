@@ -6,8 +6,8 @@ using Capsule.Assets;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Mutable render intent, populated at scene startup, rewritten after each fixed step and read on
-/// draw frames. It holds two ordered layers of sprites and lines, one in world units and one in
+/// Mutable render intent, built from a scene on the first read after each step and on the first read
+/// before any step. It holds two ordered layers of sprites and lines, one in world units and one in
 /// canvas pixels, and the screen layer draws over the world layer.
 /// </summary>
 /// <remarks>

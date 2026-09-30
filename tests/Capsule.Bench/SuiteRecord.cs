@@ -1,10 +1,11 @@
 namespace Capsule.Bench;
 
 // One suite run as committed under results/: the machine and build, then one row of one shape per
-// workload.
+// workload. Lane is "all", or the one lane `--lane` named.
 internal sealed record SuiteRecord(
     string Timestamp,
     string Label,
+    string Lane,
     bool Uncapped,
     string Commit,
     string Configuration,
@@ -14,8 +15,9 @@ internal sealed record SuiteRecord(
     string EngineVersion,
     IReadOnlyList<WorkloadRecord> Workloads);
 
-// Headless rows carry steps and stepMs; windowed rows frames, drawMs and intervalMs; the rest is
-// null. gen0Collections counts inside the measured steps or frames alone.
+// Headless rows carry steps, stepMs, viewMs, stepBytes and viewBytes; windowed rows frames, drawMs and
+// intervalMs; the rest is null. gen0Collections counts inside the measured steps or frames alone, and
+// stepBytes and viewBytes total the bytes the measured steps and the builds after them allocated.
 internal sealed record WorkloadRecord(
     string Name,
     string Mode,
@@ -24,6 +26,9 @@ internal sealed record WorkloadRecord(
     int? Frames,
     DrawTiming? DrawMs,
     StepTiming? StepMs,
+    StepTiming? ViewMs,
+    long? StepBytes,
+    long? ViewBytes,
     IntervalTiming? IntervalMs,
     int Gen0Collections,
     string? CaptureSha256);
@@ -31,7 +36,7 @@ internal sealed record WorkloadRecord(
 // Milliseconds the host spent submitting the game frame: FrameRenderer.Draw alone.
 internal sealed record DrawTiming(double Median, double P95, double Max);
 
-// Milliseconds per fixed step, each step timed on its own.
+// Milliseconds per fixed step, or per frame built after one, each timed on its own.
 internal sealed record StepTiming(double Median, double P95);
 
 // Milliseconds from one frame's start to the next: the display's rate when the host keeps up, and

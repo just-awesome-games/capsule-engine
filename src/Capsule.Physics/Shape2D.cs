@@ -194,10 +194,24 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     {
         Guard.Finite(offset, nameof(offset));
 
+        // Unrolled over constant indices, which need no bounds checks. Every mover translates its shape
+        // on each sweep pass.
         PointBuffer moved = _points;
-        for (int index = 0; index < _count; index++)
+        if (_count > 0)
         {
-            moved[index] += offset;
+            moved[0] += offset;
+            if (_count > 1)
+            {
+                moved[1] += offset;
+                if (_count > 2)
+                {
+                    moved[2] += offset;
+                    if (_count > 3)
+                    {
+                        moved[3] += offset;
+                    }
+                }
+            }
         }
 
         return new Shape2D(Kind, moved, _count, Radius, Finite(Bounds.Translated(offset), nameof(offset)));

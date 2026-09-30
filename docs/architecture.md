@@ -84,6 +84,11 @@ Simulation emits backend-free `FrameView` state and rewrites a step's audio comm
 host draws at display rate, interpolating entities and the camera with one shared fraction, and applies
 audio commands after every step. Neither rendering nor audio feeds state back into simulation.
 
+The frame is built on the first read of `SceneSimulation.View` after a step. A window builds at most one
+per presented frame, and a headless run that reads none builds none. Each build calls every visible
+renderer's `Draw`, which only writes the view it is handed. A `Draw` that changes the scene's structure
+or draw order throws. Reading `View` during a step or from inside a `Draw` throws too.
+
 Every thread the engine runs is the host's, and each has one shape: a step emits an intent, the host queues
 it, a worker fulfils it, and only the hand-off touches a device or the file system. A headless run runs no
 worker.

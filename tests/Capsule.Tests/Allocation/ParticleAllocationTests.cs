@@ -36,6 +36,7 @@ public sealed class ParticleAllocationTests
         for (int index = 0; index < 100; index++)
         {
             host.Step();
+            _ = host.Simulation.View;
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -43,6 +44,7 @@ public sealed class ParticleAllocationTests
         for (int index = 0; index < 1000; index++)
         {
             host.Step();
+            _ = host.Simulation.View;
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);

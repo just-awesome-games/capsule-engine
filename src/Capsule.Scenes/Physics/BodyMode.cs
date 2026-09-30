@@ -7,8 +7,8 @@ public enum BodyMode
     Floating,
 
     /// <summary>
-    /// The move walks along floors, keeps its speed on a slope, rests on one without drifting, and
-    /// follows the ground down a step or a slope instead of leaving it.
+    /// The move walks along floors as far as <see cref="KinematicBody2D.KeepsHorizontalSpeedOnSlopes"/>
+    /// sets, rests on a slope without drifting, and follows the ground down a step or a slope.
     /// </summary>
     Grounded,
 }

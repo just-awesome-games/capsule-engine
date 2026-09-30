@@ -7,9 +7,9 @@ using Capsule.Bench.Logic.Drivers;
 
 namespace Capsule.Bench;
 
-// `suite [--label <text>] [--uncapped]`: every workload in Workloads.All, each in a child process of this same
-// binary on the engine's own command line, in the lane its [Workload] attribute names, then one
-// record under results/ beside this source.
+// `suite [--label <text>] [--lane simulation|rendering] [--uncapped]`: every workload in Workloads.All,
+// or those of one lane, each in a child process of this same binary on the engine's own command line,
+// in the lane its [Workload] attribute names, then one record under results/ beside this source.
 internal static class Suite
 {
     private const string ArtifactsDirectory = "artifacts/bench";
@@ -20,15 +20,25 @@ internal static class Suite
     // out of the measured window at 165 Hz and a fortiori at 60.
     private const int WarmUpFrames = 120;
 
+    private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering] [--uncapped]";
+
     internal static int Run(string[] args)
     {
         string? label = null;
+        WorkloadKind? only = null;
         bool uncapped = false;
         for (int index = 0; index < args.Length; index++)
         {
             if (args[index] == "--label" && index + 1 < args.Length && label is null)
             {
                 label = args[++index];
+                continue;
+            }
+
+            if (args[index] == "--lane" && index + 1 < args.Length && only is null && TryLane(args[index + 1], out WorkloadKind lane))
+            {
+                only = lane;
+                index++;
                 continue;
             }
 
@@ -39,7 +49,15 @@ internal static class Suite
             }
 
             Console.Error.WriteLine($"unknown suite option '{args[index]}'.");
-            Console.Error.WriteLine("usage: Capsule.Bench suite [--label <text>] [--uncapped]");
+            Console.Error.WriteLine(Usage);
+            return 2;
+        }
+
+        // Only the windowed lane presents, so an uncapped headless record would claim a flag that did nothing.
+        if (uncapped && only == WorkloadKind.Simulation)
+        {
+            Console.Error.WriteLine("--uncapped paces the rendering lane and --lane simulation runs none of it. Drop one of them.");
+            Console.Error.WriteLine(Usage);
             return 2;
         }
 
@@ -55,7 +73,10 @@ internal static class Suite
                 return 1;
             }
 
-            lanes.Add((scene.Name, lane));
+            if (only is null || lane.Kind == only)
+            {
+                lanes.Add((scene.Name, lane));
+            }
         }
 
         string executable = Environment.ProcessPath!;
@@ -82,6 +103,7 @@ internal static class Suite
         SuiteRecord record = new(
             Records.Timestamp(started),
             label,
+            only is { } kind ? LaneName(kind) : "all",
             uncapped,
             Machine.Commit(Records.SourceDirectory()),
             Machine.Configuration,
@@ -98,32 +120,38 @@ internal static class Suite
         return 0;
     }
 
-    // `--scene X --headless --driver StepTimer`: the driver times every step and prints the samples.
+    // `--scene X --headless --driver StepTimer`: the driver times every step and the frame built after
+    // it, and prints the samples.
     private static WorkloadRecord? Headless(string executable, string workload, WorkloadAttribute lane)
     {
         int gen0 = 0;
+        long stepBytes = 0;
+        long viewBytes = 0;
         double[]? stepMs = null;
+        double[]? viewMs = null;
 
         bool ran = RunChild(executable, workload, ["--headless", "--driver", nameof(StepTimer)], line =>
         {
-            if (StepTimer.TryParse(line, out gen0, out double[] parsed))
+            if (StepTimer.TryParse(line, out gen0, out stepBytes, out viewBytes, out double[] steps, out double[] views))
             {
-                stepMs = parsed;
+                stepMs = steps;
+                viewMs = views;
                 return true;
             }
 
             return false;
         });
 
-        if (!ran || stepMs is null)
+        if (!ran || stepMs is null || viewMs is null)
         {
             Console.Error.WriteLine($"bench: {workload} reported no timed steps.");
             return null;
         }
 
         Percentiles step = Percentiles.Of(stepMs);
+        Percentiles view = Percentiles.Of(viewMs);
 
-        return new WorkloadRecord(workload, "headless", Program.Describe(lane.Surface), stepMs.Length, null, null, new StepTiming(step.Median, step.P95), null, gen0, null);
+        return new WorkloadRecord(workload, "headless", Program.Describe(lane.Surface), stepMs.Length, null, null, new StepTiming(step.Median, step.P95), new StepTiming(view.Median, view.P95), stepBytes, viewBytes, null, gen0, null);
     }
 
     // `--scene X --frames <csv> 6`: the host writes a row per frame; the first WarmUpFrames are
@@ -180,6 +208,9 @@ internal static class Suite
             frames.Count,
             new DrawTiming(draw.Median, draw.P95, draw.Max),
             null,
+            null,
+            null,
+            null,
             new IntervalTiming(interval.Median, interval.P95, interval.Max),
             gen0,
             sha256);
@@ -215,10 +246,18 @@ internal static class Suite
         return true;
     }
 
+    private static string LaneName(WorkloadKind kind) => kind == WorkloadKind.Simulation ? "simulation" : "rendering";
+
+    private static bool TryLane(string name, out WorkloadKind kind)
+    {
+        kind = name == "rendering" ? WorkloadKind.Rendering : WorkloadKind.Simulation;
+        return name is "simulation" or "rendering";
+    }
+
     private static string Summary(WorkloadRecord workload) =>
         workload.DrawMs is { } draw && workload.IntervalMs is { } interval
             ? string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} intervalMs max={interval.Max:F3} gen0={workload.Gen0Collections}")
-            : string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} gen0={workload.Gen0Collections}");
+            : string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} viewMs median={workload.ViewMs!.Median:F3} p95={workload.ViewMs.P95:F3} stepBytes={workload.StepBytes} viewBytes={workload.ViewBytes} gen0={workload.Gen0Collections}");
 
     // One row of the CSV FrameDiagnostics writes, after its commented boot trace and header.
     private readonly record struct FrameRow(double IntervalMs, double DrawMs, int Gen0)

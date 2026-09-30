@@ -133,6 +133,50 @@ public sealed class RaycastTests
         Assert.Equal(second, hits[2].Target.Collider);
     }
 
+    // A ray starting inside several colliders meets them all at distance zero. The broadphase's shape
+    // follows the order colliders were placed in, and the tie-break by handle does not. Neither does
+    // which hits a full span keeps, nor how many a request of zero distance finds.
+    [Theory]
+    [InlineData(0, 1, 2)]
+    [InlineData(2, 1, 0)]
+    [InlineData(1, 2, 0)]
+    [InlineData(2, 0, 1)]
+    public void Raycasts_StartingInsideSeveralCollidersAgreeWhateverOrderTheyWerePlacedIn(int first, int second, int third)
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer wall = world.Layer("wall");
+        ColliderHandle[] boxes = new ColliderHandle[3];
+        for (int box = 0; box < boxes.Length; box++)
+        {
+            float half = 4f + box;
+            boxes[box] = world.Add(Shape2D.Box(new Vector2(-half), new Vector2(2f * half)), new Vector2(1000f * (box + 1), 0f), wall);
+        }
+
+        for (int filler = 0; filler < 8; filler++)
+        {
+            world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f)), new Vector2(filler * 20f, 100f), wall);
+        }
+
+        foreach (int box in (int[])[first, second, third])
+        {
+            world.SetPosition(boxes[box], Vector2.Zero);
+        }
+
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 40f, CollisionFilter.Everything, out RayHit2D nearest));
+        Assert.Equal(boxes[0], nearest.Target.Collider);
+
+        Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 0f, CollisionFilter.Everything, out RayHit2D still));
+        Assert.Equal(boxes[0], still.Target.Collider);
+
+        Span<RayHit2D> full = stackalloc RayHit2D[2];
+        Assert.Equal(2, world.RaycastAll(Vector2.Zero, Vector2.UnitX, 40f, CollisionFilter.Everything, full));
+        Assert.Equal(boxes[..2], (ColliderHandle[])[full[0].Target.Collider, full[1].Target.Collider]);
+
+        Span<RayHit2D> ample = stackalloc RayHit2D[8];
+        Assert.Equal(3, world.RaycastAll(Vector2.Zero, Vector2.UnitX, 0f, CollisionFilter.Everything, ample));
+        Assert.Equal(boxes, (ColliderHandle[])[ample[0].Target.Collider, ample[1].Target.Collider, ample[2].Target.Collider]);
+    }
+
     [Fact]
     public void Raycast_ReachesEveryShapeTheUnionShips()
     {

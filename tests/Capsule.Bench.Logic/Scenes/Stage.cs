@@ -5,7 +5,7 @@ using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 
-/// <summary>The 512 by 64 corridor of <c>stage.scene.json</c> under a follow camera, with a spark spawned every third step: a big tile map, culling, placed entities and deferred adds and removes.</summary>
+/// <summary>The 512 by 64 corridor of <c>stage.scene.json</c> under a follow camera, with a new spark spawned every third step: a big tile map, culling, placed entities and deferred adds and removes. The sparks are the one allocation, by design.</summary>
 [Workload(WorkloadKind.Simulation)]
 public sealed class Stage : Scene
 {

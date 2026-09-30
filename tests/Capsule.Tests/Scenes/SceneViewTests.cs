@@ -52,32 +52,6 @@ public sealed class SceneViewTests
         Assert.Equal(0, simulation.View.Sprites.Length);
     }
 
-    // Drawing runs past the end of the step, so a detach from inside Draw takes effect at once.
-    // The detached renderer has left the scene and must not draw; the one behind it still must.
-    [Fact]
-    public void ARendererDetachingALaterRenderer_DrawsTheRestAndNotTheDetachedOne()
-    {
-        SceneFixtures.Drifter first = new(new Vector2(1, 1));
-        SceneFixtures.Drifter second = new(new Vector2(2, 2));
-
-        SpriteRenderer detached = new(SceneFixtures.Frame(1, 1)) { Color = ColorRgba.Black };
-        second.Add(detached);
-        second.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
-
-        SceneFixtures.HookScene scene = new();
-        scene.Add(first);
-        scene.Add(second);
-        using SceneSimulation simulation = new(scene);
-
-        Assert.Equal(2, simulation.View.Sprites.Length);
-
-        first.Add(new Detacher(detached));
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Null(detached.Entity);
-        Assert.Equal(ColorRgba.White, Assert.Single(simulation.View.Sprites.ToArray()).Color);
-    }
-
     [Fact]
     public void ARenderersOffset_MovesTheSpriteAndNotTheEntity()
     {
@@ -175,11 +149,5 @@ public sealed class SceneViewTests
         SpriteIntent sprite = Assert.Single(simulation.View.Sprites.ToArray());
         Assert.Equal(new Vector2(8f, 8f), sprite.Size);
         Assert.False(sprite.FlipX);
-    }
-
-    // Draws nothing itself; takes the renderer it was given off its entity as it goes.
-    private sealed class Detacher(Renderer doomed) : Renderer
-    {
-        protected internal override void Draw(FrameView view) => doomed.Entity?.Remove(doomed);
     }
 }

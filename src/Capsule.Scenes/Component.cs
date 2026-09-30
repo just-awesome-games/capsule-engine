@@ -159,6 +159,9 @@ public abstract class Component
     {
     }
 
+    // Whether this component overrides SavePrevious. The scene visits only entities holding one.
+    internal virtual bool SavesPrevious => false;
+
     // Safe to call twice. An entity notifies its components when it joins a scene, and Entity.Add notifies
     // a component attached to an entity already in one. Without the flag, a component attached from inside
     // another's OnAddedToScene would be notified twice.

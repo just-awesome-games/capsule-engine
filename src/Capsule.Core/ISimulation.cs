@@ -10,7 +10,8 @@ internal interface ISimulation
     bool ExitRequested { get; }
 
     // What to draw for the current state. It is read on every draw frame. An implementation returns a
-    // held instance it rewrites once per step, not one built per call.
+    // held instance it rebuilds at most once per step, on the first read after it, not one built per
+    // call.
     FrameView View { get; }
 
     // Advances the simulation by one fixed step.

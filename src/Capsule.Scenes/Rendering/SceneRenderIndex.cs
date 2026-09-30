@@ -3,13 +3,13 @@ using Capsule.Scenes;
 
 namespace Capsule.Rendering;
 
-// Holds the cached draw order. A change made during a draw takes effect on the next frame.
+// Holds the cached draw order. The scene refuses a change during a draw, so the order a pass walks
+// stays valid for the whole pass.
 internal sealed class SceneRenderIndex
 {
     private readonly List<Renderer> _renderers = [];
     private readonly List<DrawKey> _keys = [];
     private bool _renderersStale = true;
-    private bool _rebuildDeferred;
 
     // ySort: whether renderers in one band order by their root's Y. The scene invalidates the index
     // when it changes, so every call between two rebuilds passes the same value.
@@ -27,30 +27,13 @@ internal sealed class SceneRenderIndex
         return CollectionsMarshal.AsSpan(_renderers);
     }
 
-    internal void Invalidate(bool drawing)
-    {
-        if (drawing)
-        {
-            _rebuildDeferred = true;
-        }
-        else
-        {
-            _renderersStale = true;
-        }
-    }
-
-    internal void EndDraw()
-    {
-        _renderersStale |= _rebuildDeferred;
-        _rebuildDeferred = false;
-    }
+    internal void Invalidate() => _renderersStale = true;
 
     internal void Clear()
     {
         _renderers.Clear();
         _keys.Clear();
         _renderersStale = false;
-        _rebuildDeferred = false;
     }
 
     // The walk runs in tree order, so each entity's band is its parent's already-summed band plus its own

@@ -156,4 +156,41 @@ public sealed class MoverContactTests
         Assert.Equal([0, 1, 2, 3, 4, 5], plain);
         Assert.Equal(plain, churned);
     }
+
+    // A move reports every surface within a hair of the nearest one it met. The broadphase's shape
+    // follows the order colliders were added and moved in, and the band does not. The far-flung
+    // sweep puts the nearest two boxes within the hair of each other and the third just past it.
+    [Theory]
+    [InlineData(0, 1, 2)]
+    [InlineData(2, 1, 0)]
+    [InlineData(1, 0, 2)]
+    public void MoveBox_ReportsTheSurfacesNearestItWhateverOrderTheyArrivedIn(int first, int second, int third)
+    {
+        CollisionWorld2D world = new();
+        float[] starts = [0f, 10.005f, 13.015f];
+        float[] ends = [3f, 13.005f, 13.015f];
+        int[] order = [first, second, third];
+        ColliderHandle[] boxes = new ColliderHandle[3];
+        foreach (int box in order)
+        {
+            boxes[box] = world.Add(Shape2D.Box(Vector2.Zero, Vector2.One), new Vector2(starts[box], 0f), world.FindLayer(CollisionWorld2D.DefaultLayerName));
+        }
+
+        foreach (int box in order)
+        {
+            world.SetPosition(boxes[box], new Vector2(ends[box], 0f));
+        }
+
+        Contact2D[] contacts = new Contact2D[4];
+        MoveResult2D result = world.MoveBox(
+            CollisionFixtures.Box(0f, 0f, 1f, 1f),
+            new Vector2(100100f, 0f),
+            CollisionFilter.Everything,
+            contacts);
+
+        Assert.Equal(2, result.ContactCount);
+        Assert.Equal(
+            boxes[..2].OrderBy(handle => handle.Index),
+            contacts[..result.ContactCount].Select(contact => contact.Target.Collider).OrderBy(handle => handle.Index));
+    }
 }

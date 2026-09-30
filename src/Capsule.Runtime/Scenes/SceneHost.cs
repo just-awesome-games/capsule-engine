@@ -148,6 +148,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 ExitRequested = true;
                 try
                 {
+                    // Built before the scene stops, so the run's last frame stays readable after it.
+                    _ = _current.View;
                     _current.Dispose();
                 }
                 finally

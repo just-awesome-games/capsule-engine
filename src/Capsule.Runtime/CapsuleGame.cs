@@ -316,10 +316,14 @@ internal sealed class CapsuleGame : Game
             _builder.Platform.RaiseWindow(new WindowHandle(Window.Handle));
         }
 
+        // The first read since the last step builds the view. It is read ahead of the timed section,
+        // which then covers the submission alone.
+        Capsule.Rendering.FrameView view = _simulation.View;
+
         _diagnostics?.BeginDraw();
 
         // alpha is in [0, 1) because Update drains the accumulator below one step.
-        _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+        _renderer.Draw(view, _scheduler.InterpolationAlpha);
 
         // The diagnostics cover the game frame's submission. The capture, the overlay and the
         // present are excluded, and the present's vsync wait runs in Game.Tick after this returns.

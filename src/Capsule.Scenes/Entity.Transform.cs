@@ -88,19 +88,25 @@ public partial class Entity
         set => Position = _parent is { } parent ? parent.World.InverseTransformPoint(value) : value;
     }
 
-    // The composed world transform, recomposed here from the nearest valid ancestor down.
+    // The composed world transform, recomposed from the nearest valid ancestor down.
     internal ref readonly Transform2D World
     {
         get
         {
             if (_worldStale)
             {
-                _world = _parent is { } parent ? parent.World.Compose(_local) : _local;
-                _worldStale = false;
+                Recompose();
             }
 
             return ref _world;
         }
+    }
+
+    // Kept out of World. The getter's fresh path is then small enough to inline at every read.
+    private void Recompose()
+    {
+        _world = _parent is { } parent ? parent.World.Compose(_local) : _local;
+        _worldStale = false;
     }
 
     // The world transform as of the previous step. The step copies it, and it is recomposed from the
@@ -237,25 +243,35 @@ public partial class Entity
     // and rebuilds what a parent change or a previous-value write left wrong: the root pointer and the
     // previous world, parent first. It also stales the composed tint and visibility, which a parent
     // change moves.
+    // The last child is visited by the loop instead of a call. A deep chain then costs no stack.
     private void Invalidate(bool previous)
     {
-        if (_worldStale && !previous)
+        Entity entity = this;
+        while (!entity._worldStale || previous)
         {
-            return;
-        }
+            entity._worldStale = true;
 
-        _worldStale = true;
+            if (previous)
+            {
+                entity._root = entity._parent?._root ?? entity;
+                entity._appearanceStale = true;
+                entity._previousWorld = entity._parent is { } parent
+                    ? parent._previousWorld.Compose(entity._previousLocal)
+                    : entity._previousLocal;
+            }
 
-        if (previous)
-        {
-            _root = _parent?._root ?? this;
-            _appearanceStale = true;
-            _previousWorld = _parent is { } parent ? parent._previousWorld.Compose(_previousLocal) : _previousLocal;
-        }
+            ReadOnlySpan<Entity> children = entity.Children;
+            if (children.IsEmpty)
+            {
+                return;
+            }
 
-        foreach (Entity child in Children)
-        {
-            child.Invalidate(previous);
+            for (int index = 0; index < children.Length - 1; index++)
+            {
+                children[index].Invalidate(previous);
+            }
+
+            entity = children[^1];
         }
     }
 
@@ -282,19 +298,33 @@ public partial class Entity
         new($"A {component.GetType().Name} on a {holder.GetType().Name} cannot be scaled, and {carrier.GetType().Name} carries a scale of {DebugPanel.Format(scale)} that every entity under it inherits. Reset that scale to one or move the component out of the subtree.");
 
     // Notifies every component on this entity, then recurses into each branch that holds a collider.
+    // The last child is visited by the loop instead of a call. A deep chain then costs no stack.
     private void NotifyMoved()
     {
-        foreach (Component component in LiveComponents)
+        Entity entity = this;
+        while (true)
         {
-            component.OnEntityMoved();
-        }
-
-        foreach (Entity child in Children)
-        {
-            if (child._movementTrackers > 0)
+            foreach (Component component in entity.LiveComponents)
             {
-                child.NotifyMoved();
+                component.OnEntityMoved();
             }
+
+            ReadOnlySpan<Entity> children = entity.Children;
+            for (int index = 0; index < children.Length - 1; index++)
+            {
+                // A handler that removed a sibling outside a step leaves its slot empty in this span.
+                if (children[index] is { _movementTrackers: > 0 } child)
+                {
+                    child.NotifyMoved();
+                }
+            }
+
+            if (children.IsEmpty || children[^1] is not { _movementTrackers: > 0 } last)
+            {
+                return;
+            }
+
+            entity = last;
         }
     }
 }

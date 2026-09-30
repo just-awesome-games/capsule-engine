@@ -117,7 +117,7 @@ internal static class CollisionWorkload
         private readonly KinematicBody2D _mover;
         private float _direction = 1f;
 
-        internal Walker(Vector2 position)
+        internal Walker(Vector2 position, bool restsOnCenter = false)
             : base(position)
         {
             _collider = new BoxCollider2D(new Vector2(12f, 24f));
@@ -126,7 +126,7 @@ internal static class CollisionWorkload
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;
             Add(_collider);
-            _mover = new KinematicBody2D(_collider) { Mode = BodyMode.Grounded };
+            _mover = new KinematicBody2D(_collider) { Mode = BodyMode.Grounded, RestsOnCenter = restsOnCenter };
             _mover.BlocksOn(Solid, Platform);
             Add(_mover);
         }

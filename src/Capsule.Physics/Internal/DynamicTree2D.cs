@@ -9,7 +9,8 @@ internal interface ITreeVisitor2D
 }
 
 // Visits proxies a ray could reach, in no particular order. The return value is the new maximum
-// fraction to search within, and zero ends the walk.
+// fraction to search within. The walk goes on at zero, because every proxy the ray starts inside
+// meets it there and the visitor has to see them all to pick among them.
 internal interface IRayVisitor2D
 {
     float Visit(int proxyId, float maxFraction);
@@ -27,11 +28,15 @@ internal sealed class DynamicTree2D
     internal const int NullNode = -1;
 
     // World units of slack around a proxy's tight bounds, so ordinary motion costs a bounds write
-    // instead of a reinsertion. The second is world units of lookahead per unit of displacement.
+    // instead of a reinsertion. The second is world units of lookahead per unit of displacement, and
+    // the third caps the lookahead on each axis. A jump far past the cap is a teleport, not travel.
     private const float BoundsMargin = 2f;
-    private const float DisplacementLookahead = 2f;
+    private const float DisplacementLookahead = 8f;
+    private const float MaxLookahead = 32f;
 
     private Node[] _nodes;
+    // A walk holds at most one waiting sibling per level below the root plus the root itself, so the
+    // tree's height bounds it. InsertLeaf grows it, and no walk does.
     private int[] _stack = new int[64];
     private int _root = NullNode;
     private int _freeList;
@@ -75,13 +80,15 @@ internal sealed class DynamicTree2D
         Aabb2D fat = tight.Expanded(BoundsMargin);
 
         // Slack on the side the proxy is heading towards, which cuts reinsertions for steady travel.
-        Vector2 predicted = displacement * DisplacementLookahead;
-        Vector2 min = fat.Min + Vector2.Min(predicted, Vector2.Zero);
-        Vector2 max = fat.Max + Vector2.Max(predicted, Vector2.Zero);
-
-        // An overflowing lookahead is dropped, because it is only slack. An infinite bound unions its
-        // way up the ancestors and loses unrelated colliders.
-        _nodes[proxyId].Box = Aabb2D.IsFinite(min) && Aabb2D.IsFinite(max) ? new Aabb2D(min, max) : fat;
+        // The cap also keeps a displacement that overflowed to infinity finite. An infinite bound
+        // would union its way up the ancestors and lose unrelated colliders.
+        Vector2 predicted = Vector2.Clamp(
+            displacement * DisplacementLookahead,
+            new Vector2(-MaxLookahead),
+            new Vector2(MaxLookahead));
+        _nodes[proxyId].Box = new Aabb2D(
+            fat.Min + Vector2.Min(predicted, Vector2.Zero),
+            fat.Max + Vector2.Max(predicted, Vector2.Zero));
         InsertLeaf(proxyId);
 
         return true;
@@ -159,13 +166,7 @@ internal sealed class DynamicTree2D
 
             if (node.IsLeaf)
             {
-                float next = visitor.Visit(nodeId, maxFraction);
-                if (next <= 0f)
-                {
-                    return;
-                }
-
-                maxFraction = next;
+                maxFraction = visitor.Visit(nodeId, maxFraction);
                 continue;
             }
 
@@ -175,11 +176,6 @@ internal sealed class DynamicTree2D
 
     private int Push(int depth, int child1, int child2)
     {
-        if (depth + 2 > _stack.Length)
-        {
-            Array.Resize(ref _stack, _stack.Length * 2);
-        }
-
         _stack[depth++] = child1;
         _stack[depth++] = child2;
 
@@ -294,6 +290,12 @@ internal sealed class DynamicTree2D
         _nodes[leaf].Parent = newParent;
 
         Refit(_nodes[leaf].Parent);
+
+        int deepest = _nodes[_root].Height + 1;
+        if (deepest > _stack.Length)
+        {
+            Array.Resize(ref _stack, deepest * 2);
+        }
     }
 
     private float DescentCost(int child, in Aabb2D leafBox, float inheritanceCost)

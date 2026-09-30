@@ -56,8 +56,9 @@ public sealed class PointLightTests
         SceneFixtures.HookScene scene = new();
         scene.Add(element);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => new SceneSimulation(scene));
+        using SceneSimulation simulation = new(scene);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => simulation.View);
         Assert.Contains("screen layer is never lit", exception.Message);
     }
 

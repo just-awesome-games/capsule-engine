@@ -4,7 +4,9 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Allocation;
 
-internal readonly record struct StepSample(long AllocatedBytes, RenderMetrics Render);
+// A step's allocations, then those of the frame built after it, apart. The view builds only when read,
+// and each measured step reads it as a presenting host does.
+internal readonly record struct StepSample(long StepBytes, long ViewBytes, RenderMetrics Render);
 
 internal static class StepMeasurement
 {
@@ -23,13 +25,14 @@ internal static class StepMeasurement
 
             input.Advance(DeviceSnapshot.Empty);
             simulation.Step(new StepContext(stepSeconds, input, step));
-            RenderMetrics render = simulation.View.Metrics;
+            long steppedBytes = GC.GetAllocatedBytesForCurrentThread();
 
-            long bytes = GC.GetAllocatedBytesForCurrentThread() - startBytes;
+            RenderMetrics render = simulation.View.Metrics;
+            long builtBytes = GC.GetAllocatedBytesForCurrentThread();
 
             if (step >= warmupSteps)
             {
-                samples[step - warmupSteps] = new StepSample(bytes, render);
+                samples[step - warmupSteps] = new StepSample(steppedBytes - startBytes, builtBytes - steppedBytes, render);
             }
         }
 

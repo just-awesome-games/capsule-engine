@@ -135,67 +135,108 @@ public sealed partial class CollisionWorld2D
         return TargetPrecedes(left.Target, right.Target);
     }
 
-    // Records a sweep hit, keeping only the nearest band of them. Returns whether this hit opened a new
-    // band, which discards the contacts written before it.
-    private static bool RecordCast(
+    // Records a sweep hit. The band is every hit within FractionBand of the nearest, and the nearest
+    // is its primary, with a tie going to the preceding target. Neither depends on the order the
+    // traversal meets the hits in.
+    private void RecordCast(
         ref CastAccumulator accumulator,
         Span<Contact2D> contacts,
         Vector2 translation,
         float fraction,
         in CollisionTarget target,
         Vector2 normal,
-        Vector2 point,
-        bool byHandle)
+        Vector2 point)
     {
         // A surface the sweep is moving away from or along cannot stop it. A box that starts
         // overlapping something can move back out.
         if (Vector2.Dot(translation, normal) >= accumulator.Lean)
         {
-            return false;
+            return;
         }
 
-        bool opened = !accumulator.Hit || fraction < accumulator.Band - FractionBand;
+        // The second walk of an overflowing band knows its primary, and writes each band hit as it
+        // arrives.
+        if (accumulator.Anchored)
+        {
+            if (fraction <= accumulator.Fraction + FractionBand)
+            {
+                Emit(ref accumulator, contacts, new Contact2D(target, point, normal, 0f));
+            }
 
-        if (opened)
-        {
-            accumulator.Hit = true;
-            accumulator.Band = fraction;
-            accumulator.Fraction = fraction;
-            accumulator.Normal = normal;
-            accumulator.Point = point;
-            accumulator.Target = target;
-            accumulator.Found = 0;
-            accumulator.Written = 0;
-            accumulator.First = 0;
+            return;
         }
-        else if (fraction > accumulator.Band + FractionBand)
-        {
-            return false;
-        }
-        else if (fraction < accumulator.Fraction
+
+        if (!accumulator.Hit
+            || fraction < accumulator.Fraction
             || (fraction == accumulator.Fraction && TargetPrecedes(target, accumulator.Target)))
         {
-            // The band stays anchored where it opened. Inside it the nearest hit is the primary, and a
-            // tie goes to the preceding target.
+            if (accumulator.Hit && fraction < accumulator.Fraction)
+            {
+                DropBandPast(fraction + FractionBand);
+            }
+
+            accumulator.Hit = true;
             accumulator.Fraction = fraction;
             accumulator.Normal = normal;
             accumulator.Point = point;
             accumulator.Target = target;
         }
+        else if (fraction > accumulator.Fraction + FractionBand)
+        {
+            return;
+        }
 
+        if (_bandCount == _band.Length)
+        {
+            accumulator.Overflowed = true;
+            return;
+        }
+
+        _band[_bandCount++] = new BandHit(fraction, new Contact2D(target, point, normal, 0f));
+    }
+
+    // Keeps the band's hits at or before `limit`, in the order they arrived.
+    private void DropBandPast(float limit)
+    {
+        int kept = 0;
+        for (int index = 0; index < _bandCount; index++)
+        {
+            if (_band[index].Fraction <= limit)
+            {
+                _band[kept++] = _band[index];
+            }
+        }
+
+        _bandCount = kept;
+    }
+
+    // Writes the band into the caller's span.
+    private void WriteBand(ref CastAccumulator accumulator, Span<Contact2D> contacts)
+    {
+        for (int index = 0; index < _bandCount; index++)
+        {
+            Emit(ref accumulator, contacts, _band[index].Contact);
+        }
+    }
+
+    // Counts one band hit and writes it if the span has room. Grid cells come first in the grids' own
+    // traversal order, and colliders follow by handle. A short span keeps the lowest handles.
+    private static void Emit(ref CastAccumulator accumulator, Span<Contact2D> contacts, in Contact2D contact)
+    {
         accumulator.Found++;
-        Contact2D contact = new(target, point, normal, 0f);
-
-        if (byHandle)
+        if (contact.Target.IsGridCell)
         {
-            InsertByHandle(contacts, accumulator.First, ref accumulator.Written, contact);
-        }
-        else if (accumulator.Written < contacts.Length)
-        {
-            contacts[accumulator.Written++] = contact;
-        }
+            if (accumulator.Written < contacts.Length)
+            {
+                contacts[accumulator.Written++] = contact;
+            }
 
-        return opened;
+            accumulator.FirstCollider = accumulator.Written;
+        }
+        else
+        {
+            InsertByHandle(contacts, accumulator.FirstCollider, ref accumulator.Written, contact);
+        }
     }
 
     // The generation matters because an index alone still names the slot after its collider is removed,
@@ -320,19 +361,82 @@ public sealed partial class CollisionWorld2D
 
         if (Gjk2D.ShapeCast(target, moving, translation, out fraction, out point, out normal))
         {
+            normal = FaceNormal(moving, translation * fraction, target, normal);
             return true;
         }
 
-        if (Separation(moving, target, out normal, out point) <= CollisionTolerance.ContactSkin
-            && Vector2.Dot(translation, normal) < 0f)
+        if (Separation(moving, target, out normal, out point) > CollisionTolerance.ContactSkin)
         {
-            fraction = 0f;
-            point = Vector2.Clamp(moving.Bounds.Center, target.Bounds.Min, target.Bounds.Max);
-
-            return true;
+            return false;
         }
 
-        return false;
+        normal = FaceNormal(moving, Vector2.Zero, target, normal);
+        if (Vector2.Dot(translation, normal) >= 0f)
+        {
+            return false;
+        }
+
+        fraction = 0f;
+        point = Vector2.Clamp(moving.Bounds.Center, target.Bounds.Min, target.Bounds.Max);
+
+        return true;
+    }
+
+    // The face normal nearest `normal` among the faces of two sharp hulls that still separate them,
+    // with moving displaced by `offset` to where it touches. Two corners meeting leave GJK a direction
+    // between them that neither surface has. Hulls that already overlap take the face they overlap
+    // least along, where GJK's answer only approximates that face. A rounded shape has every such
+    // direction on its surface, and a segment has its own rule in EdgeNormal.
+    private static Vector2 FaceNormal(in Shape2D moving, Vector2 offset, in Shape2D target, Vector2 normal)
+    {
+        if (moving.Radius != 0f || target.Radius != 0f || moving.PointCount < 3 || target.PointCount < 3 || normal == Vector2.Zero)
+        {
+            return normal;
+        }
+
+        Vector2 best = normal;
+        float nearest = float.NegativeInfinity;
+        Vector2 shallowest = normal;
+        float least = float.NegativeInfinity;
+        Faces(target, moving, offset, target, 1f, normal, ref best, ref nearest, ref shallowest, ref least);
+        Faces(moving, moving, offset, target, -1f, normal, ref best, ref nearest, ref shallowest, ref least);
+
+        return nearest > float.NegativeInfinity ? best : shallowest;
+    }
+
+    // Keeps the outward normal of each face of `hull`, turned by `sign` to point from target to moving,
+    // that lies nearest `normal` and along which the pair is at most a skin into each other. It also
+    // keeps the face along which the pair reaches least far into each other.
+    private static void Faces(
+        in Shape2D hull,
+        in Shape2D moving,
+        Vector2 offset,
+        in Shape2D target,
+        float sign,
+        Vector2 normal,
+        ref Vector2 best,
+        ref float nearest,
+        ref Vector2 shallowest,
+        ref float least)
+    {
+        for (int index = 0; index < hull.PointCount; index++)
+        {
+            Vector2 edge = hull.PointAt((index + 1) % hull.PointCount) - hull.PointAt(index);
+            Vector2 face = sign * Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+            float alignment = Vector2.Dot(face, normal);
+            float separation = Vector2.Dot(moving.Support(-face) + offset - target.Support(face), face);
+            if (separation > least)
+            {
+                least = separation;
+                shallowest = face;
+            }
+
+            if (alignment > nearest && separation >= -CollisionTolerance.ContactSkin)
+            {
+                nearest = alignment;
+                best = face;
+            }
+        }
     }
 
     // The same against a grid cell or one of its faces, which a box mover meets without a Shape2D.
@@ -795,7 +899,35 @@ public sealed partial class CollisionWorld2D
         return !float.IsPositiveInfinity(nearest);
     }
 
+    // A band holding more hits than the world's scratch has room for walks the sweep twice. The first
+    // walk finds the primary, and the second writes every hit within the band of it. Neither walk
+    // allocates, however many surfaces one sweep meets at once.
     private void Cast(
+        in Shape2D moving,
+        Vector2 translation,
+        CollisionFilter filter,
+        ColliderHandle ignore,
+        Span<Contact2D> contacts,
+        bool throughOneWay,
+        ref CastAccumulator accumulator)
+    {
+        accumulator.Length = translation.Length();
+        accumulator.Lean = -Along * accumulator.Length;
+        _bandCount = 0;
+        Gather(moving, translation, filter, ignore, contacts, throughOneWay, ref accumulator);
+
+        if (!accumulator.Overflowed)
+        {
+            WriteBand(ref accumulator, contacts);
+            return;
+        }
+
+        accumulator.Anchored = true;
+        Gather(moving, translation, filter, ignore, contacts, throughOneWay, ref accumulator);
+    }
+
+    // Walks the grids and then the tree for everything the sweep meets.
+    private void Gather(
         in Shape2D moving,
         Vector2 translation,
         CollisionFilter filter,
@@ -806,7 +938,6 @@ public sealed partial class CollisionWorld2D
     {
         Aabb2D start = moving.Bounds.Expanded(CollisionTolerance.LinearSlop);
         Aabb2D swept = start.Swept(translation);
-        accumulator.Lean = -Along * translation.Length();
 
         foreach (GridCollider2D grid in Grids)
         {
@@ -817,11 +948,14 @@ public sealed partial class CollisionWorld2D
 
             bool admitsEvery = grid.AdmitsEveryLayer(filter);
             int size = grid.CellSize;
+            int width = grid.Width;
             int minX = Math.Max(0, GridCollider2D.FloorDiv(swept.Min.X, size));
-            int maxX = Math.Min(grid.Width - 1, GridCollider2D.FloorDiv(swept.Max.X, size));
+            int maxX = Math.Min(width - 1, GridCollider2D.FloorDiv(swept.Max.X, size));
+            ReadOnlySpan<CellState2D> states = grid.States;
 
             // Column by column, and within each only the rows the sweep passes through. That band is
-            // narrower than the bounding rectangle of a long diagonal.
+            // narrower than the bounding rectangle of a long diagonal. ColumnRows keeps the band on the
+            // grid, and an empty cell is passed over without a call.
             for (int x = minX; x <= maxX; x++)
             {
                 if (!ColumnRows(start, translation, x, size, grid.Height, out int minY, out int maxY))
@@ -829,17 +963,19 @@ public sealed partial class CollisionWorld2D
                     continue;
                 }
 
-                for (int y = minY; y <= maxY; y++)
+                GridCellsTested += maxY - minY + 1;
+                for (int y = minY, cell = (minY * width) + x; y <= maxY; y++, cell += width)
                 {
-                    CastCell(grid, x, y, moving, translation, filter, admitsEvery, contacts, throughOneWay, ref accumulator);
+                    CellState2D state = states[cell];
+                    if (state != CellState2D.None)
+                    {
+                        CastCell(grid, x, y, state, moving, translation, filter, admitsEvery, throughOneWay, contacts, ref accumulator);
+                    }
                 }
             }
         }
 
-        // The grid phase's contacts stay in traversal order, so the collider run starts after them.
-        accumulator.First = accumulator.Written;
-
-        CastVisitor visitor = new(this, moving, translation, filter, ignore, contacts, throughOneWay, accumulator);
+        CastVisitor visitor = new(this, moving, translation, filter, ignore, throughOneWay, contacts, accumulator);
         _tree.Query(swept, filter.Bits, ref visitor);
         accumulator = visitor.Accumulator;
     }
@@ -894,19 +1030,22 @@ public sealed partial class CollisionWorld2D
         return minY <= maxY;
     }
 
+    // Casts against one colliding cell of the grid, which the caller has already counted as tested.
     private void CastCell(
         GridCollider2D grid,
         int x,
         int y,
+        CellState2D state,
         in Shape2D moving,
         Vector2 translation,
         CollisionFilter filter,
         bool admitsEvery,
-        Span<Contact2D> contacts,
         bool throughOneWay,
+        Span<Contact2D> contacts,
         ref CastAccumulator accumulator)
     {
-        if (!TryCell(grid, x, y, filter, out CellState2D state, out CollisionLayer layer))
+        CollisionLayer layer = grid.LayerOf(x, y);
+        if (!filter.Admits(layer))
         {
             return;
         }
@@ -925,7 +1064,7 @@ public sealed partial class CollisionWorld2D
                 return;
             }
 
-            RecordCast(ref accumulator, contacts, translation, fraction, target, normal, point, false);
+            RecordCast(ref accumulator, contacts, translation, fraction, target, normal, point);
 
             return;
         }
@@ -940,7 +1079,7 @@ public sealed partial class CollisionWorld2D
 
     // The edges of a polygon or one-way cell, each cast as a segment, less the up-facing ones while
     // dropping. Kept apart from CastCell, whose box path is the hot one.
-    private static void CastEdges(
+    private void CastEdges(
         GridCollider2D grid,
         int x,
         int y,
@@ -992,7 +1131,7 @@ public sealed partial class CollisionWorld2D
             // Report the edge's own normal, unless a box face met its end. A rounded shape meeting the
             // end of an edge is nearest its endpoint, where GJK answers with a diagonal the authored line
             // does not have.
-            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : EdgeNormal(moving, normal, outward), point, false);
+            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : EdgeNormal(moving, normal, outward), point);
         }
     }
 
@@ -1057,7 +1196,7 @@ public sealed partial class CollisionWorld2D
         // Stop a slop short of the surface along its normal. Rounding error then cannot leave the mover
         // inside it, and the gap is within the contact skin, so the surface still reports as touched.
         // The mover never backs up past where it started.
-        float length = translation.Length();
+        float length = accumulator.Length;
         float approach = -Vector2.Dot(translation, accumulator.Normal) / length;
         float travel = (length * accumulator.Fraction) - (CollisionTolerance.LinearSlop / approach);
         Vector2 moved = travel > 0f ? translation * (travel / length) : Vector2.Zero;
@@ -1130,8 +1269,9 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // Writes the handles of every shape collider whose broadphase box meets `box`, skipping grids and
-    // `ignore`, and returns how many there were. A collider's shove gathers its candidates here.
+    // Writes the handles of every shape collider whose broadphase box meets `box` in handle order,
+    // skipping grids and `ignore`, and returns how many there were. A collider's shove gathers its
+    // candidates here.
     internal int CollidersNear(in Aabb2D box, ColliderHandle ignore, Span<ColliderHandle> found)
     {
         NearVisitor visitor = new(this, ignore, found);
@@ -1140,14 +1280,15 @@ public sealed partial class CollisionWorld2D
         return visitor.Found;
     }
 
-    // Sweeps a collider's shape from `from` along `translation` against one other collider, and
-    // reports the fraction at which it drives into it, with the point and the target's normal there.
-    // A pair the sweep runs along or away from is no hit.
+    // Sweeps a collider's shape from `from` along `translation` against one other collider standing
+    // `offset` from where it is registered, and reports the fraction at which it drives into it, with
+    // the point and the target's normal there. A pair the sweep runs along or away from is no hit.
     internal bool SweepPair(
         ColliderHandle mover,
         Vector2 from,
         Vector2 translation,
         ColliderHandle target,
+        Vector2 offset,
         out float fraction,
         out Vector2 normal,
         out Vector2 point)
@@ -1156,13 +1297,24 @@ public sealed partial class CollisionWorld2D
         Shape2D moving = pusher.Local.Translated(from);
         ref ColliderSlot other = ref _slots[RequireShapeSlot(target)];
 
-        // A one-way pusher meets a body as the body would meet it, so the body must start clear of the
-        // pusher's surface. The sweep reports the body's normal, and the pusher's surface faces the
-        // other way.
-        return Sweep(moving, translation, other.World, out fraction, out normal, out point)
-            && Vector2.Dot(translation, normal) < -Along * translation.Length()
-            && (!pusher.OneWay || OneWayBlocks(other.World, moving, -normal, pusher.SolidSides));
+        return offset == Vector2.Zero
+            ? SweepPair(pusher, moving, translation, other.World, out fraction, out normal, out point)
+            : SweepPair(pusher, moving, translation, other.World.Translated(offset), out fraction, out normal, out point);
     }
+
+    // A one-way pusher meets a body as the body would meet it, so the body must start clear of the
+    // pusher's surface. The sweep reports the body's normal, and the pusher's surface faces the other way.
+    private static bool SweepPair(
+        in ColliderSlot pusher,
+        in Shape2D moving,
+        Vector2 translation,
+        in Shape2D target,
+        out float fraction,
+        out Vector2 normal,
+        out Vector2 point) =>
+        Sweep(moving, translation, target, out fraction, out normal, out point)
+            && Vector2.Dot(translation, normal) < -Along * translation.Length()
+            && (!pusher.OneWay || OneWayBlocks(target, moving, -normal, pusher.SolidSides));
 
     // Moves a shape as Move does, also passing through `pusher`. A shove sweeps the body it moves this
     // way, because a pusher that outran the body already lies across the body's path.
@@ -1203,15 +1355,33 @@ public sealed partial class CollisionWorld2D
 
         public bool Visit(int proxyId)
         {
-            if (_world.TryProxy(proxyId, CollisionFilter.Everything, _ignore, out int index))
+            if (!_world.TryProxy(proxyId, CollisionFilter.Everything, _ignore, out int index))
             {
-                if (Found < _found.Length)
+                return true;
+            }
+
+            // Kept in handle order, and a short span keeps the lowest handles. The order a shove
+            // pushes in then does not depend on the tree's arrangement.
+            int written = Math.Min(Found, _found.Length);
+            Found++;
+            if (written == _found.Length)
+            {
+                if (written == 0 || _found[written - 1].Index <= index)
                 {
-                    _found[Found] = _world.HandleAt(index);
+                    return true;
                 }
 
-                Found++;
+                written--;
             }
+
+            int position = written;
+            while (position > 0 && _found[position - 1].Index > index)
+            {
+                _found[position] = _found[position - 1];
+                position--;
+            }
+
+            _found[position] = _world.HandleAt(index);
 
             return true;
         }
@@ -1286,8 +1456,8 @@ public sealed partial class CollisionWorld2D
         private readonly Vector2 _translation;
         private readonly CollisionFilter _filter;
         private readonly ColliderHandle _ignore;
-        private readonly Span<Contact2D> _contacts;
         private readonly bool _throughOneWay;
+        private readonly Span<Contact2D> _contacts;
 
         internal CastAccumulator Accumulator;
 
@@ -1297,8 +1467,8 @@ public sealed partial class CollisionWorld2D
             Vector2 translation,
             CollisionFilter filter,
             ColliderHandle ignore,
-            Span<Contact2D> contacts,
             bool throughOneWay,
+            Span<Contact2D> contacts,
             CastAccumulator accumulator)
         {
             _world = world;
@@ -1306,8 +1476,8 @@ public sealed partial class CollisionWorld2D
             _translation = translation;
             _filter = filter;
             _ignore = ignore;
-            _contacts = contacts;
             _throughOneWay = throughOneWay;
+            _contacts = contacts;
             Accumulator = accumulator;
         }
 
@@ -1327,15 +1497,14 @@ public sealed partial class CollisionWorld2D
                 return true;
             }
 
-            RecordCast(
+            _world.RecordCast(
                 ref Accumulator,
                 _contacts,
                 _translation,
                 fraction,
                 CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
                 normal,
-                point,
-                true);
+                point);
 
             return true;
         }

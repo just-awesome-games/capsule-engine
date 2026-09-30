@@ -28,6 +28,21 @@ namespace Capsule.Physics;
 /// </remarks>
 public abstract class Collider2D : Component
 {
+    // The previous step's contacts are matched by a scan up to this many, and through a hash table
+    // above it.
+    private const int LinearMatchLimit = 8;
+
+    // The previous step's contacts are marked in a stack buffer up to this many.
+    private const int StackMatchLimit = 64;
+
+    // Scratch for matching a settle's contacts against the previous step's, shared by every collider
+    // on the thread. A settle is done with it before any handler runs.
+    [ThreadStatic]
+    private static bool[]? KeptScratch;
+
+    [ThreadStatic]
+    private static int[]? MatchSlots;
+
     private readonly List<string> _detects = [];
 
     private Shape2D _shape;
@@ -744,8 +759,8 @@ public abstract class Collider2D : Component
         }
     }
 
-    // Shoves each body this collider's move drove into by the travel left after meeting it, and checks
-    // each rider a carry could not clear. The move is swept from where the collider was, so a body
+    // Shoves each body this collider's move drove into by the travel left after meeting it, in handle
+    // order, and checks each rider a carry could not clear. The move is swept from where the collider was, so a body
     // thinner than the move is still met.
     private void ShoveBodies(CollisionWorld2D world, Vector2 from, Vector2 motion)
     {
@@ -754,14 +769,16 @@ public abstract class Collider2D : Component
             return;
         }
 
-        Aabb2D reach = _local.Translated(from).Bounds.Union(world.WorldShapeOf(_handle).Bounds)
+        // A body resting on its center stands below the pose it sweeps. The reach extends down to it.
+        Aabb2D path = _local.Translated(from).Bounds.Union(world.WorldShapeOf(_handle).Bounds)
             .Expanded(CollisionTolerance.ContactSkin);
+        Aabb2D reach = new(path.Min, path.Max + new Vector2(0f, _scene.DeepestSink));
 
         _near ??= new ColliderHandle[8];
         int count = world.CollidersNear(reach, _handle, _near);
         if (count > _near.Length)
         {
-            Array.Resize(ref _near, count);
+            Grow(ref _near, count);
             count = world.CollidersNear(reach, _handle, _near);
         }
 
@@ -777,6 +794,7 @@ public abstract class Collider2D : Component
                     from,
                     motion,
                     near,
+                    body.SweptOffset(),
                     out float fraction,
                     out Vector2 normal,
                     out Vector2 point))
@@ -852,8 +870,14 @@ public abstract class Collider2D : Component
         int count = world.OverlapColliderAll(_handle, Filter, _found);
         if (count > _found.Length)
         {
-            Array.Resize(ref _found, count);
+            Grow(ref _found, count);
             count = world.OverlapColliderAll(_handle, Filter, _found);
+        }
+
+        // Nothing touched before or now, and nothing is owed or raised.
+        if (count == 0 && _touchingCount == 0)
+        {
+            return;
         }
 
         (_touching, _wasTouching) = (_wasTouching, _touching);
@@ -861,13 +885,12 @@ public abstract class Collider2D : Component
 
         // Carried-over contacts were announced last step and are owed an exit from here on. The
         // contacts after them owe nothing until the enter loop announces each one.
-        _touchingCount = SettleCarriedFirst(world, _found.AsSpan(0, count), out int carried);
+        _touchingCount = SettleCarriedFirst(world, count, out int carried, out int leftCount);
         _announcedCount = carried;
 
         ColliderContact2D[] entered = _touching;
         int enteredCount = _touchingCount;
         ColliderContact2D[] left = _wasTouching;
-        int leftCount = _wasTouchingCount;
 
         _dispatching = true;
         try
@@ -877,10 +900,7 @@ public abstract class Collider2D : Component
             // sweep's are disjoint, so nothing exits twice and nothing is dropped.
             for (int index = 0; index < leftCount; index++)
             {
-                if (!Holds(entered, enteredCount, left[index].Target))
-                {
-                    ContactExited?.Invoke(left[index]);
-                }
+                ContactExited?.Invoke(left[index]);
             }
 
             for (int index = carried; index < enteredCount; index++)
@@ -905,33 +925,136 @@ public abstract class Collider2D : Component
     }
 
     // Writes the gather into _touching, putting contacts carried over from the previous step first and
-    // keeping query order within each group, so the announced contacts stay at the head.
-    private int SettleCarriedFirst(CollisionWorld2D world, ReadOnlySpan<Contact2D> found, out int carried)
+    // keeping query order within each group, so the announced contacts stay at the head. The previous
+    // step's contacts that were not found again move to the head of _wasTouching in their old order,
+    // and leftCount says how many there are. _found is scratch and its order is not kept.
+    private int SettleCarriedFirst(CollisionWorld2D world, int count, out int carried, out int leftCount)
     {
-        if (_touching.Length < found.Length)
+        Grow(ref _touching, count);
+
+        int wasCount = _wasTouchingCount;
+        if (wasCount == 0)
         {
-            Array.Resize(ref _touching, found.Length);
+            carried = 0;
+            leftCount = 0;
+            for (int index = 0; index < count; index++)
+            {
+                _touching[index] = Describe(world, _found[index]);
+            }
+
+            return count;
         }
 
+        Span<bool> kept = wasCount <= StackMatchLimit ? stackalloc bool[StackMatchLimit] : MatchScratch(wasCount);
+        kept = kept[..wasCount];
+        kept.Clear();
+        int mask = wasCount > LinearMatchLimit ? FillMatchTable(_wasTouching, wasCount) : 0;
+
+        // One pass takes the carried contacts in query order and moves the new ones to the head of
+        // _found, in query order, for the second pass.
         int next = 0;
-        for (int index = 0; index < found.Length; index++)
+        int fresh = 0;
+        for (int index = 0; index < count; index++)
         {
-            if (Holds(_wasTouching, _wasTouchingCount, found[index].Target))
+            int was = mask != 0
+                ? FindInMatchTable(_wasTouching, mask, _found[index].Target)
+                : IndexOf(_wasTouching, wasCount, _found[index].Target);
+            if (was >= 0)
             {
-                _touching[next++] = Describe(world, found[index]);
+                kept[was] = true;
+                _touching[next++] = Describe(world, _found[index]);
+            }
+            else
+            {
+                _found[fresh++] = _found[index];
             }
         }
 
         carried = next;
-        for (int index = 0; index < found.Length; index++)
+        for (int index = 0; index < fresh; index++)
         {
-            if (!Holds(_wasTouching, _wasTouchingCount, found[index].Target))
+            _touching[next++] = Describe(world, _found[index]);
+        }
+
+        leftCount = 0;
+        for (int index = 0; index < wasCount; index++)
+        {
+            if (!kept[index])
             {
-                _touching[next++] = Describe(world, found[index]);
+                _wasTouching[leftCount++] = _wasTouching[index];
             }
         }
 
         return next;
+    }
+
+    private static bool[] MatchScratch(int count) =>
+        KeptScratch is { } existing && existing.Length >= count
+            ? existing
+            : KeptScratch = new bool[(int)BitOperations.RoundUpToPowerOf2((uint)count)];
+
+    private static int IndexOf(ColliderContact2D[] contacts, int count, in CollisionTarget target)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            if (contacts[index].Target == target)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    // Open addressing at no more than half load. A slot holds a contact's index plus one, and zero is
+    // empty. Returns the table's index mask.
+    private static int FillMatchTable(ColliderContact2D[] contacts, int count)
+    {
+        int size = (int)BitOperations.RoundUpToPowerOf2((uint)count * 2);
+        int[] slots = MatchSlots is { } existing && existing.Length >= size
+            ? existing
+            : MatchSlots = new int[Math.Max(64, size)];
+        Array.Clear(slots, 0, size);
+        int mask = size - 1;
+
+        for (int index = 0; index < count; index++)
+        {
+            int slot = MatchHash(contacts[index].Target) & mask;
+            while (slots[slot] != 0)
+            {
+                slot = (slot + 1) & mask;
+            }
+
+            slots[slot] = index + 1;
+        }
+
+        return mask;
+    }
+
+    private static int FindInMatchTable(ColliderContact2D[] contacts, int mask, in CollisionTarget target)
+    {
+        int[] slots = MatchSlots!;
+        int slot = MatchHash(target) & mask;
+        while (slots[slot] is int entry and not 0)
+        {
+            if (contacts[entry - 1].Target == target)
+            {
+                return entry - 1;
+            }
+
+            slot = (slot + 1) & mask;
+        }
+
+        return -1;
+    }
+
+    private static int MatchHash(in CollisionTarget target)
+    {
+        uint hash = (uint)target.Collider.Index * 0x9E3779B1u;
+        hash ^= (uint)target.CellX * 0x85EBCA77u;
+        hash ^= (uint)target.CellY * 0xC2B2AE3Du;
+        hash ^= hash >> 15;
+        return (int)hash;
     }
 
     // Builds the shape the way the world would hold it before anything is committed. An offset that
@@ -965,17 +1088,14 @@ public abstract class Collider2D : Component
         }
     }
 
-    private static bool Holds(ColliderContact2D[] contacts, int count, in CollisionTarget target)
+    // Grows a contact buffer to the power of two that holds count, and leaves one that holds it already.
+    // A count rising one a step then reallocates a handful of times instead of on every step.
+    internal static void Grow<T>(ref T[] buffer, int count)
     {
-        for (int index = 0; index < count; index++)
+        if (buffer.Length < count)
         {
-            if (contacts[index].Target == target)
-            {
-                return true;
-            }
+            Array.Resize(ref buffer, (int)BitOperations.RoundUpToPowerOf2((uint)count));
         }
-
-        return false;
     }
 
     internal static int Describe(
@@ -983,10 +1103,7 @@ public abstract class Collider2D : Component
         ReadOnlySpan<Contact2D> found,
         ref ColliderContact2D[] into)
     {
-        if (into.Length < found.Length)
-        {
-            Array.Resize(ref into, found.Length);
-        }
+        Grow(ref into, found.Length);
 
         for (int index = 0; index < found.Length; index++)
         {

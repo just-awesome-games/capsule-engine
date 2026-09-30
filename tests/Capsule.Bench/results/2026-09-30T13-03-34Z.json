@@ -1,0 +1,695 @@
+{
+  "timestamp": "2026-09-30T13:03:34Z",
+  "label": "ab-current",
+  "lane": "all",
+  "uncapped": false,
+  "commit": "ef83630",
+  "configuration": "Release",
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+ef83630614f8c1be7c6f54a018e02045e09219c5",
+  "workloads": [
+    {
+      "name": "Actors2k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.286,
+        "p95": 0.434
+      },
+      "viewMs": {
+        "median": 0.094,
+        "p95": 0.158
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Chains200",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.42,
+        "p95": 0.504
+      },
+      "viewMs": {
+        "median": 0,
+        "p95": 0.001
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Churn2k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.035,
+        "p95": 0.039
+      },
+      "viewMs": {
+        "median": 0.058,
+        "p95": 0.061
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "HdField2k",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.081,
+        "p95": 0.09,
+        "max": 0.143
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.065,
+        "p95": 6.197,
+        "max": 6.374
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "HdTransition",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 864,
+      "drawMs": {
+        "median": 0.033,
+        "p95": 0.134,
+        "max": 0.22
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.066,
+        "p95": 6.202,
+        "max": 8.691
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Hierarchy",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.202,
+        "p95": 0.228
+      },
+      "viewMs": {
+        "median": 0.359,
+        "p95": 0.382
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Lights256",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.102,
+        "p95": 0.112,
+        "max": 0.312
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.064,
+        "p95": 6.177,
+        "max": 6.345
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Lines10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.512,
+        "p95": 0.807,
+        "max": 0.995
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.192,
+        "max": 6.412
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Particles10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.103,
+        "p95": 0.208,
+        "max": 0.341
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.066,
+        "p95": 6.194,
+        "max": 6.402
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Particles10kStep",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.045,
+        "p95": 0.048
+      },
+      "viewMs": {
+        "median": 0.394,
+        "p95": 0.414
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField20k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 864,
+      "drawMs": {
+        "median": 0.62,
+        "p95": 0.87,
+        "max": 1.205
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.067,
+        "p95": 6.181,
+        "max": 6.339
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField50k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 1.402,
+        "p95": 1.796,
+        "max": 2.052
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.066,
+        "p95": 6.195,
+        "max": 6.313
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField5k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.179,
+        "p95": 0.352,
+        "max": 0.47
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.064,
+        "p95": 6.19,
+        "max": 6.312
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Text10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.257,
+        "p95": 0.501,
+        "max": 0.581
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.066,
+        "p95": 6.197,
+        "max": 6.368
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "TextureSwitches50k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 863,
+      "drawMs": {
+        "median": 2.612,
+        "p95": 2.787,
+        "max": 3.646
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.058,
+        "p95": 6.189,
+        "max": 6.301
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Transition",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.049,
+        "p95": 0.139,
+        "max": 0.258
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.062,
+        "p95": 6.206,
+        "max": 6.564
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Voices64",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.004,
+        "p95": 0.004
+      },
+      "viewMs": {
+        "median": 0,
+        "p95": 0
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "YSort",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.128,
+        "p95": 0.136
+      },
+      "viewMs": {
+        "median": 0.583,
+        "p95": 0.667
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Bullets2k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.24,
+        "p95": 0.259
+      },
+      "viewMs": {
+        "median": 0.014,
+        "p95": 0.015
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "CenterRest1k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.644,
+        "p95": 0.691
+      },
+      "viewMs": {
+        "median": 0.051,
+        "p95": 0.054
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Crowd1k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.435,
+        "p95": 0.47
+      },
+      "viewMs": {
+        "median": 0.048,
+        "p95": 0.051
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Parallax8",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 0.032,
+        "p95": 0.059,
+        "max": 0.21
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.067,
+        "p95": 6.194,
+        "max": 6.356
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Platforms64",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.85,
+        "p95": 0.937
+      },
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.002
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Queries",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.101,
+        "p95": 0.113
+      },
+      "viewMs": {
+        "median": 0.04,
+        "p95": 0.043
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Slopes1k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.498,
+        "p95": 0.524
+      },
+      "viewMs": {
+        "median": 0.052,
+        "p95": 0.055
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Stage",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.005,
+        "p95": 0.006
+      },
+      "viewMs": {
+        "median": 0.008,
+        "p95": 0.01
+      },
+      "stepBytes": 102568,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Steps1k",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.344,
+        "p95": 0.413
+      },
+      "viewMs": {
+        "median": 0.045,
+        "p95": 0.049
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Still",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 106,
+      "drawMs": {
+        "median": 0.054,
+        "p95": 0.095,
+        "max": 0.167
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.068,
+        "p95": 6.183,
+        "max": 6.384
+      },
+      "gen0Collections": 0,
+      "captureSha256": "3259dd6c2b3426e3282ac81f0780345bd3a34741e8af3490b6ac4ec112724927"
+    },
+    {
+      "name": "StillLit",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 107,
+      "drawMs": {
+        "median": 0.056,
+        "p95": 0.155,
+        "max": 0.215
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.068,
+        "p95": 6.207,
+        "max": 6.27
+      },
+      "gen0Collections": 0,
+      "captureSha256": "735fce736220c4f518bf0601095149042fcb0691f0717a8d9a75ebd80932ff60"
+    },
+    {
+      "name": "TileScroll",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 864,
+      "drawMs": {
+        "median": 0.045,
+        "p95": 0.109,
+        "max": 0.247
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.069,
+        "p95": 6.187,
+        "max": 6.313
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Triggers200",
+      "mode": "headless",
+      "surface": "640x360-point",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "stepMs": {
+        "median": 0.506,
+        "p95": 0.578
+      },
+      "viewMs": {
+        "median": 0.003,
+        "p95": 0.004
+      },
+      "stepBytes": 126040,
+      "viewBytes": 0,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null
+    }
+  ]
+}

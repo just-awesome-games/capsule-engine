@@ -32,11 +32,21 @@ public partial class Entity
     private List<Entity>? _children;
     private Entity? _parent;
 
+    // This entity's index in its parent's child list.
+    private int _childSlot;
+
+    // The lowest slot an unlink emptied in _children, or -1 when none is empty. The list compacts
+    // before it is next read. Unlinking many siblings then costs one pass instead of one shift each.
+    private int _firstChildHole = -1;
+
     // The root of this entity's chain. Render space, space origin, and scroll factor are read from it.
     private Entity _root;
 
     // Count of colliders in this subtree, used to avoid redundant writes.
     private int _movementTrackers;
+
+    // Count of attached components that save a previous value of their own at the top of a step.
+    private int _previousSavers;
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
@@ -145,6 +155,7 @@ public partial class Entity
             if (value is not null)
             {
                 RequireParentable(value);
+                value.SceneOrNull?.ThrowIfDrawing("parented an entity");
             }
 
             Unlink();
@@ -152,7 +163,9 @@ public partial class Entity
 
             if (value is not null)
             {
-                (value._children ??= []).Add(this);
+                List<Entity> siblings = value._children ??= [];
+                _childSlot = siblings.Count;
+                siblings.Add(this);
                 value.TrackMovement(_movementTrackers);
             }
 
@@ -165,7 +178,18 @@ public partial class Entity
     /// The entities this one places, in parenting order. The span is invalid once a child is added or
     /// removed.
     /// </summary>
-    public ReadOnlySpan<Entity> Children => _children is null ? default : CollectionsMarshal.AsSpan(_children);
+    public ReadOnlySpan<Entity> Children
+    {
+        get
+        {
+            if (_firstChildHole >= 0)
+            {
+                CompactChildren();
+            }
+
+            return _children is null ? default : CollectionsMarshal.AsSpan(_children);
+        }
+    }
 
     /// <summary>
     /// A label the debug overlay shows in place of the type name, or null to show the type name. Only
@@ -179,9 +203,9 @@ public partial class Entity
     /// <see cref="Rendering.Renderer.ZIndex"/>.
     /// </summary>
     /// <remarks>
-    /// Higher sums draw later. Equal sums use tree order, then attachment order. Writes inside
-    /// <see cref="Rendering.Renderer.Draw"/> affect the next frame.
+    /// Higher sums draw later. Equal sums use tree order, then attachment order.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Rendering.Renderer.Draw"/>.</exception>
     public int ZIndex
     {
         get;
@@ -193,6 +217,7 @@ public partial class Entity
                 return;
             }
 
+            SceneOrNull?.ThrowIfDrawing("set an entity's ZIndex");
             field = value;
             SceneOrNull?.InvalidateRenderers();
         }
@@ -266,6 +291,9 @@ public partial class Entity
     // The scene queued for this entity, between deferred add and drain.
     internal Scene? PendingScene { get; set; }
 
+    // This entity's index in its scene's step-order list, kept by the scene while it holds the entity.
+    internal int SceneSlot { get; set; }
+
     // The top of this entity's chain, itself for a root.
     internal Entity Root => _root;
 
@@ -288,6 +316,9 @@ public partial class Entity
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
+    // Whether any attached component saves a previous value at the top of a step.
+    internal bool ComponentsSavePrevious => _previousSavers > 0;
+
     // The entity's draw band: ancestry ZIndex summed before children read it.
     internal long DrawBand { get; set; }
 
@@ -301,11 +332,13 @@ public partial class Entity
     /// The component is already attached to an entity, or this entity refuses it. An entity refuses
     /// a second <see cref="Physics.KinematicBody2D"/>, a collider, body or notifier when its
     /// <see cref="ScrollFactor"/> is not one or anything in its ancestry is scaled, and a component
-    /// that cannot rotate when anything in its ancestry is rotated.
+    /// that cannot rotate when anything in its ancestry is rotated. It is also thrown inside a
+    /// <see cref="Rendering.Renderer.Draw"/>.
     /// </exception>
     public void Add(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
+        SceneOrNull?.ThrowIfDrawing("attached a component");
 
         if (component.Entity is not null)
         {
@@ -334,6 +367,10 @@ public partial class Entity
 
         component.Entity = this;
         _components.Add(component);
+        if (component.SavesPrevious)
+        {
+            _previousSavers++;
+        }
         component.OnAttachedTo(this);
 
         // Attaching to an entity a scene already holds changes that scene's renderer set.
@@ -355,10 +392,13 @@ public partial class Entity
     }
 
     /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
-    /// <exception cref="InvalidOperationException">The component is not attached to this entity.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The component is not attached to this entity, or it is called inside a <see cref="Rendering.Renderer.Draw"/>.
+    /// </exception>
     public void Remove(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
+        SceneOrNull?.ThrowIfDrawing("detached a component");
 
         if (!ReferenceEquals(component.Entity, this))
         {
@@ -367,6 +407,10 @@ public partial class Entity
         }
 
         _components.RemoveAt(IndexOf(_components, component));
+        if (component.SavesPrevious)
+        {
+            _previousSavers--;
+        }
 
         // Clear the owner before hooks run. Hooks cannot then observe the component still attached.
         component.Entity = null;
@@ -725,9 +769,29 @@ public partial class Entity
     {
         if (_parent is { } parent)
         {
-            parent._children!.RemoveAt(IndexOf(parent._children, this));
+            parent._children![_childSlot] = null!;
+            parent._firstChildHole = parent._firstChildHole < 0 ? _childSlot : Math.Min(parent._firstChildHole, _childSlot);
             parent.TrackMovement(-_movementTrackers);
         }
+    }
+
+    // Closes the holes unlinks left, keeping parenting order, and renumbers what moved.
+    private void CompactChildren()
+    {
+        Span<Entity> children = CollectionsMarshal.AsSpan(_children);
+        int kept = _firstChildHole;
+        for (int index = kept + 1; index < children.Length; index++)
+        {
+            Entity child = children[index];
+            if (child is not null)
+            {
+                child._childSlot = kept;
+                children[kept++] = child;
+            }
+        }
+
+        _children!.RemoveRange(kept, _children.Count - kept);
+        _firstChildHole = -1;
     }
 
     // Compares by reference, because a subclass may override Equals and two equal instances are still

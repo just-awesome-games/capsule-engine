@@ -84,6 +84,7 @@ public sealed class UiPrimitiveTests
 
         using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(100f, 50f) });
         run.Step(2);
+        _ = run.Simulation.View;
 
         // Two steps from the canvas's centre, which the anchor resolved to (50, 25).
         Assert.Equal(new Vector2(52f, 25f), probe.Current);

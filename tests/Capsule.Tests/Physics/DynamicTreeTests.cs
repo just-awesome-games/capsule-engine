@@ -23,6 +23,19 @@ public sealed class DynamicTreeTests
         Assert.Empty(Found(tree, Cell(0, 0), Everything));
     }
 
+    // A far jump is a teleport, not travel. The slack it leaves ahead of the landing stops at the cap
+    // and does not grow with the jump.
+    [Fact]
+    public void MoveProxy_CapsTheLookaheadAFarJumpLeavesAheadOfTheLanding()
+    {
+        DynamicTree2D tree = new();
+        int proxy = tree.CreateProxy(Cell(0, 0), 0, Red);
+
+        Assert.True(tree.MoveProxy(proxy, Cell(100, 0), new Vector2(1000f, 0f)));
+        Assert.Equal([0], Found(tree, Cell(100, 0), Everything));
+        Assert.Empty(Found(tree, Cell(108, 0), Everything));
+    }
+
     // Interleaved, so no box test can do the culling the mask is there for.
     [Fact]
     public void Query_VisitsOnlyTheProxiesOnTheMaskedLayersWhenLayersAreInterleaved()

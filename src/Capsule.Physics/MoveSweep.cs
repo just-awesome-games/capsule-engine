@@ -49,6 +49,11 @@ internal ref struct MoveSweep
 
     internal readonly MoveResult2D Result => new(Applied, Blocked, Found);
 
+    internal readonly Vector2 At => _at;
+
+    // The lowest the shape reaches where the move stands, as a Y-down coordinate.
+    internal readonly float Bottom => _at.Y + _shape.Bounds.Max.Y;
+
     // What is left of a translation once the part driving into a surface is taken out.
     internal static Vector2 AlongSurface(Vector2 translation, Vector2 normal) =>
         translation - (normal * Vector2.Dot(translation, normal));
@@ -79,14 +84,17 @@ internal ref struct MoveSweep
     }
 
     // Moves onto a surface the translation reaches whose normal faces back along it within `minCos`, and
-    // leaves everything as it was when there is none.
-    internal void Snap(Vector2 translation, float minCos)
+    // leaves everything as it was when there is none. Returns whether it moved onto one.
+    internal bool Snap(Vector2 translation, float minCos)
     {
         MovePass step = _world.Pass(_shape, _at, translation, _filter, _contacts[Written..], _ignore, _throughOneWay);
         if (step.Blocked && -Vector2.Dot(step.Normal, Vector2.Normalize(translation)) >= minCos)
         {
             Take(step);
+            return true;
         }
+
+        return false;
     }
 
     private void Take(in MovePass step)

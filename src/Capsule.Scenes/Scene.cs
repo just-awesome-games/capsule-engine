@@ -29,6 +29,11 @@ public class Scene
         "it has no run yet. Reach the run from OnStart onward, not from a constructor.";
 
     private readonly List<Entity> _entities = [];
+
+    // Null slots a detach left in _entities, and the lowest of them. The list compacts before it is
+    // next read in order. A batch of removals then costs one pass instead of one shift each.
+    private int _holes;
+    private int _firstHole;
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
 
@@ -44,6 +49,10 @@ public class Scene
 
     // How many bodies in this scene are moved by each collision layer, indexed by layer.
     private readonly int[] _movedByCounts = new int[CollisionWorld2D.MaxLayers];
+
+    // The deepest any body in this scene has stood below the pose it sweeps. A pusher looks this far
+    // below its path for the bodies whose swept pose it crosses.
+    private float _deepestSink;
     private readonly SettleList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
 
     // The frame's visible region, held so notifiers settle against it.
@@ -252,6 +261,7 @@ public class Scene
     /// <see cref="Entity.ZIndex"/> sorts by its root's Y within its own band. Equal Y keeps the order
     /// the scene draws in with sorting off. The screen layer is not sorted.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Renderer.Draw"/>.</exception>
     public bool YSort
     {
         get;
@@ -263,8 +273,9 @@ public class Scene
                 return;
             }
 
+            ThrowIfDrawing("changed YSort");
             field = value;
-            _renderIndex.Invalidate(_drawing);
+            _renderIndex.Invalidate();
         }
     }
 
@@ -289,7 +300,14 @@ public class Scene
     /// Every entity held in step order: roots in addition order, each followed by its subtree. The span
     /// is invalid once an entity is added or removed.
     /// </summary>
-    public ReadOnlySpan<Entity> Entities => CollectionsMarshal.AsSpan(_entities);
+    public ReadOnlySpan<Entity> Entities
+    {
+        get
+        {
+            Compact();
+            return CollectionsMarshal.AsSpan(_entities);
+        }
+    }
 
     /// <summary>
     /// Adds a root entity and its subtree. During a step the add is deferred to the end of the
@@ -305,7 +323,7 @@ public class Scene
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The scene has stopped, the entity is already in a scene or queued, the entity has a parent,
-    /// or a component refused the scene.
+    /// a component refused the scene, or it is called inside a <see cref="Renderer.Draw"/>.
     /// </exception>
     public void Add(Entity entity)
     {
@@ -329,11 +347,14 @@ public class Scene
     /// releases its <see cref="Entity.Parent"/> and becomes a root. Every removal hook runs, and
     /// failures propagate once detachment finishes.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">The scene has stopped, or the entity is not in it.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The scene has stopped, the entity is not in it, or it is called inside a <see cref="Renderer.Draw"/>.
+    /// </exception>
     public void Remove(Entity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
         ThrowIfStopped();
+        ThrowIfDrawing("removed an entity");
 
         if (!ReferenceEquals(entity.SceneOrNull, this) && !_pendingAddSet.Contains(entity))
         {
@@ -416,7 +437,11 @@ public class Scene
     /// </code>
     /// </example>
     public EntityWalk<T> FindAll<T>()
-        where T : class => new(_entities);
+        where T : class
+    {
+        Compact();
+        return new(_entities);
+    }
 
     /// <summary>The only entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>.</summary>
     /// <exception cref="InvalidOperationException">There is not exactly one matching entity.</exception>
@@ -571,7 +596,7 @@ public class Scene
             assets.Add(authored);
         }
 
-        foreach (Entity entity in _entities)
+        foreach (Entity entity in Entities)
         {
             entity.CollectAssetPreloads(assets);
         }
@@ -678,20 +703,66 @@ public class Scene
         }
     }
 
-    internal ReadOnlySpan<Renderer> RenderersInDrawOrder() => _renderIndex.GetDrawOrder(Entities, YSort);
+    internal void InvalidateRenderers() => _renderIndex.Invalidate();
 
-    internal void InvalidateRenderers() => _renderIndex.Invalidate(_drawing);
-
-    internal void BeginDraw() => _drawing = true;
-
-    internal void EndDraw()
+    // Rewrites view from the scene as it stands, calling every visible renderer's Draw in draw order.
+    // Draw only writes the view. A change to the scene from inside it throws, so the draw order is
+    // fixed for the whole pass and a frame is the same whenever and however often it is built.
+    internal void DrawFrame(FrameView view)
     {
-        _drawing = false;
-        _renderIndex.EndDraw();
+        view.Clear();
+        view.Camera = Camera.ToView();
+        view.Canvas = Run.Canvas;
+        view.ClearColor = ClearColor;
+        view.Ambient = Ambient;
+        view.Sampling = Sampling;
+
+        _drawing = true;
+        try
+        {
+            ReadOnlySpan<Renderer> renderers = _renderIndex.GetDrawOrder(Entities, YSort);
+            for (int index = 0; index < renderers.Length; index++)
+            {
+                Renderer renderer = renderers[index];
+                if (!renderer.Visible)
+                {
+                    continue;
+                }
+
+                // The only place the render space, scroll factor, tint, flash and material are chosen. A
+                // renderer follows its entity. A hidden or fully faded entity's renderers are skipped
+                // before Draw.
+                Entity entity = renderer.Entity!;
+                if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash))
+                {
+                    view.Space = entity.Space;
+                    view.ScrollFactor = entity.ScrollFactor;
+                    view.SetStyle(tint, flash);
+                    view.Material = renderer.Material;
+                    renderer.Draw(view);
+                }
+            }
+        }
+        finally
+        {
+            view.Space = RenderSpace.World;
+            view.ScrollFactor = Vector2.One;
+            view.SetStyle(ColorRgba.White, default);
+            view.Material = null;
+            _drawing = false;
+        }
     }
 
-    // Whether a renderer from the frozen draw list is still in this scene.
-    internal bool Draws(Renderer renderer) => renderer.Entity is { } entity && Contains(entity);
+    // Guards every change that reaches the draw order. The pass holds no deferral queue, and a change
+    // made inside Draw would otherwise change what later renderers and later frames draw.
+    internal void ThrowIfDrawing(string change)
+    {
+        if (_drawing)
+        {
+            throw new InvalidOperationException(
+                $"A Renderer.Draw {change} in a {GetType().Name}. Draw only writes the FrameView it is handed. Make the change in a Step or LateStep.");
+        }
+    }
 
     // Held and not queued for removal.
     internal bool Contains(Entity entity) =>
@@ -720,9 +791,12 @@ public class Scene
             entity.ResolveHold(_pausedThisStep, _frozenThisStep);
             entity.SavePrevious();
 
-            foreach (Component component in entity.Components)
+            if (entity.ComponentsSavePrevious)
             {
-                component.SavePrevious();
+                foreach (Component component in entity.Components)
+                {
+                    component.SavePrevious();
+                }
             }
         }
     }
@@ -769,6 +843,10 @@ public class Scene
     }
 
     internal void TrackContacts(Collider2D collider) => _contactReporters.Add(collider);
+
+    internal float DeepestSink => _deepestSink;
+
+    internal void NoteSink(float sink) => _deepestSink = MathF.Max(_deepestSink, sink);
 
     // One bit per layer some body in this scene is moved by. A collider on none of them shoves nothing.
     internal ulong MovedByLayers { get; private set; }
@@ -925,6 +1003,7 @@ public class Scene
     internal void Enqueue(Entity entity)
     {
         ThrowIfStopped();
+        ThrowIfDrawing("added an entity");
 
         if (entity.IdleInPool)
         {
@@ -981,12 +1060,15 @@ public class Scene
     // Attach entity and children in tree order. Each lands after its parent so list stays in step order.
     private void AttachTree(Entity entity)
     {
+        // A subtree's span is contiguous only once the holes are gone.
+        Compact();
         int index = entity.Parent is { } parent && ReferenceEquals(parent.SceneOrNull, this)
-            ? IndexOf(parent) + HeldCount(parent)
+            ? parent.SceneSlot + HeldCount(parent)
             : _entities.Count;
 
         _entities.Insert(index, entity);
-        _renderIndex.Invalidate(_drawing);
+        Renumber(index);
+        _renderIndex.Invalidate();
         entity.SceneOrNull = this;
         entity.PendingScene = null;
 
@@ -1179,19 +1261,19 @@ public class Scene
             }
         }
 
-        int held = IndexOf(entity);
-        if (held >= 0)
+        if (ReferenceEquals(entity.SceneOrNull, this))
         {
-            DetachAt(held);
+            DetachAt(entity.SceneSlot);
         }
     }
 
     private void DetachAt(int index)
     {
         Entity entity = _entities[index];
-        _entities.RemoveAt(index);
+        _entities[index] = null!;
+        _firstHole = _holes++ == 0 ? index : Math.Min(_firstHole, index);
 
-        _renderIndex.Invalidate(_drawing);
+        _renderIndex.Invalidate();
         entity.SceneOrNull = null;
 
         try
@@ -1209,24 +1291,49 @@ public class Scene
         }
     }
 
-    // Find by reference identity, not by Equals.
-    private int IndexOf(Entity entity)
+    // Closes the holes detaches left, keeping step order, and renumbers what moved.
+    private void Compact()
     {
-        for (int index = 0; index < _entities.Count; index++)
+        if (_holes == 0)
         {
-            if (ReferenceEquals(_entities[index], entity))
+            return;
+        }
+
+        Span<Entity> held = CollectionsMarshal.AsSpan(_entities);
+        int kept = _firstHole;
+        for (int index = kept + 1; index < held.Length; index++)
+        {
+            Entity entity = held[index];
+            if (entity is not null)
             {
-                return index;
+                entity.SceneSlot = kept;
+                held[kept++] = entity;
             }
         }
 
-        return -1;
+        _entities.RemoveRange(kept, _entities.Count - kept);
+        _holes = 0;
+    }
+
+    // Restores each entity's slot from `from` on, after an insert shifted them.
+    private void Renumber(int from)
+    {
+        for (int index = from; index < _entities.Count; index++)
+        {
+            _entities[index].SceneSlot = index;
+        }
     }
 
     private void ReleaseEntities(ref List<Exception>? failures)
     {
+        // A removal hook may read the scene and compact it. Each pass re-checks the slot.
         for (int index = _entities.Count - 1; index >= 0; index--)
         {
+            if (index >= _entities.Count || _entities[index] is null)
+            {
+                continue;
+            }
+
             try
             {
                 DetachAt(index);
@@ -1236,6 +1343,8 @@ public class Scene
                 (failures ??= []).Add(exception);
             }
         }
+
+        Compact();
     }
 
     private void ClearPendingState()

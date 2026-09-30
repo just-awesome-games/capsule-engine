@@ -50,6 +50,11 @@ public sealed partial class CollisionWorld2D
     // The slot a MovePast sweep passes through, or -1. Only one sweep runs at a time.
     private int _passThrough = -1;
 
+    // The running sweep's hits within FractionBand of its nearest so far, in the order they arrived.
+    // Each sweep starts it empty. A band that outgrows it is written by a second walk instead.
+    private readonly BandHit[] _band = new BandHit[32];
+    private int _bandCount;
+
     // A world holding nothing, with only DefaultLayerName interned.
     internal CollisionWorld2D() => Layer(DefaultLayerName);
 
@@ -256,6 +261,19 @@ public sealed partial class CollisionWorld2D
 
     // Sets whether a one-way collider also blocks from the sides.
     internal void SetSolidSides(ColliderHandle handle, bool solidSides) => _slots[RequireShapeSlot(handle)].SolidSides = solidSides;
+
+    // Whether a target blocks only from above, as a one-way collider or cell without solid sides does.
+    // No query meets its sides.
+    internal bool IsTopOnly(in CollisionTarget target)
+    {
+        ref ColliderSlot slot = ref _slots[RequireSlot(target.Collider)];
+        if (slot.Grid is { } grid)
+        {
+            return (grid.StateAt(target.CellX, target.CellY) & (CellState2D.OneWay | CellState2D.SolidSides)) == CellState2D.OneWay;
+        }
+
+        return slot.OneWay && !slot.SolidSides;
+    }
 
     // Replaces the layer a collider is on.
     internal void SetLayer(ColliderHandle handle, CollisionLayer layer)
@@ -615,8 +633,9 @@ public sealed partial class CollisionWorld2D
     /// The move sweeps to the first surface, stops a slop short of it, and slides what is left along
     /// that surface, in at most four sweeps. It tunnels through nothing at any speed. It skips
     /// <paramref name="ignore"/>. <paramref name="contacts"/> receives the surfaces reached, pass by
-    /// pass. Within each pass, grid cells come in traversal order and then colliders by handle. The
-    /// span may be empty. Nothing in the world moves. The caller adds
+    /// pass. A pass reaches the nearest surface and every other within a ten-thousandth of the
+    /// translation of it. Within each pass, grid cells come in traversal order and then colliders by
+    /// handle. The span may be empty. Nothing in the world moves. The caller adds
     /// <see cref="MoveResult2D.Translation"/> to its own position.
     /// </remarks>
     /// <returns>How far the shape actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
@@ -830,23 +849,33 @@ public sealed partial class CollisionWorld2D
 
     private struct CastAccumulator
     {
-        // How far below zero a normal's dot with the translation must reach for the sweep to drive
-        // into it, set once per cast.
+        // The translation's length, and how far below zero a normal's dot with the translation must
+        // reach for the sweep to drive into it. Both are set once per cast.
+        internal float Length;
         internal float Lean;
 
-        // Where the contact band opened. Fraction is the primary hit inside it.
-        internal float Band;
+        // The nearest hit, which is the band's primary.
         internal float Fraction;
         internal Vector2 Normal;
         internal Vector2 Point;
         internal CollisionTarget Target;
         internal bool Hit;
 
-        // How many contacts the band holds, and how many of them the caller's span had room for.
+        // How many contacts the band holds, how many of them the caller's span had room for, and
+        // where in the span the colliders after the last grid cell begin.
         internal int Found;
         internal int Written;
+        internal int FirstCollider;
 
-        // Where the handle-ordered run of collider contacts starts, after the grid phase.
-        internal int First;
+        // Whether the band outgrew the world's scratch, and whether this is the second walk, which
+        // knows the primary and writes the band as it goes.
+        internal bool Overflowed;
+        internal bool Anchored;
+    }
+
+    private readonly struct BandHit(float fraction, Contact2D contact)
+    {
+        internal readonly float Fraction = fraction;
+        internal readonly Contact2D Contact = contact;
     }
 }

@@ -26,10 +26,13 @@ public sealed class SceneSimulationDiagnosticsTests : IDisposable
         SceneFixtures.HookScene scene = new();
         scene.Add(drifter);
 
+        // The warning reads a built frame, and a host builds one per presented frame.
         using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step());
-        simulation.Step(SceneFixtures.Step());
+        for (int frame = 0; frame < 3; frame++)
+        {
+            simulation.Step(SceneFixtures.Step());
+            _ = simulation.View;
+        }
 
         LogEntry entry = Assert.Single(sink.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
@@ -53,6 +56,7 @@ public sealed class SceneSimulationDiagnosticsTests : IDisposable
 
         using SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
+        _ = simulation.View;
 
         Assert.Empty(sink.Entries);
     }

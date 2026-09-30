@@ -76,8 +76,15 @@ public sealed class Player : Entity
         BoxCollider2D bodyCollider = new(Body) { Layer = CollisionLayers.Player };
         Add(bodyCollider);
 
-        // Grounded walks the hill at the speed it is given and follows the ground down its far side.
-        _body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded };
+        // Grounded walks the hill at the speed it is given and follows the ground down its far side. The
+        // step height walks it over the curb without a jump. Resting on the center stands the player's
+        // feet on the hill instead of on the corner of its box.
+        _body = new KinematicBody2D(bodyCollider)
+        {
+            Mode = BodyMode.Grounded,
+            StepHeight = _tuning.StepHeight,
+            RestsOnCenter = true,
+        };
         _body.BlocksOn(CollisionLayers.Blocking);
         _body.MovedBy(CollisionLayers.Platform);
         _body.Crushed += OnCrushed;
@@ -189,9 +196,9 @@ public sealed class Player : Entity
         }
     }
 
-    // The body keeps the speed it is given along a slope, so how a climb feels is the game's call. A
-    // floor facing the way the player walks is a descent and speeds the walk, and one facing back
-    // slows it.
+    // The body keeps the horizontal speed it is given on a slope. The game decides how a climb feels.
+    // A floor facing the way the player walks is a descent and speeds the walk. One facing back slows
+    // it.
     private float WalkSpeed(float move)
     {
         if (!_body.IsOnFloor || move == 0f)
@@ -318,7 +325,6 @@ public sealed class Player : Entity
     {
         private readonly Player _player;
         private readonly PlayerTuning _tuning;
-        private readonly Vector2 _pivot;
         private readonly SpriteAnimator _animator;
 
         private float _facing = 1f;
@@ -331,7 +337,6 @@ public sealed class Player : Entity
             : base(player, pivot)
         {
             _player = player;
-            _pivot = pivot;
             _tuning = tuning;
 
             SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
@@ -379,7 +384,6 @@ public sealed class Player : Entity
             }
 
             Scale = new Vector2(_facing * _squash.X, _squash.Y);
-            Position = _pivot + new Vector2(0f, FeetGap());
         }
 
         // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
@@ -393,20 +397,6 @@ public sealed class Player : Entity
             Flash = grace > 0 ? 1f - Math.Min(sinceHit / (float)_tuning.HurtFlashTicks, 1f) : 0f;
             Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
             Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
-        }
-
-        // The box rests on its corner on a slope, which leaves the bottom-centre in the air. The feet
-        // are drawn onto the ground under the centre instead. Half the body's width reaches a 45 degree
-        // slope's surface.
-        private float FeetGap()
-        {
-            KinematicBody2D body = _player._body;
-            Vector2 feet = _player.Position + new Vector2(BodyPixels / 2f, BodyPixels);
-            float reach = (BodyPixels / 2f) + CollisionTolerance.ContactSkin;
-
-            return body.IsOnFloor && Scene.Collision.Raycast(feet, Vector2.UnitY, reach, body.Filter, out RayHit2D hit, body.Collider.Handle)
-                ? hit.Distance
-                : 0f;
         }
 
         // Towards the target by at most maxDelta, landing on it exactly.

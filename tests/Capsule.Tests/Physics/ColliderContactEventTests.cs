@@ -243,6 +243,38 @@ public sealed class ColliderContactEventTests
             body.Log);
     }
 
+    // Past eight contacts a settle matches the carried ones by hashing instead of scanning. The order
+    // contract is the same, and exits still follow a Touching that deviates from the world's order.
+    [Fact]
+    public void ContactEvents_KeepTheSameOrderForAColliderTouchingManyThings()
+    {
+        Scene scene = SceneFixtures.Terrain(new string('.', 20), new string('#', 20));
+        Straddler body = new(new Vector2(68f, 8f), 184f);
+        scene.Add(body);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
+        Assert.Equal([.. Enumerable.Range(4, 12).Select(static x => $"+({x},1)")], body.Log);
+
+        // Two cells to the left: cells 2 to 13.
+        body.Log.Clear();
+        body.Teleport(new Vector2(36f, 8f));
+        run.Step();
+
+        Assert.Equal(["-(14,1)", "-(15,1)", "+(2,1)", "+(3,1)"], body.Log);
+        Assert.Equal(
+            [.. Enumerable.Range(4, 10), 2, 3],
+            body.Collider.Touching.ToArray().Select(static contact => contact.Tile!.Value.X));
+
+        // Four cells to the right of the start: cells 6 to 17.
+        body.Log.Clear();
+        body.Teleport(new Vector2(100f, 8f));
+        run.Step();
+
+        Assert.Equal(["-(4,1)", "-(5,1)", "-(2,1)", "-(3,1)", "+(14,1)", "+(15,1)", "+(16,1)", "+(17,1)"], body.Log);
+    }
+
     // The canonical throw during a settle: the failure reaches the caller of the step rather than
     // being swallowed by it.
     [Fact]
@@ -284,13 +316,13 @@ public sealed class ColliderContactEventTests
         Assert.Equal(body.Collider.Touching.Length, body.Entered);
     }
 
-    /// <summary>A body resting across three floor cells, so a dispatch cut short is visible.</summary>
+    /// <summary>A body resting across floor cells, three at its default width, so a dispatch cut short is visible.</summary>
     private sealed class Straddler : Entity
     {
-        internal Straddler(Vector2 position)
+        internal Straddler(Vector2 position, float width = 40f)
             : base(position)
         {
-            Collider = new BoxCollider2D(new Vector2(40f, 8f)) { ReportsContacts = true };
+            Collider = new BoxCollider2D(new Vector2(width, 8f)) { ReportsContacts = true };
             Collider.SetFilter("solid");
             Collider.ContactEntered += contact => Log.Add($"+({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
             Collider.ContactExited += contact => Log.Add($"-({contact.Tile!.Value.X},{contact.Tile.Value.Y})");

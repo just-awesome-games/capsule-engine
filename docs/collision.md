@@ -111,6 +111,10 @@ if (_body.IsOnFloor)
 `Move` reports the surfaces it reached on the body and returns a `MoveResult2D`. `TestMove` answers
 whether a move would be blocked and moves nothing.
 
+A move reports every surface it meets at the same moment. That is the nearest surface and any other
+within a ten-thousandth of the move's length of it. A box landing across a run of tiles reports each
+tile under it.
+
 A move stops `CollisionTolerance.LinearSlop` short of what stopped it. A surface it came to rest against
 is still within `CollisionTolerance.ContactSkin` on the following step, and its contact holds steady.
 
@@ -123,7 +127,63 @@ a body with no ground. A platformer's body is `BodyMode.Grounded`:
 _body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded };
 ```
 
-A game that wants a climb to feel heavy scales its own speed from `FloorNormal`.
+A grounded walk on a slope covers the move's whole X horizontally. The slope sets how far the body
+rises or falls. A climb and a descent make the same horizontal headway as flat ground. When
+`KeepsHorizontalSpeedOnSlopes` is false, the walk covers the move's X along the slope's surface
+instead. A steeper slope then gives less horizontal headway. A game that wants a climb to feel heavy
+scales its own speed from `FloorNormal`.
+
+### Steps
+
+A grounded body's `StepHeight` lets its walk climb a lip and keep to a floor below a drop. It is 0 by
+default, which turns stepping off:
+
+```csharp
+_body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded, StepHeight = 4f };
+```
+
+A body that stood on a floor and walks into a wall rises by up to `StepHeight`. It walks on with the
+rest of the move and settles onto a floor no lower than where it started. That floor sets
+`FloorNormal` and what the body rides. The step keeps the move's whole X. The wall stops the body as
+usual when there is no room to rise or no floor to settle on. A body that walks off a drop no deeper
+than `StepHeight` below where its walk ended stays on the lower floor without an airborne step. A move
+that rises never steps, and neither does one after `DropThrough`. A body steps onto a one-way surface
+only where that surface blocks it. It walks through a plain one-way lip.
+
+Only a walk stopped by a wall pays for a step. A wall met higher than `StepHeight` above the body's
+lowest point is ruled out at once. Any other wall costs a rise, a walk and a settle, each one sweep.
+Keeping to a lower floor costs one more sweep, and only after a walk has left its floor.
+
+### Standing on the center
+
+A box on a slope rests on its uphill corner, and its bottom center hangs above the floor. A grounded
+body with `RestsOnCenter` stands with its bottom center on the floor instead:
+
+```csharp
+_body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded, RestsOnCenter = true };
+```
+
+It matters only on an uneven floor. On a flat floor the body stands where it would anyway. The body
+still sweeps the pose it would hold with this off, and the entity stands below that pose by up to half
+the collider's width times the tangent of `MaxFloorAngle`. Walls, ceilings, steps, `TestMove`, carries
+and shoves all meet the swept pose, so each behaves exactly as it does with this off. A downhill walk
+also casts the hanging half of the box ahead, and a wall it meets stops the move. A landing, or any
+move that would lower the entity further below the swept pose, first sweeps that half for a wall and
+keeps the entity's height when it finds one. `FloorNormal` reports the floor under the center. Setting the entity's position directly clears the sink, and the
+next grounded move finds it again.
+
+At a ledge the body keeps its height until its whole box has left the ledge. It never sinks over the
+edge, including the edge of a one-way floor. A body that steps up onto a ledge stands on it at once.
+
+A grounded move casts one ray down from the bottom center. A move over a change of slope casts a
+second ray from that floor to the corner the box rests on, and a downhill walk casts one shape. A move
+that lowers the entity further below the swept pose casts one more shape. A change of slope on a
+one-way floor casts up to three more rays down. A flat floor costs the one ray. A body with
+`RestsOnCenter` off pays nothing.
+
+A crest followed within half a width by a step, or a short rise between two flat floors, can leave the
+body a little high or low. It never ends inside a wall or below the floor under its center. A round
+collider walking downhill stops slightly short of a steep wall, because the cast ahead is a box.
 
 ### One-way surfaces
 
@@ -157,7 +217,8 @@ _body.Crushed += OnCrushed;
 ```
 
 A body rides such a collider when its last `Move` stopped on it, and such a collider moving into the
-body shoves it. A shove that pins the body against something it cannot pass raises `Crushed`.
+body shoves it. A collider moving into several bodies shoves them one at a time, in the order of their
+handles. A shove that pins the body against something it cannot pass raises `Crushed`.
 
 ## Terrain
 
@@ -195,6 +256,9 @@ An overlap or move query returns the total number of overlaps, not the number wr
 the first of them in the documented order. A count above the span's length means the rest were counted
 and not written. Grid cells come first, in the order their grids were added and row-major within each,
 and colliders follow by handle.
+
+No query, move or shove depends on how the broadphase happens to be arranged. The same colliders under
+the same handles give the same results in the same order.
 
 `Scene.ColliderOf(hit.Target.Collider)` turns any hit back into its `Collider2D` and its `Entity`, and
 answers null for a tile map's cell.

@@ -336,6 +336,8 @@ public sealed class ParticleEmitter : Renderer
 
     // A held emitter skips its step, so each particle's last motion would otherwise interpolate again
     // on every frame the hold lasts. The bounds already cover the current positions.
+    internal override bool SavesPrevious => true;
+
     internal override void SavePrevious()
     {
         if (Entity is not { Held: true })
