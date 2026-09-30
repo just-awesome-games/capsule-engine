@@ -108,4 +108,65 @@ public sealed class SpriteAnimatorTickTests
 
         Assert.Equal(2, animator.FrameIndex);
     }
+
+    // A walk swapped for its shooting variant mid-stride, where the variant holds each frame longer.
+    [Fact]
+    public void PlayingAtAFrameKeepsTheFrameAndItsSpentTicksAcrossClipsOfDifferentTicks()
+    {
+        SpriteClip slowWalk = new([Frame(30), Frame(31), Frame(32)], [4, 4, 4], loop: true);
+        (SpriteRenderer renderer, SpriteAnimator animator, SimulationHost run) = Animating();
+        animator.Play(Walk);
+        run.Step(4);
+
+        animator.PlayAtFrame(slowWalk, animator.FrameIndex, animator.FrameTick);
+
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(1, animator.FrameTick);
+        Assert.Equal(Frame(31), renderer.Sprite);
+
+        // One of the variant frame's four ticks is spent, so it holds for three more.
+        run.Step(3);
+
+        Assert.Equal(1, animator.FrameIndex);
+
+        run.Step();
+
+        Assert.Equal(2, animator.FrameIndex);
+    }
+
+    // A finished clip reads its last frame's full ticks, and that position has to go back in.
+    [Fact]
+    public void PlayingAtTheFrameAndFrameTickReadReproducesAFinishedClip()
+    {
+        (_, SpriteAnimator animator, SimulationHost run) = Animating();
+        animator.Play(Shoot);
+        run.Step(20);
+
+        animator.PlayAtFrame(Shoot, animator.FrameIndex, animator.FrameTick);
+
+        Assert.True(animator.IsFinished);
+        Assert.Equal(1, animator.FrameIndex);
+        Assert.Equal(5, animator.Tick);
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(2, 0)]
+    [InlineData(0, -1)]
+    [InlineData(0, 4)]
+    public void PlayingAtAFrameOutsideTheClipThrows(int frameIndex, int frameTick)
+    {
+        (_, SpriteAnimator animator, _) = Animating();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => animator.PlayAtFrame(Shoot, frameIndex, frameTick));
+    }
+
+    // Only a non-looping clip can stand on its last frame with every tick spent.
+    [Fact]
+    public void PlayingALoopingClipWithItsLastFrameSpentThrows()
+    {
+        (_, SpriteAnimator animator, _) = Animating();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => animator.PlayAtFrame(Walk, 2, 2));
+    }
 }

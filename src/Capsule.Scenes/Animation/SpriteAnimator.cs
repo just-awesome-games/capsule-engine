@@ -16,7 +16,7 @@ namespace Capsule.Animation;
 /// frame rate, and the frame an entity is on is simulation state.
 /// <para>
 /// A <see cref="Component"/> steps after its entity. An entity reading its animator's
-/// <see cref="Clip"/>, <see cref="FrameIndex"/> or <see cref="Tick"/> in
+/// <see cref="Clip"/>, <see cref="FrameIndex"/>, <see cref="FrameTick"/> or <see cref="Tick"/> in
 /// <see cref="Entity.OnStep"/> therefore sees the frame the previous step drew. A
 /// <see cref="Play(SpriteClip, int)"/> made there at that <see cref="Tick"/> re-enters the previous
 /// step's position and costs the clip a tick. Put logic that depends on the frame drawn in a
@@ -57,10 +57,20 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </remarks>
     public int Tick => Clip is { } clip ? _playback.TickOf(clip.FrameTicks) : 0;
 
+    /// <summary>
+    /// How many ticks have been spent on the frame drawn. It reads 0 on the step a frame begins, and
+    /// 0 while nothing plays.
+    /// </summary>
+    /// <remarks>
+    /// A finished non-looping clip reads its last frame's full ticks. Passing
+    /// <see cref="FrameIndex"/> and this value to <see cref="PlayAtFrame"/> reproduces this position.
+    /// </remarks>
+    public int FrameTick => _playback.TicksElapsed;
+
     /// <summary>Whether the clip holds on its current frame while the entity keeps stepping.</summary>
     /// <remarks>
     /// A held clip keeps drawing its frame. Its <see cref="Tick"/> does not advance and
-    /// <see cref="IsFinished"/> does not change. Both <c>Play</c> overloads leave this as it is. A
+    /// <see cref="IsFinished"/> does not change. Every <c>Play</c> method leaves this as it is. A
     /// clip played while held draws its frame and stays held. Removal from the scene clears it.
     /// <para>
     /// After at least one held step, the animator's first step after this clears advances from the
@@ -153,6 +163,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// Played at <see cref="Tick"/>, a clip with the same frame count and per-frame ticks as the
     /// one playing draws the frame that clip stood on and continues from there, and a finished clip
     /// stays finished. A clip of any other shape only seeks, and nothing is validated.
+    /// <see cref="PlayAtFrame"/> keeps the frame across clips of any shape.
     /// </para>
     /// </remarks>
     /// <param name="clip">The clip to play.</param>
@@ -163,6 +174,66 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
         Clip = clip;
         _playback.Seek(clip.FrameTicks, clip.Loop, atTick);
+        Reposition(clip);
+    }
+
+    /// <summary>
+    /// Plays <paramref name="clip"/> on frame <paramref name="frameIndex"/> with
+    /// <paramref name="frameTick"/> of its ticks already spent, and draws that frame immediately.
+    /// </summary>
+    /// <remarks>
+    /// The frame then holds for the rest of its ticks, counted from the tick of this call whatever
+    /// point in the step it came from. A frame tick of 0 starts the frame fresh. This method always
+    /// repositions, even when <paramref name="clip"/> is the clip already playing.
+    /// <para>
+    /// Played at <see cref="FrameIndex"/> and <see cref="FrameTick"/>, a variant clip keeps the
+    /// frame and the ticks spent on it even when its frames hold for different ticks. The variant's
+    /// frame then holds for its own remaining ticks. A frame tick equal to a non-looping clip's last
+    /// frame ticks lands finished on that frame, as <see cref="FrameTick"/> reads once such a clip
+    /// finishes.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// Swapping a walk for its shooting variant mid-stride:
+    /// <code>
+    /// _animator.PlayAtFrame(walkShooting, _animator.FrameIndex, _animator.FrameTick);
+    /// </code>
+    /// </example>
+    /// <param name="clip">The clip to play.</param>
+    /// <param name="frameIndex">The frame to draw, counted from 0.</param>
+    /// <param name="frameTick">Ticks already spent on that frame. Not negative, and less than that frame's ticks except on a non-looping clip's last frame, which also takes its full ticks.</param>
+    public void PlayAtFrame(SpriteClip clip, int frameIndex, int frameTick)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+
+        ReadOnlySpan<int> frameTicks = clip.FrameTicks;
+        if ((uint)frameIndex >= (uint)frameTicks.Length)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(frameIndex),
+                frameIndex,
+                $"The clip has {frameTicks.Length} frames. Pass a frame index from 0 to {frameTicks.Length - 1}.");
+        }
+
+        int hold = frameTicks[frameIndex];
+        bool finished = !clip.Loop && frameIndex == frameTicks.Length - 1 && frameTick == hold;
+        if (frameTick < 0 || (frameTick >= hold && !finished))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(frameTick),
+                frameTick,
+                clip.Loop || frameIndex != frameTicks.Length - 1
+                    ? $"Frame {frameIndex} holds for {hold} ticks. Pass a frame tick from 0 to {hold - 1}."
+                    : $"The last frame holds for {hold} ticks. Pass a frame tick from 0 to {hold}, where {hold} lands finished.");
+        }
+
+        Clip = clip;
+        _playback.SeekFrame(frameIndex, frameTick, finished);
+        Reposition(clip);
+    }
+
+    private void Reposition(SpriteClip clip)
+    {
         _pendingStart = true;
         _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];

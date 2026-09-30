@@ -84,6 +84,14 @@ public struct AnimationPlayback
         IsFinished = true;
     }
 
+    // The caller has validated the position against the run it walks.
+    internal void SeekFrame(int frameIndex, int ticksElapsed, bool finished)
+    {
+        FrameIndex = frameIndex;
+        TicksElapsed = ticksElapsed;
+        IsFinished = finished;
+    }
+
     /// <summary>
     /// The ticks elapsed since the current pass over <paramref name="frameTicks"/> began. Passing it
     /// back to <see cref="Seek"/> over the same durations reproduces this position.
