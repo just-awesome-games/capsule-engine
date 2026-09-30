@@ -20,6 +20,9 @@ internal static partial class ShaderCompiler
 
     private const string CombinedPrefix = "SPIRV_Cross_Combined";
 
+    // The parameter block SPIRV-Cross flattens the global constants into.
+    private const string GlobalBlock = "type_Globals";
+
     /// <summary>Compiles the composed source at <paramref name="sourcePath"/>.</summary>
     /// <param name="tools">The downloaded tools.</param>
     /// <param name="sourcePath">The composed pixel-stage source. Intermediate files are written beside it.</param>
@@ -81,8 +84,13 @@ internal static partial class ShaderCompiler
                 return Failed("the shader cross-compiler could not write it as GLSL: " + Flatten(output + errors), diagnostics);
             }
 
-            string glsl = Rename(output, textures);
-            byte[] effect = MgfxWriter.Write(Path.GetFileName(source), glsl, constants, bufferSize, textures);
+            string glsl = output.ReplaceLineEndings("\n");
+            if (Bind(ref glsl, textures, ref bufferSize, out List<PixelConstant> sizes) is { } unsupported)
+            {
+                return Failed(unsupported, diagnostics);
+            }
+
+            byte[] effect = MgfxWriter.Write(Path.GetFileName(source), glsl, [.. constants, .. sizes], bufferSize, textures);
 
             List<ShaderParameter> parameters = [.. constants.Select(static constant => new ShaderParameter(constant.Name, constant.Kind))];
             parameters.AddRange(textures.Select(static texture => new ShaderParameter(texture, ShaderParameterKind.Texture)));
@@ -95,18 +103,74 @@ internal static partial class ShaderCompiler
         }
     }
 
-    // The combined samplers SPIRV-Cross names after image and sampler take the texture slot's name,
-    // and the flattened parameter block takes the pixel buffer's.
-    private static string Rename(string glsl, List<string> textures)
+    // Binds each texture to its slot. The combined sampler SPIRV-Cross names after a texture and the
+    // engine's sampler takes the slot's name. A read through the size probe becomes a size parameter
+    // appended to the pixel buffer. The flattened parameter block takes the pixel buffer's name.
+    // Returns why the stage would not compile on OpenGL 2.1, or null.
+    private static string? Bind(ref string glsl, List<string> textures, ref int bufferSize, out List<PixelConstant> sizes)
     {
-        glsl = Replace(glsl, CombinedPrefix + ShaderTemplate.SpriteTexture + ShaderTemplate.Sampler, MgfxWriter.SamplerName(0));
-        for (int i = 0; i < textures.Count; i++)
+        sizes = [];
+        for (int slot = 0; slot <= textures.Count; slot++)
         {
-            glsl = Replace(glsl, CombinedPrefix + textures[i] + ShaderTemplate.Sampler, MgfxWriter.SamplerName(i + 1));
+            string texture = slot == 0 ? ShaderTemplate.SpriteTexture : textures[slot - 1];
+            glsl = Replace(glsl, CombinedPrefix + texture + ShaderTemplate.Sampler, MgfxWriter.SamplerName(slot));
+
+            string probe = Regex.Escape(CombinedPrefix + texture + ShaderTemplate.SizeProbe);
+            if (!Regex.IsMatch(glsl, $@"\b{probe}\b"))
+            {
+                continue;
+            }
+
+            glsl = Regex.Replace(glsl, $@"uniform sampler2D {probe};\n", string.Empty);
+            glsl = Regex.Replace(glsl, $@"texture2D\({probe}, vec2\(0\.0\)\)", $"{GlobalBlock}[{bufferSize / 16}]");
+
+            // A read the pattern missed would name a sampler no longer declared.
+            if (Regex.IsMatch(glsl, $@"\b{probe}\b"))
+            {
+                return $"reads the size of texture '{texture}' in a form the compiler cannot bind. Read it with TextureSize({texture}).";
+            }
+
+            sizes.Add(new PixelConstant(ShaderTemplate.TextureSize + slot.ToString(CultureInfo.InvariantCulture), ShaderParameterKind.Vector2, bufferSize));
+            bufferSize += 16;
         }
 
-        return Replace(glsl, "type_Globals", MgfxWriter.PixelBuffer).ReplaceLineEndings("\n");
+        if (sizes.Count > 0)
+        {
+            string declaration = $"uniform vec4 {GlobalBlock}[{bufferSize / 16}];";
+            glsl = Regex.IsMatch(glsl, $@"uniform vec4 {GlobalBlock}\[\d+\];")
+                ? Regex.Replace(glsl, $@"uniform vec4 {GlobalBlock}\[\d+\];", declaration)
+                : glsl.Replace($"#version {GlslVersion}\n", $"#version {GlslVersion}\n{declaration}\n", StringComparison.Ordinal);
+        }
+
+        glsl = Replace(glsl, GlobalBlock, MgfxWriter.PixelBuffer);
+
+        if (BuiltInCall(glsl, "texelFetch"))
+        {
+            return "reads a texel with Load or an index, which OpenGL 2.1 lacks. Read it with Sample(texture, (texel + 0.5) / TextureSize(texture)).";
+        }
+
+        if (BuiltInCall(glsl, "textureSize"))
+        {
+            return "reads a texture's size with GetDimensions, which OpenGL 2.1 lacks. Read it with TextureSize(texture).";
+        }
+
+        if (Regex.IsMatch(glsl, $@"\b{CombinedPrefix}"))
+        {
+            return "reads a texture other than through Sample or TextureSize, which OpenGL 2.1 lacks. Read it with Sample(texture, uv).";
+        }
+
+        if (ExtensionLine().Match(glsl) is { Success: true } extension)
+        {
+            return $"needs the GLSL extension {extension.Groups["name"].Value}, which OpenGL 2.1 lacks. An unsigned integer or a rounding function is the usual cause. Compute in float, as floor(x + 0.5) for round(x).";
+        }
+
+        return null;
     }
+
+    // Whether the stage calls the GLSL built-in, as a whole identifier and not part of a game's name.
+    // GLSL 1.20 spells it with a 2D suffix, from the GL_EXT_gpu_shader4 extension.
+    private static bool BuiltInCall(string glsl, string function) =>
+        Regex.IsMatch(glsl, $@"\b{function}(?:2D)?\s*\(");
 
     private static string Replace(string glsl, string name, string replacement) =>
         Regex.Replace(glsl, $@"\b{Regex.Escape(name)}\b", replacement);
@@ -137,9 +201,9 @@ internal static partial class ShaderCompiler
                 foreach (JsonElement member in type.GetProperty("members").EnumerateArray())
                 {
                     string name = member.GetProperty("name").GetString()!;
-                    if (name is ShaderTemplate.MatrixTransform or ShaderTemplate.Coverage)
+                    if (Reserved(name))
                     {
-                        return $"declares parameter '{name}', which the engine's vertex stage owns. Rename it.";
+                        return $"declares parameter '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";
                     }
 
                     ShaderParameterKind? kind = member.TryGetProperty("array", out _)
@@ -168,9 +232,9 @@ internal static partial class ShaderCompiler
             foreach (JsonElement image in images.EnumerateArray())
             {
                 string name = image.GetProperty("name").GetString()!;
-                if (name is ShaderTemplate.MatrixTransform or ShaderTemplate.Coverage)
+                if (Reserved(name))
                 {
-                    return $"declares texture '{name}', a name the engine's vertex stage owns. Rename it.";
+                    return $"declares texture '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";
                 }
 
                 if (image.GetProperty("type").GetString() != "texture2D")
@@ -185,13 +249,24 @@ internal static partial class ShaderCompiler
             }
         }
 
-        if (root.TryGetProperty("separate_samplers", out JsonElement samplers) && samplers.GetArrayLength() > 1)
+        if (root.TryGetProperty("separate_samplers", out JsonElement samplers))
         {
-            return $"declares a sampler of its own. Read a texture with Sample(texture, uv), which samples as the sprite does.";
+            foreach (JsonElement sampler in samplers.EnumerateArray())
+            {
+                if (sampler.GetProperty("name").GetString() is not (ShaderTemplate.Sampler or ShaderTemplate.SizeProbe))
+                {
+                    return "declares a sampler of its own. Read a texture with Sample(texture, uv), which samples as the sprite does.";
+                }
+            }
         }
 
         return null;
     }
+
+    // Whether a game parameter's name is the engine's: the vertex stage's transform, or any name the
+    // template or the host binds, all of which carry the reserved prefix.
+    private static bool Reserved(string name) =>
+        name == ShaderTemplate.MatrixTransform || name.StartsWith(ShaderTemplate.ReservedPrefix, StringComparison.Ordinal);
 
     // DXC's 'file:line:column: error: message', one per diagnostic. The source excerpt and caret
     // lines that follow each one match nothing.
@@ -287,6 +362,9 @@ internal static partial class ShaderCompiler
         new(null, [], diagnostics ?? [], failure);
 
     private static string Flatten(string output) => output.Trim().ReplaceLineEndings(" ");
+
+    [GeneratedRegex(@"^#extension (?<name>\S+)", RegexOptions.Multiline)]
+    private static partial Regex ExtensionLine();
 
     [GeneratedRegex(@"^(?<file>.+?):(?<line>\d+):(?<column>\d+):\s*(?<severity>error|warning):\s*(?<message>.*)$")]
     private static partial Regex DiagnosticLine();

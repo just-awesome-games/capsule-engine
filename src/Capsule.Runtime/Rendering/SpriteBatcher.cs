@@ -70,6 +70,10 @@ internal sealed class SpriteBatcher : IDisposable
     private bool _appliedCoverage;
     private SamplerState _appliedSampler = SamplerState.LinearClamp;
 
+    // The sprite texture size the applied effect reads, or null when it reads none. A run on a texture
+    // of another size applies the effect again.
+    private Point? _appliedSpriteSize;
+
     // The last colour and blend converted and their packed form. Premultiplying costs three divisions,
     // and a run sharing one tint and blend converts once.
     private ColorRgba _lastColor;
@@ -126,10 +130,11 @@ internal sealed class SpriteBatcher : IDisposable
         _device.SamplerStates[0] = sampler;
 
         _transform = transform * Projection(_device);
-        _effects.Apply(null, in _transform, sampler, coverage: false);
+        _effects.Apply(null, in _transform, sampler, coverage: false, Point.Zero);
         _sampler = sampler;
         _applied = null;
         _appliedCoverage = false;
+        _appliedSpriteSize = null;
         _appliedSampler = sampler;
 
         _texture = null;
@@ -343,19 +348,22 @@ internal sealed class SpriteBatcher : IDisposable
 
         // The index pattern starts at vertex zero for every quad, and a run starting part-way into
         // the chunk draws from its first vertex as the base. An effect is applied only where the
-        // material or the texture's format changes, and applying one rebinds slot 0, so the run's
-        // texture is bound after. A texture's Tag holds the sampler its own sampling asks for.
+        // material, the texture's format or, for a shader reading it, the texture's size changes.
+        // Applying one rebinds slot 0, so the run's texture is bound after. A texture's Tag holds the
+        // sampler its own sampling asks for.
         for (int i = 0; i < _runCount; i++)
         {
             SpriteRun run = _runs[i];
             int last = i + 1 < _runCount ? _runs[i + 1].First : _count;
 
             bool coverage = run.Texture.Format == SurfaceFormat.Alpha8;
-            if (!ReferenceEquals(run.Material, _applied) || coverage != _appliedCoverage)
+            Point size = new(run.Texture.Width, run.Texture.Height);
+            if (!ReferenceEquals(run.Material, _applied) || coverage != _appliedCoverage || (_appliedSpriteSize is { } applied && applied != size))
             {
-                _effects.Apply(run.Material, in _transform, _sampler, coverage);
+                bool readsSize = _effects.Apply(run.Material, in _transform, _sampler, coverage, size);
                 _applied = run.Material;
                 _appliedCoverage = coverage;
+                _appliedSpriteSize = readsSize ? size : null;
             }
 
             SamplerState sampler = run.Texture.Tag as SamplerState ?? _sampler;

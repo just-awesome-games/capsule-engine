@@ -90,10 +90,19 @@ public sealed class AssetCollection
         }
     }
 
-    // A renderer's material: its shader, and every texture set on it. The scene collects this for each
-    // renderer it holds, so no renderer declares its own.
-    internal void Add(Material material)
+    /// <summary>
+    /// Adds a material's shader and every texture set on it, ignoring any already declared. A renderer's
+    /// material is collected with its entity. This declares one the entity assigns later.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// protected override void CollectAssets(AssetCollection assets) =&gt; assets.Add(_palette);
+    /// </code>
+    /// </example>
+    public void Add(Material material)
     {
+        ArgumentNullException.ThrowIfNull(material);
+
         if (_shaderSet.Add(material.Shader))
         {
             _shaders.Add(material.Shader);

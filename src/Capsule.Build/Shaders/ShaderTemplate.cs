@@ -20,8 +20,26 @@ internal static class ShaderTemplate
     /// </summary>
     internal const string Coverage = "CapsuleCoverage";
 
+    /// <summary>
+    /// The prefix of every name the template and the host introduce. A game parameter or texture
+    /// carrying it could be bound as the engine's, so the build rejects one.
+    /// </summary>
+    internal const string ReservedPrefix = "Capsule";
+
     /// <summary>The one sampler every texture is read through. The host sets its state per slot.</summary>
     internal const string Sampler = "CapsuleSampler";
+
+    /// <summary>
+    /// The sampler <c>TextureSize</c> reads through. The compiler replaces each read through it with
+    /// the texture's size parameter. No read through it reaches the host.
+    /// </summary>
+    internal const string SizeProbe = "CapsuleSizeProbe";
+
+    /// <summary>
+    /// The prefix of a texture's size parameter, completed by its slot, the sprite's being 0. The host
+    /// sets it wherever it binds the texture, and no material sees or sets it.
+    /// </summary>
+    internal const string TextureSize = "CapsuleTextureSize";
 
     /// <summary>The pixel stage's entry point.</summary>
     internal const string EntryPoint = "CapsulePixel";
@@ -43,14 +61,23 @@ internal static class ShaderTemplate
 
     // A single-channel texture samples as (v, v, v, 1). The sprite's texel takes the premultiplied
     // coverage form (v, v, v, v), which draws white at opacity v under the tint. Only alpha differs.
+    // TextureSize reads through the size probe at a fixed point. The compiler swaps that read for the
+    // texture's size parameter. OpenGL 2.1 has no size query, and HLSL cannot name a parameter after
+    // the texture a function was handed.
     private const string Prelude = """
         Texture2D SpriteTexture;
         SamplerState CapsuleSampler;
+        SamplerState CapsuleSizeProbe;
         static float CapsuleSpriteCoverage;
 
         float4 Sample(Texture2D source, float2 uv)
         {
             return source.Sample(CapsuleSampler, uv);
+        }
+
+        float2 TextureSize(Texture2D source)
+        {
+            return source.Sample(CapsuleSizeProbe, float2(0.0, 0.0)).xy;
         }
 
         float4 SampleSprite(float2 uv)
@@ -65,6 +92,7 @@ internal static class ShaderTemplate
             float4 Texel;
             float4 Tint;
             float2 UV;
+            float2 TextureSize;
         };
 
         """;
@@ -84,6 +112,7 @@ internal static class ShaderTemplate
             pixel.Texel = SampleSprite(uv);
             pixel.Tint = tint;
             pixel.UV = uv;
+            pixel.TextureSize = TextureSize(SpriteTexture);
 
             float4 color = Fragment(pixel);
             color.rgb = lerp(color.rgb, flash.rgb * pixel.Texel.a, flash.a);

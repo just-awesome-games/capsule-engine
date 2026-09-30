@@ -131,10 +131,20 @@ A shader is a fragment function authored as `<name>.fx` under `Assets/` in HLSL
 `float4 Fragment(SpritePixel pixel)`, and returns a premultiplied colour. `pixel.Texel` is the
 sprite's premultiplied texel, `pixel.Tint` its premultiplied tint and `pixel.UV` its texture
 coordinate, which on an atlas page is the page's. A parameter is a global `float`, `float2`,
-`float3`, `float4` or `Texture2D`, and reads zero until a material sets it. `Sample(texture, uv)`
+`float3`, `float4` or `Texture2D`, and reads zero until a material sets it. Names starting with
+`Capsule` are the engine's, and a parameter named so fails the build. `Sample(texture, uv)`
 reads a texture parameter with its own sampling or else the frame's, clamped at its edges, and
 `SampleSprite(uv)` reads the sprite's texture at another point. An `r8` texture's value is in `.r`.
 As the sprite's texture it reads `(v, v, v, v)`, so a plain draw is a coverage mask the tint colours.
+`TextureSize(texture)` is a texture parameter's size in texels, and `pixel.TextureSize` is the
+sprite's texture's, which for a packed sprite is its atlas page's. OpenGL 2.1 has no `Load`,
+`GetDimensions`, unsigned integer or `round`, and a shader using one fails the build. One texel is
+read with `Sample` at its centre:
+
+```hlsl
+float4 entry = Sample(Table, (float2(column, row) + 0.5) / TextureSize(Table));
+```
+
 A stone-statue look:
 
 ```hlsl
@@ -156,6 +166,13 @@ A `Material` binds it with its parameter values. `Renderer.Material` draws a ren
 Material stone = new(CapsuleAssets.Shaders.DesaturateShader);
 stone.Set("Amount", 1f);
 sprite.Material = stone;
+```
+
+A renderer's material loads with the scene. An entity that assigns a material once it has started
+declares it from `CollectAssets`, which preloads its shader and every texture set on it:
+
+```csharp
+protected override void CollectAssets(AssetCollection assets) => assets.Add(_palette);
 ```
 
 Draw order never changes for a material. Neighbouring sprites draw in one batch when they share a

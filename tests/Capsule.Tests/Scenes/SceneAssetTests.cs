@@ -117,6 +117,20 @@ public sealed class SceneAssetTests
         Assert.Equal([new TextureHandle("pooled/0", ".png"), new TextureHandle("pooled/1", ".png")], assets.Textures);
     }
 
+    // An entity that assigns a material after collection declares it, and its shader and every texture
+    // set on it load with the scene rather than on the first draw.
+    [Fact]
+    public void AMaterialAnEntityDeclares_PreloadsItsShaderAndTextures()
+    {
+        Scene scene = new();
+        scene.Add(new AssignsMaterialLater());
+
+        AssetCollection preloads = scene.CollectAssetPreloads();
+
+        Assert.Equal([AssignsMaterialLater.Palette.Shader], preloads.Shaders);
+        Assert.Equal([EntityExtra], preloads.Textures);
+    }
+
     [Fact]
     public void APlacementNoEntityClaims_StillFailsAsASpawn()
     {
@@ -164,6 +178,26 @@ public sealed class SceneAssetTests
             {
                 _pool.CollectAssets(assets);
             }
+        }
+    }
+
+    private sealed class AssignsMaterialLater : Entity
+    {
+        internal static readonly Material Palette = Palettes();
+
+        internal AssignsMaterialLater()
+            : base(Vector2.Zero)
+        {
+        }
+
+        // It holds no renderer yet, as a stage that sets a tile map's material once started holds none.
+        protected internal override void CollectAssets(AssetCollection assets) => assets.Add(Palette);
+
+        private static Material Palettes()
+        {
+            Material palette = new(new Shader("effects/palette", new ShaderParameter("Table", ShaderParameterKind.Texture)));
+            palette.Set("Table", EntityExtra);
+            return palette;
         }
     }
 

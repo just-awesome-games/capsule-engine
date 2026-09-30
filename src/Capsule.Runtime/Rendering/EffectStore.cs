@@ -18,6 +18,10 @@ internal sealed class EffectStore : IDisposable
     // The template's coverage switch, which every shader the build composes carries.
     private const string CoverageParameter = "CapsuleCoverage";
 
+    // The template's size parameters, completed by texture slot, the sprite's being 0. A shader carries
+    // one only for a texture whose size it reads.
+    private const string SizeParameter = "CapsuleTextureSize";
+
     private static readonly AssetFiles Files = new("Shader", "shader");
 
     private readonly GraphicsDevice _device;
@@ -54,21 +58,24 @@ internal sealed class EffectStore : IDisposable
     }
 
     // Applies material's shader, or Capsule's own for null, with transform as the geometry's full
-    // transform to clip space. Coverage is whether the sprite texture is single-channel. A material's
-    // texture samples through its own sampling's state, or through sampler when it has none.
-    internal void Apply(Material? material, in Matrix transform, SamplerState sampler, bool coverage)
+    // transform to clip space. Coverage is whether the sprite texture is single-channel, and
+    // spriteSize its size in texels. A material's texture samples through its own sampling's state, or
+    // through sampler when it has none. Returns whether the shader reads the sprite texture's size,
+    // which a run on a texture of another size must then apply again.
+    internal bool Apply(Material? material, in Matrix transform, SamplerState sampler, bool coverage, Point spriteSize)
     {
         if (material is null)
         {
             _sprite.Transform.SetValue(transform);
             _sprite.Coverage.SetValue(coverage ? 1f : 0f);
             _sprite.Pass.Apply();
-            return;
+            return false;
         }
 
         Binding binding = Get(material.Shader);
         binding.Transform.SetValue(transform);
         binding.Coverage.SetValue(coverage ? 1f : 0f);
+        binding.Sizes[0]?.SetValue(spriteSize.ToVector2());
         int slot = 1;
 
         ReadOnlySpan<ShaderParameter> parameters = material.Shader.Parameters;
@@ -95,12 +102,14 @@ internal sealed class EffectStore : IDisposable
                     // and the shader carries no sampler state of its own.
                     Texture2D? bound = material.TryGetTexture(i, out TextureHandle texture) ? WholeTexture!(texture) : null;
                     parameter.SetValue(bound);
+                    binding.Sizes[slot]?.SetValue(bound is null ? Vector2.Zero : new Vector2(bound.Width, bound.Height));
                     _device.SamplerStates[slot++] = bound?.Tag as SamplerState ?? sampler;
                     break;
             }
         }
 
         binding.Pass.Apply();
+        return binding.Sizes[0] is not null;
     }
 
     private Binding Get(Shader shader)
@@ -112,7 +121,7 @@ internal sealed class EffectStore : IDisposable
 
         binding = Load(shader);
         _loaded.Add(shader, binding);
-        Log.Info($"shader '{shader.Name}' loaded on first draw. Hold its material from construction to preload it");
+        Log.Info($"shader '{shader.Name}' loaded on first draw. Hold its material from construction, or add it in CollectAssets, to preload it");
 
         return binding;
     }
@@ -156,12 +165,20 @@ internal sealed class EffectStore : IDisposable
 
             ReadOnlySpan<ShaderParameter> table = shader is null ? default : shader.Parameters;
             Parameters = new EffectParameter[table.Length];
+            int textures = 0;
 
             for (int i = 0; i < table.Length; i++)
             {
                 Parameters[i] = effect.Parameters[table[i].Name]
                     ?? throw new InvalidOperationException(
                         $"Shader '{shader!.Name}' shipped without parameter '{table[i].Name}', which its generated key declares. Rebuild the game so the shipped shader and the code agree.");
+                textures += table[i].Kind == ShaderParameterKind.Texture ? 1 : 0;
+            }
+
+            Sizes = new EffectParameter?[textures + 1];
+            for (int slot = 0; slot < Sizes.Length; slot++)
+            {
+                Sizes[slot] = effect.Parameters[SizeParameter + slot.ToString(System.Globalization.CultureInfo.InvariantCulture)];
             }
         }
 
@@ -174,5 +191,8 @@ internal sealed class EffectStore : IDisposable
         internal EffectParameter Coverage { get; }
 
         internal EffectParameter[] Parameters { get; }
+
+        // By texture slot, null where the shader never reads that texture's size.
+        internal EffectParameter?[] Sizes { get; }
     }
 }
