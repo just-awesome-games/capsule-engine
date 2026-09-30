@@ -226,6 +226,32 @@ public sealed partial class CollisionWorld2D
     private static float DepthPast(in Shape2D shape, Vector2 point, Vector2 normal) =>
         Vector2.Dot(point - shape.Support(-normal), normal) + shape.Radius;
 
+    // The normal a sweep meets an edge along. A box face meeting the end of an edge rests on that
+    // endpoint, and its face's axis is the surface there, not the edge's slope. The narrowphase normal
+    // carries rounding error, so it only chooses between the two exact candidates.
+    private static Vector2 EdgeNormal(in Shape2D moving, Vector2 swept, Vector2 outward)
+    {
+        if (moving.Kind != ShapeKind2D.Box)
+        {
+            return outward;
+        }
+
+        Vector2 axis = MathF.Abs(swept.X) >= MathF.Abs(swept.Y)
+            ? new Vector2(MathF.Sign(swept.X), 0f)
+            : new Vector2(0f, MathF.Sign(swept.Y));
+
+        return Vector2.Dot(swept, axis) > Vector2.Dot(swept, outward) && Vector2.Dot(axis, outward) > 0f
+            ? axis
+            : outward;
+    }
+
+    // Whether a mover starts across an edge rather than on its outward side. Reaching past the edge's
+    // line is not enough. A box beside the top corner of a step reaches past the line of the step's
+    // slope while still standing clear of the slope itself, and that corner must stop it.
+    private static bool StartedPast(in Shape2D moving, Vector2 start, Vector2 end, Vector2 outward) =>
+        DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
+        && Separation(moving, Shape2D.Segment(start, end), out _, out _) <= 0f;
+
     // How far a mover reaches past the far side of a one-way collider along its surface normal. A
     // mover more than a slop past has started inside it or beyond it, and passes through.
     private static float DepthPast(in Shape2D moving, in Shape2D target, Vector2 normal) =>
@@ -930,6 +956,10 @@ public sealed partial class CollisionWorld2D
     {
         ReadOnlySpan<CellEdge2D> edges = grid.EdgesAt(x, y);
         Vector2 corner = grid.CellCorner(x, y);
+
+        // A one-way cell without solid sides is a surface only to a mover wholly above its line. The
+        // ends of its edges stop nothing that arrives from below or beside them.
+        bool topOnly = (state & (CellState2D.OneWay | CellState2D.SolidSides)) == CellState2D.OneWay;
         for (int index = 0; index < edges.Length; index++)
         {
             CellEdge2D edge = edges[index];
@@ -938,16 +968,18 @@ public sealed partial class CollisionWorld2D
 
             // An edge stops only a sweep crossing it inwards that began on its outward side. A sweep
             // running along it never tests it, so a slide carries over the join of two slopes.
+            Vector2 end = corner + edge.End;
             if (Vector2.Dot(translation, outward) >= accumulator.Lean
                 || (dropping && outward.Y < -GridCollider2D.UpFacing)
                 || !grid.EdgeLive(x, y, state, index, edge, filter, admitsEvery)
-                || DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop)
+                || (topOnly
+                    ? DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
+                    : StartedPast(moving, start, end, outward)))
             {
                 continue;
             }
 
             // An axis-aligned edge is a zero-thickness box, which a box mover sweeps in closed form.
-            Vector2 end = corner + edge.End;
             bool swept = start.X == end.X || start.Y == end.Y
                 ? Sweep(moving, translation, new Aabb2D(Vector2.Min(start, end), Vector2.Max(start, end)), out float fraction, out Vector2 normal, out Vector2 point)
                 : Sweep(moving, translation, Shape2D.Segment(start, end), out fraction, out normal, out point);
@@ -957,9 +989,10 @@ public sealed partial class CollisionWorld2D
                 continue;
             }
 
-            // Report the edge's own normal. A rounded shape meeting the end of an edge is nearest its
-            // endpoint, where GJK answers with a diagonal the authored line does not have.
-            RecordCast(ref accumulator, contacts, translation, fraction, target, outward, point, false);
+            // Report the edge's own normal, unless a box face met its end. A rounded shape meeting the
+            // end of an edge is nearest its endpoint, where GJK answers with a diagonal the authored line
+            // does not have.
+            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : EdgeNormal(moving, normal, outward), point, false);
         }
     }
 

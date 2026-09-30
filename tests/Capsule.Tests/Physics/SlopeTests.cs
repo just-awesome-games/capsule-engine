@@ -1,7 +1,9 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Physics;
 
@@ -100,6 +102,48 @@ public sealed class SlopeTests
         Assert.Equal(landed, body.Position);
     }
 
+    // Down a 1:2 slope whose foot meets a 1:4 slope starting 4 units higher. The box's bottom lands on
+    // the step's corner and walks on from there. At no step does it end below the terrain anywhere
+    // under it, which a box sinking into the corner and falling through the ground would. The mirrored
+    // run walks left down the same terrain flipped.
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    public void AGroundedBox_WalkingDownOntoAStepsCorner_StaysOnTopOfIt(float way)
+    {
+        Scene scene = new(SceneFixtures.Content(
+            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, StepGrid(way < 0f))], SceneFixtures.TerrainId + 1),
+            SceneFixtures.Registry()));
+        SceneFixtures.Body body = new(new Vector2(way > 0f ? 8f : 120f, -1f), blocksOn: "solid");
+        body.Collider.Size = new Vector2(16f, 32f);
+        body.Collider.Offset = new Vector2(-8f, -32f);
+        body.Mover.Mode = BodyMode.Grounded;
+        scene.Add(body);
+        CollisionFilter solid = scene.Collision.CreateFilter("solid");
+        float fall = 0f;
+
+        for (int step = 0; step < 60; step++)
+        {
+            fall += 900f / 60f;
+            body.Mover.Move(new Vector2(way * 105f / 60f, fall / 60f));
+            if (body.Mover.IsOnFloor)
+            {
+                fall = 0f;
+            }
+
+            for (float x = MathF.Ceiling(body.Position.X - 8f) + 0.5f; x < body.Position.X + 8f; x++)
+            {
+                Assert.True(scene.Collision.Raycast(new Vector2(x, -64f), Vector2.UnitY, 128f, solid, out RayHit2D ground));
+                Assert.True(
+                    body.Position.Y <= ground.Distance - 64f + CollisionFixtures.Tolerance,
+                    $"step {step} sank to {body.Position}, below the ground at x = {x}");
+            }
+        }
+
+        Assert.True(body.Mover.IsOnFloor);
+        Assert.True(way * (body.Position.X - 64f) > 32f);
+    }
+
     // Lands a grounded 8x8 body from where it starts.
     private static SceneFixtures.Body Grounded(Scene scene, Vector2 position)
     {
@@ -110,5 +154,54 @@ public sealed class SlopeTests
         Assert.True(body.Mover.IsOnFloor);
 
         return body;
+    }
+
+    // Flat ground, a 1:4 descent, a 1:2 descent whose foot is at 16, and a 1:4 descent that starts
+    // again at 12, with ground below all of it. Mirrored, the same terrain descends to the left.
+    private static TileGrid StepGrid(bool mirrored)
+    {
+        TileType Piece(string name, params Vector2[] points)
+        {
+            if (mirrored)
+            {
+                for (int index = 0; index < points.Length; index++)
+                {
+                    points[index].X = SceneFixtures.TileSize - points[index].X;
+                }
+            }
+
+            return new() { Name = name, Cell = 0, Layer = "solid", Shape = Shape2D.Polygon(points) };
+        }
+
+        int[] cells =
+        [
+            1, 1, 2, 3, 4, 5, 0, 0,
+            1, 1, 1, 1, 1, 1, 6, 4,
+            1, 1, 1, 1, 1, 1, 1, 1,
+        ];
+        if (mirrored)
+        {
+            for (int row = 0; row < 3; row++)
+            {
+                Array.Reverse(cells, row * 8, 8);
+            }
+        }
+
+        return new TileGrid(
+            SceneFixtures.TileSize,
+            8,
+            3,
+            [
+                TileGrid.EmptyTile,
+                new TileType { Name = "solid", Cell = 0, Layer = "solid" },
+                Piece("quarter-top", new(0f, 0f), new(16f, 4f), new(16f, 16f), new(0f, 16f)),
+                Piece("quarter-upper", new(0f, 4f), new(16f, 8f), new(16f, 16f), new(0f, 16f)),
+                Piece("half-lower", new(0f, 8f), new(16f, 16f), new(0f, 16f)),
+                Piece("quarter-bottom", new(0f, 12f), new(16f, 16f), new(0f, 16f)),
+                Piece("half-upper", new(0f, 0f), new(16f, 8f), new(16f, 16f), new(0f, 16f)),
+            ],
+            cells,
+            SceneFixtures.Atlas,
+            1);
     }
 }

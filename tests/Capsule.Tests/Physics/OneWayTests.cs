@@ -129,6 +129,29 @@ public sealed class OneWayTests
         Assert.Equal(up, contacts[0].Normal);
     }
 
+    // A one-way slope's edge runs from (16, 32) up to (32, 16). A box beside its low end and reaching
+    // below its line passes the end sideways, as it passes the rest of a one-way surface.
+    [Fact]
+    public void AOneWaySlope_LetsABoxPassItsLowEndSideways()
+    {
+        CollisionWorld2D world = new();
+        world.AddGrid(
+            CollisionFixtures.TileSize,
+            3,
+            3,
+            [0, 0, 0, 0, 1, 0, 0, 0, 0],
+            [new CellProfile2D(null), new CellProfile2D(world.Layer(CollisionFixtures.Ledge), CollisionFixtures.SlopeUp, OneWay: true)]);
+
+        MoveResult2D result = world.MoveBox(
+            CollisionFixtures.Box(8f, 28f, 4f, 12f),
+            new Vector2(12f, 0f),
+            CollisionFilter.Everything,
+            default);
+
+        Assert.False(result.Blocked);
+        Assert.Equal(new Vector2(12f, 0f), result.Translation);
+    }
+
     /// <summary>A one-way box on the layer "solid", 64 wide and 8 tall unless sized.</summary>
     private sealed class Slab : Entity
     {
