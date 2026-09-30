@@ -40,6 +40,14 @@ public sealed partial class CollisionWorld2D
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree2D _tree = new();
 
+    // The slots whose proxy was inserted or reinserted since contacts last settled, each listed once.
+    private readonly List<int> _moved = [];
+
+    // Every layer any contact filter has named, and every layer a collider with a contact filter has
+    // been on. Both only grow, which keeps them supersets for the pair query's mask.
+    private ulong _detected;
+    private ulong _detectors;
+
     private ColliderSlot[] _slots = new ColliderSlot[16];
     private int _slotsUsed;
 
@@ -176,6 +184,7 @@ public sealed partial class CollisionWorld2D
         slot.OneWay = false;
         slot.SolidSides = false;
         slot.ProxyId = _tree.CreateProxy(slot.World.Bounds, index, CollisionFilter.Of(layer).Bits);
+        NoteMoved(index);
 
         return HandleAt(index);
     }
@@ -192,6 +201,7 @@ public sealed partial class CollisionWorld2D
         }
         else
         {
+            SetContactFilter(handle, CollisionFilter.None);
             _tree.DestroyProxy(slot.ProxyId);
         }
 
@@ -238,7 +248,10 @@ public sealed partial class CollisionWorld2D
 
         slot.Position = position;
         slot.World = placed;
-        _tree.MoveProxy(slot.ProxyId, placed.Bounds, displacement);
+        if (_tree.MoveProxy(slot.ProxyId, placed.Bounds, displacement))
+        {
+            NoteMoved(index);
+        }
     }
 
     // Replaces a collider's shape, keeping its position.
@@ -253,7 +266,10 @@ public sealed partial class CollisionWorld2D
         Shape2D placed = shape.Translated(slot.Position);
         slot.Local = shape;
         slot.World = placed;
-        _tree.MoveProxy(slot.ProxyId, placed.Bounds, Vector2.Zero);
+        if (_tree.MoveProxy(slot.ProxyId, placed.Bounds, Vector2.Zero))
+        {
+            NoteMoved(index);
+        }
     }
 
     // Sets whether a collider blocks only a mover landing on it from above.
@@ -285,6 +301,12 @@ public sealed partial class CollisionWorld2D
         int index = RequireShapeSlot(handle);
         _slots[index].Layer = layer;
         _tree.SetProxyMask(_slots[index].ProxyId, CollisionFilter.Of(layer).Bits);
+        if (!_slots[index].ContactFilter.IsEmpty)
+        {
+            _detectors |= CollisionFilter.Of(layer).Bits;
+        }
+
+        NoteMoved(index);
     }
 
     // Where a collider's shape origin sits.
@@ -578,6 +600,25 @@ public sealed partial class CollisionWorld2D
         OverlapAll(Shape2D.Box(box), Vector2.Zero, filter, contacts, ignore);
 
     /// <summary>
+    /// Everything that contains <paramref name="point"/> or has it on an edge. The point form of
+    /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
+    /// </summary>
+    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <exception cref="ArgumentException"><paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
+    public int OverlapPointAll(
+        Vector2 point,
+        CollisionFilter filter,
+        Span<Contact2D> contacts,
+        ColliderHandle ignore = default)
+    {
+        Guard.Finite(point, nameof(point));
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+
+        return FindContacts(Shape2D.OfPoint(point), filter, 0f, ignore, contacts);
+    }
+
+    /// <summary>
     /// Everything a registered collider is touching, meaning anything within
     /// <see cref="CollisionTolerance.ContactSkin"/> of it that matches <paramref name="filter"/>.
     /// </summary>
@@ -623,6 +664,183 @@ public sealed partial class CollisionWorld2D
         contact = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, DepthOf(separation));
 
         return true;
+    }
+
+    // Sets the filter a collider's settled contacts detect, which is empty for one that reports none.
+    // Its candidates are gathered afresh at the next settle.
+    internal void SetContactFilter(ColliderHandle handle, CollisionFilter filter)
+    {
+        int index = RequireShapeSlot(handle);
+        _slots[index].ContactFilter = filter;
+        _slots[index].CandidateCount = 0;
+        if (!filter.IsEmpty)
+        {
+            _detected |= filter.Bits;
+            _detectors |= CollisionFilter.Of(_slots[index].Layer).Bits;
+        }
+
+        NoteMoved(index);
+    }
+
+    // What OverlapColliderAll finds under the collider's contact filter, in the same order. The
+    // narrowphase runs over the grids and the collider's candidates only. A candidate that is stale,
+    // filtered out, or whose fat box has left reach drops out of the list.
+    internal int ContactsOf(ColliderHandle handle, Span<Contact2D> contacts)
+    {
+        if (_moved.Count > 0)
+        {
+            FindNewPairs();
+        }
+
+        int index = RequireShapeSlot(handle);
+        ref ColliderSlot slot = ref _slots[index];
+        CollisionFilter filter = slot.ContactFilter;
+        int written = FindGridContacts(slot.World, filter, CollisionTolerance.ContactSkin, handle, contacts, out int found);
+        Aabb2D reach = _tree.FatBoxOf(slot.ProxyId).Expanded(CollisionTolerance.ContactSkin);
+
+        int kept = 0;
+        for (int candidate = 0; candidate < slot.CandidateCount; candidate++)
+        {
+            ColliderHandle other = slot.Candidates![candidate];
+            if (!TryIndexOf(other, out int otherIndex))
+            {
+                continue;
+            }
+
+            ref ColliderSlot target = ref _slots[otherIndex];
+            if (!filter.Admits(target.Layer) || !reach.Overlaps(_tree.FatBoxOf(target.ProxyId)))
+            {
+                continue;
+            }
+
+            slot.Candidates[kept++] = other;
+            float separation = Separation(slot.World, target.World, out Vector2 normal, out Vector2 point);
+            if (separation > CollisionTolerance.ContactSkin)
+            {
+                continue;
+            }
+
+            found++;
+            if (written < contacts.Length)
+            {
+                contacts[written++] = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, DepthOf(separation));
+            }
+        }
+
+        slot.CandidateCount = kept;
+
+        return found;
+    }
+
+    // Orders two targets the way an overlap query writes them. A cell of a grid that has left the
+    // world sorts ahead of every other target.
+    internal int OverlapOrder(in CollisionTarget left, in CollisionTarget right)
+    {
+        if (left.IsGridCell != right.IsGridCell)
+        {
+            return left.IsGridCell ? -1 : 1;
+        }
+
+        if (!left.IsGridCell)
+        {
+            return left.Collider.Index.CompareTo(right.Collider.Index);
+        }
+
+        if (left.Collider != right.Collider)
+        {
+            return GridRank(left.Collider).CompareTo(GridRank(right.Collider));
+        }
+
+        return left.CellY != right.CellY ? left.CellY.CompareTo(right.CellY) : left.CellX.CompareTo(right.CellX);
+    }
+
+    // A grid's place in the order grids were added, or -1 once it has left the world.
+    private int GridRank(ColliderHandle grid)
+    {
+        for (int rank = 0; rank < _grids.Count; rank++)
+        {
+            if (_grids[rank].Handle == grid)
+            {
+                return rank;
+            }
+        }
+
+        return -1;
+    }
+
+    private void NoteMoved(int index)
+    {
+        ref ColliderSlot slot = ref _slots[index];
+        if (!slot.Moved)
+        {
+            slot.Moved = true;
+            _moved.Add(index);
+        }
+    }
+
+    // Pairs each moved proxy with every collider near it, making each side a candidate of the other
+    // where the other's contact filter admits it. Tight bounds stay inside fat ones, so two shapes
+    // within the skin have fat boxes within the skin too. The query reaches twice that and finds a
+    // pair ContactsOf keeps whichever side moved, rounding included. It visits only the layers the
+    // moved collider detects, and the layers of colliders that may detect it.
+    private void FindNewPairs()
+    {
+        foreach (int index in _moved)
+        {
+            ref ColliderSlot slot = ref _slots[index];
+            slot.Moved = false;
+            if (!slot.InUse || slot.Grid is not null)
+            {
+                continue;
+            }
+
+            ulong mask = slot.ContactFilter.Bits | ((_detected & CollisionFilter.Of(slot.Layer).Bits) != 0 ? _detectors : 0);
+            PairVisitor visitor = new(this, index);
+            _tree.Query(_tree.FatBoxOf(slot.ProxyId).Expanded(2f * CollisionTolerance.ContactSkin), mask, ref visitor);
+        }
+
+        _moved.Clear();
+    }
+
+    private void Pair(int first, int second)
+    {
+        if (_slots[first].ContactFilter.Admits(_slots[second].Layer))
+        {
+            AddCandidate(ref _slots[first], HandleAt(second));
+        }
+
+        if (_slots[second].ContactFilter.Admits(_slots[first].Layer))
+        {
+            AddCandidate(ref _slots[second], HandleAt(first));
+        }
+    }
+
+    // Keeps the list in slot order with one entry per slot. A handle to a reused slot replaces the
+    // stale one.
+    private static void AddCandidate(ref ColliderSlot slot, ColliderHandle handle)
+    {
+        slot.Candidates ??= new ColliderHandle[8];
+        int count = slot.CandidateCount;
+        int position = count;
+        while (position > 0 && slot.Candidates[position - 1].Index > handle.Index)
+        {
+            position--;
+        }
+
+        if (position > 0 && slot.Candidates[position - 1].Index == handle.Index)
+        {
+            slot.Candidates[position - 1] = handle;
+            return;
+        }
+
+        if (count == slot.Candidates.Length)
+        {
+            Array.Resize(ref slot.Candidates, count * 2);
+        }
+
+        Array.Copy(slot.Candidates, position, slot.Candidates, position + 1, count - position);
+        slot.Candidates[position] = handle;
+        slot.CandidateCount = count + 1;
     }
 
     /// <summary>
@@ -831,6 +1049,27 @@ public sealed partial class CollisionWorld2D
         internal bool InUse;
         internal bool OneWay;
         internal bool SolidSides;
+
+        // What this collider's settled contacts detect, and the colliders whose fat boxes are within
+        // the skin of its own, sorted by slot. Moved marks the slot as listed in _moved.
+        internal CollisionFilter ContactFilter;
+        internal ColliderHandle[]? Candidates;
+        internal int CandidateCount;
+        internal bool Moved;
+    }
+
+    private readonly struct PairVisitor(CollisionWorld2D world, int index) : ITreeVisitor2D
+    {
+        public bool Visit(int proxyId)
+        {
+            int other = world._tree.UserDataOf(proxyId);
+            if (other != index)
+            {
+                world.Pair(index, other);
+            }
+
+            return true;
+        }
     }
 
     private struct ResolvedMask

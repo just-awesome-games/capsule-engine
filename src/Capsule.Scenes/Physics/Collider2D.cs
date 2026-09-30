@@ -28,21 +28,6 @@ namespace Capsule.Physics;
 /// </remarks>
 public abstract class Collider2D : Component
 {
-    // The previous step's contacts are matched by a scan up to this many, and through a hash table
-    // above it.
-    private const int LinearMatchLimit = 8;
-
-    // The previous step's contacts are marked in a stack buffer up to this many.
-    private const int StackMatchLimit = 64;
-
-    // Scratch for matching a settle's contacts against the previous step's, shared by every collider
-    // on the thread. A settle is done with it before any handler runs.
-    [ThreadStatic]
-    private static bool[]? KeptScratch;
-
-    [ThreadStatic]
-    private static int[]? MatchSlots;
-
     private readonly List<string> _detects = [];
 
     private Shape2D _shape;
@@ -60,16 +45,15 @@ public abstract class Collider2D : Component
     private Scene? _scene;
     private ColliderHandle _handle;
 
+    // The contact buffers grow together, so swapping _touching and _wasTouching never resizes.
     private Contact2D[] _found = new Contact2D[16];
     private ColliderContact2D[] _touching = new ColliderContact2D[16];
     private ColliderContact2D[] _wasTouching = new ColliderContact2D[16];
     private int _touchingCount;
-    private int _wasTouchingCount;
 
-    // How many entries at the head of _touching have been raised through ContactEntered and are now
-    // owed a ContactExited. Carried-over contacts settle first, so the announced entries stay at the
-    // head while the enter loop walks the new ones.
-    private int _announcedCount;
+    // Whether each entry of _touching has been raised through ContactEntered and is owed a
+    // ContactExited.
+    private bool[] _announced = new bool[16];
 
     // True while this collider's own enter and exit handlers are running.
     private bool _dispatching;
@@ -114,8 +98,8 @@ public abstract class Collider2D : Component
     /// contacts, or was detached from its entity.
     /// </summary>
     /// <remarks>
-    /// Exits come in <see cref="Touching"/> order. Each enter is paired with one exit, provided the
-    /// handlers return normally.
+    /// Exits come in <see cref="Touching"/> order, before the step's enters. Each enter is paired with
+    /// one exit, provided the handlers return normally.
     /// </remarks>
     public event Action<ColliderContact2D>? ContactExited;
 
@@ -213,6 +197,7 @@ public abstract class Collider2D : Component
                 return;
             }
 
+            SyncContactFilter();
             if (value)
             {
                 _scene!.TrackContacts(this);
@@ -332,8 +317,7 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Everything this collider was touching as of the last step while
-    /// <see cref="ReportsContacts"/> is on, and empty otherwise. Carried-over contacts come first,
-    /// then newly entered ones, each group in overlap-query order.
+    /// <see cref="ReportsContacts"/> is on, and empty otherwise, in overlap-query order.
     /// </summary>
     /// <remarks>
     /// During a dispatch the span can already hold contacts whose <see cref="ContactEntered"/> has
@@ -366,6 +350,7 @@ public abstract class Collider2D : Component
         if (_world is not null)
         {
             Filter = filter;
+            SyncContactFilter();
         }
     }
 
@@ -615,6 +600,7 @@ public abstract class Collider2D : Component
 
         if (_reportsContacts)
         {
+            SyncContactFilter();
             scene.TrackContacts(this);
         }
     }
@@ -638,24 +624,26 @@ public abstract class Collider2D : Component
         EndAnnouncedContacts();
     }
 
-    // Raises an exit for each announced contact and leaves the collider holding none. The counts are
-    // cleared before the first handler runs, and a handler that detaches from in here finds nothing
-    // owed and cannot exit the same contact twice.
+    // Raises an exit for each announced contact, in Touching order, and leaves the collider holding
+    // none. The count is cleared before the first handler runs, and a handler that detaches from in
+    // here finds nothing owed and cannot exit the same contact twice.
     private void EndAnnouncedContacts()
     {
-        ColliderContact2D[] announced = _touching;
-        int announcedCount = _announcedCount;
+        ColliderContact2D[] touching = _touching;
+        bool[] announced = _announced;
+        int count = _touchingCount;
 
         _touchingCount = 0;
-        _wasTouchingCount = 0;
-        _announcedCount = 0;
 
         _dispatching = true;
         try
         {
-            for (int index = 0; index < announcedCount; index++)
+            for (int index = 0; index < count; index++)
             {
-                ContactExited?.Invoke(announced[index]);
+                if (announced[index])
+                {
+                    ContactExited?.Invoke(touching[index]);
+                }
             }
         }
         finally
@@ -760,8 +748,8 @@ public abstract class Collider2D : Component
     }
 
     // Shoves each body this collider's move drove into by the travel left after meeting it, in handle
-    // order, and checks each rider a carry could not clear. The move is swept from where the collider was, so a body
-    // thinner than the move is still met.
+    // order. A rider whose carry took the whole motion is passed by, and one a carry could not clear is
+    // checked. The move is swept from where the collider was, so a body thinner than the move is still met.
     private void ShoveBodies(CollisionWorld2D world, Vector2 from, Vector2 motion)
     {
         if ((_scene!.MovedByLayers & (1UL << _layerIndex)) == 0)
@@ -789,6 +777,7 @@ public abstract class Collider2D : Component
                 || world.UserDataOf(near) is not Collider2D { Body: { } body }
                 || !body.IsMovedBy(_layerIndex)
                 || MovesWith(body.Entity)
+                || body.CarriedWholeBy(this)
                 || !world.SweepPair(
                     _handle,
                     from,
@@ -865,13 +854,16 @@ public abstract class Collider2D : Component
             return;
         }
 
-        // Grow the buffer to the reported count and query again, because a truncated gather would
+        // Grow the buffers to the reported count and gather again, because a truncated gather would
         // silently drop a contact's enter and its later exit.
-        int count = world.OverlapColliderAll(_handle, Filter, _found);
+        int count = world.ContactsOf(_handle, _found);
         if (count > _found.Length)
         {
             Grow(ref _found, count);
-            count = world.OverlapColliderAll(_handle, Filter, _found);
+            Grow(ref _touching, count);
+            Grow(ref _wasTouching, count);
+            Grow(ref _announced, count);
+            count = world.ContactsOf(_handle, _found);
         }
 
         // Nothing touched before or now, and nothing is owed or raised.
@@ -881,16 +873,12 @@ public abstract class Collider2D : Component
         }
 
         (_touching, _wasTouching) = (_wasTouching, _touching);
-        _wasTouchingCount = _touchingCount;
+        int leftCount = Diff(world, count, _touchingCount);
+        _touchingCount = count;
 
-        // Carried-over contacts were announced last step and are owed an exit from here on. The
-        // contacts after them owe nothing until the enter loop announces each one.
-        _touchingCount = SettleCarriedFirst(world, count, out int carried, out int leftCount);
-        _announcedCount = carried;
-
-        ColliderContact2D[] entered = _touching;
-        int enteredCount = _touchingCount;
+        ColliderContact2D[] touching = _touching;
         ColliderContact2D[] left = _wasTouching;
+        bool[] announced = _announced;
 
         _dispatching = true;
         try
@@ -903,19 +891,19 @@ public abstract class Collider2D : Component
                 ContactExited?.Invoke(left[index]);
             }
 
-            for (int index = carried; index < enteredCount; index++)
+            // A handler that detaches this collider removes it from the world and raises the exits
+            // it owes. Nothing is left to enter.
+            for (int index = 0; index < count && _world is not null; index++)
             {
-                // A handler detached this collider, which removed it from the world and raised the
-                // exits it owed. Nothing is left to enter.
-                if (_world is null)
+                if (announced[index])
                 {
-                    break;
+                    continue;
                 }
 
-                // Count the contact before the handler runs, and a handler that detaches from inside
-                // it still sees this contact as owed an exit.
-                _announcedCount = index + 1;
-                ContactEntered?.Invoke(entered[index]);
+                // Marked before the handler runs, so a handler that detaches from inside it still
+                // owes this contact an exit.
+                announced[index] = true;
+                ContactEntered?.Invoke(touching[index]);
             }
         }
         finally
@@ -924,137 +912,38 @@ public abstract class Collider2D : Component
         }
     }
 
-    // Writes the gather into _touching, putting contacts carried over from the previous step first and
-    // keeping query order within each group, so the announced contacts stay at the head. The previous
-    // step's contacts that were not found again move to the head of _wasTouching in their old order,
-    // and leftCount says how many there are. _found is scratch and its order is not kept.
-    private int SettleCarriedFirst(CollisionWorld2D world, int count, out int carried, out int leftCount)
+    // Writes the gather into _touching and marks the contacts carried over from the previous step as
+    // announced. Both lists are in overlap-query order, so one merge finds them. The previous
+    // contacts not found again move to the head of _wasTouching in their order, and the return value
+    // says how many there are.
+    private int Diff(CollisionWorld2D world, int count, int wasCount)
     {
-        Grow(ref _touching, count);
-
-        int wasCount = _wasTouchingCount;
-        if (wasCount == 0)
-        {
-            carried = 0;
-            leftCount = 0;
-            for (int index = 0; index < count; index++)
-            {
-                _touching[index] = Describe(world, _found[index]);
-            }
-
-            return count;
-        }
-
-        Span<bool> kept = wasCount <= StackMatchLimit ? stackalloc bool[StackMatchLimit] : MatchScratch(wasCount);
-        kept = kept[..wasCount];
-        kept.Clear();
-        int mask = wasCount > LinearMatchLimit ? FillMatchTable(_wasTouching, wasCount) : 0;
-
-        // One pass takes the carried contacts in query order and moves the new ones to the head of
-        // _found, in query order, for the second pass.
-        int next = 0;
-        int fresh = 0;
+        int was = 0;
+        int leftCount = 0;
         for (int index = 0; index < count; index++)
         {
-            int was = mask != 0
-                ? FindInMatchTable(_wasTouching, mask, _found[index].Target)
-                : IndexOf(_wasTouching, wasCount, _found[index].Target);
-            if (was >= 0)
+            ref readonly Contact2D found = ref _found[index];
+            while (was < wasCount && world.OverlapOrder(_wasTouching[was].Target, found.Target) < 0)
             {
-                kept[was] = true;
-                _touching[next++] = Describe(world, _found[index]);
+                _wasTouching[leftCount++] = _wasTouching[was++];
             }
-            else
+
+            bool carried = was < wasCount && _wasTouching[was].Target == found.Target;
+            if (carried)
             {
-                _found[fresh++] = _found[index];
+                was++;
             }
+
+            _touching[index] = Describe(world, found);
+            _announced[index] = carried;
         }
 
-        carried = next;
-        for (int index = 0; index < fresh; index++)
+        while (was < wasCount)
         {
-            _touching[next++] = Describe(world, _found[index]);
+            _wasTouching[leftCount++] = _wasTouching[was++];
         }
 
-        leftCount = 0;
-        for (int index = 0; index < wasCount; index++)
-        {
-            if (!kept[index])
-            {
-                _wasTouching[leftCount++] = _wasTouching[index];
-            }
-        }
-
-        return next;
-    }
-
-    private static bool[] MatchScratch(int count) =>
-        KeptScratch is { } existing && existing.Length >= count
-            ? existing
-            : KeptScratch = new bool[(int)BitOperations.RoundUpToPowerOf2((uint)count)];
-
-    private static int IndexOf(ColliderContact2D[] contacts, int count, in CollisionTarget target)
-    {
-        for (int index = 0; index < count; index++)
-        {
-            if (contacts[index].Target == target)
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    // Open addressing at no more than half load. A slot holds a contact's index plus one, and zero is
-    // empty. Returns the table's index mask.
-    private static int FillMatchTable(ColliderContact2D[] contacts, int count)
-    {
-        int size = (int)BitOperations.RoundUpToPowerOf2((uint)count * 2);
-        int[] slots = MatchSlots is { } existing && existing.Length >= size
-            ? existing
-            : MatchSlots = new int[Math.Max(64, size)];
-        Array.Clear(slots, 0, size);
-        int mask = size - 1;
-
-        for (int index = 0; index < count; index++)
-        {
-            int slot = MatchHash(contacts[index].Target) & mask;
-            while (slots[slot] != 0)
-            {
-                slot = (slot + 1) & mask;
-            }
-
-            slots[slot] = index + 1;
-        }
-
-        return mask;
-    }
-
-    private static int FindInMatchTable(ColliderContact2D[] contacts, int mask, in CollisionTarget target)
-    {
-        int[] slots = MatchSlots!;
-        int slot = MatchHash(target) & mask;
-        while (slots[slot] is int entry and not 0)
-        {
-            if (contacts[entry - 1].Target == target)
-            {
-                return entry - 1;
-            }
-
-            slot = (slot + 1) & mask;
-        }
-
-        return -1;
-    }
-
-    private static int MatchHash(in CollisionTarget target)
-    {
-        uint hash = (uint)target.Collider.Index * 0x9E3779B1u;
-        hash ^= (uint)target.CellX * 0x85EBCA77u;
-        hash ^= (uint)target.CellY * 0xC2B2AE3Du;
-        hash ^= hash >> 15;
-        return (int)hash;
+        return leftCount;
     }
 
     // Builds the shape the way the world would hold it before anything is committed. An offset that
@@ -1145,6 +1034,10 @@ public abstract class Collider2D : Component
 
         return world?.Intern(names) ?? CollisionFilter.None;
     }
+
+    // The world keeps candidates only for a collider that reports contacts.
+    private void SyncContactFilter() =>
+        _world!.SetContactFilter(_handle, _reportsContacts ? Filter : CollisionFilter.None);
 
     private void Resync()
     {

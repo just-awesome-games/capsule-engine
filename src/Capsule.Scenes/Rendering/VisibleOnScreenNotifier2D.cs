@@ -71,6 +71,8 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// </summary>
     public bool IsOnScreen { get; private set; }
 
+    internal override bool Steps => false;
+
     internal override TransformSupport Supports => TransformSupport.Position;
 
     /// <inheritdoc/>

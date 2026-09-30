@@ -409,14 +409,16 @@ public sealed class FrameView
     /// its own.
     /// </summary>
     /// <remarks>
-    /// Glyphs are added in reading order. Where two overlap, the later one covers the earlier.
+    /// Glyphs are added in reading order. Where two overlap, the later one covers the earlier. A run
+    /// whose measured box is wholly outside the culled region is rejected before layout.
     /// </remarks>
     public void Add(in TextIntent text) => Add(in text, Space);
 
     /// <summary>Lays <paramref name="text"/> out onto <paramref name="space"/>'s list.</summary>
     public void Add(in TextIntent text, RenderSpace space)
     {
-        if (!text.TryPlace(out TextPlacement placed))
+        Layer layer = Of(space);
+        if (!text.TryPlace(out TextPlacement placed) || (layer.Culls && !Reach(text, placed).Intersects(layer.Bounds)))
         {
             return;
         }
@@ -456,6 +458,19 @@ public sealed class FrameView
                     text.Color),
                 space);
         }
+    }
+
+    // Where a run's glyphs can draw across the step: its box grown by the font's overhang, and by one
+    // font pixel that the box width loses to whole pixels. An axis the caller sized can overflow the
+    // box and bounds nothing.
+    private static Rect Reach(in TextIntent text, in TextPlacement placed)
+    {
+        Vector2 pad = new Vector2(placed.Font.Overhang + 1) * text.Scale;
+        pad.X = text.Size.X > 0f ? float.PositiveInfinity : pad.X;
+        pad.Y = text.Size.Y > 0f ? float.PositiveInfinity : pad.Y;
+        Rect box = placed.Box;
+
+        return Rect.Sweep(text.PreviousPosition, text.Position, box.Position - text.Position - pad, new Vector2(box.Right, box.Bottom) - text.Position + pad);
     }
 
     /// <summary>

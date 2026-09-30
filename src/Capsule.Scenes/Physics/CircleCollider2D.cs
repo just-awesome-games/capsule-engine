@@ -29,6 +29,8 @@ public sealed class CircleCollider2D : Collider2D
         }
     }
 
+    internal override bool Steps => false;
+
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()
     {

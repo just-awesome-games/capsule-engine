@@ -288,6 +288,8 @@ public sealed class TileMap : Entity
 
     private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms) : Renderer
     {
+        internal override bool Steps => false;
+
         protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);

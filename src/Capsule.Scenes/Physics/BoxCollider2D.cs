@@ -46,6 +46,8 @@ public sealed class BoxCollider2D : Collider2D
         }
     }
 
+    internal override bool Steps => false;
+
     /// <inheritdoc/>
     protected internal override void OnDebugDraw() =>
         DebugDraw.Rect(DebugDraw.Colliders, Edges(WorldShape.Bounds), DebugColor, Motion);

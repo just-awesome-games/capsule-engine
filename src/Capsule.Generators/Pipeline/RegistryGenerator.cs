@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -42,10 +41,9 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates
             .Where(static candidate => candidate.Scene is not null)
             .Select(static (candidate, _) => candidate.Scene!.Value));
-        IncrementalValueProvider<ImmutableArray<InputDriverModel>> drivers = candidates
+        IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates
             .Where(static candidate => candidate.Driver is not null)
-            .Select(static (candidate, _) => candidate.Driver!.Value)
-            .Collect();
+            .Select(static (candidate, _) => candidate.Driver!.Value));
         IncrementalValueProvider<EquatableArray<CameraModel>> cameras = Collected(candidates
             .Where(static candidate => candidate.Camera is not null)
             .Select(static (candidate, _) => candidate.Camera!.Value));
@@ -69,14 +67,13 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 static (marked, _) => AuthorableCheck.Describe(marked))
             .Where(static fault => fault is not null)
             .Select(static (fault, _) => fault!.Value);
-        IncrementalValueProvider<ImmutableArray<string>> writableAuthorableFields = context.SyntaxProvider
+        IncrementalValueProvider<EquatableArray<string>> writableAuthorableFields = Collected(context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 MetadataNames.AuthorableAttribute,
                 static (node, _) => node is VariableDeclaratorSyntax,
                 static (marked, _) => AuthorableSuppressionRenderer.Describe(marked))
             .Where(static id => id is not null)
-            .Select(static (id, _) => id!)
-            .Collect();
+            .Select(static (id, _) => id!));
 
         // What the shell references. Only the shell walks every referenced assembly's attributes, so the
         // role filter comes before the walk.

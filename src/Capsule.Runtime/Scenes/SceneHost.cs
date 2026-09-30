@@ -241,10 +241,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     // Called after each step, which persists a document written in the step that requests exit, and
     // again at disposal for what a scene's stop wrote on a window closed from outside the run. The
-    // clock is read here, because the store in Core reads none.
+    // clock is read here, because the store in Core reads none, and only when a document will land.
     internal void FlushSaves()
     {
-        if (_saveStorage is { } storage)
+        if (_saveStorage is { } storage && _run.Saves.IsDirty)
         {
             _run.Saves.Flush(storage, DateTimeOffset.Now);
         }

@@ -173,4 +173,28 @@ public sealed class OverlapTests
         Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 10f + outOfCell.Y, 8f, 8f), CollisionFilter.Everything, contacts));
         Assert.Equal(0f, contacts[0].Depth);
     }
+
+    [Fact]
+    public void OverlapPointAll_FindsWhatHoldsThePointOrHasItOnAnEdge_CellsFirst()
+    {
+        CollisionWorld2D world = new();
+        GridCollider2D grid = CollisionFixtures.Paint(world, "#.");
+        CollisionLayer item = world.Layer("item");
+        CollisionLayer other = world.Layer("other");
+        Vector2 point = new(12f, 8f);
+        ColliderHandle around = world.Add(Shape2D.Circle(point, 4f), Vector2.Zero, item);
+        ColliderHandle below = world.Add(Shape2D.Box(new Vector2(4f, 8f), new Vector2(16f, 16f)), Vector2.Zero, item);
+        world.Add(Shape2D.Box(new Vector2(13f, 0f), new Vector2(8f, 16f)), Vector2.Zero, item);
+        world.Add(Shape2D.Box(Vector2.Zero, new Vector2(16f, 16f)), Vector2.Zero, other);
+
+        Span<Contact2D> contacts = stackalloc Contact2D[8];
+        int count = world.OverlapPointAll(point, CollisionFilter.Of(world.Layer(CollisionFixtures.Solid), item), contacts);
+
+        Assert.Equal(3, count);
+        Assert.Equal(grid.Handle, contacts[0].Target.Collider);
+        Assert.True(contacts[0].Target.IsGridCell);
+        Assert.Equal((0, 0), (contacts[0].Target.CellX, contacts[0].Target.CellY));
+        Assert.Equal(around, contacts[1].Target.Collider);
+        Assert.Equal(below, contacts[2].Target.Collider);
+    }
 }

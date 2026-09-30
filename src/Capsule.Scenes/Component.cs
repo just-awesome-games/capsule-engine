@@ -152,15 +152,9 @@ public abstract class Component
     {
     }
 
-    // Runs at the top of every step, while the scene saves its entities' previous positions. A component
-    // with interpolated state of its own saves its previous value here, so the frame after this step
-    // interpolates from the value the step began with.
-    internal virtual void SavePrevious()
-    {
-    }
-
-    // Whether this component overrides SavePrevious. The scene visits only entities holding one.
-    internal virtual bool SavesPrevious => false;
+    // False on an engine component that overrides neither OnStep nor OnLateStep. An entity whose
+    // components all return false skips its component walk. Only a sealed type may return false.
+    internal virtual bool Steps => true;
 
     // Safe to call twice. An entity notifies its components when it joins a scene, and Entity.Add notifies
     // a component attached to an entity already in one. Without the flag, a component attached from inside

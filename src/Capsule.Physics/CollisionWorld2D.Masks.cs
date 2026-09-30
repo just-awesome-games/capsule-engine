@@ -102,6 +102,25 @@ public sealed partial class CollisionWorld2D
         OverlapAll(Shape2D.Box(box), Vector2.Zero, mask, contacts, ignore);
 
     /// <summary>
+    /// Everything that contains <paramref name="point"/> or has it on an edge, matching by
+    /// <paramref name="mask"/>. All other rules of
+    /// <see cref="OverlapPointAll(Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
+    /// </summary>
+    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public int OverlapPointAll(
+        Vector2 point,
+        CollisionMask mask,
+        Span<Contact2D> contacts,
+        ColliderHandle ignore = default)
+    {
+        Guard.Finite(point, nameof(point));
+        RequireIgnorable(ignore);
+
+        return FindContacts(Shape2D.OfPoint(point), Resolve(mask), 0f, ignore, contacts);
+    }
+
+    /// <summary>
     /// Everything a registered collider is touching, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="OverlapColliderAll(ColliderHandle, CollisionFilter, Span{Contact2D})"/> apply.
     /// </summary>

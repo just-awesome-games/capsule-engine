@@ -29,6 +29,8 @@ internal sealed class DebugDrawRenderer : Renderer
     // collider stays on its sprite. One for a settled frame, as a held run always is.
     internal float Alpha { get; set; } = 1f;
 
+    internal override bool Steps => false;
+
     protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);

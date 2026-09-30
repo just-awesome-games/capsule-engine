@@ -169,6 +169,15 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(ShapeKind2D.Segment, ends, 2, 0f, cell);
     }
 
+    // A point query's probe, a circle of no radius. The caller validated the point.
+    internal static Shape2D OfPoint(Vector2 point)
+    {
+        PointBuffer points = default;
+        points[0] = point;
+
+        return new Shape2D(ShapeKind2D.Circle, points, 1, 0f, new Aabb2D(point, point));
+    }
+
     // One edge of a grid cell, from start to end at any angle. The grid validated both points.
     internal static Shape2D Segment(Vector2 start, Vector2 end)
     {

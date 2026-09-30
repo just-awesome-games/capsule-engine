@@ -18,11 +18,11 @@ internal static class AuthorableSuppressionRenderer
             ? field.GetDocumentationCommentId()
             : null;
 
-    internal static void Emit(SourceProductionContext context, ImmutableArray<string> fields)
+    internal static void Emit(SourceProductionContext context, EquatableArray<string> fields)
     {
-        if (fields.Length > 0)
+        if (fields.Items.Length > 0)
         {
-            context.AddSource(FileName, SourceText.From(Render(fields), Encoding.UTF8));
+            context.AddSource(FileName, SourceText.From(Render(fields.Items), Encoding.UTF8));
         }
     }
 

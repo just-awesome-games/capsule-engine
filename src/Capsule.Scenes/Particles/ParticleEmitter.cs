@@ -18,6 +18,10 @@ namespace Capsule.Particles;
 /// intents a windowed run draws, and two runs of one seed are identical. A spawn into a full pool
 /// replaces the live particle nearest the end of its life.
 /// </para>
+/// <para>
+/// Particles draw in spawn order with the newest last. A replacing spawn takes the replaced
+/// particle's place in that order.
+/// </para>
 /// </remarks>
 /// <example>
 /// An effect that outlives what asked for it is its own entity, removed once its last particle dies.
@@ -68,7 +72,7 @@ public sealed class ParticleEmitter : Renderer
     private ReadOnlyMemory<Sprite> _sprites;
     private float _boundsRadius;
 
-    private int _cursor;
+    // Live particles fill the front of the pool in spawn order.
     private int _alive;
     private bool _prewarmed;
     private bool _started;
@@ -257,13 +261,11 @@ public sealed class ParticleEmitter : Renderer
     /// </summary>
     public void Clear()
     {
-        Array.Clear(_particles);
         _alive = 0;
         _pendingCount = 0;
         _rateAccumulator = 0f;
         _distanceAccumulator = 0f;
         _hasBounds = false;
-        _cursor = 0;
     }
 
     /// <inheritdoc/>
@@ -334,25 +336,6 @@ public sealed class ParticleEmitter : Renderer
         Step(dt, previous, current);
     }
 
-    // A held emitter skips its step, so each particle's last motion would otherwise interpolate again
-    // on every frame the hold lasts. The bounds already cover the current positions.
-    internal override bool SavesPrevious => true;
-
-    internal override void SavePrevious()
-    {
-        if (Entity is not { Held: true })
-        {
-            return;
-        }
-
-        for (int index = 0; index < _particles.Length; index++)
-        {
-            ref Particle particle = ref _particles[index];
-            particle.PreviousPosition = particle.Position;
-            particle.PreviousRotation = particle.Rotation;
-        }
-    }
-
     /// <inheritdoc/>
     protected internal override void Draw(FrameView view)
     {
@@ -369,13 +352,16 @@ public sealed class ParticleEmitter : Renderer
 
         int frameCount = FrameCount;
 
-        for (int index = 0; index < _particles.Length; index++)
+        // A held emitter skips its step, so a particle's last motion would otherwise replay on every frame
+        // of the hold. Only a particle spawned before this step began draws still. The bounds already
+        // cover the current positions.
+        bool held = Entity!.Held;
+        int step = Entity.Scene.StepsBegun;
+
+        for (int index = 0; index < _alive; index++)
         {
             ref readonly Particle particle = ref _particles[index];
-            if (particle.Lifetime == 0)
-            {
-                continue;
-            }
+            bool still = held && particle.SpawnStep != step;
 
             float t = (float)particle.Age / particle.Lifetime;
             Sprite frame = FrameAt(SpriteMode == SpriteMode.OverLife ? OverLifeIndex(t, frameCount) : particle.SpriteIndex);
@@ -384,9 +370,9 @@ public sealed class ParticleEmitter : Renderer
 
             SpriteIntent intent = new(
                 frame,
-                particle.PreviousPosition,
+                still ? particle.Position : particle.PreviousPosition,
                 particle.Position,
-                particle.PreviousRotation,
+                still ? particle.Rotation : particle.PreviousRotation,
                 particle.Rotation,
                 size,
                 false,
@@ -423,20 +409,19 @@ public sealed class ParticleEmitter : Renderer
     {
         _hasBounds = false;
 
-        for (int index = 0; index < _particles.Length; index++)
+        // Survivors move down over the dead in order, one run of them at a time. Draw order never
+        // changes between steps.
+        int live = 0;
+        int run = 0;
+        for (int index = 0; index < _alive; index++)
         {
             ref Particle particle = ref _particles[index];
-            if (particle.Lifetime == 0)
-            {
-                continue;
-            }
-
             particle.Age++;
             if (particle.Age >= particle.Lifetime)
             {
-                particle.Lifetime = 0;
-                particle.Age = 0;
-                _alive--;
+                Array.Copy(_particles, run, _particles, live, index - run);
+                live += index - run;
+                run = index + 1;
                 continue;
             }
 
@@ -449,6 +434,9 @@ public sealed class ParticleEmitter : Renderer
 
             ExtendBounds(particle.PreviousPosition, particle.Position);
         }
+
+        Array.Copy(_particles, run, _particles, live, _alive - run);
+        _alive = live + _alive - run;
 
         Vector2 displacement = current.Position - previous.Position;
         Vector2 emitterVelocity = dt > 0f ? displacement / dt : Vector2.Zero;
@@ -515,9 +503,7 @@ public sealed class ParticleEmitter : Renderer
             ? _random.Range(0, frameCount)
             : 0;
 
-        int slot = FindSlot();
-        ref Particle particle = ref _particles[slot];
-        bool wasFree = particle.Lifetime == 0;
+        ref Particle particle = ref _particles[_alive < _particles.Length ? _alive++ : NearestEnd()];
 
         particle.Velocity = velocity;
         particle.Rotation = float.DegreesToRadians(rotationDegrees);
@@ -529,13 +515,9 @@ public sealed class ParticleEmitter : Renderer
         particle.SpriteIndex = spriteIndex;
         particle.Position = origin + (velocity * (1f - f) * dt);
         particle.PreviousPosition = origin - (velocity * f * dt);
+        particle.SpawnStep = Entity!.SceneOrNull?.StepsBegun ?? 0;
 
         ExtendBounds(particle.PreviousPosition, particle.Position);
-
-        if (wasFree)
-        {
-            _alive++;
-        }
     }
 
     private void ExtendBounds(Vector2 previous, Vector2 current)
@@ -548,20 +530,10 @@ public sealed class ParticleEmitter : Renderer
         _hasBounds = true;
     }
 
-    private int FindSlot()
+    // A spawn into a full pool replaces the particle nearest the end of its life, the greatest
+    // Age / Lifetime. It is the least visible loss, and a spawn is never silently swallowed.
+    private int NearestEnd()
     {
-        for (int offset = 0; offset < _particles.Length; offset++)
-        {
-            int index = (_cursor + offset) % _particles.Length;
-            if (_particles[index].Lifetime == 0)
-            {
-                _cursor = (index + 1) % _particles.Length;
-                return index;
-            }
-        }
-
-        // The slot nearest the end of its life, the greatest Age / Lifetime, is the least visible
-        // loss, so a spawn is never silently swallowed.
         int nearestEnd = 0;
         float greatestFraction = -1f;
         for (int index = 0; index < _particles.Length; index++)
@@ -574,7 +546,6 @@ public sealed class ParticleEmitter : Renderer
             }
         }
 
-        _cursor = (nearestEnd + 1) % _particles.Length;
         return nearestEnd;
     }
 
@@ -637,7 +608,6 @@ public sealed class ParticleEmitter : Renderer
         return 0.5f * MathF.Sqrt((region.Width * region.Width) + (region.Height * region.Height));
     }
 
-    // One pooled particle. A slot with Lifetime == 0 is free.
     private struct Particle
     {
         internal Vector2 Position;
@@ -650,5 +620,8 @@ public sealed class ParticleEmitter : Renderer
         internal int Lifetime;
         internal float Scale;
         internal int SpriteIndex;
+
+        // The scene's StepsBegun when this particle spawned.
+        internal int SpawnStep;
     }
 }

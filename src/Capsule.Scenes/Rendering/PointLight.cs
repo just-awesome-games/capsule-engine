@@ -74,6 +74,8 @@ public sealed class PointLight : Renderer
     /// <summary>The point in the entity's own space where the light sits, placed by the entity's world transform. Zero by default.</summary>
     public Vector2 Offset { get; set; }
 
+    internal override bool Steps => false;
+
     /// <summary>
     /// The rect the light covers, under the rules <see cref="Renderer.Bounds"/> states. Reads empty
     /// when the light draws nothing.

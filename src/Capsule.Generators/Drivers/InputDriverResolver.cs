@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
@@ -7,7 +6,7 @@ namespace Capsule.Generators;
 internal static class InputDriverResolver
 {
     // Names are claimed in declaration order, so the registry keeps that order.
-    internal static InputDriverPlan Resolve(ImmutableArray<InputDriverModel> models)
+    internal static InputDriverPlan Resolve(EquatableArray<InputDriverModel> models)
     {
         List<Diagnostic> diagnostics = [];
         List<InputDriverModel> sound = [];
@@ -15,7 +14,7 @@ internal static class InputDriverResolver
 
         RegistryPass.ValidateAndOrder(
             diagnostics,
-            models,
+            models.Items,
             static model => model.QualifiedName,
             static model => model.DisplayName,
             static model => model.At,

@@ -133,6 +133,9 @@ public sealed class SaveStore
         return _documents.TryGetValue(key.Name, out Entry entry) ? entry.Metadata : null;
     }
 
+    // Whether a document was written or deleted since the last flush.
+    internal bool IsDirty => _dirty.Count > 0;
+
     // The host seam. A storage failure to restore propagates, because a run booted over saves it cannot
     // read would otherwise persist fresh documents over the player's.
     internal void Restore(ISaveStorage storage) => storage.Restore(Restore);
@@ -142,11 +145,6 @@ public sealed class SaveStore
     // until it is written again. Nothing is thrown into the step loop.
     internal void Flush(ISaveStorage storage, DateTimeOffset now)
     {
-        if (_dirty.Count == 0)
-        {
-            return;
-        }
-
         foreach (string name in _dirty)
         {
             ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_documents, name);

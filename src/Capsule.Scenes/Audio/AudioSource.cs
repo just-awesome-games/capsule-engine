@@ -240,6 +240,8 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// <summary>Continues this source's held voice. Does nothing when the source owns no voice.</summary>
     public void Resume() => _playing?.Resume(_voice);
 
+    internal override bool Steps => false;
+
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
     {

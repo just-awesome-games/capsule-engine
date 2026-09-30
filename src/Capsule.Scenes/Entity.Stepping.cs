@@ -1,6 +1,7 @@
 namespace Capsule.Scenes;
 
-// Whether the entity steps, resolved down the tree by the scene once a step and again on attach.
+// Whether the entity steps. It resolves on attach, and again at the top of any step that follows a
+// change to the scene's pause or freeze or to any entity's StepMode.
 public partial class Entity
 {
     private StepMode _resolvedStepMode = StepMode.Pausable;
@@ -21,6 +22,7 @@ public partial class Entity
             }
 
             field = value;
+            SceneOrNull?.InvalidateHolds();
         }
     }
 

@@ -105,6 +105,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// <summary>How the frame's colour combines with what is already drawn. Alpha by default.</summary>
     public BlendMode Blend { get; set; }
 
+    internal override bool Steps => false;
+
     /// <summary>
     /// The rect the frame covers: its region at the entity's world scale, placed by the mirrored
     /// pivot and extended to a finite <see cref="Tiling"/>, in the space and under the rules

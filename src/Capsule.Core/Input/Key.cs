@@ -57,7 +57,7 @@ public enum Key
 
     Escape,
 
-    // The main Enter or Return key.
+    // The main Enter or Return key, and the keypad's Enter.
     Enter,
     Space,
     Tab,
@@ -86,5 +86,52 @@ public enum Key
 
     // The grave accent and tilde key left of the 1 key.
     Grave,
+
+    // The punctuation keys, each named for its key and not for the character it types.
+    Minus,
+    Equals,
+    LeftBracket,
+    RightBracket,
+    Backslash,
+    Semicolon,
+    Apostrophe,
+    Comma,
+    Period,
+    Slash,
+
+    Insert,
+    Delete,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+
+    CapsLock,
+    NumLock,
+    ScrollLock,
+    PrintScreen,
+    Pause,
+
+    // The Windows or Command key on each side, and the context menu key.
+    LeftMeta,
+    RightMeta,
+    Menu,
+
+    // The keypad. Its Enter key reads as Enter.
+    Numpad0,
+    Numpad1,
+    Numpad2,
+    Numpad3,
+    Numpad4,
+    Numpad5,
+    Numpad6,
+    Numpad7,
+    Numpad8,
+    Numpad9,
+    NumpadDivide,
+    NumpadMultiply,
+    NumpadSubtract,
+    NumpadAdd,
+    NumpadDecimal,
 }
 #pragma warning restore CS1591

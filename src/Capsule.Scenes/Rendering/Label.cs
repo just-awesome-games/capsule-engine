@@ -134,6 +134,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// <summary>A tint multiplied into every texel. White by default, which draws the font pages unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
+    internal override bool Steps => false;
+
     /// <summary>
     /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that
     /// is positive and the measured run elsewhere, placed by <see cref="Pivot"/> at the entity's

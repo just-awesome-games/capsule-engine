@@ -36,6 +36,8 @@ public sealed class ColorRect(Vector2 size) : Renderer
     /// <summary>How the rectangle's colour combines with what is already drawn. Alpha by default.</summary>
     public BlendMode Blend { get; set; }
 
+    internal override bool Steps => false;
+
     /// <summary>
     /// The rect the rectangle covers, under the rules <see cref="Renderer.Bounds"/> states. With a
     /// non-zero world rotation it reports the box of the rectangle's bounding circle about the

@@ -49,6 +49,8 @@ internal sealed class DynamicTree2D
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
+    internal Aabb2D FatBoxOf(int proxyId) => _nodes[proxyId].Box;
+
     internal int CreateProxy(in Aabb2D tight, int userData, ulong mask)
     {
         int proxyId = AllocateNode();
@@ -67,7 +69,8 @@ internal sealed class DynamicTree2D
         FreeNode(proxyId);
     }
 
-    // Refits the proxy, reinserting it only when its tight bounds escape its fat ones.
+    // Refits the proxy, reinserting it only when its tight bounds escape its fat ones. Returns whether
+    // it reinserted.
     internal bool MoveProxy(int proxyId, in Aabb2D tight, Vector2 displacement)
     {
         if (_nodes[proxyId].Box.Contains(tight))

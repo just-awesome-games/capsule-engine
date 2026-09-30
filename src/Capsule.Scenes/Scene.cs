@@ -73,10 +73,16 @@ public class Scene
     private TextureSampling? _sampling;
 
     // Steps a freeze still holds after the current one. BeginStep settles it with Paused into this
-    // step's state, which every entity resolves against.
+    // step's state, which every entity resolves against. The tree resolves again only when that state
+    // or a StepMode has changed.
     private int _freezeTicks;
     private bool _pausedThisStep;
     private bool _frozenThisStep;
+    private bool _holdsStale;
+
+    // How many steps have begun, wrapping. A held particle emitter compares it for equality to tell its
+    // particles spawned this step from older ones.
+    internal int StepsBegun { get; private set; }
 
     // Every texture and sound the document's placements author, which the preload collects. Null for a scene built in code.
     private readonly AssetCollection? _authoredAssets;
@@ -775,31 +781,36 @@ public class Scene
     internal void BeginStep()
     {
         _stepping = true;
+        StepsBegun++;
 
         // Pause and freeze settle once here, so no step is held for only part of the tree.
-        _pausedThisStep = Paused;
-        _frozenThisStep = _freezeTicks > 0;
-        if (_frozenThisStep)
+        bool paused = Paused;
+        bool frozen = _freezeTicks > 0;
+        if (frozen)
         {
             _freezeTicks--;
         }
+
+        bool resolve = _holdsStale || paused != _pausedThisStep || frozen != _frozenThisStep;
+        _holdsStale = false;
+        _pausedThisStep = paused;
+        _frozenThisStep = frozen;
 
         Camera.SavePrevious();
 
         foreach (Entity entity in Entities)
         {
-            entity.ResolveHold(_pausedThisStep, _frozenThisStep);
-            entity.SavePrevious();
-
-            if (entity.ComponentsSavePrevious)
+            if (resolve)
             {
-                foreach (Component component in entity.Components)
-                {
-                    component.SavePrevious();
-                }
+                entity.ResolveHold(paused, frozen);
             }
+
+            entity.SavePrevious();
         }
     }
+
+    // Makes the next step resolve every entity's hold again.
+    internal void InvalidateHolds() => _holdsStale = true;
 
     internal void RunStep(in StepContext context)
     {

@@ -105,6 +105,10 @@ public sealed partial class BitmapFont
             {
                 _dense[glyph.Codepoint] = i;
             }
+
+            Overhang = Math.Max(Overhang, Math.Max(
+                Math.Max(-glyph.XOffset, glyph.XOffset + glyph.Region.Width - glyph.XAdvance),
+                Math.Max(-glyph.YOffset, glyph.YOffset + glyph.Region.Height - lineHeight)));
         }
     }
 
@@ -113,6 +117,9 @@ public sealed partial class BitmapFont
 
     /// <summary>Font pixels from a line's top edge down to its baseline.</summary>
     public int Baseline { get; }
+
+    // Font pixels any glyph's texels reach past its cell, the advance wide and a line high, on any side.
+    internal int Overhang { get; }
 
     /// <summary>
     /// The texture pages this font's glyphs are cut from, in the order the font declares them.

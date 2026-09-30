@@ -204,11 +204,10 @@ public sealed class ColliderContactEventTests
         Assert.Empty(body.Collider.Touching.ToArray());
     }
 
-    // A step holding both groups is the only place the deviation from the world's order is
-    // observable, so Touching is read there and the set is left from there, which is the order the
-    // exits come in.
+    // New contacts the world reports ahead of a carried one are announced and held in the world's
+    // order, and the exits follow that same order.
     [Fact]
-    public void ContactEvents_PutCarriedContactsAheadOfNewOnesAndHoldTheWorldsOrderWithinEach()
+    public void ContactEvents_HoldTheWorldsOrderAcrossCarriedAndNewContacts()
     {
         Scene scene = SceneFixtures.Terrain("....", "###.");
         Straddler body = new(new Vector2(36f, 8f));
@@ -220,31 +219,24 @@ public sealed class ColliderContactEventTests
         // Clear of the first two cells of the row: only the third is under it.
         Assert.Equal(["+(2,1)"], body.Log);
 
-        // Sliding left picks up two cells the world reports ahead of the carried one, and they are
-        // announced in that order rather than reversed by the partition.
         body.Teleport(new Vector2(0f, 8f));
         run.Step();
 
         Assert.Equal(["+(2,1)", "+(0,1)", "+(1,1)"], body.Log);
-
-        // The world would report these three as (0,1), (1,1), (2,1); the carried one is held ahead
-        // of the two new ones instead, each group in that world order.
         Assert.Equal(
-            ["(2,1)", "(0,1)", "(1,1)"],
+            ["(0,1)", "(1,1)", "(2,1)"],
             body.Collider.Touching.ToArray().Select(contact => $"({contact.Tile!.Value.X},{contact.Tile.Value.Y})"));
 
-        // Leaving from that mixed set rather than from a settled one, so the exits are ordered by a
-        // Touching that still deviates from the world's order.
         body.Teleport(new Vector2(0f, -100f));
         run.Step();
 
         Assert.Equal(
-            ["+(2,1)", "+(0,1)", "+(1,1)", "-(2,1)", "-(0,1)", "-(1,1)"],
+            ["+(2,1)", "+(0,1)", "+(1,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
             body.Log);
     }
 
-    // Past eight contacts a settle matches the carried ones by hashing instead of scanning. The order
-    // contract is the same, and exits still follow a Touching that deviates from the world's order.
+    // A settle that loses contacts at both ends and gains them at one keeps every group in the
+    // world's order.
     [Fact]
     public void ContactEvents_KeepTheSameOrderForAColliderTouchingManyThings()
     {
@@ -264,7 +256,7 @@ public sealed class ColliderContactEventTests
 
         Assert.Equal(["-(14,1)", "-(15,1)", "+(2,1)", "+(3,1)"], body.Log);
         Assert.Equal(
-            [.. Enumerable.Range(4, 10), 2, 3],
+            Enumerable.Range(2, 12),
             body.Collider.Touching.ToArray().Select(static contact => contact.Tile!.Value.X));
 
         // Four cells to the right of the start: cells 6 to 17.
@@ -272,7 +264,28 @@ public sealed class ColliderContactEventTests
         body.Teleport(new Vector2(100f, 8f));
         run.Step();
 
-        Assert.Equal(["-(4,1)", "-(5,1)", "-(2,1)", "-(3,1)", "+(14,1)", "+(15,1)", "+(16,1)", "+(17,1)"], body.Log);
+        Assert.Equal(["-(2,1)", "-(3,1)", "-(4,1)", "-(5,1)", "+(14,1)", "+(15,1)", "+(16,1)", "+(17,1)"], body.Log);
+    }
+
+    // A carried contact sits behind a new one in the world's order. Detaching from the new one's
+    // enter exits both announced contacts in Touching order, and the new one the loop had not reached
+    // goes unannounced.
+    [Fact]
+    public void AContactEnteredHandlerThatDetaches_ExitsTheCarriedContactsBehindIt()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "###.");
+        Straddler body = new(new Vector2(36f, 8f));
+        scene.Add(body);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
+        body.Collider.ContactEntered += _ => body.Remove(body.Collider);
+        body.Teleport(new Vector2(0f, 8f));
+        run.Step();
+
+        Assert.Equal(["+(2,1)", "+(0,1)", "-(0,1)", "-(2,1)"], body.Log);
+        Assert.Null(body.Collider.World);
     }
 
     // The canonical throw during a settle: the failure reaches the caller of the step rather than

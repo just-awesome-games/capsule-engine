@@ -249,6 +249,7 @@ int found = Scene.Collision.OverlapAll(Shape2D.Circle(Vector2.Zero, 24f), Positi
 | `RaycastAll` | The nearest hits, nearest first. The span is both the budget and the destination. |
 | `ShapeCast` | Where a shape swept along a translation first meets something. |
 | `OverlapAll`, `OverlapBoxAll` | Everything a shape or box is inside or touching. |
+| `OverlapPointAll` | Everything that contains a point or has it on an edge. |
 | `OverlapColliderAll`, `Collider2D.OverlapAll` | Everything a registered collider is touching right now. |
 | `Move`, `MoveBox` | The swept move that slides along what stops it, as a floating body moves. |
 

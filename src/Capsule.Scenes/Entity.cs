@@ -45,8 +45,8 @@ public partial class Entity
     // Count of colliders in this subtree, used to avoid redundant writes.
     private int _movementTrackers;
 
-    // Count of attached components that save a previous value of their own at the top of a step.
-    private int _previousSavers;
+    // Count of attached components that step. The step skips the component walk when it is zero.
+    private int _steppers;
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
@@ -316,9 +316,6 @@ public partial class Entity
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
-    // Whether any attached component saves a previous value at the top of a step.
-    internal bool ComponentsSavePrevious => _previousSavers > 0;
-
     // The entity's draw band: ancestry ZIndex summed before children read it.
     internal long DrawBand { get; set; }
 
@@ -367,9 +364,9 @@ public partial class Entity
 
         component.Entity = this;
         _components.Add(component);
-        if (component.SavesPrevious)
+        if (component.Steps)
         {
-            _previousSavers++;
+            _steppers++;
         }
         component.OnAttachedTo(this);
 
@@ -407,9 +404,9 @@ public partial class Entity
         }
 
         _components.RemoveAt(IndexOf(_components, component));
-        if (component.SavesPrevious)
+        if (component.Steps)
         {
-            _previousSavers--;
+            _steppers--;
         }
 
         // Clear the owner before hooks run. Hooks cannot then observe the component still attached.
@@ -632,6 +629,11 @@ public partial class Entity
 
         OnStep(context);
 
+        if (_steppers == 0)
+        {
+            return;
+        }
+
         foreach (Component component in LiveComponents)
         {
             component.RunStep(context);
@@ -647,6 +649,11 @@ public partial class Entity
         }
 
         OnLateStep(context);
+
+        if (_steppers == 0)
+        {
+            return;
+        }
 
         foreach (Component component in LiveComponents)
         {

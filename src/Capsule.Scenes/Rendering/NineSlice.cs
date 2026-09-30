@@ -48,6 +48,8 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     /// <summary>A tint multiplied into every texel of every slice. White by default, which draws the frame unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
+    internal override bool Steps => false;
+
     /// <inheritdoc/>
     public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 

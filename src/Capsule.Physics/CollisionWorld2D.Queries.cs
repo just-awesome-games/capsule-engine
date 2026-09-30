@@ -772,7 +772,24 @@ public sealed partial class CollisionWorld2D
         ColliderHandle ignore,
         Span<Contact2D> contacts)
     {
-        int found = 0;
+        int written = FindGridContacts(world, filter, tolerance, ignore, contacts, out int found);
+        TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, written, found);
+        _tree.Query(world.Bounds.Expanded(tolerance), filter.Bits, ref visitor);
+
+        return visitor.Found;
+    }
+
+    // Writes the grid cells within tolerance of a shape, and returns how many were written. found is
+    // how many there were.
+    private int FindGridContacts(
+        in Shape2D world,
+        CollisionFilter filter,
+        float tolerance,
+        ColliderHandle ignore,
+        Span<Contact2D> contacts,
+        out int found)
+    {
+        found = 0;
         int written = 0;
         Aabb2D probe = world.Bounds.Expanded(tolerance);
 
@@ -813,10 +830,7 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, written, found);
-        _tree.Query(probe, filter.Bits, ref visitor);
-
-        return visitor.Found;
+        return written;
     }
 
     // Whether a shape is within tolerance of a cell, and where. A cell reports one contact, the nearest,

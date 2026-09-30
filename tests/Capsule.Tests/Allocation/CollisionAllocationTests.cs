@@ -265,7 +265,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Ramp(simulation, terrain, input, cells);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        long bound = 2 * 2 * cells * (Unsafe.SizeOf<Contact2D>() + (2 * Unsafe.SizeOf<ColliderContact2D>()));
+        long bound = 2 * 2 * cells * (Unsafe.SizeOf<Contact2D>() + (2 * Unsafe.SizeOf<ColliderContact2D>()) + sizeof(bool));
         output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"contacts rising to {cells}: {bytes} bytes, bound {bound}"));
         Assert.Equal(cells, sensor.Box.Touching.Length);
         Assert.True(bytes <= bound, $"a sensor whose contacts rose to {cells} one a step allocated {bytes} bytes, over the {bound} that doubling its buffers costs.");

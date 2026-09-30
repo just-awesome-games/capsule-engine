@@ -23,6 +23,8 @@ public sealed class PolygonCollider2D : Collider2D
     /// <summary>How far the collider extends beyond its hull, in world units. Zero for a plain polygon.</summary>
     public float Radius => Shape.Radius;
 
+    internal override bool Steps => false;
+
     // Draws the hull only. A rounded polygon's radius is not drawn.
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()

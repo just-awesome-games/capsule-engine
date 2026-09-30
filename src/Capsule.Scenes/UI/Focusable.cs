@@ -73,6 +73,8 @@ public sealed class Focusable(Vector2 size) : Component
     /// </summary>
     public bool IsFocused { get; private set; }
 
+    internal override bool Steps => false;
+
     internal override TransformSupport Supports => TransformSupport.Scale;
 
     /// <summary>

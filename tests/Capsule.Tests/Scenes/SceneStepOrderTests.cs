@@ -1,5 +1,8 @@
 using System.Numerics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Capsule.Rendering;
+using Capsule.Runtime;
 using Capsule.Scenes;
 using Capsule.Tests.Allocation;
 using static Capsule.Tests.Scenes.SceneFixtures;
@@ -56,6 +59,45 @@ public sealed class SceneStepOrderTests
             "scene.late",
         ];
         Assert.Equal(expected, log);
+    }
+
+    // An entity skips its component walk only while none of its components steps.
+    [Fact]
+    public void AGameComponent_AddedBesideASteplessRenderer_StepsFromTheNextStep()
+    {
+        List<string> log = [];
+        SceneFixtures.Recorder holder = new("holder", log);
+        holder.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
+        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), holder);
+        simulation.Step(SceneFixtures.Step(0));
+
+        holder.Add(new SceneFixtures.RecordingComponent("game", log));
+        log.Clear();
+        simulation.Step(SceneFixtures.Step(1));
+
+        Assert.Equal(["holder", "game", "holder.late", "game.late"], log);
+    }
+
+    // A stepless type that a game could subclass, or that steps, would have its hooks skipped.
+    [Fact]
+    public void EverySteplessEngineComponent_IsSealed_AndOverridesNeitherStepHook()
+    {
+        const BindingFlags Hook = BindingFlags.Instance | BindingFlags.NonPublic;
+        Type[] stepless =
+        [
+            .. new[] { typeof(Component).Assembly, typeof(CapsuleGame).Assembly }
+                .SelectMany(assembly => assembly.GetTypes())
+                .Where(type => type.IsSubclassOf(typeof(Component)) && !type.IsAbstract && !type.ContainsGenericParameters)
+                .Where(type => !((Component)RuntimeHelpers.GetUninitializedObject(type)).Steps),
+        ];
+
+        Assert.Contains(typeof(SpriteRenderer), stepless);
+        Assert.All(stepless, type =>
+        {
+            Assert.True(type.IsSealed, type.Name);
+            Assert.Equal(typeof(Component), type.GetMethod("OnStep", Hook)!.DeclaringType);
+            Assert.Equal(typeof(Component), type.GetMethod("OnLateStep", Hook)!.DeclaringType);
+        });
     }
 
     [Fact]

@@ -56,6 +56,88 @@ public sealed class ColliderContactReportTests
         Assert.Equal("enemy", contact.LayerName);
     }
 
+    // Touching is exactly what the full overlap query finds, on every step and whatever the
+    // broadphase did in between. One collider teleports in and out, escaping its fat bounds. One
+    // drifts through at a crawl inside them. The reporter itself steps onto a still one.
+    [Fact]
+    public void Touching_MatchesTheOverlapQueryOnEveryStep()
+    {
+        Scene scene = new();
+        Body sensor = new(Vector2.Zero);
+        sensor.Collider.Size = new Vector2(32f, 32f);
+        sensor.Collider.SetFilter(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.ReportsContacts = true;
+        Body jumper = new(new Vector2(500f, 0f));
+        Body drifter = new(new Vector2(-40f, 12f));
+        Body post = new(new Vector2(80f, 0f));
+        scene.Add(sensor);
+        scene.Add(jumper);
+        scene.Add(drifter);
+        scene.Add(post);
+
+        using SimulationHost run = new(scene);
+        Span<Contact2D> expected = stackalloc Contact2D[8];
+        int touchingSteps = 0;
+        for (int step = 0; step < 240; step++)
+        {
+            jumper.Teleport(step % 40 < 20 ? new Vector2(500f, 0f) : new Vector2(30f, 30f));
+            drifter.Position += new Vector2(0.37f, 0f);
+            sensor.Position = step < 200 ? Vector2.Zero : new Vector2(52f, 0f);
+            run.Step();
+
+            int count = sensor.Collider.OverlapAll(expected);
+            ReadOnlySpan<ColliderContact2D> touching = sensor.Collider.Touching;
+            Assert.Equal(count, touching.Length);
+            for (int index = 0; index < count; index++)
+            {
+                Assert.Equal(expected[index].Target, touching[index].Target);
+                Assert.Equal(expected[index].Point, touching[index].Point);
+                Assert.Equal(expected[index].Normal, touching[index].Normal);
+                Assert.Equal(expected[index].Depth, touching[index].Depth);
+            }
+
+            touchingSteps += count > 0 ? 1 : 0;
+        }
+
+        // Each of the three ways in was taken: the jumper's arrivals, the drifter's crossing and the
+        // reporter's own step onto the post.
+        Assert.True(touchingSteps > 120, $"only {touchingSteps} steps held a contact.");
+        Assert.Contains(sensor.Collider.Touching.ToArray(), contact => contact.OtherCollider == post.Collider);
+    }
+
+    // A collider removed and replaced in its own slot, at the same place, within one step. The
+    // reporter exits the removed one and enters its replacement, whose handle differs only by
+    // generation.
+    [Fact]
+    public void AColliderReplacedInItsOwnSlot_ExitsTheOldAndEntersTheNew()
+    {
+        Scene scene = new();
+        Body sensor = new(Vector2.Zero);
+        sensor.Collider.SetFilter(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.ReportsContacts = true;
+        Body old = new(new Vector2(4f, 0f));
+        scene.Add(sensor);
+        scene.Add(old);
+
+        List<string> log = [];
+        sensor.Collider.ContactEntered += contact => log.Add(contact.OtherCollider == old.Collider ? "+old" : "+new");
+        sensor.Collider.ContactExited += contact => log.Add(contact.OtherCollider == old.Collider ? "-old" : "-new");
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
+        ColliderHandle held = old.Collider.Handle;
+        scene.Remove(old);
+        Body replacement = new(new Vector2(4f, 0f));
+        scene.Add(replacement);
+        Assert.Equal(held.Index, replacement.Collider.Handle.Index);
+
+        run.Step();
+
+        Assert.Equal(["+old", "-old", "+new"], log);
+        Assert.Same(replacement.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
+    }
+
     // A face is a surface only from the side it faces, and this is where a game reads that: a body
     // rising through a ledge is not standing on it on the way up, and is the moment it settles on
     // top. An enter while passing would fire a landing in mid-air.

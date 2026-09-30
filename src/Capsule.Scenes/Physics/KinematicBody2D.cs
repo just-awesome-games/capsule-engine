@@ -133,6 +133,10 @@ public sealed class KinematicBody2D : Component
     // as one on a child entity, cannot carry or shove the body again.
     private bool _moving;
 
+    // Whether the last carry took the floor's whole motion. The floor's shove then passes the body by.
+    // The body's own move clears it, and only that move finds a new floor.
+    private bool _carriedWhole;
+
     private Contact2D[] _found = new Contact2D[16];
 
     // Whether the contact at the same index of _found belongs to a pass that stopped the move.
@@ -420,6 +424,7 @@ public sealed class KinematicBody2D : Component
 
         bool through = _dropThrough;
         _dropThrough = false;
+        _carriedWhole = false;
 
         float sunk = _sink;
         bool rests = RestsOnCenter && _mode == BodyMode.Grounded;
@@ -986,6 +991,7 @@ public sealed class KinematicBody2D : Component
     // own position is never moved again.
     internal void Carry(Vector2 motion)
     {
+        _carriedWhole = false;
         if (_moving
             || _collider.World is not { } world
             || Entity is not { } entity
@@ -1003,7 +1009,12 @@ public sealed class KinematicBody2D : Component
             _collider.Handle);
 
         Displace(entity, result.Translation);
+        _carriedWhole = result.Translation == motion;
     }
+
+    // Whether this body rides `floor` and its carry took the floor's whole motion. The floor's path then
+    // cannot reach the body.
+    internal bool CarriedWholeBy(Collider2D floor) => _carriedWhole && ReferenceEquals(_floor, floor);
 
     // Shoves the body by what is left of the pusher's move after meeting it, or leaves a rider where
     // its carry put it. A shove that falls short by more than the mover's slop raises Crushed with the
@@ -1132,6 +1143,8 @@ public sealed class KinematicBody2D : Component
             ?? throw new InvalidOperationException(
                 "A KinematicBody2D needs its collider enabled and registered in a scene before it can sweep.");
     }
+
+    internal override bool Steps => false;
 
     // The sweep moves the entity along the world axes, so it supports position only.
     internal override TransformSupport Supports => TransformSupport.Position;

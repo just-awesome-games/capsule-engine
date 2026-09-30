@@ -37,18 +37,41 @@ public sealed class TextRenderingTests
         Assert.All(view.Sprites.ToArray(), sprite => Assert.Equal(ColorRgba.Black, sprite.Color));
     }
 
+    // A run off the layer is rejected whole, and one crossing its edge still culls glyph by glyph.
     [Fact]
-    public void EveryGlyph_IsCulledAndCountedOnItsOwn()
+    public void EveryGlyph_IsCulledAndCountedOnItsOwn_AndARunOffTheLayerAddsNothing()
     {
         FrameView view = new()
         {
             Camera = new CameraView(new Vector2(0.5f, 5f), new Vector2(3f, 6f)),
         };
 
+        view.Add(new TextIntent(FontFixtures.Font(), "AB", new Vector2(40f, 0f), new Vector2(40f, 0f), Vector2.One, ColorRgba.White));
+        Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
+
         view.Add(new TextIntent(FontFixtures.Font(), "AB", Vector2.Zero, Vector2.Zero, Vector2.One, ColorRgba.White));
 
         Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 1), view.Metrics);
         Assert.Equal(FontFixtures.A.Region, Assert.Single(view.Sprites.ToArray()).Sprite.Region);
+    }
+
+    // Text overflows a sized box, so a sized axis never rejects the run. Each row's box sits wholly off
+    // the layer on its sized axis while the run's last glyph overflows onto it.
+    [Theory]
+    [InlineData("AB", -7f, 0f, 1f, 0f)]
+    [InlineData("A\nA", 0f, -10f, 0f, 1f)]
+    public void ASizedRunOverflowingOntoTheLayer_StillDrawsItsVisibleGlyphs(string text, float x, float y, float width, float height)
+    {
+        FrameView view = new()
+        {
+            Camera = new CameraView(new Vector2(0.5f, 5f), new Vector2(3f, 6f)),
+        };
+
+        Vector2 at = new(x, y);
+        view.Add(new TextIntent(FontFixtures.Font(), text, at, at, Vector2.One, ColorRgba.White) { Size = new Vector2(width, height) });
+
+        Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 1), view.Metrics);
+        Assert.Single(view.Sprites.ToArray());
     }
 
     [Theory]
