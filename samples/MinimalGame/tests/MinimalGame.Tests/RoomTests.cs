@@ -1,8 +1,12 @@
 using System.Numerics;
+using System.Text.Json;
+using Capsule;
 using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Documents;
 using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
@@ -143,6 +147,32 @@ public sealed class RoomTests
         room.Dispose();
     }
 
+    // Leaving one camera zone for an overlapping one hands the bounds to the zone still held. Leaving
+    // that one too brings back the bounds held before the first.
+    [Fact]
+    public void LeavingACameraZoneIntoAnOverlappingOne_HandsTheBoundsOverAndLeavingBothRestoresTheRoom()
+    {
+        Rect zoneA = new(160f, 0f, 400f, 192f);
+        Rect zoneB = new(320f, 0f, 560f, 192f);
+        using SimulationHost room = ZonedRoom(zoneA, zoneB);
+        Player player = RoomFixture.PlayerOf(room);
+        Rect? roomBounds = room.Scene.Camera.Bounds;
+        Assert.NotNull(roomBounds);
+
+        Rect? BoundsWithPlayerAt(float x)
+        {
+            player.Position = new Vector2(x, RoomFixture.FloorTop - 8f);
+            room.Step(DeviceSnapshot.Empty);
+
+            return room.Scene.Camera.Bounds;
+        }
+
+        Assert.Equal(zoneA, BoundsWithPlayerAt(200f));
+        Assert.Equal(zoneB, BoundsWithPlayerAt(360f));
+        Assert.Equal(zoneB, BoundsWithPlayerAt(480f));
+        Assert.Equal(roomBounds, BoundsWithPlayerAt(600f));
+    }
+
     // The lamps draw the bolt's glow too. Without them the glow reaches the room's preload only
     // through the player's forwarded bolt pool.
     [Fact]
@@ -161,6 +191,33 @@ public sealed class RoomTests
         }
 
         Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
+    }
+
+    // A room of bare floor with the player standing west of two camera zones.
+    private static SimulationHost ZonedRoom(Rect zoneA, Rect zoneB)
+    {
+        const int Wide = 40;
+        const int High = 12;
+        int[] tiles = new int[Wide * High];
+        Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
+        TileGrid floor = new(16, Wide, High, [TileGrid.EmptyTile, new TileType { Name = "ground", Layer = CollisionLayers.Solid }], tiles);
+
+        EntityPlacement Zone(int id, Rect area) => new(
+            id,
+            "camera-zone",
+            area.Left,
+            area.Top,
+            Properties: JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
+
+        SceneDocument document = new(
+            [new TileMapPlacement(1, floor), new EntityPlacement(2, "player", 32f, RoomFixture.FloorTop - 8f), Zone(3, zoneA), Zone(4, zoneB)],
+            nextEntityId: 5,
+            settings: new SceneSettings { Properties = JsonSerializer.SerializeToElement(new { music = "audio/music/room.ogg" }) });
+
+        Run run = new();
+        GameBoot.Start(run);
+
+        return new SimulationHost(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document), run: run);
     }
 
     // Position is the body's top-left corner; the feet are its bottom edge.

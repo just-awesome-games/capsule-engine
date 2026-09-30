@@ -91,7 +91,7 @@ public sealed class CameraBoundsTests
     [Fact]
     public void ChangedBounds_EaseTheViewInFromWhereItStands()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0.25f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Smooth(0.25f));
         simulation.Step(SceneFixtures.Step(0));
 
         camera.Bounds = NextScreen;
@@ -108,18 +108,19 @@ public sealed class CameraBoundsTests
     }
 
     // At 120 units a second and 60 steps a second the closing left edge pushes the view 2 units a step
-    // from its own edge. It lands on the 160th step.
+    // from its own edge. It lands on the 160th step. The change keeps its speed after the standing
+    // transition turns to a snap.
     [Fact]
-    public void AMaxSpeedWithNoSmoothTime_PushesTheViewAtConstantSpeed_AndLandsOnTheRect()
+    public void AtSpeed_PushesTheViewAtConstantSpeed_AndLandsOnTheRect()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
-        camera.BoundsMaxSpeed = 120f;
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.AtSpeed(120f));
         simulation.Step(SceneFixtures.Step(0));
 
         camera.Bounds = NextScreen;
         for (int step = 1; step < 160; step++)
         {
             simulation.Step(SceneFixtures.Step(step));
+            camera.BoundsTransition = BoundsTransition.Snap;
             Assert.Equal(2f * step, camera.VisibleRegion.Left, 1e-3f);
         }
 
@@ -134,8 +135,7 @@ public sealed class CameraBoundsTests
     [InlineData(0.25f)]
     public void ACappedChase_NeverMovesTheViewFasterThanItsMaxSpeed_AcrossARecrossing(float smoothTime)
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(smoothTime);
-        camera.BoundsMaxSpeed = 120f;
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Smooth(smoothTime, 120f));
         simulation.Step(SceneFixtures.Step(0));
 
         int tick = 1;
@@ -164,7 +164,7 @@ public sealed class CameraBoundsTests
         {
             c.Deadzone = new Vector2(0f, 32f);
             c.Bounds = OneScreen;
-            c.BoundsMaxSpeed = 120f;
+            c.BoundsTransition = BoundsTransition.AtSpeed(120f);
         });
 
         for (int step = 0; step < 10; step++)
@@ -191,7 +191,7 @@ public sealed class CameraBoundsTests
     [InlineData(200f)]
     public void AFrameBetweenTwoStepsOfAnEase_InterpolatesTheirViews(float width)
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0.25f, new Rect(0f, 0f, width, 180f));
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Smooth(0.25f), new Rect(0f, 0f, width, 180f));
         simulation.Step(SceneFixtures.Step(0));
         float before = camera.VisibleRegion.Left;
 
@@ -226,9 +226,9 @@ public sealed class CameraBoundsTests
     }
 
     [Fact]
-    public void ChangedBounds_WithNoSmoothTime_SnapTheDrawnFrame()
+    public void ChangedBounds_UnderSnap_SnapTheDrawnFrame()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Snap);
         simulation.Step(SceneFixtures.Step(0));
 
         camera.Bounds = NextScreen;
@@ -241,12 +241,12 @@ public sealed class CameraBoundsTests
     // Half a second is thirty steps. Halfway along InQuad the view has come a quarter of the way, and the
     // thirtieth step lands on the rect.
     [Fact]
-    public void EaseBounds_MovesTheViewAlongItsCurve_AndLandsOnItsLastStep()
+    public void Eased_MovesTheViewAlongItsCurve_AndLandsOnItsLastStep()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Snap);
         simulation.Step(SceneFixtures.Step(0));
 
-        camera.EaseBounds(NextScreen, 0.5f, Ease.InQuad);
+        camera.SetBounds(NextScreen, BoundsTransition.Eased(0.5f, Ease.InQuad));
         for (int step = 1; step <= 15; step++)
         {
             simulation.Step(SceneFixtures.Step(step));
@@ -264,16 +264,21 @@ public sealed class CameraBoundsTests
         Assert.Equal(NextScreen, camera.VisibleRegion);
     }
 
+    // A trigger re-writing the rect the bounds already hold leaves the linear move a third of the way at
+    // its tenth step. A new rect takes over under the standing snap.
     [Fact]
-    public void SettingBounds_TakesOverAnEaseBounds()
+    public void SettingBounds_TakesOverAnEasedChange_UnlessItHoldsTheSameRect()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Snap);
         simulation.Step(SceneFixtures.Step(0));
-        camera.EaseBounds(NextScreen, 0.5f, Ease.Linear);
+        camera.SetBounds(NextScreen, BoundsTransition.Eased(0.5f, Ease.Linear));
         for (int step = 1; step <= 10; step++)
         {
+            camera.Bounds = NextScreen;
             simulation.Step(SceneFixtures.Step(step));
         }
+
+        Assert.Equal(320f / 3f, camera.VisibleRegion.Left, 1e-2f);
 
         Rect third = new(640f, 0f, 960f, 180f);
         camera.Bounds = third;
@@ -282,19 +287,19 @@ public sealed class CameraBoundsTests
         Assert.Equal(third, camera.VisibleRegion);
     }
 
-    // Zero seconds lands on the first step even with the chase on, as does a call before the first step.
+    // Zero seconds lands on the first step under a standing chase, as does a change before the first step.
     [Theory]
     [InlineData(false, 0f)]
     [InlineData(true, 0.5f)]
-    public void EaseBounds_LandsOnTheFirstStep_WhenItHasNoLengthOrTheCameraHasNotSettled(bool beforeFirstStep, float seconds)
+    public void Eased_LandsOnTheFirstStep_WhenItHasNoLengthOrTheCameraHasNotSettled(bool beforeFirstStep, float seconds)
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0.25f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Smooth(0.25f));
         if (!beforeFirstStep)
         {
             simulation.Step(SceneFixtures.Step(0));
         }
 
-        camera.EaseBounds(NextScreen, seconds, Ease.Linear);
+        camera.SetBounds(NextScreen, BoundsTransition.Eased(seconds, Ease.Linear));
         simulation.Step(SceneFixtures.Step(1));
 
         Assert.Equal(NextScreen, camera.VisibleRegion);
@@ -304,21 +309,39 @@ public sealed class CameraBoundsTests
     // InBack starts by swinging back. An edge opening to infinity must land rather than swing to the
     // opposite infinity.
     [Fact]
-    public void EaseBounds_OpensAnEdgeToInfinityAtOnce_OnACurveThatSwingsBack()
+    public void Eased_OpensAnEdgeToInfinityAtOnce_OnACurveThatSwingsBack()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Snap);
         simulation.Step(SceneFixtures.Step(0));
 
-        camera.EaseBounds(OneScreen with { Top = float.NegativeInfinity }, 0.5f, Ease.InBack);
+        camera.SetBounds(OneScreen with { Top = float.NegativeInfinity }, BoundsTransition.Eased(0.5f, Ease.InBack));
         simulation.Step(SceneFixtures.Step(1));
 
         Assert.Equal(OneScreen, camera.VisibleRegion);
     }
 
+    // A one-off snap under a standing chase lands at once, and the next change chases again. The right
+    // edge closes from the view's own edge at 640.
+    [Fact]
+    public void SetBounds_CarriesOneChange_AndLeavesTheStandingTransition()
+    {
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Smooth(0.25f));
+        simulation.Step(SceneFixtures.Step(0));
+
+        camera.SetBounds(NextScreen, BoundsTransition.Snap);
+        simulation.Step(SceneFixtures.Step(1));
+        Assert.Equal(NextScreen, camera.VisibleRegion);
+        Assert.Equal(NextScreen, simulation.View.Camera.Resolve(0f, Vector2.Zero));
+
+        camera.Bounds = OneScreen;
+        simulation.Step(SceneFixtures.Step(2));
+        Assert.Equal(320f - (320f * Blend), camera.VisibleRegion.Left, 1e-3f);
+    }
+
     [Fact]
     public void AnInfiniteEdge_LeavesThatSideOpen()
     {
-        (SceneSimulation simulation, Camera camera) = Pinned(0f);
+        (SceneSimulation simulation, Camera camera) = Pinned(BoundsTransition.Snap);
         camera.Bounds = new Rect(0f, float.NegativeInfinity, 320f, 180f);
 
         camera.Teleport(new Vector2(1000f, -5000f));
@@ -336,13 +359,13 @@ public sealed class CameraBoundsTests
     }
 
     // A 320x180 camera confined to OneScreen unless given another rect.
-    private static (SceneSimulation Simulation, Camera Camera) Pinned(float boundsSmoothTime, Rect? bounds = null)
+    private static (SceneSimulation Simulation, Camera Camera) Pinned(BoundsTransition transition, Rect? bounds = null)
     {
         SceneFixtures.HookScene scene = new(start: s =>
         {
             SceneFixtures.Open(s, new Vector2(160f, 90f), new Vector2(320f, 180f));
             s.Camera.Bounds = bounds ?? OneScreen;
-            s.Camera.BoundsSmoothTime = boundsSmoothTime;
+            s.Camera.BoundsTransition = transition;
         });
 
         return (new SceneSimulation(scene), scene.Camera);

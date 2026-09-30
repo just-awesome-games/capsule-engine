@@ -12,13 +12,13 @@
        the ones this tree just packed into artifacts/packages, at the engine's VersionPrefix, and the
        release lane passes its own CapsuleVersion. The sample builds from this engine source unless
        -p:CapsuleSourcePath= empties the path. Source mode restores without the local feed, which
-       exists only after a pack and which NuGet rejects when missing (NU1301). Under the engine's
-       solution the sample takes the engine's configuration, and the engine's pack walks it. -->
+       exists only after a pack and which NuGet rejects when missing (NU1301). Under a solution at the
+       engine's root the sample takes the engine's configuration, and the engine's pack walks it. -->
   <PropertyGroup>
     <CapsuleVersion Condition="'$(CapsuleVersion)' == ''">0.0.0</CapsuleVersion>
     <CapsuleSourcePath Condition="'$(CapsuleSourcePath)' == '' and Exists('$(MSBuildThisFileDirectory)../../build/Capsule.Build.props')">../..</CapsuleSourcePath>
     <RestoreSources Condition="'$(CapsuleSourcePath)' != ''">https://api.nuget.org/v3/index.json</RestoreSources>
-    <CapsuleEngineRepository Condition="'$(SolutionName)' == 'Capsule'">true</CapsuleEngineRepository>
+    <CapsuleEngineRepository Condition="'$(SolutionDir)' == '$([MSBuild]::NormalizeDirectory($(MSBuildThisFileDirectory)../..))'">true</CapsuleEngineRepository>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <Import Project="$(CapsuleSourcePath)/build/Capsule.Build.props" Condition="'$(CapsuleSourcePath)' != ''" />

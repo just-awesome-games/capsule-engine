@@ -9,11 +9,14 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// An invisible area that holds the camera inside it while the player stands in it, and hands back the
-/// bounds it found when the player leaves. The view slides in on a set curve and eases back out on the
-/// camera's own chase.
+/// bounds held before the first zone when the player leaves every zone. The view slides in on a set
+/// curve and eases back out on the camera's own chase.
 /// </summary>
 public sealed class CameraZone : Entity
 {
+    private static readonly BoundsTransition SlideIn = BoundsTransition.Eased(0.5f, Ease.InOutSine);
+
+    private bool _holdsPlayer;
     private Rect? _outside;
 
     /// <summary>The area's width and height in world units.</summary>
@@ -31,16 +34,29 @@ public sealed class CameraZone : Entity
         Add(area);
     }
 
+    // Stepping in from a neighbouring zone carries over the bounds that zone found.
     private void OnPlayerEntered(ColliderContact2D contact)
     {
-        _outside = Scene.Camera.Bounds;
-        Scene.Camera.EaseBounds(new Rect(Position, Size), 0.5f, Ease.InOutSine);
+        _outside = Scene.FindFirst<CameraZone>(zone => zone._holdsPlayer) is { } held ? held._outside : Scene.Camera.Bounds;
+        _holdsPlayer = true;
+        Scene.Camera.SetBounds(new Rect(Position, Size), SlideIn);
     }
 
-    // A scene tearing down with the player inside ends the contact after this zone has left it.
+    // Leaving into a zone the player still stands in hands the bounds to that zone. A scene tearing down
+    // with the player inside ends the contact after this zone has left it.
     private void OnPlayerExited(ColliderContact2D contact)
     {
-        if (SceneOrNull is { } scene)
+        _holdsPlayer = false;
+        if (SceneOrNull is not { } scene)
+        {
+            return;
+        }
+
+        if (scene.FindFirst<CameraZone>(zone => zone._holdsPlayer) is { } held)
+        {
+            scene.Camera.SetBounds(new Rect(held.Position, held.Size), SlideIn);
+        }
+        else
         {
             scene.Camera.Bounds = _outside;
         }

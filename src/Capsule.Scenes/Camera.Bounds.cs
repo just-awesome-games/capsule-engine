@@ -5,9 +5,9 @@ using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
-// The bounds: the rect the view settles inside, and the chase or timed transition that carries the view
-// into a changed one. The chase moves an opening edge out beyond the follow's own move and keeps pace
-// with a moving subject.
+// The bounds: the rect the view settles inside, and the transition that carries the view into a changed
+// one. The chase moves an opening edge out beyond the follow's own move and keeps pace with a moving
+// subject.
 public partial class Camera
 {
     // A chased edge this close to its target lands on it, in world units.
@@ -16,7 +16,9 @@ public partial class Camera
     private static readonly Rect Unbounded = new(
         float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
 
-    // The rect confining the view this step. It is Bounds once any change has eased in, and null leaves
+    private Rect? _bounds;
+
+    // The rect confining the view this step. It is Bounds once any change has landed, and null leaves
     // the view free.
     private Rect? _confine;
 
@@ -24,14 +26,14 @@ public partial class Camera
     // centres are already confined, and a frame between them is drawn unclamped.
     private Rect? _previousConfine;
 
-    // The transition EaseBounds started: whether one is running, its curve, its length, the seconds it
-    // has run and the rect it runs from. The rect is taken at its first settle, where the view it starts
-    // from is known. A length of zero snaps.
-    private bool _transitioning;
-    private Ease _transitionEase;
-    private float _transitionSeconds;
-    private float _transitionElapsed;
-    private Rect? _transitionFrom;
+    // The transition carrying the latest change, taken when the change was made.
+    private BoundsTransition _carry;
+
+    // Whether an eased change is running, the seconds it has run and the rect it runs from. The rect is
+    // taken at its first settle, where the view it starts from is known.
+    private bool _easing;
+    private float _easeElapsed;
+    private Rect? _easeFrom;
 
     /// <summary>
     /// The world rect the view stays inside, or null, the default, to leave it free. Each step settles
@@ -39,9 +41,10 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// Bounds win over the follow. A subject that leaves them leaves the frame. An infinite edge leaves
-    /// that side open. A change chases in over <see cref="BoundsSmoothTime"/>, capped by
-    /// <see cref="BoundsMaxSpeed"/>, or as <see cref="EaseBounds"/> times it. <see cref="Offset"/> and the
-    /// shake move the view after it is confined.
+    /// that side open. A change is carried by <see cref="BoundsTransition"/>, or by the transition
+    /// <see cref="SetBounds"/> passes. Setting the rect the bounds already hold changes nothing, and a
+    /// running transition carries on. <see cref="Offset"/> and the shake move the view after it is
+    /// confined.
     /// </remarks>
     /// <example>
     /// <code>
@@ -52,109 +55,61 @@ public partial class Camera
     /// </example>
     public Rect? Bounds
     {
-        get;
-
-        set
-        {
-            if (value is { } rect && (float.IsNaN(rect.Left) || float.IsNaN(rect.Top) || float.IsNaN(rect.Right) || float.IsNaN(rect.Bottom)))
-            {
-                throw new ArgumentException("Bounds has a NaN edge. Use an infinite edge to leave a side open.", nameof(value));
-            }
-
-            field = value;
-            _transitioning = false;
-        }
+        get => _bounds;
+        set => SetBounds(value, BoundsTransition);
     }
 
     /// <summary>
-    /// How long the view takes to settle into changed <see cref="Bounds"/>, in seconds, where zero, the
-    /// default, snaps.
+    /// How a change made through the <see cref="Bounds"/> setter is carried into the view, where
+    /// <see cref="BoundsTransition.Snap"/>, the default, moves it at once.
     /// </summary>
     /// <remarks>
-    /// An edge closing on the view starts at the view's own edge and pushes it. An opening edge moves out
-    /// from where it was, or from where the follow carries the view this step when that is further out.
-    /// The view then keeps pace with its subject and gains on it. <see cref="BoundsMaxSpeed"/> caps the
-    /// chase beyond that move. An edge opening to infinity, null bounds, <see cref="Teleport"/> and this
-    /// camera's first step in a scene take effect at once.
-    /// </remarks>
-    public float BoundsSmoothTime
-    {
-        get;
-
-        set
-        {
-            Guard.RequireSeconds(value, nameof(value));
-            field = value;
-        }
-    }
-
-    /// <summary>
-    /// The cap on the chase that carries the view into changed <see cref="Bounds"/>, in world units per
-    /// second, where zero, the default, leaves the chase uncapped.
-    /// </summary>
-    /// <remarks>
-    /// A closing edge pushes the view at no more than this speed. An opening edge moves out at up to this
-    /// speed beyond the follow's own move. It keeps pace with a moving subject and gains on it at this
-    /// speed. With <see cref="BoundsSmoothTime"/> at zero the chase runs at exactly this speed and lands
-    /// once it is within one step. With both set the smoothed chase runs no faster than this. With both at
-    /// zero a change snaps. <see cref="EaseBounds"/> ignores it.
+    /// A change takes the transition standing when it is made and keeps it until it lands or another
+    /// change replaces it. Setting this during a change leaves that change as it runs.
     /// </remarks>
     /// <example>
-    /// A scroll into each new screen at 2 units a step at 60 steps a second:
-    /// <code>
-    /// BoundsSmoothTime = 0f;
-    /// BoundsMaxSpeed = 120f;
-    /// </code>
+    /// <code>BoundsTransition = BoundsTransition.Smooth(0.35f);</code>
     /// </example>
-    public float BoundsMaxSpeed
-    {
-        get;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            field = value;
-        }
-    }
+    public BoundsTransition BoundsTransition { get; set; }
 
     /// <summary>
-    /// Moves the view into <paramref name="bounds"/> over <paramref name="seconds"/> along
-    /// <paramref name="ease"/>, in place of the <see cref="BoundsSmoothTime"/> and
-    /// <see cref="BoundsMaxSpeed"/> chase.
+    /// Changes <see cref="Bounds"/> to <paramref name="bounds"/>, carried by <paramref name="transition"/>
+    /// in place of the standing <see cref="BoundsTransition"/>.
     /// </summary>
     /// <remarks>
-    /// <see cref="Bounds"/> reads <paramref name="bounds"/> at once. The move starts from the view where it
-    /// stands, as the chase does. Setting <see cref="Bounds"/> and another call take over from wherever it
-    /// has reached. Zero seconds, <see cref="Teleport"/>, this camera's first step in a scene and an edge
-    /// opening to infinity land at once.
+    /// <see cref="Bounds"/> reads <paramref name="bounds"/> at once. The change takes over from wherever a
+    /// running one has reached. Passing the rect the bounds already hold changes nothing, and a running
+    /// transition carries on.
     /// </remarks>
     /// <example>
-    /// A boss arena framed on the same curve as a zoom tween that widens to show it, 30 ticks being half
-    /// a second at 60 steps a second:
-    /// <code>
-    /// Scene.Camera.EaseBounds(arena, 0.5f, Ease.InOutSine);
-    /// _zoom.Start(30, Ease.InOutSine);
-    /// </code>
+    /// A door that cuts to the next room under a camera that otherwise settles softly:
+    /// <code>Scene.Camera.SetBounds(nextRoom, BoundsTransition.Snap);</code>
     /// </example>
-    public void EaseBounds(Rect bounds, float seconds, Ease ease)
+    public void SetBounds(Rect? bounds, BoundsTransition transition)
     {
-        Guard.RequireSeconds(seconds, nameof(seconds));
-        Guard.RequireEase(ease, nameof(ease));
-        Bounds = bounds;
-        _transitioning = true;
-        _transitionEase = ease;
-        _transitionSeconds = seconds;
-        _transitionElapsed = 0f;
-        _transitionFrom = null;
+        if (bounds is { } rect && (float.IsNaN(rect.Left) || float.IsNaN(rect.Top) || float.IsNaN(rect.Right) || float.IsNaN(rect.Bottom)))
+        {
+            throw new ArgumentException("Bounds has a NaN edge. Use an infinite edge to leave a side open.", nameof(bounds));
+        }
+
+        if (bounds == _bounds)
+        {
+            return;
+        }
+
+        _bounds = bounds;
+        _carry = transition;
+        _easing = transition.IsEased;
+        _easeElapsed = 0f;
+        _easeFrom = null;
     }
 
     // What a frame confines to. Before the first settle it is Bounds as they stand. A frame confines only
     // against a rect that held for both steps it draws between.
     private Rect? DrawnBounds => !_settled ? Bounds : _confine == _previousConfine ? _confine : null;
 
-    // Moves the confining rect toward Bounds by the timed transition, the chase or a snap, and settles
-    // Center inside it at the span the frame draws on output. It runs after the follow. The bounds win
-    // over it.
+    // Moves the confining rect toward Bounds by the change's transition and settles Center inside it at the
+    // span the frame draws on output. It runs after the follow. The bounds win over it.
     private void StepBounds(float seconds, Vector2 output)
     {
         CameraView view = ToView();
@@ -164,35 +119,31 @@ public partial class Camera
         Vector2 previousHalf = Half(view with { Size = view.PreviousSize }, output);
         Rect standing = new(PreviousCenter - previousHalf, previousHalf * 2f);
 
-        if (_cut || !_settled)
+        bool moves = _settled && !_cut;
+        if (Bounds is { } target && moves && _easing)
         {
-            _transitioning = false;
-        }
-
-        if (Bounds is { } target && _transitioning && _transitionSeconds > 0f)
-        {
-            Rect from = _transitionFrom ??= Start(_confine ?? Unbounded, target, standing, Vector2.Zero);
-            _transitionElapsed += seconds;
+            Rect from = _easeFrom ??= Start(_confine ?? Unbounded, target, standing, Vector2.Zero);
+            _easeElapsed += seconds;
 
             // The step ending within half a step of the length lands. Float drift in the sum adds no step.
-            if (_transitionSeconds - _transitionElapsed < seconds / 2f)
+            if (_carry.Seconds - _easeElapsed < seconds / 2f)
             {
-                _transitioning = false;
+                _easing = false;
                 _confine = target;
             }
             else
             {
-                _confine = Along(from, target, Easing.Apply(_transitionEase, _transitionElapsed / _transitionSeconds));
+                _confine = Along(from, target, Easing.Apply(_carry.Ease, _easeElapsed / _carry.Seconds));
             }
         }
-        else if (Bounds is { } chased && !_transitioning && _settled && !_cut && (BoundsSmoothTime > 0f || BoundsMaxSpeed > 0f))
+        else if (Bounds is { } chased && moves && _carry.IsChase)
         {
             Rect from = Start(_confine ?? Unbounded, chased, standing, _followMove);
-            _confine = Chase(from, chased, seconds / (BoundsSmoothTime + seconds), BoundsMaxSpeed * seconds);
+            _confine = Chase(from, chased, seconds / (_carry.Seconds + seconds), _carry.MaxSpeed * seconds);
         }
         else
         {
-            _transitioning = false;
+            _easing = false;
 
             // A snap confines the step's first frame too. The frame does not sweep in from outside.
             if (!_settled || _confine != Bounds)
